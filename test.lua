@@ -98,6 +98,8 @@ local State = {
     bossRushTask = nil,
     currentBossPath = nil,
     BossRushPathSwitcher = 1,
+    lastBossRushScan = 0,
+    currentBossRushPath = nil,
     SelectedRaritiesToSell = {},
     currentSlot = 1,
     slotLastFailTime = {},
@@ -232,7 +234,7 @@ local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ Fixed Webhook bugs, + Most likely fixed boss rush?, + Added 1x/2x/3x speed, + fixed auto ultimate trying to use other peoples ults")
+local Label1 = UpdateLogTab:CreateLabel("+ Fixed Webhook bugs, + Most likely fixed boss rush?, + Added 1x/2x/3x speed, + fixed auto ultimate trying to use other peoples ults, + added soul fragments to auto merchant")
 local Label2 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
 --//FUNCTIONS\\--
@@ -672,25 +674,58 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
     end
 end
 
-local function getPathAverages()
-    local avg = {}
-    for i = 1, 4 do
-        local folder = Services.Workspace.WayPoint:WaitForChild("P" .. i)
-        local total, count = Vector3.zero, 0
+--boss rush
 
-        for _, part in ipairs(folder:GetChildren()) do
-            if part:IsA("BasePart") then
-                total = total + part.Position
-                count = count + 1
-            end
-        end
-
-        avg["P" .. i] = count > 0 and total / count or Vector3.zero
-    end
-    return avg
+local function getBossRushWaypoints(pathNum)
+    local pathFolder = Services.Workspace.WayPoint:FindFirstChild("P" .. pathNum)
+    return pathFolder and pathFolder:GetChildren() or {}
 end
 
---[[local function countPartsOnPath(folder, pathFolder)
+local function scanBossRushPaths()
+    local pathCounts = {0, 0, 0, 0}
+    
+    for _, enemy in pairs(Services.Workspace.Agent.EnemyT:GetChildren()) do
+        if enemy:IsA("BasePart") then
+            local closestPath = nil
+            local closestDist = math.huge
+            
+            -- Check distance to each path's waypoints
+            for pathNum = 1, 4 do
+                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
+                    local dist = (enemy.Position - waypoint.Position).Magnitude
+                    if dist < closestDist and dist < 25 then
+                        closestDist = dist
+                        closestPath = pathNum
+                    end
+                end
+            end
+            
+            if closestPath then
+                pathCounts[closestPath] = pathCounts[closestPath] + 1
+            end
+        end
+    end
+    return pathCounts
+end
+
+local function getBestBossRushPath(pathCounts)
+    local bestPath = 1
+    local maxEnemies = pathCounts[1]
+    
+    for i = 2, 4 do
+        if pathCounts[i] > maxEnemies then
+            maxEnemies = pathCounts[i]
+            bestPath = i
+        end
+    end
+    return bestPath, maxEnemies
+end
+
+
+
+
+
+local function countPartsOnPath(folder, pathFolder)
     local count = 0
     for _, part in ipairs(folder:GetChildren()) do
         if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
@@ -703,37 +738,6 @@ end
         end
     end
     return count
-end--]]
-
-local function countPartsOnPath(folder, pathFolder)
-    local count = 0
-    for _, part in ipairs(folder:GetChildren()) do
-        if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
-            local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
-            local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
-            local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
-            -- Tighter tolerance for boss rush (harder detection)
-            if distToStart + distToEnd <= totalDist + 10 then
-                count = count + 1
-            end
-        end
-    end
-    return count
-end
-
-local function nearestPath(pos)
-    local avg = getPathAverages()
-    local best, dist = nil, math.huge
-
-    for name, center in pairs(avg) do
-        local d = (pos - center).Magnitude
-        if d < dist then
-            dist = d
-            best = name
-        end
-    end
-
-    return best
 end
 
 local function getBestPath()
@@ -752,31 +756,6 @@ local function getBestPath()
     end
     return bestPath
 end
-
-local function getBestBossRushPath()
-  local bestPath, lowestUnits = nil, math.huge
-    
-    -- Check all 4 paths for boss rush
-    for i = 1, 4 do
-        local pathName = "P" .. i
-        local pathFolder = Services.Workspace:WaitForChild("WayPoint"):FindFirstChild(pathName)
-        if pathFolder then
-            local unitCount = countPartsOnPath(Services.Workspace.Agent.UnitT, pathFolder)
-            local enemyCount = countPartsOnPath(Services.Workspace.Agent.EnemyT, pathFolder)
-            
-            
-            -- Only switch if there are enemies on a path
-            if enemyCount > 0 and unitCount < lowestUnits then
-                lowestUnits = unitCount
-                bestPath = i
-            end
-        end
-    end
-    
-    return bestPath
-end
-
-
 
 local function startInfinityCastleLogic()
     if State.infinityCastleTask then task.cancel(State.infinityCastleTask) end
@@ -798,52 +777,12 @@ local function startInfinityCastleLogic()
     end)
 end
 
-local function startBossRushLogic()
-    if isInLobby() then return end
-    if State.bossRushTask then task.cancel(State.bossRushTask) end
-    State.bossRushTask = task.spawn(function()
-        local currentPath = 1
-        
-        while State.autoPlayBossRushEnabled do
-            local success, error = pcall(function()
-                -- Get the interval from the slider
-                local switchInterval = State.BossRushPathSwitcher or 1
-                
-                -- Switch to the current path
-                notify("🚀 Boss Rush switching to path: ", currentPath)
-                State.currentBossPath = currentPath
-                Remotes.SelectWay:FireServer(currentPath)
-                
-                -- Cycle to next path (1 -> 2 -> 3 -> 4 -> 1)
-                currentPath = currentPath + 1
-                if currentPath > 4 then
-                    currentPath = 1
-                end
-                
-            end)
-            
-            if not success then warn("❌ Boss Rush error:", error) end
-            
-            -- Wait for the user-defined interval
-            task.wait(State.BossRushPathSwitcher or 1)
-        end
-    end)
-end
-
 local function stopInfinityCastleLogic()
     if State.infinityCastleTask then
         task.cancel(State.infinityCastleTask)
         State.infinityCastleTask = nil
     end
     State.currentPath = nil
-end
-
-local function stopBossRushLogic()
-    if State.bossRushTask then
-        task.cancel(State.bossRushTask)
-        State.bossRushTask = nil
-    end
-    State.currentBossPath = nil
 end
 
 local function isWantedChallengeRewardPresent()
@@ -2193,7 +2132,7 @@ local Toggle = LobbyTab:CreateToggle({
 
     local JoinerSection0 = JoinerTab:CreateSection("🤖 Boss Rush Joiner 🤖")
 
-       local Toggle = JoinerTab:CreateToggle({
+    local Toggle = JoinerTab:CreateToggle({
     Name = "Boss Rush Joiner",
     CurrentValue = false,
     Flag = "AutoBossRushToggle",
@@ -2207,14 +2146,27 @@ local Toggle = LobbyTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoPlayBossRush",
     Callback = function(Value)
-        State.autoPlayBossRushEnabled = Value
-         if State.autoPlayBossRushEnabled then
-            startBossRushLogic()
-        else
-            stopBossRushLogic()
-        end
+        State.autoPlayBossRushEnabled = Value  
     end,
     })
+
+    RunService.Heartbeat:Connect(function()
+    if isInLobby() then return end
+    if not State.autoPlayBossRushEnabled then return end
+    
+    if tick() - State.lastBossRushScan > 0.5 then
+        local pathCounts = scanBossRushPaths()
+        local bestPath, enemyCount = getBestBossRushPath(pathCounts)
+        
+        if bestPath ~= State.currentBossPath and enemyCount > 0 then
+            Remotes.SelectWay:FireServer(bestPath)
+            State.currentBossPath = bestPath
+            print("Switched to path", bestPath, "with", enemyCount, "enemies")
+        end
+        
+        State.lastBossRushScan = tick()
+    end
+end)
 
     local BossRushSlider = JoinerTab:CreateSlider({
    Name = "Switch paths every x seconds",
