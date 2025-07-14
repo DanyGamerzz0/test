@@ -2136,7 +2136,7 @@ local Toggle = LobbyTab:CreateToggle({
 
      local MerchantSelectorDropdown = LobbyTab:CreateDropdown({
     Name = "Select Items To Purchase",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal"},
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "MerchantPurchaseSelector",
