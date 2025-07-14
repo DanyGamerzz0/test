@@ -141,7 +141,7 @@ local Window = Rayfield:CreateWindow({
    Name = "LixHub - [🩸TYBW] Anime Rangers X",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Anime Rangers X",
-   LoadingSubtitle = "v0.0.3",
+   LoadingSubtitle = "v0.0.4",
    ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
@@ -225,14 +225,14 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection("13/07/2025")
+local UpdateLogSection = UpdateLogTab:CreateSection("14/07/2025")
 local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 
 --//DIVIDERS\\--
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("Too much to list, check it out for yourself - enjoy")
+local Label1 = UpdateLogTab:CreateLabel("+ Fixed Webhook bugs, + Most likely fixed boss rush?, + Added 1x/2x/3x speed, + fixed auto ultimate trying to use other peoples ults")
 local Label2 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
 --//FUNCTIONS\\--
@@ -1439,9 +1439,10 @@ local function getUnitsWithUltimates()
                 if infoFolder then
                     local activeAbility = infoFolder:FindFirstChild("ActiveAbility")
                     local targetObject = infoFolder:FindFirstChild("TargetObject")
+                    local ownerValue = infoFolder:FindFirstChild("Owner")
 
-                    if activeAbility and activeAbility:IsA("StringValue") and targetObject and targetObject:IsA("ObjectValue") then
-                        if activeAbility.Value ~= "" and targetObject.Value ~= nil then
+                    if activeAbility and activeAbility:IsA("StringValue") and targetObject and targetObject:IsA("ObjectValue") and ownerValue and ownerValue:IsA("StringValue") then
+                        if activeAbility.Value ~= "" and targetObject.Value ~= nil and ownerValue.Value == Services.Players.LocalPlayer.Name then
                             table.insert(unitsWithUltimates, {
                                 part = part,
                                 abilityName = activeAbility.Value
@@ -2236,7 +2237,7 @@ local Toggle = LobbyTab:CreateToggle({
    CurrentValue = 10,
    Flag = "BossRushPathSwitcher", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
    Callback = function(Value)
-  
+        State.BossRushPathSwitcher = Value
    end,
 })
 
