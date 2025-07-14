@@ -804,7 +804,7 @@ local function startBossRushLogic()
     State.bossRushTask = task.spawn(function()
         while State.autoPlayBossRushEnabled do
             local success, error = pcall(function()
-                local bestPath = getBestPath()
+                local bestPath = getBestBossRushPath()
                 if bestPath and bestPath ~= State.currentBossPath then
                     notify("🚀 Boss Rush switching to path: ", bestPath)
                     State.currentBossPath = bestPath
