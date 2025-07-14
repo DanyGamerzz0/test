@@ -97,6 +97,7 @@ local State = {
     SelectedSpeedValue = {},
     bossRushTask = nil,
     currentBossPath = nil,
+    BossRushPathSwitcher = false,
     SelectedRaritiesToSell = {},
     currentSlot = 1,
     slotLastFailTime = {},
@@ -802,24 +803,31 @@ end
 local function startBossRushLogic()
     if State.bossRushTask then task.cancel(State.bossRushTask) end
     State.bossRushTask = task.spawn(function()
-        while State.autoBossRushEnabled do
+        local currentPath = 1
+        
+        while State.autoPlayBossRushEnabled do
             local success, error = pcall(function()
-                local bestPath = getBestBossRushPath()
-                if bestPath then
-                    if bestPath ~= State.currentBossPath then
-                        notify("🚀 Boss Rush switching to path: ", bestPath)
-                        State.currentBossPath = bestPath
-                        Remotes.SelectWay:FireServer(bestPath)
-                    else
-                        print("✅ Boss Rush staying on current path:", State.currentBossPath)
-                    end
-                else
-                    print("⏳ Boss Rush: No enemies found, staying on path:", State.currentBossPath or "None")
+                -- Get the interval from the slider
+                local switchInterval = State.BossRushPathSwitcher or 1
+                
+                -- Switch to the current path
+                notify("🚀 Boss Rush switching to path: ", currentPath)
+                State.currentBossPath = currentPath
+                Remotes.SelectWay:FireServer(currentPath)
+                
+                -- Cycle to next path (1 -> 2 -> 3 -> 4 -> 1)
+                currentPath = currentPath + 1
+                if currentPath > 4 then
+                    currentPath = 1
                 end
+                
+                print("✅ Boss Rush on path:", State.currentBossPath, "| Next path in", switchInterval, "seconds")
             end)
+            
             if not success then warn("❌ Boss Rush error:", error) end
-            -- Faster checking for boss rush (more reactive to enemy swarms)
-            task.wait(1.5)
+            
+            -- Wait for the user-defined interval
+            task.wait(State.BossRushPathSwitcher or 1)
         end
     end)
 end
@@ -2219,45 +2227,17 @@ local Toggle = LobbyTab:CreateToggle({
     end,
     })
 
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if isInLobby() then return end
-        if State.autoPlayBossRushEnabled then
-            local enemyCounts = {P1 = 0, P2 = 0, P3 = 0, P4 = 0}
-            local towerCounts = {P1 = 0, P2 = 0, P3 = 0, P4 = 0}
-
-            for _, enemy in ipairs(Services.Workspace.Agent.EnemyT:GetChildren()) do
-                if enemy:IsA("BasePart") then
-                    local path = nearestPath(enemy.Position)
-                    if path then enemyCounts[path] = enemyCounts[path] + 1 end
-                end
-            end
-
-            for _, tower in ipairs(Services.Workspace.Agent.UnitT:GetChildren()) do
-                if tower:IsA("BasePart") then
-                    local path = nearestPath(tower.Position)
-                    if path then towerCounts[path] = towerCounts[path] + 1 end
-                end
-            end
-
-            local bestPathIndex = 1
-            local highestScore = -math.huge
-
-            for i = 1, 4 do
-                local pathName = "P" .. i
-                local score = enemyCounts[pathName] - towerCounts[pathName]
-                if score > highestScore then
-                    highestScore = score
-                    bestPathIndex = i
-                end
-            end
-
-            Remotes.SelectWay:FireServer(bestPathIndex)
-        end
-    end
-end)
-
+    local BossRushSlider = Tab:CreateSlider({
+   Name = "Switch paths every x (seconds)",
+   Range = {0, 10},
+   Increment = 0.1,
+   Suffix = "Seconds",
+   CurrentValue = 10,
+   Flag = "BossRushPathSwitcher", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Value)
+  
+   end,
+})
 
     local JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
 
@@ -2543,8 +2523,9 @@ task.spawn(function()
 task.spawn(function()
     while true do
         if State.AutoSelectSpeed and State.SelectedSpeedValue then
-            local speedStr = tostring(State.SelectedSpeedValue)
-            local speedNum = tonumber(speedStr:gsub("x", ""))
+            local raw = State.SelectedSpeedValue
+            local value = type(raw) == "table" and raw[1] or raw
+            local speedNum = tonumber(tostring(value):gsub("x", ""))
             if speedNum then
                 game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("SpeedGamepass"):FireServer(speedNum)
             end
@@ -2552,6 +2533,7 @@ task.spawn(function()
         task.wait(1)
     end
 end)
+
 
      local Toggle = GameTab:CreateToggle({
     Name = "Auto Start",
