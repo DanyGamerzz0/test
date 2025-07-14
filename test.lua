@@ -2150,7 +2150,7 @@ local Toggle = LobbyTab:CreateToggle({
     end,
     })
 
-    RunService.Heartbeat:Connect(function()
+    game:GetService("RunService").Heartbeat:Connect(function()
     if isInLobby() then return end
     if not State.autoPlayBossRushEnabled then return end
     
