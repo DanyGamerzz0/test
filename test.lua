@@ -801,6 +801,7 @@ local function startInfinityCastleLogic()
 end
 
 local function startBossRushLogic()
+    if isInLobby() then return end
     if State.bossRushTask then task.cancel(State.bossRushTask) end
     State.bossRushTask = task.spawn(function()
         local currentPath = 1
@@ -2522,6 +2523,7 @@ task.spawn(function()
 
 task.spawn(function()
     while true do
+        if not isInLobby() then
         if State.AutoSelectSpeed and State.SelectedSpeedValue then
             local raw = State.SelectedSpeedValue
             local value = type(raw) == "table" and raw[1] or raw
@@ -2530,7 +2532,9 @@ task.spawn(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("SpeedGamepass"):FireServer(speedNum)
             end
         end
-        task.wait(1)
+        
+    end
+    task.wait(1)
     end
 end)
 
