@@ -93,6 +93,8 @@ local State = {
     enableDeleteMap = false,
     autoBossRushEnabled = false,
     autoPlayBossRushEnabled = false,
+    bossRushTask = nil,
+    currentBossPath = nil,
     SelectedRaritiesToSell = {},
     currentSlot = 1,
     slotLastFailTime = {},
@@ -661,21 +663,6 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
     end
 end
 
-local function countPartsOnPath(folder, pathFolder)
-    local count = 0
-    for _, part in ipairs(folder:GetChildren()) do
-        if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
-            local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
-            local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
-            local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
-            if distToStart + distToEnd <= totalDist + 15 then
-                count = count + 1
-            end
-        end
-    end
-    return count
-end
-
 local function getPathAverages()
     local avg = {}
     for i = 1, 4 do
@@ -692,6 +679,37 @@ local function getPathAverages()
         avg["P" .. i] = count > 0 and total / count or Vector3.zero
     end
     return avg
+end
+
+--[[local function countPartsOnPath(folder, pathFolder)
+    local count = 0
+    for _, part in ipairs(folder:GetChildren()) do
+        if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
+            local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
+            local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
+            local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
+            if distToStart + distToEnd <= totalDist + 15 then
+                count = count + 1
+            end
+        end
+    end
+    return count
+end--]]
+
+local function countPartsOnPath(folder, pathFolder)
+    local count = 0
+    for _, part in ipairs(folder:GetChildren()) do
+        if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
+            local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
+            local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
+            local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
+            -- Tighter tolerance for boss rush (harder detection)
+            if distToStart + distToEnd <= totalDist + 10 then
+                count = count + 1
+            end
+        end
+    end
+    return count
 end
 
 local function nearestPath(pos)
@@ -727,6 +745,32 @@ local function getBestPath()
     return bestPath
 end
 
+local function getBestBossRushPath()
+    local bestPath, lowestUnits = nil, math.huge
+    
+    -- Check all 4 paths for boss rush
+    for i = 1, 4 do
+        local pathName = "P" .. i
+        local pathFolder = Services.Workspace:WaitForChild("WayPoint"):FindFirstChild(pathName)
+        if pathFolder then
+            local unitCount = countPartsOnPath(Services.Workspace.Agent.UnitT, pathFolder)
+            local enemyCount = countPartsOnPath(Services.Workspace.Agent.EnemyT, pathFolder)
+            
+            print("🔎 Path " .. pathName .. ": " .. unitCount .. " units, " .. enemyCount .. " enemies")
+            
+            -- Prioritize paths with enemies but fewer units
+            if enemyCount > 0 and unitCount < lowestUnits then
+                lowestUnits = unitCount
+                bestPath = i
+            end
+        end
+    end
+    
+    return bestPath
+end
+
+
+
 local function startInfinityCastleLogic()
     if State.infinityCastleTask then task.cancel(State.infinityCastleTask) end
     State.infinityCastleTask = task.spawn(function()
@@ -747,6 +791,27 @@ local function startInfinityCastleLogic()
     end)
 end
 
+local function startBossRushLogic()
+    if State.bossRushTask then task.cancel(State.bossRushTask) end
+    State.bossRushTask = task.spawn(function()
+        while State.autoPlayBossRushEnabled do
+            local success, error = pcall(function()
+                local bestPath = getBestPath()
+                if bestPath and bestPath ~= State.currentBossPath then
+                    notify("🚀 Boss Rush switching to path: ", bestPath)
+                    State.currentBossPath = bestPath
+                    Remotes.SelectWay:FireServer(bestPath)
+                else
+                    print("✅ Boss Rush staying on current path:", State.currentBossPath or "None")
+                end
+            end)
+            if not success then warn("❌ Boss Rush error:", error) end
+            -- Faster checking for boss rush (more reactive to enemy swarms)
+            task.wait(1.5)
+        end
+    end)
+end
+
 local function stopInfinityCastleLogic()
     if State.infinityCastleTask then
         task.cancel(State.infinityCastleTask)
@@ -754,6 +819,15 @@ local function stopInfinityCastleLogic()
     end
     State.currentPath = nil
 end
+
+local function stopBossRushLogic()
+    if State.bossRushTask then
+        task.cancel(State.bossRushTask)
+        State.bossRushTask = nil
+    end
+    State.currentBossPath = nil
+end
+
 local function isWantedChallengeRewardPresent()
     for _, reward in ipairs(Data.wantedRewards) do
         local value = GameObjects.itemsFolder:FindFirstChild(reward)
@@ -2125,6 +2199,11 @@ local Toggle = LobbyTab:CreateToggle({
     Flag = "AutoPlayBossRush",
     Callback = function(Value)
         State.autoPlayBossRushEnabled = Value
+         if State.autoPlayBossRushEnabled then
+            startBossRushLogic()
+        else
+            stopBossRushLogic()
+        end
     end,
     })
 
@@ -2418,7 +2497,6 @@ task.spawn(function()
     Callback = function(Value)
         State.autoInfinityCastleEnabled = Value     
         if State.autoInfinityCastleEnabled then
-           -- notify("Infinity Castle", "Auto path switching enabled!")
             startInfinityCastleLogic()
         else
             stopInfinityCastleLogic()
