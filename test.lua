@@ -597,7 +597,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
     if messageType == "test" then
         data = {
             username = "LixHub Bot",
-            content = string.format("<@%s>", Config.DISCORD_USER_ID),
+            content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
                 title = "📢 LixHub Notification",
                 description = "🧪 Test webhook sent successfully",
@@ -744,7 +744,6 @@ local function getBestPath()
         if pathFolder then
             local unitCount = countPartsOnPath(Services.Workspace.Agent.UnitT, pathFolder)
             local enemyCount = countPartsOnPath(Services.Workspace.Agent.EnemyT, pathFolder)
-            print("🔎 Path " .. pathName .. ": " .. unitCount .. " units, " .. enemyCount .. " enemies")
             if enemyCount > 0 and unitCount < lowestUnits then
                 lowestUnits = unitCount
                 bestPath = i
@@ -765,7 +764,6 @@ local function getBestBossRushPath()
             local unitCount = countPartsOnPath(Services.Workspace.Agent.UnitT, pathFolder)
             local enemyCount = countPartsOnPath(Services.Workspace.Agent.EnemyT, pathFolder)
             
-            print("🔎 Path " .. pathName .. ": " .. unitCount .. " units, " .. enemyCount .. " enemies")
             
             -- Only switch if there are enemies on a path
             if enemyCount > 0 and unitCount < lowestUnits then
@@ -791,7 +789,7 @@ local function startInfinityCastleLogic()
                     State.currentPath = bestPath
                     Remotes.SelectWay:FireServer(bestPath)
                 else
-                    print("✅ Staying on current path:", State.currentPath or "None")
+
                 end
             end)
             if not success then warn("❌ Infinity Castle error:", error) end
@@ -822,7 +820,6 @@ local function startBossRushLogic()
                     currentPath = 1
                 end
                 
-                print("✅ Boss Rush on path:", State.currentBossPath, "| Next path in", switchInterval, "seconds")
             end)
             
             if not success then warn("❌ Boss Rush error:", error) end
@@ -1039,7 +1036,7 @@ end
     -- Auto join boss attack function
 local function autoJoinBossAttack()
     if not isInLobby() then return end
-    print("🏆 [Priority 0] Attempting to join Boss Attack...")
+    print("🏆 Attempting to join Boss Attack...")
     Remotes.PlayEvent:FireServer("Boss-Attack")
 end
 
@@ -1062,12 +1059,12 @@ local function checkAndExecuteHighestPriority()
         local currentTickets = getBossAttackTickets()
         if currentTickets > 0 then
             setProcessingState("Boss Attack Auto Join")
-            print("🏆 [Priority 0] Boss Attack tickets available:", currentTickets)
+            print("🏆 Boss Attack tickets available:", currentTickets)
             autoJoinBossAttack()
             task.delay(5, clearProcessingState)
             return
         else
-            print("🎫 [Priority 0] No boss attack tickets available, checking other priorities...")
+            print("🎫 No boss attack tickets available, checking other priorities...")
         end
     end
 
@@ -1175,7 +1172,7 @@ local function checkAndExecuteHighestPriority()
         if #prioritizedStageList > 0 then
             local stageName = prioritizedStageList[1]
             setProcessingState("Ranger Stage Auto Join")
-            print("🌍 [Priority 3] Attempting to join Ranger Stage:", stageName)
+            print("🌍 Attempting to join Ranger Stage:", stageName)
             autoJoinRangerStage(stageName)
             task.delay(5, clearProcessingState)
             return
@@ -1187,7 +1184,7 @@ local function checkAndExecuteHighestPriority()
 
         local internalWorldName = getInternalWorldName(State.selectedWorld)
         if internalWorldName then
-            print("📚 [Priority 4] Joining Story:", State.selectedWorld, "/", State.selectedChapter, "/", State.selectedDifficulty)
+            print("📚 Joining Story:", State.selectedWorld, "/", State.selectedChapter, "/", State.selectedDifficulty)
 
             local combinedWorld = internalWorldName .. "_" .. State.selectedChapter:gsub(" ", "")
 
@@ -1254,7 +1251,6 @@ local function getCurrentUpgradeLevel(unitName)
     if success then
         return upgradeLevel
     else
-        print("❌ Failed to get upgrade level for:", unitName)
         return 0
     end
 end
@@ -1313,10 +1309,8 @@ local function upgradeUnit(unitName)
     end)
 
     if success then
-        print("✅ Upgraded unit:", unitNameStr)
         return true
     else
-        warn("❌ Failed to upgrade unit:", unitNameStr)
         return false
     end
 end
@@ -1343,7 +1337,6 @@ local function leftToRightUpgrade()
             local currentLevel = getCurrentUpgradeLevel(unitNameStr)
 
             if currentLevel == "MAX" or tonumber(currentLevel) >= maxLevel then
-                print("🏆 Unit " .. unitNameStr .. " reached max level, moving to next slot")
                 State.currentUpgradeSlot = State.currentUpgradeSlot + 1
                 if State.currentUpgradeSlot > 6 then
                     State.currentUpgradeSlot = 1
@@ -1362,7 +1355,6 @@ local function leftToRightUpgrade()
                 end
             end
         else
-            print("⚠️ No valid unit in slot " .. State.currentUpgradeSlot .. ", moving to next")
             State.currentUpgradeSlot = State.currentUpgradeSlot + 1
             if State.currentUpgradeSlot > 6 then
                 State.currentUpgradeSlot = 1
@@ -1783,7 +1775,6 @@ local function GetAppliedCurses()
             local buffIcon = statFrame:FindFirstChild("BuffIconic")
             if icon and buffIcon then
                 local isGreen = buffIcon.Image == "rbxassetid://73853750530888"
-                print("[DEBUG] Found Curse Image:", icon.Image, "isGreen:", isGreen)
                 table.insert(results, {
                     image = icon.Image,
                     isGreen = isGreen,
@@ -1800,14 +1791,11 @@ local function CursesMatch(applied, selected)
         for _, name in ipairs(selected) do
             if curse.image == CurseImageIDs[name] and curse.isGreen then
                 matched = matched + 1
-                 print("[DEBUG] Matched:", name, "[", appliedId, "]")
                 break
             else
-                 print("[DEBUG] No Match:", name, "[", curse.image, "] vs [", CurseImageIDs[name], "]", "| Green:", curse.isGreen)
             end
         end
     end
-     print("[DEBUG] Total Matched:", matched)
     return matched >= 2
 end
 
@@ -1827,7 +1815,6 @@ local function StartAutoCurse(selectedCurses)
                     local applied = GetAppliedCurses()
 
                     if CursesMatch(applied, State.selectedCurses) then
-                        print("✅ 2 green selected curses found. Done.")
                         notify("Auto Curse", "Done! You can now turn off auto curse")
                         break
                     end
@@ -2798,36 +2785,43 @@ end)
     end,
     })
 
-    local Input = WebhookTab:CreateInput({
+local Input = WebhookTab:CreateInput({
     Name = "Input Webhook",
     CurrentValue = "",
     PlaceholderText = "Input Webhook...",
     RemoveTextAfterFocusLost = false,
     Flag = "WebhookInput",
     Callback = function(Text)
-        if string.find(Text, "https://discord.com/api/webhooks/") then
-            ValidWebhook = Text
-            Label5:Set("✅ Webhook URL set!")
-        elseif Text == "" then
-            Label5:Set("Awaiting Webhook Input...")
+        local trimmed = Text:match("^%s*(.-)%s*$") -- remove leading/trailing spaces
+
+        if trimmed == "" then
             ValidWebhook = nil
+            Label5:Set("Awaiting Webhook Input...")
+            return
+        end
+
+        local valid = trimmed:match("^https://discord%.com/api/webhooks/%d+/.+$")
+
+        if valid then
+            ValidWebhook = trimmed
+            Label5:Set("✅ Webhook URL set!")
         else
             ValidWebhook = nil
-            Label5:Set("❌ Invalid Webhook URL")
+            Label5:Set("❌ Invalid Webhook URL. Ensure it's complete and starts with 'https://discord.com/api/webhooks/'")
         end
     end,
-    })
+})
 
-    local Input = WebhookTab:CreateInput({
+local Input = WebhookTab:CreateInput({
     Name = "Input Discord ID (mention rares)",
     CurrentValue = "",
     PlaceholderText = "Input Discord ID...",
     RemoveTextAfterFocusLost = false,
     Flag = "WebhookInputUserID",
     Callback = function(Text)
-        Config.DISCORD_USER_ID = tostring(Text)
+        Config.DISCORD_USER_ID = tostring(Text):match("^%s*(.-)%s*$")
     end,
-    })
+})
 
      local TestWebhookButton = WebhookTab:CreateButton({
     Name = "Test webhook",
