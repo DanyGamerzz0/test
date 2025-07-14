@@ -2228,7 +2228,7 @@ local Toggle = LobbyTab:CreateToggle({
     end,
     })
 
-    local BossRushSlider = Tab:CreateSlider({
+    local BossRushSlider = JoinerTab:CreateSlider({
    Name = "Switch paths every x (seconds)",
    Range = {0, 10},
    Increment = 0.1,
@@ -2500,7 +2500,7 @@ task.spawn(function()
     local GameSection = GameTab:CreateSection("🎮 Game 🎮")
     local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
-    local Toggle = LobbyTab:CreateToggle({
+    local Toggle = GameTab:CreateToggle({
     Name = "Auto 1x/2x/3x Speed",
     CurrentValue = false,
     Flag = "AutoSpeedToggle",
@@ -2510,7 +2510,7 @@ task.spawn(function()
     end,
 })
 
-    local AutoSpeedDropdown = JoinerTab:CreateDropdown({
+    local AutoSpeedDropdown = GameTab:CreateDropdown({
     Name = "Select Auto Speed Value",
     Options = {"1x","2x","3x"},
     CurrentOption = {},
