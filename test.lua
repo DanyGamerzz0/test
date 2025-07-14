@@ -475,12 +475,16 @@ local function snapshotInventory()
 
     local itemInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Scrolling")
     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = true
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = false
     task.wait(1)
      Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = false
+     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = true
     local unitInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Unit")
     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = true
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Main.Visible = false
     task.wait(1)
     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = false
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Main.Visible = true
 
     for _, item in pairs(itemInventory:GetChildren()) do
         if item:IsA("TextButton") or item:IsA("ImageButton") then
@@ -2203,7 +2207,7 @@ end)--]]
 
 task.spawn(function()
     while true do
-        if State.autoPlayBossRushEnabled then
+        if State.autoPlayBossRushEnabled and State.gameRunning then
             local pathData = scanBossRushPaths()
             local bestPath, enemyCount, unitCount = getBestBossRushPath(pathData)
             
@@ -2216,18 +2220,6 @@ task.spawn(function()
         task.wait(0.5) -- More efficient than RunService for this use case
     end
 end)
-
-    local BossRushSlider = JoinerTab:CreateSlider({
-   Name = "Switch paths every x seconds",
-   Range = {0, 10},
-   Increment = 0.1,
-   Suffix = "Seconds",
-   CurrentValue = 10,
-   Flag = "BossRushPathSwitcher", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Value)
-        State.BossRushPathSwitcher = Value
-   end,
-})
 
     local JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
 
@@ -2606,7 +2598,7 @@ end)
     Callback = function(Value)
         State.autoUpgradeEnabled = Value
         if State.autoUpgradeEnabled then
-            State.gameRunning = true
+            --State.gameRunning = true
             resetUpgradeOrder()
             startAutoUpgrade()
         else
@@ -2635,7 +2627,7 @@ end)
         if State.autoUpgradeEnabled then
             stopAutoUpgrade()
             resetUpgradeOrder()
-            State.gameRunning = true
+           -- State.gameRunning = true
             task.wait(0.5)
             startAutoUpgrade()
         end
