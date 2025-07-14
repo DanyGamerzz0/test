@@ -97,7 +97,7 @@ local State = {
     SelectedSpeedValue = {},
     bossRushTask = nil,
     currentBossPath = nil,
-    BossRushPathSwitcher = false,
+    BossRushPathSwitcher = 1,
     SelectedRaritiesToSell = {},
     currentSlot = 1,
     slotLastFailTime = {},
@@ -2229,7 +2229,7 @@ local Toggle = LobbyTab:CreateToggle({
     })
 
     local BossRushSlider = JoinerTab:CreateSlider({
-   Name = "Switch paths every x (seconds)",
+   Name = "Switch paths every x seconds",
    Range = {0, 10},
    Increment = 0.1,
    Suffix = "Seconds",
@@ -2523,21 +2523,18 @@ task.spawn(function()
 
 task.spawn(function()
     while true do
-        if not isInLobby() then
         if State.AutoSelectSpeed and State.SelectedSpeedValue then
             local raw = State.SelectedSpeedValue
             local value = type(raw) == "table" and raw[1] or raw
-            local speedNum = tonumber(tostring(value):gsub("x", ""))
+            local clean = tostring(value):gsub("[^%d]", "")
+            local speedNum = tonumber(clean)
             if speedNum then
                 game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("SpeedGamepass"):FireServer(speedNum)
             end
         end
-        
-    end
-    task.wait(1)
+        task.wait(1)
     end
 end)
-
 
      local Toggle = GameTab:CreateToggle({
     Name = "Auto Start",
