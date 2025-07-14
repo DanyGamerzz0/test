@@ -2214,7 +2214,7 @@ task.spawn(function()
             if bestPath ~= State.currentBossPath and enemyCount > 0 then
                 Remotes.SelectWay:FireServer(bestPath)
                 State.currentBossPath = bestPath
-                print("Switched to path", bestPath, "- Enemies:", enemyCount, "Units:", unitCount)
+                --print("Switched to path", bestPath, "- Enemies:", enemyCount, "Units:", unitCount)
             end
         end
         task.wait(0.5) -- More efficient than RunService for this use case
