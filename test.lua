@@ -93,6 +93,8 @@ local State = {
     enableDeleteMap = false,
     autoBossRushEnabled = false,
     autoPlayBossRushEnabled = false,
+    AutoSelectSpeed = false,
+    SelectedSpeedValue = {},
     bossRushTask = nil,
     currentBossPath = nil,
     SelectedRaritiesToSell = {},
@@ -469,7 +471,13 @@ local function snapshotInventory()
     snapshot["Beach Balls"] = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value
 
     local itemInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Scrolling")
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = true
+    task.wait(1)
+     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = false
     local unitInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Unit")
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = true
+    task.wait(1)
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = false
 
     for _, item in pairs(itemInventory:GetChildren()) do
         if item:IsA("TextButton") or item:IsA("ImageButton") then
@@ -2507,12 +2515,46 @@ task.spawn(function()
     local GameSection = GameTab:CreateSection("🎮 Game 🎮")
     local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
+    local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto 1x/2x/3x Speed",
+    CurrentValue = false,
+    Flag = "AutoSpeedToggle",
+    Callback = function(Value)
+        State.AutoSelectSpeed = Value
+       
+    end,
+})
+
+    local AutoSpeedDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Auto Speed Value",
+    Options = {"1x","2x","3x"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoSpeedSelector",
+    Callback = function(Options)
+       State.SelectedSpeedValue = Options
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if State.AutoSelectSpeed and State.SelectedSpeedValue then
+            local speedStr = tostring(State.SelectedSpeedValue)
+            local speedNum = tonumber(speedStr:gsub("x", ""))
+            if speedNum then
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("SpeedGamepass"):FireServer(speedNum)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
      local Toggle = GameTab:CreateToggle({
     Name = "Auto Start",
     CurrentValue = false,
     Flag = "AutoStartToggle", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
     Callback = function(Value)
-            State.autoStartEnabled = Value
+        State.autoStartEnabled = Value
     end,
     })
 
