@@ -682,14 +682,19 @@ local function getBossRushWaypoints(pathNum)
 end
 
 local function scanBossRushPaths()
-    local pathCounts = {0, 0, 0, 0}
+    local pathData = {
+        [1] = {enemies = 0, units = 0},
+        [2] = {enemies = 0, units = 0},
+        [3] = {enemies = 0, units = 0},
+        [4] = {enemies = 0, units = 0}
+    }
     
+    -- Scan enemies
     for _, enemy in pairs(Services.Workspace.Agent.EnemyT:GetChildren()) do
         if enemy:IsA("BasePart") then
             local closestPath = nil
             local closestDist = math.huge
             
-            -- Check distance to each path's waypoints
             for pathNum = 1, 4 do
                 for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
                     local dist = (enemy.Position - waypoint.Position).Magnitude
@@ -701,24 +706,52 @@ local function scanBossRushPaths()
             end
             
             if closestPath then
-                pathCounts[closestPath] = pathCounts[closestPath] + 1
+                pathData[closestPath].enemies = pathData[closestPath].enemies + 1
             end
         end
     end
-    return pathCounts
-end
-
-local function getBestBossRushPath(pathCounts)
-    local bestPath = 1
-    local maxEnemies = pathCounts[1]
     
-    for i = 2, 4 do
-        if pathCounts[i] > maxEnemies then
-            maxEnemies = pathCounts[i]
-            bestPath = i
+    -- Scan player units
+    for _, unit in pairs(Services.Workspace.Agent.UnitT:GetChildren()) do
+        if unit:IsA("Part") then
+            local closestPath = nil
+            local closestDist = math.huge
+            
+            for pathNum = 1, 4 do
+                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
+                    local dist = (unit.Position - waypoint.Position).Magnitude
+                    if dist < closestDist and dist < 25 then
+                        closestDist = dist
+                        closestPath = pathNum
+                    end
+                end
+            end
+            
+            if closestPath then
+                pathData[closestPath].units = pathData[closestPath].units + 1
+            end
         end
     end
-    return bestPath, maxEnemies
+    
+    return pathData
+end
+
+local function getBestBossRushPath(pathData)
+    local bestPath = 1
+    local bestScore = -1
+    
+    for pathNum = 1, 4 do
+        local data = pathData[pathNum]
+        -- Score: enemies good, units bad
+        local score = data.enemies * 10 - data.units * 3
+        
+        if score > bestScore then
+            bestScore = score
+            bestPath = pathNum
+        end
+    end
+    
+    return bestPath, pathData[bestPath].enemies, pathData[bestPath].units
 end
 
 
@@ -2150,7 +2183,7 @@ local Toggle = LobbyTab:CreateToggle({
     end,
     })
 
-    game:GetService("RunService").Heartbeat:Connect(function()
+   --[[ game:GetService("RunService").Heartbeat:Connect(function()
     if isInLobby() then return end
     if not State.autoPlayBossRushEnabled then return end
     
@@ -2165,6 +2198,22 @@ local Toggle = LobbyTab:CreateToggle({
         end
         
         State.lastBossRushScan = tick()
+    end
+end)--]]
+
+task.spawn(function()
+    while true do
+        if State.autoPlayBossRushEnabled then
+            local pathData = scanBossRushPaths()
+            local bestPath, enemyCount, unitCount = getBestBossRushPath(pathData)
+            
+            if bestPath ~= currentPath and enemyCount > 0 then
+                Remotes.SelectWay:FireServer(bestPath)
+                State.currentBossPath = bestPath
+                print("Switched to path", bestPath, "- Enemies:", enemyCount, "Units:", unitCount)
+            end
+        end
+        task.wait(0.5) -- More efficient than RunService for this use case
     end
 end)
 
