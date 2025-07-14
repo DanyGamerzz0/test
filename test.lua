@@ -754,7 +754,7 @@ local function getBestPath()
 end
 
 local function getBestBossRushPath()
-    local bestPath, lowestUnits = nil, math.huge
+  local bestPath, lowestUnits = nil, math.huge
     
     -- Check all 4 paths for boss rush
     for i = 1, 4 do
@@ -766,7 +766,7 @@ local function getBestBossRushPath()
             
             print("🔎 Path " .. pathName .. ": " .. unitCount .. " units, " .. enemyCount .. " enemies")
             
-            -- Prioritize paths with enemies but fewer units
+            -- Only switch if there are enemies on a path
             if enemyCount > 0 and unitCount < lowestUnits then
                 lowestUnits = unitCount
                 bestPath = i
@@ -802,15 +802,19 @@ end
 local function startBossRushLogic()
     if State.bossRushTask then task.cancel(State.bossRushTask) end
     State.bossRushTask = task.spawn(function()
-        while State.autoPlayBossRushEnabled do
+        while State.autoBossRushEnabled do
             local success, error = pcall(function()
                 local bestPath = getBestBossRushPath()
-                if bestPath and bestPath ~= State.currentBossPath then
-                    notify("🚀 Boss Rush switching to path: ", bestPath)
-                    State.currentBossPath = bestPath
-                    Remotes.SelectWay:FireServer(bestPath)
+                if bestPath then
+                    if bestPath ~= State.currentBossPath then
+                        notify("🚀 Boss Rush switching to path: ", bestPath)
+                        State.currentBossPath = bestPath
+                        Remotes.SelectWay:FireServer(bestPath)
+                    else
+                        print("✅ Boss Rush staying on current path:", State.currentBossPath)
+                    end
                 else
-                    print("✅ Boss Rush staying on current path:", State.currentBossPath or "None")
+                    print("⏳ Boss Rush: No enemies found, staying on path:", State.currentBossPath or "None")
                 end
             end)
             if not success then warn("❌ Boss Rush error:", error) end
