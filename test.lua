@@ -758,24 +758,23 @@ end
     return bestPath, pathData[bestPath].enemies, pathData[bestPath].units
 end--]]
 
--- Add minimum thresholds
-local function getBestBossRushPath(pathData, availablePaths)
-    local bestPath = currentPath -- Default to current path
+local function getBestBossRushPath(pathData)
+    local bestPath = State.currentBossPath or 1 -- Default to current path
     local bestScore = -1
     
-    for _, pathNum in pairs(availablePaths) do
+    for pathNum = 1, 4 do
         local data = pathData[pathNum]
         local score = data.enemies * 10 - data.units * 3
         
-        -- Only switch if significantly better (reduces thrashing)
-        local threshold = (pathNum == currentPath) and 0 or 5
+        -- Only switch if significantly better (reduces path thrashing)
+        local threshold = (pathNum == State.currentBossPath) and 0 or 5
         if score > bestScore + threshold then
             bestScore = score
             bestPath = pathNum
         end
     end
     
-    return bestPath
+    return bestPath, pathData[bestPath].enemies, pathData[bestPath].units
 end
 
 local function countPartsOnPath(folder, pathFolder)
