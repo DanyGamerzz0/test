@@ -2086,7 +2086,7 @@ local RaidSelectorDropdown = LobbyTab:CreateDropdown({
 
     -- Map display names back to internal IDs
     for _, raid in ipairs(Data.raidData) do
-        for _, displayName in ipairs(selectedDisplayNames) do
+        for _, displayName in ipairs(Options) do
             if raid.InternalStages[displayName] then
                 table.insert(State.selectedRaidStages, raid.InternalStages[displayName])
             end
