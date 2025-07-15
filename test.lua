@@ -2075,48 +2075,6 @@ local CurseSelectorDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local RaidSelectorDropdown = LobbyTab:CreateDropdown({
-    Name = "Select Raid Stages To Join",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "RaidSelector",
-    Callback = function(Options)
-    State.selectedRaidStages = {}
-
-    -- Map display names back to internal IDs
-    for _, raid in ipairs(Data.raidData) do
-        for _, displayName in ipairs(Options) do
-            if raid.InternalStages[displayName] then
-                table.insert(State.selectedRaidStages, raid.InternalStages[displayName])
-            end
-        end
-    end
-    print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
-    end,
-})
-
-task.spawn(function()
-    -- Wait until raid data is available
-    while #Data.raidData == 0 do
-        task.wait(0.5)
-    end
-
-    -- Collect all display names for dropdown
-    local raidStageDisplayNames = {}
-    for _, raid in ipairs(Data.raidData) do
-        for _, displayName in ipairs(raid.DisplayStages) do
-            table.insert(raidStageDisplayNames, displayName)
-        end
-    end
-
-    -- Refresh the RaidSelectorDropdown with user-friendly names
-    RaidSelectorDropdown:Refresh(raidStageDisplayNames)
-
-    print("✅ Raid dropdown updated with", #raidStageDisplayNames, "options")
-end)
-
-
 local Button = LobbyTab:CreateButton({
         Name = "Return to lobby",
         Callback = function()
@@ -2131,7 +2089,7 @@ local Button = LobbyTab:CreateButton({
             for _, code in ipairs(Data.CurrentCodes) do
                 notify("Redeeming code: ", code, 2.5)
                 Remotes.Code:FireServer(code)
-                task.wait(0.25) -- small delay so server doesn't get flooded
+                task.wait(0.25)
             end
             notify("Redeem all valid codes", "Tried to redeem all codes!")
         end,
@@ -2141,7 +2099,6 @@ local Button = LobbyTab:CreateButton({
 
     local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
---//TOGGLES\\--
     local GameSection = GameTab:CreateSection("👥 Player 👥")
     local Toggle = GameTab:CreateToggle({
     Name = "Low Performance Mode",
@@ -2188,18 +2145,8 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
     Flag = "RaritySellerSelector",
     Callback = function(Options)
         State.SelectedRaritiesToSell = Options
-       -- notify("Auto Sell Rarities", "Selected Rarities: " .. table.concat(Options, ", "), 2)
     end,
 })
-
-  --[[  local Toggle = LobbyTab:CreateToggle({
-    Name = "Disable Summon UI",
-    CurrentValue = false,
-    Flag = "DisableSummoningUI",
-    Callback = function(Value)
-        State.DisableSummonUI = Value
-    end,
-    })--]]
 
 local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Purchase Merchant Items",
@@ -2217,7 +2164,6 @@ local Toggle = LobbyTab:CreateToggle({
     MultipleOptions = true,
     Flag = "MerchantPurchaseSelector",
     Callback = function(Options)
-        --notify("Auto Purcahse Merchant Items","Selected Items: " .. table.concat(Options, ", "), 2)
         Data.MerchantPurchaseTable = Options
     end,
     })
@@ -2287,24 +2233,6 @@ local Toggle = LobbyTab:CreateToggle({
     end,
     })
 
-   --[[ game:GetService("RunService").Heartbeat:Connect(function()
-    if isInLobby() then return end
-    if not State.autoPlayBossRushEnabled then return end
-    
-    if tick() - State.lastBossRushScan > 0.5 then
-        local pathCounts = scanBossRushPaths()
-        local bestPath, enemyCount = getBestBossRushPath(pathCounts)
-        
-        if bestPath ~= State.currentBossPath and enemyCount > 0 then
-            Remotes.SelectWay:FireServer(bestPath)
-            State.currentBossPath = bestPath
-            print("Switched to path", bestPath, "with", enemyCount, "enemies")
-        end
-        
-        State.lastBossRushScan = tick()
-    end
-end)--]]
-
 task.spawn(function()
     while true do
         if State.autoPlayBossRushEnabled and State.gameRunning then
@@ -2314,10 +2242,9 @@ task.spawn(function()
             if bestPath ~= State.currentBossPath and enemyCount > 0 then
                 Remotes.SelectWay:FireServer(bestPath)
                 State.currentBossPath = bestPath
-                --print("Switched to path", bestPath, "- Enemies:", enemyCount, "Units:", unitCount)
             end
         end
-        task.wait(0.5) -- More efficient than RunService for this use case
+        task.wait(0.5)
     end
 end)
 
@@ -2331,6 +2258,43 @@ end)
         State.autoBossEventEnabled = Value
     end,
     })
+
+    local RaidSelectorDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Stages To Join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RaidSelector",
+    Callback = function(Options)
+    State.selectedRaidStages = {}
+
+    for _, raid in ipairs(Data.raidData) do
+        for _, displayName in ipairs(Options) do
+            if raid.InternalStages[displayName] then
+                table.insert(State.selectedRaidStages, raid.InternalStages[displayName])
+            end
+        end
+    end
+    print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
+    end,
+})
+
+task.spawn(function()
+    while #Data.raidData == 0 do
+        task.wait(0.5)
+    end
+
+    local raidStageDisplayNames = {}
+    for _, raid in ipairs(Data.raidData) do
+        for _, displayName in ipairs(raid.DisplayStages) do
+            table.insert(raidStageDisplayNames, displayName)
+        end
+    end
+
+    RaidSelectorDropdown:Refresh(raidStageDisplayNames)
+
+    print("✅ Raid dropdown updated with", #raidStageDisplayNames, "options")
+end)
 
     local JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
 
@@ -2348,10 +2312,9 @@ end)
     Options = {},
     CurrentOption = {},
     MultipleOptions = false,
-    Flag = "StoryStageSelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Flag = "StoryStageSelector",
     Callback = function(Option)
         State.selectedWorld = Option[1]
-      --  notify("Auto Join Story","Selected Stage: "..Option[1], 2)
     end,
     })
 
@@ -2360,10 +2323,9 @@ end)
     Options = Config.chapters,
     CurrentOption = {},
     MultipleOptions = false,
-    Flag = "StoryChapterSelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Flag = "StoryChapterSelector", 
     Callback = function(Option)
         State.selectedChapter = Option[1]
-       -- notify("Auto Join Story","Selected Chapter: "..Option[1], 2)
     end,
     })
     local DifficultyDropdown = JoinerTab:CreateDropdown({
@@ -2371,10 +2333,9 @@ end)
     Options = Config.difficulties,
     CurrentOption = {},
     MultipleOptions = false,
-    Flag = "StoryDifficultySelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Flag = "StoryDifficultySelector", 
     Callback = function(Option)
         State.selectedDifficulty = Option[1]
---notify("Auto Join Story","Selected Difficulty: "..Option[1], 2)
     end,
     })
 
@@ -2430,7 +2391,7 @@ end)
     Name = "Select Challenge Rewards",
     Options = {"Dr. Megga Punk","Ranger Crystal","Stats Key","Perfect Stats Key","Trait Reroll","Cursed Finger"},
     CurrentOption = {},
-    MultipleOptions = true, -- Changed back to true for multiple selection
+    MultipleOptions = true,
     Flag = "ChallengeRewardSelector",
     Callback = function(options)
         Data.wantedRewards = options
@@ -2509,7 +2470,6 @@ end)
             for _, stage in ipairs(Data.availableRangerStages) do
                 if stage.DisplayName == selectedDisplay then
                 table.insert(Data.selectedRawStages, stage.RawName)
-               -- notify("Auto Ranger Stage","Selected Stages: " .. table.concat(Data.selectedRawStages, ", "), 2)
                 break
                 end
             end
@@ -2620,7 +2580,7 @@ end)
      local Toggle = GameTab:CreateToggle({
     Name = "Auto Start",
     CurrentValue = false,
-    Flag = "AutoStartToggle", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Flag = "AutoStartToggle",
     Callback = function(Value)
         State.autoStartEnabled = Value
     end,
@@ -2629,7 +2589,7 @@ end)
     local Toggle = GameTab:CreateToggle({
     Name = "Auto Next",
     CurrentValue = false,
-    Flag = "AutoNextToggle", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Flag = "AutoNextToggle",
     Callback = function(Value)
         State.autoNextEnabled = Value
         if State.autoNextEnabled then
@@ -2661,7 +2621,7 @@ end)
     local Toggle = GameTab:CreateToggle({
     Name = "Auto Lobby",
     CurrentValue = false,
-    Flag = "AutoLobbyToggle", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Flag = "AutoLobbyToggle", 
     Callback = function(Value)
         State.autoReturnEnabled = Value
         if State.hasGameEnded and State.autoReturnEnabled then
@@ -2673,7 +2633,7 @@ end)
     local Toggle = GameTab:CreateToggle({
     Name = "Disable End Screen UI(s)",
     CurrentValue = false,
-    Flag = "AutoDisableEndUI", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Flag = "AutoDisableEndUI",
     Callback = function(Value)
         State.autoDisableEndUI = Value
     end,
@@ -2885,7 +2845,7 @@ local Input = WebhookTab:CreateInput({
     RemoveTextAfterFocusLost = false,
     Flag = "WebhookInput",
     Callback = function(Text)
-        local trimmed = Text:match("^%s*(.-)%s*$") -- remove leading/trailing spaces
+        local trimmed = Text:match("^%s*(.-)%s*$")
 
         if trimmed == "" then
             ValidWebhook = nil
