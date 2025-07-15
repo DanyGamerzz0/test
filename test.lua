@@ -740,29 +740,27 @@ local function scanBossRushPaths()
     return pathData
 end
 
---[[local function getBestBossRushPath(pathData)
-    local bestPath = 1
-    local bestScore = -1
+local function getAvailablePaths()
+    local phase = Services.ReplicatedStorage:WaitForChild("Values"):WaitForChild("Game"):WaitForChild("BossRush"):WaitForChild("Fase").Value
     
-    for pathNum = 1, 4 do
-        local data = pathData[pathNum]
-        -- Score: enemies good, units bad
-        local score = data.enemies * 10 - data.units * 3
-        
-        if score > bestScore then
-            bestScore = score
-            bestPath = pathNum
-        end
+    if phase == 1 then
+        return {1}
+    elseif phase == 2 or phase == 3 then
+        return {1, 2}
+    elseif phase == 4 or phase == 5 or phase == 6 then
+        return {1, 2, 3}
+    else -- phase 7+
+        return {1, 2, 3, 4}
     end
-    
-    return bestPath, pathData[bestPath].enemies, pathData[bestPath].units
-end--]]
+end
 
 local function getBestBossRushPath(pathData)
-    local bestPath = State.currentBossPath or 1 -- Default to current path
+    local availablePaths = getAvailablePaths()
+    local bestPath = State.currentBossPath or 1
     local bestScore = -1
     
-    for pathNum = 1, 4 do
+    -- Only check available paths
+    for _, pathNum in pairs(availablePaths) do
         local data = pathData[pathNum]
         local score = data.enemies * 10 - data.units * 3
         
