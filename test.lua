@@ -63,6 +63,7 @@ local State = {
     unitNameSet = {},
     selectedPortals = {},
     selectedCurses = {},
+    selectedRaidStages = {},
     
     autoBossEventEnabled = false,
     autoJoinEnabled = false,
@@ -129,7 +130,9 @@ local Data = {
     capturedRewards = {},
     availableStories = {},
     availableRangerStages = {},
+    availableRaids = {},
     storyData = {},
+    raidData = {},
     worldDisplayNameMap = {},
     selectedChallengeWorlds = {},
     CurrentCodes = {"SorryRaids","RAIDS","BizzareUpdate2!","Sorry4Delays","BOSSTAKEOVER","Sorry4Quest","SorryDelay!!!","SummerEvent!","2xWeekEnd!","Sorry4EvoUnits","Sorry4AutoTraitRoll","!TYBW","!MattLovesARX2","!RaitoLovesARX","!BrandonTheBest","!FixBossRushShop","SmallFixs"},
@@ -342,12 +345,9 @@ Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
 end
 
 local function fetchStoryData()
-    Data.storyData = {}
-    local worldDisplayNameMap = {}    
-    local folder = game.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("World")
-        
+    Data.storyData = {}   
 
-        for _, moduleScript in ipairs(folder:GetChildren()) do
+        for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("World"):GetChildren()) do
             if moduleScript:IsA("ModuleScript") then
                 local success, data = pcall(function()
                     return require(moduleScript)
@@ -364,7 +364,6 @@ local function fetchStoryData()
                                     Key = key
                                 })
 
-                                worldDisplayNameMap[storyTable.Ani_Names] = storyTable.Name
                             end
                         end
                     end
@@ -374,8 +373,53 @@ local function fetchStoryData()
             end
         end
         
-        return Data.storyData, Data.worldDisplayNameMap
+        return Data.storyData
     end
+
+local function fetchRaidData()
+    Data.raidData = {}
+
+    for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("World"):GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local success, data = pcall(function()
+                return require(moduleScript)
+            end)
+
+            if success and typeof(data) == "table" then
+                for key, raidTable in pairs(data) do
+                    if typeof(raidTable) == "table" and raidTable.IsRaid == true then
+                        if raidTable.Name and raidTable.Levels then
+
+                            -- Build both display names and ID map
+                            local displayStages = {}
+                            local internalMap = {} -- displayName -> real ID
+
+                            for index, stage in ipairs(raidTable.Levels) do
+                                if stage.id then
+                                    local displayName = string.format("%s - Chapter %d", raidTable.Name, index)
+                                    table.insert(displayStages, displayName)
+                                    internalMap[displayName] = stage.id
+                                end
+                            end
+
+                            table.insert(Data.raidData, {
+                                SeriesName = raidTable.Name,
+                                DisplayStages = displayStages, -- For dropdown
+                                InternalStages = internalMap,  -- For ID lookup
+                                ModuleName = moduleScript.Name,
+                                Key = key
+                            })
+                        end
+                    end
+                end
+            else
+                print("Error loading " .. moduleScript.Name)
+            end
+        end
+    end
+    return Data.raidData
+end
+
 
 local function fetchRangerStageData(storyData)
     local folder = Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("Levels")
@@ -1882,6 +1926,9 @@ end)
         
         print("🔄 Fetching ranger stage data...")
         Data.availableRangerStages = fetchRangerStageData(Data.availableStories)
+
+        print("🔄 Fetching raid data...")
+        Data.availableRaids = fetchRaidData()
         
         print("✅ Data fetching complete!")
     end)
@@ -2028,6 +2075,46 @@ local CurseSelectorDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
+local RaidSelectorDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Raid Stages To Join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RaidSelector",
+    Callback = function(Options)
+    State.selectedRaidStages = {}
+
+    -- Map display names back to internal IDs
+    for _, raid in ipairs(Data.raidData) do
+        for _, displayName in ipairs(selectedDisplayNames) do
+            if raid.InternalStages[displayName] then
+                table.insert(State.selectedRaidStages, raid.InternalStages[displayName])
+            end
+        end
+    end
+    print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
+    end,
+})
+
+task.spawn(function()
+    -- Wait until raid data is available
+    while #Data.raidData == 0 do
+        task.wait(0.5)
+    end
+
+    -- Collect all display names for dropdown
+    local raidStageDisplayNames = {}
+    for _, raid in ipairs(Data.raidData) do
+        for _, displayName in ipairs(raid.DisplayStages) do
+            table.insert(raidStageDisplayNames, displayName)
+        end
+    end
+
+    -- Refresh the RaidSelectorDropdown with user-friendly names
+    RaidSelectorDropdown:Refresh(raidStageDisplayNames)
+
+    print("✅ Raid dropdown updated with", #raidStageDisplayNames, "options")
+end)
 
 
 local Button = LobbyTab:CreateButton({
