@@ -66,6 +66,7 @@ local State = {
     selectedRaidStages = {},
     
     autoBossEventEnabled = false,
+    autoJoinRaid = false,
     autoJoinEnabled = false,
     autoStartEnabled = false,
     autoRetryEnabled = false,
@@ -1194,6 +1195,23 @@ local function checkAndExecuteHighestPriority()
         return
     end
 
+    if State.autoJoinRaid then
+        if State.selectedRaidStages and #State.selectedRaidStages > 0 then
+            setProcessingState("Raid Auto Join")
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Create")
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Mode",{Mode = "Raids Stage"})
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter",{Chapter = State.selectedRaidStages})
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Submit")
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+            task.delay(5, clearProcessingState)
+            return
+        end
+    end
+
     -- priority 3: boss event auto join
     if State.autoBossEventEnabled then
     setProcessingState("Boss Event Auto Join")
@@ -2273,6 +2291,15 @@ end)
     end,
     })
 
+     local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Raid",
+    CurrentValue = false,
+    Flag = "AutoRaidToggle",
+    Callback = function(Value)
+        State.autoJoinRaid = Value
+    end,
+    })
+
     local RaidSelectorDropdown = JoinerTab:CreateDropdown({
     Name = "Select Raid Stages To Join",
     Options = {},
@@ -2507,8 +2534,15 @@ task.spawn(function()
 
     local JoinerSection5 = JoinerTab:CreateSection("💥 Boss Attack 💥")
 
-    local Label2 = JoinerTab:CreateLabel("Boss Tickets: "..Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.BossAttackTicket.Value, "ticket")
+    local Label2 = JoinerTab:CreateLabel("Boss Ticket(s): ", "ticket")
 
+
+    task.spawn(function()
+        while true do
+            Label2:Set("Boss Ticket(s): "..Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.BossAttackTicket.Value, "ticket")
+            task.wait(5)
+        end
+    end)
         local Toggle = JoinerTab:CreateToggle({
     Name = "Auto join boss attack",
     CurrentValue = false,
@@ -3001,7 +3035,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
                 return true
             end
             task.wait(1)
-            elapsed += 1
+            elapsed = elapsed + 1
         end
         return false
     end
@@ -3029,10 +3063,9 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
                     Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
                 end)
             end,
-            skipCheck = true -- No need to wait for gameRunning
+            skipCheck = true
         }
     }
-
     task.spawn(function()
         for _, action in ipairs(actions) do
             if action.enabled then
