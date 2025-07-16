@@ -2291,6 +2291,8 @@ end)
     end,
     })
 
+    local JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
+
      local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
     CurrentValue = false,
@@ -2306,17 +2308,17 @@ end)
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "RaidSelector",
-    Callback = function(Options)
-    State.selectedRaidStages = {}
+    Callback = function(selectedOption)
+        State.selectedRaidStages = {}
 
-    for _, raid in ipairs(Data.raidData) do
-        for _, displayName in ipairs(Options) do
-            if raid.InternalStages[displayName] then
-                table.insert(State.selectedRaidStages, raid.InternalStages[displayName])
+        for _, raid in ipairs(Data.raidData) do
+            if raid.InternalStages[selectedOption] then
+                table.insert(State.selectedRaidStages, raid.InternalStages[selectedOption])
+                break
             end
         end
-    end
-    print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
+
+        print("Selected raid stage (internal ID):", table.concat(State.selectedRaidStages, ", "))
     end,
 })
 
