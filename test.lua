@@ -739,7 +739,7 @@ local function scanBossRushPaths()
     
     -- Scan enemies
     for _, enemy in pairs(Services.Workspace.Agent.EnemyT:GetChildren()) do
-        if enemy:IsA("BasePart") then
+        if enemy:IsA("Part") then
             local closestPath = nil
             local closestDist = math.huge
             
@@ -1600,7 +1600,7 @@ local function getNextReadySlot()
     local checkedSlots = 0
     
     while checkedSlots < 6 do
-    task.wait(0.5)
+    task.wait(0.05)
     local slotToCheck = State.currentSlot
 
     local shouldSkip = false
