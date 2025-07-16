@@ -803,13 +803,27 @@ local function getBestBossRushPath(pathData)
     local bestPath = State.currentBossPath or 1
     local bestScore = -1
     
-    -- Only check available paths
+    -- Check if current path has too many units (force switch)
+    local currentPathData = pathData[State.currentBossPath or 1]
+    local unitCap = 6 -- Adjust this number based on your preference
+    
     for _, pathNum in pairs(availablePaths) do
         local data = pathData[pathNum]
         local score = data.enemies * 10 - data.units * 3
         
+        -- Bonus for having fewer units when current path is overcrowded
+        if currentPathData.units >= unitCap then
+            score = score + (unitCap - data.units) * 5 -- Bonus for paths with fewer units
+        end
+        
         -- Only switch if significantly better (reduces path thrashing)
         local threshold = (pathNum == State.currentBossPath) and 0 or 5
+        
+        -- Force switch if current path is overcrowded
+        if currentPathData.units >= unitCap and data.units < currentPathData.units then
+            threshold = -10 -- Make it easier to switch away from overcrowded paths
+        end
+        
         if score > bestScore + threshold then
             bestScore = score
             bestPath = pathNum
