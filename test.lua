@@ -2311,18 +2311,27 @@ local RaidSelectorDropdown = JoinerTab:CreateDropdown({
     Callback = function(Option)
         State.selectedRaidStages = {}
         
-        -- Since MultipleOptions is false, Option is a single value, not a table
+        -- Handle both table and string cases
+        local selectedOption
+        if type(Option) == "table" then
+            selectedOption = Option[1] -- Get first element if it's a table
+        else
+            selectedOption = Option
+        end
+        
+        print("Processing option:", selectedOption, "Type:", type(Option))
+        
         -- Find which raid contains this display name
         for _, raid in ipairs(Data.raidData) do
-            if raid.InternalStages[Option] then
-                table.insert(State.selectedRaidStages, raid.InternalStages[Option])
-                print("Found raid stage:", Option, "-> ID:", raid.InternalStages[Option])
-                break -- Since we only have one option, we can break after finding it
+            if raid.InternalStages[selectedOption] then
+                table.insert(State.selectedRaidStages, raid.InternalStages[selectedOption])
+                print("Found raid stage:", selectedOption, "-> ID:", raid.InternalStages[selectedOption])
+                break
             end
         end
         
         if #State.selectedRaidStages == 0 then
-            print("❌ No internal ID found for:", Option)
+            print("❌ No internal ID found for:", selectedOption)
         else
             print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
         end
