@@ -2309,8 +2309,6 @@ end)
     MultipleOptions = false,
     Flag = "RaidSelector",
     Callback = function(selectedOption)
-        State.selectedRaidStages = {}
-
         for _, raid in ipairs(Data.raidData) do
             if raid.InternalStages[selectedOption] then
                 table.insert(State.selectedRaidStages, raid.InternalStages[selectedOption])
