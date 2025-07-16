@@ -1477,7 +1477,7 @@ local function getUnitsWithUltimates()
                 local infoFolder = part:FindFirstChild("Info")
                 if infoFolder then
                     local activeAbility = infoFolder:FindFirstChild("ActiveAbility")
-                    local targetObject = infoFolder:FindFirstChild("TargetObject")
+                    local targetObject = infoFolder:FindFirstChild("TargetAt")
                     local ownerValue = infoFolder:FindFirstChild("Owner")
 
                     if activeAbility and activeAbility:IsA("StringValue") and targetObject and targetObject:IsA("ObjectValue") and ownerValue and ownerValue:IsA("StringValue") then
@@ -2992,18 +2992,64 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
             return
         end
 
-    if State.autoRetryEnabled then
-        startRetryLoop()
-    end
-    if State.autoNextEnabled then
-        startNextLoop()
-    end
-    if State.autoReturnEnabled then
-         task.delay(2, function()
-                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-            end)
+        local TIMEOUT = 10 -- seconds to wait for gameRunning per step
+
+    local function waitForGameRunning(timeout)
+        local elapsed = 0
+        while elapsed < timeout do
+            if State.gameRunning then
+                return true
+            end
+            task.wait(1)
+            elapsed += 1
+        end
+        return false
     end
 
+    local actions = {
+        {
+            enabled = State.autoRetryEnabled,
+            func = function()
+                print("Starting Auto Retry...")
+                startRetryLoop()
+            end
+        },
+        {
+            enabled = State.autoNextEnabled,
+            func = function()
+                print("Starting Auto Next...")
+                startNextLoop()
+            end
+        },
+        {
+            enabled = State.autoReturnEnabled,
+            func = function()
+                print("Teleporting to Lobby...")
+                task.delay(2, function()
+                    Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+                end)
+            end,
+            skipCheck = true -- No need to wait for gameRunning
+        }
+    }
+
+    task.spawn(function()
+        for _, action in ipairs(actions) do
+            if action.enabled then
+                action.func()
+                if not action.skipCheck then
+                    local success = waitForGameRunning(TIMEOUT)
+                    if success then
+                        print("Game restarted successfully. Stopping sequence.")
+                        return
+                    else
+                        print("Action failed to restart game, moving to next...")
+                    end
+                end
+            end
+        end
+        print("All actions tried. Returning to lobby if enabled.")
+    end)
 end)
 
 Rayfield:LoadConfiguration()
