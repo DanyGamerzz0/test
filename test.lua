@@ -147,7 +147,7 @@ local Window = Rayfield:CreateWindow({
    Name = "LixHub - [🩸TYBW] Anime Rangers X",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Anime Rangers X",
-   LoadingSubtitle = "v0.0.4",
+   LoadingSubtitle = "v0.0.5",
    ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
@@ -231,14 +231,14 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection("14/07/2025")
+local UpdateLogSection = UpdateLogTab:CreateSection("16/07/2025")
 local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 
 --//DIVIDERS\\--
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ Fixed Webhook bugs, + Most likely fixed boss rush?, + Added 1x/2x/3x speed, + fixed auto ultimate trying to use other peoples ults, + added soul fragments to auto merchant")
+local Label1 = UpdateLogTab:CreateLabel("+ Improved Boss Rush Autoplay by a lot, + Added Auto Join Raid, + Improved Endgame toggles (auto retry/next/lobby), + Auto Ultimate should only fire if theres a valid target in range")
 local Label2 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
 --//FUNCTIONS\\--
@@ -2312,14 +2312,20 @@ local RaidSelectorDropdown = JoinerTab:CreateDropdown({
         State.selectedRaidStages = {}
         
         -- Since MultipleOptions is false, Option is a single value, not a table
+        -- Find which raid contains this display name
         for _, raid in ipairs(Data.raidData) do
             if raid.InternalStages[Option] then
                 table.insert(State.selectedRaidStages, raid.InternalStages[Option])
+                print("Found raid stage:", Option, "-> ID:", raid.InternalStages[Option])
                 break -- Since we only have one option, we can break after finding it
             end
         end
         
-        print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
+        if #State.selectedRaidStages == 0 then
+            print("❌ No internal ID found for:", Option)
+        else
+            print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
+        end
     end,
 })
 
