@@ -805,7 +805,7 @@ local function getBestBossRushPath(pathData)
     
     -- Check if current path has too many units (force switch)
     local currentPathData = pathData[State.currentBossPath or 1]
-    local unitCap = 6 -- Adjust this number based on your preference
+    local unitCap = 4 -- Adjust this number based on your preference
     
     for _, pathNum in pairs(availablePaths) do
         local data = pathData[pathNum]
