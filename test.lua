@@ -1973,7 +1973,6 @@ local function deleteUnit(unitName)
                 if info then
                     local unitNameValue = info:FindFirstChild("UnitName")
                     if unitNameValue and unitNameValue.Value == unitName then
-                        -- Found the matching unit, delete it
                         local args = {part, nil}
                         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("DeleteUnit"):FireServer(unpack(args))
                         return true
@@ -1992,7 +1991,9 @@ local function deleteUnit(unitName)
         return false
     end
 end
+
 local lastCheckedLevels = {}
+local processedUnits = {}
 
 local function checkAndRefreshUnits()
     for slot = 1, 6 do
@@ -2009,6 +2010,11 @@ local function checkAndRefreshUnits()
             -- Create unique key for this slot
             local slotKey = "slot_" .. slot
             
+            -- Skip if we already processed this unit this game
+            if processedUnits[slotKey] then
+                continue
+            end
+            
             -- Skip if we already processed this level for this slot
             if lastCheckedLevels[slotKey] == currentLevel then
                 continue
@@ -2021,10 +2027,14 @@ local function checkAndRefreshUnits()
             if currentLevel == "MAX" and targetLevel <= 9 then
                 print("Slot " .. slot .. " (" .. unitName .. ") reached MAX level, deleting...")
                 deleteUnit(unitName)
+                -- Mark this unit as processed so it won't be touched again
+                processedUnits[slotKey] = true
             -- Handle numeric levels
             elseif type(currentLevel) == "number" and currentLevel >= targetLevel then
                 print("Slot " .. slot .. " (" .. unitName .. ") reached level " .. currentLevel .. ", deleting...")
                 deleteUnit(unitName)
+                -- Mark this unit as processed so it won't be touched again
+                processedUnits[slotKey] = true
             end
         else
             -- Clear last checked level if no unit in slot
@@ -3249,6 +3259,9 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         stopRetryLoop()
         stopNextLoop()
         
+
+        lastCheckedLevels = {}
+        processedUnits = {}
 
             State.retryAttempted = false
             State.NextAttempted = false
