@@ -80,6 +80,10 @@ local State = {
     AutoClaimQuests = false,
     AutoClaimMilestones = false,
     AutoPurchaseMerchant = false,
+    AutoPurchaseRCShop = false,
+    AutoPurchaseBossEvent = false,
+    AutoPurchaseBossRush = false,
+    AutoPurchaseRaid = false,
     challengeAutoReturnEnabled = false,
     autoBossAttackEnabled = false,
     autoReturnBossTicketResetEnabled = false,
@@ -128,6 +132,10 @@ local State = {
 local Data = {
     selectedRawStages = {},
     MerchantPurchaseTable = {},
+    RCExchangePurchaseTable = {},
+    BossEventPurchaseTable = {},
+    BossRushPurchaseTable = {},
+    RaidPurchaseTable = {},
     rangerStages = {},
     wantedRewards = {},
     capturedRewards = {},
@@ -226,6 +234,7 @@ local Window = Rayfield:CreateWindow({
 
 local UpdateLogTab = Window:CreateTab("Update Log", "scroll")
 local LobbyTab = Window:CreateTab("Lobby", "tv")
+local ShopTab = Window:CreateTab("Shop", "shopping-cart")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local AutoPlayTab = Window:CreateTab("AutoPlay", "joystick")
@@ -643,6 +652,31 @@ local function buildRewardsText()
     return rewardsText, detectedRewards, detectedUnits
 end
 
+local function getUnitNameFromSlot(slotNumber)
+    local success, unitInstance = pcall(function()
+        return Services.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
+end)
+
+    if success and unitInstance then
+        return typeof(unitInstance) == "Instance" and unitInstance.Name or tostring(unitInstance)
+    end
+
+    return nil
+end
+
+local function getOrderedUnits()
+    local units = {}
+    for i = 1, 6 do
+        local name = getUnitNameFromSlot(i)
+        if name then
+            table.insert(units, string.format("%d️⃣ %s", i, name)) -- Adds emoji for slot
+        else
+            table.insert(units, string.format("%d️⃣ Empty", i))
+        end
+    end
+    return table.concat(units, "\n")
+end
+
 local function sendWebhook(messageType, rewards, clearTime, matchResult)
     if not ValidWebhook then return end
 
@@ -673,6 +707,8 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
+        local orderedUnits = getOrderedUnits()
+
         data = {
             username = "LixHub Bot",
             content = shouldPing and pingText or nil,
@@ -684,6 +720,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                     { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
                     { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
                     { name = "🏆 Rewards", value = rewardsText, inline = false },
+                    { name = "📦 Units Loadout", value = orderedUnits, inline = false },
                     shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
                     { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
                 },
@@ -1263,15 +1300,14 @@ local function checkAndExecuteHighestPriority()
              handleTeamEquipping("Raid")
 
             game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Create")
-            task.wait(1)
+            task.wait(0.2)
             game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Mode",{Mode = "Raids Stage"})
-            task.wait(1)
+            task.wait(0.2)
             game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter",{Chapter = State.selectedRaidStages[1]})
-            task.wait(1)
+            task.wait(0.2)
             game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Submit")
-            task.wait(1)
+            task.wait(0.2)
             game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-            task.wait(1)
             task.delay(5, clearProcessingState)
             return
         end
@@ -1358,18 +1394,6 @@ end
 
 if not State.storedChallengeSerial then
     State.storedChallengeSerial = getCurrentChallengeSerial()
-end
-
-local function getUnitNameFromSlot(slotNumber)
-    local success, unitInstance = pcall(function()
-        return Services.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
-end)
-
-    if success and unitInstance then
-        return typeof(unitInstance) == "Instance" and unitInstance.Name or tostring(unitInstance)
-    end
-
-    return nil
 end
 
 local function getCurrentUpgradeLevel(unitName)
@@ -2002,42 +2026,32 @@ local function checkAndRefreshUnits()
             local currentLevel = getCurrentUpgradeLevel(unitName)
             local targetLevel = Config.unitReDeployLevel[slot]
             
-            -- Skip if target level is 0 (disabled)
             if targetLevel == 0 then
                 continue
             end
             
-            -- Create unique key for this slot
             local slotKey = "slot_" .. slot
             
-            -- Skip if we already processed this unit this game
             if processedUnits[slotKey] then
                 continue
             end
             
-            -- Skip if we already processed this level for this slot
             if lastCheckedLevels[slotKey] == currentLevel then
                 continue
             end
             
-            -- Update last checked level
             lastCheckedLevels[slotKey] = currentLevel
             
-            -- Handle MAX level
             if currentLevel == "MAX" and targetLevel <= 9 then
                 print("Slot " .. slot .. " (" .. unitName .. ") reached MAX level, deleting...")
                 deleteUnit(unitName)
-                -- Mark this unit as processed so it won't be touched again
                 processedUnits[slotKey] = true
-            -- Handle numeric levels
             elseif type(currentLevel) == "number" and currentLevel >= targetLevel then
                 print("Slot " .. slot .. " (" .. unitName .. ") reached level " .. currentLevel .. ", deleting...")
                 deleteUnit(unitName)
-                -- Mark this unit as processed so it won't be touched again
                 processedUnits[slotKey] = true
             end
         else
-            -- Clear last checked level if no unit in slot
             lastCheckedLevels["slot_" .. slot] = nil
         end
     end
@@ -2342,7 +2356,7 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local Toggle = LobbyTab:CreateToggle({
+local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Merchant Items",
     CurrentValue = false,
     Flag = "AutoPurchaseMerchant",
@@ -2351,14 +2365,94 @@ local Toggle = LobbyTab:CreateToggle({
     end,
     })
 
-     local MerchantSelectorDropdown = LobbyTab:CreateDropdown({
-    Name = "Select Items To Purchase",
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Merchant)",
     Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "MerchantPurchaseSelector",
     Callback = function(Options)
         Data.MerchantPurchaseTable = Options
+    end,
+    })
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Raid Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRaid",
+    Callback = function(Value)
+        State.AutoPurchaseRaid = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Raid)",
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RaidPurchaseSelector",
+    Callback = function(Options)
+        Data.RaidPurchaseTable = Options
+    end,
+    })
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Boss Rush Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseBossRush",
+    Callback = function(Value)
+        State.AutoPurchaseBossRush = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Boss Rush)",
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "BossRushPurchaseSelector",
+    Callback = function(Options)
+        Data.BossRushPurchaseTable = Options
+    end,
+    })
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Boss Event Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseBossEvent",
+    Callback = function(Value)
+        State.AutoPurchaseBossEvent = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Boss Event)",
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "BossEventPurchaseSelector",
+    Callback = function(Options)
+        Data.BossEventPurchaseTable = Options
+    end,
+    })
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase RC Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRCShop",
+    Callback = function(Value)
+        State.AutoPurchaseRCShop = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (RC Exchange)",
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RCExchangePurchaseSelector",
+    Callback = function(Options)
+        Data.RCExchangePurchaseTable = Options
     end,
     })
 
@@ -2955,10 +3049,7 @@ end)
     end,
     })
 
-    
-
-
-
+    local Labelinfo = AutoPlayTab:CreateLabel("Auto Delete Unit(s) on level: level 0 = disable", "info")
 
       local AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
     Name = "Select Upgrade Method",
