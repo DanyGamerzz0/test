@@ -146,7 +146,7 @@ local Data = {
     raidData = {},
     worldDisplayNameMap = {},
     selectedChallengeWorlds = {},
-    CurrentCodes = {"SorryRaids","RAIDS","BizzareUpdate2!","Sorry4Delays","BOSSTAKEOVER","Sorry4Quest","SorryDelay!!!","SummerEvent!","2xWeekEnd!","Sorry4EvoUnits","Sorry4AutoTraitRoll","!TYBW","!MattLovesARX2","!RaitoLovesARX","!BrandonTheBest","!FixBossRushShop","SmallFixs"},
+   -- CurrentCodes = {"SorryRaids","RAIDS","BizzareUpdate2!","Sorry4Delays","BOSSTAKEOVER","Sorry4Quest","SorryDelay!!!","SummerEvent!","2xWeekEnd!","Sorry4EvoUnits","Sorry4AutoTraitRoll","!TYBW","!MattLovesARX2","!RaitoLovesARX","!BrandonTheBest","!FixBossRushShop","SmallFixs"},
 }
 
 local ValidWebhook
@@ -249,8 +249,9 @@ local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ Improved Boss Rush Autoplay by a lot, + Added Auto Join Raid, + Improved Endgame toggles (auto retry/next/lobby), + Auto Ultimate should only fire if theres a valid target in range")
-local Label2 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
+local Label1 = UpdateLogTab:CreateLabel("+ added unit loadout to webhook, + new auto purchase features, + redeploy unit when level feature, + enable x team for x mode feature")
+local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
+local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
 --//FUNCTIONS\\--
 
@@ -669,7 +670,7 @@ local function getOrderedUnits()
     for i = 1, 6 do
         local name = getUnitNameFromSlot(i)
         if name then
-            table.insert(units, string.format("%d️⃣ %s", i, name)) -- Adds emoji for slot
+            table.insert(units, string.format("%d️⃣ - %s", i, name))
         else
             table.insert(units, string.format("%d️⃣ Empty", i))
         end
@@ -2291,7 +2292,7 @@ local Button = LobbyTab:CreateButton({
         end,
     })
 
-local Button = LobbyTab:CreateButton({
+--[[local Button = LobbyTab:CreateButton({
         Name = "Redeem all valid codes",
         Callback = function()
             for _, code in ipairs(Data.CurrentCodes) do
@@ -2301,9 +2302,7 @@ local Button = LobbyTab:CreateButton({
             end
             notify("Redeem all valid codes", "Tried to redeem all codes!")
         end,
-    })
-
-
+    })--]]
 
     local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
