@@ -1992,6 +1992,7 @@ local function deleteUnit(unitName)
         return false
     end
 end
+local lastCheckedLevels = {}
 
 local function checkAndRefreshUnits()
     for slot = 1, 6 do
