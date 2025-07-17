@@ -42,6 +42,7 @@ local Config = {
     maxRetryAttempts = 20,
     unitLevelCaps = {9, 9, 9, 9, 9, 9},
     unitDeployLevelCaps = {0, 0, 0, 0, 0, 0},
+    unitReDeployLevel = {9, 9, 9, 9, 9, 9},
     oldbartext = Services.Players.LocalPlayer.PlayerGui.HUD.ExpBar.Numbers.Text,
 }
 
@@ -96,6 +97,7 @@ local State = {
     autoBossRushEnabled = false,
     autoPlayBossRushEnabled = false,
     AutoSelectSpeed = false,
+    AutoReDeployEnabled = false,
     SelectedSpeedValue = {},
     bossRushTask = nil,
     currentBossPath = nil,
@@ -1946,7 +1948,7 @@ local function StartAutoCurse(selectedCurses)
                     task.wait(3)
                 else
                     Remotes.ApplyCurseRemote:FireServer("ApplyCurse - Normal", unit)
-                    task.wait(1.5)
+                    task.wait(0.5)
 
                     local applied = GetAppliedCurses()
 
@@ -1960,6 +1962,84 @@ local function StartAutoCurse(selectedCurses)
     end
 end
 
+local function deleteUnit(unitName)
+    if not unitName then return false end
+    
+    local success, result = pcall(function()
+        -- Loop through all parts in UnitT folder
+        for _, part in pairs(Services.Workspace.Agent.UnitT:GetChildren()) do
+            if part:IsA("Part") then
+                local info = part:FindFirstChild("Info")
+                if info then
+                    local unitNameValue = info:FindFirstChild("UnitName")
+                    if unitNameValue and unitNameValue.Value == unitName then
+                        -- Found the matching unit, delete it
+                        local args = {part, nil}
+                        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("DeleteUnit"):FireServer(unpack(args))
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end)
+    
+    if success and result then
+        print("Successfully deleted unit: " .. unitName)
+        return true
+    else
+        warn("Failed to delete unit: " .. tostring(unitName))
+        return false
+    end
+end
+
+local function checkAndRefreshUnits()
+    for slot = 1, 6 do
+        local unitName = getUnitNameFromSlot(slot)
+        if unitName then
+            local currentLevel = getCurrentUpgradeLevel(unitName)
+            local targetLevel = Config.unitReDeployLevel[slot]
+            
+            -- Skip if target level is 0 (disabled)
+            if targetLevel == 0 then
+                continue
+            end
+            
+            -- Create unique key for this slot
+            local slotKey = "slot_" .. slot
+            
+            -- Skip if we already processed this level for this slot
+            if lastCheckedLevels[slotKey] == currentLevel then
+                continue
+            end
+            
+            -- Update last checked level
+            lastCheckedLevels[slotKey] = currentLevel
+            
+            -- Handle MAX level
+            if currentLevel == "MAX" and targetLevel <= 9 then
+                print("Slot " .. slot .. " (" .. unitName .. ") reached MAX level, deleting...")
+                deleteUnit(unitName)
+            -- Handle numeric levels
+            elseif type(currentLevel) == "number" and currentLevel >= targetLevel then
+                print("Slot " .. slot .. " (" .. unitName .. ") reached level " .. currentLevel .. ", deleting...")
+                deleteUnit(unitName)
+            end
+        else
+            -- Clear last checked level if no unit in slot
+            lastCheckedLevels["slot_" .. slot] = nil
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        if State.AutoReDeployEnabled and not isInLobby() then
+            checkAndRefreshUnits()
+        end
+        task.wait(2)
+    end
+end)
 
 --//\\--
 
@@ -2855,6 +2935,20 @@ end)
     end,
     })
 
+     local Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Delete Unit(s) on level",
+    CurrentValue = false,
+    Flag = "AutoReDeployToggle",
+    Callback = function(Value)
+        State.AutoReDeployEnabled = Value
+    end,
+    })
+
+    
+
+
+
+
       local AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
     Name = "Select Upgrade Method",
     Options = {"Left to right until max"},
@@ -2897,6 +2991,18 @@ end)
     end,
     })
 
+    local Slider1_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 1 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit1ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[1] = Value
+    end,
+    })
+
     local Slider2 = AutoPlayTab:CreateSlider({
     Name = "Unit 2 Level Cap",
     Range = {0, 9},
@@ -2918,6 +3024,18 @@ end)
     Flag = "Unit2DeployCap",
     Callback = function(Value)
         Config.unitDeployLevelCaps[2] = Value
+    end,
+    })
+
+    local Slider2_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 2 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit2ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[2] = Value
     end,
     })
 
@@ -2945,6 +3063,18 @@ end)
     end,
     })
 
+    local Slider3_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 3 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit3ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[3] = Value
+    end,
+    })
+
     local Slider4 = AutoPlayTab:CreateSlider({
     Name = "Unit 4 Level Cap",
     Range = {0, 9},
@@ -2966,6 +3096,18 @@ end)
     Flag = "Unit4DeployCap",
     Callback = function(Value)
         Config.unitDeployLevelCaps[4] = Value
+    end,
+    })
+
+    local Slider4_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 4 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit4ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[4] = Value
     end,
     })
 
@@ -2993,6 +3135,18 @@ end)
     end,
     })
 
+    local Slider5_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 5 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit5ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[5] = Value
+    end,
+    })
+
     local Slider6 = AutoPlayTab:CreateSlider({
     Name = "Unit 6 Level Cap",
     Range = {0, 9},
@@ -3014,6 +3168,18 @@ end)
     Flag = "Unit6DeployCap",
     Callback = function(Value)
         Config.unitDeployLevelCaps[6] = Value
+    end,
+    })
+
+    local Slider6_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 6 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit6ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[6] = Value
     end,
     })
 
