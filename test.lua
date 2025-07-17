@@ -80,8 +80,6 @@ local State = {
     AutoClaimQuests = false,
     AutoClaimMilestones = false,
     AutoPurchaseMerchant = false,
-    AutoPurchaseRCShop = false,
-    AutoPurchaseBossEvent = false,
     AutoPurchaseBossRush = false,
     AutoPurchaseRaid = false,
     challengeAutoReturnEnabled = false,
@@ -132,8 +130,6 @@ local State = {
 local Data = {
     selectedRawStages = {},
     MerchantPurchaseTable = {},
-    RCExchangePurchaseTable = {},
-    BossEventPurchaseTable = {},
     BossRushPurchaseTable = {},
     RaidPurchaseTable = {},
     rangerStages = {},
@@ -956,10 +952,19 @@ local function getPlayerCurrency()
     if not playerData then return {} end
 
     local currencies = {}
+
     local GoldValue = playerData:FindFirstChild("Gold")
     if GoldValue then currencies["Gold"] = GoldValue.Value end
+
     local gemsValue = playerData:FindFirstChild("Gem")
     if gemsValue then currencies["Gem"] = gemsValue.Value end
+
+    local raidValue = playerData:FindFirstChild("Raid Currency")
+    if raidValue then currencies["Raid Currency"] = raidValue.Value end
+
+    local bossrushValue = playerData:FindFirstChild("BossRushCurrency")
+    if bossrushValue then currencies["BossRushCurrency"] = bossrushValue.Value end
+
     return currencies
 end
 
@@ -984,7 +989,43 @@ end
 
 local didNotify = false
 
-local function autoPurchaseItems()
+local function autoPurchaseItems(isEnabled, purchaseTable, folderName, shopDisplayName)
+    if not isEnabled then return end
+    if not purchaseTable or #purchaseTable == 0 then return end
+
+    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+    if not playerData then return end
+
+    local shopFolder = playerData:FindFirstChild(folderName)
+    if not shopFolder then return end
+
+    for _, selectedItem in pairs(purchaseTable) do
+        local itemFolder = shopFolder:FindFirstChild(selectedItem)
+        if itemFolder then
+            if canAffordItem(itemFolder) then
+                local quantityValue = itemFolder:FindFirstChild("Quantity")
+                local currentQuantityValue = itemFolder:FindFirstChild("BuyAmount")
+                local availableQuantity = quantityValue and quantityValue.Value or 1
+                local currentQuantity = currentQuantityValue and currentQuantityValue.Value or 0
+
+                if currentQuantity <= 0 then
+                    purchaseItem(selectedItem, availableQuantity)
+                    notify("Auto Purchase " .. shopDisplayName, "Purchased: " .. availableQuantity .. "x " .. selectedItem)
+                    task.wait(0.5)
+                end
+            else
+                if didNotify == false then
+                    didNotify = true
+                    notify("Auto Purchase " .. shopDisplayName, "Can't afford: " .. selectedItem)
+                    task.delay(20, function()
+                        didNotify = false
+                    end)
+                end
+            end
+        end
+    end
+end
+--[[local function autoPurchaseItems()
     if not State.AutoPurchaseMerchant then return end
     if not Data.MerchantPurchaseTable or #Data.MerchantPurchaseTable == 0 then return end
 
@@ -1019,7 +1060,7 @@ local function autoPurchaseItems()
             end
         end
     end
-end
+end--]]
 
 local function autoJoinRangerStage(stageName)
     if not isInLobby() then 
@@ -1182,6 +1223,25 @@ local function handleTeamEquipping(mode)
         equipTeamSlot(teamSlot)
         task.wait(0.5) -- Small delay to ensure team is equipped
     end
+end
+
+local function getHighestNumberFromNames(parent)
+    local highestNumber = -math.huge -- Start with the smallest possible number
+
+    for _, obj in ipairs(parent:GetChildren()) do
+        if obj:IsA("StringValue") then
+            local num = tonumber(obj.Name)
+            if num and num > highestNumber then
+                highestNumber = num
+            end
+        end
+    end
+
+    if highestNumber == -math.huge then
+        return nil -- No numeric names found
+    end
+
+    return highestNumber
 end
 
 local function checkAndExecuteHighestPriority()
@@ -1350,6 +1410,16 @@ local function checkAndExecuteHighestPriority()
             task.delay(5, clearProcessingState)
             return
         end
+    end
+
+    if State.autoJoinInfinityCastleEnabled then
+        setProcessingState("Infinity Castle Auto Join")
+
+        local CastleFloor = getHighestNumberFromNames(Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].InfinityCastleRewards)
+
+        Remotes.PlayEvent:FireServer("Infinity-Castle",{Floor = CastleFloor + 1})
+        task.delay(5, clearProcessingState)
+        return
     end
     -- Priority 5: Story Auto Join
     if State.autoJoinEnabled and State.selectedWorld and State.selectedChapter and State.selectedDifficulty then
@@ -2212,7 +2282,13 @@ end)
     task.spawn(function()
         while true do
             if State.AutoPurchaseMerchant and #Data.MerchantPurchaseTable > 0 then
-                autoPurchaseItems()
+                autoPurchaseItems(State.AutoPurchaseMerchant, Data.MerchantPurchaseTable, "Merchant", "Merchant")
+            end
+            if State.AutoPurchaseBossRush and #Data.BossRushPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseBossRush, Data.BossRushPurchaseTable, "Boss_Rush", "Boss Rush")
+            end
+            if State.AutoPurchaseRaid and #Data.RaidPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseRaid, Data.RaidPurchaseTable, "Raid_Shop", "Raid")
             end
             task.wait(1)
         end
@@ -2386,7 +2462,7 @@ local Toggle = ShopTab:CreateToggle({
 
      local MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Raid)",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "RaidPurchaseSelector",
@@ -2406,52 +2482,12 @@ local Toggle = ShopTab:CreateToggle({
 
      local MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Boss Rush)",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Soul Fragments"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "BossRushPurchaseSelector",
     Callback = function(Options)
         Data.BossRushPurchaseTable = Options
-    end,
-    })
-
-    local Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase Boss Event Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseBossEvent",
-    Callback = function(Value)
-        State.AutoPurchaseBossEvent = Value
-    end,
-    })
-
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Boss Event)",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "BossEventPurchaseSelector",
-    Callback = function(Options)
-        Data.BossEventPurchaseTable = Options
-    end,
-    })
-
-    local Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase RC Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseRCShop",
-    Callback = function(Value)
-        State.AutoPurchaseRCShop = Value
-    end,
-    })
-
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (RC Exchange)",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "RCExchangePurchaseSelector",
-    Callback = function(Options)
-        Data.RCExchangePurchaseTable = Options
     end,
     })
 
@@ -2845,12 +2881,21 @@ task.spawn(function()
 
     local JoinerSection6 = JoinerTab:CreateSection("🏰 Infinity Castle 🏰")
 
-       local Toggle = JoinerTab:CreateToggle({
+    local Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Infinity Castle",
+    CurrentValue = false,
+    Flag = "AutoJoinInfinityCastle",
+    Callback = function(Value)
+        State.autoJoinInfinityCastleEnabled = Value
+    end,
+    })
+
+    local Toggle = JoinerTab:CreateToggle({
     Name = "Auto Infinity Castle",
     CurrentValue = false,
     Flag = "AutoInfinityCastle",
     Callback = function(Value)
-        State.autoInfinityCastleEnabled = Value     
+        State.autoInfinityCastleEnabled = Value
         if State.autoInfinityCastleEnabled then
             startInfinityCastleLogic()
         else
