@@ -2284,22 +2284,23 @@ end)
             end
         end
     end)
-local afkConnection
-    local function enableAntiAfk()
-    if afkConnection then return end
-    afkConnection = Services.Players.LocalPlayer.Idled:Connect(function()
-        if State.AntiAfkEnabled then
-            VirtualUser:Button2Down(Vector2.new(), workspace.CurrentCamera.CFrame)
-            task.wait(1)
-            VirtualUser:Button2Up(Vector2.new(), workspace.CurrentCamera.CFrame)
-        end
-    end)
-end
 
-local function disableAntiAfk()
-    if afkConnection then
-        afkConnection:Disconnect()
-        afkConnection = nil
+local function startAntiAfk()
+    while State.AntiAfkEnabled do
+        -- Simulate right-click input
+        game:GetService("VirtualUser"):Button2Down(Vector2.new(), workspace.CurrentCamera.CFrame)
+        task.wait(0.1)
+        game:GetService("VirtualUser"):Button2Up(Vector2.new(), workspace.CurrentCamera.CFrame)
+
+        -- Small movement
+        if Services.Players.LocalPlayer.Character.HumanoidRootPart then
+            local originalPos = Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame
+            Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = originalPos * CFrame.new(0.5, 0, 0) -- move right
+            task.wait(0.2)
+            Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = originalPos -- back
+        end
+
+        task.wait(60) -- repeat every 60s
     end
 end
 
@@ -2312,9 +2313,7 @@ end
     Callback = function(Value)
         State.AntiAfkEnabled = Value
         if Value then
-            enableAntiAfk()
-        else
-            disableAntiAfk()
+            startAntiAfk()
         end
     end,
 })
