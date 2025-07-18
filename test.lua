@@ -245,7 +245,7 @@ local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ added unit loadout to webhook, + new auto purchase features, + redeploy unit when level feature, + enable x team for x mode feature")
+local Label1 = UpdateLogTab:CreateLabel("+ added unit loadout to webhook, + new auto purchase features, + redeploy unit when level feature, + enable x team for x mode feature, + auto join infinity castle")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
@@ -2334,8 +2334,40 @@ end)
             end
         end
     end)
+local afkConnection
+    local function enableAntiAfk()
+    if afkConnection then return end
+    afkConnection = player.Idled:Connect(function()
+        if State.AntiAfkEnabled then
+            VirtualUser:Button2Down(Vector2.new(), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            VirtualUser:Button2Up(Vector2.new(), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end
+
+local function disableAntiAfk()
+    if afkConnection then
+        afkConnection:Disconnect()
+        afkConnection = nil
+    end
+end
 
 --//BUTTONS\\--
+
+    local Toggle = LobbyTab:CreateToggle({
+    Name = "Anti Afk",
+    CurrentValue = false,
+    Flag = "AntiAfkToggle",
+    Callback = function(Value)
+        State.AntiAfkEnabled = Value
+        if Value then
+            enableAntiAfk()
+        else
+            disableAntiAfk()
+        end
+    end,
+})
 
     local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Curse (open curse UI and select unit manually)",
