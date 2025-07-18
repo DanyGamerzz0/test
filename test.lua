@@ -94,6 +94,7 @@ local State = {
     streamerModeEnabled = false,
     enableLowPerformanceMode = false,
     SendStageCompletedWebhook = false,
+    AntiAfkEnabled = false,
     AutoCurseEnabled = false,
     enableDeleteMap = false,
     autoBossRushEnabled = false,
@@ -2286,7 +2287,7 @@ end)
 local afkConnection
     local function enableAntiAfk()
     if afkConnection then return end
-    afkConnection = player.Idled:Connect(function()
+    afkConnection = Services.Players.LocalPlayer.Idled:Connect(function()
         if State.AntiAfkEnabled then
             VirtualUser:Button2Down(Vector2.new(), workspace.CurrentCamera.CFrame)
             task.wait(1)
