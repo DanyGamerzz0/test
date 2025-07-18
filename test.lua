@@ -14,6 +14,8 @@ do
     Remotes.Code = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("Code")
     Remotes.StartGame = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VotePlaying")
     Remotes.Merchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("Merchant")
+    Remotes.RaidMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("Raid_Shop")
+    Remotes.BossRushMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("BossRushExchange")
     Remotes.PlayEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event")
     Remotes.SettingEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Settings"):WaitForChild("Setting_Event")
     Remotes.RetryEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VoteRetry")
@@ -968,10 +970,18 @@ local function canAffordItem(itemFolder)
     return playerCurrencies[currencyTypeValue.Value] and playerCurrencies[currencyTypeValue.Value] >= priceValue.Value
 end
 
-local function purchaseItem(itemName, quantity)
+local function purchaseItem(itemName, quantity, folderName)
     quantity = quantity or 1
     pcall(function()
-        Remotes.Merchant:FireServer(itemName, quantity)
+        if folderName == "Merchant" then
+            Remotes.Merchant:FireServer(itemName, quantity)
+        end
+        if folderName == "Boss_Rush" then
+            Remotes.BossRushMerchant:FireServer(itemName, quantity)
+        end
+        if folderName == "Raid_Shop" then
+            Remotes.RaidMerchant:FireServer(itemName, quantity)
+        end
     end)
 end
 
@@ -995,8 +1005,8 @@ local function autoPurchaseItems(isEnabled, purchaseTable, folderName, shopDispl
                 local currentQuantity = itemFolder:FindFirstChild("BuyAmount") and itemFolder:FindFirstChild("BuyAmount").Value or 0
 
                 if currentQuantity <= 0 then
-                    purchaseItem(selectedItem, availableQuantity)
-                    notify("Auto Purchase " .. shopDisplayName, "Purchased: " .. availableQuantity .. "x " .. selectedItem)
+                    purchaseItem(selectedItem, availableQuantity, folderName)
+                    notify("Auto Purchase " .. shopDisplayName, "Purchased: " ..selectedItem)
                     task.wait(0.5)
                 end
             else
@@ -2288,26 +2298,6 @@ end)
 --//BUTTONS\\--
 
     local Toggle = LobbyTab:CreateToggle({
-    Name = "Anti Afk",
-    CurrentValue = false,
-    Flag = "AntiAfkToggle",
-    Callback = function(Value)
-        State.AntiAfkEnabled = Value
-    end,
-})
-
-task.spawn(function()
-    while true do
-        if State.AntiAfkEnabled then
-            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = true
-        else
-            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = false
-        end
-        task.wait(5)
-    end
-end)
-
-    local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Curse (open curse UI and select unit manually)",
     CurrentValue = false,
     Flag = "AutoCurseToggle",
@@ -2484,6 +2474,26 @@ local Toggle = ShopTab:CreateToggle({
             State.autoAfkTeleportEnabled = Value
         end,
     })
+
+        local Toggle = LobbyTab:CreateToggle({
+    Name = "Anti AFK Teleport",
+    CurrentValue = false,
+    Flag = "AntiAfkToggle",
+    Callback = function(Value)
+        State.AntiAfkEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if State.AntiAfkEnabled then
+            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = true
+        else
+            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = false
+        end
+        task.wait(5)
+    end
+end)
 
      local Toggle = GameTab:CreateToggle({
     Name = "Streamer Mode",
