@@ -2285,25 +2285,6 @@ end)
         end
     end)
 
-local function startAntiAfk()
-    while State.AntiAfkEnabled do
-        -- Simulate right-click input
-        game:GetService("VirtualUser"):Button2Down(Vector2.new(), workspace.CurrentCamera.CFrame)
-        task.wait(0.1)
-        game:GetService("VirtualUser"):Button2Up(Vector2.new(), workspace.CurrentCamera.CFrame)
-
-        -- Small movement
-        if Services.Players.LocalPlayer.Character.HumanoidRootPart then
-            local originalPos = Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame
-            Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = originalPos * CFrame.new(0.5, 0, 0) -- move right
-            task.wait(0.2)
-            Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = originalPos -- back
-        end
-
-        task.wait(60) -- repeat every 60s
-    end
-end
-
 --//BUTTONS\\--
 
     local Toggle = LobbyTab:CreateToggle({
@@ -2312,11 +2293,19 @@ end
     Flag = "AntiAfkToggle",
     Callback = function(Value)
         State.AntiAfkEnabled = Value
-        if Value then
-            task.spawn(startAntiAfk)
-        end
     end,
 })
+
+task.spawn(function()
+    while true do
+        if State.AntiAfkEnabled then
+            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = true
+        else
+            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = false
+        end
+        task.wait(5)
+    end
+end)
 
     local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Curse (open curse UI and select unit manually)",
