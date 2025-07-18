@@ -267,9 +267,8 @@ end
 local function enableDeleteMap()
     if isInLobby() then return end
     if State.enableDeleteMap then
-        local map = Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map")
 
-    if map then 
+    if Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map") then
         map:Destroy() 
          Services.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = true
     end    
@@ -298,8 +297,7 @@ local function enableLowPerformanceMode()
             end
         end
         
-        local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
-        for _, gui in pairs(playerGui:GetDescendants()) do
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
             if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
                 gui.Enabled = false
             end
@@ -337,8 +335,7 @@ Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
             end
         end
         
-        local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
-        for _, gui in pairs(playerGui:GetDescendants()) do
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
             if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
                 gui.Enabled = true
             end
@@ -431,7 +428,6 @@ end
 
 
 local function fetchRangerStageData(storyData)
-    local folder = Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("Levels")
 
     local worldPriority = {
         ["OnePiece"] = 1,
@@ -451,7 +447,7 @@ local function fetchRangerStageData(storyData)
 
     local worldStages = {}
 
-    for _, moduleScript in ipairs(folder:GetChildren()) do
+    for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("Levels"):GetChildren()) do
         if moduleScript:IsA("ModuleScript") then
             local success, data = pcall(function()
                 return require(moduleScript)
@@ -940,13 +936,6 @@ local function isWantedChallengeRewardPresent()
     return false, nil
 end
 
-local function getTierValue(name)
-    if name:find("III") then return 3 end
-    if name:find("II") then return 2 end
-    if name:find("I") then return 1 end
-    return 0
-end
-
 local function getPlayerCurrency()
     local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data
     if not playerData then return {} end
@@ -973,11 +962,9 @@ local function canAffordItem(itemFolder)
     local currencyTypeValue = itemFolder:FindFirstChild("CurrencyType")
     if not priceValue or not currencyTypeValue then return false end
 
-    local price = priceValue.Value
-    local currencyType = currencyTypeValue.Value
     local playerCurrencies = getPlayerCurrency()
 
-    return playerCurrencies[currencyType] and playerCurrencies[currencyType] >= price
+    return playerCurrencies[currencyTypeValue.Value] and playerCurrencies[currencyTypeValue.Value] >= priceValue.Value
 end
 
 local function purchaseItem(itemName, quantity)
@@ -1003,10 +990,8 @@ local function autoPurchaseItems(isEnabled, purchaseTable, folderName, shopDispl
         local itemFolder = shopFolder:FindFirstChild(selectedItem)
         if itemFolder then
             if canAffordItem(itemFolder) then
-                local quantityValue = itemFolder:FindFirstChild("Quantity")
-                local currentQuantityValue = itemFolder:FindFirstChild("BuyAmount")
-                local availableQuantity = quantityValue and quantityValue.Value or 1
-                local currentQuantity = currentQuantityValue and currentQuantityValue.Value or 0
+                local availableQuantity = itemFolder:FindFirstChild("Quantity") and itemFolder:FindFirstChild("Quantity").Value or 1
+                local currentQuantity = itemFolder:FindFirstChild("BuyAmount") and itemFolder:FindFirstChild("BuyAmount").Value or 0
 
                 if currentQuantity <= 0 then
                     purchaseItem(selectedItem, availableQuantity)
@@ -1025,42 +1010,6 @@ local function autoPurchaseItems(isEnabled, purchaseTable, folderName, shopDispl
         end
     end
 end
---[[local function autoPurchaseItems()
-    if not State.AutoPurchaseMerchant then return end
-    if not Data.MerchantPurchaseTable or #Data.MerchantPurchaseTable == 0 then return end
-
-    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-    if not playerData then return end
-
-    local merchantFolder = playerData:FindFirstChild("Merchant")
-    if not merchantFolder then return end
-
-    for _, selectedItem in pairs(Data.MerchantPurchaseTable) do
-        local itemFolder = merchantFolder:FindFirstChild(selectedItem)
-        if itemFolder then
-            if canAffordItem(itemFolder) then
-                local quantityValue = itemFolder:FindFirstChild("Quantity")
-                local currentQuantityValue = itemFolder:FindFirstChild("BuyAmount")
-                local availableQuantity = quantityValue and quantityValue.Value or 1
-                local currentQuantity = currentQuantityValue and currentQuantityValue.Value or 0
-
-                if currentQuantity <= 0 then
-                    purchaseItem(selectedItem, availableQuantity)
-                    notify("Auto Purchase Merchant", "Purchased: " .. availableQuantity .. "x " .. selectedItem)
-                    task.wait(0.5)
-                end
-            else
-                if didNotify == false then
-                    didNotify = true
-                    notify("Auto Purchase Merchant", "Can't afford: " .. selectedItem)
-                    task.delay(20, function()
-                        didNotify = false
-                    end)
-                end
-            end
-        end
-    end
-end--]]
 
 local function autoJoinRangerStage(stageName)
     if not isInLobby() then 
@@ -2399,18 +2348,6 @@ local Button = LobbyTab:CreateButton({
             Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
         end,
     })
-
---[[local Button = LobbyTab:CreateButton({
-        Name = "Redeem all valid codes",
-        Callback = function()
-            for _, code in ipairs(Data.CurrentCodes) do
-                notify("Redeeming code: ", code, 2.5)
-                Remotes.Code:FireServer(code)
-                task.wait(0.25)
-            end
-            notify("Redeem all valid codes", "Tried to redeem all codes!")
-        end,
-    })--]]
 
     local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
