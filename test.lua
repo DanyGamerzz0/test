@@ -2313,7 +2313,7 @@ end
     Callback = function(Value)
         State.AntiAfkEnabled = Value
         if Value then
-            startAntiAfk()
+            task.spawn(startAntiAfk)
         end
     end,
 })
