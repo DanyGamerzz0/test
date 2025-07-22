@@ -3409,7 +3409,7 @@ end)
     end,
     })
 
-    local Dropdown = Tab:CreateDropdown({
+    local Dropdown = GameTab:CreateDropdown({
    Name = "AutoSell Unit (Usefull for lullaby passive stacking)",
    Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
    CurrentOption = {"No Unit"},
