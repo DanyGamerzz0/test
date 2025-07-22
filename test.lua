@@ -67,7 +67,7 @@ local State = {
     selectedPortals = {},
     selectedCurses = {},
     selectedRaidStages = {},
-    AutoSellUnitChoice = {},
+    AutoSellUnitChoice = "",
     DelayAutoUltimate = 0,
     
     autoBossEventEnabled = false,
