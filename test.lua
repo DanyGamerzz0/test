@@ -67,6 +67,8 @@ local State = {
     selectedPortals = {},
     selectedCurses = {},
     selectedRaidStages = {},
+    AutoSellUnitChoice = {},
+    DelayAutoUltimate = 0,
     
     autoBossEventEnabled = false,
     autoJoinRaid = false,
@@ -1675,23 +1677,23 @@ end
 
 local function autoUltimateLoop()
     if isInLobby() then return end
-
     while State.AutoUltimateEnabled do
         local unitsWithUltimates = getUnitsWithUltimates()
-
         if #unitsWithUltimates > 0 then
             for _, unitData in pairs(unitsWithUltimates) do
                 if not State.AutoUltimateEnabled then break end
+                if State.DelayAutoUltimate > 0 then
+                    task.wait(State.DelayAutoUltimate)
+                end
                 fireUltimateForUnit(unitData)
                 task.wait(0.1)
             end
         end
-
         task.wait(1)
     end
-
     print("🛑 Auto Ultimate loop stopped")
 end
+
 
 local function startAutoUltimate()
     if isInLobby() then return end
@@ -2314,12 +2316,33 @@ local function checkAndRefreshUnits()
     end
 end
 
+local function autoSellUnitLoop()
+        if State.AutoSellUnitChoice and State.AutoSellUnitChoice ~= "No Unit" then
+        local slotNumber = tonumber(State.AutoSellUnitChoice:match("Unit(%d)"))
+        if slotNumber then
+            local unitName = getUnitNameFromSlot(slotNumber)
+            if unitName then
+                deleteUnit(unitName)
+            end
+        end
+        end
+end
+
+task.spawn(function()
+    while true do
+        if State.AutoSellUnitChoice ~= "No Unit" and not isInLobby() then
+            autoSellUnitLoop()
+        end
+        task.wait(1)
+    end
+end)
+
 task.spawn(function()
     while true do
         if State.AutoReDeployEnabled and not isInLobby() then
             checkAndRefreshUnits()
         end
-        task.wait(2)
+        task.wait(1)
     end
 end)
 
@@ -2772,7 +2795,7 @@ task.spawn(function()
     end
 end)
 
-local Toggle = AutoPlayTab:CreateToggle({
+local Toggle = JoinerTab:CreateToggle({
     Name = "Auto Deploy - Boss Rush",
     CurrentValue = false,
     Flag = "AutoBossRushDeployToggle",
@@ -2786,6 +2809,8 @@ local Toggle = AutoPlayTab:CreateToggle({
         end
     end,
 })
+
+local Label = JoinerTab:CreateLabel("Experimental for now. Expect bugs", "info") -- Title, Icon, Color, IgnoreTheme
 
 local DeployBossRushSelector1 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 1 on",
@@ -3384,6 +3409,17 @@ end)
     end,
     })
 
+    local Dropdown = Tab:CreateDropdown({
+   Name = "AutoSell Unit (Usefull for lullaby passive stacking)",
+   Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
+   CurrentOption = {"No Unit"},
+   MultipleOptions = false,
+   Flag = "AutoSellUnitDropdown", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Option)
+        State.AutoSellUnitChoice = Option
+   end,
+})
+
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Enable x team for x mode",
     CurrentValue = false,
@@ -3462,6 +3498,18 @@ end)
         State.AutoUltimateEnabled = Value
     end,
     })
+
+     Slider = AutoPlayTab:CreateSlider({
+   Name = "Delay Ultimate Usage by",
+   Range = {0, 100},
+   Increment = 0.1,
+   Suffix = "seconds",
+   CurrentValue = 0,
+   Flag = "DelayAutoUltimateSlider",
+   Callback = function(Value)
+        State.DelayAutoUltimate = Value
+   end,
+})
 
       Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Delete Unit(s) on level",
