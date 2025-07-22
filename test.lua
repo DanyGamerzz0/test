@@ -106,7 +106,6 @@ local State = {
     SelectedSpeedValue = {},
     bossRushTask = nil,
     currentBossPath = nil,
-    bossRushAutoDeployEnabled = false,
     BossRushPathSwitcher = 1,
     lastBossRushScan = 0,
     currentBossRushPath = nil,
@@ -114,15 +113,6 @@ local State = {
     currentSlot = 1,
     slotLastFailTime = {},
     slotExists = {},
-    bossRushDeployConfig = {
-    [1] = {paths = {1, 4}, enabled = false},
-    [2] = {paths = {1, 2}, enabled = false},
-    [3] = {paths = {2, 3}, enabled = false},
-    [4] = {paths = {3, 4}, enabled = false},
-    [5] = {paths = {1, 2, 3, 4}, enabled = false},
-    [6] = {paths = {1, 2, 3, 4}, enabled = false}},
-    bossRushLastDeploymentTimes = {},
-    bossRushCurrentSlot = 1,
     
     matchResult = "Unknown",
     storedChallengeSerial = nil,
@@ -589,29 +579,24 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
 
     for _, rewardEntry in pairs(rewardFolder:GetChildren()) do
         if not detectedRewards[rewardEntry.Name] and rewardEntry:FindFirstChild("Amount") then
-            if rewardEntry.Amount.Value > 0 then
-                detectedRewards[rewardEntry.Name] = rewardEntry.Amount.Value
-                table.insert(existingGained, {
-                    name = rewardEntry.Name,
-                    amount = rewardEntry.Amount.Value,
-                    isUnit = false
-                })
+            local amount = rewardEntry.Amount.Value
+
+            if amount > 0 then
+                detectedRewards[rewardEntry.Name] = amount
+                table.insert(existingGained, { name = rewardEntry.Name, amount = amount, isUnit = false })
 
                 local totalText = ""
 
-                if rewardEntry.Name == "Gem"
-                    or rewardEntry.Name == "Gold"
-                    or rewardEntry.Name == "Beach Balls"
-                    or rewardEntry.Name == "BossRushCurrency"
-                then
-                    local val = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data:FindFirstChild(rewardEntry.Name)
-                    totalText = val and string.format(" [%d total]", val.Value) or ""
+                if rewardEntry.Name == "Gem" or rewardEntry.Name == "Gold" or rewardEntry.Name == "Beach Balls" or "BossRushCurrency" then
+                    local dataValue = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data:FindFirstChild(rewardEntry.Name)
+                    totalText = dataValue and string.format(" [%d total]", dataValue.Value) or ""
                 else
                     local item = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(rewardEntry.Name)
-                    totalText = (item and item:FindFirstChild("Amount")) and string.format(" [%d total]", item.Amount.Value) or ""
+                    local itemAmount = item and item:FindFirstChild("Amount")
+                    totalText = itemAmount and string.format(" [%d total]", itemAmount.Value) or ""
                 end
 
-                table.insert(lines, string.format("+ %d %s%s", rewardEntry.Amount.Value, rewardEntry.Name, totalText))
+                table.insert(lines, string.format("+ %s %s%s", amount, rewardEntry.Name, totalText))
             end
         end
     end
@@ -620,51 +605,35 @@ end
 local function buildRewardsText()
     local endingInventory = snapshotInventory()
     local gainedItems = compareInventories(State.startingInventory, endingInventory)
-
     local lines = {}
     local detectedRewards = {}
     local detectedUnits = {}
 
     for _, reward in ipairs(gainedItems) do
-        detectedRewards[reward.name] = reward.amount
+        local itemName = reward.name
+        local amount = reward.amount
 
+        detectedRewards[itemName] = amount
+
+        local totalText = ""
         if reward.isUnit then
-            table.insert(detectedUnits, reward.name)
-            table.insert(lines, string.format("🌟 %s x%d", reward.name, reward.amount))
-
-        elseif reward.name == "Gem" then
-            table.insert(lines, string.format(
-                "+ %s %s [%d total]",
-                reward.amount,
-                reward.name .. "(s)",
-                Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem.Value
-            ))
-
-        elseif reward.name == "Gold" then
-            table.insert(lines, string.format(
-                "+ %s %s [%d total]",
-                reward.amount,
-                reward.name,
-                Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value
-            ))
-
-        elseif reward.name == "Beach Balls" then
-            table.insert(lines, string.format(
-                "+ %s %s [%d total]",
-                reward.amount,
-                reward.name,
-                Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value
-            ))
-
+            table.insert(detectedUnits, itemName)
+            totalText = ""
+            table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
+        elseif itemName == "Gem" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName.."(s)", totalText))
+        elseif itemName == "Gold" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Beach Balls" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
         else
-            local itemObj = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(reward.name)
+            local itemObj = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(itemName)
             local totalAmount = itemObj and itemObj:FindFirstChild("Amount") and itemObj.Amount.Value or nil
-            table.insert(lines, string.format(
-                "+ %s %s%s",
-                reward.amount,
-                reward.name,
-                totalAmount and string.format(" [%d total]", totalAmount) or ""
-            ))
+            totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
         end
     end
 
@@ -707,8 +676,9 @@ end
 local function sendWebhook(messageType, rewards, clearTime, matchResult)
     if not ValidWebhook then return end
 
+    local data
     if messageType == "test" then
-        local payload = Services.HttpService:JSONEncode({
+        data = {
             username = "LixHub Bot",
             content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
@@ -718,83 +688,73 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                 footer = { text = "LixHub Auto Logger" },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
-        })
-        
-        local requestFunc = (syn and syn.request) or (http and http.request) or request
-        if requestFunc then
-            local success, result = pcall(function()
-                return requestFunc({
-                    Url = ValidWebhook,
-                    Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body = payload
-                })
-            end)
-
-            if success then
-                notify("Webhook", "Webhook sent successfully.", 2)
-            else
-                warn("Webhook failed to send: " .. tostring(result))
-                notify("Webhook Error", tostring(result))
-            end
-        else
-            warn("No compatible HTTP request method found.")
-            notify("Webhook Error", "No HTTP request method available.")
-        end
-        
+        }
     elseif messageType == "stage" then
         local RewardsUI = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo")
+        local stageName = RewardsUI and RewardsUI:FindFirstChild("Stage") and RewardsUI.Stage.Label.Text or "Unknown Stage"
+        local gameMode = RewardsUI and RewardsUI:FindFirstChild("Gamemode") and RewardsUI.Gamemode.Label.Text or "Unknown Time"
+        local isWin = matchResult == "Victory"
+        local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
+
         local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
         local shouldPing = #detectedUnits > 0
-        
-        local fields = {
-            { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. (Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or "") .. "]||", inline = true },
-            { name = (matchResult == "Victory") and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
-            { name = "🏆 Rewards", value = rewardsText, inline = false },
-            { name = "📦 Units Loadout", value = getOrderedUnits(), inline = false },
-            shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
-            { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
-        }
-        
-        -- Filter out nil fields
-        for i = #fields, 1, -1 do
-            if not fields[i] then table.remove(fields, i) end
-        end
-        
-        local payload = Services.HttpService:JSONEncode({
+        local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
+
+        local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+
+        local orderedUnits = getOrderedUnits()
+
+        data = {
             username = "LixHub Bot",
-            content = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or nil,
+            content = shouldPing and pingText or nil,
             embeds = {{
                 title = shouldPing and "🌟 UNIT DROP! 🌟" or "🎯 Stage Finished!",
-                description = shouldPing and (string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) .. "\n" .. (RewardsUI and RewardsUI:FindFirstChild("Stage") and RewardsUI.Stage.Label.Text or "Unknown Stage") .. " (" .. (RewardsUI and RewardsUI:FindFirstChild("Gamemode") and RewardsUI.Gamemode.Label.Text or "Unknown Time") .. ")" .. " - " .. matchResult) or ((RewardsUI and RewardsUI:FindFirstChild("Stage") and RewardsUI.Stage.Label.Text or "Unknown Stage") .. " (" .. (RewardsUI and RewardsUI:FindFirstChild("Gamemode") and RewardsUI.Gamemode.Label.Text or "Unknown Time") .. ")" .. " - " .. matchResult),
-                color = shouldPing and 0xFFD700 or ((matchResult == "Victory") and 0x57F287 or 0xED4245),
-                fields = fields,
+                description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
+                color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
+                fields = {
+                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
+                    { name = "🏆 Rewards", value = rewardsText, inline = false },
+                    { name = "📦 Units Loadout", value = orderedUnits, inline = false },
+                    shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
+                    { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
+                },
                 footer = { text = "discord.gg/lixhub • Enhanced Tracking" },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                timestamp = timestamp
             }}
-        })
+        }
 
-        local requestFunc = (syn and syn.request) or (http and http.request) or request
-        if requestFunc then
-            local success, result = pcall(function()
-                return requestFunc({
-                    Url = ValidWebhook,
-                    Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body = payload
-                })
-            end)
+        local filteredFields = {}
+        for _, field in ipairs(data.embeds[1].fields) do if field then table.insert(filteredFields, field) end end
+        data.embeds[1].fields = filteredFields
+    else
+        return
+    end
 
-            if success then
-                notify("Webhook", "Webhook sent successfully.", 2)
-            else
-                warn("Webhook failed to send: " .. tostring(result))
-                notify("Webhook Error", tostring(result))
-            end
+    local payload = Services.HttpService:JSONEncode(data)
+    local requestFunc = (syn and syn.request) or (http and http.request) or request
+
+    if requestFunc then
+        local success, result = pcall(function()
+           -- notify("Webhook", "Sending webhook...")
+            return requestFunc({
+                Url = ValidWebhook,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = payload
+            })
+        end)
+
+        if success then
+            notify("Webhook", "Webhook sent successfully.", 2)
         else
-            warn("No compatible HTTP request method found.")
-            notify("Webhook Error", "No HTTP request method available.")
+            warn("Webhook failed to send: " .. tostring(result))
+            notify("Webhook Error", tostring(result))
         end
+    else
+        warn("No compatible HTTP request method found.")
+        notify("Webhook Error", "No HTTP request method available.")
     end
 end
 
@@ -813,24 +773,24 @@ local function scanBossRushPaths()
         [4] = {enemies = 0, units = 0}
     }
     
-    -- Helper function to find closest path for an entity
-    local function findClosestPath(entityPos)
-        for pathNum = 1, 4 do
-            for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
-                if (entityPos - waypoint.Position).Magnitude < 25 then
-                    return pathNum
-                end
-            end
-        end
-        return nil
-    end
-    
     -- Scan enemies
     for _, enemy in pairs(Services.Workspace.Agent.EnemyT:GetChildren()) do
         if enemy:IsA("Part") then
-            local path = findClosestPath(enemy.Position)
-            if path then
-                pathData[path].enemies = pathData[path].enemies + 1
+            local closestPath = nil
+            local closestDist = math.huge
+            
+            for pathNum = 1, 4 do
+                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
+                    local dist = (enemy.Position - waypoint.Position).Magnitude
+                    if dist < closestDist and dist < 25 then
+                        closestDist = dist
+                        closestPath = pathNum
+                    end
+                end
+            end
+            
+            if closestPath then
+                pathData[closestPath].enemies = pathData[closestPath].enemies + 1
             end
         end
     end
@@ -838,9 +798,21 @@ local function scanBossRushPaths()
     -- Scan player units
     for _, unit in pairs(Services.Workspace.Agent.UnitT:GetChildren()) do
         if unit:IsA("Part") then
-            local path = findClosestPath(unit.Position)
-            if path then
-                pathData[path].units = pathData[path].units + 1
+            local closestPath = nil
+            local closestDist = math.huge
+            
+            for pathNum = 1, 4 do
+                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
+                    local dist = (unit.Position - waypoint.Position).Magnitude
+                    if dist < closestDist and dist < 25 then
+                        closestDist = dist
+                        closestPath = pathNum
+                    end
+                end
+            end
+            
+            if closestPath then
+                pathData[closestPath].units = pathData[closestPath].units + 1
             end
         end
     end
@@ -863,25 +835,29 @@ local function getAvailablePaths()
 end
 
 local function getBestBossRushPath(pathData)
+    local availablePaths = getAvailablePaths()
     local bestPath = State.currentBossPath or 1
     local bestScore = -1
-    local currentPathData = pathData[bestPath]
     
-    for _, pathNum in pairs(getAvailablePaths()) do
+    -- Check if current path has too many units (force switch)
+    local currentPathData = pathData[State.currentBossPath or 1]
+    local unitCap = 4 -- Adjust this number based on your preference
+    
+    for _, pathNum in pairs(availablePaths) do
         local data = pathData[pathNum]
         local score = data.enemies * 10 - data.units * 3
         
         -- Bonus for having fewer units when current path is overcrowded
-        if currentPathData.units >= 4 then
-            score = score + (4 - data.units) * 5
+        if currentPathData.units >= unitCap then
+            score = score + (unitCap - data.units) * 5 -- Bonus for paths with fewer units
         end
         
         -- Only switch if significantly better (reduces path thrashing)
-        local threshold = (pathNum == bestPath) and 0 or 5
+        local threshold = (pathNum == State.currentBossPath) and 0 or 5
         
         -- Force switch if current path is overcrowded
-        if currentPathData.units >= 4 and data.units < currentPathData.units then
-            threshold = -10
+        if currentPathData.units >= unitCap and data.units < currentPathData.units then
+            threshold = -10 -- Make it easier to switch away from overcrowded paths
         end
         
         if score > bestScore + threshold then
@@ -893,14 +869,14 @@ local function getBestBossRushPath(pathData)
     return bestPath, pathData[bestPath].enemies, pathData[bestPath].units
 end
 
-
 local function countPartsOnPath(folder, pathFolder)
     local count = 0
     for _, part in ipairs(folder:GetChildren()) do
         if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
+            local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
+            local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
             local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
-            if (part.Position - pathFolder["1"].Position).Magnitude + 
-               (part.Position - pathFolder["2"].Position).Magnitude <= totalDist + 15 then
+            if distToStart + distToEnd <= totalDist + 15 then
                 count = count + 1
             end
         end
@@ -911,10 +887,12 @@ end
 local function getBestPath()
     local bestPath, lowestUnits = nil, math.huge
     for i = 1, 3 do
-        local pathFolder = Services.Workspace:WaitForChild("WayPoint"):FindFirstChild("P" .. i)
+        local pathName = "P" .. i
+        local pathFolder = Services.Workspace:WaitForChild("WayPoint"):FindFirstChild(pathName)
         if pathFolder then
             local unitCount = countPartsOnPath(Services.Workspace.Agent.UnitT, pathFolder)
-            if countPartsOnPath(Services.Workspace.Agent.EnemyT, pathFolder) > 0 and unitCount < lowestUnits then
+            local enemyCount = countPartsOnPath(Services.Workspace.Agent.EnemyT, pathFolder)
+            if enemyCount > 0 and unitCount < lowestUnits then
                 lowestUnits = unitCount
                 bestPath = i
             end
@@ -1475,14 +1453,17 @@ end
 local function getUpgradeCost(unitName)
     if not unitName then return 9999 end
 
-    local success, result = pcall(function()
-        return tonumber(
-            (Services.Players.LocalPlayer.PlayerGui.HUD.InGame.UnitsManager.Main.Main.ScrollingFrame[unitName].CostText.Text:match("Cost:</font>%s*([%d,]+)") or ""):gsub(",", "")) or 9999
+    local success, cost = pcall(function()
+        local costText = Services.Players.LocalPlayer.PlayerGui.HUD.InGame.UnitsManager.Main.Main.ScrollingFrame[unitName].CostText.Text
+        local costValue = string.match(costText, "Cost:</font>%s*([%d,]+)")
+        if costValue then
+            costValue = costValue:gsub(",", "")
+            return tonumber(costValue) or 9999
+        end
     end)
 
-    return success and result or 9999
+    return success and cost or 9999
 end
-
 
 local function getDeploymentCost(unitName)
     if not unitName then return 5000 end
@@ -1530,28 +1511,36 @@ local function upgradeUnit(unitName)
 end
 
 local function hasEnoughMoney(slotNumber)
-    return getCurrentMoney() >= getDeploymentCost(
-        typeof(getUnitNameFromSlot(slotNumber)) == "Instance"
-            and getUnitNameFromSlot(slotNumber).Name
-            or tostring(getUnitNameFromSlot(slotNumber)))
-end
+    local currentMoney = getCurrentMoney()
+    local unitName = getUnitNameFromSlot(slotNumber)
+    local unitNameStr = typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)
+    local unitCost = getDeploymentCost(unitNameStr)
 
+    
+    --print("Slot " .. slotNumber .. " - Money: " .. currentMoney .. ", Cost: " .. unitCost)
+    
+    return currentMoney >= unitCost
+end
 
 local function leftToRightUpgrade()
     while State.autoUpgradeEnabled and State.gameRunning do
         local unitName = getUnitNameFromSlot(State.currentUpgradeSlot)
         local unitNameStr = unitName and (typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)) or "nil"
+        local maxLevel = Config.unitLevelCaps[tonumber(State.currentUpgradeSlot)] or 9
 
         if unitName and unitNameStr ~= "" and unitNameStr ~= "nil" then
             local currentLevel = getCurrentUpgradeLevel(unitNameStr)
-            
-            if currentLevel == "MAX" or tonumber(currentLevel) >= (Config.unitLevelCaps[tonumber(State.currentUpgradeSlot)] or 9) then
+
+            if currentLevel == "MAX" or tonumber(currentLevel) >= maxLevel then
                 State.currentUpgradeSlot = State.currentUpgradeSlot + 1
                 if State.currentUpgradeSlot > 6 then
                     State.currentUpgradeSlot = 1
                 end
             else
-                if getCurrentMoney() >= getUpgradeCost(unitNameStr) then
+                local currentMoney = getCurrentMoney()
+                local upgradeCost = getUpgradeCost(unitNameStr)
+
+                if currentMoney >= upgradeCost then
                     if upgradeUnit(unitNameStr) then
                         task.wait(UPGRADE_COOLDOWN)
                     else
@@ -1622,36 +1611,36 @@ local function resetUpgradeOrder()
 end
 
 local function getUnitsWithUltimates()
+    local unitsWithUltimates = {}
+
     local success, result = pcall(function()
-        local unitFolder = Services.Workspace:WaitForChild("Agent", 5)
-            and Services.Workspace.Agent:WaitForChild("UnitT", 5)
+        local agentFolder = Services.Workspace:WaitForChild("Agent", 5)
+        if not agentFolder then return {} end
+
+        local unitFolder = agentFolder:WaitForChild("UnitT", 5)
         if not unitFolder then return {} end
 
-        local output = {}
-
         for _, part in pairs(unitFolder:GetChildren()) do
-            if (part:IsA("BasePart") or part:IsA("Part")) then
-                local info = part:FindFirstChild("Info")
-                if info then
-                    local active = info:FindFirstChild("ActiveAbility")
-                    local target = info:FindFirstChild("TargetAt")
-                    local owner = info:FindFirstChild("Owner")
+            if part:IsA("BasePart") or part:IsA("Part") then
+                local infoFolder = part:FindFirstChild("Info")
+                if infoFolder then
+                    local activeAbility = infoFolder:FindFirstChild("ActiveAbility")
+                    local targetObject = infoFolder:FindFirstChild("TargetAt")
+                    local ownerValue = infoFolder:FindFirstChild("Owner")
 
-                    if active and target and owner
-                        and active:IsA("StringValue")
-                        and target:IsA("ObjectValue")
-                        and owner:IsA("StringValue")
-                        and active.Value ~= ""
-                        and target.Value ~= nil
-                        and owner.Value == Services.Players.LocalPlayer.Name
-                    then
-                        table.insert(output, { part = part, abilityName = active.Value })
+                    if activeAbility and activeAbility:IsA("StringValue") and targetObject and targetObject:IsA("ObjectValue") and ownerValue and ownerValue:IsA("StringValue") then
+                        if activeAbility.Value ~= "" and targetObject.Value ~= nil and ownerValue.Value == Services.Players.LocalPlayer.Name then
+                            table.insert(unitsWithUltimates, {
+                                part = part,
+                                abilityName = activeAbility.Value
+                            })
+                        end
                     end
                 end
             end
         end
 
-        return output
+        return unitsWithUltimates
     end)
 
     if success then
@@ -1661,7 +1650,6 @@ local function getUnitsWithUltimates()
         return {}
     end
 end
-
 
 local function fireUltimateForUnit(unitData)
     local success = pcall(function()
@@ -1711,6 +1699,14 @@ local function startAutoUltimate()
     end)
 end
 
+local function stopAutoUltimate()
+    if State.ultimateTask then
+        task.cancel(State.ultimateTask)
+        State.ultimateTask = nil
+        print("🛑 Auto Ultimate task cancelled")
+    end
+end
+
 local function checkSlotExists(slotNumber)
     local slotPath = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber]
     if slotPath and slotPath.Frame.UnitFrame and slotPath.Frame.UnitFrame.Info.Folder.Value ~= nil then
@@ -1737,7 +1733,8 @@ end
 
 local function IsUnitLevelReached(slotNumber)
     local unitName = getUnitNameFromSlot(slotNumber)
-    local currentUnitLevel = getCurrentUpgradeLevel(unitName and (typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)) or "nil")
+    local unitNameStr = unitName and (typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)) or "nil"
+    local currentUnitLevel = getCurrentUpgradeLevel(unitNameStr)
     if currentUnitLevel == "MAX" then
         return false
     end
@@ -1747,22 +1744,34 @@ local function IsUnitLevelReached(slotNumber)
 end
 
 local function getNextReadySlot()
+    local startSlot = State.currentSlot
     local checkedSlots = 0
     
     while checkedSlots < 6 do
-        task.wait(0.05)
+    task.wait(0.05)
+    local slotToCheck = State.currentSlot
 
-        if not (checkSlotExists(State.currentSlot) and 
-                not isSlotOnCooldown(State.currentSlot) and
-                hasEnoughMoney(State.currentSlot) and
-                not shouldSkipSlotTemporarily(State.currentSlot) and
-                not IsUnitLevelReached(State.currentSlot)) then
-            State.currentSlot = (State.currentSlot % 6) + 1
-            checkedSlots = checkedSlots + 1
-        else
-            return State.currentSlot
-        end
+    local shouldSkip = false
+
+    if not checkSlotExists(slotToCheck) then
+        shouldSkip = true
+    elseif isSlotOnCooldown(slotToCheck) then
+        shouldSkip = true
+    elseif not hasEnoughMoney(slotToCheck) then
+        shouldSkip = true
+    elseif shouldSkipSlotTemporarily(slotToCheck) then
+        shouldSkip = true
+    elseif IsUnitLevelReached(slotToCheck) then
+        shouldSkip = true
     end
+
+    if shouldSkip then
+        State.currentSlot = (State.currentSlot % 6) + 1
+        checkedSlots = checkedSlots + 1
+    else
+        return slotToCheck
+    end
+end
     return nil
 end
 
@@ -1866,224 +1875,6 @@ local function startAutoPlay()
     autoPlayLoop()
 end
 
-local function shouldDeployOnCurrentPath(slotNumber)
-    local config = State.bossRushDeployConfig[slotNumber]
-    if not config or not config.enabled then
-        return false
-    end
-    
-    local currentPath = State.currentBossPath or 1
-    
-    -- Check if current path is in the allowed paths for this slot
-    for _, allowedPath in pairs(config.paths) do
-        if allowedPath == currentPath then
-            return true
-        end
-    end
-    
-    return false
-end
-
-local function bossRushShouldSkipSlotTemporarily(slotNumber)
-    local lastAttempt = State.bossRushLastDeploymentTimes[slotNumber]
-    if lastAttempt and (tick() - lastAttempt) < 3 then
-        return true
-    end
-    return false
-end
-
-local function getBossRushNextReadySlot()
-    local startSlot = State.bossRushCurrentSlot
-    local checkedSlots = 0
-    
-    while checkedSlots < 6 do
-        task.wait(0.05)
-        local slotToCheck = State.bossRushCurrentSlot
-
-        local shouldSkip = false
-
-        -- Check if slot is configured for boss rush and enabled
-        if not State.bossRushDeployConfig[slotToCheck] or not State.bossRushDeployConfig[slotToCheck].enabled then
-            shouldSkip = true
-        -- Check if unit should be deployed on current path
-        elseif not shouldDeployOnCurrentPath(slotToCheck) then
-            shouldSkip = true
-        -- Use existing checks
-        elseif not checkSlotExists(slotToCheck) then
-            shouldSkip = true
-        elseif isSlotOnCooldown(slotToCheck) then
-            shouldSkip = true
-        elseif not hasEnoughMoney(slotToCheck) then
-            shouldSkip = true
-        elseif bossRushShouldSkipSlotTemporarily(slotToCheck) then
-            shouldSkip = true
-        elseif IsUnitLevelReached(slotToCheck) then
-            shouldSkip = true
-        end
-
-        if shouldSkip then
-            State.bossRushCurrentSlot = (State.bossRushCurrentSlot % 6) + 1
-            checkedSlots = checkedSlots + 1
-        else
-            return slotToCheck
-        end
-    end
-    return nil
-end
-
-local function bossRushDeployUnit(slotNumber)
-    if not checkSlotExists(slotNumber) then
-        return false, "Slot doesn't exist"
-    end
-    
-    if isSlotOnCooldown(slotNumber) then
-        return false, "Unit is on cooldown"
-    end
-
-    if not hasEnoughMoney(slotNumber) then
-        return false, "Not enough money"
-    end
-
-    if IsUnitLevelReached(slotNumber) then
-        return false, "Unit can't be deployed yet because of level"
-    end
-
-    if not shouldDeployOnCurrentPath(slotNumber) then
-        return false, "Unit not configured for current path"
-    end
-    
-    -- Get the unit folder for this slot
-    local unitFolder = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
-    
-    if not unitFolder then
-        return false, "Unit folder not found"
-    end
-    
-    -- Try to deploy the unit
-    local success, errorMessage = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Deployment"):FireServer(unitFolder)
-    end)
-    
-    if success then
-        print("Successfully deployed boss rush unit from slot " .. slotNumber .. " on path " .. (State.currentBossPath or 1))
-        -- Clear any temporary skip for this slot since it worked
-        State.bossRushLastDeploymentTimes[slotNumber] = nil
-        return true, "Success"
-    else
-        print("Failed to deploy boss rush unit from slot " .. slotNumber .. ": " .. tostring(errorMessage))
-        -- Mark this slot as recently failed
-        State.bossRushLastDeploymentTimes[slotNumber] = tick()
-        return false, "Deployment failed"
-    end
-end
-
-local function bossRushAutoPlayLoop()
-    task.spawn(function()
-        while State.bossRushAutoDeployEnabled do
-            -- Only deploy if we're in a boss rush game
-            if State.gameRunning then
-                -- Find next ready slot for current path
-                local slotToDeploy = getBossRushNextReadySlot()
-                
-                if slotToDeploy then
-                    local success, message = bossRushDeployUnit(slotToDeploy)
-                    
-                    if success then
-                        -- Successfully deployed, move to next slot for next deployment
-                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
-                    elseif not success and message == "Not enough money" then
-                        State.bossRushCurrentSlot = (slotToDeploy % 6)
-                    else
-                        -- Failed deployment, slot will be temporarily skipped
-                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
-                        if message ~= "Unit not configured for current path" then
-                            print("Failed to deploy boss rush unit from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
-                        end
-                    end
-                else
-                    -- No ready slots found for current path, continue cycling
-                    -- print("No ready slots found for current path, continuing cycle...")
-                end
-            end
-            
-            -- Wait before next attempt
-            task.wait(0.1)
-        end
-    end)
-end
-
-local function startBossRushAutoPlay()
-    if isInLobby() then 
-        print("Cannot start boss rush autoplay: Player is in lobby")
-        return 
-    end
-    
-    print("Starting boss rush auto deploy system...")
-    
-    -- Reset state
-    if Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.AutoPlay.Value == true then
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
-    end
-    State.bossRushCurrentSlot = 1
-    State.bossRushLastDeploymentTimes = {}
-    State.slotExists = {}
-    
-    -- Check which slots have units initially
-    for i = 1, 6 do
-        checkSlotExists(i)
-        if State.bossRushDeployConfig[i] and State.bossRushDeployConfig[i].enabled then
-            print("Boss Rush Slot " .. i .. " configured for paths: " .. table.concat(State.bossRushDeployConfig[i].paths, ", "))
-        end
-    end
-    
-    bossRushAutoPlayLoop()
-end
-
-local function stopBossRushAutoPlay()
-    State.bossRushAutoDeployEnabled = false
-    print("Boss rush auto deploy system stopped")
-end
-
-local function setBossRushSlotPaths(slotNumber, paths)
-    if slotNumber >= 1 and slotNumber <= 6 then
-        if not State.bossRushDeployConfig[slotNumber] then
-            State.bossRushDeployConfig[slotNumber] = {paths = {}, enabled = false}
-        end
-        State.bossRushDeployConfig[slotNumber].paths = paths
-        print("Set slot " .. slotNumber .. " to deploy on paths: " .. table.concat(paths, ", "))
-    end
-end
-
-local function setBossRushSlotEnabled(slotNumber, enabled)
-    if slotNumber >= 1 and slotNumber <= 6 then
-        if not State.bossRushDeployConfig[slotNumber] then
-            State.bossRushDeployConfig[slotNumber] = {paths = {1, 2, 3, 4}, enabled = false}
-        end
-        State.bossRushDeployConfig[slotNumber].enabled = enabled
-        print("Slot " .. slotNumber .. " boss rush deployment " .. (enabled and "enabled" or "disabled"))
-    end
-end
-
-local function toggleBossRushAutoPlay()
-    State.bossRushAutoDeployEnabled = not State.bossRushAutoDeployEnabled
-    
-    if State.bossRushAutoDeployEnabled then
-        startBossRushAutoPlay()
-    else
-        stopBossRushAutoPlay()
-    end
-end
-
-local function pathStringToNumber(pathString)
-    local pathMap = {
-        ["Path 1"] = 1,
-        ["Path 2"] = 2,
-        ["Path 3"] = 3,
-        ["Path 4"] = 4
-    }
-    return pathMap[pathString]
-end
-
 local function StreamerMode()
     local head = Services.Players.LocalPlayer.Character:WaitForChild("Head", 5)
     if not head then return end
@@ -2170,26 +1961,24 @@ local CurseImageIDs = {
 }
 
 local function GetAppliedCurses()
+    local main = Services.Players.LocalPlayer.PlayerGui:WaitForChild("ApplyCurse").Main.Base.Stats.Main
     local results = {}
-    for _, frame in pairs(
-        Services.Players.LocalPlayer.PlayerGui
-            :WaitForChild("ApplyCurse")
-            .Main.Base.Stats.Main:GetChildren()
-    ) do
-        if frame.Name == "StatTemp" then
-            local icon = frame:FindFirstChild("StatsIconic")
-            local buff = frame:FindFirstChild("BuffIconic")
-            if icon and buff then
+
+    for _, statFrame in pairs(main:GetChildren()) do
+        if statFrame.Name == "StatTemp" then
+            local icon = statFrame:FindFirstChild("StatsIconic")
+            local buffIcon = statFrame:FindFirstChild("BuffIconic")
+            if icon and buffIcon then
+                local isGreen = buffIcon.Image == "rbxassetid://73853750530888"
                 table.insert(results, {
                     image = icon.Image,
-                    isGreen = buff.Image == "rbxassetid://73853750530888"
+                    isGreen = isGreen,
                 })
             end
         end
     end
     return results
 end
-
 
 local function CursesMatch(applied, selected)
     local matched = 0
@@ -2305,22 +2094,52 @@ end)
 
 --//\\--
 
-task.spawn(function()
+--[[task.spawn(function()
     while true do
-        task.wait(1)
-
-        if State.AutoSellRarities and typeof(State.SelectedRaritiesToSell) == "table" then
-            for _, unit in ipairs(GameObjects.GetData.GetData(Services.Players.LocalPlayer).Collection:GetChildren()) do
-                local rarity = getunitRarity(unit)
-                if table.find(State.SelectedRaritiesToSell, rarity) then
-                    local folder = GameObjects.getUnitFolder(Services.Players.LocalPlayer, unit)
-                    if folder then
-                        local lock = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection[unit.Name].Lock
-                        if lock.Value == false then
-                            Remotes.SellRemote:FireServer({ folder, nil })
-                        end
+        task.wait(0.25)
+        if isInLobby() then
+                local visual = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Visual")
+                -- UI disabled: delete and backup
+                if State.DisableSummonUI then
+                    if visual and not visualBackup then
+                        visualBackup = visual:Clone()
+                        pcall(function()
+                            visual:Destroy()
+                        end)
+                    end
+                else
+                    -- UI enabled: restore backup if missing
+                    if not visual and visualBackup then
+                        pcall(function()
+                            visualBackup.Parent = playerGui
+                            visualBackup = nil
+                        end)
                     end
                 end
+            end
+        end
+end)--]]
+
+task.spawn(function()
+    while true do
+        task.wait(1) -- check every 5 seconds
+
+        if State.AutoSellRarities and typeof(State.SelectedRaritiesToSell) == "table" then
+            local data = GameObjects.GetData.GetData(Services.Players.LocalPlayer)
+            local collection = data.Collection:GetChildren()
+
+            for _, unit in ipairs(collection) do
+                local rarity = getunitRarity(unit)
+                if table.find(State.SelectedRaritiesToSell, rarity) then
+                    local realUnitFolder = GameObjects.getUnitFolder(Services.Players.LocalPlayer, unit)
+                   if realUnitFolder then
+    local lockedFlag = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection[unit.Name].Lock
+    if lockedFlag.Value == false then
+        local args = {{ realUnitFolder, nil }}
+        Remotes.SellRemote:FireServer(unpack(args))
+    end
+end
+end
             end
         end
     end
@@ -2707,184 +2526,6 @@ end)
     end,
     })
 
-local Toggle = AutoPlayTab:CreateToggle({
-    Name = "Auto Deploy - Boss Rush",
-    CurrentValue = false,
-    Flag = "AutoBossRushDeployToggle",
-    Callback = function(Value)
-        State.bossRushAutoDeployEnabled = Value
-        
-        if Value then
-            startBossRushAutoPlay()
-        else
-            stopBossRushAutoPlay()
-        end
-    end,
-})
-
-local DeployBossRushSelector1 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 1 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true, -- Changed to true for multiple path selection
-    Flag = "DeployBossRushSelector1",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            -- Single option selected
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(1, paths)
-        setBossRushSlotEnabled(1, #paths > 0) -- Enable if paths are selected
-    end,
-})
-
-local DeployBossRushSelector2 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 2 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector2",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(2, paths)
-        setBossRushSlotEnabled(2, #paths > 0)
-    end,
-})
-
-local DeployBossRushSelector3 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 3 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector3",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(3, paths)
-        setBossRushSlotEnabled(3, #paths > 0)
-    end,
-})
-
-local DeployBossRushSelector4 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 4 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector4",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(4, paths)
-        setBossRushSlotEnabled(4, #paths > 0)
-    end,
-})
-
-local DeployBossRushSelector5 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 5 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector5",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(5, paths)
-        setBossRushSlotEnabled(5, #paths > 0)
-    end,
-})
-
-local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 6 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector6",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(6, paths)
-        setBossRushSlotEnabled(6, #paths > 0)
-    end,
-})
-
 task.spawn(function()
     while true do
         if State.autoPlayBossRushEnabled and State.gameRunning then
@@ -3260,16 +2901,17 @@ task.spawn(function()
 task.spawn(function()
     while true do
         if State.AutoSelectSpeed and State.SelectedSpeedValue then
-            local val = type(State.SelectedSpeedValue) == "table" and State.SelectedSpeedValue[1] or State.SelectedSpeedValue
-            local num = tonumber(tostring(val):gsub("[^%d]", ""))
-            if num then
-                Services.ReplicatedStorage.Remote.SpeedGamepass:FireServer(num)
+            local raw = State.SelectedSpeedValue
+            local value = type(raw) == "table" and raw[1] or raw
+            local clean = tostring(value):gsub("[^%d]", "")
+            local speedNum = tonumber(clean)
+            if speedNum then
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("SpeedGamepass"):FireServer(speedNum)
             end
         end
         task.wait(1)
     end
 end)
-
 
      local Toggle = GameTab:CreateToggle({
     Name = "Auto Start",
@@ -3525,7 +3167,7 @@ end)
     end,
     })
 
-       Slider3_5 = AutoPlayTab:CreateSlider({
+     local Slider3_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 3 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3537,7 +3179,7 @@ end)
     end,
     })
 
-     Slider3_6 = AutoPlayTab:CreateSlider({
+    local Slider3_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 3 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3549,7 +3191,7 @@ end)
     end,
     })
 
-     Slider4 = AutoPlayTab:CreateSlider({
+    local Slider4 = AutoPlayTab:CreateSlider({
     Name = "Unit 4 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3561,7 +3203,7 @@ end)
     end,
     })
 
-      Slider4_5 = AutoPlayTab:CreateSlider({
+     local Slider4_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 4 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3573,7 +3215,7 @@ end)
     end,
     })
 
-     Slider4_6 = AutoPlayTab:CreateSlider({
+    local Slider4_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 4 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3585,7 +3227,7 @@ end)
     end,
     })
 
-     Slider5 = AutoPlayTab:CreateSlider({
+    local Slider5 = AutoPlayTab:CreateSlider({
     Name = "Unit 5 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3597,7 +3239,7 @@ end)
     end,
     })
 
-      Slider5_5 = AutoPlayTab:CreateSlider({
+     local Slider5_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 5 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3609,7 +3251,7 @@ end)
     end,
     })
 
-     Slider5_6 = AutoPlayTab:CreateSlider({
+    local Slider5_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 5 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3621,7 +3263,7 @@ end)
     end,
     })
 
-     Slider6 = AutoPlayTab:CreateSlider({
+    local Slider6 = AutoPlayTab:CreateSlider({
     Name = "Unit 6 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3633,7 +3275,7 @@ end)
     end,
     })
 
-      Slider6_5 = AutoPlayTab:CreateSlider({
+     local Slider6_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 6 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3645,7 +3287,7 @@ end)
     end,
     })
 
-     Slider6_6 = AutoPlayTab:CreateSlider({
+    local Slider6_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 6 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3657,7 +3299,7 @@ end)
     end,
     })
 
- Input = WebhookTab:CreateInput({
+local Input = WebhookTab:CreateInput({
     Name = "Input Webhook",
     CurrentValue = "",
     PlaceholderText = "Input Webhook...",
@@ -3684,7 +3326,7 @@ end)
     end,
 })
 
- Input = WebhookTab:CreateInput({
+local Input = WebhookTab:CreateInput({
     Name = "Input Discord ID (mention rares)",
     CurrentValue = "",
     PlaceholderText = "Input Discord ID...",
@@ -3695,7 +3337,7 @@ end)
     end,
 })
 
-      TestWebhookButton = WebhookTab:CreateButton({
+     local TestWebhookButton = WebhookTab:CreateButton({
     Name = "Test webhook",
     Callback = function()
         if ValidWebhook then
@@ -3704,7 +3346,7 @@ end)
     end,
     })
 
-     Toggle = WebhookTab:CreateToggle({
+    local Toggle = WebhookTab:CreateToggle({
     Name = "Send On Stage Finished",
     CurrentValue = false,
     Flag = "sendWebhookWhenStageCompleted",
@@ -3800,6 +3442,8 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
             return
         end
 
+        local TIMEOUT = 10 -- seconds to wait for gameRunning per step
+
     local function waitForGameRunning(timeout)
         local elapsed = 0
         while elapsed < timeout do
@@ -3843,7 +3487,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
             if action.enabled then
                 action.func()
                 if not action.skipCheck then
-                    local success = waitForGameRunning(10)
+                    local success = waitForGameRunning(TIMEOUT)
                     if success then
                         print("Game restarted successfully. Stopping sequence.")
                         return
