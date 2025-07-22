@@ -127,7 +127,19 @@ local State = {
     upgradeTask = nil,
     ultimateTask = nil,
     currentUpgradeSlot = 1,
-    currentRetryAttempt = 0
+    currentRetryAttempt = 0,
+
+    bossRushAutoDeployEnabled = false,
+    bossRushDeployConfig = {
+    -- Example configuration: [slotNumber] = {paths = {1, 2, 3, 4}, enabled = true}
+    [1] = {paths = {1, 4}, enabled = true},
+    [2] = {paths = {1, 2}, enabled = true},
+    [3] = {paths = {2, 3}, enabled = true},
+    [4] = {paths = {3, 4}, enabled = true},
+    [5] = {paths = {1, 2, 3, 4}, enabled = false},
+    [6] = {paths = {1, 2, 3, 4}, enabled = false}},
+    bossRushCurrentSlot = 1,
+    bossRushLastDeploymentTimes = {},
 }
 
 local Data = {
@@ -1875,6 +1887,225 @@ local function startAutoPlay()
     autoPlayLoop()
 end
 
+local function shouldDeployOnCurrentPath(slotNumber)
+    local config = State.bossRushDeployConfig[slotNumber]
+    if not config or not config.enabled then
+        return false
+    end
+    
+    local currentPath = State.currentBossPath or 1
+    
+    -- Check if current path is in the allowed paths for this slot
+    for _, allowedPath in pairs(config.paths) do
+        if allowedPath == currentPath then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function bossRushShouldSkipSlotTemporarily(slotNumber)
+    local lastAttempt = State.bossRushLastDeploymentTimes[slotNumber]
+    if lastAttempt and (tick() - lastAttempt) < 3 then
+        return true
+    end
+    return false
+end
+
+local function getBossRushNextReadySlot()
+    local startSlot = State.bossRushCurrentSlot
+    local checkedSlots = 0
+    
+    while checkedSlots < 6 do
+        task.wait(0.05)
+        local slotToCheck = State.bossRushCurrentSlot
+
+        local shouldSkip = false
+
+        -- Check if slot is configured for boss rush and enabled
+        if not State.bossRushDeployConfig[slotToCheck] or not State.bossRushDeployConfig[slotToCheck].enabled then
+            shouldSkip = true
+        -- Check if unit should be deployed on current path
+        elseif not shouldDeployOnCurrentPath(slotToCheck) then
+            shouldSkip = true
+        -- Use existing checks
+        elseif not checkSlotExists(slotToCheck) then
+            shouldSkip = true
+        elseif isSlotOnCooldown(slotToCheck) then
+            shouldSkip = true
+        elseif not hasEnoughMoney(slotToCheck) then
+            shouldSkip = true
+        elseif bossRushShouldSkipSlotTemporarily(slotToCheck) then
+            shouldSkip = true
+        elseif IsUnitLevelReached(slotToCheck) then
+            shouldSkip = true
+        end
+
+        if shouldSkip then
+            State.bossRushCurrentSlot = (State.bossRushCurrentSlot % 6) + 1
+            checkedSlots = checkedSlots + 1
+        else
+            return slotToCheck
+        end
+    end
+    return nil
+end
+
+local function bossRushDeployUnit(slotNumber)
+    if not checkSlotExists(slotNumber) then
+        return false, "Slot doesn't exist"
+    end
+    
+    if isSlotOnCooldown(slotNumber) then
+        return false, "Unit is on cooldown"
+    end
+
+    if not hasEnoughMoney(slotNumber) then
+        return false, "Not enough money"
+    end
+
+    if IsUnitLevelReached(slotNumber) then
+        return false, "Unit can't be deployed yet because of level"
+    end
+
+    if not shouldDeployOnCurrentPath(slotNumber) then
+        return false, "Unit not configured for current path"
+    end
+    
+    -- Get the unit folder for this slot
+    local unitFolder = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
+    
+    if not unitFolder then
+        return false, "Unit folder not found"
+    end
+    
+    -- Try to deploy the unit
+    local success, errorMessage = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Deployment"):FireServer(unitFolder)
+    end)
+    
+    if success then
+        print("Successfully deployed boss rush unit from slot " .. slotNumber .. " on path " .. (State.currentBossPath or 1))
+        -- Clear any temporary skip for this slot since it worked
+        State.bossRushLastDeploymentTimes[slotNumber] = nil
+        return true, "Success"
+    else
+        print("Failed to deploy boss rush unit from slot " .. slotNumber .. ": " .. tostring(errorMessage))
+        -- Mark this slot as recently failed
+        State.bossRushLastDeploymentTimes[slotNumber] = tick()
+        return false, "Deployment failed"
+    end
+end
+
+local function bossRushAutoPlayLoop()
+    task.spawn(function()
+        while State.bossRushAutoDeployEnabled do
+            -- Only deploy if we're in a boss rush game
+            if State.gameRunning then
+                -- Find next ready slot for current path
+                local slotToDeploy = getBossRushNextReadySlot()
+                
+                if slotToDeploy then
+                    local success, message = bossRushDeployUnit(slotToDeploy)
+                    
+                    if success then
+                        -- Successfully deployed, move to next slot for next deployment
+                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
+                    elseif not success and message == "Not enough money" then
+                        State.bossRushCurrentSlot = (slotToDeploy % 6)
+                    else
+                        -- Failed deployment, slot will be temporarily skipped
+                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
+                        if message ~= "Unit not configured for current path" then
+                            print("Failed to deploy boss rush unit from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
+                        end
+                    end
+                else
+                    -- No ready slots found for current path, continue cycling
+                    -- print("No ready slots found for current path, continuing cycle...")
+                end
+            end
+            
+            -- Wait before next attempt
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function startBossRushAutoPlay()
+    if isInLobby() then 
+        print("Cannot start boss rush autoplay: Player is in lobby")
+        return 
+    end
+    
+    print("Starting boss rush auto deploy system...")
+    
+    -- Reset state
+    if Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.AutoPlay.Value == true then
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
+    end
+    State.bossRushCurrentSlot = 1
+    State.bossRushLastDeploymentTimes = {}
+    State.slotExists = {}
+    
+    -- Check which slots have units initially
+    for i = 1, 6 do
+        checkSlotExists(i)
+        if State.bossRushDeployConfig[i] and State.bossRushDeployConfig[i].enabled then
+            print("Boss Rush Slot " .. i .. " configured for paths: " .. table.concat(State.bossRushDeployConfig[i].paths, ", "))
+        end
+    end
+    
+    bossRushAutoPlayLoop()
+end
+
+local function stopBossRushAutoPlay()
+    State.bossRushAutoDeployEnabled = false
+    print("Boss rush auto deploy system stopped")
+end
+
+local function setBossRushSlotPaths(slotNumber, paths)
+    if slotNumber >= 1 and slotNumber <= 6 then
+        if not State.bossRushDeployConfig[slotNumber] then
+            State.bossRushDeployConfig[slotNumber] = {paths = {}, enabled = false}
+        end
+        State.bossRushDeployConfig[slotNumber].paths = paths
+        print("Set slot " .. slotNumber .. " to deploy on paths: " .. table.concat(paths, ", "))
+    end
+end
+
+local function setBossRushSlotEnabled(slotNumber, enabled)
+    if slotNumber >= 1 and slotNumber <= 6 then
+        if not State.bossRushDeployConfig[slotNumber] then
+            State.bossRushDeployConfig[slotNumber] = {paths = {1, 2, 3, 4}, enabled = false}
+        end
+        State.bossRushDeployConfig[slotNumber].enabled = enabled
+        print("Slot " .. slotNumber .. " boss rush deployment " .. (enabled and "enabled" or "disabled"))
+    end
+end
+
+local function toggleBossRushAutoPlay()
+    State.bossRushAutoDeployEnabled = not State.bossRushAutoDeployEnabled
+    
+    if State.bossRushAutoDeployEnabled then
+        startBossRushAutoPlay()
+    else
+        stopBossRushAutoPlay()
+    end
+end
+
+-- Helper function to convert path string to number
+local function pathStringToNumber(pathString)
+    local pathMap = {
+        ["Path 1"] = 1,
+        ["Path 2"] = 2,
+        ["Path 3"] = 3,
+        ["Path 4"] = 4
+    }
+    return pathMap[pathString]
+end
+
 local function StreamerMode()
     local head = Services.Players.LocalPlayer.Character:WaitForChild("Head", 5)
     if not head then return end
@@ -2541,6 +2772,184 @@ task.spawn(function()
     end
 end)
 
+local Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Deploy - Boss Rush",
+    CurrentValue = false,
+    Flag = "AutoBossRushDeployToggle",
+    Callback = function(Value)
+        State.bossRushAutoDeployEnabled = Value
+        
+        if Value then
+            startBossRushAutoPlay()
+        else
+            stopBossRushAutoPlay()
+        end
+    end,
+})
+
+local DeployBossRushSelector1 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 1 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true, -- Changed to true for multiple path selection
+    Flag = "DeployBossRushSelector1",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            -- Single option selected
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(1, paths)
+        setBossRushSlotEnabled(1, #paths > 0) -- Enable if paths are selected
+    end,
+})
+
+local DeployBossRushSelector2 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 2 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector2",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(2, paths)
+        setBossRushSlotEnabled(2, #paths > 0)
+    end,
+})
+
+local DeployBossRushSelector3 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 3 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector3",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(3, paths)
+        setBossRushSlotEnabled(3, #paths > 0)
+    end,
+})
+
+local DeployBossRushSelector4 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 4 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector4",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(4, paths)
+        setBossRushSlotEnabled(4, #paths > 0)
+    end,
+})
+
+local DeployBossRushSelector5 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 5 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector5",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(5, paths)
+        setBossRushSlotEnabled(5, #paths > 0)
+    end,
+})
+
+local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 6 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector6",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(6, paths)
+        setBossRushSlotEnabled(6, #paths > 0)
+    end,
+})
+
     local JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
 
     local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
@@ -2975,7 +3384,7 @@ end)
     end,
     })
 
-    local Toggle = AutoPlayTab:CreateToggle({
+     Toggle = AutoPlayTab:CreateToggle({
     Name = "Enable x team for x mode",
     CurrentValue = false,
     Flag = "AutoTeamModeSlotEnabler",
@@ -2984,7 +3393,7 @@ end)
     end,
     })
 
-    local TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
+     TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 1",
     Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Boss Attack","Portal"},
     CurrentOption = {},
@@ -2995,7 +3404,7 @@ end)
     end,
     })
 
-     local TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
+      TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 2",
     Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Boss Attack","Portal"},
     CurrentOption = {},
@@ -3006,7 +3415,7 @@ end)
     end,
     })
 
-     local TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
+      TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 3",
     Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Boss Attack","Portal"},
     CurrentOption = {},
@@ -3017,7 +3426,7 @@ end)
     end,
     })
 
-    local Toggle = AutoPlayTab:CreateToggle({
+     Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Play",
     CurrentValue = false,
     Flag = "AutoPlayToggle",
@@ -3029,7 +3438,7 @@ end)
     end,
     })
 
-    local Toggle = AutoPlayTab:CreateToggle({
+     Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Upgrade",
     CurrentValue = false,
     Flag = "AutoUpgradeToggle",
@@ -3045,7 +3454,7 @@ end)
     end,
     })
 
-      local Toggle = AutoPlayTab:CreateToggle({
+       Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Ultimate",
     CurrentValue = false,
     Flag = "AutoUltimate",
@@ -3054,7 +3463,7 @@ end)
     end,
     })
 
-     local Toggle = AutoPlayTab:CreateToggle({
+      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Delete Unit(s) on level",
     CurrentValue = false,
     Flag = "AutoReDeployToggle",
@@ -3065,7 +3474,7 @@ end)
 
     local Labelinfo = AutoPlayTab:CreateLabel("Auto Delete Unit(s) on level: level 0 = disable", "info")
 
-      local AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
+       AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
     Name = "Select Upgrade Method",
     Options = {"Left to right until max"},
     CurrentOption = {"Left to right until max"},
@@ -3083,7 +3492,7 @@ end)
     end,
     })
 
-    local Slider1 = AutoPlayTab:CreateSlider({
+     Slider1 = AutoPlayTab:CreateSlider({
     Name = "Unit 1 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3095,7 +3504,7 @@ end)
     end,
     })
 
-    local Slider1_5 = AutoPlayTab:CreateSlider({
+     Slider1_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 1 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3107,7 +3516,7 @@ end)
     end,
     })
 
-    local Slider1_6 = AutoPlayTab:CreateSlider({
+     Slider1_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 1 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3119,7 +3528,7 @@ end)
     end,
     })
 
-    local Slider2 = AutoPlayTab:CreateSlider({
+     Slider2 = AutoPlayTab:CreateSlider({
     Name = "Unit 2 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3131,7 +3540,7 @@ end)
     end,
     })
 
-     local Slider2_5 = AutoPlayTab:CreateSlider({
+      Slider2_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 2 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3143,7 +3552,7 @@ end)
     end,
     })
 
-    local Slider2_6 = AutoPlayTab:CreateSlider({
+     Slider2_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 2 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3155,7 +3564,7 @@ end)
     end,
     })
 
-    local Slider3 = AutoPlayTab:CreateSlider({
+     Slider3 = AutoPlayTab:CreateSlider({
     Name = "Unit 3 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3167,7 +3576,7 @@ end)
     end,
     })
 
-     local Slider3_5 = AutoPlayTab:CreateSlider({
+      Slider3_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 3 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3179,7 +3588,7 @@ end)
     end,
     })
 
-    local Slider3_6 = AutoPlayTab:CreateSlider({
+     Slider3_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 3 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3191,7 +3600,7 @@ end)
     end,
     })
 
-    local Slider4 = AutoPlayTab:CreateSlider({
+     Slider4 = AutoPlayTab:CreateSlider({
     Name = "Unit 4 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3203,7 +3612,7 @@ end)
     end,
     })
 
-     local Slider4_5 = AutoPlayTab:CreateSlider({
+      Slider4_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 4 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3215,7 +3624,7 @@ end)
     end,
     })
 
-    local Slider4_6 = AutoPlayTab:CreateSlider({
+     Slider4_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 4 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3227,7 +3636,7 @@ end)
     end,
     })
 
-    local Slider5 = AutoPlayTab:CreateSlider({
+     Slider5 = AutoPlayTab:CreateSlider({
     Name = "Unit 5 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3239,7 +3648,7 @@ end)
     end,
     })
 
-     local Slider5_5 = AutoPlayTab:CreateSlider({
+      Slider5_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 5 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3251,7 +3660,7 @@ end)
     end,
     })
 
-    local Slider5_6 = AutoPlayTab:CreateSlider({
+     Slider5_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 5 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3263,7 +3672,7 @@ end)
     end,
     })
 
-    local Slider6 = AutoPlayTab:CreateSlider({
+     Slider6 = AutoPlayTab:CreateSlider({
     Name = "Unit 6 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3275,7 +3684,7 @@ end)
     end,
     })
 
-     local Slider6_5 = AutoPlayTab:CreateSlider({
+      Slider6_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 6 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3287,7 +3696,7 @@ end)
     end,
     })
 
-    local Slider6_6 = AutoPlayTab:CreateSlider({
+     Slider6_6 = AutoPlayTab:CreateSlider({
     Name = "Sell Unit 6 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -3299,7 +3708,7 @@ end)
     end,
     })
 
-local Input = WebhookTab:CreateInput({
+ Input = WebhookTab:CreateInput({
     Name = "Input Webhook",
     CurrentValue = "",
     PlaceholderText = "Input Webhook...",
@@ -3326,7 +3735,7 @@ local Input = WebhookTab:CreateInput({
     end,
 })
 
-local Input = WebhookTab:CreateInput({
+ Input = WebhookTab:CreateInput({
     Name = "Input Discord ID (mention rares)",
     CurrentValue = "",
     PlaceholderText = "Input Discord ID...",
@@ -3337,7 +3746,7 @@ local Input = WebhookTab:CreateInput({
     end,
 })
 
-     local TestWebhookButton = WebhookTab:CreateButton({
+      TestWebhookButton = WebhookTab:CreateButton({
     Name = "Test webhook",
     Callback = function()
         if ValidWebhook then
@@ -3346,7 +3755,7 @@ local Input = WebhookTab:CreateInput({
     end,
     })
 
-    local Toggle = WebhookTab:CreateToggle({
+     Toggle = WebhookTab:CreateToggle({
     Name = "Send On Stage Finished",
     CurrentValue = false,
     Flag = "sendWebhookWhenStageCompleted",
