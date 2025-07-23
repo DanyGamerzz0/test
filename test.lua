@@ -2291,10 +2291,13 @@ end
 local function autoSellUnitLoop()
         if State.AutoSellUnitChoice[1] and State.AutoSellUnitChoice[1] ~= "No Unit" then
         local slotNumber = tonumber(State.AutoSellUnitChoice[1]:match("Unit(%d)"))
-        if slotNumber and not isSlotOnCooldown(slotNumber) then
+        if slotNumber then
             local unitName = getUnitNameFromSlot(slotNumber)
             if unitName then
-                deleteUnit(unitName)
+                task.wait(1)
+                if not isSlotOnCooldown(slotNumber) then
+                    deleteUnit(unitName)
+                end
             end
         end
         end
