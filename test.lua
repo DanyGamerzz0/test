@@ -167,10 +167,10 @@ local ValidWebhook
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "LixHub - [🩸TYBW] Anime Rangers X",
+   Name = "LixHub - [🩸TYBW 2 + QOL ] Anime Rangers X",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Anime Rangers X",
-   LoadingSubtitle = "v0.0.6",
+   LoadingSubtitle = "v0.0.7",
    ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
@@ -255,14 +255,14 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection("16/07/2025")
+local UpdateLogSection = UpdateLogTab:CreateSection("23/07/2025")
 local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 
 --//DIVIDERS\\--
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ added unit loadout to webhook, + new auto purchase features, + redeploy unit when level feature, + enable x team for x mode feature, + auto join infinity castle, + item tracker")
+local Label1 = UpdateLogTab:CreateLabel("+ Auto Deploy - Boss Rush (experimental), + auto sell selected unit (passive stacking), + delay ult usage by x seconds")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
@@ -2294,7 +2294,6 @@ local function autoSellUnitLoop()
         if slotNumber then
             local unitName = getUnitNameFromSlot(slotNumber)
             if unitName then
-                task.wait(1)
                 if not isSlotOnCooldown(slotNumber) then
                     deleteUnit(unitName)
                 end
@@ -3286,6 +3285,17 @@ task.spawn(function()
     local GameSection = GameTab:CreateSection("🎮 Game 🎮")
     local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
+    local Dropdown = GameTab:CreateDropdown({
+   Name = "AutoSell Unit (will remove it as soon as cooldown is over)",
+   Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
+   CurrentOption = {"No Unit"},
+   MultipleOptions = false,
+   Flag = "AutoSellUnitDropdown", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Option)
+        State.AutoSellUnitChoice = Option
+   end,
+})
+
     local Toggle = GameTab:CreateToggle({
     Name = "Auto 1x/2x/3x Speed",
     CurrentValue = false,
@@ -3383,17 +3393,6 @@ end)
         State.autoDisableEndUI = Value
     end,
     })
-
-    local Dropdown = GameTab:CreateDropdown({
-   Name = "AutoSell Unit (will remove it as soon as the unit is ready to be deployed)",
-   Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
-   CurrentOption = {"No Unit"},
-   MultipleOptions = false,
-   Flag = "AutoSellUnitDropdown", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Option)
-        State.AutoSellUnitChoice = Option
-   end,
-})
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Enable x team for x mode",
