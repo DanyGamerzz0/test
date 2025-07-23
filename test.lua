@@ -1694,33 +1694,6 @@ local function autoUltimateLoop()
     print("🛑 Auto Ultimate loop stopped")
 end
 
-
-local function startAutoUltimate()
-    if isInLobby() then return end
-    if State.ultimateTask then
-        task.cancel(State.ultimateTask)
-        State.ultimateTask = nil
-    end
-
-    State.ultimateTask = task.spawn(function()
-        local success, err = pcall(function()
-            autoUltimateLoop()
-        end)
-
-        if not success then
-            warn("❌ Auto Ultimate loop error:", err)
-        end
-    end)
-end
-
-local function stopAutoUltimate()
-    if State.ultimateTask then
-        task.cancel(State.ultimateTask)
-        State.ultimateTask = nil
-        print("🛑 Auto Ultimate task cancelled")
-    end
-end
-
 local function checkSlotExists(slotNumber)
     local slotPath = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber]
     if slotPath and slotPath.Frame.UnitFrame and slotPath.Frame.UnitFrame.Info.Folder.Value ~= nil then
@@ -2277,7 +2250,6 @@ local function deleteUnit(unitName)
         print("Successfully deleted unit: " .. unitName)
         return true
     else
-        warn("Failed to delete unit: " .. tostring(unitName))
         return false
     end
 end
@@ -2319,7 +2291,7 @@ end
 local function autoSellUnitLoop()
         if State.AutoSellUnitChoice[1] and State.AutoSellUnitChoice[1] ~= "No Unit" then
         local slotNumber = tonumber(State.AutoSellUnitChoice[1]:match("Unit(%d)"))
-        if slotNumber then
+        if slotNumber and not isSlotOnCooldown(slotNumber) then
             local unitName = getUnitNameFromSlot(slotNumber)
             if unitName then
                 deleteUnit(unitName)
@@ -3410,7 +3382,7 @@ end)
     })
 
     local Dropdown = GameTab:CreateDropdown({
-   Name = "AutoSell Unit (Usefull for lullaby passive stacking)",
+   Name = "AutoSell Unit (will remove it as soon as the unit is ready to be deployed)",
    Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
    CurrentOption = {"No Unit"},
    MultipleOptions = false,
@@ -3496,6 +3468,9 @@ end)
     Flag = "AutoUltimate",
     Callback = function(Value)
         State.AutoUltimateEnabled = Value
+        if Value then
+            task.spawn(autoUltimateLoop)
+        end
     end,
     })
 
