@@ -1625,8 +1625,8 @@ local function resetUpgradeOrder()
 end
 
 
-local function isTargetAlive(targetObject)
-    if not targetObject or not targetObject then
+local function isTargetAlive(targetValue)
+    if not targetValue or not targetValue.Name then
         return false
     end
     local success, result = pcall(function()
@@ -1636,7 +1636,8 @@ local function isTargetAlive(targetObject)
         local enemyFolder = agentFolder:FindFirstChild("EnemyT")
         if not enemyFolder then return false end
         
-        local enemy = enemyFolder:FindFirstChild(targetObject)
+        -- Check if enemy with same name exists in EnemyT
+        local enemy = enemyFolder:FindFirstChild(targetValue.Name)
         return enemy ~= nil
     end)
     
