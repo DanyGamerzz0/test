@@ -5,6 +5,7 @@ local Services = {
     Lighting = game:GetService("Lighting"),
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
     Workspace = game:GetService("Workspace"),
+    VIRTUAL_USER = game:GetService("VirtualUser"),
 }
 
 local Remotes = {}
@@ -99,6 +100,7 @@ local State = {
     enableLowPerformanceMode = false,
     SendStageCompletedWebhook = false,
     AntiAfkEnabled = false,
+    AntiAfkKickEnabled = false,
     AutoCurseEnabled = false,
     enableDeleteMap = false,
     autoBossRushEnabled = false,
@@ -262,7 +264,7 @@ local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ Auto Deploy - Boss Rush (experimental), + auto sell selected unit (passive stacking), + delay ult usage by x seconds")
+local Label1 = UpdateLogTab:CreateLabel("+ Auto Deploy - Boss Rush (experimental), + auto sell selected unit (passive stacking), + delay ult usage by x seconds, + (potentially) better auto ultimate, + anti afk (20min idle)")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
@@ -2735,6 +2737,25 @@ local Toggle = ShopTab:CreateToggle({
         State.AntiAfkEnabled = Value
     end,
 })
+
+    local Toggle = LobbyTab:CreateToggle({
+    Name = "Anti Afk Kick",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
 
 task.spawn(function()
     while true do
