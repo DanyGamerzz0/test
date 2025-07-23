@@ -1706,7 +1706,7 @@ local function checkSlotExists(slotNumber)
 end
 
 local function isSlotOnCooldown(slotNumber)
-    local cooldownPath = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame:FindFirstChild("CD_Frame")
+    local cooldownPath = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame:FindFirstChild("CD_FRAME")
     return cooldownPath and cooldownPath.Visible or false
 end
 
