@@ -1624,6 +1624,25 @@ local function resetUpgradeOrder()
     print("🔄 Reset upgrade order to slot 1")
 end
 
+
+local function isTargetAlive(targetObject)
+    if not targetObject or not targetObject then
+        return false
+    end
+    local success, result = pcall(function()
+        local agentFolder = Services.Workspace:WaitForChild("Agent", 5)
+        if not agentFolder then return false end
+        
+        local enemyFolder = agentFolder:FindFirstChild("EnemyT")
+        if not enemyFolder then return false end
+        
+        local enemy = enemyFolder:FindFirstChild(targetObject)
+        return enemy ~= nil
+    end)
+    
+    return success and result
+end
+
 local function getUnitsWithUltimates()
     local unitsWithUltimates = {}
 
@@ -1639,15 +1658,17 @@ local function getUnitsWithUltimates()
                 local infoFolder = part:FindFirstChild("Info")
                 if infoFolder then
                     local activeAbility = infoFolder:FindFirstChild("ActiveAbility")
-                    local targetObject = infoFolder:FindFirstChild("TargetAt")
+                    local targetObject = infoFolder:FindFirstChild("TargetObject")
                     local ownerValue = infoFolder:FindFirstChild("Owner")
 
                     if activeAbility and activeAbility:IsA("StringValue") and targetObject and targetObject:IsA("ObjectValue") and ownerValue and ownerValue:IsA("StringValue") then
                         if activeAbility.Value ~= "" and targetObject.Value ~= nil and ownerValue.Value == Services.Players.LocalPlayer.Name then
+                            if isTargetAlive(targetObject.Value) then
                             table.insert(unitsWithUltimates, {
                                 part = part,
                                 abilityName = activeAbility.Value
                             })
+                        end
                         end
                     end
                 end
