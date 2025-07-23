@@ -67,7 +67,7 @@ local State = {
     selectedPortals = {},
     selectedCurses = {},
     selectedRaidStages = {},
-    AutoSellUnitChoice = "",
+    AutoSellUnitChoice = {},
     DelayAutoUltimate = 0,
     
     autoBossEventEnabled = false,
@@ -2317,8 +2317,8 @@ local function checkAndRefreshUnits()
 end
 
 local function autoSellUnitLoop()
-        if State.AutoSellUnitChoice and State.AutoSellUnitChoice ~= "No Unit" then
-        local slotNumber = tonumber(State.AutoSellUnitChoice:match("Unit(%d)"))
+        if State.AutoSellUnitChoice[1] and State.AutoSellUnitChoice[1] ~= "No Unit" then
+        local slotNumber = tonumber(State.AutoSellUnitChoice[1]:match("Unit(%d)"))
         if slotNumber then
             local unitName = getUnitNameFromSlot(slotNumber)
             if unitName then
@@ -2330,7 +2330,7 @@ end
 
 task.spawn(function()
     while true do
-        if State.AutoSellUnitChoice ~= "No Unit" and not isInLobby() then
+        if State.AutoSellUnitChoice[1] ~= "No Unit" and not isInLobby() then
             autoSellUnitLoop()
         end
         task.wait(1)
