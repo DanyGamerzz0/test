@@ -1,0 +1,2078 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local mt = getrawmetatable(game)
+setreadonly(mt, false)
+local oldNamecall = mt.__namecall
+local macro = {}
+local isRecording = false
+local isPlaybacking = false
+local recordingStartTime
+
+local macroManager = {}
+local currentMacroName
+
+local playbackThread = nil
+local isPlayingLoopRunning = false
+
+local isRecordingLoopRunning = false
+local recordingThread = nil
+
+local HttpService = game:GetService("HttpService")
+local ShowGameEnd = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):WaitForChild("ShowGameEnd")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+
+local State = {
+    AutoSelectDifficultyEnabled = false,
+    SelectedDifficultyValue = {},
+    AutoSelectSpeed = false,
+    SelectedSpeedValue = {},
+    AutoRetryEnabled = false,
+    hasSentWebhook = false,
+    SendStageCompletedWebhook = false,
+    StageStartTime = 0,
+    autoplayEnabled = false,
+}
+
+local autoplayActive = false
+local placedUnits = {} -- Store placed unit data: {id = unitData, position = Vector3, etc}
+local placementConnection = nil
+local upgradeConnection = nil
+
+local placementSettings = {
+    placementDelay = 1, -- Seconds between placements
+    upgradeDelay = 0.5, -- Seconds between upgrades
+    maxPlacementAttempts = 10, -- Max attempts to find valid placement spot
+    placementSpacing = 4, -- Minimum distance between units
+    lastPlacement = 0,
+    lastUpgrade = 0,
+    lastStatusUpdate = 0,
+    lastPositionWarning = 0,
+}
+
+local config = {
+    toggleKey = Enum.KeyCode.G, -- Key to toggle rectangle
+    width = 20, -- Width (X axis)
+    length = 15, -- Length (Z axis) 
+    height = 0.5, -- How thick the rectangle is
+    offsetFromSpawn = Vector3.new(0, 0, -10), -- X, Y, Z offset from spawn point
+    transparency = 0.3, -- 0 = opaque, 1 = fully transparent
+    color = Color3.fromRGB(0, 255, 0), -- Green color
+    material = Enum.Material.ForceField, -- Material for the rectangle
+    canCollide = false, -- Whether players can walk through it
+    raycastDistance = 1000 -- How far down to raycast
+}
+
+local spawnCaps = {
+    tower1 = 5,
+    tower2 = 5,
+    tower3 = 5,
+    tower4 = 5,
+    tower5 = 5,
+    tower6 = 5,
+}
+
+-- Move this section up, right after all your function definitions
+_G.UnitSystem = {
+    getPlayerCash = getPlayerCash,
+    getAvailableUnits = getAvailableUnits,
+    getUnitConfig = getUnitConfig,
+    getTotalUpgradeCost = getTotalUpgradeCost,
+    getUpgradeCost = getUpgradeCost,
+    getCostToUpgrade = getCostToUpgrade,
+    canAffordUnit = canAffordUnit,
+    canAffordUpgrade = canAffordUpgrade,
+    getBestAffordableUnits = getBestAffordableUnits,
+    printUnitAnalysis = printUnitAnalysis,
+    extractUnitName = extractUnitName
+}
+
+_G.TowerSliders = {
+    getSpawnCap = getSpawnCap,
+    getAllSpawnCaps = getAllSpawnCaps,
+    updateAutoplaySettings = updateAutoplaySettings
+}
+
+_G.Autoplay = {
+    start = startAutoplay,
+    stop = stopAutoplay,
+    getStatus = getAutoplayStatus,
+    clearPlacedUnits = clearPlacedUnits,
+    settings = placementSettings,
+    placedUnits = placedUnits
+}
+
+local rectangle = nil
+local rectangleEnabled = false
+local ValidWebhook
+
+local unitDataCache = {}
+
+local function getCurrentUnitCount()
+    return LocalPlayer:GetAttribute("UnitsPlaced") or 0
+end
+
+local function getMaxUnitCount()
+    return LocalPlayer:GetAttribute("MaxUnitsPlaced") or 0
+end
+
+local function canPlaceMoreUnits()
+    local current = getCurrentUnitCount()
+    local max = getMaxUnitCount()
+    return current < max
+end
+
+
+local function getAutoplayZone()
+    return workspace:FindFirstChild("AutoplayZone")
+end
+
+local function getRandomPlacementPosition()
+    local autoplayZone = getAutoplayZone()
+    if not autoplayZone then
+        warn("Autoplay zone not found! Enable the green rectangle first.")
+        return nil
+    end
+    
+    local size = autoplayZone.Size
+    local position = autoplayZone.Position
+    
+    -- Generate random position within the rectangle bounds
+    local randomX = position.X + (math.random() - 0.5) * (size.X - 2) -- -2 for padding
+    local randomZ = position.Z + (math.random() - 0.5) * (size.Z - 2)
+    
+    -- Use the autoplay zone Y position (it's already on the ground)
+    local randomY = position.Y + (size.Y / 2) + 1 -- Slightly above the zone
+    
+    return Vector3.new(randomX, randomY, randomZ)
+end
+
+local function isPositionTooClose(newPosition)
+    for _, unitData in pairs(placedUnits) do
+        if unitData.position then
+            local distance = (newPosition - unitData.position).Magnitude
+            if distance < placementSettings.placementSpacing then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function findValidPlacementPosition()
+    for attempt = 1, placementSettings.maxPlacementAttempts do
+        local position = getRandomPlacementPosition()
+        if position and not isPositionTooClose(position) then
+            return position
+        end
+    end
+    return nil
+end
+
+local function validateUnitExists(unitId)
+    -- Check if unit actually exists in game world
+    local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
+    if not entities then
+        return false
+    end
+    
+    for _, model in pairs(entities:GetChildren()) do
+        if model:IsA("Model") and model:GetAttribute("ID") == unitId then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function cleanupInvalidUnits()
+    -- Remove units from our tracking that no longer exist in game
+    local validUnits = {}
+    for unitId, unitData in pairs(placedUnits) do
+        if validateUnitExists(unitId) then
+            validUnits[unitId] = unitData
+        else
+            print("Removed invalid unit from tracking:", unitId)
+        end
+    end
+    placedUnits = validUnits
+end
+
+local function getPlacedUnitCountsBySlot()
+    local counts = {
+        tower1 = 0, tower2 = 0, tower3 = 0,
+        tower4 = 0, tower5 = 0, tower6 = 0
+    }
+    
+    -- Count units we're tracking by tower slot
+    for _, unitData in pairs(placedUnits) do
+        if unitData.towerSlot and validateUnitExists(unitData.id) then
+            local towerSlot = unitData.towerSlot
+            if counts[towerSlot] then
+                counts[towerSlot] = counts[towerSlot] + 1
+            end
+        end
+    end
+    
+    return counts
+end
+
+local function getNextUnitToPlace()
+    if not _G.UnitSystem or not _G.TowerSliders then
+        return nil
+    end
+    
+    -- Check if we can place any more units at all
+    if not canPlaceMoreUnits() then
+        return nil
+    end
+    
+    local availableUnits = _G.UnitSystem.getBestAffordableUnits()
+    local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+    local placedCounts = getPlacedUnitCountsBySlot()
+    
+    -- Check units in priority order (tower1 = highest priority)
+    local towerSlots = {"tower1", "tower2", "tower3", "tower4", "tower5", "tower6"}
+    
+    for i, towerSlot in pairs(towerSlots) do
+        local spawnCap = spawnCaps[towerSlot] or 0
+        local placedCount = placedCounts[towerSlot] or 0
+        
+        -- Check spawn cap for this specific tower slot
+        if spawnCap > 0 and placedCount < spawnCap and availableUnits[i] then
+            local unit = availableUnits[i]
+            
+            -- Check if we can afford it
+            if _G.UnitSystem.canAffordUnit(unit) then
+                return {
+                    unit = unit,
+                    towerSlot = towerSlot,
+                    priority = i
+                }
+            end
+        end
+    end
+    
+    return nil -- Nothing to place
+end
+
+local function placeUnit(unitToPlace, position)
+    local unit = unitToPlace.unit
+    
+    -- Double-check we can still place units
+    if not canPlaceMoreUnits() then
+        warn("Cannot place unit - max unit limit reached")
+        return false
+    end
+    
+    -- Extract unit name from ItemID (remove tl_unitplacer_ prefix)
+    local unitName = _G.UnitSystem.extractUnitName(unit.itemID)
+    if not unitName then
+        warn("Could not extract unit name from ItemID:", unit.itemID)
+        return false
+    end
+    
+    -- Create placement arguments
+    local args = {
+        unitName,
+        {
+            Valid = true,
+            Rotation = math.random(0, 360), -- Random rotation
+            CF = CFrame.new(position, position + Vector3.new(0, 0, 1)), -- Face forward
+            Position = position
+        }
+    }
+    
+    -- Attempt to place the unit
+    local success, result = pcall(function()
+        return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+    end)
+    
+    if success and result then
+        -- Store the placed unit data
+        local unitData = {
+            id = result, -- The tower ID returned by the server
+            unit = unit,
+            position = position,
+            towerSlot = unitToPlace.towerSlot,
+            priority = unitToPlace.priority,
+            upgradeLevel = 0,
+            placedTime = tick()
+        }
+        
+        placedUnits[result] = unitData
+        
+        print(string.format("✓ Placed %s (ID: %s) at %s - %s [%d/%d total units]", 
+            unit.displayName, 
+            tostring(result), 
+            tostring(position), 
+            unitToPlace.towerSlot,
+            getCurrentUnitCount(),
+            getMaxUnitCount()))
+        
+        return true
+    else
+        warn("Failed to place unit:", unit.displayName, result)
+        return false
+    end
+end
+
+local function getUnitsToUpgrade()
+    cleanupInvalidUnits() -- Clean up first
+    
+    local unitsToUpgrade = {}
+    local playerCash = _G.UnitSystem.getPlayerCash()
+    
+    for id, unitData in pairs(placedUnits) do
+        -- Validate unit exists before attempting upgrade
+        if not validateUnitExists(id) then
+            goto continue
+        end
+        
+        local unit = unitData.unit
+        local currentLevel = unitData.upgradeLevel or 0
+        local maxLevel = #unit.upgrades
+        
+        -- If unit can be upgraded further
+        if currentLevel < maxLevel then
+            local nextLevel = currentLevel + 1
+            local upgradeCost = _G.UnitSystem.getUpgradeCost(unit, nextLevel)
+            
+            if upgradeCost > 0 and playerCash >= upgradeCost then
+                table.insert(unitsToUpgrade, {
+                    id = id,
+                    unitData = unitData,
+                    upgradeCost = upgradeCost,
+                    currentLevel = currentLevel,
+                    nextLevel = nextLevel,
+                    priority = unitData.priority or 999
+                })
+            end
+        end
+        
+        ::continue::
+    end
+    
+    -- Sort by priority (lower number = higher priority)
+    table.sort(unitsToUpgrade, function(a, b)
+        if a.priority == b.priority then
+            return a.upgradeCost < b.upgradeCost -- Cheaper upgrades first if same priority
+        end
+        return a.priority < b.priority
+    end)
+    
+    return unitsToUpgrade
+end
+
+local function upgradeUnit(unitToUpgrade)
+    local id = unitToUpgrade.id
+    local unitData = unitToUpgrade.unitData
+    
+    -- Validate unit exists and cash is sufficient before upgrade
+    if not validateUnitExists(id) then
+        warn("Cannot upgrade unit - unit no longer exists:", id)
+        placedUnits[id] = nil
+        return false
+    end
+    
+    local playerCash = _G.UnitSystem.getPlayerCash()
+    if playerCash < unitToUpgrade.upgradeCost then
+        return false -- Not enough cash, don't warn as this is normal
+    end
+    
+    local success, result = pcall(function()
+        return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("UpgradeUnit"):InvokeServer(id)
+    end)
+    
+    if success and result then
+        -- Simply increment our stored level (we can't verify the actual level anyway)
+        local oldLevel = placedUnits[id].upgradeLevel or 0
+        placedUnits[id].upgradeLevel = oldLevel + 1
+        
+        print(string.format("⬆ Upgraded %s (ID: %s) to level %d (Cost: %d)", 
+            unitData.unit.displayName,
+            tostring(id),
+            placedUnits[id].upgradeLevel,
+            unitToUpgrade.upgradeCost))
+        
+        return true
+    else
+        warn("Failed to upgrade unit:", id, result)
+        return false
+    end
+end
+
+local function autoplayPlacementLoop()
+    if not autoplayActive then return end
+    
+    local currentTime = tick()
+    
+    -- Check if enough time has passed since last placement
+    if currentTime - placementSettings.lastPlacement < placementSettings.placementDelay then
+        return
+    end
+    
+    -- Clean up invalid units before checking anything
+    cleanupInvalidUnits()
+    
+    -- Get next unit to place
+    local unitToPlace = getNextUnitToPlace()
+    if not unitToPlace then
+        -- Throttled status updates to prevent spam
+        if currentTime - (placementSettings.lastStatusUpdate or 0) > 10 then
+            local current = getCurrentUnitCount()
+            local max = getMaxUnitCount()
+            local placedCounts = getPlacedUnitCountsBySlot()
+            local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+            
+            print(string.format("📊 Autoplay Status: %d/%d total units placed", current, max))
+            
+            local allCapsFull = true
+            for slot, cap in pairs(spawnCaps) do
+                local placed = placedCounts[slot] or 0
+                print(string.format("  %s: %d/%d", slot, placed, cap))
+                if cap > 0 and placed < cap and current < max then
+                    allCapsFull = false
+                end
+            end
+            
+            if current >= max then
+                print("🛑 Max unit limit reached!")
+            elseif allCapsFull then
+                print("🛑 All spawn caps reached!")
+            else
+                print("💰 Waiting for cash or better units...")
+            end
+            
+            placementSettings.lastStatusUpdate = currentTime
+        end
+        return -- Nothing to place right now
+    end
+    
+    -- Find valid placement position
+    local position = findValidPlacementPosition()
+    if not position then
+        -- Only warn occasionally to prevent spam
+        if currentTime - (placementSettings.lastPositionWarning or 0) > 5 then
+            warn("Could not find valid placement position")
+            placementSettings.lastPositionWarning = currentTime
+        end
+        return
+    end
+    
+    -- Place the unit
+    if placeUnit(unitToPlace, position) then
+        placementSettings.lastPlacement = currentTime
+    end
+end
+
+local function autoplayUpgradeLoop()
+    if not autoplayActive then return end
+    
+    local currentTime = tick()
+    
+    -- Check if enough time has passed since last upgrade
+    if currentTime - placementSettings.lastUpgrade < placementSettings.upgradeDelay then
+        return
+    end
+    
+    -- Get units that can be upgraded
+    local unitsToUpgrade = getUnitsToUpgrade()
+    if #unitsToUpgrade == 0 then
+        return -- Nothing to upgrade
+    end
+    
+    -- Upgrade the highest priority unit
+    local unitToUpgrade = unitsToUpgrade[1]
+    if upgradeUnit(unitToUpgrade) then
+        placementSettings.lastUpgrade = currentTime
+    end
+end
+local function startAutoplay()
+    if autoplayActive then
+        print("Autoplay is already running!")
+        return
+    end
+    
+    -- Check dependencies
+    if not _G.UnitSystem then
+        warn("UnitSystem not loaded! Load unit system first.")
+        return
+    end
+    
+    if not _G.TowerSliders then
+        warn("TowerSliders not loaded! Load slider system first.")
+        return
+    end
+    
+    if not getAutoplayZone() then
+        warn("Autoplay zone not found! Enable the green rectangle first.")
+        return
+    end
+    
+    autoplayActive = true
+    
+    -- Connect the loops
+    placementConnection = RunService.Heartbeat:Connect(autoplayPlacementLoop)
+    upgradeConnection = RunService.Heartbeat:Connect(autoplayUpgradeLoop)
+    
+    print("🤖 AUTOPLAY STARTED!")
+    print("Placing units in priority order with spawn caps:")
+    local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+    for i = 1, 6 do
+        local towerSlot = "tower" .. i
+        print(string.format("  %s: %d units max", towerSlot, spawnCaps[towerSlot]))
+    end
+end
+local function stopAutoplay()
+    if not autoplayActive then
+        print("Autoplay is not running!")
+        return
+    end
+    
+    autoplayActive = false
+    
+    -- Disconnect loops
+    if placementConnection then
+        placementConnection:Disconnect()
+        placementConnection = nil
+    end
+    
+    if upgradeConnection then
+        upgradeConnection:Disconnect()
+        upgradeConnection = nil
+    end
+    
+    print("🛑 AUTOPLAY STOPPED!")
+end
+
+local function getAutoplayStatus()
+    cleanupInvalidUnits()
+    
+    local current = getCurrentUnitCount()
+    local max = getMaxUnitCount()
+    local placedCounts = getPlacedUnitCountsBySlot()
+    local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+    
+    local status = {
+        active = autoplayActive,
+        currentUnits = current,
+        maxUnits = max,
+        placedUnits = #placedUnits,
+        playerCash = _G.UnitSystem and _G.UnitSystem.getPlayerCash() or 0,
+        placedCounts = placedCounts
+    }
+    
+    print("=== AUTOPLAY STATUS ===")
+    print("Active:", status.active)
+    print("Player Cash:", status.playerCash)
+    print(string.format("Total Units: %d/%d (Game Limit)", current, max))
+    print("Tracked Units:", #placedUnits)
+    print("Units by Tower Slot:")
+    for towerSlot, count in pairs(placedCounts) do
+        local cap = spawnCaps[towerSlot] or 0
+        print(string.format("  %s: %d/%d", towerSlot, count, cap))
+    end
+    print("=======================")
+    
+    return status
+end
+
+-- Clear placed units data (for reset)
+local function clearPlacedUnits()
+    placedUnits = {}
+    print("Cleared placed units data")
+end
+
+local function getSpawnCap(towerSlot)
+    return spawnCaps[towerSlot] or 0
+end
+
+local function getAllSpawnCaps()
+    return spawnCaps
+end
+
+local function updateAutoplaySettings()
+    -- This will be called whenever a spawn cap changes
+    -- You can add logic here to update your autoplay system
+    print("Autoplay settings updated:")
+    for tower, cap in pairs(spawnCaps) do
+        print(string.format("  %s: %d", tower, cap))
+    end
+end
+
+local function getPlayerCash()
+    return LocalPlayer:GetAttribute("Cash") or 0
+end
+
+local function extractUnitName(itemID)
+    if not itemID or type(itemID) ~= "string" then
+        return nil
+    end
+    
+    local unitName = itemID:gsub("^tl_unitplacer_", "")
+    return unitName
+end
+
+local function getUnitConfig(unitName)
+    if not unitName then
+        return nil
+    end
+    
+    if unitDataCache[unitName] then
+        return unitDataCache[unitName]
+    end
+    
+    local success, config = pcall(function()
+        local configPath = LocalPlayer.PlayerGui.LogicHolder.ClientLoader.SharedConfig.ItemData.Units.Configs
+        local unitModule = configPath:FindFirstChild(unitName)
+        
+        if unitModule and unitModule:IsA("ModuleScript") then
+            return require(unitModule)
+        end
+        return nil
+    end)
+    
+    if success and config then
+        -- Cache the result
+        unitDataCache[unitName] = config
+        return config
+    else
+        warn("Could not find unit config for:", unitName)
+        return nil
+    end
+end
+
+local function getAvailableUnits()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then
+        warn("Player backpack not found")
+        return {}
+    end
+    
+    local units = {}
+    
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            local itemID = tool:GetAttribute("ItemID")
+            if itemID and itemID:match("^tl_unitplacer_") then
+                local unitName = extractUnitName(itemID)
+                local config = getUnitConfig(unitName)
+                
+                if config and config.UnitConfig then
+                    local unitData = {
+                        name = unitName,
+                        displayName = config.Name,
+                        tool = tool,
+                        itemID = itemID,
+                        image = config.Image,
+                        rarity = config.Rarity,
+                        unitType = config.UnitType,
+                        placeable = config.Placeable,
+                        config = config.UnitConfig,
+                        -- Quick access to important stats
+                        cost = config.UnitConfig.Cost or 0,
+                        range = config.UnitConfig.Range or 0,
+                        damage = config.UnitConfig.Damage or 0,
+                        apm = config.UnitConfig.APM or 0,
+                        upgrades = config.UnitConfig.Upgrades or {}
+                    }
+                    
+                    table.insert(units, unitData)
+                end
+            end
+        end
+    end
+    
+    return units
+end
+
+local function getTotalUpgradeCost(unitData)
+    if not unitData.upgrades then
+        return 0
+    end
+    
+    local totalCost = 0
+    for _, upgrade in pairs(unitData.upgrades) do
+        totalCost = totalCost + (upgrade.Cost or 0)
+    end
+    
+    return totalCost
+end
+
+local function getUpgradeCost(unitData, upgradeLevel)
+    if not unitData.upgrades or upgradeLevel < 1 or upgradeLevel > #unitData.upgrades then
+        return 0
+    end
+    
+    return unitData.upgrades[upgradeLevel].Cost or 0
+end
+
+local function getCostToUpgrade(unitData, fromLevel, toLevel)
+    if not unitData.upgrades or fromLevel >= toLevel then
+        return 0
+    end
+    
+    local totalCost = 0
+    for level = fromLevel + 1, math.min(toLevel, #unitData.upgrades) do
+        totalCost = totalCost + getUpgradeCost(unitData, level)
+    end
+    
+    return totalCost
+end
+
+local function canAffordUnit(unitData)
+    local playerCash = getPlayerCash()
+    return playerCash >= unitData.cost
+end
+
+local function canAffordUpgrade(unitData, upgradeLevel)
+    local playerCash = getPlayerCash()
+    local upgradeCost = getUpgradeCost(unitData, upgradeLevel)
+    return playerCash >= upgradeCost
+end
+
+local function getBestAffordableUnits()
+    local availableUnits = getAvailableUnits()
+    local playerCash = getPlayerCash()
+    local affordableUnits = {}
+    
+    for _, unit in pairs(availableUnits) do
+        if unit.cost > 0 and unit.cost <= playerCash then
+            -- Calculate value score (damage * apm / cost) with nil safety
+            local damage = unit.damage or 0
+            local apm = unit.apm or 0
+            local cost = unit.cost or 1 -- Avoid division by zero
+            
+            local valueScore = 0
+            if cost > 0 and damage > 0 and apm > 0 then
+                valueScore = (damage * apm) / cost
+            end
+            
+            unit.valueScore = valueScore
+            table.insert(affordableUnits, unit)
+        end
+    end
+    
+    -- Sort by value score (highest first)
+    table.sort(affordableUnits, function(a, b)
+        return a.valueScore > b.valueScore
+    end)
+    
+    return affordableUnits
+end
+
+local function printUnitAnalysis()
+    local units = getAvailableUnits()
+    local playerCash = getPlayerCash()
+    
+    print("=== UNIT ANALYSIS ===")
+    print("Player Cash:", playerCash)
+    print("Available Units:", #units)
+    print("")
+    
+    for _, unit in pairs(units) do
+        local affordable = canAffordUnit(unit) and "✓" or "✗"
+        local totalUpgradeCost = getTotalUpgradeCost(unit)
+        
+        -- Safe calculation of value score
+        local damage = unit.damage or 0
+        local apm = unit.apm or 0
+        local cost = unit.cost or 1
+        local valueScore = 0
+        if cost > 0 and damage > 0 and apm > 0 then
+            valueScore = (damage * apm) / cost
+        end
+        
+        print(string.format("%s %s (%s)", affordable, unit.displayName or unit.name, unit.rarity or "unknown"))
+        print(string.format("  Cost: %d | Range: %d | Damage: %d | APM: %d", 
+            cost, unit.range or 0, damage, apm))
+        print(string.format("  Value Score: %.2f | Upgrade Cost: %d | Max Level: %d", 
+            valueScore, totalUpgradeCost, #unit.upgrades))
+        
+        -- Show upgrade costs
+        if #unit.upgrades > 0 then
+            local upgradeCosts = {}
+            for i, upgrade in pairs(unit.upgrades) do
+                table.insert(upgradeCosts, tostring(upgrade.Cost))
+            end
+            print("  Upgrade Costs:", table.concat(upgradeCosts, " → "))
+        end
+        print("")
+    end
+    
+    local bestUnits = getBestAffordableUnits()
+    if #bestUnits > 0 then
+        print("=== BEST AFFORDABLE UNITS ===")
+        for i, unit in pairs(bestUnits) do
+            if i <= 3 then -- Show top 3
+                print(string.format("%d. %s (Score: %.2f, Cost: %d)", 
+                    i, unit.displayName, unit.valueScore, unit.cost))
+            end
+        end
+    end
+    print("========================")
+end
+
+-- Auto-run analysis on script load
+wait(2) -- Wait for game to load
+--printUnitAnalysis()
+
+local function getEnemySpawnPoint()
+    local success, spawn = pcall(function()
+        return workspace.Map.Path.Start
+    end)
+    if success and spawn then
+        return spawn
+    else
+        warn("Enemy spawn point not found at workspace.Map.Path.Start")
+        return nil
+    end
+end
+
+local function findGroundPosition(startPosition)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {rectangle} -- Don't hit our own rectangle
+    
+    -- Cast ray downward
+    local rayDirection = Vector3.new(0, -config.raycastDistance, 0)
+    local raycastResult = workspace:Raycast(startPosition, rayDirection, raycastParams)
+    
+    if raycastResult then
+        -- Position the rectangle slightly above the ground
+        return raycastResult.Position + Vector3.new(0, config.height/2, 0)
+    else
+        -- Fallback: use original position if no ground found
+        warn("No ground found, using spawn position")
+        return startPosition
+    end
+end
+
+local function createRectangle()
+    if rectangle then
+        rectangle:Destroy()
+    end
+    
+    local spawnPoint = getEnemySpawnPoint()
+    if not spawnPoint then
+        return nil
+    end
+    
+    -- Calculate position with offset
+    local targetPosition = spawnPoint.Position + config.offsetFromSpawn
+    
+    -- Raycast to find ground
+    local groundPosition = findGroundPosition(targetPosition)
+    
+    -- Create the part
+    rectangle = Instance.new("Part")
+    rectangle.Name = "AutoplayZone"
+    rectangle.Size = Vector3.new(config.width, config.height, config.length)
+    rectangle.Material = config.material
+    rectangle.BrickColor = BrickColor.new("Bright green")
+    rectangle.Color = config.color
+    rectangle.Transparency = config.transparency
+    rectangle.CanCollide = config.canCollide
+    rectangle.Anchored = true
+    rectangle.Shape = Enum.PartType.Block
+    
+    -- Position it on the ground
+    rectangle.Position = groundPosition
+    
+    -- Add selection box for better visibility
+    local selectionBox = Instance.new("SelectionBox")
+    selectionBox.Adornee = rectangle
+    selectionBox.Color3 = Color3.fromRGB(0, 200, 0)
+    selectionBox.LineThickness = 0.15
+    selectionBox.Transparency = 0.2
+    selectionBox.Parent = rectangle
+    
+    -- Add a subtle glow effect
+    local pointLight = Instance.new("PointLight")
+    pointLight.Color = config.color
+    pointLight.Brightness = 0.5
+    pointLight.Range = config.width
+    pointLight.Parent = rectangle
+    
+    rectangle.Parent = workspace
+    
+    return rectangle
+end
+
+local function toggleRectangle()
+    if rectangleEnabled then
+        print("3D Autoplay zone enabled")
+        rectangle = createRectangle()
+        if rectangle then
+            print("Rectangle created at position:", rectangle.Position)
+            print("Rectangle size:", rectangle.Size)
+        end
+    else
+        print("3D Autoplay zone disabled")
+        if rectangle then
+            rectangle:Destroy()
+            rectangle = nil
+        end
+    end
+end
+
+local function setSize(width, length)
+    config.width = width
+    config.length = length
+    if rectangleEnabled and rectangle then
+        rectangle.Size = Vector3.new(config.width, config.height, config.length)
+        -- Update light range too
+        local light = rectangle:FindFirstChild("PointLight")
+        if light then
+            light.Range = config.width
+        end
+    end
+    print("Rectangle size set to:", width, "x", length)
+end
+
+local function setHeight(height)
+    config.height = height
+    if rectangleEnabled and rectangle then
+        rectangle.Size = Vector3.new(config.width, config.height, config.length)
+        -- Reposition to stay on ground
+        local spawnPoint = getEnemySpawnPoint()
+        if spawnPoint then
+            local targetPosition = spawnPoint.Position + config.offsetFromSpawn
+            local groundPosition = findGroundPosition(targetPosition)
+            rectangle.Position = groundPosition
+        end
+    end
+    print("Rectangle height set to:", height)
+end
+
+local function setOffset(x, y, z)
+    config.offsetFromSpawn = Vector3.new(x, y, z)
+    if rectangleEnabled and rectangle then
+        local spawnPoint = getEnemySpawnPoint()
+        if spawnPoint then
+            local targetPosition = spawnPoint.Position + config.offsetFromSpawn
+            local groundPosition = findGroundPosition(targetPosition)
+            rectangle.Position = groundPosition
+        end
+    end
+    print("Offset set to:", x, ",", y, ",", z)
+end
+
+local function setTransparency(transparency)
+    config.transparency = math.clamp(transparency, 0, 1)
+    if rectangleEnabled and rectangle then
+        rectangle.Transparency = config.transparency
+    end
+    print("Transparency set to:", config.transparency)
+end
+
+local function setColor(r, g, b)
+    config.color = Color3.fromRGB(r, g, b)
+    if rectangleEnabled and rectangle then
+        rectangle.Color = config.color
+        local light = rectangle:FindFirstChild("PointLight")
+        if light then
+            light.Color = config.color
+        end
+    end
+    print("Color set to RGB:", r, g, b)
+end
+
+local function setMaterial(material)
+    config.material = material
+    if rectangleEnabled and rectangle then
+        rectangle.Material = config.material
+    end
+    print("Material set to:", material.Name)
+end
+
+local function repositionOnGround()
+    if rectangleEnabled and rectangle then
+        local spawnPoint = getEnemySpawnPoint()
+        if spawnPoint then
+            local targetPosition = spawnPoint.Position + config.offsetFromSpawn
+            local groundPosition = findGroundPosition(targetPosition)
+            rectangle.Position = groundPosition
+            print("Rectangle repositioned to:", groundPosition)
+        end
+    else
+        print("No rectangle to reposition")
+    end
+end
+
+local function setToggleKey(keyCode)
+    config.toggleKey = keyCode
+    print("Toggle key set to:", keyCode.Name)
+end
+
+task.spawn(function()
+    while true do
+        wait(15)
+        if autoplayActive then
+            cleanupInvalidUnits()
+        end
+    end
+end)
+
+local function sendWebhook(messageType, rewards, clearTime)
+    if not ValidWebhook then return end
+
+    local data
+    if messageType == "test" then
+        data = {
+            username = "LixHub Bot",
+            content = "",
+            embeds = {{
+                title = "📢 LixHub Notification",
+                description = "🧪 Test webhook sent successfully",
+                color = 0x5865F2,
+                footer = { text = "LixHub Auto Logger" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+    elseif messageType == "stage" then
+        local RewardsUI = "Seeds: "..LocalPlayer:WaitForChild("leaderstats").Seeds.Value
+        local stageName = game.workspace:GetAttribute("MapId") or "Unknown Stage"
+        local gameMode = LocalPlayer:GetAttribute("UnitsPlaced")
+        local isWin = game.workspace.Map.BaseHP:GetAttribute("HP") > 0
+        local resultText = isWin and "Win" or "Lose"
+        local stageResult = stageName .. " - Units Placed: " .. gameMode .. " - " .. resultText
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        data = {
+            username = "LixHub Bot",
+            content = nil,
+            embeds = {{
+                title = "🎯 Stage Finished!",
+                description = stageResult,
+                color = (isWin and 0x57F287 or 0xED4245),
+                fields = {
+                    { name = "👤 Player", value = "||" .. LocalPlayer.Name .. "||", inline = true },
+                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
+                    { name = "🏆 Rewards", value = RewardsUI, inline = false },
+                    { name = "📈 Script Version", value = "v0.0.1", inline = true },
+                },
+                footer = { text = "discord.gg/lixhub" },
+                timestamp = timestamp
+            }}
+        }
+
+        local filteredFields = {}
+        for _, field in ipairs(data.embeds[1].fields) do if field then table.insert(filteredFields, field) end end
+        data.embeds[1].fields = filteredFields
+    else
+        return
+    end
+
+    local payload = HttpService:JSONEncode(data)
+    local requestFunc = (syn and syn.request) or (http and http.request) or request
+
+    if requestFunc then
+        local success, result = pcall(function()
+           -- notify("Webhook", "Sending webhook...")
+            return requestFunc({
+                Url = ValidWebhook,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = payload
+            })
+        end)
+
+        if success then
+        else
+            warn("Webhook failed to send: " .. tostring(result))
+        end
+    else
+        warn("No compatible HTTP request method found.")
+    end
+end
+
+local function getTableKeys(tbl)
+    local keys = {}
+    for k in pairs(tbl) do
+        table.insert(keys, k)
+    end
+    return keys
+end
+
+
+local function ensureMacroFolders()
+    if not isfolder("LixHub") then
+        makefolder("LixHub")
+    end
+    if not isfolder("LixHub/Macros") then
+        makefolder("LixHub/Macros")
+    end
+    if not isfolder("LixHub/Macros/GTD") then
+        makefolder("LixHub/Macros/GTD")
+    end
+end
+
+local function serializeVector3(v)
+    return { x = v.X, y = v.Y, z = v.Z }
+end
+
+local function serializeCFrame(cf)
+    local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+    return {
+        x = x, y = y, z = z,
+        r00 = r00, r01 = r01, r02 = r02,
+        r10 = r10, r11 = r11, r12 = r12,
+        r20 = r20, r21 = r21, r22 = r22
+    }
+end
+
+
+local function deserializeVector3(t)
+    return Vector3.new(t.x, t.y, t.z)
+end
+
+local function deserializeCFrame(t)
+    return CFrame.new(
+        t.x, t.y, t.z,
+        t.r00, t.r01, t.r02,
+        t.r10, t.r11, t.r12,
+        t.r20, t.r21, t.r22
+    )
+end
+
+
+local function getMacroFilename(name)
+    -- Handle case where name might be a table
+    if type(name) == "table" then
+        name = name[1] or ""
+    end
+    
+    -- Ensure name is a string
+    if type(name) ~= "string" or name == "" then
+        warn("getMacroFilename: Invalid name provided:", name)
+        return nil
+    end
+    
+    return "LixHub/Macros/GTD/" .. name .. ".json"
+end
+
+local function saveMacroToFile(name)
+    local data = macroManager[name]
+    if not data then return end
+
+    local serializedData = {}
+    for _, action in ipairs(data) do
+        local newAction = table.clone(action)
+        if newAction.position then
+            newAction.position = serializeVector3(newAction.position)
+        end
+        if newAction.cframe then
+            newAction.cframe = serializeCFrame(newAction.cframe)
+        end
+        table.insert(serializedData, newAction)
+    end
+
+    local json = HttpService:JSONEncode(serializedData)
+    writefile(getMacroFilename(name), json)
+end
+
+local function loadMacroFromFile(name)
+    local filePath = getMacroFilename(name)
+    if not isfile(filePath) then return end
+
+        local json = readfile(filePath)
+        local data = HttpService:JSONDecode(json)
+
+        for _, action in ipairs(data) do
+        if action.position then
+            action.position = deserializeVector3(action.position)
+        end
+        if action.cframe then
+            action.cframe = deserializeCFrame(action.cframe)
+        end
+    end
+    macroManager[name] = data
+    return data
+end
+
+local function deleteMacroFile(name)
+    if isfile(getMacroFilename(name)) then
+        delfile(getMacroFilename(name))
+    end
+    macroManager[name] = nil
+end
+
+local function loadAllMacros()
+    macroManager = {}
+    for _, file in ipairs(listfiles("LixHub/Macros/GTD/")) do
+        if file:match("%.json$") then
+            local name = file:match("([^/\\]+)%.json$")
+            loadMacroFromFile(name)
+        end
+    end
+end
+
+local function waitForGameStart()
+	Rayfield:Notify({
+		Title = "Waiting for Game",
+		Content = "Waiting for next game to start...",
+		Duration = 2,
+		Image = 4483362458
+	})
+
+	local prevTime = workspace:GetAttribute("GameStartTime")
+	repeat 
+		task.wait(0.1) 
+	until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
+
+	return workspace:GetAttribute("GameStartTime")
+end
+
+local function waitForGameStartTiming()
+	local prevTime = workspace:GetAttribute("GameStartTime")
+	repeat 
+		task.wait(0.1) 
+	until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
+
+	return workspace:GetAttribute("GameStartTime")
+end
+
+task.spawn(function()
+	while true do
+		local newStartTime = waitForGameStartTiming()
+		State.StageStartTime = tick()
+		State.hasSentWebhook = false
+		print("New game started at:", State.StageStartTime)
+	end
+end)
+
+local function FindUnitId(targetPos)
+    local entities = workspace:WaitForChild("Map"):WaitForChild("Entities")
+
+    for _, model in ipairs(entities:GetChildren()) do
+        if model:IsA("Model") then
+            local modelPos = model.WorldPivot.Position
+            --print("Modelpos for " .. model.Name .. " " .. tostring(modelPos))
+            --print("Targetpos: " .. tostring(targetPos))
+            if (modelPos - targetPos).Magnitude < 3 then -- 3-stud tolerance
+                local id = model:GetAttribute("ID")
+                if id then
+                    --print(id)
+                    return id
+                end
+            end
+        end
+    end
+--print("no id")
+    return  nil -- Not found
+end
+
+local function waitForUnitId(targetPos, timeout)
+    local start = tick()
+    repeat
+        local id = FindUnitId(targetPos)
+        if id then return id end
+        task.wait(0.1)
+    until tick() - start >= timeout
+    return nil
+end
+
+local function tryPlaceUnit(unitName, args, maxRetries)
+    maxRetries = maxRetries or 3
+
+    local function isMatchingModel(model)
+        return model:IsA("Model")
+            and model.Name == unitName
+            and (model.WorldPivot.Position - args.Position).Magnitude < 3
+            and model:GetAttribute("ID") ~= nil
+    end
+
+    for attempt = 1, maxRetries do
+        -- Snapshot current unit models
+        local beforeModels = {}
+        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
+            if isMatchingModel(model) then
+                beforeModels[model] = true
+            end
+        end
+
+        -- Try to place
+        local success, err = pcall(function()
+            game.ReplicatedStorage.RemoteFunctions.PlaceUnit:InvokeServer(unitName, args)
+        end)
+
+        task.wait(0.5) -- allow placement to register
+
+        -- Look for new matching model
+        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
+            if isMatchingModel(model) and not beforeModels[model] then
+                print("✅ Unit placed successfully on attempt", attempt)
+                return true
+            end
+        end
+
+        warn("⚠️ Placement failed on attempt", attempt, err or "")
+    end
+
+    warn("❌ Skipping unit placement for", unitName, "after", maxRetries, "attempts")
+    return false
+end
+
+
+
+local function playMacroLoop()
+    isPlayingLoopRunning = true
+	while isPlaybacking do
+        local startTime = tick()
+		for i, action in ipairs(macro) do
+            local waitTime = 0
+            if i == 1 then
+				waitTime = action.time
+			else
+				waitTime = action.time - macro[i - 1].time
+			end
+            task.wait(waitTime)
+			if action.action == "PlaceUnit" then
+				tryPlaceUnit(action.unitName, {
+        Valid = action.valid,
+        Rotation = action.rotation,
+        CF = action.cframe,
+        Position = action.position
+    }, 3) 
+			elseif action.action == "UpgradeUnit" then
+				local id = FindUnitId(action.position)
+				if id then
+					game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+				end
+			elseif action.action == "SellUnit" then
+				local id = FindUnitId(action.position)
+				if id then
+					game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+				end
+			end
+		end
+		waitForGameStart()
+	end
+    isPlayingLoopRunning = false
+end
+
+local function GetUnitPositionFromId(id)
+    local entities = workspace:WaitForChild("Map"):WaitForChild("Entities")
+
+    for _, model in ipairs(entities:GetChildren()) do
+        if model:GetAttribute("ID") == id and model:FindFirstChild("Anchor") then
+            return model.WorldPivot.Position
+        end
+    end
+
+    warn("GetUnitPositionFromId: No position found for ID", id)
+    return nil
+end
+
+mt.__namecall = newcclosure(function(self, ...)
+        local args = { ... }
+    local method = getnamecallmethod()
+    if not checkcaller() then
+    task.spawn(function()
+
+    if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
+    local timestamp = tick() 
+    --print("[InvokeServer] Remote:", self.Name)
+    table.insert(macro, {action = "PlaceUnit",unitName = args[1],position = args[2].Position,rotation = args[2].Rotation,cframe = args[2].CF,valid = args[2].Valid,time = timestamp - recordingStartTime})
+
+elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
+    local timestamp = tick() 
+    --print("[InvokeServer] Remote:", self.Name)
+    local id = args[1]
+    local pos = GetUnitPositionFromId(id)
+    table.insert(macro, {action = "UpgradeUnit", position = pos,time = timestamp - recordingStartTime})
+
+elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
+    local timestamp = tick() 
+    --print("[InvokeServer] Remote:", self.Name)
+    local id = args[1]
+    local pos = GetUnitPositionFromId(id)
+    table.insert(macro, {action = "SellUnit", position = pos,time = timestamp - recordingStartTime})
+
+end
+end)
+end
+    return oldNamecall(self, ...) 
+end)
+setreadonly(mt, true)
+
+local Window = Rayfield:CreateWindow({
+   Name = "LixHub - Garden Tower Defense",
+   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "Loading for Garden Tower Defense",
+   LoadingSubtitle = "v0.0.1",
+   ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
+   Theme = {
+    TextColor = Color3.fromRGB(240, 240, 240),
+
+    Background = Color3.fromRGB(25, 25, 25),
+    Topbar = Color3.fromRGB(34, 34, 34),
+    Shadow = Color3.fromRGB(20, 20, 20),
+
+    NotificationBackground = Color3.fromRGB(20, 20, 20),
+    NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
+
+    TabBackground = Color3.fromRGB(80, 80, 80),
+    TabStroke = Color3.fromRGB(85, 85, 85),
+    TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
+    TabTextColor = Color3.fromRGB(240, 240, 240),
+    SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
+
+    ElementBackground = Color3.fromRGB(35, 35, 35),
+    ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
+    SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
+    ElementStroke = Color3.fromRGB(50, 50, 50),
+    SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
+            
+    SliderBackground = Color3.fromRGB(50, 138, 220),
+    SliderProgress = Color3.fromRGB(50, 138, 220),
+    SliderStroke = Color3.fromRGB(58, 163, 255),
+
+    ToggleBackground = Color3.fromRGB(30, 30, 30),
+    ToggleEnabled = Color3.fromRGB(0, 146, 214),
+    ToggleDisabled = Color3.fromRGB(100, 100, 100),
+    ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
+    ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
+    ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
+    ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
+
+    DropdownSelected = Color3.fromRGB(102, 102, 102),
+    DropdownUnselected = Color3.fromRGB(30, 30, 30),
+
+    InputBackground = Color3.fromRGB(30, 30, 30),
+    InputStroke = Color3.fromRGB(65, 65, 65),
+    PlaceholderColor = Color3.fromRGB(178, 178, 178)
+}, -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   ToggleUIKeybind = "K", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "LixHub", -- Create a custom folder for your hub/game
+      FileName = "Lixhub_GTD"
+   },
+
+   Discord = {
+      Enabled = true, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "cYKnXE2Nf8", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+
+   KeySystem = false, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "LixHub - GTD - Free",
+      Subtitle = "LixHub - Key System",
+      Note = "Free key available in the discord https://discord.gg/cYKnXE2Nf8", -- Use this to tell the user how to get a key
+      FileName = "LixHub_Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"0xLIXHUB"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
+
+local MacroTab = Window:CreateTab("Macro", 4483362458)
+local GameTab = Window:CreateTab("Game", 4483362458)
+local AutoplayTab = Window:CreateTab("Autoplay", "bluetooth")
+local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
+
+local MacroDropdown = MacroTab:CreateDropdown({
+   Name = "Select Macro",
+   Options = {},
+   CurrentOption = currentMacroName,
+   MultipleOptions = false,
+   Flag = "MacroDropdown",
+Callback = function(selected)
+  local selectedName
+
+if type(selected) == "table" then
+    selectedName = selected[1]
+else
+    selectedName = selected
+end
+
+print("User selected macro:", selectedName)
+currentMacroName = selectedName
+if selectedName and macroManager[selectedName] then
+    --currentMacroName = selectedName
+    macro = macroManager[selectedName]
+     Rayfield:Notify({
+            Title = "Macro Selected",
+            Content = "Selected macro '" .. selectedName .. "' with " .. #macro .. " actions.",
+            Duration = 3
+        })
+else
+    print("Invalid selection or macro doesn't exist:", selectedName)
+end
+   end,
+})
+
+local function refreshMacroDropdown()
+    local options = {}
+
+    for name in pairs(macroManager) do
+        table.insert(options, name)
+    end
+
+    table.sort(options)
+
+    -- Handle case where currentMacroName might be a table
+    if type(currentMacroName) == "table" then
+        currentMacroName = currentMacroName[1] or ""
+    end
+
+    -- Only set currentMacroName to first option if it's completely empty/nil
+    -- Don't override if it exists but isn't in macroManager (it might be loading from config)  
+    if not currentMacroName or currentMacroName == "" then
+        currentMacroName = options[1]
+    end
+
+    -- Only update macro if currentMacroName exists in macroManager
+    if currentMacroName and macroManager[currentMacroName] then
+        macro = macroManager[currentMacroName]
+    end
+
+    MacroDropdown:Refresh(options, currentMacroName)
+
+    for i, opt in ipairs(options) do
+        print("Option " .. i .. " = " .. tostring(opt) .. " (" .. typeof(opt) .. ")")
+    end
+
+    print("Refreshed dropdown with:", table.concat(options, ", "))
+    print("Current macro is:", currentMacroName, "Type:", type(currentMacroName))
+end
+
+ensureMacroFolders()
+loadAllMacros()
+
+local pendingMacroName = ""
+
+local MacroInput = MacroTab:CreateInput({
+   Name = "Input Macro Name",
+   CurrentValue = "",
+   PlaceholderText = "Enter macro name...",
+   RemoveTextAfterFocusLost = false,
+   Flag = "MacroInput",
+   Callback = function(text)
+	pendingMacroName = text
+   end,
+})
+
+local CreateMacroButton = MacroTab:CreateButton({
+   Name = "Create Empty Macro",
+   Callback = function()
+       local name = pendingMacroName
+    if not name or name == "" then
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "Please enter a valid macro name.",
+            Duration = 3
+        })
+        return
+    end
+    if macroManager[name] then
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "Macro '" .. name .. "' already exists.",
+            Duration = 3
+        })
+        return
+    end
+
+    macroManager[name] = {}
+
+    saveMacroToFile(name)
+    refreshMacroDropdown()
+    Rayfield:Notify({
+        Title = "Success",
+        Content = "Created macro '" .. name .. "'.",
+        Duration = 3
+    })
+   end,
+})
+
+local RefreshMacroListButton = MacroTab:CreateButton({
+   Name = "Refresh Macro List",
+   Callback = function()
+    loadAllMacros()
+    refreshMacroDropdown()
+    Rayfield:Notify({
+        Title = "Success",
+        Content = "Macro list refreshed.",
+        Duration = 3
+    })
+   end,
+})
+
+local DeleteSelectedMacroButton = MacroTab:CreateButton({
+   Name = "Delete Selected Macro",
+   Callback = function()
+         if not currentMacroName or currentMacroName == "" then
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "No macro selected.",
+            Duration = 3
+        })
+        return
+    end
+
+    deleteMacroFile(currentMacroName)
+    Rayfield:Notify({
+        Title = "Deleted",
+        Content = "Deleted macro '" .. currentMacroName .. "'.",
+        Duration = 3
+    })
+
+    macroManager[currentMacroName] = nil
+    macro = {}
+    refreshMacroDropdown()
+   end,
+})
+
+RecordToggle = MacroTab:CreateToggle({
+	Name = "Record",
+	CurrentValue = false,
+	Flag = "RecordMacro",
+	Callback = function(Value)
+		isRecording = Value
+
+		if Value and not isRecordingLoopRunning then
+			Rayfield:Notify({
+				Title = "Macro Recording",
+				Content = "Waiting for game to start...",
+				Duration = 4
+			})
+
+			recordingThread = task.spawn(function()
+				waitForGameStart()
+				if isRecording then
+					isRecordingLoopRunning = true
+					table.clear(macro)
+					recordingStartTime = tick()
+
+					Rayfield:Notify({
+						Title = "Recording Started",
+						Content = "Macro recording is now active.",
+						Duration = 4
+					})
+				end
+			end)
+
+		elseif not Value then
+			if isRecordingLoopRunning then
+				Rayfield:Notify({
+					Title = "Recording Stopped",
+					Content = "Recording manually stopped.",
+					Duration = 3
+				})
+			end
+			isRecordingLoopRunning = false
+
+            if currentMacroName then
+            macroManager[currentMacroName] = macro
+             ensureMacroFolders()
+            saveMacroToFile(currentMacroName)
+            end
+		end
+	end
+})
+
+
+
+PlayToggle = MacroTab:CreateToggle({
+	Name = "Playback",
+	CurrentValue = false,
+	Flag = "PlayBackMacro",
+	Callback = function(Value)
+		isPlaybacking = Value
+
+		if Value and not isPlayingLoopRunning then
+    Rayfield:Notify({
+        Title = "Macro Playback",
+        Content = "Waiting for game to start...",
+        Duration = 4
+    })
+
+    playbackThread = task.spawn(function()
+        waitForGameStart()
+        if isPlaybacking then
+            if currentMacroName then
+                ensureMacroFolders()
+                local loadedMacro = loadMacroFromFile(currentMacroName)
+                if loadedMacro then
+                    macro = loadedMacro
+                else
+                    Rayfield:Notify({
+                        Title = "Playback Error",
+                        Content = "Failed to load macro: " .. tostring(currentMacroName),
+                        Duration = 5,
+                    })
+                    isPlaybacking = false
+                    PlayToggle:Set(false)
+                    return
+                end
+            else
+                Rayfield:Notify({
+                    Title = "Playback Error",
+                    Content = "No macro selected for playback.",
+                    Duration = 5,
+                })
+                isPlaybacking = false
+                PlayToggle:Set(false)
+                return
+            end
+
+            isPlayingLoopRunning = true
+
+            Rayfield:Notify({
+                Title = "Playback Started",
+                Content = "Macro is now executing...",
+                Duration = 4
+            })
+
+            playMacroLoop()
+
+            isPlayingLoopRunning = false
+        end
+    end)
+elseif not Value then
+    Rayfield:Notify({
+        Title = "Macro Playback",
+        Content = "Playback disabled.",
+        Duration = 3
+    })
+        end
+	end,
+})
+
+local Toggle = GameTab:CreateToggle({
+   Name = "Auto Retry",
+   CurrentValue = false,
+   Flag = "AutoRetryToggle",
+   Callback = function(Value)
+		State.AutoRetryEnabled = Value
+        if Value then
+            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
+        end
+   end,
+})
+
+    local Toggle = GameTab:CreateToggle({
+    Name = "Auto 1x/2x/3x Speed",
+    CurrentValue = false,
+    Flag = "AutoSpeedToggle",
+    Callback = function(Value)
+        State.AutoSelectSpeed = Value
+    end,
+})
+
+    local AutoSpeedDropdown = GameTab:CreateDropdown({
+    Name = "Select Auto Speed Value",
+    Options = {"1x","2x","3x"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoSpeedSelector",
+    Callback = function(Options)
+       State.SelectedSpeedValue = Options
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if State.AutoSelectSpeed and State.SelectedSpeedValue then
+            local raw = State.SelectedSpeedValue
+            local value = type(raw) == "table" and raw[1] or raw
+            local clean = tostring(value):gsub("[^%d]", "")
+            local speedNum = tonumber(clean)
+            if speedNum then
+                game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("ChangeTickSpeed"):InvokeServer(speedNum)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+local Toggle = GameTab:CreateToggle({
+   Name = "Auto Select Difficulty",
+   CurrentValue = false,
+   Flag = "AutoSelectDifficultyToggle",
+   Callback = function(Value)
+		State.AutoSelectDifficultyEnabled = Value
+   end,
+})
+
+local Dropdown = GameTab:CreateDropdown({
+   Name = "Select Difficulty",
+   Options = {"easy","normal","hard","insane"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "DifficultySelectorDropdown",
+   Callback = function(Options)
+		State.SelectedDifficultyValue = Options
+   end,
+})
+
+task.spawn(function()
+	while true do
+		if State.AutoSelectDifficultyEnabled and State.SelectedDifficultyValue and LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("DifficultyVote").Visible then
+game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceDifficultyVote"):InvokeServer("dif_"..unpack(State.SelectedDifficultyValue))
+		end
+		task.wait(1)
+	end
+end)
+
+local Toggle = GameTab:CreateToggle({
+   Name = "Auto Skip Waves",
+   CurrentValue = false,
+   Flag = "AutoSkipWavesToggle",
+   Callback = function(Value)
+		State.AutoSkipWaves = Value
+   end,
+})
+
+task.spawn(function()
+    while true do
+        if State.AutoSkipWaves then
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
+        end
+        task.wait(0.5)
+    end
+end)
+
+local placingCooldown = false
+
+local Toggle = AutoplayTab:CreateToggle({
+    Name = "Autoplay",
+    CurrentValue = false,
+    Flag = "AutoplayToggle",
+    Callback = function(Value)
+        if Value then
+            _G.Autoplay.start()
+        else
+            _G.Autoplay.stop()
+        end
+    end,
+})
+
+local Toggle = AutoplayTab:CreateToggle({
+	Name = "Show Placement Area",
+	CurrentValue = false,
+	Flag = "PlacementAreaToggle",
+	Callback = function(Value)
+        rectangleEnabled = Value
+            toggleRectangle()
+	end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Zone Width",
+   Range = {1, 100},
+   Increment = 1,
+   Suffix = "studs",
+   CurrentValue = 10,
+   Flag = "ZoneWidthSlider",
+   Callback = function(Value)
+        config.width = Value
+   end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Zone length",
+   Range = {1, 100},
+   Increment = 1,
+   Suffix = "studs",
+   CurrentValue = 10,
+   Flag = "ZoneLengthSlider",
+   Callback = function(Value)
+        config.length = Value
+   end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Tower 1 Spawn Cap",
+   Range = {0, 20},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 5,
+   Flag = "Tower1SpawnCap",
+   Callback = function(Value)
+      spawnCaps.tower1 = Value
+      updateAutoplaySettings()
+   end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Tower 2 Spawn Cap",
+   Range = {0, 20},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 5,
+   Flag = "Tower2SpawnCap",
+   Callback = function(Value)
+      spawnCaps.tower2 = Value
+      updateAutoplaySettings()
+   end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Tower 3 Spawn Cap",
+   Range = {0, 20},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 5,
+   Flag = "Tower3SpawnCap",
+   Callback = function(Value)
+      spawnCaps.tower3 = Value
+      updateAutoplaySettings()
+   end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Tower 4 Spawn Cap",
+   Range = {0, 20},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 5,
+   Flag = "Tower4SpawnCap",
+   Callback = function(Value)
+      spawnCaps.tower4 = Value
+      updateAutoplaySettings()
+   end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Tower 5 Spawn Cap",
+   Range = {0, 20},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 5,
+   Flag = "Tower5SpawnCap",
+   Callback = function(Value)
+      spawnCaps.tower5 = Value
+      updateAutoplaySettings()
+   end,
+})
+
+local Slider = AutoplayTab:CreateSlider({
+   Name = "Tower 6 Spawn Cap",
+   Range = {0, 20},
+   Increment = 1,
+   Suffix = "x",
+   CurrentValue = 5,
+   Flag = "Tower6SpawnCap",
+   Callback = function(Value)
+      spawnCaps.tower6 = Value
+      updateAutoplaySettings()
+   end,
+})
+
+local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
+
+Input = WebhookTab:CreateInput({
+    Name = "Input Webhook",
+    CurrentValue = "",
+    PlaceholderText = "Input Webhook...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "WebhookInput",
+    Callback = function(Text)
+        local trimmed = Text:match("^%s*(.-)%s*$")
+
+        if trimmed == "" then
+            ValidWebhook = nil
+            Label5:Set("Awaiting Webhook Input...")
+            return
+        end
+
+        local valid = trimmed:match("^https://discord%.com/api/webhooks/%d+/.+$")
+
+        if valid then
+            ValidWebhook = trimmed
+            Label5:Set("✅ Webhook URL set!")
+        else
+            ValidWebhook = nil
+            Label5:Set("❌ Invalid Webhook URL. Ensure it's complete and starts with 'https://discord.com/api/webhooks/'")
+        end
+    end,
+})
+
+      TestWebhookButton = WebhookTab:CreateButton({
+    Name = "Test webhook",
+    Callback = function()
+        if ValidWebhook then
+            sendWebhook("test")
+        end
+    end,
+    })
+
+     Toggle = WebhookTab:CreateToggle({
+    Name = "Send On Stage Finished",
+    CurrentValue = false,
+    Flag = "sendWebhookWhenStageCompleted",
+    Callback = function(Value)
+        State.SendStageCompletedWebhook = Value
+    end,
+    })
+
+ShowGameEnd.OnClientEvent:Connect(function()
+    if isRecording then
+        isRecording = false
+        isRecordingLoopRunning = false
+        Rayfield:Notify({
+            Title = "Recording Stopped",
+            Content = "Game ended, recording has been automatically stopped and saved.",
+            Duration = 3,
+            Image = 0,
+        })
+        RecordToggle:Set(false)
+
+        if currentMacroName then
+    macroManager[currentMacroName] = macro
+    saveMacroToFile(currentMacroName)
+        end
+    end
+   if not State.hasSentWebhook then
+    if State.SendStageCompletedWebhook then
+        local clearTime = math.floor(tick() - State.StageStartTime)
+        local minutes = math.floor(clearTime / 60)
+        local seconds = clearTime % 60
+        local formattedTime = string.format("%d:%02d", minutes, seconds)
+
+
+        State.hasSentWebhook = true
+        sendWebhook("stage", nil, formattedTime)
+
+        task.delay(5, function()
+            State.hasSentWebhook = false
+        end)
+    end
+end
+    isPlayingLoopRunning = false
+    if autoplayActive then
+        _G.Autoplay.clearPlacedUnits()
+    end
+    local prevTime = workspace:GetAttribute("GameStartTime")
+	if State.AutoRetryEnabled then
+	repeat game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer() task.wait(0.1) until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
+    end
+end)
+
+Rayfield:LoadConfiguration()
+
+task.delay(1, function()
+    -- Get the saved macro name from Rayfield's configuration
+    local savedMacroName = Rayfield.Flags["MacroDropdown"]
+    if savedMacroName and savedMacroName ~= "" then
+        currentMacroName = savedMacroName
+        if macroManager[currentMacroName] then
+            macro = macroManager[currentMacroName]
+        end
+    end
+    refreshMacroDropdown()
+end)
