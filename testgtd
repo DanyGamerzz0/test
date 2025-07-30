@@ -1169,17 +1169,16 @@ local function tryPlaceUnit(unitName, args, maxRetries)
     maxRetries = maxRetries or 3
     print("🔍 tryPlaceUnit: unitName =", unitName, "position =", args.Position)
     
-    if not unitName:match("^tl_unitplacer_") then
-        unitName = "tl_unitplacer_" .. unitName
-        print("🔍 Added prefix to unitName:", unitName)
-    end
+    -- Strip tl_unitplacer_ prefix if present
+    unitName = unitName:gsub("^tl_unitplacer_", "")
+    print("🔍 Stripped unitName to:", unitName)
     
     if not canPlaceMoreUnits() then
         warn("⚠️ Cannot place unit - max unit limit reached")
         return false
     end
     
-    local unitConfig = getUnitConfig(unitName:gsub("^tl_unitplacer_", ""))
+    local unitConfig = getUnitConfig(unitName)
     if unitConfig and unitConfig.UnitConfig and getPlayerCash() < (unitConfig.UnitConfig.Cost or 0) then
         warn("⚠️ Cannot place unit - insufficient cash:", getPlayerCash(), "<", unitConfig.UnitConfig.Cost)
         return false
@@ -1193,13 +1192,13 @@ local function tryPlaceUnit(unitName, args, maxRetries)
         if not success then
             warn("⚠️ Placement pcall failed on attempt", attempt, "with error:", result)
         end
-        local id = waitForUnitId(args.Position, 1.5) -- Reduced timeout to 1.5s
+        local id = waitForUnitId(args.Position, 1.5)
         if id then
             print("✅ Unit placed successfully on attempt", attempt, "with ID", id)
             return true
         end
         warn("⚠️ No unit found after attempt", attempt)
-        task.wait(0.3) -- Increased retry delay
+        task.wait(0.3)
     end
     warn("❌ Skipping unit placement for", unitName, "after", maxRetries, "attempts")
     return false
