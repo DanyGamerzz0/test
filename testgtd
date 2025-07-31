@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -330,32 +329,28 @@ local function getUnitsToUpgrade()
     
     for id, unitData in pairs(placedUnits) do
         -- Validate unit exists before attempting upgrade
-        if not validateUnitExists(id) then
-            goto continue
-        end
-        
-        local unit = unitData.unit
-        local currentLevel = unitData.upgradeLevel or 0
-        local maxLevel = #unit.upgrades
-        
-        -- If unit can be upgraded further
-        if currentLevel < maxLevel then
-            local nextLevel = currentLevel + 1
-            local upgradeCost = _G.UnitSystem.getUpgradeCost(unit, nextLevel)
+        if validateUnitExists(id) then
+            local unit = unitData.unit
+            local currentLevel = unitData.upgradeLevel or 0
+            local maxLevel = #unit.upgrades
             
-            if upgradeCost > 0 and playerCash >= upgradeCost then
-                table.insert(unitsToUpgrade, {
-                    id = id,
-                    unitData = unitData,
-                    upgradeCost = upgradeCost,
-                    currentLevel = currentLevel,
-                    nextLevel = nextLevel,
-                    priority = unitData.priority or 999
-                })
+            -- If unit can be upgraded further
+            if currentLevel < maxLevel then
+                local nextLevel = currentLevel + 1
+                local upgradeCost = _G.UnitSystem.getUpgradeCost(unit, nextLevel)
+                
+                if upgradeCost > 0 and playerCash >= upgradeCost then
+                    table.insert(unitsToUpgrade, {
+                        id = id,
+                        unitData = unitData,
+                        upgradeCost = upgradeCost,
+                        currentLevel = currentLevel,
+                        nextLevel = nextLevel,
+                        priority = unitData.priority or 999
+                    })
+                end
             end
         end
-        
-        ::continue::
     end
     
     -- Sort by priority (lower number = higher priority)
@@ -1855,9 +1850,7 @@ local Toggle = AutoplayTab:CreateToggle({
     Flag = "AutoplayToggle",
     Callback = function(Value)
         if Value then
-            _G.Autoplay.start()
-        else
-            _G.Autoplay.stop()
+            startAutoplay()
         end
     end,
 })
