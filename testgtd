@@ -16,7 +16,6 @@ local isPlayingLoopRunning = false
 
 local isRecordingLoopRunning = false
 local recordingThread = nil
-local lastGameStartTime = nil
 
 local HttpService = game:GetService("HttpService")
 local ShowGameEnd = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):WaitForChild("ShowGameEnd")
@@ -1170,16 +1169,17 @@ local function tryPlaceUnit(unitName, args, maxRetries)
     maxRetries = maxRetries or 3
     print("🔍 tryPlaceUnit: unitName =", unitName, "position =", args.Position)
     
-    -- Strip tl_unitplacer_ prefix if present
-    unitName = unitName:gsub("^tl_unitplacer_", "")
-    print("🔍 Stripped unitName to:", unitName)
+    if not unitName:match("^tl_unitplacer_") then
+        unitName = "tl_unitplacer_" .. unitName
+        print("🔍 Added prefix to unitName:", unitName)
+    end
     
     if not canPlaceMoreUnits() then
         warn("⚠️ Cannot place unit - max unit limit reached")
         return false
     end
     
-    local unitConfig = getUnitConfig(unitName)
+    local unitConfig = getUnitConfig(unitName:gsub("^tl_unitplacer_", ""))
     if unitConfig and unitConfig.UnitConfig and getPlayerCash() < (unitConfig.UnitConfig.Cost or 0) then
         warn("⚠️ Cannot place unit - insufficient cash:", getPlayerCash(), "<", unitConfig.UnitConfig.Cost)
         return false
@@ -1193,13 +1193,13 @@ local function tryPlaceUnit(unitName, args, maxRetries)
         if not success then
             warn("⚠️ Placement pcall failed on attempt", attempt, "with error:", result)
         end
-        local id = waitForUnitId(args.Position, 1.5)
+        local id = waitForUnitId(args.Position, 1.5) -- Reduced timeout to 1.5s
         if id then
             print("✅ Unit placed successfully on attempt", attempt, "with ID", id)
             return true
         end
         warn("⚠️ No unit found after attempt", attempt)
-        task.wait(0.3)
+        task.wait(0.3) -- Increased retry delay
     end
     warn("❌ Skipping unit placement for", unitName, "after", maxRetries, "attempts")
     return false
@@ -1217,89 +1217,92 @@ local function playMacroLoop()
         return
     end
 
-    local startTime = tick()
-    for i, action in ipairs(macro) do
-        if not isPlaybacking then
-            print("🔍 Playback stopped by user")
-            break
-        end
-        
-        -- Validate action
-        if not action.action or not action.time then
-            warn("⚠️ Invalid action at index", i, ":", action)
-            continue
-        end
-        
-        local waitTime = 0
-        if i == 1 then
-            waitTime = action.time
-        else
-            waitTime = action.time - macro[i - 1].time
-        end
-        
-        -- Ensure waitTime is valid
-        waitTime = math.max(0.1, math.min(waitTime, 10))
-        print("🔍 Action", i, ":", action.action, "waitTime:", waitTime)
-        
-        task.wait(waitTime)
-        
-        if action.action == "PlaceUnit" then
-            if not action.unitName or not action.position then
-                warn("⚠️ Invalid PlaceUnit action at index", i, ":", action)
+    while isPlaybacking do
+        local startTime = tick()
+        for i, action in ipairs(macro) do
+            if not isPlaybacking then
+                print("🔍 Playback stopped by user")
+                break
+            end
+            
+            -- Validate action
+            if not action.action or not action.time then
+                warn("⚠️ Invalid action at index", i, ":", action)
                 continue
             end
-            local success = tryPlaceUnit(action.unitName, {
-                Valid = action.valid,
-                Rotation = action.rotation,
-                CF = action.cframe,
-                Position = action.position
-            }, 3)
-            print("🔍 PlaceUnit result:", success)
-            task.wait(0.2)
-        elseif action.action == "UpgradeUnit" then
-            local id = FindUnitId(action.position)
-            if id then
-                local success, err = pcall(function()
-                    game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
-                end)
-                print("🔍 UpgradeUnit result:", success, "ID:", id)
+            
+            local waitTime = 0
+            if i == 1 then
+                waitTime = action.time
             else
-                warn("⚠️ No unit found for UpgradeUnit at position", action.position)
+                waitTime = action.time - macro[i - 1].time
             end
-        elseif action.action == "SellUnit" then
-            local id = FindUnitId(action.position)
-            if id then
+            
+            -- Ensure waitTime is valid
+            waitTime = math.max(0.1, math.min(waitTime, 10)) -- Min 0.1s, max 10s
+            print("🔍 Action", i, ":", action.action, "waitTime:", waitTime)
+            
+            task.wait(waitTime)
+            
+            if action.action == "PlaceUnit" then
+                if not action.unitName or not action.position then
+                    warn("⚠️ Invalid PlaceUnit action at index", i, ":", action)
+                    continue
+                end
+                local success = tryPlaceUnit(action.unitName, {
+                    Valid = action.valid,
+                    Rotation = action.rotation,
+                    CF = action.cframe,
+                    Position = action.position
+                }, 3)
+                print("🔍 PlaceUnit result:", success)
+                task.wait(0.2) -- Cooldown to prevent server spam
+            elseif action.action == "UpgradeUnit" then
+                local id = FindUnitId(action.position)
+                if id then
+                    local success, err = pcall(function()
+                        game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+                    end)
+                    print("🔍 UpgradeUnit result:", success, "ID:", id)
+                else
+                    warn("⚠️ No unit found for UpgradeUnit at position", action.position)
+                end
+            elseif action.action == "SellUnit" then
+                local id = FindUnitId(action.position)
+                if id then
+                    local success, err = pcall(function()
+                        game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+                    end)
+                    print("🔍 SellUnit result:", success, "ID:", id)
+                else
+                    warn("⚠️ No unit found for SellUnit at position", action.position)
+                end
+            elseif action.action == "SkipWave" then
                 local success, err = pcall(function()
-                    game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+                    game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
                 end)
-                print("🔍 SellUnit result:", success, "ID:", id)
+                print("🔍 SkipWave result:", success)
             else
-                warn("⚠️ No unit found for SellUnit at position", action.position)
+                warn("⚠️ Unknown action type:", action.action)
             end
-        elseif action.action == "SkipWave" then
-            local success, err = pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
-            end)
-            print("🔍 SkipWave result:", success)
-        else
-            warn("⚠️ Unknown action type:", action.action)
+        end
+        print("🔍 Completed macro iteration, took", tick() - startTime, "seconds")
+        if not State.AutoRetryEnabled then
+            print("🔍 AutoRetry not enabled, stopping playback")
+            isPlaybacking = false
+            PlayToggle:Set(false)
+            break
         end
     end
-    print("🔍 Completed macro iteration, took", tick() - startTime, "seconds")
     isPlayingLoopRunning = false
     print("🔍 playMacroLoop ended")
 end
 
-local function startMacroPlayback(gameStartTime)
+local function startMacroPlayback()
     if not isPlaybacking or isPlayingLoopRunning then
         print("🔍 startMacroPlayback aborted: isPlaybacking =", isPlaybacking, "isPlayingLoopRunning =", isPlayingLoopRunning)
         return
     end
-    if not gameStartTime or gameStartTime == lastGameStartTime then
-        print("🔍 startMacroPlayback aborted: same or invalid gameStartTime", gameStartTime)
-        return
-    end
-    lastGameStartTime = gameStartTime
     if not currentMacroName then
         Rayfield:Notify({
             Title = "Playback Error",
@@ -1332,7 +1335,7 @@ local function startMacroPlayback(gameStartTime)
     })
     playMacroLoop()
     isPlayingLoopRunning = false
-    print("🔍 startMacroPlayback completed for gameStartTime", gameStartTime)
+    print("🔍 startMacroPlayback completed")
 end
 
 local function GetUnitPositionFromId(id)
@@ -1390,7 +1393,7 @@ local Window = Rayfield:CreateWindow({
    Name = "LixHub - Garden Tower Defense",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Garden Tower Defense",
-   LoadingSubtitle = "v0.0.2",
+   LoadingSubtitle = "v0.0.1",
    ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
@@ -1690,7 +1693,6 @@ PlayToggle = MacroTab:CreateToggle({
                 print("🔍 Canceled playbackThread")
             end
             isPlayingLoopRunning = false
-            lastGameStartTime = nil
         else
             if playbackThread then
                 task.cancel(playbackThread)
@@ -1707,7 +1709,7 @@ PlayToggle = MacroTab:CreateToggle({
                 while isPlaybacking do
                     local result = waitForGameStart(30)
                     if isPlaybacking and result then
-                        startMacroPlayback(result)
+                        startMacroPlayback()
                     else
                         print("🔍 PlaybackThread aborted: isPlaybacking =", isPlaybacking, "result =", result)
                         break
@@ -1996,7 +1998,6 @@ Input = WebhookTab:CreateInput({
     })
 
 ShowGameEnd.OnClientEvent:Connect(function()
-    print("🔍 ShowGameEnd fired")
     if isRecording then
         isRecording = false
         isRecordingLoopRunning = false
@@ -2010,7 +2011,6 @@ ShowGameEnd.OnClientEvent:Connect(function()
         if currentMacroName then
             macroManager[currentMacroName] = macro
             saveMacroToFile(currentMacroName)
-            print("🔍 Saved recorded macro", currentMacroName)
         end
     end
     if not State.hasSentWebhook and State.SendStageCompletedWebhook then
@@ -2027,26 +2027,23 @@ ShowGameEnd.OnClientEvent:Connect(function()
     isPlayingLoopRunning = false
     if autoplayActive then
         cleanupInvalidUnits()
-        print("🔍 Cleaned up invalid units for autoplay")
     end
     local prevTime = workspace:GetAttribute("GameStartTime")
     if State.AutoRetryEnabled then
-        print("🔍 AutoRetry triggered, restarting game")
         repeat
             game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
             task.wait(0.2)
         until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
-        local newGameStartTime = workspace:GetAttribute("GameStartTime")
-        print("🔍 Game restarted, new GameStartTime:", newGameStartTime)
         if isPlaybacking then
             if playbackThread then
                 task.cancel(playbackThread)
                 playbackThread = nil
-                print("🔍 Canceled playbackThread for restart")
             end
             playbackThread = task.spawn(function()
-                print("🔍 Started new playbackThread after restart")
-                startMacroPlayback(newGameStartTime)
+                local result = waitForGameStart(30)
+                if isPlaybacking and result then
+                    startMacroPlayback()
+                end
             end)
         end
     end
