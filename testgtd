@@ -2071,8 +2071,16 @@ task.delay(1, function()
     local savedMacroName = Rayfield.Flags["MacroDropdown"]
     if savedMacroName and savedMacroName ~= "" then
         currentMacroName = savedMacroName
-        if macroManager[currentMacroName] then
-            macro = macroManager[currentMacroName]
+        
+        -- Load the macro data from file when restoring from config
+        local loadedMacro = loadMacroFromFile(currentMacroName)
+        if loadedMacro then
+            macro = loadedMacro
+            macroManager[currentMacroName] = loadedMacro
+            print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
+        else
+            print("Failed to load saved macro:", currentMacroName)
+            currentMacroName = nil
         end
     end
     refreshMacroDropdown()
