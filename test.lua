@@ -86,6 +86,7 @@ local State = {
     AutoClaimMilestones = false,
     AutoPurchaseMerchant = false,
     AutoPurchaseBossRush = false,
+    AutoPurchaseRaidCSW = false,
     AutoPurchaseRaid = false,
     challengeAutoReturnEnabled = false,
     autoBossAttackEnabled = false,
@@ -151,6 +152,7 @@ local Data = {
     MerchantPurchaseTable = {},
     BossRushPurchaseTable = {},
     RaidPurchaseTable = {},
+    RaidPurchaseTableCSW = {},
     rangerStages = {},
     wantedRewards = {},
     capturedRewards = {},
@@ -233,7 +235,7 @@ local Window = Rayfield:CreateWindow({
       RememberJoins = true -- Set this to false to make them join the discord every time they load it up
    },
 
-   KeySystem = false, -- Set this to true to use our key system
+   KeySystem = true, -- Set this to true to use our key system
    KeySettings = {
       Title = "LixHub - ARX - Free",
       Subtitle = "LixHub - Key System",
@@ -241,7 +243,7 @@ local Window = Rayfield:CreateWindow({
       FileName = "LixHub_Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
       SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
       GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
-      Key = {"ARX_FR33"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+      Key = {"0xLIXHUB"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
    }
 })
 
@@ -2172,7 +2174,7 @@ local function startRetryLoop()
     task.spawn(function()
         while State.retryAttempted and State.autoRetryEnabled do
             Remotes.RetryEvent:FireServer()
-            task.wait(0.5) -- Retry interval (can adjust)
+            task.wait(0.5)
         end
     end)
 end
@@ -2500,7 +2502,10 @@ end)
                 autoPurchaseItems(State.AutoPurchaseBossRush, Data.BossRushPurchaseTable, "Boss_Rush", "Boss Rush")
             end
             if State.AutoPurchaseRaid and #Data.RaidPurchaseTable > 0 then
-                autoPurchaseItems(State.AutoPurchaseRaid, Data.RaidPurchaseTable, "Raid_Shop", "Raid")
+                autoPurchaseItems(State.AutoPurchaseRaid, Data.RaidPurchaseTable, "Raid_Shop", "Raid Shop")
+            end
+            if State.AutoPurchaseRaidCSW and #Data.RaidPurchaseTableCSW > 0 then
+                autoPurchaseItems(State.AutoPurchaseRaidCSW, Data.RaidPurchaseTableCSW, "RaidCSW_Shop", "Graveyard Raid Shop")
             end
             task.wait(1)
         end
@@ -2695,6 +2700,26 @@ local Toggle = ShopTab:CreateToggle({
     Flag = "BossRushPurchaseSelector",
     Callback = function(Options)
         Data.BossRushPurchaseTable = Options
+    end,
+    })
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Graveyard Raid Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRaidCSW",
+    Callback = function(Value)
+        State.AutoPurchaseRaidCSW = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Graveyard Raid Shop)",
+    Options = {"Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RaidPurchaseSelectorCSW",
+    Callback = function(Options)
+        Data.RaidPurchaseTableCSW = Options
     end,
     })
 
