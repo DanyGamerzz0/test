@@ -712,13 +712,60 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
         local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
-        local shouldPing = #detectedUnits > 0
+        
+        -- Safeguards for faulty detection
+        -- Get current player gold amount
+        local currentGold = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value or 0
+        
+        -- Check if detected gold equals current total gold (indicates faulty detection)
+        local detectedGold = 0
+        if detectedRewards then
+            for _, reward in pairs(detectedRewards) do
+                if reward.type == "gold" then
+                    detectedGold = reward.amount
+                    break
+                end
+            end
+        end
+        
+        -- If detected gold equals current total gold, it's a faulty webhook
+        local isFaultyDetection = detectedGold == currentGold and detectedGold > 0
+        
+        -- Determine if we should ping and show detailed rewards
+        local hasUnrealisticNumbers = isFaultyDetection
+        local shouldPing = #detectedUnits > 0 and not hasUnrealisticNumbers
         local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
 
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
         local orderedUnits = getOrderedUnits()
+
+        -- Build fields array
+        local fields = {
+            { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+            { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
+        }
+
+        -- Add rewards field - if detection is faulty, show a warning instead
+        if hasUnrealisticNumbers then
+            table.insert(fields, { name = "🏆 Rewards", value = "⚠️ *Faulty detection - Gold amount equals total balance*", inline = false })
+            -- Add debug info
+            table.insert(fields, { name = "🚫 Debug", value = string.format("Detected: %d gold | Current total: %d gold", detectedGold, currentGold), inline = true })
+        else
+            table.insert(fields, { name = "🏆 Rewards", value = rewardsText, inline = false })
+        end
+
+        -- Add units loadout
+        table.insert(fields, { name = "📦 Units Loadout", value = orderedUnits, inline = false })
+
+        -- Only add units obtained field if it's realistic
+        if shouldPing and not hasUnrealisticNumbers then
+            table.insert(fields, { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false })
+        end
+
+        -- Add version
+        table.insert(fields, { name = "📈 Script Version", value = "v1.2.1 (Enhanced + Safeguards)", inline = true })
 
         data = {
             username = "LixHub Bot",
@@ -727,22 +774,18 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                 title = shouldPing and "🌟 UNIT DROP! 🌟" or "🎯 Stage Finished!",
                 description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
                 color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
-                fields = {
-                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
-                    { name = "🏆 Rewards", value = rewardsText, inline = false },
-                    { name = "📦 Units Loadout", value = orderedUnits, inline = false },
-                    shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
-                    { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
-                },
+                fields = fields,
                 footer = { text = "discord.gg/lixhub • Enhanced Tracking" },
                 timestamp = timestamp
             }}
         }
 
-        local filteredFields = {}
-        for _, field in ipairs(data.embeds[1].fields) do if field then table.insert(filteredFields, field) end end
-        data.embeds[1].fields = filteredFields
+        -- Add warning color if unrealistic numbers detected
+        if hasUnrealisticNumbers then
+            data.embeds[1].color = 0xFF8C00  -- Orange warning color
+            data.embeds[1].title = "⚠️ Stage Finished (Detection Issue)"
+        end
+
     else
         return
     end
@@ -1107,9 +1150,6 @@ local function setProcessingState(action)
             State.selectedChapter or "?",
             State.selectedDifficulty or "?"
         ))
-    elseif action == "Boss Attack Auto Join" then
-        notify("🔄 Processing: ", action)
-
         elseif action == "Boss Event Auto Join" then
            notify("🔄 Processing: ", action)
 
@@ -1139,13 +1179,6 @@ local function getBossTicketResetTime()
     return success and resetTime or 0
 end
 
-    -- Auto join boss attack function
-local function autoJoinBossAttack()
-    if not isInLobby() then return end
-    print("🏆 Attempting to join Boss Attack...")
-    Remotes.PlayEvent:FireServer("Boss-Attack")
-end
-
 local function getInternalWorldName(displayName)
     for _, story in ipairs(Data.availableStories) do
         if story.SeriesName == displayName then
@@ -1156,7 +1189,7 @@ local function getInternalWorldName(displayName)
 end
 
 local function equipTeamSlot(teamSlot)
-    if not teamSlot or teamSlot < 1 or teamSlot > 3 then
+    if not teamSlot or teamSlot < 1 or teamSlot > 5 then
         warn("Invalid team slot:", teamSlot)
         return false
     end
@@ -1188,6 +1221,10 @@ local function getTeamSlotForMode(mode)
         return 2
     elseif State.modeTeamSelector3 and table.find(State.modeTeamSelector3, mode) then
         return 3
+    elseif State.modeTeamSelector4 and table.find(State.modeTeamSelector4, mode) then
+        return 4
+    elseif State.modeTeamSelector5 and table.find(State.modeTeamSelector5, mode) then
+        return 5
     end
     
     return nil
@@ -1225,23 +1262,6 @@ local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if autoJoinState.isProcessing then return end
     if not canPerformAction() then return end
-
-    -- Priority 0: Boss Attack Auto Join
-    if State.autoBossAttackEnabled then
-        local currentTickets = getBossAttackTickets()
-        if currentTickets > 0 then
-            setProcessingState("Boss Attack Auto Join")
-            print("🏆 Boss Attack tickets available:", currentTickets)
-
-            handleTeamEquipping("Boss Attack")
-
-            autoJoinBossAttack()
-            task.delay(5, clearProcessingState)
-            return
-        else
-            print("🎫 No boss attack tickets available, checking other priorities...")
-        end
-    end
 
     -- Priority 1: Challenge Auto Join
     if State.autoChallengeEnabled then
@@ -2461,27 +2481,6 @@ end
 end
     end
 end)
-
-    task.spawn(function()
-        while true do
-            task.wait(5)
-            if State.autoReturnBossTicketResetEnabled then
-                local currentTickets = getBossAttackTickets()
-                local currentResetTime = getBossTicketResetTime()
-                if currentTickets > State.lastBossTicketCount or currentResetTime ~= State.lastBossTicketResetTime then
-                    if State.lastBossTicketCount == 0 and currentTickets > 0 then
-                        print("🎫 Boss Attack tickets reset detected! Tickets:", currentTickets)
-                        notify("Boss Tickets", string.format("Tickets reset! Now have %d tickets", currentTickets))
-                        State.pendingBossTicketReturn = true
-                    end
-                end
-                
-                State.lastBossTicketCount = currentTickets
-                State.lastBossTicketResetTime = currentResetTime
-            end
-        end
-    end)
-
         task.spawn(function()
         while true do
             task.wait(2)
@@ -3268,43 +3267,7 @@ task.spawn(function()
         print("✅ Ranger stage dropdown updated with", #rangerDisplayNames, "options")
     end)
 
-    local JoinerSection5 = JoinerTab:CreateSection("💥 Boss Attack 💥")
-
     local Label2 = JoinerTab:CreateLabel("Boss Ticket(s): ", "ticket")
-
-
-    task.spawn(function()
-        while true do
-            Label2:Set("Boss Ticket(s): "..Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.BossAttackTicket.Value, "ticket")
-            task.wait(5)
-        end
-    end)
-        local Toggle = JoinerTab:CreateToggle({
-    Name = "Auto join boss attack",
-    CurrentValue = false,
-    Flag = "AutoJoinBossAttack",
-    Callback = function(Value)
-        State.autoBossAttackEnabled = Value
-        if State.autoBossAttackEnabled then
-            State.lastBossTicketCount = getBossAttackTickets()
-            State.lastBossTicketResetTime = getBossTicketResetTime()
-            print("🎫 Current boss attack tickets:", State.lastBossTicketCount)
-        end
-    end,
-    })
-
-        local Toggle = JoinerTab:CreateToggle({
-    Name = "Return to Lobby When Boss Attack Tickets Reset",
-    CurrentValue = false,
-    Flag = "AutoReturnBossAttackToggle",
-    Callback = function(Value)
-        State.autoReturnBossTicketResetEnabled = Value
-        if State.autoReturnBossTicketResetEnabled then
-            State.lastBossTicketCount = getBossAttackTickets()
-            State.lastBossTicketResetTime = getBossTicketResetTime()
-        end
-    end,
-    })
 
     local JoinerSection6 = JoinerTab:CreateSection("🏰 Infinity Castle 🏰")
 
@@ -3454,7 +3417,7 @@ end)
 
      TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 1",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Boss Attack","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector1",
@@ -3465,7 +3428,7 @@ end)
 
       TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 2",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Boss Attack","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector2",
@@ -3476,12 +3439,34 @@ end)
 
       TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 3",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Boss Attack","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector3",
     Callback = function(Options)
         State.modeTeamSelector3 = Options
+    end,
+    })
+
+    TeamSelectorDropdown4 = AutoPlayTab:CreateDropdown({
+    Name = "Select mode for team 4",
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ModeTeamSelector4",
+    Callback = function(Options)
+        State.modeTeamSelector4 = Options
+    end,
+    })
+
+    TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
+    Name = "Select mode for team 5",
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ModeTeamSelector5",
+    Callback = function(Options)
+        State.modeTeamSelector5 = Options
     end,
     })
 
