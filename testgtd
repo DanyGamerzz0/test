@@ -1344,6 +1344,8 @@ local function playMacroLoop()
 				local id = FindUnitId(action.position)
 				if id then
 					game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+            elseif action.action == "SkipWave" then
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
 				end
 			end
 		end
@@ -1389,6 +1391,12 @@ elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
     local id = args[1]
     local pos = GetUnitPositionFromId(id)
     table.insert(macro, {action = "SellUnit", position = pos,time = timestamp - recordingStartTime})
+elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
+    local timestamp = tick() 
+    table.insert(macro, {
+        action = "SkipWave",
+        time = timestamp - recordingStartTime
+    })
 
 end
 end)
@@ -1806,7 +1814,7 @@ local Toggle = GameTab:CreateToggle({
 
 local Dropdown = GameTab:CreateDropdown({
    Name = "Select Difficulty",
-   Options = {"easy","normal","hard","insane"},
+   Options = {"easy","normal","hard","insane","impossible"},
    CurrentOption = {},
    MultipleOptions = false,
    Flag = "DifficultySelectorDropdown",
