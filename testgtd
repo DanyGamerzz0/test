@@ -110,7 +110,72 @@ local rectangle = nil
 local rectangleEnabled = false
 local ValidWebhook
 
+local playbackMode = "timing" -- Default mode: "timing", "wave", "both"
+local currentWave = 0
+local waveStartTime = 0
+
 local unitDataCache = {}
+
+local function getCurrentWave()
+    return workspace:GetAttribute("Round") or 0
+end
+
+local function onWaveChanged()
+    local newWave = getCurrentWave()
+    if newWave ~= currentWave then
+        currentWave = newWave
+        waveStartTime = tick()
+        print(string.format("🌊 Wave %d started at %.2fs", currentWave, waveStartTime))
+    end
+end
+
+local function enhancedRecordAction(actionType, actionData)
+    if not isRecording then return end
+    
+    local timestamp = tick()
+    local currentWaveNum = getCurrentWave()
+    
+    local action = {
+        action = actionType,
+        time = timestamp - recordingStartTime,
+        wave = currentWaveNum,
+        waveTime = timestamp - waveStartTime -- Time since current wave started
+    }
+    
+    -- Merge action-specific data
+    for k, v in pairs(actionData) do
+        action[k] = v
+    end
+    
+    table.insert(macro, action)
+    print(string.format("📝 Recorded %s at time %.2fs (Wave %d, Wave time: %.2fs)", 
+        actionType, action.time, action.wave, action.waveTime))
+end
+
+local function shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
+    if playbackMode == "timing" then
+        -- Original timing-based execution
+        return currentTime >= action.time
+        
+    elseif playbackMode == "wave" then
+        -- Wave-based execution (ignore original timing, use wave progression)
+        if currentWave > action.wave then
+            return true -- Execute if we're past the recorded wave
+        elseif currentWave == action.wave then
+            return currentWaveTime >= (action.waveTime or 0) -- Execute if we're at the right time in the current wave
+        end
+        return false
+        
+    elseif playbackMode == "both" then
+        -- Hybrid mode: require both timing AND wave conditions
+        local timingReady = currentTime >= action.time
+        local waveReady = currentWave >= action.wave and 
+                         (currentWave > action.wave or currentWaveTime >= (action.waveTime or 0))
+        return timingReady and waveReady
+    end
+    
+    return false
+end
 
 local function getCurrentUnitCount()
     return LocalPlayer:GetAttribute("UnitsPlaced") or 0
@@ -1309,7 +1374,7 @@ local function tryPlaceUnit(unitName, args, maxRetries)
             originalPosition.Y,
             originalPosition.Z + offsetZ
         )
-            
+
         end
 
     for attempt = 1, maxRetries do
@@ -1368,84 +1433,93 @@ end
 
 local function playMacroLoop()
     isPlayingLoopRunning = true
+    
     while isPlaybacking do
-        local startTime = tick()
+        local gameStartTime = tick()
+        local actionIndex = 1
         
-        for i, action in ipairs(macro) do
-            if not isPlaybacking then
-                break -- Exit if playback was stopped
-            end
+        print(string.format("🎬 Starting macro playback in '%s' mode", playbackMode))
+        
+        -- Reset wave tracking
+        currentWave = getCurrentWave()
+        waveStartTime = tick()
+        
+        while isPlaybacking and actionIndex <= #macro do
+            -- Update wave tracking
+            onWaveChanged()
             
-            local waitTime = 0
-            if i == 1 then
-                waitTime = action.time
-            else
-                waitTime = action.time - macro[i - 1].time
-            end
+            local currentTime = tick() - gameStartTime
+            local currentWaveTime = tick() - waveStartTime
+            local action = macro[actionIndex]
             
-            -- Wait for the action timing
-            task.wait(waitTime)
-            
-            if action.action == "PlaceUnit" then
-                -- Enhanced unit placement with retries and position adjustment
-                local success = tryPlaceUnit(action.unitName, {
-                    Valid = action.valid,
-                    Rotation = action.rotation,
-                    CF = action.cframe,
-                    Position = action.position
-                }, 5) -- 5 retry attempts
+            -- Check if we should execute this action based on the selected mode
+            if shouldExecuteAction(action, currentTime, currentWave, currentWaveTime) then
+                print(string.format("🎯 Executing action %d/%d: %s (Mode: %s)", 
+                    actionIndex, #macro, action.action, playbackMode))
                 
-                if not success then
-                    print(string.format("⏭️ Skipping failed unit placement: %s", action.unitName))
-                    -- Continue to next action instead of stopping the macro
-                end
-                
-            elseif action.action == "UpgradeUnit" then
-                local id = FindUnitId(action.position)
-                if id then
+                if action.action == "PlaceUnit" then
+                    local success = tryPlaceUnit(action.unitName, {
+                        Valid = action.valid,
+                        Rotation = action.rotation,
+                        CF = action.cframe,
+                        Position = action.position
+                    }, 5)
+                    
+                    if not success then
+                        print(string.format("⏭️ Skipping failed unit placement: %s", action.unitName))
+                    end
+                    
+                elseif action.action == "UpgradeUnit" then
+                    local id = FindUnitId(action.position)
+                    if id then
+                        local success, err = pcall(function()
+                            game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+                        end)
+                        if success then
+                            print("⬆️ Upgraded unit:", id)
+                        else
+                            warn("Failed to upgrade unit:", id, err)
+                        end
+                    else
+                        warn("⚠️ Could not find unit to upgrade at position:", action.position)
+                    end
+                    
+                elseif action.action == "SellUnit" then
+                    local id = FindUnitId(action.position)
+                    if id then
+                        local success, err = pcall(function()
+                            game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+                        end)
+                        if success then
+                            print("💰 Sold unit:", id)
+                        else
+                            warn("Failed to sell unit:", id, err)
+                        end
+                    else
+                        warn("⚠️ Could not find unit to sell at position:", action.position)
+                    end
+                    
+                elseif action.action == "SkipWave" then
                     local success, err = pcall(function()
-                        game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+                        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
                     end)
                     if success then
-                        print("⬆️ Upgraded unit:", id)
+                        print("⏩ Skipped wave")
                     else
-                        warn("Failed to upgrade unit:", id, err)
+                        warn("Failed to skip wave:", err)
                     end
-                else
-                    warn("⚠️ Could not find unit to upgrade at position:", action.position)
                 end
                 
-            elseif action.action == "SellUnit" then
-                local id = FindUnitId(action.position)
-                if id then
-                    local success, err = pcall(function()
-                        game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
-                    end)
-                    if success then
-                        print("💰 Sold unit:", id)
-                    else
-                        warn("Failed to sell unit:", id, err)
-                    end
-                else
-                    warn("⚠️ Could not find unit to sell at position:", action.position)
-                end
-                
-            elseif action.action == "SkipWave" then
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
-                end)
-                if success then
-                    print("⏩ Skipped wave")
-                else
-                    warn("Failed to skip wave:", err)
-                end
+                actionIndex = actionIndex + 1
             end
+            
+            task.wait(0.1) -- Small delay to prevent excessive CPU usage
         end
         
-        -- Wait for next game to start
         print("🎯 Macro completed, waiting for next game...")
         waitForGameStart()
     end
+    
     isPlayingLoopRunning = false
 end
 
@@ -1463,40 +1537,41 @@ local function GetUnitPositionFromId(id)
 end
 
 mt.__namecall = newcclosure(function(self, ...)
-        local args = { ... }
+    local args = { ... }
     local method = getnamecallmethod()
+    
     if not checkcaller() then
-    task.spawn(function()
-
-    if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
-    local timestamp = tick() 
-    --print("[InvokeServer] Remote:", self.Name)
-    table.insert(macro, {action = "PlaceUnit",unitName = args[1],position = args[2].Position,rotation = args[2].Rotation,cframe = args[2].CF,valid = args[2].Valid,time = timestamp - recordingStartTime})
-
-elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
-    local timestamp = tick() 
-    --print("[InvokeServer] Remote:", self.Name)
-    local id = args[1]
-    local pos = GetUnitPositionFromId(id)
-    table.insert(macro, {action = "UpgradeUnit", position = pos,time = timestamp - recordingStartTime})
-
-elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
-    local timestamp = tick() 
-    --print("[InvokeServer] Remote:", self.Name)
-    local id = args[1]
-    local pos = GetUnitPositionFromId(id)
-    table.insert(macro, {action = "SellUnit", position = pos,time = timestamp - recordingStartTime})
-elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
-    local timestamp = tick() 
-    table.insert(macro, {
-        action = "SkipWave",
-        time = timestamp - recordingStartTime
-    })
-
-end
-end)
-end
-    return oldNamecall(self, ...) 
+        task.spawn(function()
+            if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
+                enhancedRecordAction("PlaceUnit", {
+                    unitName = args[1],
+                    position = args[2].Position,
+                    rotation = args[2].Rotation,
+                    cframe = args[2].CF,
+                    valid = args[2].Valid
+                })
+                
+            elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
+                local id = args[1]
+                local pos = GetUnitPositionFromId(id)
+                enhancedRecordAction("UpgradeUnit", {
+                    position = pos
+                })
+                
+            elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
+                local id = args[1]
+                local pos = GetUnitPositionFromId(id)
+                enhancedRecordAction("SellUnit", {
+                    position = pos
+                })
+                
+            elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
+                enhancedRecordAction("SkipWave", {})
+            end
+        end)
+    end
+    
+    return originalNamecall(self, ...)
 end)
 setreadonly(mt, true)
 
@@ -1849,6 +1924,27 @@ elseif not Value then
     })
         end
 	end,
+})
+
+local function setPlaybackMode(mode)
+    if mode == "timing" or mode == "wave" or mode == "both" then
+        playbackMode = mode
+        print(string.format("🎮 Playback mode set to: %s", mode))
+    else
+        warn("Invalid playback mode:", mode)
+    end
+end
+
+local PlaybackModeDropdown = MacroTab:CreateDropdown({
+    Name = "Playback Mode",
+    Options = {"timing", "wave", "both"},
+    CurrentOption = {"timing"},
+    MultipleOptions = false,
+    Flag = "PlaybackModeDropdown",
+    Callback = function(selected)
+        local mode = type(selected) == "table" and selected[1] or selected
+        setPlaybackMode(mode)
+    end,
 })
 
 local Toggle = GameTab:CreateToggle({
