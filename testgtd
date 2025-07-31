@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -1245,23 +1244,32 @@ end)
 
 local function FindUnitId(targetPos)
     local entities = workspace:WaitForChild("Map"):WaitForChild("Entities")
+    local closestUnit = nil
+    local closestDistance = math.huge
+    local tolerance = 5 -- Increased tolerance for position matching
 
     for _, model in ipairs(entities:GetChildren()) do
         if model:IsA("Model") then
             local modelPos = model.WorldPivot.Position
-            --print("Modelpos for " .. model.Name .. " " .. tostring(modelPos))
-            --print("Targetpos: " .. tostring(targetPos))
-            if (modelPos - targetPos).Magnitude < 3 then -- 3-stud tolerance
+            local distance = (modelPos - targetPos).Magnitude
+            
+            if distance < tolerance and distance < closestDistance then
                 local id = model:GetAttribute("ID")
                 if id then
-                    --print(id)
-                    return id
+                    closestDistance = distance
+                    closestUnit = id
                 end
             end
         end
     end
---print("no id")
-    return  nil -- Not found
+
+    if closestUnit then
+        print(string.format("🎯 Found unit %s at distance %.2f from target", closestUnit, closestDistance))
+    else
+        warn("❌ No unit found within tolerance at position:", targetPos)
+    end
+
+    return closestUnit
 end
 
 local function waitForUnitId(targetPos, timeout)
@@ -1275,17 +1283,44 @@ local function waitForUnitId(targetPos, timeout)
 end
 
 local function tryPlaceUnit(unitName, args, maxRetries)
-    maxRetries = maxRetries or 3
+    maxRetries = maxRetries or 5 -- Increased default retries
+    local baseRetryDelay = 0.5 -- Base delay between retries
+    local positionOffset = 2 -- Maximum studs to offset position
+    local originalPosition = args.Position
 
     local function isMatchingModel(model)
         return model:IsA("Model")
             and model.Name == unitName
-            and (model.WorldPivot.Position - args.Position).Magnitude < 3
+            and (model.WorldPivot.Position - args.Position).Magnitude < 5 -- Slightly larger tolerance for offset positions
             and model:GetAttribute("ID") ~= nil
     end
 
+    local function generateOffsetPosition(attempt)
+        if attempt == 1 then
+            return originalPosition -- First attempt uses original position
+        end
+        
+        -- Generate random offset for subsequent attempts
+        local offsetX = (math.random() - 0.5) * positionOffset * 2 -- -positionOffset to +positionOffset
+        local offsetZ = (math.random() - 0.5) * positionOffset * 2
+        
+        return Vector3.new(
+            originalPosition.X + offsetX,
+            originalPosition.Y,
+            originalPosition.Z + offsetZ
+        )
+            
+        end
+
     for attempt = 1, maxRetries do
-        -- Snapshot current unit models
+        print(string.format("🔄 Attempting to place %s (attempt %d/%d)", unitName, attempt, maxRetries))
+        
+        -- Generate position for this attempt
+        local attemptPosition = generateOffsetPosition(attempt)
+        args.Position = attemptPosition
+        args.CF = CFrame.new(attemptPosition, attemptPosition + Vector3.new(0, 0, 1)) -- Update CF to match new position
+        
+        -- Snapshot current unit models before placement
         local beforeModels = {}
         for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
             if isMatchingModel(model) then
@@ -1293,25 +1328,39 @@ local function tryPlaceUnit(unitName, args, maxRetries)
             end
         end
 
-        -- Try to place
+        -- Try to place with current position
         local success, err = pcall(function()
             game.ReplicatedStorage.RemoteFunctions.PlaceUnit:InvokeServer(unitName, args)
         end)
 
-        task.wait(0.5) -- allow placement to register
+        -- Wait a bit longer for placement to register
+        task.wait(0.3)
 
         -- Look for new matching model
         for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
             if isMatchingModel(model) and not beforeModels[model] then
-                print("✅ Unit placed successfully on attempt", attempt)
+                print(string.format("✅ Unit %s placed successfully on attempt %d at position %s", 
+                    unitName, attempt, tostring(attemptPosition)))
                 return true
             end
         end
 
-        warn("⚠️ Placement failed on attempt", attempt, err or "")
+        -- If we failed and this isn't the last attempt, wait before retrying
+        if attempt < maxRetries then
+            local retryDelay = baseRetryDelay * attempt -- Increase delay with each attempt
+            print(string.format("⚠️ Placement failed on attempt %d for %s%s. Waiting %.1fs before retry...", 
+                attempt, unitName, err and (" - " .. tostring(err)) or "", retryDelay))
+            task.wait(retryDelay)
+        else
+            warn(string.format("❌ Failed to place %s after %d attempts. Skipping unit placement.", 
+                unitName, maxRetries))
+        end
     end
 
-    warn("❌ Skipping unit placement for", unitName, "after", maxRetries, "attempts")
+    -- Restore original position in args (in case it's used elsewhere)
+    args.Position = originalPosition
+    args.CF = CFrame.new(originalPosition, originalPosition + Vector3.new(0, 0, 1))
+    
     return false
 end
 
@@ -1319,39 +1368,84 @@ end
 
 local function playMacroLoop()
     isPlayingLoopRunning = true
-	while isPlaybacking do
+    while isPlaybacking do
         local startTime = tick()
-		for i, action in ipairs(macro) do
+        
+        for i, action in ipairs(macro) do
+            if not isPlaybacking then
+                break -- Exit if playback was stopped
+            end
+            
             local waitTime = 0
             if i == 1 then
-				waitTime = action.time
-			else
-				waitTime = action.time - macro[i - 1].time
-			end
+                waitTime = action.time
+            else
+                waitTime = action.time - macro[i - 1].time
+            end
+            
+            -- Wait for the action timing
             task.wait(waitTime)
-			if action.action == "PlaceUnit" then
-				tryPlaceUnit(action.unitName, {
-        Valid = action.valid,
-        Rotation = action.rotation,
-        CF = action.cframe,
-        Position = action.position
-    }, 3) 
-			elseif action.action == "UpgradeUnit" then
-				local id = FindUnitId(action.position)
-				if id then
-					game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
-				end
-			elseif action.action == "SellUnit" then
-				local id = FindUnitId(action.position)
-				if id then
-					game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+            
+            if action.action == "PlaceUnit" then
+                -- Enhanced unit placement with retries and position adjustment
+                local success = tryPlaceUnit(action.unitName, {
+                    Valid = action.valid,
+                    Rotation = action.rotation,
+                    CF = action.cframe,
+                    Position = action.position
+                }, 5) -- 5 retry attempts
+                
+                if not success then
+                    print(string.format("⏭️ Skipping failed unit placement: %s", action.unitName))
+                    -- Continue to next action instead of stopping the macro
+                end
+                
+            elseif action.action == "UpgradeUnit" then
+                local id = FindUnitId(action.position)
+                if id then
+                    local success, err = pcall(function()
+                        game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+                    end)
+                    if success then
+                        print("⬆️ Upgraded unit:", id)
+                    else
+                        warn("Failed to upgrade unit:", id, err)
+                    end
+                else
+                    warn("⚠️ Could not find unit to upgrade at position:", action.position)
+                end
+                
+            elseif action.action == "SellUnit" then
+                local id = FindUnitId(action.position)
+                if id then
+                    local success, err = pcall(function()
+                        game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+                    end)
+                    if success then
+                        print("💰 Sold unit:", id)
+                    else
+                        warn("Failed to sell unit:", id, err)
+                    end
+                else
+                    warn("⚠️ Could not find unit to sell at position:", action.position)
+                end
+                
             elseif action.action == "SkipWave" then
-        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
-				end
-			end
-		end
-		waitForGameStart()
-	end
+                local success, err = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
+                end)
+                if success then
+                    print("⏩ Skipped wave")
+                else
+                    warn("Failed to skip wave:", err)
+                end
+            end
+        end
+        
+        -- Wait for next game to start
+        print("🎯 Macro completed, waiting for next game...")
+        waitForGameStart()
+    end
     isPlayingLoopRunning = false
 end
 
@@ -2024,6 +2118,7 @@ Input = WebhookTab:CreateInput({
     })
 
 ShowGameEnd.OnClientEvent:Connect(function()
+    print("game ended")
     if isRecording then
         isRecording = false
         isRecordingLoopRunning = false
