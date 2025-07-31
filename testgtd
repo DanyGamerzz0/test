@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -2069,7 +2070,13 @@ Rayfield:LoadConfiguration()
 
 task.delay(1, function()
     local savedMacroName = Rayfield.Flags["MacroDropdown"]
-    if savedMacroName and savedMacroName ~= "" then
+    
+    -- Handle case where savedMacroName might be a table
+    if type(savedMacroName) == "table" then
+        savedMacroName = savedMacroName[1]
+    end
+    
+    if savedMacroName and savedMacroName ~= "" and type(savedMacroName) == "string" then
         currentMacroName = savedMacroName
         
         -- Load the macro data from file when restoring from config
@@ -2082,6 +2089,9 @@ task.delay(1, function()
             print("Failed to load saved macro:", currentMacroName)
             currentMacroName = nil
         end
+    else
+        print("No valid saved macro name found. Type:", type(savedMacroName), "Value:", tostring(savedMacroName))
     end
+    
     refreshMacroDropdown()
 end)
