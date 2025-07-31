@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -76,15 +77,41 @@ local spawnCaps = {
     tower6 = 5,
 }
 
+-- Move this section up, right after all your function definitions
+_G.UnitSystem = {
+    getPlayerCash = getPlayerCash,
+    getAvailableUnits = getAvailableUnits,
+    getUnitConfig = getUnitConfig,
+    getTotalUpgradeCost = getTotalUpgradeCost,
+    getUpgradeCost = getUpgradeCost,
+    getCostToUpgrade = getCostToUpgrade,
+    canAffordUnit = canAffordUnit,
+    canAffordUpgrade = canAffordUpgrade,
+    getBestAffordableUnits = getBestAffordableUnits,
+    printUnitAnalysis = printUnitAnalysis,
+    extractUnitName = extractUnitName
+}
+
+_G.TowerSliders = {
+    getSpawnCap = getSpawnCap,
+    getAllSpawnCaps = getAllSpawnCaps,
+    updateAutoplaySettings = updateAutoplaySettings
+}
+
+_G.Autoplay = {
+    start = startAutoplay,
+    stop = stopAutoplay,
+    getStatus = getAutoplayStatus,
+    clearPlacedUnits = clearPlacedUnits,
+    settings = placementSettings,
+    placedUnits = placedUnits
+}
+
 local rectangle = nil
 local rectangleEnabled = false
 local ValidWebhook
 
 local unitDataCache = {}
-
-local function getPlayerCash()
-    return LocalPlayer:GetAttribute("Cash") or 0
-end
 
 local function getCurrentUnitCount()
     return LocalPlayer:GetAttribute("UnitsPlaced") or 0
@@ -99,6 +126,7 @@ local function canPlaceMoreUnits()
     local max = getMaxUnitCount()
     return current < max
 end
+
 
 local function getAutoplayZone()
     return workspace:FindFirstChild("AutoplayZone")
@@ -124,22 +152,6 @@ local function getRandomPlacementPosition()
     return Vector3.new(randomX, randomY, randomZ)
 end
 
-local function validateUnitExists(unitId)
-    -- Check if unit actually exists in game world
-    local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
-    if not entities then
-        return false
-    end
-    
-    for _, model in pairs(entities:GetChildren()) do
-        if model:IsA("Model") and model:GetAttribute("ID") == unitId then
-            return true
-        end
-    end
-    
-    return false
-end
-
 local function isPositionTooClose(newPosition)
     for _, unitData in pairs(placedUnits) do
         if unitData.position then
@@ -162,6 +174,35 @@ local function findValidPlacementPosition()
     return nil
 end
 
+local function validateUnitExists(unitId)
+    -- Check if unit actually exists in game world
+    local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
+    if not entities then
+        return false
+    end
+    
+    for _, model in pairs(entities:GetChildren()) do
+        if model:IsA("Model") and model:GetAttribute("ID") == unitId then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function cleanupInvalidUnits()
+    -- Remove units from our tracking that no longer exist in game
+    local validUnits = {}
+    for unitId, unitData in pairs(placedUnits) do
+        if validateUnitExists(unitId) then
+            validUnits[unitId] = unitData
+        else
+            print("Removed invalid unit from tracking:", unitId)
+        end
+    end
+    placedUnits = validUnits
+end
+
 local function getPlacedUnitCountsBySlot()
     local counts = {
         tower1 = 0, tower2 = 0, tower3 = 0,
@@ -181,17 +222,392 @@ local function getPlacedUnitCountsBySlot()
     return counts
 end
 
-local function cleanupInvalidUnits()
-    -- Remove units from our tracking that no longer exist in game
-    local validUnits = {}
-    for unitId, unitData in pairs(placedUnits) do
-        if validateUnitExists(unitId) then
-            validUnits[unitId] = unitData
-        else
-            print("Removed invalid unit from tracking:", unitId)
+local function getNextUnitToPlace()
+    if not _G.UnitSystem or not _G.TowerSliders then
+        return nil
+    end
+    
+    -- Check if we can place any more units at all
+    if not canPlaceMoreUnits() then
+        return nil
+    end
+    
+    local availableUnits = _G.UnitSystem.getBestAffordableUnits()
+    local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+    local placedCounts = getPlacedUnitCountsBySlot()
+    
+    -- Check units in priority order (tower1 = highest priority)
+    local towerSlots = {"tower1", "tower2", "tower3", "tower4", "tower5", "tower6"}
+    
+    for i, towerSlot in pairs(towerSlots) do
+        local spawnCap = spawnCaps[towerSlot] or 0
+        local placedCount = placedCounts[towerSlot] or 0
+        
+        -- Check spawn cap for this specific tower slot
+        if spawnCap > 0 and placedCount < spawnCap and availableUnits[i] then
+            local unit = availableUnits[i]
+            
+            -- Check if we can afford it
+            if _G.UnitSystem.canAffordUnit(unit) then
+                return {
+                    unit = unit,
+                    towerSlot = towerSlot,
+                    priority = i
+                }
+            end
         end
     end
-    placedUnits = validUnits
+    
+    return nil -- Nothing to place
+end
+
+local function placeUnit(unitToPlace, position)
+    local unit = unitToPlace.unit
+    
+    -- Double-check we can still place units
+    if not canPlaceMoreUnits() then
+        warn("Cannot place unit - max unit limit reached")
+        return false
+    end
+    
+    -- Extract unit name from ItemID (remove tl_unitplacer_ prefix)
+    local unitName = _G.UnitSystem.extractUnitName(unit.itemID)
+    if not unitName then
+        warn("Could not extract unit name from ItemID:", unit.itemID)
+        return false
+    end
+    
+    -- Create placement arguments
+    local args = {
+        unitName,
+        {
+            Valid = true,
+            Rotation = math.random(0, 360), -- Random rotation
+            CF = CFrame.new(position, position + Vector3.new(0, 0, 1)), -- Face forward
+            Position = position
+        }
+    }
+    
+    -- Attempt to place the unit
+    local success, result = pcall(function()
+        return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+    end)
+    
+    if success and result then
+        -- Store the placed unit data
+        local unitData = {
+            id = result, -- The tower ID returned by the server
+            unit = unit,
+            position = position,
+            towerSlot = unitToPlace.towerSlot,
+            priority = unitToPlace.priority,
+            upgradeLevel = 0,
+            placedTime = tick()
+        }
+        
+        placedUnits[result] = unitData
+        
+        print(string.format("✓ Placed %s (ID: %s) at %s - %s [%d/%d total units]", 
+            unit.displayName, 
+            tostring(result), 
+            tostring(position), 
+            unitToPlace.towerSlot,
+            getCurrentUnitCount(),
+            getMaxUnitCount()))
+        
+        return true
+    else
+        warn("Failed to place unit:", unit.displayName, result)
+        return false
+    end
+end
+
+local function getUnitsToUpgrade()
+    cleanupInvalidUnits() -- Clean up first
+    
+    local unitsToUpgrade = {}
+    local playerCash = _G.UnitSystem.getPlayerCash()
+    
+    for id, unitData in pairs(placedUnits) do
+        -- Validate unit exists before attempting upgrade
+        if not validateUnitExists(id) then
+            goto continue
+        end
+        
+        local unit = unitData.unit
+        local currentLevel = unitData.upgradeLevel or 0
+        local maxLevel = #unit.upgrades
+        
+        -- If unit can be upgraded further
+        if currentLevel < maxLevel then
+            local nextLevel = currentLevel + 1
+            local upgradeCost = _G.UnitSystem.getUpgradeCost(unit, nextLevel)
+            
+            if upgradeCost > 0 and playerCash >= upgradeCost then
+                table.insert(unitsToUpgrade, {
+                    id = id,
+                    unitData = unitData,
+                    upgradeCost = upgradeCost,
+                    currentLevel = currentLevel,
+                    nextLevel = nextLevel,
+                    priority = unitData.priority or 999
+                })
+            end
+        end
+        
+        ::continue::
+    end
+    
+    -- Sort by priority (lower number = higher priority)
+    table.sort(unitsToUpgrade, function(a, b)
+        if a.priority == b.priority then
+            return a.upgradeCost < b.upgradeCost -- Cheaper upgrades first if same priority
+        end
+        return a.priority < b.priority
+    end)
+    
+    return unitsToUpgrade
+end
+
+local function upgradeUnit(unitToUpgrade)
+    local id = unitToUpgrade.id
+    local unitData = unitToUpgrade.unitData
+    
+    -- Validate unit exists and cash is sufficient before upgrade
+    if not validateUnitExists(id) then
+        warn("Cannot upgrade unit - unit no longer exists:", id)
+        placedUnits[id] = nil
+        return false
+    end
+    
+    local playerCash = _G.UnitSystem.getPlayerCash()
+    if playerCash < unitToUpgrade.upgradeCost then
+        return false -- Not enough cash, don't warn as this is normal
+    end
+    
+    local success, result = pcall(function()
+        return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("UpgradeUnit"):InvokeServer(id)
+    end)
+    
+    if success and result then
+        -- Simply increment our stored level (we can't verify the actual level anyway)
+        local oldLevel = placedUnits[id].upgradeLevel or 0
+        placedUnits[id].upgradeLevel = oldLevel + 1
+        
+        print(string.format("⬆ Upgraded %s (ID: %s) to level %d (Cost: %d)", 
+            unitData.unit.displayName,
+            tostring(id),
+            placedUnits[id].upgradeLevel,
+            unitToUpgrade.upgradeCost))
+        
+        return true
+    else
+        warn("Failed to upgrade unit:", id, result)
+        return false
+    end
+end
+
+local function autoplayPlacementLoop()
+    if not autoplayActive then return end
+    
+    local currentTime = tick()
+    
+    -- Check if enough time has passed since last placement
+    if currentTime - placementSettings.lastPlacement < placementSettings.placementDelay then
+        return
+    end
+    
+    -- Clean up invalid units before checking anything
+    cleanupInvalidUnits()
+    
+    -- Get next unit to place
+    local unitToPlace = getNextUnitToPlace()
+    if not unitToPlace then
+        -- Throttled status updates to prevent spam
+        if currentTime - (placementSettings.lastStatusUpdate or 0) > 10 then
+            local current = getCurrentUnitCount()
+            local max = getMaxUnitCount()
+            local placedCounts = getPlacedUnitCountsBySlot()
+            local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+            
+            print(string.format("📊 Autoplay Status: %d/%d total units placed", current, max))
+            
+            local allCapsFull = true
+            for slot, cap in pairs(spawnCaps) do
+                local placed = placedCounts[slot] or 0
+                print(string.format("  %s: %d/%d", slot, placed, cap))
+                if cap > 0 and placed < cap and current < max then
+                    allCapsFull = false
+                end
+            end
+            
+            if current >= max then
+                print("🛑 Max unit limit reached!")
+            elseif allCapsFull then
+                print("🛑 All spawn caps reached!")
+            else
+                print("💰 Waiting for cash or better units...")
+            end
+            
+            placementSettings.lastStatusUpdate = currentTime
+        end
+        return -- Nothing to place right now
+    end
+    
+    -- Find valid placement position
+    local position = findValidPlacementPosition()
+    if not position then
+        -- Only warn occasionally to prevent spam
+        if currentTime - (placementSettings.lastPositionWarning or 0) > 5 then
+            warn("Could not find valid placement position")
+            placementSettings.lastPositionWarning = currentTime
+        end
+        return
+    end
+    
+    -- Place the unit
+    if placeUnit(unitToPlace, position) then
+        placementSettings.lastPlacement = currentTime
+    end
+end
+
+local function autoplayUpgradeLoop()
+    if not autoplayActive then return end
+    
+    local currentTime = tick()
+    
+    -- Check if enough time has passed since last upgrade
+    if currentTime - placementSettings.lastUpgrade < placementSettings.upgradeDelay then
+        return
+    end
+    
+    -- Get units that can be upgraded
+    local unitsToUpgrade = getUnitsToUpgrade()
+    if #unitsToUpgrade == 0 then
+        return -- Nothing to upgrade
+    end
+    
+    -- Upgrade the highest priority unit
+    local unitToUpgrade = unitsToUpgrade[1]
+    if upgradeUnit(unitToUpgrade) then
+        placementSettings.lastUpgrade = currentTime
+    end
+end
+local function startAutoplay()
+    if autoplayActive then
+        print("Autoplay is already running!")
+        return
+    end
+    
+    -- Check dependencies
+    if not _G.UnitSystem then
+        warn("UnitSystem not loaded! Load unit system first.")
+        return
+    end
+    
+    if not _G.TowerSliders then
+        warn("TowerSliders not loaded! Load slider system first.")
+        return
+    end
+    
+    if not getAutoplayZone() then
+        warn("Autoplay zone not found! Enable the green rectangle first.")
+        return
+    end
+    
+    autoplayActive = true
+    
+    -- Connect the loops
+    placementConnection = RunService.Heartbeat:Connect(autoplayPlacementLoop)
+    upgradeConnection = RunService.Heartbeat:Connect(autoplayUpgradeLoop)
+    
+    print("🤖 AUTOPLAY STARTED!")
+    print("Placing units in priority order with spawn caps:")
+    local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+    for i = 1, 6 do
+        local towerSlot = "tower" .. i
+        print(string.format("  %s: %d units max", towerSlot, spawnCaps[towerSlot]))
+    end
+end
+local function stopAutoplay()
+    if not autoplayActive then
+        print("Autoplay is not running!")
+        return
+    end
+    
+    autoplayActive = false
+    
+    -- Disconnect loops
+    if placementConnection then
+        placementConnection:Disconnect()
+        placementConnection = nil
+    end
+    
+    if upgradeConnection then
+        upgradeConnection:Disconnect()
+        upgradeConnection = nil
+    end
+    
+    print("🛑 AUTOPLAY STOPPED!")
+end
+
+local function getAutoplayStatus()
+    cleanupInvalidUnits()
+    
+    local current = getCurrentUnitCount()
+    local max = getMaxUnitCount()
+    local placedCounts = getPlacedUnitCountsBySlot()
+    local spawnCaps = _G.TowerSliders.getAllSpawnCaps()
+    
+    local status = {
+        active = autoplayActive,
+        currentUnits = current,
+        maxUnits = max,
+        placedUnits = #placedUnits,
+        playerCash = _G.UnitSystem and _G.UnitSystem.getPlayerCash() or 0,
+        placedCounts = placedCounts
+    }
+    
+    print("=== AUTOPLAY STATUS ===")
+    print("Active:", status.active)
+    print("Player Cash:", status.playerCash)
+    print(string.format("Total Units: %d/%d (Game Limit)", current, max))
+    print("Tracked Units:", #placedUnits)
+    print("Units by Tower Slot:")
+    for towerSlot, count in pairs(placedCounts) do
+        local cap = spawnCaps[towerSlot] or 0
+        print(string.format("  %s: %d/%d", towerSlot, count, cap))
+    end
+    print("=======================")
+    
+    return status
+end
+
+-- Clear placed units data (for reset)
+local function clearPlacedUnits()
+    placedUnits = {}
+    print("Cleared placed units data")
+end
+
+local function getSpawnCap(towerSlot)
+    return spawnCaps[towerSlot] or 0
+end
+
+local function getAllSpawnCaps()
+    return spawnCaps
+end
+
+local function updateAutoplaySettings()
+    -- This will be called whenever a spawn cap changes
+    -- You can add logic here to update your autoplay system
+    print("Autoplay settings updated:")
+    for tower, cap in pairs(spawnCaps) do
+        print(string.format("  %s: %d", tower, cap))
+    end
+end
+
+local function getPlayerCash()
+    return LocalPlayer:GetAttribute("Cash") or 0
 end
 
 local function extractUnitName(itemID)
@@ -276,17 +692,56 @@ local function getAvailableUnits()
     return units
 end
 
-local function getNextUnitToPlace()
-    -- Check if we can place any more units at all
-    if not canPlaceMoreUnits() then
-        return nil
+local function getTotalUpgradeCost(unitData)
+    if not unitData.upgrades then
+        return 0
     end
     
+    local totalCost = 0
+    for _, upgrade in pairs(unitData.upgrades) do
+        totalCost = totalCost + (upgrade.Cost or 0)
+    end
+    
+    return totalCost
+end
+
+local function getUpgradeCost(unitData, upgradeLevel)
+    if not unitData.upgrades or upgradeLevel < 1 or upgradeLevel > #unitData.upgrades then
+        return 0
+    end
+    
+    return unitData.upgrades[upgradeLevel].Cost or 0
+end
+
+local function getCostToUpgrade(unitData, fromLevel, toLevel)
+    if not unitData.upgrades or fromLevel >= toLevel then
+        return 0
+    end
+    
+    local totalCost = 0
+    for level = fromLevel + 1, math.min(toLevel, #unitData.upgrades) do
+        totalCost = totalCost + getUpgradeCost(unitData, level)
+    end
+    
+    return totalCost
+end
+
+local function canAffordUnit(unitData)
+    local playerCash = getPlayerCash()
+    return playerCash >= unitData.cost
+end
+
+local function canAffordUpgrade(unitData, upgradeLevel)
+    local playerCash = getPlayerCash()
+    local upgradeCost = getUpgradeCost(unitData, upgradeLevel)
+    return playerCash >= upgradeCost
+end
+
+local function getBestAffordableUnits()
     local availableUnits = getAvailableUnits()
     local playerCash = getPlayerCash()
-    
-    -- Get best affordable units and sort them
     local affordableUnits = {}
+    
     for _, unit in pairs(availableUnits) do
         if unit.cost > 0 and unit.cost <= playerCash then
             -- Calculate value score (damage * apm / cost) with nil safety
@@ -309,378 +764,63 @@ local function getNextUnitToPlace()
         return a.valueScore > b.valueScore
     end)
     
-    local placedCounts = getPlacedUnitCountsBySlot()
-    
-    -- Check units in priority order (tower1 = highest priority)
-    local towerSlots = {"tower1", "tower2", "tower3", "tower4", "tower5", "tower6"}
-    
-    for i, towerSlot in pairs(towerSlots) do
-        local spawnCap = spawnCaps[towerSlot] or 0
-        local placedCount = placedCounts[towerSlot] or 0
-        
-        -- Check spawn cap for this specific tower slot
-        if spawnCap > 0 and placedCount < spawnCap and affordableUnits[i] then
-            local unit = affordableUnits[i]
-            
-            return {
-                unit = unit,
-                towerSlot = towerSlot,
-                priority = i
-            }
-        end
-    end
-    
-    return nil -- Nothing to place
+    return affordableUnits
 end
 
-local function placeUnit(unitToPlace, position)
-    local unit = unitToPlace.unit
-    
-    -- Double-check we can still place units
-    if not canPlaceMoreUnits() then
-        warn("Cannot place unit - max unit limit reached")
-        return false
-    end
-    
-    -- Extract unit name from ItemID (remove tl_unitplacer_ prefix)
-    local unitName = unit.itemID:gsub("^tl_unitplacer_", "")
-    if not unitName or unitName == "" then
-        warn("Could not extract unit name from ItemID:", unit.itemID)
-        return false
-    end
-    
-    -- Create placement arguments
-    local args = {
-        unitName,
-        {
-            Valid = true,
-            Rotation = math.random(0, 360), -- Random rotation
-            CF = CFrame.new(position, position + Vector3.new(0, 0, 1)), -- Face forward
-            Position = position
-        }
-    }
-    
-    -- Attempt to place the unit
-    local success, result = pcall(function()
-        return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
-    end)
-    
-    if success and result then
-        -- Store the placed unit data
-        local unitData = {
-            id = result, -- The tower ID returned by the server
-            unit = unit,
-            position = position,
-            towerSlot = unitToPlace.towerSlot,
-            priority = unitToPlace.priority,
-            upgradeLevel = 0,
-            placedTime = tick(),
-            isNewlyPlaced = true -- Mark as newly placed
-        }
-        
-        placedUnits[result] = unitData
-        
-        -- Debug: Count entries in placedUnits table
-        local totalEntries = 0
-        for _ in pairs(placedUnits) do
-            totalEntries = totalEntries + 1
-        end
-        
-        print(string.format("✓ Placed %s (ID: %s) at %s - %s [%d/%d total units]", 
-            unit.displayName, 
-            tostring(result), 
-            tostring(position), 
-            unitToPlace.towerSlot,
-            getCurrentUnitCount(),
-            getMaxUnitCount()))
-        
-        print(string.format("🔍 DEBUG: Added unit %s to placedUnits table with towerSlot %s", result, unitData.towerSlot))
-        print(string.format("🔍 DEBUG: placedUnits now has %d total entries", totalEntries))
-        
-        -- Schedule validation check after a delay
-        spawn(function()
-            wait(1) -- Wait for replication
-            local exists = validateUnitExists(result)
-            if exists then
-                -- Clear the newly placed flag once confirmed
-                if placedUnits[result] then
-                    placedUnits[result].isNewlyPlaced = false
-                    print(string.format("✅ Confirmed unit %s exists in workspace", result))
-                end
-            else
-                warn(string.format("⚠️ Unit %s never appeared in workspace after 1 second", result))
-            end
-        end)
-        
-        return true
-    else
-        warn("Failed to place unit:", unit.displayName, result)
-        return false
-    end
-end
-
--- Modified getPlacedUnitCountsBySlot to handle newly placed units
-local function getPlacedUnitCountsBySlot()
-    local counts = {
-        tower1 = 0, tower2 = 0, tower3 = 0,
-        tower4 = 0, tower5 = 0, tower6 = 0
-    }
-    
-    -- Simply count all units in placedUnits by their towerSlot
-    for unitId, unitData in pairs(placedUnits) do
-        if unitData.towerSlot and counts[unitData.towerSlot] then
-            counts[unitData.towerSlot] = counts[unitData.towerSlot] + 1
-        end
-    end
-    
-    -- Debug output
-    local totalCounted = 0
-    for slot, count in pairs(counts) do
-        totalCounted = totalCounted + count
-    end
-    
-    print(string.format("🔍 DEBUG: Total units in placedUnits table: %d", totalCounted))
-    for slot, count in pairs(counts) do
-        if count > 0 then
-            print(string.format("  %s: %d units", slot, count))
-        end
-    end
-    
-    return counts
-end
-
-local function getUnitsToUpgrade()
-    cleanupInvalidUnits() -- Clean up first
-
-    local unitsToUpgrade = {}
+local function printUnitAnalysis()
+    local units = getAvailableUnits()
     local playerCash = getPlayerCash()
-
-    for id, unitData in pairs(placedUnits) do
-        -- Validate unit exists before attempting upgrade
-        if validateUnitExists(id) then
-            local unit = unitData.unit
-            local currentLevel = unitData.upgradeLevel or 0
-            local maxLevel = #unit.upgrades
-
-            -- If unit can be upgraded further
-            if currentLevel < maxLevel then
-                local nextLevel = currentLevel + 1
-                local upgradeCost = 0
-
-                -- Get upgrade cost from unit data
-                if unit.upgrades and unit.upgrades[nextLevel] then
-                    upgradeCost = unit.upgrades[nextLevel].Cost or 0
-                end
-
-                if upgradeCost > 0 and playerCash >= upgradeCost then
-                    table.insert(unitsToUpgrade, {
-                        id = id,
-                        unitData = unitData,
-                        upgradeCost = upgradeCost,
-                        currentLevel = currentLevel,
-                        nextLevel = nextLevel,
-                        priority = unitData.priority or 999
-                    })
-                end
+    
+    print("=== UNIT ANALYSIS ===")
+    print("Player Cash:", playerCash)
+    print("Available Units:", #units)
+    print("")
+    
+    for _, unit in pairs(units) do
+        local affordable = canAffordUnit(unit) and "✓" or "✗"
+        local totalUpgradeCost = getTotalUpgradeCost(unit)
+        
+        -- Safe calculation of value score
+        local damage = unit.damage or 0
+        local apm = unit.apm or 0
+        local cost = unit.cost or 1
+        local valueScore = 0
+        if cost > 0 and damage > 0 and apm > 0 then
+            valueScore = (damage * apm) / cost
+        end
+        
+        print(string.format("%s %s (%s)", affordable, unit.displayName or unit.name, unit.rarity or "unknown"))
+        print(string.format("  Cost: %d | Range: %d | Damage: %d | APM: %d", 
+            cost, unit.range or 0, damage, apm))
+        print(string.format("  Value Score: %.2f | Upgrade Cost: %d | Max Level: %d", 
+            valueScore, totalUpgradeCost, #unit.upgrades))
+        
+        -- Show upgrade costs
+        if #unit.upgrades > 0 then
+            local upgradeCosts = {}
+            for i, upgrade in pairs(unit.upgrades) do
+                table.insert(upgradeCosts, tostring(upgrade.Cost))
+            end
+            print("  Upgrade Costs:", table.concat(upgradeCosts, " → "))
+        end
+        print("")
+    end
+    
+    local bestUnits = getBestAffordableUnits()
+    if #bestUnits > 0 then
+        print("=== BEST AFFORDABLE UNITS ===")
+        for i, unit in pairs(bestUnits) do
+            if i <= 3 then -- Show top 3
+                print(string.format("%d. %s (Score: %.2f, Cost: %d)", 
+                    i, unit.displayName, unit.valueScore, unit.cost))
             end
         end
-        -- No need for ::continue::
     end
-
-    -- Sort by priority (lower number = higher priority)
-    table.sort(unitsToUpgrade, function(a, b)
-        if a.priority == b.priority then
-            return a.upgradeCost < b.upgradeCost -- Cheaper upgrades first if same priority
-        end
-        return a.priority < b.priority
-    end)
-
-    return unitsToUpgrade
-end
-
-
-local function upgradeUnit(unitToUpgrade)
-    local id = unitToUpgrade.id
-    local unitData = unitToUpgrade.unitData
-    
-    -- Validate unit exists and cash is sufficient before upgrade
-    if not validateUnitExists(id) then
-        warn("Cannot upgrade unit - unit no longer exists:", id)
-        placedUnits[id] = nil
-        return false
-    end
-    
-    local playerCash = getPlayerCash()
-    if playerCash < unitToUpgrade.upgradeCost then
-        return false -- Not enough cash, don't warn as this is normal
-    end
-    
-    local success, result = pcall(function()
-        return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("UpgradeUnit"):InvokeServer(id)
-    end)
-    
-    if success and result then
-        -- Simply increment our stored level (we can't verify the actual level anyway)
-        local oldLevel = placedUnits[id].upgradeLevel or 0
-        placedUnits[id].upgradeLevel = oldLevel + 1
-        
-        print(string.format("⬆ Upgraded %s (ID: %s) to level %d (Cost: %d)", 
-            unitData.unit.displayName,
-            tostring(id),
-            placedUnits[id].upgradeLevel,
-            unitToUpgrade.upgradeCost))
-        
-        return true
-    else
-        warn("Failed to upgrade unit:", id, result)
-        return false
-    end
-end
-
-local function autoplayPlacementLoop()
-    if not autoplayActive then return end
-    
-    local currentTime = tick()
-    
-    -- Check if enough time has passed since last placement
-    if currentTime - placementSettings.lastPlacement < placementSettings.placementDelay then
-        return
-    end
-    
-    -- Clean up invalid units before checking anything
-    cleanupInvalidUnits()
-    
-    -- Get next unit to place
-    local unitToPlace = getNextUnitToPlace()
-    if not unitToPlace then
-        -- Throttled status updates to prevent spam
-        if currentTime - (placementSettings.lastStatusUpdate or 0) > 10 then
-            local current = getCurrentUnitCount()
-            local max = getMaxUnitCount()
-            local placedCounts = getPlacedUnitCountsBySlot()
-            
-            print(string.format("📊 Autoplay Status: %d/%d total units placed", current, max))
-            
-            local allCapsFull = true
-            for slot, cap in pairs(spawnCaps) do
-                local placed = placedCounts[slot] or 0
-                print(string.format("  %s: %d/%d", slot, placed, cap))
-                if cap > 0 and placed < cap and current < max then
-                    allCapsFull = false
-                end
-            end
-            
-            if current >= max then
-                print("🛑 Max unit limit reached!")
-            elseif allCapsFull then
-                print("🛑 All spawn caps reached!")
-            else
-                print("💰 Waiting for cash or better units...")
-            end
-            
-            placementSettings.lastStatusUpdate = currentTime
-        end
-        return -- Nothing to place right now
-    end
-    
-    -- Find valid placement position
-    local position = findValidPlacementPosition()
-    if not position then
-        -- Only warn occasionally to prevent spam
-        if currentTime - (placementSettings.lastPositionWarning or 0) > 5 then
-            warn("Could not find valid placement position")
-            placementSettings.lastPositionWarning = currentTime
-        end
-        return
-    end
-    
-    -- Place the unit - ONLY update lastPlacement on SUCCESS
-    local success = placeUnit(unitToPlace, position)
-    if success then
-        placementSettings.lastPlacement = currentTime
-        print(string.format("✅ Successfully placed %s at %s", unitToPlace.unit.displayName or unitToPlace.unit.name, unitToPlace.towerSlot))
-    else
-        -- Don't update lastPlacement on failure, so it can retry immediately
-        print(string.format("❌ Failed to place %s - will retry next loop", unitToPlace.unit.displayName or unitToPlace.unit.name))
-        
-        -- Optional: Add a small failure delay to prevent spam
-         placementSettings.lastPlacement = currentTime - placementSettings.placementDelay + 0.5
-    end
-end
-
-local function autoplayUpgradeLoop()
-    if not autoplayActive then return end
-    
-    local currentTime = tick()
-    
-    -- Check if enough time has passed since last upgrade
-    if currentTime - placementSettings.lastUpgrade < placementSettings.upgradeDelay then
-        return
-    end
-    
-    -- Get units that can be upgraded
-    local unitsToUpgrade = getUnitsToUpgrade()
-    if #unitsToUpgrade == 0 then
-        return -- Nothing to upgrade
-    end
-    
-    -- Upgrade the highest priority unit
-    local unitToUpgrade = unitsToUpgrade[1]
-    if upgradeUnit(unitToUpgrade) then
-        placementSettings.lastUpgrade = currentTime
-    end
-end
-
-local function getAutoplayStatus()
-    cleanupInvalidUnits()
-    
-    local current = getCurrentUnitCount()
-    local max = getMaxUnitCount()
-    local placedCounts = getPlacedUnitCountsBySlot()
-    
-    local status = {
-        active = autoplayActive,
-        currentUnits = current,
-        maxUnits = max,
-        placedUnits = #placedUnits,
-        playerCash = getPlayerCash(),
-        placedCounts = placedCounts
-    }
-    
-    print("=== AUTOPLAY STATUS ===")
-    print("Active:", status.active)
-    print("Player Cash:", status.playerCash)
-    print(string.format("Total Units: %d/%d (Game Limit)", current, max))
-    print("Tracked Units:", #placedUnits)
-    print("Units by Tower Slot:")
-    for towerSlot, count in pairs(placedCounts) do
-        local cap = spawnCaps[towerSlot] or 0
-        print(string.format("  %s: %d/%d", towerSlot, count, cap))
-    end
-    print("=======================")
-    
-    return status
-end
-
-task.spawn(function()
-    while true do
-        wait(15)
-        if autoplayActive then
-            cleanupInvalidUnits()
-        end
-    end
-end)
-
-local function updateAutoplaySettings()
-    -- This will be called whenever a spawn cap changes
-    -- You can add logic here to update your autoplay system
-    print("Autoplay settings updated:")
-    for tower, cap in pairs(spawnCaps) do
-        print(string.format("  %s: %d", tower, cap))
-    end
+    print("========================")
 end
 
 -- Auto-run analysis on script load
+wait(2) -- Wait for game to load
 --printUnitAnalysis()
 
 local function getEnemySpawnPoint()
@@ -870,6 +1010,15 @@ local function setToggleKey(keyCode)
     config.toggleKey = keyCode
     print("Toggle key set to:", keyCode.Name)
 end
+
+task.spawn(function()
+    while true do
+        wait(15)
+        if autoplayActive then
+            cleanupInvalidUnits()
+        end
+    end
+end)
 
 local function sendWebhook(messageType, rewards, clearTime)
     if not ValidWebhook then return end
@@ -1064,7 +1213,7 @@ local function loadAllMacros()
     end
 end
 
---[[local function waitForGameStart()
+local function waitForGameStart()
 	Rayfield:Notify({
 		Title = "Waiting for Game",
 		Content = "Waiting for next game to start...",
@@ -1078,38 +1227,7 @@ end
 	until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
 
 	return workspace:GetAttribute("GameStartTime")
-end--]]
-
-local function waitForGameStart(timeout)
-    timeout = timeout or 30 -- Default timeout of 30 seconds
-    local start = tick()
-    local map = workspace:WaitForChild("Map", 5)
-    if not map then
-        warn("⚠️ Map not found in workspace, aborting waitForGameStart")
-        return nil
-    end
-    local mapEntities = map:WaitForChild("Entities", 5)
-    if not mapEntities then
-        warn("⚠️ Entities not found in Map, aborting waitForGameStart")
-        return nil
-    end
-    local prevTime = workspace:GetAttribute("GameStartTime")
-    while tick() - start < timeout do
-        task.wait(0.2) -- Increase wait time to reduce CPU usage
-        local newTime = workspace:GetAttribute("GameStartTime")
-        if newTime and newTime ~= prevTime then
-            print("✅ Game started via GameStartTime:", newTime)
-            return newTime
-        end
-        if #mapEntities:GetChildren() > 0 then
-            print("✅ Game started via enemy spawn (Entities not empty)")
-            return "EnemySpawned"
-        end
-    end
-    warn("⚠️ Timeout waiting for game start")
-    return nil
 end
-
 
 local function waitForGameStartTiming()
 	local prevTime = workspace:GetAttribute("GameStartTime")
@@ -1152,55 +1270,51 @@ end
 
 local function waitForUnitId(targetPos, timeout)
     local start = tick()
-    print("🔍 waitForUnitId started for position", targetPos)
     repeat
         local id = FindUnitId(targetPos)
-        if id then
-            print("🔍 waitForUnitId found ID", id, "after", tick() - start, "seconds")
-            return id
-        end
+        if id then return id end
         task.wait(0.1)
     until tick() - start >= timeout
-    print("🔍 waitForUnitId timed out after", timeout, "seconds")
     return nil
 end
 
 local function tryPlaceUnit(unitName, args, maxRetries)
     maxRetries = maxRetries or 3
-    print("🔍 tryPlaceUnit: unitName =", unitName, "position =", args.Position)
-    
-    if not unitName:match("^tl_unitplacer_") then
-        unitName = "tl_unitplacer_" .. unitName
-        print("🔍 Added prefix to unitName:", unitName)
+
+    local function isMatchingModel(model)
+        return model:IsA("Model")
+            and model.Name == unitName
+            and (model.WorldPivot.Position - args.Position).Magnitude < 3
+            and model:GetAttribute("ID") ~= nil
     end
-    
-    if not canPlaceMoreUnits() then
-        warn("⚠️ Cannot place unit - max unit limit reached")
-        return false
-    end
-    
-    local unitConfig = getUnitConfig(unitName:gsub("^tl_unitplacer_", ""))
-    if unitConfig and unitConfig.UnitConfig and getPlayerCash() < (unitConfig.UnitConfig.Cost or 0) then
-        warn("⚠️ Cannot place unit - insufficient cash:", getPlayerCash(), "<", unitConfig.UnitConfig.Cost)
-        return false
-    end
-    
+
     for attempt = 1, maxRetries do
-        print("🔍 Attempt", attempt, "to place", unitName)
-        local success, result = pcall(function()
-            return game.ReplicatedStorage.RemoteFunctions.PlaceUnit:InvokeServer(unitName, args)
+        -- Snapshot current unit models
+        local beforeModels = {}
+        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
+            if isMatchingModel(model) then
+                beforeModels[model] = true
+            end
+        end
+
+        -- Try to place
+        local success, err = pcall(function()
+            game.ReplicatedStorage.RemoteFunctions.PlaceUnit:InvokeServer(unitName, args)
         end)
-        if not success then
-            warn("⚠️ Placement pcall failed on attempt", attempt, "with error:", result)
+
+        task.wait(0.5) -- allow placement to register
+
+        -- Look for new matching model
+        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
+            if isMatchingModel(model) and not beforeModels[model] then
+                print("✅ Unit placed successfully on attempt", attempt)
+                return true
+            end
         end
-        local id = waitForUnitId(args.Position, 1.5) -- Reduced timeout to 1.5s
-        if id then
-            print("✅ Unit placed successfully on attempt", attempt, "with ID", id)
-            return true
-        end
-        warn("⚠️ No unit found after attempt", attempt)
-        task.wait(0.3) -- Increased retry delay
+
+        warn("⚠️ Placement failed on attempt", attempt, err or "")
     end
+
     warn("❌ Skipping unit placement for", unitName, "after", maxRetries, "attempts")
     return false
 end
@@ -1209,133 +1323,38 @@ end
 
 local function playMacroLoop()
     isPlayingLoopRunning = true
-    print("🔍 Starting playMacroLoop with", #macro, "actions")
-    
-    if #macro == 0 then
-        warn("⚠️ Macro is empty, stopping playback")
-        isPlayingLoopRunning = false
-        return
-    end
-
-    while isPlaybacking do
+	while isPlaybacking do
         local startTime = tick()
-        for i, action in ipairs(macro) do
-            if not isPlaybacking then
-                print("🔍 Playback stopped by user")
-                break
-            end
-            
-            -- Validate action
-            if not action.action or not action.time then
-                warn("⚠️ Invalid action at index", i, ":", action)
-                continue
-            end
-            
+		for i, action in ipairs(macro) do
             local waitTime = 0
             if i == 1 then
-                waitTime = action.time
-            else
-                waitTime = action.time - macro[i - 1].time
-            end
-            
-            -- Ensure waitTime is valid
-            waitTime = math.max(0.1, math.min(waitTime, 10)) -- Min 0.1s, max 10s
-            print("🔍 Action", i, ":", action.action, "waitTime:", waitTime)
-            
+				waitTime = action.time
+			else
+				waitTime = action.time - macro[i - 1].time
+			end
             task.wait(waitTime)
-            
-            if action.action == "PlaceUnit" then
-                if not action.unitName or not action.position then
-                    warn("⚠️ Invalid PlaceUnit action at index", i, ":", action)
-                    continue
-                end
-                local success = tryPlaceUnit(action.unitName, {
-                    Valid = action.valid,
-                    Rotation = action.rotation,
-                    CF = action.cframe,
-                    Position = action.position
-                }, 3)
-                print("🔍 PlaceUnit result:", success)
-                task.wait(0.2) -- Cooldown to prevent server spam
-            elseif action.action == "UpgradeUnit" then
-                local id = FindUnitId(action.position)
-                if id then
-                    local success, err = pcall(function()
-                        game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
-                    end)
-                    print("🔍 UpgradeUnit result:", success, "ID:", id)
-                else
-                    warn("⚠️ No unit found for UpgradeUnit at position", action.position)
-                end
-            elseif action.action == "SellUnit" then
-                local id = FindUnitId(action.position)
-                if id then
-                    local success, err = pcall(function()
-                        game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
-                    end)
-                    print("🔍 SellUnit result:", success, "ID:", id)
-                else
-                    warn("⚠️ No unit found for SellUnit at position", action.position)
-                end
-            elseif action.action == "SkipWave" then
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
-                end)
-                print("🔍 SkipWave result:", success)
-            else
-                warn("⚠️ Unknown action type:", action.action)
-            end
-        end
-        print("🔍 Completed macro iteration, took", tick() - startTime, "seconds")
-        if not State.AutoRetryEnabled then
-            print("🔍 AutoRetry not enabled, stopping playback")
-            isPlaybacking = false
-            PlayToggle:Set(false)
-            break
-        end
-    end
+			if action.action == "PlaceUnit" then
+				tryPlaceUnit(action.unitName, {
+        Valid = action.valid,
+        Rotation = action.rotation,
+        CF = action.cframe,
+        Position = action.position
+    }, 3) 
+			elseif action.action == "UpgradeUnit" then
+				local id = FindUnitId(action.position)
+				if id then
+					game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+				end
+			elseif action.action == "SellUnit" then
+				local id = FindUnitId(action.position)
+				if id then
+					game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+				end
+			end
+		end
+		waitForGameStart()
+	end
     isPlayingLoopRunning = false
-    print("🔍 playMacroLoop ended")
-end
-
-local function startMacroPlayback()
-    if not isPlaybacking or isPlayingLoopRunning then
-        print("🔍 startMacroPlayback aborted: isPlaybacking =", isPlaybacking, "isPlayingLoopRunning =", isPlayingLoopRunning)
-        return
-    end
-    if not currentMacroName then
-        Rayfield:Notify({
-            Title = "Playback Error",
-            Content = "No macro selected for playback.",
-            Duration = 5,
-        })
-        isPlaybacking = false
-        PlayToggle:Set(false)
-        return
-    end
-    ensureMacroFolders()
-    local loadedMacro = loadMacroFromFile(currentMacroName)
-    if not loadedMacro then
-        Rayfield:Notify({
-            Title = "Playback Error",
-            Content = "Failed to load macro: " .. tostring(currentMacroName),
-            Duration = 5,
-        })
-        isPlaybacking = false
-        PlayToggle:Set(false)
-        return
-    end
-    macro = loadedMacro
-    print("🔍 Loaded macro", currentMacroName, "with", #macro, "actions")
-    isPlayingLoopRunning = true
-    Rayfield:Notify({
-        Title = "Playback Started",
-        Content = "Macro is now executing...",
-        Duration = 4
-    })
-    playMacroLoop()
-    isPlayingLoopRunning = false
-    print("🔍 startMacroPlayback completed")
 end
 
 local function GetUnitPositionFromId(id)
@@ -1375,12 +1394,6 @@ elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
     local id = args[1]
     local pos = GetUnitPositionFromId(id)
     table.insert(macro, {action = "SellUnit", position = pos,time = timestamp - recordingStartTime})
-elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
-    local timestamp = tick() 
-    table.insert(macro, {
-        action = "SkipWave",
-        time = timestamp - recordingStartTime
-    })
 
 end
 end)
@@ -1675,50 +1688,69 @@ RecordToggle = MacroTab:CreateToggle({
 
 
 PlayToggle = MacroTab:CreateToggle({
-    Name = "Playback",
-    CurrentValue = false,
-    Flag = "PlayBackMacro",
-    Callback = function(Value)
-        isPlaybacking = Value
-        print("🔍 PlayToggle set to", Value)
-        if not Value then
-            Rayfield:Notify({
-                Title = "Macro Playback",
-                Content = "Playback disabled.",
-                Duration = 3
-            })
-            if playbackThread then
-                task.cancel(playbackThread)
-                playbackThread = nil
-                print("🔍 Canceled playbackThread")
+	Name = "Playback",
+	CurrentValue = false,
+	Flag = "PlayBackMacro",
+	Callback = function(Value)
+		isPlaybacking = Value
+
+		if Value and not isPlayingLoopRunning then
+    Rayfield:Notify({
+        Title = "Macro Playback",
+        Content = "Waiting for game to start...",
+        Duration = 4
+    })
+
+    playbackThread = task.spawn(function()
+        waitForGameStart()
+        if isPlaybacking then
+            if currentMacroName then
+                ensureMacroFolders()
+                local loadedMacro = loadMacroFromFile(currentMacroName)
+                if loadedMacro then
+                    macro = loadedMacro
+                else
+                    Rayfield:Notify({
+                        Title = "Playback Error",
+                        Content = "Failed to load macro: " .. tostring(currentMacroName),
+                        Duration = 5,
+                    })
+                    isPlaybacking = false
+                    PlayToggle:Set(false)
+                    return
+                end
+            else
+                Rayfield:Notify({
+                    Title = "Playback Error",
+                    Content = "No macro selected for playback.",
+                    Duration = 5,
+                })
+                isPlaybacking = false
+                PlayToggle:Set(false)
+                return
             end
-            isPlayingLoopRunning = false
-        else
-            if playbackThread then
-                task.cancel(playbackThread)
-                playbackThread = nil
-                print("🔍 Canceled existing playbackThread")
-            end
+
+            isPlayingLoopRunning = true
+
             Rayfield:Notify({
-                Title = "Macro Playback",
-                Content = "Waiting for game to start...",
+                Title = "Playback Started",
+                Content = "Macro is now executing...",
                 Duration = 4
             })
-            playbackThread = task.spawn(function()
-                print("🔍 Started new playbackThread")
-                while isPlaybacking do
-                    local result = waitForGameStart(30)
-                    if isPlaybacking and result then
-                        startMacroPlayback()
-                    else
-                        print("🔍 PlaybackThread aborted: isPlaybacking =", isPlaybacking, "result =", result)
-                        break
-                    end
-                end
-                print("🔍 PlaybackThread ended")
-            end)
+
+            playMacroLoop()
+
+            isPlayingLoopRunning = false
         end
-    end,
+    end)
+elseif not Value then
+    Rayfield:Notify({
+        Title = "Macro Playback",
+        Content = "Playback disabled.",
+        Duration = 3
+    })
+        end
+	end,
 })
 
 local Toggle = GameTab:CreateToggle({
@@ -1779,7 +1811,7 @@ local Toggle = GameTab:CreateToggle({
 
 local Dropdown = GameTab:CreateDropdown({
    Name = "Select Difficulty",
-   Options = {"easy","normal","hard","insane","impossible"},
+   Options = {"easy","normal","hard","insane"},
    CurrentOption = {},
    MultipleOptions = false,
    Flag = "DifficultySelectorDropdown",
@@ -1822,21 +1854,13 @@ local Toggle = AutoplayTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoplayToggle",
     Callback = function(Value)
-        autoplayActive = Value
         if Value then
-            
+            _G.Autoplay.start()
+        else
+            _G.Autoplay.stop()
         end
     end,
 })
-
-task.spawn(function()
-    while true do
-    if autoplayActive then
-        autoplayPlacementLoop()
-    end
-    task.wait(1)
-end
-end)
 
 local Toggle = AutoplayTab:CreateToggle({
 	Name = "Show Placement Area",
@@ -2008,51 +2032,41 @@ ShowGameEnd.OnClientEvent:Connect(function()
             Image = 0,
         })
         RecordToggle:Set(false)
+
         if currentMacroName then
-            macroManager[currentMacroName] = macro
-            saveMacroToFile(currentMacroName)
+    macroManager[currentMacroName] = macro
+    saveMacroToFile(currentMacroName)
         end
     end
-    if not State.hasSentWebhook and State.SendStageCompletedWebhook then
+   if not State.hasSentWebhook then
+    if State.SendStageCompletedWebhook then
         local clearTime = math.floor(tick() - State.StageStartTime)
         local minutes = math.floor(clearTime / 60)
         local seconds = clearTime % 60
         local formattedTime = string.format("%d:%02d", minutes, seconds)
+
+
         State.hasSentWebhook = true
         sendWebhook("stage", nil, formattedTime)
+
         task.delay(5, function()
             State.hasSentWebhook = false
         end)
     end
+end
     isPlayingLoopRunning = false
     if autoplayActive then
-        cleanupInvalidUnits()
+        _G.Autoplay.clearPlacedUnits()
     end
     local prevTime = workspace:GetAttribute("GameStartTime")
-    if State.AutoRetryEnabled then
-        repeat
-            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
-            task.wait(0.2)
-        until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
-        if isPlaybacking then
-            if playbackThread then
-                task.cancel(playbackThread)
-                playbackThread = nil
-            end
-            playbackThread = task.spawn(function()
-                local result = waitForGameStart(30)
-                if isPlaybacking and result then
-                    startMacroPlayback()
-                end
-            end)
-        end
+	if State.AutoRetryEnabled then
+	repeat game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer() task.wait(0.1) until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
     end
 end)
 
 Rayfield:LoadConfiguration()
 
 task.delay(1, function()
-    -- Get the saved macro name from Rayfield's configuration
     local savedMacroName = Rayfield.Flags["MacroDropdown"]
     if savedMacroName and savedMacroName ~= "" then
         currentMacroName = savedMacroName
