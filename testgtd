@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -1537,41 +1538,40 @@ local function GetUnitPositionFromId(id)
 end
 
 mt.__namecall = newcclosure(function(self, ...)
-    local args = { ... }
+        local args = { ... }
     local method = getnamecallmethod()
-    
     if not checkcaller() then
-        task.spawn(function()
-            if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
-                enhancedRecordAction("PlaceUnit", {
-                    unitName = args[1],
-                    position = args[2].Position,
-                    rotation = args[2].Rotation,
-                    cframe = args[2].CF,
-                    valid = args[2].Valid
-                })
-                
-            elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
-                local id = args[1]
-                local pos = GetUnitPositionFromId(id)
-                enhancedRecordAction("UpgradeUnit", {
-                    position = pos
-                })
-                
-            elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
-                local id = args[1]
-                local pos = GetUnitPositionFromId(id)
-                enhancedRecordAction("SellUnit", {
-                    position = pos
-                })
-                
-            elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
-                enhancedRecordAction("SkipWave", {})
-            end
-        end)
-    end
-    
-    return originalNamecall(self, ...)
+    task.spawn(function()
+
+    if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
+    local timestamp = tick() 
+    --print("[InvokeServer] Remote:", self.Name)
+    table.insert(macro, {action = "PlaceUnit",unitName = args[1],position = args[2].Position,rotation = args[2].Rotation,cframe = args[2].CF,valid = args[2].Valid,time = timestamp - recordingStartTime})
+
+elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
+    local timestamp = tick() 
+    --print("[InvokeServer] Remote:", self.Name)
+    local id = args[1]
+    local pos = GetUnitPositionFromId(id)
+    table.insert(macro, {action = "UpgradeUnit", position = pos,time = timestamp - recordingStartTime})
+
+elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
+    local timestamp = tick() 
+    --print("[InvokeServer] Remote:", self.Name)
+    local id = args[1]
+    local pos = GetUnitPositionFromId(id)
+    table.insert(macro, {action = "SellUnit", position = pos,time = timestamp - recordingStartTime})
+elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
+    local timestamp = tick() 
+    table.insert(macro, {
+        action = "SkipWave",
+        time = timestamp - recordingStartTime
+    })
+
+end
+end)
+end
+    return oldNamecall(self, ...) 
 end)
 setreadonly(mt, true)
 
