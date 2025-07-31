@@ -1017,6 +1017,9 @@ local function getPlayerCurrency()
     local bossrushValue = playerData:FindFirstChild("BossRushCurrency")
     if bossrushValue then currencies["BossRushCurrency"] = bossrushValue.Value end
 
+    local raidCSMValue = playerData:FindFirstChild("CSW Raid Currency")
+    if raidCSMValue then currencies["CSW Raid Currency"] = raidCSMValue.Value end
+
     return currencies
 end
 
