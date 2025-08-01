@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -1668,10 +1667,6 @@ local function playMacroLoop()
             local currentWaveTime = tick() - waveStartTime
             local action = macro[actionIndex]
             
-            -- Debug: Print action details
-            print(string.format("🔍 Checking action %d/%d: %s at time %.2fs (wave %d)", 
-                actionIndex, #macro, action.action, action.time or 0, action.wave or 0))
-            
             -- Check if we should execute this action based on the selected mode
             local shouldExecute = shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
             
@@ -1786,10 +1781,11 @@ local function playMacroLoop()
                     end
                 end
             else
-                -- Action shouldn't be executed based on timing/mode
-                print(string.format("⏰ Skipping action %d - timing/wave conditions not met (current: %.2fs, required: %.2fs)", 
+                -- ✅ FIXED: Don't increment actionIndex when conditions aren't met
+                -- Just wait and check again in the next loop iteration
+                print(string.format("⏰ Waiting for action %d - timing/wave conditions not met (current: %.2fs, required: %.2fs)", 
                     actionIndex, currentTime, action.time or 0))
-                actionIndex = actionIndex + 1
+                -- Don't increment actionIndex here - we want to retry this action
             end
             
             task.wait(0.1) -- Small delay to prevent excessive CPU usage
