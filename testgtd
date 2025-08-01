@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -390,6 +389,36 @@ local function tryPlaceUnit(unitName, args, maxRetries)
     args.CF = CFrame.new(originalPosition, originalPosition + Vector3.new(0, 0, 1))
     
     return false
+end
+
+local function FindUnitId(targetPos)
+    local entities = workspace:WaitForChild("Map"):WaitForChild("Entities")
+    local closestUnit = nil
+    local closestDistance = math.huge
+    local tolerance = 5 -- Increased tolerance for position matching
+
+    for _, model in ipairs(entities:GetChildren()) do
+        if model:IsA("Model") then
+            local modelPos = model.WorldPivot.Position
+            local distance = (modelPos - targetPos).Magnitude
+            
+            if distance < tolerance and distance < closestDistance then
+                local id = model:GetAttribute("ID")
+                if id then
+                    closestDistance = distance
+                    closestUnit = id
+                end
+            end
+        end
+    end
+
+    if closestUnit then
+        print(string.format("🎯 Found unit %s at distance %.2f from target", closestUnit, closestDistance))
+    else
+        warn("❌ No unit found within tolerance at position:", targetPos)
+    end
+
+    return closestUnit
 end
 
 local function executeActionWithCashCheck(action)
@@ -1602,35 +1631,7 @@ task.spawn(function()
 	end
 end)
 
-local function FindUnitId(targetPos)
-    local entities = workspace:WaitForChild("Map"):WaitForChild("Entities")
-    local closestUnit = nil
-    local closestDistance = math.huge
-    local tolerance = 5 -- Increased tolerance for position matching
 
-    for _, model in ipairs(entities:GetChildren()) do
-        if model:IsA("Model") then
-            local modelPos = model.WorldPivot.Position
-            local distance = (modelPos - targetPos).Magnitude
-            
-            if distance < tolerance and distance < closestDistance then
-                local id = model:GetAttribute("ID")
-                if id then
-                    closestDistance = distance
-                    closestUnit = id
-                end
-            end
-        end
-    end
-
-    if closestUnit then
-        print(string.format("🎯 Found unit %s at distance %.2f from target", closestUnit, closestDistance))
-    else
-        warn("❌ No unit found within tolerance at position:", targetPos)
-    end
-
-    return closestUnit
-end
 
 local function waitForUnitId(targetPos, timeout)
     local start = tick()
