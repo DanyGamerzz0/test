@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -1652,8 +1653,20 @@ local function playMacroLoop()
     isPlayingLoopRunning = true
     
     while isPlaybacking do
-        print("🎬 Waiting for game to start...")
-        local gameStartTime = waitForGameStart()
+        -- Check if a game is already in progress
+        local currentGameStartTime = workspace:GetAttribute("GameStartTime")
+        local gameStartTime
+        
+        if currentGameStartTime then
+            -- Game is already in progress, use current time as start
+            gameStartTime = tick()
+            print("🎮 Game already in progress, starting macro immediately")
+        else
+            -- No game in progress, wait for one to start
+            print("🎬 Waiting for game to start...")
+            gameStartTime = waitForGameStart()
+            currentGameStartTime = workspace:GetAttribute("GameStartTime")
+        end
         
         -- Double check that playback is still enabled after waiting
         if not isPlaybacking then
@@ -1674,12 +1687,12 @@ local function playMacroLoop()
         placedUnitsTracking = {}
         
         -- Store the game start time for this specific game
-        local thisGameStartTime = gameStartTime
+        local thisGameStartTime = currentGameStartTime
         
         while isPlaybacking and actionIndex <= #macro do
             -- Check if a new game has started (game restart detection)
-            local currentGameStartTime = workspace:GetAttribute("GameStartTime")
-            if currentGameStartTime and currentGameStartTime ~= thisGameStartTime then
+            local newGameStartTime = workspace:GetAttribute("GameStartTime")
+            if newGameStartTime and newGameStartTime ~= thisGameStartTime then
                 print("🔄 New game detected during playback, restarting macro...")
                 break -- Break out of action loop to restart from beginning
             end
@@ -1816,9 +1829,15 @@ local function playMacroLoop()
         end
         
         if actionIndex > #macro then
-            print("🎯 Macro completed all actions!")
+            print("🎯 Macro completed all actions, waiting for next game...")
         else
             print("🔄 Macro interrupted (game restart or playback disabled)")
+        end
+        
+        -- Only wait for new game if we completed the macro and playback is still enabled
+        if actionIndex > #macro and isPlaybacking then
+            print("🎬 Waiting for next game to start...")
+            waitForGameStart()
         end
     end
     
