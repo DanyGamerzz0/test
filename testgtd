@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -1651,15 +1652,19 @@ local function playMacroLoop()
     isPlayingLoopRunning = true
     
     while isPlaybacking do
+        -- Reset everything for each new game
         local gameStartTime = tick()
-        local actionIndex = 1
+        local actionIndex = 1  -- Always start from action 1 for each new game
         
         print(string.format("🎬 Starting macro playback in '%s' mode", playbackMode))
         print(string.format("📊 Macro has %d total actions to execute", #macro))
         
-        -- Reset wave tracking
+        -- Reset wave tracking for new game
         currentWave = getCurrentWave()
         waveStartTime = tick()
+        
+        -- Reset placed units tracking for new game
+        placedUnitsTracking = {}
         
         while isPlaybacking and actionIndex <= #macro do
             -- Update wave tracking
@@ -1783,7 +1788,7 @@ local function playMacroLoop()
                     end
                 end
             else
-                -- ✅ FIXED: Don't increment actionIndex when conditions aren't met
+                -- Don't increment actionIndex when conditions aren't met
                 -- Just wait and check again in the next loop iteration
                 print(string.format("⏰ Waiting for action %d - timing/wave conditions not met (current: %.2fs, required: %.2fs)", 
                     actionIndex, currentTime, action.time or 0))
@@ -1794,10 +1799,18 @@ local function playMacroLoop()
         end
         
         print("🎯 Macro completed, waiting for next game...")
+        
+        -- Check if playback is still enabled before waiting for next game
+        if not isPlaybacking then
+            break
+        end
+        
         waitForGameStart()
+        print("🔄 New game detected, restarting macro from beginning...")
     end
     
     isPlayingLoopRunning = false
+    print("🛑 Macro playback loop ended")
 end
 
 local function GetUnitPositionFromId(id)
