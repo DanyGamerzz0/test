@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -307,6 +308,88 @@ local function onWaveChanged()
         waveStartTime = tick()
         print(string.format("🌊 Wave %d started at %.2fs", currentWave, waveStartTime))
     end
+end
+
+local function tryPlaceUnit(unitName, args, maxRetries)
+    maxRetries = maxRetries or 5 -- Increased default retries
+    local baseRetryDelay = 0.5 -- Base delay between retries
+    local positionOffset = 2 -- Maximum studs to offset position
+    local originalPosition = args.Position
+
+    local function isMatchingModel(model)
+        return model:IsA("Model")
+            and model.Name == unitName
+            and (model.WorldPivot.Position - args.Position).Magnitude < 5 -- Slightly larger tolerance for offset positions
+            and model:GetAttribute("ID") ~= nil
+    end
+
+    local function generateOffsetPosition(attempt)
+        if attempt == 1 then
+            return originalPosition -- First attempt uses original position
+        end
+        
+        -- Generate random offset for subsequent attempts
+        local offsetX = (math.random() - 0.5) * positionOffset * 2 -- -positionOffset to +positionOffset
+        local offsetZ = (math.random() - 0.5) * positionOffset * 2
+        
+        return Vector3.new(
+            originalPosition.X + offsetX,
+            originalPosition.Y,
+            originalPosition.Z + offsetZ
+        )
+
+        end
+
+    for attempt = 1, maxRetries do
+        print(string.format("🔄 Attempting to place %s (attempt %d/%d)", unitName, attempt, maxRetries))
+        
+        -- Generate position for this attempt
+        local attemptPosition = generateOffsetPosition(attempt)
+        args.Position = attemptPosition
+        args.CF = CFrame.new(attemptPosition, attemptPosition + Vector3.new(0, 0, 1)) -- Update CF to match new position
+        
+        -- Snapshot current unit models before placement
+        local beforeModels = {}
+        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
+            if isMatchingModel(model) then
+                beforeModels[model] = true
+            end
+        end
+
+        -- Try to place with current position
+        local success, err = pcall(function()
+            game.ReplicatedStorage.RemoteFunctions.PlaceUnit:InvokeServer(unitName, args)
+        end)
+
+        -- Wait a bit longer for placement to register
+        task.wait(0.3)
+
+        -- Look for new matching model
+        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
+            if isMatchingModel(model) and not beforeModels[model] then
+                print(string.format("✅ Unit %s placed successfully on attempt %d at position %s", 
+                    unitName, attempt, tostring(attemptPosition)))
+                return true
+            end
+        end
+
+        -- If we failed and this isn't the last attempt, wait before retrying
+        if attempt < maxRetries then
+            local retryDelay = baseRetryDelay * attempt -- Increase delay with each attempt
+            print(string.format("⚠️ Placement failed on attempt %d for %s%s. Waiting %.1fs before retry...", 
+                attempt, unitName, err and (" - " .. tostring(err)) or "", retryDelay))
+            task.wait(retryDelay)
+        else
+            warn(string.format("❌ Failed to place %s after %d attempts. Skipping unit placement.", 
+                unitName, maxRetries))
+        end
+    end
+
+    -- Restore original position in args (in case it's used elsewhere)
+    args.Position = originalPosition
+    args.CF = CFrame.new(originalPosition, originalPosition + Vector3.new(0, 0, 1))
+    
+    return false
 end
 
 local function executeActionWithCashCheck(action)
@@ -1557,88 +1640,6 @@ local function waitForUnitId(targetPos, timeout)
         task.wait(0.1)
     until tick() - start >= timeout
     return nil
-end
-
-local function tryPlaceUnit(unitName, args, maxRetries)
-    maxRetries = maxRetries or 5 -- Increased default retries
-    local baseRetryDelay = 0.5 -- Base delay between retries
-    local positionOffset = 2 -- Maximum studs to offset position
-    local originalPosition = args.Position
-
-    local function isMatchingModel(model)
-        return model:IsA("Model")
-            and model.Name == unitName
-            and (model.WorldPivot.Position - args.Position).Magnitude < 5 -- Slightly larger tolerance for offset positions
-            and model:GetAttribute("ID") ~= nil
-    end
-
-    local function generateOffsetPosition(attempt)
-        if attempt == 1 then
-            return originalPosition -- First attempt uses original position
-        end
-        
-        -- Generate random offset for subsequent attempts
-        local offsetX = (math.random() - 0.5) * positionOffset * 2 -- -positionOffset to +positionOffset
-        local offsetZ = (math.random() - 0.5) * positionOffset * 2
-        
-        return Vector3.new(
-            originalPosition.X + offsetX,
-            originalPosition.Y,
-            originalPosition.Z + offsetZ
-        )
-
-        end
-
-    for attempt = 1, maxRetries do
-        print(string.format("🔄 Attempting to place %s (attempt %d/%d)", unitName, attempt, maxRetries))
-        
-        -- Generate position for this attempt
-        local attemptPosition = generateOffsetPosition(attempt)
-        args.Position = attemptPosition
-        args.CF = CFrame.new(attemptPosition, attemptPosition + Vector3.new(0, 0, 1)) -- Update CF to match new position
-        
-        -- Snapshot current unit models before placement
-        local beforeModels = {}
-        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
-            if isMatchingModel(model) then
-                beforeModels[model] = true
-            end
-        end
-
-        -- Try to place with current position
-        local success, err = pcall(function()
-            game.ReplicatedStorage.RemoteFunctions.PlaceUnit:InvokeServer(unitName, args)
-        end)
-
-        -- Wait a bit longer for placement to register
-        task.wait(0.3)
-
-        -- Look for new matching model
-        for _, model in ipairs(workspace.Map.Entities:GetChildren()) do
-            if isMatchingModel(model) and not beforeModels[model] then
-                print(string.format("✅ Unit %s placed successfully on attempt %d at position %s", 
-                    unitName, attempt, tostring(attemptPosition)))
-                return true
-            end
-        end
-
-        -- If we failed and this isn't the last attempt, wait before retrying
-        if attempt < maxRetries then
-            local retryDelay = baseRetryDelay * attempt -- Increase delay with each attempt
-            print(string.format("⚠️ Placement failed on attempt %d for %s%s. Waiting %.1fs before retry...", 
-                attempt, unitName, err and (" - " .. tostring(err)) or "", retryDelay))
-            task.wait(retryDelay)
-        else
-            warn(string.format("❌ Failed to place %s after %d attempts. Skipping unit placement.", 
-                unitName, maxRetries))
-        end
-    end
-
-    -- Restore original position in args (in case it's used elsewhere)
-    args.Position = originalPosition
-    args.CF = CFrame.new(originalPosition, originalPosition + Vector3.new(0, 0, 1))
-    
-    return false
 end
 
 _G.MacroCashSystem = {
