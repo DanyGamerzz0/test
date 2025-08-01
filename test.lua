@@ -715,60 +715,16 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
         local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
-        
-        -- Safeguards for faulty detection
-        -- Get current player gold amount
-        local currentGold = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value or 0
-        
-        -- Check if detected gold equals current total gold (indicates faulty detection)
-        local detectedGold = 0
-        if detectedRewards then
-            for _, reward in pairs(detectedRewards) do
-                if reward.type == "gold" then
-                    detectedGold = reward.amount
-                    break
-                end
-            end
-        end
-        
-        -- If detected gold equals current total gold, it's a faulty webhook
-        local isFaultyDetection = detectedGold == currentGold and detectedGold > 0
-        
-        -- Determine if we should ping and show detailed rewards
-        local hasUnrealisticNumbers = isFaultyDetection
-        local shouldPing = #detectedUnits > 0 and not hasUnrealisticNumbers
+        local shouldPing = #detectedUnits > 0
+
+        if #detectedUnits > 1 then return end
+
         local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
 
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
         local orderedUnits = getOrderedUnits()
-
-        -- Build fields array
-        local fields = {
-            { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-            { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
-        }
-
-        -- Add rewards field - if detection is faulty, show a warning instead
-        if hasUnrealisticNumbers then
-            table.insert(fields, { name = "🏆 Rewards", value = "⚠️ *Faulty detection - Gold amount equals total balance*", inline = false })
-            -- Add debug info
-            table.insert(fields, { name = "🚫 Debug", value = string.format("Detected: %d gold | Current total: %d gold", detectedGold, currentGold), inline = true })
-        else
-            table.insert(fields, { name = "🏆 Rewards", value = rewardsText, inline = false })
-        end
-
-        -- Add units loadout
-        table.insert(fields, { name = "📦 Units Loadout", value = orderedUnits, inline = false })
-
-        -- Only add units obtained field if it's realistic
-        if shouldPing and not hasUnrealisticNumbers then
-            table.insert(fields, { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false })
-        end
-
-        -- Add version
-        table.insert(fields, { name = "📈 Script Version", value = "v1.2.1 (Enhanced + Safeguards)", inline = true })
 
         data = {
             username = "LixHub Bot",
@@ -777,18 +733,22 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                 title = shouldPing and "🌟 UNIT DROP! 🌟" or "🎯 Stage Finished!",
                 description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
                 color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
-                fields = fields,
+                fields = {
+                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
+                    { name = "🏆 Rewards", value = rewardsText, inline = false },
+                    { name = "📦 Units Loadout", value = orderedUnits, inline = false },
+                    shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
+                    { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
+                },
                 footer = { text = "discord.gg/lixhub • Enhanced Tracking" },
                 timestamp = timestamp
             }}
         }
 
-        -- Add warning color if unrealistic numbers detected
-        if hasUnrealisticNumbers then
-            data.embeds[1].color = 0xFF8C00  -- Orange warning color
-            data.embeds[1].title = "⚠️ Stage Finished (Detection Issue)"
-        end
-
+        local filteredFields = {}
+        for _, field in ipairs(data.embeds[1].fields) do if field then table.insert(filteredFields, field) end end
+        data.embeds[1].fields = filteredFields
     else
         return
     end
@@ -3922,16 +3882,6 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
 
         State.actionTaken = false
 
-        if State.pendingBossTicketReturn and not State.actionTaken then
-            notify("Boss Tickets", "Tickets available - returning to lobby")
-            State.pendingBossTicketReturn = false
-            State.actionTaken = true
-            task.delay(2, function()
-                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-            end)
-            return
-        end
-
         if State.pendingChallengeReturn and not State.actionTaken then
             notify("Challenge Return", "New challenge detected - returning to lobby")
             State.pendingChallengeReturn = false
@@ -3942,7 +3892,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
             return
         end
 
-        local TIMEOUT = 10 -- seconds to wait for gameRunning per step
+        local TIMEOUT = 10
 
     local function waitForGameRunning(timeout)
         local elapsed = 0
