@@ -116,6 +116,186 @@ local waveStartTime = 0
 
 local unitDataCache = {}
 
+local unitConfigCache = {}
+local placedUnitsTracking = {} -- Track units we place and their upgrade levels
+local cashHandlingMode = "wait" -- "wait", "skip", "force"
+
+local function getPlayerCash()
+    return LocalPlayer:GetAttribute("Cash") or 0
+end
+
+local function extractUnitName(itemID)
+    if not itemID or type(itemID) ~= "string" then
+        return nil
+    end
+    return itemID:gsub("^tl_unitplacer_", "")
+end
+
+local function getUnitConfig(unitName)
+    if not unitName then
+        return nil
+    end
+    
+    -- Return cached config if available
+    if unitConfigCache[unitName] then
+        return unitConfigCache[unitName]
+    end
+    
+    -- Try to get config from game
+    local success, config = pcall(function()
+        local configPath = LocalPlayer.PlayerGui.LogicHolder.ClientLoader.SharedConfig.ItemData.Units.Configs
+        local unitModule = configPath:FindFirstChild(unitName)
+        
+        if unitModule and unitModule:IsA("ModuleScript") then
+            return require(unitModule)
+        end
+        return nil
+    end)
+    
+    if success and config then
+        -- Cache the config for future use
+        unitConfigCache[unitName] = config
+        print(string.format("📋 Loaded config for %s - Cost: %d, Max Level: %d", 
+            unitName, config.UnitConfig.Cost or 0, #(config.UnitConfig.Upgrades or {})))
+        return config
+    else
+        warn("❌ Could not load unit config for:", unitName)
+        return nil
+    end
+end
+
+local function getAvailableUnits()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then
+        warn("❌ Player backpack not found")
+        return {}
+    end
+    
+    local units = {}
+    
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            local itemID = tool:GetAttribute("ItemID")
+            if itemID and itemID:match("^tl_unitplacer_") then
+                local unitName = extractUnitName(itemID)
+                local config = getUnitConfig(unitName)
+                
+                if config and config.UnitConfig then
+                    units[unitName] = {
+                        name = unitName,
+                        displayName = config.Name,
+                        tool = tool,
+                        itemID = itemID,
+                        cost = config.UnitConfig.Cost or 0,
+                        upgrades = config.UnitConfig.Upgrades or {},
+                        config = config
+                    }
+                end
+            end
+        end
+    end
+    
+    return units
+end
+
+local function getUnitPlacementCost(unitName)
+    local config = getUnitConfig(unitName)
+    if config and config.UnitConfig then
+        return config.UnitConfig.Cost or 0
+    end
+    return 0
+end
+
+local function getUpgradeCost(unitName, upgradeLevel)
+    local config = getUnitConfig(unitName)
+    if not config or not config.UnitConfig or not config.UnitConfig.Upgrades then
+        return 0
+    end
+    
+    local upgrades = config.UnitConfig.Upgrades
+    if upgradeLevel >= 1 and upgradeLevel <= #upgrades then
+        return upgrades[upgradeLevel].Cost or 0
+    end
+    
+    return 0
+end
+
+local function trackPlacedUnit(position, unitName)
+    local posKey = tostring(position)
+    placedUnitsTracking[posKey] = {
+        unitName = unitName,
+        currentLevel = 0, -- Start at base level (0 upgrades)
+        position = position,
+        placedTime = tick()
+    }
+    print(string.format("📍 Tracking unit: %s at %s (Level 0)", unitName, posKey))
+end
+
+local function trackUnitUpgrade(position)
+    local posKey = tostring(position)
+    if placedUnitsTracking[posKey] then
+        placedUnitsTracking[posKey].currentLevel = placedUnitsTracking[posKey].currentLevel + 1
+        local newLevel = placedUnitsTracking[posKey].currentLevel
+        print(string.format("⬆️ Unit at %s upgraded to level %d", posKey, newLevel))
+        return newLevel
+    else
+        -- We don't know this unit, assume it's now level 1
+        print(string.format("⚠️ Unknown unit upgraded at %s (assuming level 1)", posKey))
+        return 1
+    end
+end
+
+local function canAffordUnitPlacement(unitName)
+    local cost = getUnitPlacementCost(unitName)
+    local cash = getPlayerCash()
+    local canAfford = cash >= cost
+    
+    print(string.format("💰 Unit placement check - %s: Cost %d, Cash %d, Can afford: %s", 
+        unitName, cost, cash, tostring(canAfford)))
+    
+    return canAfford, cost, cash
+end
+
+local function canAffordUnitUpgrade(position, unitName)
+    local posKey = tostring(position)
+    local unitData = placedUnitsTracking[posKey]
+    local cash = getPlayerCash()
+    
+    if unitData then
+        -- We know this unit's current level
+        local nextLevel = unitData.currentLevel + 1
+        local cost = getUpgradeCost(unitData.unitName, nextLevel)
+        local canAfford = cash >= cost
+        
+        print(string.format("💰 Upgrade check - %s Level %d→%d: Cost %d, Cash %d, Can afford: %s", 
+            unitData.unitName, unitData.currentLevel, nextLevel, cost, cash, tostring(canAfford)))
+        
+        return canAfford, cost, cash, nextLevel
+    else
+        -- We don't know this unit's level, assume it needs level 1 upgrade
+        local cost = getUpgradeCost(unitName or "unknown", 1)
+        local canAfford = cash >= cost
+        
+        print(string.format("⚠️ Unknown unit upgrade check at %s: Assuming level 1 upgrade, Cost %d, Cash %d", 
+            posKey, cost, cash))
+        
+        return canAfford, cost, cash, 1
+    end
+end
+
+local function setCashHandlingMode(mode)
+    if mode == "wait" or mode == "skip" or mode == "force" then
+        cashHandlingMode = mode
+        print(string.format("💰 Cash handling mode set to: %s", mode))
+    else
+        warn("❌ Invalid cash handling mode:", mode)
+    end
+end
+
+local function getCashHandlingMode()
+    return cashHandlingMode
+end
+
 local function getCurrentWave()
     return workspace:GetAttribute("Round") or 0
 end
@@ -129,27 +309,101 @@ local function onWaveChanged()
     end
 end
 
-local function enhancedRecordAction(actionType, actionData)
-    if not isRecording then return end
-    
-    local timestamp = tick()
-    local currentWaveNum = getCurrentWave()
-    
-    local action = {
-        action = actionType,
-        time = timestamp - recordingStartTime,
-        wave = currentWaveNum,
-        waveTime = timestamp - waveStartTime -- Time since current wave started
-    }
-    
-    -- Merge action-specific data
-    for k, v in pairs(actionData) do
-        action[k] = v
+local function executeActionWithCashCheck(action)
+    if action.action == "PlaceUnit" then
+        local canAfford, cost, cash = canAffordUnitPlacement(action.unitName)
+        
+        if not canAfford then
+            if cashHandlingMode == "wait" then
+                print(string.format("💸 Waiting for cash - Need %d more for %s", 
+                    cost - cash, action.unitName))
+                return "wait" -- Signal to wait and try again
+            elseif cashHandlingMode == "skip" then
+                print(string.format("⏭️ Skipping %s placement - insufficient cash", action.unitName))
+                return "skip" -- Skip this action
+            elseif cashHandlingMode == "force" then
+                print(string.format("🚫 Force mode - attempting %s placement anyway", action.unitName))
+                -- Continue with placement attempt
+            end
+        end
+        
+        -- Attempt placement
+        local success = tryPlaceUnit(action.unitName, {
+            Valid = action.valid,
+            Rotation = action.rotation,
+            CF = action.cframe,
+            Position = action.position
+        }, 5)
+        
+        if success then
+            trackPlacedUnit(action.position, action.unitName)
+            return "success"
+        else
+            return "failed"
+        end
+        
+    elseif action.action == "UpgradeUnit" then
+        local canAfford, cost, cash, nextLevel = canAffordUnitUpgrade(action.position, nil)
+        
+        if not canAfford then
+            if cashHandlingMode == "wait" then
+                print(string.format("💸 Waiting for upgrade cash - Need %d more", cost - cash))
+                return "wait"
+            elseif cashHandlingMode == "skip" then
+                print(string.format("⏭️ Skipping upgrade - insufficient cash"))
+                return "skip"
+            elseif cashHandlingMode == "force" then
+                print("🚫 Force mode - attempting upgrade anyway")
+            end
+        end
+        
+        -- Attempt upgrade
+        local id = FindUnitId(action.position)
+        if id then
+            local success, err = pcall(function()
+                game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+            end)
+            if success then
+                trackUnitUpgrade(action.position)
+                return "success"
+            else
+                warn("❌ Failed to upgrade unit:", id, err)
+                return "failed"
+            end
+        else
+            warn("⚠️ Could not find unit to upgrade at position:", action.position)
+            return "failed"
+        end
+        
+    elseif action.action == "SellUnit" then
+        -- Selling doesn't require cash checking
+        local id = FindUnitId(action.position)
+        if id then
+            local success, err = pcall(function()
+                game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+            end)
+            if success then
+                -- Remove from tracking
+                placedUnitsTracking[tostring(action.position)] = nil
+                print("💰 Sold unit:", id)
+                return "success"
+            else
+                warn("❌ Failed to sell unit:", id, err)
+                return "failed"
+            end
+        else
+            warn("⚠️ Could not find unit to sell")
+            return "failed"
+        end
+        
+    elseif action.action == "SkipWave" then
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
+        end)
+        return success and "success" or "failed"
     end
     
-    table.insert(macro, action)
-    print(string.format("📝 Recorded %s at time %.2fs (Wave %d, Wave time: %.2fs)", 
-        actionType, action.time, action.wave, action.waveTime))
+    return "unknown"
 end
 
 local function shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
@@ -663,48 +917,6 @@ local function updateAutoplaySettings()
     print("Autoplay settings updated:")
     for tower, cap in pairs(spawnCaps) do
         print(string.format("  %s: %d", tower, cap))
-    end
-end
-
-local function getPlayerCash()
-    return LocalPlayer:GetAttribute("Cash") or 0
-end
-
-local function extractUnitName(itemID)
-    if not itemID or type(itemID) ~= "string" then
-        return nil
-    end
-    
-    local unitName = itemID:gsub("^tl_unitplacer_", "")
-    return unitName
-end
-
-local function getUnitConfig(unitName)
-    if not unitName then
-        return nil
-    end
-    
-    if unitDataCache[unitName] then
-        return unitDataCache[unitName]
-    end
-    
-    local success, config = pcall(function()
-        local configPath = LocalPlayer.PlayerGui.LogicHolder.ClientLoader.SharedConfig.ItemData.Units.Configs
-        local unitModule = configPath:FindFirstChild(unitName)
-        
-        if unitModule and unitModule:IsA("ModuleScript") then
-            return require(unitModule)
-        end
-        return nil
-    end)
-    
-    if success and config then
-        -- Cache the result
-        unitDataCache[unitName] = config
-        return config
-    else
-        warn("Could not find unit config for:", unitName)
-        return nil
     end
 end
 
@@ -1429,8 +1641,6 @@ local function tryPlaceUnit(unitName, args, maxRetries)
     return false
 end
 
-
-
 local function playMacroLoop()
     isPlayingLoopRunning = true
     
@@ -1453,63 +1663,102 @@ local function playMacroLoop()
             local action = macro[actionIndex]
             
             -- Check if we should execute this action based on the selected mode
-            if shouldExecuteAction(action, currentTime, currentWave, currentWaveTime) then
+            local shouldExecute = shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
+            
+            if shouldExecute then
                 print(string.format("🎯 Executing action %d/%d: %s (Mode: %s)", 
                     actionIndex, #macro, action.action, playbackMode))
                 
-                if action.action == "PlaceUnit" then
-                    local success = tryPlaceUnit(action.unitName, {
-                        Valid = action.valid,
-                        Rotation = action.rotation,
-                        CF = action.cframe,
-                        Position = action.position
-                    }, 5)
-                    
-                    if not success then
-                        print(string.format("⏭️ Skipping failed unit placement: %s", action.unitName))
-                    end
-                    
-                elseif action.action == "UpgradeUnit" then
-                    local id = FindUnitId(action.position)
-                    if id then
-                        local success, err = pcall(function()
-                            game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
-                        end)
-                        if success then
-                            print("⬆️ Upgraded unit:", id)
-                        else
-                            warn("Failed to upgrade unit:", id, err)
-                        end
-                    else
-                        warn("⚠️ Could not find unit to upgrade at position:", action.position)
-                    end
-                    
-                elseif action.action == "SellUnit" then
-                    local id = FindUnitId(action.position)
-                    if id then
-                        local success, err = pcall(function()
-                            game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
-                        end)
-                        if success then
-                            print("💰 Sold unit:", id)
-                        else
-                            warn("Failed to sell unit:", id, err)
-                        end
-                    else
-                        warn("⚠️ Could not find unit to sell at position:", action.position)
-                    end
-                    
-                elseif action.action == "SkipWave" then
-                    local success, err = pcall(function()
-                        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
-                    end)
-                    if success then
-                        print("⏩ Skipped wave")
-                    else
-                        warn("Failed to skip wave:", err)
-                    end
-                end
+                -- Try MacroCashSystem first if it exists
+                local result = nil
+                    result = executeActionWithCashCheck(action)
                 
+                -- Handle MacroCashSystem results
+                if result == "wait" then
+                    -- Don't advance to next action, try again next loop
+                    print("⏳ MacroCashSystem returned 'wait' - retrying action next loop")
+                    task.wait(1) -- Wait 1 second before retrying
+                    -- Don't increment actionIndex - will retry this action
+                    
+                elseif result == "skip" then
+                    print("⏭️ MacroCashSystem returned 'skip' - moving to next action")
+                    actionIndex = actionIndex + 1
+                    
+                elseif result == "success" then
+                    print("✅ MacroCashSystem returned 'success' - moving to next action")
+                    actionIndex = actionIndex + 1
+                    
+                elseif result == "failed" then
+                    print("❌ MacroCashSystem returned 'failed' - moving to next action")
+                    actionIndex = actionIndex + 1
+                    
+                else
+                    -- MacroCashSystem didn't handle it or returned nil/unknown result
+                    -- Fall back to original logic
+                    local actionHandled = false
+                    
+                    if action.action == "PlaceUnit" then
+                        local success = tryPlaceUnit(action.unitName, {
+                            Valid = action.valid,
+                            Rotation = action.rotation,
+                            CF = action.cframe,
+                            Position = action.position
+                        }, 5)
+                        
+                        if not success then
+                            print(string.format("⏭️ Skipping failed unit placement: %s", action.unitName))
+                        end
+                        actionHandled = true
+                        
+                    elseif action.action == "UpgradeUnit" then
+                        local id = FindUnitId(action.position)
+                        if id then
+                            local success, err = pcall(function()
+                                game.ReplicatedStorage.RemoteFunctions.UpgradeUnit:InvokeServer(id)
+                            end)
+                            if success then
+                                print("⬆️ Upgraded unit:", id)
+                            else
+                                warn("Failed to upgrade unit:", id, err)
+                            end
+                        else
+                            warn("⚠️ Could not find unit to upgrade at position:", action.position)
+                        end
+                        actionHandled = true
+                        
+                    elseif action.action == "SellUnit" then
+                        local id = FindUnitId(action.position)
+                        if id then
+                            local success, err = pcall(function()
+                                game.ReplicatedStorage.RemoteFunctions.SellUnit:InvokeServer(id)
+                            end)
+                            if success then
+                                print("💰 Sold unit:", id)
+                            else
+                                warn("Failed to sell unit:", id, err)
+                            end
+                        else
+                            warn("⚠️ Could not find unit to sell at position:", action.position)
+                        end
+                        actionHandled = true
+                        
+                    elseif action.action == "SkipWave" then
+                        local success, err = pcall(function()
+                            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
+                        end)
+                        if success then
+                            print("⏩ Skipped wave")
+                        else
+                            warn("Failed to skip wave:", err)
+                        end
+                        actionHandled = true
+                    end
+                    
+                    -- Always advance if we handled it with original logic or if action type is unknown
+                    actionIndex = actionIndex + 1
+                end
+            else
+                -- Action shouldn't be executed based on timing/mode, just move to next
                 actionIndex = actionIndex + 1
             end
             
@@ -2272,7 +2521,7 @@ ShowGameEnd.OnClientEvent:Connect(function()
 end
     isPlayingLoopRunning = false
     if autoplayActive then
-        _G.Autoplay.clearPlacedUnits()
+        clearPlacedUnits()
     end
     local prevTime = workspace:GetAttribute("GameStartTime")
 	if State.AutoRetryEnabled then
