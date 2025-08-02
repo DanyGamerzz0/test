@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -115,7 +114,7 @@ local function canAffordUnit(unitData)
 end
 
 local function extractUnitName(itemID)
-    print("DEBUG - extractUnitName input:", itemID, "type:", type(itemID))
+   -- print("DEBUG - extractUnitName input:", itemID, "type:", type(itemID))
     
     if not itemID or type(itemID) ~= "string" then
         warn("extractUnitName: Invalid itemID -", tostring(itemID))
@@ -123,7 +122,7 @@ local function extractUnitName(itemID)
     end
     
     local unitName = itemID:gsub("^tl_unitplacer_", "")
-    print("DEBUG - extractUnitName output:", unitName)
+    --print("DEBUG - extractUnitName output:", unitName)
     return unitName
 end
 
@@ -175,9 +174,9 @@ local function getAvailableUnits()
             local itemID = tool:GetAttribute("ItemID")
             local serverIdentifier = tool:GetAttribute("ServerIdentifier")
             
-            print("DEBUG - Processing tool:", tool.Name)
-            print("  ItemID:", itemID)
-            print("  ServerIdentifier:", serverIdentifier)
+            --print("DEBUG - Processing tool:", tool.Name)
+            --print("  ItemID:", itemID)
+            --print("  ServerIdentifier:", serverIdentifier)
             
             if itemID and itemID:match("^tl_unitplacer_") and serverIdentifier then
                 local unitName = extractUnitName(itemID)
@@ -202,7 +201,7 @@ local function getAvailableUnits()
                         serverIdentifier = serverIdentifier
                     }
                     
-                    print("DEBUG - Created unit data for:", unitName)
+                    --print("DEBUG - Created unit data for:", unitName)
                     print("  displayName:", unitData.displayName)
                     print("  itemID:", unitData.itemID)
                     
@@ -213,8 +212,8 @@ local function getAvailableUnits()
         end
     end
     
-    print("DEBUG - Final units count:", #units)
-    print("DEBUG - Tower mapping:", HttpService:JSONEncode(towerMapping))
+    --print("DEBUG - Final units count:", #units)
+   -- print("DEBUG - Tower mapping:", HttpService:JSONEncode(towerMapping))
     
     return units, towerMapping
 end
