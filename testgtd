@@ -774,22 +774,14 @@ local function placeUnit(unitToPlace, position)
         return false
     end
 
-    -- Debug the unit structure
-    print("DEBUG - unitToPlace.unit structure:")
-    for k, v in pairs(unitToPlace.unit) do
-        print("  ", k, "=", tostring(v))
-    end
-
     local unitName = extractUnitName(unitToPlace.unit.itemID)
     if not unitName then
         warn("Could not extract unit name from ItemID:", unitToPlace.unit.itemID)
         return false
     end
 
-    print("DEBUG - Extracted unit name:", unitName)
-
     local args = {
-        unitName, -- This should be the clean unit name (e.g., "money_tree")
+        unitName,
         {
             Valid = true,
             Rotation = math.random(0, 360),
@@ -797,11 +789,6 @@ local function placeUnit(unitToPlace, position)
             Position = position
         }
     }
-
-    -- Debug the args being passed
-    print("DEBUG - PlaceUnit args:")
-    print("  unitName:", args[1])
-    print("  position:", tostring(args[2].Position))
 
     local success, result = pcall(function()
         return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
@@ -819,6 +806,9 @@ local function placeUnit(unitToPlace, position)
         }
         placedUnits[result] = unitData
 
+        -- IMPORTANT: Also track in placedUnitsTracking for upgrade system
+        trackPlacedUnit(position, unitToPlace.unit.name)
+
         print(string.format("✓ Placed %s (ID: %s) at %s - %s [%d/%d total units]", 
             unitToPlace.unit.displayName or unitToPlace.unit.name, 
             tostring(result), 
@@ -828,28 +818,35 @@ local function placeUnit(unitToPlace, position)
             getMaxUnitCount()))
         return true
     else
-        warn("Failed to place unit:", unitToPlace.unit.displayName or unitToPlace.unit.name, "Error:", result)
+        warn("Failed to place unit:", unitToPlace.unit.displayName or unitToPlace.unit.name, result)
         return false
     end
 end
 
 local function getUnitsToUpgrade()
-    cleanupInvalidUnits() -- Clean up first
+    cleanupInvalidUnits()
     
     local unitsToUpgrade = {}
-    local playerCash = getPlayerCash()  -- Removed _G.UnitSystem.
+    local playerCash = getPlayerCash()
+    
+    print("DEBUG - Checking upgrades. Player cash:", playerCash)
+    print("DEBUG - Placed units count:", #placedUnits)
     
     for id, unitData in pairs(placedUnits) do
-        -- Validate unit exists before attempting upgrade
+        print("DEBUG - Checking unit ID:", id, "Name:", unitData.unit.name)
+        
         if validateUnitExists(id) then
             local unit = unitData.unit
             local currentLevel = unitData.upgradeLevel or 0
-            local maxLevel = #unit.upgrades
+            local maxLevel = #(unit.upgrades or {})
             
-            -- If unit can be upgraded further
+            print("DEBUG - Unit", unit.name, "current level:", currentLevel, "max level:", maxLevel)
+            
             if currentLevel < maxLevel then
                 local nextLevel = currentLevel + 1
-                local upgradeCost = getUpgradeCost(unit, nextLevel)  -- Removed _G.UnitSystem.
+                local upgradeCost = getUpgradeCost(unit.name, nextLevel) -- Fix: use unit.name
+                
+                print("DEBUG - Next level:", nextLevel, "cost:", upgradeCost)
                 
                 if upgradeCost > 0 and playerCash >= upgradeCost then
                     table.insert(unitsToUpgrade, {
@@ -860,25 +857,35 @@ local function getUnitsToUpgrade()
                         nextLevel = nextLevel,
                         priority = unitData.priority or 999
                     })
+                    print("DEBUG - Added unit to upgrade queue:", unit.name)
+                else
+                    print("DEBUG - Cannot afford upgrade or cost is 0. Cost:", upgradeCost, "Cash:", playerCash)
                 end
+            else
+                print("DEBUG - Unit already at max level")
             end
+        else
+            print("DEBUG - Unit no longer exists:", id)
         end
     end
     
-    -- Sort by priority (lower number = higher priority)
+    -- Sort by priority
     table.sort(unitsToUpgrade, function(a, b)
         if a.priority == b.priority then
-            return a.upgradeCost < b.upgradeCost -- Cheaper upgrades first if same priority
+            return a.upgradeCost < b.upgradeCost
         end
         return a.priority < b.priority
     end)
     
+    print("DEBUG - Found", #unitsToUpgrade, "units ready for upgrade")
     return unitsToUpgrade
 end
 
 local function upgradeUnit(unitToUpgrade)
     local id = unitToUpgrade.id
     local unitData = unitToUpgrade.unitData
+    
+    print("DEBUG - Attempting to upgrade unit:", id, unitData.unit.name)
     
     -- Validate unit exists and cash is sufficient before upgrade
     if not validateUnitExists(id) then
@@ -887,22 +894,29 @@ local function upgradeUnit(unitToUpgrade)
         return false
     end
     
-    local playerCash = getPlayerCash()  -- Removed _G.UnitSystem.
+    local playerCash = getPlayerCash()
+    print("DEBUG - Player cash:", playerCash, "Upgrade cost:", unitToUpgrade.upgradeCost)
+    
     if playerCash < unitToUpgrade.upgradeCost then
-        return false -- Not enough cash, don't warn as this is normal
+        print("DEBUG - Not enough cash for upgrade")
+        return false
     end
     
     local success, result = pcall(function()
         return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("UpgradeUnit"):InvokeServer(id)
     end)
     
+    print("DEBUG - Upgrade remote call result:", success, result)
+    
     if success and result then
-        -- Simply increment our stored level (we can't verify the actual level anyway)
         local oldLevel = placedUnits[id].upgradeLevel or 0
         placedUnits[id].upgradeLevel = oldLevel + 1
         
+        -- Also update the tracking system
+        trackUnitUpgrade(unitData.position)
+        
         print(string.format("⬆ Upgraded %s (ID: %s) to level %d (Cost: %d)", 
-            unitData.unit.displayName,
+            unitData.unit.displayName or unitData.unit.name,
             tostring(id),
             placedUnits[id].upgradeLevel,
             unitToUpgrade.upgradeCost))
@@ -971,7 +985,7 @@ local function autoplayUpgradeLoop()
     local currentTime = tick()
     
     -- Check if enough time has passed since last upgrade
-    if currentTime - placementSettings.lastUpgrade < placementSettings.upgradeDelay then
+    if currentTime - placementSettings.lastUpgrade < 0.1 then
         return
     end
     
@@ -985,6 +999,7 @@ local function autoplayUpgradeLoop()
     local unitToUpgrade = unitsToUpgrade[1]
     if upgradeUnit(unitToUpgrade) then
         placementSettings.lastUpgrade = currentTime
+         print("DEBUG - Upgrade successful!")
     end
 end
 local function startAutoplay()
@@ -1100,12 +1115,26 @@ local function getTotalUpgradeCost(unitData)
     return totalCost
 end
 
-local function getUpgradeCost(unitData, upgradeLevel)
-    if not unitData.upgrades or upgradeLevel < 1 or upgradeLevel > #unitData.upgrades then
+local function getUpgradeCost(unitName, upgradeLevel)
+    print("DEBUG - getUpgradeCost for:", unitName, "level:", upgradeLevel)
+    
+    local config = getUnitConfig(unitName)
+    if not config or not config.UnitConfig or not config.UnitConfig.Upgrades then
+        print("DEBUG - No config or upgrades found for:", unitName)
         return 0
     end
     
-    return unitData.upgrades[upgradeLevel].Cost or 0
+    local upgrades = config.UnitConfig.Upgrades
+    print("DEBUG - Total upgrades available:", #upgrades)
+    
+    if upgradeLevel >= 1 and upgradeLevel <= #upgrades then
+        local cost = upgrades[upgradeLevel].Cost or 0
+        print("DEBUG - Upgrade cost for level", upgradeLevel, "is:", cost)
+        return cost
+    end
+    
+    print("DEBUG - Invalid upgrade level:", upgradeLevel)
+    return 0
 end
 
 local function getCostToUpgrade(unitData, fromLevel, toLevel)
