@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -719,11 +720,11 @@ local function getNextUnitToPlace()
     local placedCounts = getPlacedUnitCountsBySlot(towerMapping)
     
     -- Debug logging
-    print("=== PLACEMENT DEBUG ===")
-    print("Available units count:", #availableUnits)
-    print("Tower mapping:", HttpService:JSONEncode(towerMapping))
-    print("Spawn caps:", HttpService:JSONEncode(spawnCaps))
-    print("Placed counts:", HttpService:JSONEncode(placedCounts))
+    --print("=== PLACEMENT DEBUG ===")
+   -- print("Available units count:", #availableUnits)
+   -- print("Tower mapping:", HttpService:JSONEncode(towerMapping))
+   -- print("Spawn caps:", HttpService:JSONEncode(spawnCaps))
+    --print("Placed counts:", HttpService:JSONEncode(placedCounts))
 
     -- Try each tower slot in order
     for i = 1, 6 do
@@ -754,7 +755,7 @@ local function getNextUnitToPlace()
                         priority = i
                     }
                 else
-                    print("Unit", unitName, "not affordable or not found for", towerSlot)
+                   -- print("Unit", unitName, "not affordable or not found for", towerSlot)
                 end
             else
                 print("No unit mapped to", towerSlot)
@@ -764,7 +765,7 @@ local function getNextUnitToPlace()
         end
     end
 
-    print("No valid unit to place found")
+    --print("No valid unit to place found")
     return nil
 end
 
