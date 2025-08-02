@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -36,7 +37,6 @@ local State = {
     SendStageCompletedWebhook = false,
     StageStartTime = 0,
     autoplayEnabled = false,
-    LobbyFailsafeEnabled = false,
 }
 
 local autoplayActive = false
@@ -121,96 +121,9 @@ local unitConfigCache = {}
 local placedUnitsTracking = {} -- Track units we place and their upgrade levels
 local cashHandlingMode = "wait" -- "wait", "skip", "force"
 
-local failsafeTimeout = 180 -- 3 minutes in seconds
-local failsafeThread = nil
-
 local function getPlayerCash()
     return LocalPlayer:GetAttribute("Cash") or 0
 end
-
-local function teleportToLobby()
-    print("🔄 Attempting to teleport to lobby...")
-    
-    -- Method 1: Try using the back to lobby remote function
-    local success1 = pcall(function()
-        local remoteFunction = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions", 5):WaitForChild("BackToMainLobby", 5)
-        if remoteFunction then
-            remoteFunction:InvokeServer()
-            print("✅ Successfully used BackToMainLobby remote")
-            return true
-        end
-    end)
-    
-    if success1 then return end
-    
-    -- Method 2: Try direct teleport service to lobby place ID
-    local success2 = pcall(function()
-        -- You need to find the correct lobby place ID for Garden Tower Defense
-        local lobbyPlaceId = 108533757090220 -- This might be wrong - check the actual lobby place ID
-        TeleportService:Teleport(lobbyPlaceId, LocalPlayer)
-        print("✅ Successfully teleported using TeleportService")
-    end)
-    
-    if success2 then return end
-    
-    -- Method 3: Try rejoining current game (which should put player in lobby)
-    local success3 = pcall(function()
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
-        print("✅ Successfully rejoined game")
-    end)
-    
-    if not success3 then
-        warn("❌ All teleport methods failed!")
-        Rayfield:Notify({
-            Title = "Teleport Failed",
-            Content = "Could not teleport to lobby. Please manually return.",
-            Duration = 10,
-            Image = 4483362458
-        })
-    end
-end
-
-local function startFailsafe()
-    if failsafeThread then
-        task.cancel(failsafeThread)
-    end
-    
-    failsafeThread = task.spawn(function()
-        local startRound = workspace:GetAttribute("Round") or 0
-        local startTime = tick()
-        
-        print("🛡️ Failsafe started - Round:", startRound, "Timeout:", failsafeTimeout, "seconds")
-        
-        while tick() - startTime < failsafeTimeout do
-            task.wait(1)
-            
-            local currentRound = workspace:GetAttribute("Round") or 0
-            if currentRound ~= startRound then
-                print("🛡️ Round changed from", startRound, "to", currentRound, "- cancelling failsafe")
-                return
-            end
-        end
-        
-        print("🛡️ Failsafe timeout reached - teleporting to lobby")
-        Rayfield:Notify({
-            Title = "Failsafe Activated",
-            Content = "No game started for " .. math.floor(failsafeTimeout/60) .. " minutes, teleporting to lobby...",
-            Duration = 5,
-            Image = 4483362458
-        })
-        teleportToLobby()
-    end)
-end
-
-local function stopFailsafe()
-    if failsafeThread then
-        task.cancel(failsafeThread)
-        failsafeThread = nil
-        print("🛡️ Failsafe manually stopped")
-    end
-end
-
-
 
 local function extractUnitName(itemID)
     if not itemID or type(itemID) ~= "string" then
@@ -1706,39 +1619,14 @@ local function waitForGameStartTiming()
 	return workspace:GetAttribute("GameStartTime")
 end
 
-local originalWaitForGameStartTiming = waitForGameStartTiming
-waitForGameStartTiming = function()
-    local prevTime = workspace:GetAttribute("GameStartTime")
-    local startTime = tick()
-    
-    repeat 
-        task.wait(0.1)
-        -- Add timeout to prevent infinite waiting
-        if tick() - startTime > 30 then
-            warn("⚠️ Timeout waiting for game start")
-            break
-        end
-    until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
-
-    local result = workspace:GetAttribute("GameStartTime")
-    if result then
-        stopFailsafe() -- Stop failsafe when new game starts
-        print("🎮 New game detected, failsafe stopped")
-    end
-    return result
-end
-
 task.spawn(function()
 	while true do
 		local newStartTime = waitForGameStartTiming()
 		State.StageStartTime = tick()
 		State.hasSentWebhook = false
-        stopFailsafe()
 		print("New game started at:", State.StageStartTime)
 	end
 end)
-
-
 
 local function waitForUnitId(targetPos, timeout)
     local start = tick()
@@ -2451,6 +2339,17 @@ local Toggle = GameTab:CreateToggle({
    end,
 })
 
+task.spawn(function()
+    while true do
+    task.wait(2)
+     if State.AutoRetryEnabled then
+        if LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd").Visible == true then
+            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
+        end
+    end
+end
+end)
+
     local Toggle = GameTab:CreateToggle({
     Name = "Auto 1x/2x/3x Speed",
     CurrentValue = false,
@@ -2658,28 +2557,6 @@ local Slider = AutoplayTab:CreateSlider({
    end,
 })
 
-   Toggle = GameTab:CreateToggle({
-    Name = "Enable Lobby Failsafe",
-    CurrentValue = false,
-    Flag = "EnableLobbyFailsafe",
-    Callback = function(Value)
-        State.LobbyFailsafeEnabled = Value
-    end,
-    })
-
-local FailsafeSlider = GameTab:CreateSlider({
-    Name = "Return To lobby failsafe",
-    Range = {60, 600},
-    Increment = 30,
-    Suffix = "seconds",
-    CurrentValue = 180,
-    Flag = "FailsafeTimeout",
-    Callback = function(Value)
-        failsafeTimeout = Value
-        print("🛡️ Failsafe timeout set to", Value, "seconds")
-    end,
-})
-
 local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
 Input = WebhookTab:CreateInput({
@@ -2772,19 +2649,6 @@ ShowGameEnd.OnClientEvent:Connect(function()
     end
     
     isPlayingLoopRunning = false
-    
-    -- Handle auto retry
-    if State.AutoRetryEnabled then
-        while LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd").Visible == true do
-            task.wait(1)
-            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
-        end
-    end
-    
-    -- Start failsafe if enabled
-    if State.LobbyFailsafeEnabled then
-        startFailsafe()
-    end
 end)
 
 Rayfield:LoadConfiguration()
