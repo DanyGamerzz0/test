@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -167,7 +168,7 @@ local function getAvailableUnits()
         if tool:IsA("Tool") then
             local itemID = tool:GetAttribute("ItemID")
             local serverIdentifier = tool:GetAttribute("ServerIdentifier")
-            print("Tool:", tool.Name, "ItemID:", itemID, "ServerIdentifier:", serverIdentifier) -- Debug log
+           -- print("Tool:", tool.Name, "ItemID:", itemID, "ServerIdentifier:", serverIdentifier) -- Debug log
             
             if itemID and itemID:match("^tl_unitplacer_") and serverIdentifier then
                 local unitName = extractUnitName(itemID)
