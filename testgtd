@@ -1,4 +1,3 @@
---2
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -2074,6 +2073,27 @@ local GameTab = Window:CreateTab("Game", "gamepad-2")
 local AutoplayTab = Window:CreateTab("Autoplay", "joystick")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
+   Toggle = JoinerTab:CreateToggle({
+    Name = "Enable Auto Join",
+    CurrentValue = false,
+    Flag = "EnableAutoJoin",
+    Callback = function(Value)
+        State.AutoJoinEnabled = Value
+    end,
+    })
+
+local JoinerSelector = JoinerTab:CreateDropdown({
+   Name = "Select Stage To Join",
+   Options = {"Garden","Enchanted Jungle","Tropical Island","Toxic Facility"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "StageJoinSelector",
+Callback = function(selected)
+
+   end,
+})
+
+
 local MacroDropdown = MacroTab:CreateDropdown({
    Name = "Select Macro",
    Options = {},
@@ -2583,7 +2603,7 @@ local Slider = AutoplayTab:CreateSlider({
    end,
 })
 
-   Toggle = WebhookTab:CreateToggle({
+   Toggle = GameTab:CreateToggle({
     Name = "Enable Lobby Failsafe",
     CurrentValue = false,
     Flag = "EnableLobbyFailsafe",
