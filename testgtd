@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -37,6 +36,7 @@ local State = {
     SendStageCompletedWebhook = false,
     StageStartTime = 0,
     autoplayEnabled = false,
+    LobbyFailsafeEnabled = false,
 }
 
 local autoplayActive = false
@@ -149,6 +149,7 @@ local function teleportToLobby()
 end
 
 local function startFailsafe()
+    if not State.LobbyFailsafeEnabled then return end
     if failsafeThread then
         task.cancel(failsafeThread)
     end
@@ -176,7 +177,6 @@ local function startFailsafe()
             Duration = 5,
             Image = 4483362458
         })
-        
         teleportToLobby()
     end)
 end
@@ -1270,10 +1270,6 @@ local function printUnitAnalysis()
     print("========================")
 end
 
--- Auto-run analysis on script load
-wait(2) -- Wait for game to load
---printUnitAnalysis()
-
 local function getEnemySpawnPoint()
     local success, spawn = pcall(function()
         return workspace.Map.Path.Start
@@ -1701,6 +1697,7 @@ task.spawn(function()
 		local newStartTime = waitForGameStartTiming()
 		State.StageStartTime = tick()
 		State.hasSentWebhook = false
+        stopFailsafe()
 		print("New game started at:", State.StageStartTime)
 	end
 end)
@@ -2070,9 +2067,10 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
-local MacroTab = Window:CreateTab("Macro", 4483362458)
-local GameTab = Window:CreateTab("Game", 4483362458)
-local AutoplayTab = Window:CreateTab("Autoplay", "bluetooth")
+local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
+local MacroTab = Window:CreateTab("Macro", "tv")
+local GameTab = Window:CreateTab("Game", "gamepad-2")
+local AutoplayTab = Window:CreateTab("Autoplay", "joystick")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 local MacroDropdown = MacroTab:CreateDropdown({
@@ -2584,9 +2582,18 @@ local Slider = AutoplayTab:CreateSlider({
    end,
 })
 
+   Toggle = WebhookTab:CreateToggle({
+    Name = "Enable Lobby Failsafe",
+    CurrentValue = false,
+    Flag = "EnableLobbyFailsafe",
+    Callback = function(Value)
+        State.LobbyFailsafeEnabled = Value
+    end,
+    })
+
 local FailsafeSlider = GameTab:CreateSlider({
-    Name = "Failsafe Timeout",
-    Range = {60, 600}, -- 1 minute to 10 minutes
+    Name = "Return To lobby failsafe",
+    Range = {60, 600},
     Increment = 30,
     Suffix = "seconds",
     CurrentValue = 180,
@@ -2689,23 +2696,19 @@ ShowGameEnd.OnClientEvent:Connect(function()
     end
     
     isPlayingLoopRunning = false
-    
+    startFailsafe()
     -- Handle auto retry with failsafe
     local prevTime = workspace:GetAttribute("GameStartTime")
     if State.AutoRetryEnabled then
         -- Start the failsafe timer before attempting retry
-        startFailsafe()
         
-        repeat 
-            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer() 
+        while LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd").Visible == true do
             task.wait(1)
-        until workspace:GetAttribute("GameStartTime") and workspace:GetAttribute("GameStartTime") ~= prevTime
-        
+            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
+        end
         -- If we reach here, a new game started successfully
-        stopFailsafe()
     else
         -- Even if auto retry is disabled, start failsafe in case user manually retries
-        startFailsafe()
     end
 end)
 
