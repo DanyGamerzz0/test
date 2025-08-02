@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -91,6 +92,7 @@ local unitDataCache = {}
 local unitConfigCache = {}
 local placedUnitsTracking = {} -- Track units we place and their upgrade levels
 local cashHandlingMode = "wait" -- "wait", "skip", "force"
+
 
 local function getAllSpawnCaps()
     return spawnCaps
@@ -650,13 +652,9 @@ local function getPlacedUnitCountsBySlot()
         tower4 = 0, tower5 = 0, tower6 = 0
     }
     
-    -- Count units we're tracking by tower slot
     for _, unitData in pairs(placedUnits) do
-        if unitData.towerSlot and validateUnitExists(unitData.id) then
-            local towerSlot = unitData.towerSlot
-            if counts[towerSlot] then
-                counts[towerSlot] = counts[towerSlot] + 1
-            end
+        if unitData.towerSlot and spawnCaps[unitData.towerSlot] and validateUnitExists(unitData.id) then
+            counts[unitData.towerSlot] = counts[unitData.towerSlot] + 1
         end
     end
     
@@ -664,28 +662,22 @@ local function getPlacedUnitCountsBySlot()
 end
 
 local function getNextUnitToPlace()
-    -- Check if we can place any more units at all
     if not canPlaceMoreUnits() then
         return nil
     end
-    
+
     local availableUnits = getBestAffordableUnits()
-    local spawnCaps = getAllSpawnCaps()  -- Removed _G.TowerSliders.
+    local spawnCaps = getAllSpawnCaps()
     local placedCounts = getPlacedUnitCountsBySlot()
-    
-    -- Check units in priority order (tower1 = highest priority)
     local towerSlots = {"tower1", "tower2", "tower3", "tower4", "tower5", "tower6"}
-    
+
     for i, towerSlot in pairs(towerSlots) do
         local spawnCap = spawnCaps[towerSlot] or 0
         local placedCount = placedCounts[towerSlot] or 0
-        
-        -- Check spawn cap for this specific tower slot
+
         if spawnCap > 0 and placedCount < spawnCap and availableUnits[i] then
             local unit = availableUnits[i]
-            
-            -- Check if we can afford it
-            if canAffordUnit(unit) then  -- Removed _G.UnitSystem.
+            if canAffordUnit(unit) then
                 return {
                     unit = unit,
                     towerSlot = towerSlot,
@@ -694,67 +686,58 @@ local function getNextUnitToPlace()
             end
         end
     end
-    
-    return nil -- Nothing to place
+
+    return nil
 end
 
 local function placeUnit(unitToPlace, position)
-    local unit = unitToPlace.unit
-    
-    -- Double-check we can still place units
     if not canPlaceMoreUnits() then
         warn("Cannot place unit - max unit limit reached")
         return false
     end
-    
-    -- Extract unit name from ItemID (remove tl_unitplacer_ prefix)
-    local unitName = extractUnitName(unit.itemID)  -- Removed _G.UnitSystem.
+
+    local unitName = extractUnitName(unitToPlace.unit.itemID)
     if not unitName then
-        warn("Could not extract unit name from ItemID:", unit.itemID)
+        warn("Could not extract unit name from ItemID:", unitToPlace.unit.itemID)
         return false
     end
-    
-    -- Create placement arguments
+
     local args = {
         unitName,
         {
             Valid = true,
-            Rotation = math.random(0, 360), -- Random rotation
-            CF = CFrame.new(position, position + Vector3.new(0, 0, 1)), -- Face forward
+            Rotation = math.random(0, 360),
+            CF = CFrame.new(position, position + Vector3.new(0, 0, 1)),
             Position = position
         }
     }
-    
-    -- Attempt to place the unit
+
     local success, result = pcall(function()
         return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
     end)
-    
+
     if success and result then
-        -- Store the placed unit data
         local unitData = {
-            id = result, -- The tower ID returned by the server
-            unit = unit,
+            id = result,
+            unit = unitToPlace.unit,
             position = position,
-            towerSlot = unitToPlace.towerSlot,
+            towerSlot = unitToPlace.towerSlot, -- Ensure this is passed correctly
             priority = unitToPlace.priority,
             upgradeLevel = 0,
             placedTime = tick()
         }
-        
         placedUnits[result] = unitData
-        
+
         print(string.format("✓ Placed %s (ID: %s) at %s - %s [%d/%d total units]", 
-            unit.displayName, 
+            unitToPlace.unit.displayName, 
             tostring(result), 
             tostring(position), 
             unitToPlace.towerSlot,
             getCurrentUnitCount(),
             getMaxUnitCount()))
-        
         return true
     else
-        warn("Failed to place unit:", unit.displayName, result)
+        warn("Failed to place unit:", unitToPlace.unit.displayName, result)
         return false
     end
 end
@@ -842,38 +825,27 @@ end
 
 local function autoplayPlacementLoop()
     if not autoplayActive then return end
-    
+
     local currentTime = tick()
-    
-    -- Check if enough time has passed since last placement
     if currentTime - placementSettings.lastPlacement < placementSettings.placementDelay then
         return
     end
-    
-    -- Clean up invalid units before checking anything
+
     cleanupInvalidUnits()
-    
-    -- Get next unit to place
     local unitToPlace = getNextUnitToPlace()
     if not unitToPlace then
-        -- Throttled status updates to prevent spam
         if currentTime - (placementSettings.lastStatusUpdate or 0) > 10 then
             local current = getCurrentUnitCount()
             local max = getMaxUnitCount()
             local placedCounts = getPlacedUnitCountsBySlot()
-            local spawnCaps = getAllSpawnCaps()  -- Removed _G.TowerSliders.
-            
+            local spawnCaps = getAllSpawnCaps()
+
             print(string.format("📊 Autoplay Status: %d/%d total units placed", current, max))
-            
-            local allCapsFull = true
             for slot, cap in pairs(spawnCaps) do
                 local placed = placedCounts[slot] or 0
                 print(string.format("  %s: %d/%d", slot, placed, cap))
-                if cap > 0 and placed < cap and current < max then
-                    allCapsFull = false
-                end
             end
-            
+
             if current >= max then
                 print("🛑 Max unit limit reached!")
             elseif allCapsFull then
@@ -881,24 +853,21 @@ local function autoplayPlacementLoop()
             else
                 print("💰 Waiting for cash or better units...")
             end
-            
+
             placementSettings.lastStatusUpdate = currentTime
         end
-        return -- Nothing to place right now
+        return
     end
-    
-    -- Find valid placement position
+
     local position = findValidPlacementPosition()
     if not position then
-        -- Only warn occasionally to prevent spam
         if currentTime - (placementSettings.lastPositionWarning or 0) > 5 then
             warn("Could not find valid placement position")
             placementSettings.lastPositionWarning = currentTime
         end
         return
     end
-    
-    -- Place the unit
+
     if placeUnit(unitToPlace, position) then
         placementSettings.lastPlacement = currentTime
     end
