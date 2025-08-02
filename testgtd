@@ -1,3 +1,4 @@
+--5
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -149,35 +150,51 @@ end
 local function getAvailableUnits()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then
-        warn("❌ Player backpack not found")
-        return {}
+        warn("Player backpack not found")
+        return {}, {}
     end
     
     local units = {}
-    
-    for _, tool in pairs(backpack:GetChildren()) do
+    local towerMapping = {} -- Initialize as empty table to avoid nil
+
+    for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") then
             local itemID = tool:GetAttribute("ItemID")
-            if itemID and itemID:match("^tl_unitplacer_") then
+            local serverIdentifier = tool:GetAttribute("ServerIdentifier")
+            print("Tool:", tool.Name, "ItemID:", itemID, "ServerIdentifier:", serverIdentifier) -- Debug log
+            
+            if itemID and itemID:match("^tl_unitplacer_") and serverIdentifier then
                 local unitName = extractUnitName(itemID)
                 local config = getUnitConfig(unitName)
                 
                 if config and config.UnitConfig then
-                    units[unitName] = {
+                    local unitData = {
                         name = unitName,
                         displayName = config.Name,
                         tool = tool,
                         itemID = itemID,
+                        image = config.Image,
+                        rarity = config.Rarity,
+                        unitType = config.UnitType,
+                        placeable = config.Placeable,
+                        config = config.UnitConfig,
                         cost = config.UnitConfig.Cost or 0,
+                        range = config.UnitConfig.Range or 0,
+                        damage = config.UnitConfig.Damage or 0,
+                        apm = config.UnitConfig.APM or 0,
                         upgrades = config.UnitConfig.Upgrades or {},
-                        config = config
+                        serverIdentifier = serverIdentifier
                     }
+                    table.insert(units, unitData)
+                    towerMapping["tower" .. serverIdentifier] = unitName -- Map using ServerIdentifier
+                    print("Mapped:", "tower" .. serverIdentifier, "to", unitName) -- Debug log
                 end
             end
         end
     end
     
-    return units
+    print("Tower Mapping:", table.concat(getTableKeys(towerMapping), ", ")) -- Debug log
+    return units, towerMapping
 end
 
 local function getBestAffordableUnits()
@@ -1002,52 +1019,6 @@ local function updateAutoplaySettings()
     for tower, cap in pairs(spawnCaps) do
         print(string.format("  %s: %d", tower, cap))
     end
-end
-
-local function getAvailableUnits()
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not backpack then
-        warn("Player backpack not found")
-        return {}, {}
-    end
-    
-    local units = {}
-    local towerMapping = {} -- Map tower slots to unit names based on ServerIdentifier
-    
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            local itemID = tool:GetAttribute("ItemID")
-            local serverIdentifier = tool:GetAttribute("ServerIdentifier")
-            if itemID and itemID:match("^tl_unitplacer_") and serverIdentifier then
-                local unitName = extractUnitName(itemID)
-                local config = getUnitConfig(unitName)
-                
-                if config and config.UnitConfig then
-                    local unitData = {
-                        name = unitName,
-                        displayName = config.Name,
-                        tool = tool,
-                        itemID = itemID,
-                        image = config.Image,
-                        rarity = config.Rarity,
-                        unitType = config.UnitType,
-                        placeable = config.Placeable,
-                        config = config.UnitConfig,
-                        cost = config.UnitConfig.Cost or 0,
-                        range = config.UnitConfig.Range or 0,
-                        damage = config.UnitConfig.Damage or 0,
-                        apm = config.UnitConfig.APM or 0,
-                        upgrades = config.UnitConfig.Upgrades or {},
-                        serverIdentifier = serverIdentifier
-                    }
-                    table.insert(units, unitData)
-                    towerMapping["tower" .. serverIdentifier] = unitName -- Map towerN to unitName using ServerIdentifier
-                end
-            end
-        end
-    end
-    
-    return units, towerMapping
 end
 
 local function getTotalUpgradeCost(unitData)
