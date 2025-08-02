@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -172,39 +171,31 @@ local function teleportToLobby()
 end
 
 local function startFailsafe()
-    if not State.LobbyFailsafeEnabled then return end
     if failsafeThread then
         task.cancel(failsafeThread)
     end
     
     failsafeThread = task.spawn(function()
+        local startRound = workspace:GetAttribute("Round") or 0
         local startTime = tick()
-        print(string.format("🛡️ Failsafe started - will teleport to lobby in %d seconds if no new game starts", failsafeTimeout))
         
-        -- Store the current game start time to detect changes
-        local currentGameStartTime = workspace:GetAttribute("GameStartTime")
+        print("🛡️ Failsafe started - Round:", startRound, "Timeout:", failsafeTimeout, "seconds")
         
         while tick() - startTime < failsafeTimeout do
             task.wait(1)
             
-            -- FIXED: Better game detection logic
-            local newGameStartTime = workspace:GetAttribute("GameStartTime")
-            
-            -- Check if a new game has started (different GameStartTime OR if we went from nil to a value)
-            if newGameStartTime and newGameStartTime ~= currentGameStartTime then
-                print("🛡️ New game detected, cancelling failsafe")
+            local currentRound = workspace:GetAttribute("Round") or 0
+            if currentRound ~= startRound then
+                print("🛡️ Round changed from", startRound, "to", currentRound, "- cancelling failsafe")
                 return
             end
-            
-            -- ADDED: Also check if player is actually in a game (not in lobby)
         end
         
-        -- If we reach here, timeout occurred
         print("🛡️ Failsafe timeout reached - teleporting to lobby")
         Rayfield:Notify({
             Title = "Failsafe Activated",
             Content = "No game started for " .. math.floor(failsafeTimeout/60) .. " minutes, teleporting to lobby...",
-            Duration = 500,
+            Duration = 5,
             Image = 4483362458
         })
         teleportToLobby()
@@ -215,7 +206,7 @@ local function stopFailsafe()
     if failsafeThread then
         task.cancel(failsafeThread)
         failsafeThread = nil
-        print("🛡️ Failsafe cancelled")
+        print("🛡️ Failsafe manually stopped")
     end
 end
 
@@ -1935,8 +1926,7 @@ local function playMacroLoop()
             else
                 -- Don't increment actionIndex when conditions aren't met
                 -- Just wait and check again in the next loop iteration
-                print(string.format("⏰ Waiting for action %d - timing/wave conditions not met (current: %.2fs, required: %.2fs)", 
-                    actionIndex, currentTime, action.time or 0))
+                --print(string.format("⏰ Waiting for action %d - timing/wave conditions not met (current: %.2fs, required: %.2fs)", actionIndex, currentTime, action.time or 0))
                 -- Don't increment actionIndex here - we want to retry this action
             end
             
@@ -2739,7 +2729,7 @@ Input = WebhookTab:CreateInput({
 
 -- Modified ShowGameEnd event handler
 ShowGameEnd.OnClientEvent:Connect(function()
-    print("🏁 Game ended")
+    print("game ended")
     
     -- Handle recording
     if isRecording then
@@ -2783,60 +2773,17 @@ ShowGameEnd.OnClientEvent:Connect(function()
     
     isPlayingLoopRunning = false
     
-    -- IMPROVED: Better failsafe handling
+    -- Handle auto retry
+    if State.AutoRetryEnabled then
+        while LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd").Visible == true do
+            task.wait(1)
+            game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
+        end
+    end
+    
+    -- Start failsafe if enabled
     if State.LobbyFailsafeEnabled then
-        if State.AutoRetryEnabled then
-            print("🔄 Auto retry enabled, monitoring for new game...")
-            
-            -- Start a monitoring thread for auto retry
-            task.spawn(function()
-                local retryStartTime = tick()
-                local maxRetryWaitTime = 10 -- Wait up to 10 seconds for auto retry to work
-                
-                while LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd").Visible == true do
-                    task.wait(1)
-                    game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
-                    
-                    -- Check if we've been trying too long
-                    if tick() - retryStartTime > maxRetryWaitTime then
-                        print("⚠️ Auto retry taking too long, starting failsafe")
-                        startFailsafe()
-                        break
-                    end
-                end
-                
-                -- If we exit the loop naturally, wait a bit more then check if new game started
-                if LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd").Visible == false then
-                    print("✅ Game end screen closed, waiting to confirm new game...")
-                    task.wait(5) -- Wait 5 seconds for new game to properly start
-                    
-                    -- Check if we're actually in a new game
-                    local currentGameStartTime = workspace:GetAttribute("GameStartTime")
-                    local inGame = workspace:FindFirstChild("Map") and 
-                                  workspace.Map:FindFirstChild("BaseHP") and 
-                                  workspace.Map.BaseHP:GetAttribute("HP")
-                    
-                    if not currentGameStartTime or not inGame or inGame <= 0 then
-                        print("🛡️ Auto retry didn't start new game properly, beginning failsafe")
-                        startFailsafe()
-                    else
-                        print("✅ Auto retry successful, new game confirmed")
-                    end
-                end
-            end)
-        else
-            -- No auto retry enabled, start failsafe immediately
-            print("🛡️ No auto retry, starting failsafe immediately")
-            startFailsafe()
-        end
-    else
-        -- Failsafe disabled but still handle auto retry normally
-        if State.AutoRetryEnabled then
-            while LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd").Visible == true do
-                task.wait(1)
-                game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
-            end
-        end
+        startFailsafe()
     end
 end)
 
