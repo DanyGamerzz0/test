@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -99,6 +98,11 @@ end
 
 local function getPlayerCash()
     return LocalPlayer:GetAttribute("Cash") or 0
+end
+
+local function canAffordUnit(unitData)
+    local playerCash = getPlayerCash()
+    return playerCash >= unitData.cost
 end
 
 local function extractUnitName(itemID)
@@ -1100,10 +1104,7 @@ local function getCostToUpgrade(unitData, fromLevel, toLevel)
     return totalCost
 end
 
-local function canAffordUnit(unitData)
-    local playerCash = getPlayerCash()
-    return playerCash >= unitData.cost
-end
+
 
 local function canAffordUpgrade(unitData, upgradeLevel)
     local playerCash = getPlayerCash()
