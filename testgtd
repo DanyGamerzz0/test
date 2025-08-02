@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -200,7 +199,7 @@ local function getAvailableUnits()
         end
     end
     
-    print("Tower Mapping:", table.concat(getTableKeys(towerMapping), ", ")) -- Debug log
+    --print("Tower Mapping:", table.concat(getTableKeys(towerMapping), ", ")) -- Debug log
     return units, towerMapping
 end
 
@@ -696,29 +695,38 @@ end
 
 local function getNextUnitToPlace()
     if not canPlaceMoreUnits() then
+        print("Cannot place more units - global limit reached")
         return nil
     end
 
     local availableUnits, towerMapping = getAvailableUnits()
     local spawnCaps = getAllSpawnCaps()
     local placedCounts = getPlacedUnitCountsBySlot(towerMapping)
-    
-    for _, unit in ipairs(availableUnits) do
-        local towerSlot = "tower" .. unit.serverIdentifier
-        if towerMapping[towerSlot] and spawnCaps[towerSlot] then
-            local spawnCap = spawnCaps[towerSlot] or 0
-            local placedCount = placedCounts[towerSlot] or 0
+    local towerSlots = {"tower1", "tower2", "tower3", "tower4", "tower5", "tower6"}
 
-            if spawnCap > 0 and placedCount < spawnCap and canAffordUnit(unit) then
+    for i, towerSlot in pairs(towerSlots) do
+        local spawnCap = spawnCaps[towerSlot] or 0
+        local placedCount = placedCounts[towerSlot] or 0
+        print("Checking", towerSlot, "Cap:", spawnCap, "Placed:", placedCount)
+
+        if spawnCap > 0 and placedCount < spawnCap then
+            local unit = availableUnits[i]
+            if unit and canAffordUnit(unit) then
+                print("Found affordable unit:", unit.displayName, "for", towerSlot)
                 return {
                     unit = unit,
                     towerSlot = towerSlot,
-                    priority = unit.serverIdentifier
+                    priority = i
                 }
+            else
+                print("Unit", unit and unit.displayName or "nil", "not affordable or nil for", towerSlot)
             end
+        else
+            print(towerSlot, "is at or exceeded cap")
         end
     end
 
+    print("No valid unit to place found")
     return nil
 end
 
