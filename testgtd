@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -646,15 +645,25 @@ local function cleanupInvalidUnits()
     placedUnits = validUnits
 end
 
-local function getPlacedUnitCountsBySlot()
-    local counts = {
-        tower1 = 0, tower2 = 0, tower3 = 0,
-        tower4 = 0, tower5 = 0, tower6 = 0
-    }
+local function getPlacedUnitCountsBySlot(towerMapping)
+    local counts = {}
+    for i = 1, 6 do
+        counts["tower" .. i] = 0
+    end
     
-    for _, unitData in pairs(placedUnits) do
-        if unitData.towerSlot and spawnCaps[unitData.towerSlot] and validateUnitExists(unitData.id) then
-            counts[unitData.towerSlot] = counts[unitData.towerSlot] + 1
+    local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
+    if not entities then
+        return counts
+    end
+    
+    for _, model in ipairs(entities:GetChildren()) do
+        if model:IsA("Model") then
+            local unitName = model.Name -- Assuming model name matches unitName (e.g., "unit_farmer_npc")
+            for towerSlot, mappedUnit in pairs(towerMapping) do
+                if unitName == mappedUnit then
+                    counts[towerSlot] = (counts[towerSlot] or 0) + 1
+                end
+            end
         end
     end
     
@@ -666,22 +675,21 @@ local function getNextUnitToPlace()
         return nil
     end
 
-    local availableUnits = getBestAffordableUnits()
+    local availableUnits, towerMapping = getAvailableUnits()
     local spawnCaps = getAllSpawnCaps()
-    local placedCounts = getPlacedUnitCountsBySlot()
-    local towerSlots = {"tower1", "tower2", "tower3", "tower4", "tower5", "tower6"}
+    local placedCounts = getPlacedUnitCountsBySlot(towerMapping)
+    
+    for _, unit in ipairs(availableUnits) do
+        local towerSlot = "tower" .. unit.serverIdentifier
+        if towerMapping[towerSlot] and spawnCaps[towerSlot] then
+            local spawnCap = spawnCaps[towerSlot] or 0
+            local placedCount = placedCounts[towerSlot] or 0
 
-    for i, towerSlot in pairs(towerSlots) do
-        local spawnCap = spawnCaps[towerSlot] or 0
-        local placedCount = placedCounts[towerSlot] or 0
-
-        if spawnCap > 0 and placedCount < spawnCap and availableUnits[i] then
-            local unit = availableUnits[i]
-            if canAffordUnit(unit) then
+            if spawnCap > 0 and placedCount < spawnCap and canAffordUnit(unit) then
                 return {
                     unit = unit,
                     towerSlot = towerSlot,
-                    priority = i
+                    priority = unit.serverIdentifier
                 }
             end
         end
@@ -721,7 +729,7 @@ local function placeUnit(unitToPlace, position)
             id = result,
             unit = unitToPlace.unit,
             position = position,
-            towerSlot = unitToPlace.towerSlot, -- Ensure this is passed correctly
+            towerSlot = unitToPlace.towerSlot,
             priority = unitToPlace.priority,
             upgradeLevel = 0,
             placedTime = tick()
@@ -837,13 +845,14 @@ local function autoplayPlacementLoop()
         if currentTime - (placementSettings.lastStatusUpdate or 0) > 10 then
             local current = getCurrentUnitCount()
             local max = getMaxUnitCount()
-            local placedCounts = getPlacedUnitCountsBySlot()
+            local _, towerMapping = getAvailableUnits()
+            local placedCounts = getPlacedUnitCountsBySlot(towerMapping)
             local spawnCaps = getAllSpawnCaps()
 
             print(string.format("📊 Autoplay Status: %d/%d total units placed", current, max))
             for slot, cap in pairs(spawnCaps) do
                 local placed = placedCounts[slot] or 0
-                print(string.format("  %s: %d/%d", slot, placed, cap))
+                print(string.format("  %s (%s): %d/%d", slot, towerMapping[slot] or "unknown", placed, cap))
             end
 
             if current >= max then
@@ -999,15 +1008,17 @@ local function getAvailableUnits()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then
         warn("Player backpack not found")
-        return {}
+        return {}, {}
     end
     
     local units = {}
+    local towerMapping = {} -- Map tower slots to unit names based on ServerIdentifier
     
-    for _, tool in pairs(backpack:GetChildren()) do
+    for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") then
             local itemID = tool:GetAttribute("ItemID")
-            if itemID and itemID:match("^tl_unitplacer_") then
+            local serverIdentifier = tool:GetAttribute("ServerIdentifier")
+            if itemID and itemID:match("^tl_unitplacer_") and serverIdentifier then
                 local unitName = extractUnitName(itemID)
                 local config = getUnitConfig(unitName)
                 
@@ -1022,21 +1033,21 @@ local function getAvailableUnits()
                         unitType = config.UnitType,
                         placeable = config.Placeable,
                         config = config.UnitConfig,
-                        -- Quick access to important stats
                         cost = config.UnitConfig.Cost or 0,
                         range = config.UnitConfig.Range or 0,
                         damage = config.UnitConfig.Damage or 0,
                         apm = config.UnitConfig.APM or 0,
-                        upgrades = config.UnitConfig.Upgrades or {}
+                        upgrades = config.UnitConfig.Upgrades or {},
+                        serverIdentifier = serverIdentifier
                     }
-                    
                     table.insert(units, unitData)
+                    towerMapping["tower" .. serverIdentifier] = unitName -- Map towerN to unitName using ServerIdentifier
                 end
             end
         end
     end
     
-    return units
+    return units, towerMapping
 end
 
 local function getTotalUpgradeCost(unitData)
