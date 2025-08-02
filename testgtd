@@ -1,4 +1,3 @@
---ni
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -703,18 +702,9 @@ local function getNextUnitToPlace()
     local spawnCaps = getAllSpawnCaps()
     local placedCounts = getPlacedUnitCountsBySlot(towerMapping)
     
-    -- Try each tower slot from 1 to 6
-    for slotNum = 1, 6 do
-        local towerSlot = "tower" .. slotNum
-        local unit = next(availableUnits) -- Get the first unit, we'll filter by serverIdentifier
-        for _, u in ipairs(availableUnits) do
-            if u.serverIdentifier == slotNum then
-                unit = u
-                break
-            end
-        end
-        
-        if unit and towerMapping[towerSlot] and spawnCaps[towerSlot] then
+    for _, unit in ipairs(availableUnits) do
+        local towerSlot = "tower" .. unit.serverIdentifier
+        if towerMapping[towerSlot] and spawnCaps[towerSlot] then
             local spawnCap = spawnCaps[towerSlot] or 0
             local placedCount = placedCounts[towerSlot] or 0
 
