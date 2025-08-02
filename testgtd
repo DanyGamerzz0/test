@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -91,6 +92,10 @@ local unitDataCache = {}
 local unitConfigCache = {}
 local placedUnitsTracking = {} -- Track units we place and their upgrade levels
 local cashHandlingMode = "wait" -- "wait", "skip", "force"
+
+local function getAllSpawnCaps()
+    return spawnCaps
+end
 
 local function getPlayerCash()
     return LocalPlayer:GetAttribute("Cash") or 0
@@ -1006,10 +1011,6 @@ end
 
 local function getSpawnCap(towerSlot)
     return spawnCaps[towerSlot] or 0
-end
-
-local function getAllSpawnCaps()
-    return spawnCaps
 end
 
 local function updateAutoplaySettings()
