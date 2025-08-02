@@ -1,3 +1,4 @@
+--215126
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -174,23 +175,23 @@ local function getAvailableUnits()
                 local config = getUnitConfig(unitName)
                 
                 if config and config.UnitConfig then
-                    local unitData = {
-                        name = unitName,
-                        displayName = config.Name,
-                        tool = tool,
-                        itemID = itemID,
-                        image = config.Image,
-                        rarity = config.Rarity,
-                        unitType = config.UnitType,
-                        placeable = config.Placeable,
-                        config = config.UnitConfig,
-                        cost = config.UnitConfig.Cost or 0,
-                        range = config.UnitConfig.Range or 0,
-                        damage = config.UnitConfig.Damage or 0,
-                        apm = config.UnitConfig.APM or 0,
-                        upgrades = config.UnitConfig.Upgrades or {},
-                        serverIdentifier = serverIdentifier
-                    }
+local unitData = {
+    name = unitName,
+    displayName = config.Name or config.UnitConfig.Name or unitName, -- Add fallbacks
+    tool = tool,
+    itemID = itemID,
+    image = config.Image,
+    rarity = config.Rarity,
+    unitType = config.UnitType,
+    placeable = config.Placeable,
+    config = config.UnitConfig,
+    cost = config.UnitConfig.Cost or 0,
+    range = config.UnitConfig.Range or 0,
+    damage = config.UnitConfig.Damage or 0,
+    apm = config.UnitConfig.APM or 0,
+    upgrades = config.UnitConfig.Upgrades or {},
+    serverIdentifier = serverIdentifier
+}
                     table.insert(units, unitData)
                     towerMapping["tower" .. serverIdentifier] = unitName -- Map using ServerIdentifier
                    -- print("Mapped:", "tower" .. serverIdentifier, "to", unitName) -- Debug log
@@ -702,24 +703,47 @@ local function getNextUnitToPlace()
     local availableUnits, towerMapping = getAvailableUnits()
     local spawnCaps = getAllSpawnCaps()
     local placedCounts = getPlacedUnitCountsBySlot(towerMapping)
-    local towerSlots = {"tower1", "tower2", "tower3", "tower4", "tower5", "tower6"}
+    
+    -- Debug logging
+    print("=== PLACEMENT DEBUG ===")
+    print("Available units count:", #availableUnits)
+    print("Tower mapping:", HttpService:JSONEncode(towerMapping))
+    print("Spawn caps:", HttpService:JSONEncode(spawnCaps))
+    print("Placed counts:", HttpService:JSONEncode(placedCounts))
 
-    for i, towerSlot in pairs(towerSlots) do
+    -- Try each tower slot in order
+    for i = 1, 6 do
+        local towerSlot = "tower" .. i
         local spawnCap = spawnCaps[towerSlot] or 0
         local placedCount = placedCounts[towerSlot] or 0
-        print("Checking", towerSlot, "Cap:", spawnCap, "Placed:", placedCount)
+        
+        --print(string.format("Checking %s: Cap=%d, Placed=%d", towerSlot, spawnCap, placedCount))
 
         if spawnCap > 0 and placedCount < spawnCap then
-            local unit = availableUnits[i]
-            if unit and canAffordUnit(unit) then
-                print("Found affordable unit:", unit.displayName, "for", towerSlot)
-                return {
-                    unit = unit,
-                    towerSlot = towerSlot,
-                    priority = i
-                }
+            -- Find the unit that corresponds to this tower slot
+            local unitName = towerMapping[towerSlot]
+            if unitName then
+                -- Find the actual unit data for this unit name
+                local targetUnit = nil
+                for _, unit in pairs(availableUnits) do
+                    if unit.name == unitName then
+                        targetUnit = unit
+                        break
+                    end
+                end
+                
+                if targetUnit and canAffordUnit(targetUnit) then
+                    --print("Found affordable unit:", targetUnit.displayName or targetUnit.name, "for", towerSlot)
+                    return {
+                        unit = targetUnit,
+                        towerSlot = towerSlot,
+                        priority = i
+                    }
+                else
+                    print("Unit", unitName, "not affordable or not found for", towerSlot)
+                end
             else
-                print("Unit", unit and unit.displayName or "nil", "not affordable or nil for", towerSlot)
+                print("No unit mapped to", towerSlot)
             end
         else
             print(towerSlot, "is at or exceeded cap")
