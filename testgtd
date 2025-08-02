@@ -1,4 +1,3 @@
---215126
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -115,10 +114,16 @@ local function canAffordUnit(unitData)
 end
 
 local function extractUnitName(itemID)
+    print("DEBUG - extractUnitName input:", itemID, "type:", type(itemID))
+    
     if not itemID or type(itemID) ~= "string" then
+        warn("extractUnitName: Invalid itemID -", tostring(itemID))
         return nil
     end
-    return itemID:gsub("^tl_unitplacer_", "")
+    
+    local unitName = itemID:gsub("^tl_unitplacer_", "")
+    print("DEBUG - extractUnitName output:", unitName)
+    return unitName
 end
 
 local function getUnitConfig(unitName)
@@ -162,45 +167,54 @@ local function getAvailableUnits()
     end
     
     local units = {}
-    local towerMapping = {} -- Initialize as empty table to avoid nil
+    local towerMapping = {}
 
     for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") then
             local itemID = tool:GetAttribute("ItemID")
             local serverIdentifier = tool:GetAttribute("ServerIdentifier")
-           -- print("Tool:", tool.Name, "ItemID:", itemID, "ServerIdentifier:", serverIdentifier) -- Debug log
+            
+            print("DEBUG - Processing tool:", tool.Name)
+            print("  ItemID:", itemID)
+            print("  ServerIdentifier:", serverIdentifier)
             
             if itemID and itemID:match("^tl_unitplacer_") and serverIdentifier then
                 local unitName = extractUnitName(itemID)
                 local config = getUnitConfig(unitName)
                 
                 if config and config.UnitConfig then
-local unitData = {
-    name = unitName,
-    displayName = config.Name or config.UnitConfig.Name or unitName, -- Add fallbacks
-    tool = tool,
-    itemID = itemID,
-    image = config.Image,
-    rarity = config.Rarity,
-    unitType = config.UnitType,
-    placeable = config.Placeable,
-    config = config.UnitConfig,
-    cost = config.UnitConfig.Cost or 0,
-    range = config.UnitConfig.Range or 0,
-    damage = config.UnitConfig.Damage or 0,
-    apm = config.UnitConfig.APM or 0,
-    upgrades = config.UnitConfig.Upgrades or {},
-    serverIdentifier = serverIdentifier
-}
+                    local unitData = {
+                        name = unitName,
+                        displayName = config.Name or config.DisplayName or unitName, -- Try multiple name fields
+                        tool = tool,
+                        itemID = itemID, -- Make sure this is preserved
+                        image = config.Image,
+                        rarity = config.Rarity,
+                        unitType = config.UnitType,
+                        placeable = config.Placeable,
+                        config = config.UnitConfig,
+                        cost = config.UnitConfig.Cost or 0,
+                        range = config.UnitConfig.Range or 0,
+                        damage = config.UnitConfig.Damage or 0,
+                        apm = config.UnitConfig.APM or 0,
+                        upgrades = config.UnitConfig.Upgrades or {},
+                        serverIdentifier = serverIdentifier
+                    }
+                    
+                    print("DEBUG - Created unit data for:", unitName)
+                    print("  displayName:", unitData.displayName)
+                    print("  itemID:", unitData.itemID)
+                    
                     table.insert(units, unitData)
-                    towerMapping["tower" .. serverIdentifier] = unitName -- Map using ServerIdentifier
-                   -- print("Mapped:", "tower" .. serverIdentifier, "to", unitName) -- Debug log
+                    towerMapping["tower" .. serverIdentifier] = unitName
                 end
             end
         end
     end
     
-    --print("Tower Mapping:", table.concat(getTableKeys(towerMapping), ", ")) -- Debug log
+    print("DEBUG - Final units count:", #units)
+    print("DEBUG - Tower mapping:", HttpService:JSONEncode(towerMapping))
+    
     return units, towerMapping
 end
 
@@ -760,14 +774,22 @@ local function placeUnit(unitToPlace, position)
         return false
     end
 
+    -- Debug the unit structure
+    print("DEBUG - unitToPlace.unit structure:")
+    for k, v in pairs(unitToPlace.unit) do
+        print("  ", k, "=", tostring(v))
+    end
+
     local unitName = extractUnitName(unitToPlace.unit.itemID)
     if not unitName then
         warn("Could not extract unit name from ItemID:", unitToPlace.unit.itemID)
         return false
     end
 
+    print("DEBUG - Extracted unit name:", unitName)
+
     local args = {
-        unitName,
+        unitName, -- This should be the clean unit name (e.g., "money_tree")
         {
             Valid = true,
             Rotation = math.random(0, 360),
@@ -775,6 +797,11 @@ local function placeUnit(unitToPlace, position)
             Position = position
         }
     }
+
+    -- Debug the args being passed
+    print("DEBUG - PlaceUnit args:")
+    print("  unitName:", args[1])
+    print("  position:", tostring(args[2].Position))
 
     local success, result = pcall(function()
         return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
@@ -793,7 +820,7 @@ local function placeUnit(unitToPlace, position)
         placedUnits[result] = unitData
 
         print(string.format("✓ Placed %s (ID: %s) at %s - %s [%d/%d total units]", 
-            unitToPlace.unit.displayName, 
+            unitToPlace.unit.displayName or unitToPlace.unit.name, 
             tostring(result), 
             tostring(position), 
             unitToPlace.towerSlot,
@@ -801,7 +828,7 @@ local function placeUnit(unitToPlace, position)
             getMaxUnitCount()))
         return true
     else
-        warn("Failed to place unit:", unitToPlace.unit.displayName, result)
+        warn("Failed to place unit:", unitToPlace.unit.displayName or unitToPlace.unit.name, "Error:", result)
         return false
     end
 end
