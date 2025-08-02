@@ -35,13 +35,9 @@ local State = {
     hasSentWebhook = false,
     SendStageCompletedWebhook = false,
     StageStartTime = 0,
-    autoplayEnabled = false,
 }
 
-local autoplayActive = false
 local placedUnits = {} -- Store placed unit data: {id = unitData, position = Vector3, etc}
-local placementConnection = nil
-local upgradeConnection = nil
 
 local placementSettings = {
     placementDelay = 1, -- Seconds between placements
@@ -607,31 +603,6 @@ local function canPlaceMoreUnits()
     return current < max
 end
 
-
-local function getAutoplayZone()
-    return workspace:FindFirstChild("AutoplayZone")
-end
-
-local function getRandomPlacementPosition()
-    local autoplayZone = getAutoplayZone()
-    if not autoplayZone then
-        warn("Autoplay zone not found! Enable the green rectangle first.")
-        return nil
-    end
-    
-    local size = autoplayZone.Size
-    local position = autoplayZone.Position
-    
-    -- Generate random position within the rectangle bounds
-    local randomX = position.X + (math.random() - 0.5) * (size.X - 2) -- -2 for padding
-    local randomZ = position.Z + (math.random() - 0.5) * (size.Z - 2)
-    
-    -- Use the autoplay zone Y position (it's already on the ground)
-    local randomY = position.Y + (size.Y / 2) + 1 -- Slightly above the zone
-    
-    return Vector3.new(randomX, randomY, randomZ)
-end
-
 local function isPositionTooClose(newPosition)
     for _, unitData in pairs(placedUnits) do
         if unitData.position then
@@ -780,6 +751,8 @@ local function placeUnit(unitToPlace, position)
         return false
     end
 
+    print("DEBUG - About to place unit:", unitName, "at position:", tostring(position))
+
     local args = {
         unitName,
         {
@@ -794,6 +767,8 @@ local function placeUnit(unitToPlace, position)
         return ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
     end)
 
+    print("DEBUG - PlaceUnit result - Success:", success, "Result:", result, "Type:", type(result))
+
     if success and result then
         local unitData = {
             id = result,
@@ -804,9 +779,21 @@ local function placeUnit(unitToPlace, position)
             upgradeLevel = 0,
             placedTime = tick()
         }
+        
+        print("DEBUG - Adding unit to placedUnits with ID:", result)
         placedUnits[result] = unitData
+        
+        print("DEBUG - placedUnits count after adding:", #placedUnits, "actual count:", 0)
+        
+        -- Debug: Print all keys in placedUnits
+        local count = 0
+        for k, v in pairs(placedUnits) do
+            count = count + 1
+            print("DEBUG - placedUnits[" .. tostring(k) .. "] = unit:", v.unit.name)
+        end
+        print("DEBUG - Actual placedUnits count:", count)
 
-        -- IMPORTANT: Also track in placedUnitsTracking for upgrade system
+        -- Track in the other system too
         trackPlacedUnit(position, unitToPlace.unit.name)
 
         print(string.format("✓ Placed %s (ID: %s) at %s - %s [%d/%d total units]", 
@@ -829,11 +816,17 @@ local function getUnitsToUpgrade()
     local unitsToUpgrade = {}
     local playerCash = getPlayerCash()
     
+    -- Fix: Count placedUnits properly
+    local placedUnitsCount = 0
+    for _ in pairs(placedUnits) do
+        placedUnitsCount = placedUnitsCount + 1
+    end
+    
     print("DEBUG - Checking upgrades. Player cash:", playerCash)
-    print("DEBUG - Placed units count:", #placedUnits)
+    print("DEBUG - Placed units count:", placedUnitsCount)
     
     for id, unitData in pairs(placedUnits) do
-        print("DEBUG - Checking unit ID:", id, "Name:", unitData.unit.name)
+        print("DEBUG - Checking unit ID:", id, "Name:", unitData.unit.name or "unknown")
         
         if validateUnitExists(id) then
             local unit = unitData.unit
@@ -844,7 +837,7 @@ local function getUnitsToUpgrade()
             
             if currentLevel < maxLevel then
                 local nextLevel = currentLevel + 1
-                local upgradeCost = getUpgradeCost(unit.name, nextLevel) -- Fix: use unit.name
+                local upgradeCost = getUpgradeCost(unit.name, nextLevel)
                 
                 print("DEBUG - Next level:", nextLevel, "cost:", upgradeCost)
                 
@@ -865,7 +858,8 @@ local function getUnitsToUpgrade()
                 print("DEBUG - Unit already at max level")
             end
         else
-            print("DEBUG - Unit no longer exists:", id)
+            print("DEBUG - Unit no longer exists, removing from tracking:", id)
+            placedUnits[id] = nil
         end
     end
     
@@ -878,6 +872,71 @@ local function getUnitsToUpgrade()
     end)
     
     print("DEBUG - Found", #unitsToUpgrade, "units ready for upgrade")
+    return unitsToUpgrade
+end
+
+local function getAllPlacedUnitsFromWorld()
+    local worldUnits = {}
+    local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
+    
+    if not entities then
+        return worldUnits
+    end
+    
+    for _, model in ipairs(entities:GetChildren()) do
+        if model:IsA("Model") and model:GetAttribute("ID") then
+            local id = model:GetAttribute("ID")
+            local position = model.WorldPivot.Position
+            local unitName = model.Name
+            
+            -- Try to get unit config to determine upgrade info
+            local config = getUnitConfig(unitName)
+            if config and config.UnitConfig then
+                worldUnits[id] = {
+                    id = id,
+                    position = position,
+                    unitName = unitName,
+                    config = config.UnitConfig,
+                    upgrades = config.UnitConfig.Upgrades or {},
+                    currentLevel = 0 -- We can't know the actual level without tracking
+                }
+            end
+        end
+    end
+    
+    return worldUnits
+end
+
+local function getUnitsToUpgradeFromWorld()
+    local worldUnits = getAllPlacedUnitsFromWorld()
+    local unitsToUpgrade = {}
+    local playerCash = getPlayerCash()
+    
+    local count = 0
+    for _ in pairs(worldUnits) do count = count + 1 end
+    print("DEBUG - Found", count, "units in world")
+    
+    for id, unitData in pairs(worldUnits) do
+        local maxLevel = #unitData.upgrades
+        local currentLevel = unitData.currentLevel or 0
+        
+        if currentLevel < maxLevel then
+            local nextLevel = currentLevel + 1
+            local upgradeCost = getUpgradeCost(unitData.unitName, nextLevel)
+            
+            if upgradeCost > 0 and playerCash >= upgradeCost then
+                table.insert(unitsToUpgrade, {
+                    id = id,
+                    unitData = unitData,
+                    upgradeCost = upgradeCost,
+                    currentLevel = currentLevel,
+                    nextLevel = nextLevel,
+                    priority = 1
+                })
+            end
+        end
+    end
+    
     return unitsToUpgrade
 end
 
@@ -928,161 +987,6 @@ local function upgradeUnit(unitToUpgrade)
     end
 end
 
-local function autoplayPlacementLoop()
-    if not autoplayActive then return end
-
-    local currentTime = tick()
-    if currentTime - placementSettings.lastPlacement < placementSettings.placementDelay then
-        return
-    end
-
-    cleanupInvalidUnits()
-    local unitToPlace = getNextUnitToPlace()
-    if not unitToPlace then
-        if currentTime - (placementSettings.lastStatusUpdate or 0) > 10 then
-            local current = getCurrentUnitCount()
-            local max = getMaxUnitCount()
-            local _, towerMapping = getAvailableUnits()
-            local placedCounts = getPlacedUnitCountsBySlot(towerMapping)
-            local spawnCaps = getAllSpawnCaps()
-
-            print(string.format("📊 Autoplay Status: %d/%d total units placed", current, max))
-            for slot, cap in pairs(spawnCaps) do
-                local placed = placedCounts[slot] or 0
-                print(string.format("  %s (%s): %d/%d", slot, towerMapping[slot] or "unknown", placed, cap))
-            end
-
-            if current >= max then
-                print("🛑 Max unit limit reached!")
-            elseif allCapsFull then
-                print("🛑 All spawn caps reached!")
-            else
-                print("💰 Waiting for cash or better units...")
-            end
-
-            placementSettings.lastStatusUpdate = currentTime
-        end
-        return
-    end
-
-    local position = findValidPlacementPosition()
-    if not position then
-        if currentTime - (placementSettings.lastPositionWarning or 0) > 5 then
-            warn("Could not find valid placement position")
-            placementSettings.lastPositionWarning = currentTime
-        end
-        return
-    end
-
-    if placeUnit(unitToPlace, position) then
-        placementSettings.lastPlacement = currentTime
-    end
-end
-
-local function autoplayUpgradeLoop()
-    if not autoplayActive then return end
-    
-    local currentTime = tick()
-    
-    -- Check if enough time has passed since last upgrade
-    if currentTime - placementSettings.lastUpgrade < 0.1 then
-        return
-    end
-    
-    -- Get units that can be upgraded
-    local unitsToUpgrade = getUnitsToUpgrade()
-    if #unitsToUpgrade == 0 then
-        return -- Nothing to upgrade
-    end
-    
-    -- Upgrade the highest priority unit
-    local unitToUpgrade = unitsToUpgrade[1]
-    if upgradeUnit(unitToUpgrade) then
-        placementSettings.lastUpgrade = currentTime
-         print("DEBUG - Upgrade successful!")
-    end
-end
-local function startAutoplay()
-    if autoplayActive then
-        print("Autoplay is already running!")
-        return
-    end
-    
-    -- Check if required dependencies are available
-    if not getAutoplayZone() then
-        warn("Autoplay zone not found! Enable the green rectangle first.")
-        return
-    end
-    
-    autoplayActive = true
-    
-    -- Connect the loops
-    placementConnection = RunService.Heartbeat:Connect(autoplayPlacementLoop)
-    upgradeConnection = RunService.Heartbeat:Connect(autoplayUpgradeLoop)
-    
-    print("🤖 AUTOPLAY STARTED!")
-    print("Placing units in priority order with spawn caps:")
-    local spawnCaps = getAllSpawnCaps()  -- Removed _G.TowerSliders.
-    for i = 1, 6 do
-        local towerSlot = "tower" .. i
-        print(string.format("  %s: %d units max", towerSlot, spawnCaps[towerSlot]))
-    end
-end
-
-local function stopAutoplay()
-    if not autoplayActive then
-        print("Autoplay is not running!")
-        return
-    end
-    
-    autoplayActive = false
-    
-    -- Disconnect loops
-    if placementConnection then
-        placementConnection:Disconnect()
-        placementConnection = nil
-    end
-    
-    if upgradeConnection then
-        upgradeConnection:Disconnect()
-        upgradeConnection = nil
-    end
-    
-    print("🛑 AUTOPLAY STOPPED!")
-end
-
-local function getAutoplayStatus()
-    cleanupInvalidUnits()
-    
-    local current = getCurrentUnitCount()
-    local max = getMaxUnitCount()
-    local placedCounts = getPlacedUnitCountsBySlot()
-    local spawnCaps = getAllSpawnCaps()  -- Removed _G.TowerSliders.
-    
-    local status = {
-        active = autoplayActive,
-        currentUnits = current,
-        maxUnits = max,
-        placedUnits = #placedUnits,
-        playerCash = getPlayerCash(),  -- Removed _G.UnitSystem and
-        placedCounts = placedCounts
-    }
-    
-    print("=== AUTOPLAY STATUS ===")
-    print("Active:", status.active)
-    print("Player Cash:", status.playerCash)
-    print(string.format("Total Units: %d/%d (Game Limit)", current, max))
-    print("Tracked Units:", #placedUnits)
-    print("Units by Tower Slot:")
-    for towerSlot, count in pairs(placedCounts) do
-        local cap = spawnCaps[towerSlot] or 0
-        print(string.format("  %s: %d/%d", towerSlot, count, cap))
-    end
-    print("=======================")
-    
-    return status
-end
-
 -- Clear placed units data (for reset)
 local function clearPlacedUnits()
     placedUnits = {}
@@ -1091,15 +995,6 @@ end
 
 local function getSpawnCap(towerSlot)
     return spawnCaps[towerSlot] or 0
-end
-
-local function updateAutoplaySettings()
-    -- This will be called whenever a spawn cap changes
-    -- You can add logic here to update your autoplay system
-    print("Autoplay settings updated:")
-    for tower, cap in pairs(spawnCaps) do
-        print(string.format("  %s: %d", tower, cap))
-    end
 end
 
 local function getTotalUpgradeCost(unitData)
@@ -1224,190 +1119,6 @@ local function getEnemySpawnPoint()
     end
 end
 
-local function findGroundPosition(startPosition)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {rectangle} -- Don't hit our own rectangle
-    
-    -- Cast ray downward
-    local rayDirection = Vector3.new(0, -config.raycastDistance, 0)
-    local raycastResult = workspace:Raycast(startPosition, rayDirection, raycastParams)
-    
-    if raycastResult then
-        -- Position the rectangle slightly above the ground
-        return raycastResult.Position + Vector3.new(0, config.height/2, 0)
-    else
-        -- Fallback: use original position if no ground found
-        warn("No ground found, using spawn position")
-        return startPosition
-    end
-end
-
-local function createRectangle()
-    if rectangle then
-        rectangle:Destroy()
-    end
-    
-    local spawnPoint = getEnemySpawnPoint()
-    if not spawnPoint then
-        return nil
-    end
-    
-    -- Calculate position with offset
-    local targetPosition = spawnPoint.Position + config.offsetFromSpawn
-    
-    -- Raycast to find ground
-    local groundPosition = findGroundPosition(targetPosition)
-    
-    -- Create the part
-    rectangle = Instance.new("Part")
-    rectangle.Name = "AutoplayZone"
-    rectangle.Size = Vector3.new(config.width, config.height, config.length)
-    rectangle.Material = config.material
-    rectangle.BrickColor = BrickColor.new("Bright green")
-    rectangle.Color = config.color
-    rectangle.Transparency = config.transparency
-    rectangle.CanCollide = config.canCollide
-    rectangle.Anchored = true
-    rectangle.Shape = Enum.PartType.Block
-    
-    -- Position it on the ground
-    rectangle.Position = groundPosition
-    
-    -- Add selection box for better visibility
-    local selectionBox = Instance.new("SelectionBox")
-    selectionBox.Adornee = rectangle
-    selectionBox.Color3 = Color3.fromRGB(0, 200, 0)
-    selectionBox.LineThickness = 0.15
-    selectionBox.Transparency = 0.2
-    selectionBox.Parent = rectangle
-    
-    -- Add a subtle glow effect
-    local pointLight = Instance.new("PointLight")
-    pointLight.Color = config.color
-    pointLight.Brightness = 0.5
-    pointLight.Range = config.width
-    pointLight.Parent = rectangle
-    
-    rectangle.Parent = workspace
-    
-    return rectangle
-end
-
-local function toggleRectangle()
-    if rectangleEnabled then
-        print("3D Autoplay zone enabled")
-        rectangle = createRectangle()
-        if rectangle then
-            print("Rectangle created at position:", rectangle.Position)
-            print("Rectangle size:", rectangle.Size)
-        end
-    else
-        print("3D Autoplay zone disabled")
-        if rectangle then
-            rectangle:Destroy()
-            rectangle = nil
-        end
-    end
-end
-
-local function setSize(width, length)
-    config.width = width
-    config.length = length
-    if rectangleEnabled and rectangle then
-        rectangle.Size = Vector3.new(config.width, config.height, config.length)
-        -- Update light range too
-        local light = rectangle:FindFirstChild("PointLight")
-        if light then
-            light.Range = config.width
-        end
-    end
-    print("Rectangle size set to:", width, "x", length)
-end
-
-local function setHeight(height)
-    config.height = height
-    if rectangleEnabled and rectangle then
-        rectangle.Size = Vector3.new(config.width, config.height, config.length)
-        -- Reposition to stay on ground
-        local spawnPoint = getEnemySpawnPoint()
-        if spawnPoint then
-            local targetPosition = spawnPoint.Position + config.offsetFromSpawn
-            local groundPosition = findGroundPosition(targetPosition)
-            rectangle.Position = groundPosition
-        end
-    end
-    print("Rectangle height set to:", height)
-end
-
-local function setOffset(x, y, z)
-    config.offsetFromSpawn = Vector3.new(x, y, z)
-    if rectangleEnabled and rectangle then
-        local spawnPoint = getEnemySpawnPoint()
-        if spawnPoint then
-            local targetPosition = spawnPoint.Position + config.offsetFromSpawn
-            local groundPosition = findGroundPosition(targetPosition)
-            rectangle.Position = groundPosition
-        end
-    end
-    print("Offset set to:", x, ",", y, ",", z)
-end
-
-local function setTransparency(transparency)
-    config.transparency = math.clamp(transparency, 0, 1)
-    if rectangleEnabled and rectangle then
-        rectangle.Transparency = config.transparency
-    end
-    print("Transparency set to:", config.transparency)
-end
-
-local function setColor(r, g, b)
-    config.color = Color3.fromRGB(r, g, b)
-    if rectangleEnabled and rectangle then
-        rectangle.Color = config.color
-        local light = rectangle:FindFirstChild("PointLight")
-        if light then
-            light.Color = config.color
-        end
-    end
-    print("Color set to RGB:", r, g, b)
-end
-
-local function setMaterial(material)
-    config.material = material
-    if rectangleEnabled and rectangle then
-        rectangle.Material = config.material
-    end
-    print("Material set to:", material.Name)
-end
-
-local function repositionOnGround()
-    if rectangleEnabled and rectangle then
-        local spawnPoint = getEnemySpawnPoint()
-        if spawnPoint then
-            local targetPosition = spawnPoint.Position + config.offsetFromSpawn
-            local groundPosition = findGroundPosition(targetPosition)
-            rectangle.Position = groundPosition
-            print("Rectangle repositioned to:", groundPosition)
-        end
-    else
-        print("No rectangle to reposition")
-    end
-end
-
-local function setToggleKey(keyCode)
-    config.toggleKey = keyCode
-    print("Toggle key set to:", keyCode.Name)
-end
-
-task.spawn(function()
-    while true do
-        wait(15)
-        if autoplayActive then
-            cleanupInvalidUnits()
-        end
-    end
-end)
 
 local function sendWebhook(messageType, rewards, clearTime)
     if not ValidWebhook then return end
@@ -1916,7 +1627,7 @@ local Window = Rayfield:CreateWindow({
    Name = "LixHub - Garden Tower Defense",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Garden Tower Defense",
-   LoadingSubtitle = "v0.0.1",
+   LoadingSubtitle = "v0.0.2",
    ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
@@ -1992,7 +1703,6 @@ local Window = Rayfield:CreateWindow({
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local MacroTab = Window:CreateTab("Macro", "tv")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
-local AutoplayTab = Window:CreateTab("Autoplay", "joystick")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
    Toggle = JoinerTab:CreateToggle({
@@ -2433,128 +2143,7 @@ end)
 
 local placingCooldown = false
 
-local Toggle = AutoplayTab:CreateToggle({
-    Name = "Autoplay",
-    CurrentValue = false,
-    Flag = "AutoplayToggle",
-    Callback = function(Value)
-        if Value then
-            startAutoplay()
-        end
-    end,
-})
 
-local Toggle = AutoplayTab:CreateToggle({
-	Name = "Show Placement Area",
-	CurrentValue = false,
-	Flag = "PlacementAreaToggle",
-	Callback = function(Value)
-        rectangleEnabled = Value
-            toggleRectangle()
-	end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Zone Width",
-   Range = {1, 100},
-   Increment = 1,
-   Suffix = "studs",
-   CurrentValue = 10,
-   Flag = "ZoneWidthSlider",
-   Callback = function(Value)
-        config.width = Value
-   end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Zone length",
-   Range = {1, 100},
-   Increment = 1,
-   Suffix = "studs",
-   CurrentValue = 10,
-   Flag = "ZoneLengthSlider",
-   Callback = function(Value)
-        config.length = Value
-   end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Tower 1 Spawn Cap",
-   Range = {0, 20},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 5,
-   Flag = "Tower1SpawnCap",
-   Callback = function(Value)
-      spawnCaps.tower1 = Value
-      updateAutoplaySettings()
-   end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Tower 2 Spawn Cap",
-   Range = {0, 20},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 5,
-   Flag = "Tower2SpawnCap",
-   Callback = function(Value)
-      spawnCaps.tower2 = Value
-      updateAutoplaySettings()
-   end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Tower 3 Spawn Cap",
-   Range = {0, 20},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 5,
-   Flag = "Tower3SpawnCap",
-   Callback = function(Value)
-      spawnCaps.tower3 = Value
-      updateAutoplaySettings()
-   end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Tower 4 Spawn Cap",
-   Range = {0, 20},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 5,
-   Flag = "Tower4SpawnCap",
-   Callback = function(Value)
-      spawnCaps.tower4 = Value
-      updateAutoplaySettings()
-   end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Tower 5 Spawn Cap",
-   Range = {0, 20},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 5,
-   Flag = "Tower5SpawnCap",
-   Callback = function(Value)
-      spawnCaps.tower5 = Value
-      updateAutoplaySettings()
-   end,
-})
-
-local Slider = AutoplayTab:CreateSlider({
-   Name = "Tower 6 Spawn Cap",
-   Range = {0, 20},
-   Increment = 1,
-   Suffix = "x",
-   CurrentValue = 5,
-   Flag = "Tower6SpawnCap",
-   Callback = function(Value)
-      spawnCaps.tower6 = Value
-      updateAutoplaySettings()
-   end,
-})
 
 local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
@@ -2641,12 +2230,6 @@ ShowGameEnd.OnClientEvent:Connect(function()
             end)
         end
     end
-    
-    -- Handle autoplay
-    if autoplayActive then
-        clearPlacedUnits()
-    end
-    
     isPlayingLoopRunning = false
 end)
 
