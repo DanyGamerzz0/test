@@ -1413,12 +1413,14 @@ local function checkAndExecuteHighestPriority()
         return
     end
 
-    if State.autoDungeonEnabled and State.AutoDungeonDifficultySelector ~= "" then
+    if State.autoDungeonEnabled and State.AutoDungeonDifficultySelector and State.AutoDungeonDifficultySelector ~= "" then
         setProcessingState("Dungeon Auto Join")
 
         handleTeamEquipping("Dungeon")
         print(State.AutoDungeonDifficultySelector)
-        Remotes.PlayEvent:FireServer("Dungeon",{Difficulty = tostring(State.AutoDungeonDifficultySelector)})
+        local args = {"Dungeon",{Difficulty = State.AutoDungeonDifficultySelector}}
+        print(State.AutoDungeonDifficultySelector)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer(unpack(args))
 
         task.delay(5, clearProcessingState)
         return
