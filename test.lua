@@ -93,6 +93,7 @@ local State = {
     autoBossAttackEnabled = false,
     autoReturnBossTicketResetEnabled = false,
     autoInfinityCastleEnabled = false,
+    autoRiftEnabled = false,
     autoUpgradeEnabled = false,
     autoAfkTeleportEnabled = false,
     AutoUltimateEnabled = false,
@@ -106,6 +107,7 @@ local State = {
     AutoCurseEnabled = false,
     enableDeleteMap = false,
     autoBossRushEnabled = false,
+    autoDungeonEnabled = false,
     autoPlayBossRushEnabled = false,
     AutoSelectSpeed = false,
     AutoReDeployEnabled = false,
@@ -172,10 +174,10 @@ local ValidWebhook
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "LixHub - [🩸TYBW 2 + QOL ] Anime Rangers X",
+   Name = "LixHub - [⚔️ SAO] Anime Rangers X",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Anime Rangers X",
-   LoadingSubtitle = "v0.0.7",
+   LoadingSubtitle = "v0.0.8",
    ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
@@ -741,7 +743,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                     shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
                     { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
                 },
-                footer = { text = "discord.gg/lixhub • Enhanced Tracking" },
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
             }}
         }
@@ -1126,6 +1128,10 @@ local function setProcessingState(action)
             notify("🔄 Processing: ", action)
             elseif action == "Infinity Castle Auto Join" then
             notify("🔄 Processing: ", action)
+            elseif action == "Dungeon Auto Join" then
+            notify("🔄 Processing: ", action)
+            elseif action == "Rift Auto Join" then
+            notify("🔄 Processing: ", action)
     end
 end
 
@@ -1388,12 +1394,40 @@ local function checkAndExecuteHighestPriority()
     if State.autoJoinInfinityCastleEnabled then
         setProcessingState("Infinity Castle Auto Join")
 
+        handleTeamEquipping("InfCastle")
+
         local CastleFloor = getHighestNumberFromNames(Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].InfinityCastleRewards)
 
         Remotes.PlayEvent:FireServer("Infinity-Castle",{Floor = CastleFloor + 1})
         task.delay(5, clearProcessingState)
         return
     end
+
+    if State.autoDungeonEnabled and State.AutoDungeonDifficultySelector ~= "" then
+        setProcessingState("Dungeon Auto Join")
+
+        handleTeamEquipping("Dungeon")
+
+        Remotes.PlayEvent:FireServer("Dungeon",{Difficulty = tostring(State.AutoDungeonDifficultySelector)})
+
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoRiftEnabled then
+        setProcessingState("Rift Auto Join")
+
+        handleTeamEquipping("RiftStorm")
+
+        Remotes.PlayEvent:FireServer("RiftStorm")
+        task.wait(1)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+
+
+        task.delay(5, clearProcessingState)
+        return
+    end
+
     -- Priority 5: Story Auto Join
     if State.autoJoinEnabled and State.selectedWorld and State.selectedChapter and State.selectedDifficulty then
         setProcessingState("Story Auto Join")
@@ -3261,6 +3295,39 @@ task.spawn(function()
 
     local Label2 = JoinerTab:CreateLabel("Boss Ticket(s): ", "ticket")
 
+    local JoinerSectionDungeons = JoinerTab:CreateSection("🌀 Rifts 🌀")
+
+    local Toggle = JoinerTab:CreateToggle({
+    Name = "Rift Joiner",
+    CurrentValue = false,
+    Flag = "AutoRiftToggle",
+    Callback = function(Value)
+        State.autoRiftEnabled = Value
+    end,
+    })
+
+    local JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Dungeons ⛓️")
+
+    local Toggle = JoinerTab:CreateToggle({
+    Name = "Dungeon Joiner",
+    CurrentValue = false,
+    Flag = "AutoDungeonToggle",
+    Callback = function(Value)
+        State.autoDungeonEnabled = Value
+    end,
+    })
+
+   local Dropdown = GameTab:CreateDropdown({
+   Name = "Select Dungeon Difficulty",
+   Options = {"Easy","Normal","Hell"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "AutoDungeonDifficultySelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Option)
+        State.AutoDungeonDifficultySelector = Option
+   end,
+})
+
     local JoinerSection6 = JoinerTab:CreateSection("🏰 Infinity Castle 🏰")
 
     local Toggle = JoinerTab:CreateToggle({
@@ -3409,7 +3476,7 @@ end)
 
      TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 1",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector1",
@@ -3420,7 +3487,7 @@ end)
 
       TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 2",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector2",
@@ -3431,7 +3498,7 @@ end)
 
       TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 3",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector3",
@@ -3442,7 +3509,7 @@ end)
 
     TeamSelectorDropdown4 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 4",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector4",
@@ -3453,7 +3520,7 @@ end)
 
     TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 5",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector5",
