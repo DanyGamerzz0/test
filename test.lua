@@ -1418,8 +1418,8 @@ local function checkAndExecuteHighestPriority()
 
         handleTeamEquipping("Dungeon")
         print(State.AutoDungeonDifficultySelector)
-        local args = {"Dungeon",{Difficulty = State.AutoDungeonDifficultySelector}}
-        print(State.AutoDungeonDifficultySelector)
+        local args = {"Dungeon",{Difficulty = State.AutoDungeonDifficultySelector[1]}}
+        print(State.AutoDungeonDifficultySelector[1])
         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer(unpack(args))
 
         task.delay(5, clearProcessingState)
