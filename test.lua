@@ -70,6 +70,7 @@ local State = {
     selectedCurses = {},
     selectedRaidStages = {},
     AutoSellUnitChoice = {},
+    AutoDungeonDifficultySelector = {},
     DelayAutoUltimate = 0,
     
     autoBossEventEnabled = false,
@@ -3317,7 +3318,7 @@ task.spawn(function()
     end,
     })
 
-   local Dropdown = GameTab:CreateDropdown({
+   local Dropdown = JoinerTab:CreateDropdown({
    Name = "Select Dungeon Difficulty",
    Options = {"Easy","Normal","Hell"},
    CurrentOption = {},
