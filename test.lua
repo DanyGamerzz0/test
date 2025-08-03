@@ -17,6 +17,7 @@ do
     Remotes.Merchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("Merchant")
     Remotes.RaidMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("Raid_Shop")
     Remotes.RaidMerchantCSW = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RaidCSW_Shop")
+    Remotes.RiftMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RiftStormExchange")
     Remotes.BossRushMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("BossRushExchange")
     Remotes.PlayEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event")
     Remotes.SettingEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Settings"):WaitForChild("Setting_Event")
@@ -51,6 +52,7 @@ local Config = {
 }
 
 local State = {
+    AutoPurchaseRiftStorm = false,
     pendingChallengeReturn = false,
     hasSentWebhook = false,
     portalUsed = false,
@@ -157,6 +159,7 @@ local Data = {
     BossRushPurchaseTable = {},
     RaidPurchaseTable = {},
     RaidPurchaseTableCSW = {},
+    RiftStormPurchaseTable = {},
     rangerStages = {},
     wantedRewards = {},
     capturedRewards = {},
@@ -270,7 +273,7 @@ local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ Auto Join RiftStorm, + Auto Join Dungeon, + Auto Purchase Graveyard Shop, + Select mode for team 4 & 5, + Fixed Bugs")
+local Label1 = UpdateLogTab:CreateLabel("+ Auto Join RiftStorm, + Auto Join Dungeon, + Auto Purchase Graveyard Shop, + Auto Purchase Rift Shop, + Select mode for team 4 & 5, + Fixed Bugs")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
@@ -984,6 +987,9 @@ local function getPlayerCurrency()
     local raidCSMValue = playerData:FindFirstChild("CSW Raid Currency")
     if raidCSMValue then currencies["CSW Raid Currency"] = raidCSMValue.Value end
 
+    local riftStormValue = playerData:FindFirstChild("RiftStormCurrency")
+    if riftStormValue then currencies["RiftStormCurrency"] = riftStormValue.Value end
+
     return currencies
 end
 
@@ -1011,6 +1017,9 @@ local function purchaseItem(itemName, quantity, folderName)
         end
         if folderName == "RaidCSW_Shop" then
             Remotes.RaidMerchantCSW:FireServer(itemName, quantity)
+        end
+        if folderName == "Rift_Storm" then
+            Remotes.RiftMerchant:FireServer(itemName, quantity)
         end
     end)
 end
@@ -2509,6 +2518,9 @@ end)
             if State.AutoPurchaseRaidCSW and #Data.RaidPurchaseTableCSW > 0 then
                 autoPurchaseItems(State.AutoPurchaseRaidCSW, Data.RaidPurchaseTableCSW, "RaidCSW_Shop", "Graveyard Raid Shop")
             end
+            if State.AutoPurchaseRiftStorm and #Data.RiftStormPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseRiftStorm, Data.RiftStormPurchaseTable, "Rift_Storm", "Rift Storm Shop")
+            end
             task.wait(1)
         end
     end)
@@ -2722,6 +2734,26 @@ local Toggle = ShopTab:CreateToggle({
     Flag = "RaidPurchaseSelectorCSW",
     Callback = function(Options)
         Data.RaidPurchaseTableCSW = Options
+    end,
+    })
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Rift Storm Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRiftStorm",
+    Callback = function(Value)
+        State.AutoPurchaseRiftStorm = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Rift Storm Shop)",
+    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Ranger Crystal"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RiftStormPurchaseSelector",
+    Callback = function(Options)
+        Data.RiftStormPurchaseTable = Options
     end,
     })
 
