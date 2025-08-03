@@ -70,7 +70,7 @@ local State = {
     selectedCurses = {},
     selectedRaidStages = {},
     AutoSellUnitChoice = {},
-    AutoDungeonDifficultySelector = {},
+    AutoDungeonDifficultySelector = "",
     DelayAutoUltimate = 0,
     
     autoBossEventEnabled = false,
@@ -263,14 +263,14 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection("23/07/2025")
+local UpdateLogSection = UpdateLogTab:CreateSection("03/08/2025")
 local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 
 --//DIVIDERS\\--
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ Auto Deploy - Boss Rush (experimental), + auto sell selected unit (passive stacking), + delay ult usage by x seconds, + (potentially) better auto ultimate, + anti afk (20min idle)")
+local Label1 = UpdateLogTab:CreateLabel("+ Auto Join RiftStorm, + Auto Join Dungeon, + Auto Purchase Graveyard Shop, + Select mode for team 4 & 5, + Fixed Bugs")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
@@ -1408,7 +1408,7 @@ local function checkAndExecuteHighestPriority()
         setProcessingState("Dungeon Auto Join")
 
         handleTeamEquipping("Dungeon")
-
+        print(State.AutoDungeonDifficultySelector)
         Remotes.PlayEvent:FireServer("Dungeon",{Difficulty = tostring(State.AutoDungeonDifficultySelector)})
 
         task.delay(5, clearProcessingState)
