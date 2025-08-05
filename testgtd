@@ -1,5 +1,5 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
@@ -2239,7 +2239,7 @@ elseif not Value then
 	end,
 })
 
---[[local Button = MacroTab:CreateButton({
+local Button = MacroTab:CreateButton({
    Name = "Export Selected Macro",
    Callback = function()
    if not currentMacroName or currentMacroName == "" then
@@ -2303,7 +2303,7 @@ local Button = MacroTab:CreateButton({
         
         importMacroFromURL(pendingImportURL, pendingMacroName)
    end,
-})--]]
+})
 
 local function setPlaybackMode(mode)
     if mode == "timing" or mode == "wave" or mode == "both" then
@@ -2324,7 +2324,7 @@ end
         local mode = type(selected) == "table" and selected[1] or selected
         setPlaybackMode(mode)
     end,
-})--]]3
+})--]]
 
 local Toggle = GameTab:CreateToggle({
    Name = "Auto Retry",
