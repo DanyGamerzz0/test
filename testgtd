@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -774,8 +775,20 @@ local function importMacroFromURL(url, targetMacroName)
     -- Import the macro
     macroManager[targetMacroName] = deserializedActions
     
-    -- Save to file manually since saveMacroToFile might not work here
+    -- Save to file manually with inline filename generation
     local success, err = pcall(function()
+        -- Ensure folders exist
+        if not isfolder("LixHub") then
+            makefolder("LixHub")
+        end
+        if not isfolder("LixHub/Macros") then
+            makefolder("LixHub/Macros")
+        end
+        if not isfolder("LixHub/Macros/GTD") then
+            makefolder("LixHub/Macros/GTD")
+        end
+        
+        -- Serialize the data
         local serializedData = {}
         for _, action in ipairs(deserializedActions) do
             local newAction = table.clone(action)
@@ -788,11 +801,10 @@ local function importMacroFromURL(url, targetMacroName)
             table.insert(serializedData, newAction)
         end
         
+        -- Create filename directly
+        local filename = "LixHub/Macros/GTD/" .. targetMacroName .. ".json"
         local json = HttpService:JSONEncode(serializedData)
-        local filename = getMacroFilename(targetMacroName)
-        if filename then
-            writefile(filename, json)
-        end
+        writefile(filename, json)
     end)
     
     if not success then
@@ -895,8 +907,20 @@ local function importMacroFromClipboard(targetMacroName)
     -- Import the macro
     macroManager[targetMacroName] = deserializedActions
     
-    -- Save to file manually since saveMacroToFile might not work here
+    -- Save to file manually with inline filename generation
     local success, err = pcall(function()
+        -- Ensure folders exist
+        if not isfolder("LixHub") then
+            makefolder("LixHub")
+        end
+        if not isfolder("LixHub/Macros") then
+            makefolder("LixHub/Macros")
+        end
+        if not isfolder("LixHub/Macros/GTD") then
+            makefolder("LixHub/Macros/GTD")
+        end
+        
+        -- Serialize the data
         local serializedData = {}
         for _, action in ipairs(deserializedActions) do
             local newAction = table.clone(action)
@@ -909,11 +933,10 @@ local function importMacroFromClipboard(targetMacroName)
             table.insert(serializedData, newAction)
         end
         
+        -- Create filename directly
+        local filename = "LixHub/Macros/GTD/" .. targetMacroName .. ".json"
         local json = HttpService:JSONEncode(serializedData)
-        local filename = getMacroFilename(targetMacroName)
-        if filename then
-            writefile(filename, json)
-        end
+        writefile(filename, json)
     end)
     
     if not success then
@@ -2306,7 +2329,7 @@ local ImportURLInput = MacroTab:CreateInput({
     Name = "Import URL (Discord/Pastebin/etc)",
     CurrentValue = "",
     PlaceholderText = "Paste download URL here...",
-    RemoveTextAfterFocusLost = false,
+    RemoveTextAfterFocusLost = true,
     Flag = "ImportURLInput",
     Callback = function(text)
         pendingImportURL = text
