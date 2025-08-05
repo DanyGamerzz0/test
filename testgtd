@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -73,6 +74,8 @@ local spawnCaps = {
 }
 
 -- Move this section up, right after all your function definitions
+
+local pendingImportURL = ""
 
 local rectangle = nil
 local rectangleEnabled = false
@@ -588,6 +591,270 @@ local function shouldExecuteAction(action, currentTime, currentWave, currentWave
     
     return false
 end
+
+local function exportMacroToClipboard(macroName)
+    if not macroName or macroName == "" then
+        Rayfield:Notify({
+            Title = "Export Error",
+            Content = "No macro selected for export.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    local macroData = macroManager[macroName]
+    if not macroData or #macroData == 0 then
+        Rayfield:Notify({
+            Title = "Export Error", 
+            Content = "Macro '" .. macroName .. "' is empty or doesn't exist.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Create export data with metadata
+    local exportData = {
+        version = "1.0",
+        macroName = macroName,
+        actionCount = #macroData,
+        exportTime = os.time(),
+        actions = {}
+    }
+    
+    -- Serialize the macro data
+    for _, action in ipairs(macroData) do
+        local serializedAction = table.clone(action)
+        if serializedAction.position then
+            serializedAction.position = serializeVector3(serializedAction.position)
+        end
+        if serializedAction.cframe then
+            serializedAction.cframe = serializeCFrame(serializedAction.cframe)
+        end
+        table.insert(exportData.actions, serializedAction)
+    end
+    
+    local jsonData = HttpService:JSONEncode(exportData)
+    
+    -- Copy to clipboard
+    local success, err = pcall(function()
+        setclipboard(jsonData)
+    end)
+    
+    if success then
+        Rayfield:Notify({
+            Title = "Export Success",
+            Content = "Macro '" .. macroName .. "' copied to clipboard! (" .. #macroData .. " actions)",
+            Duration = 4
+        })
+        return true
+    else
+        Rayfield:Notify({
+            Title = "Export Error",
+            Content = "Failed to copy to clipboard: " .. tostring(err),
+            Duration = 4
+        })
+        return false
+    end
+end
+
+local function importMacroFromURL(url, targetMacroName)
+    if not url or url == "" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "No URL provided for import.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    if not targetMacroName or targetMacroName == "" then
+        Rayfield:Notify({
+            Title = "Import Error", 
+            Content = "No target macro name specified.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Check if target macro already exists and has data
+    if macroManager[targetMacroName] and #macroManager[targetMacroName] > 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    Rayfield:Notify({
+        Title = "Importing...",
+        Content = "Downloading macro from URL...",
+        Duration = 2
+    })
+    
+    -- Try to fetch the URL content
+    local success, result = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Failed to download from URL: " .. tostring(result),
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Try to parse the JSON
+    local importData
+    success, importData = pcall(function()
+        return HttpService:JSONDecode(result)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid JSON data in downloaded file.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Validate import data structure
+    if not importData.actions or type(importData.actions) ~= "table" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid macro format - missing actions.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Deserialize the macro data
+    local deserializedActions = {}
+    for _, action in ipairs(importData.actions) do
+        local newAction = table.clone(action)
+        if newAction.position then
+            newAction.position = deserializeVector3(newAction.position)
+        end
+        if newAction.cframe then
+            newAction.cframe = deserializeCFrame(newAction.cframe)
+        end
+        table.insert(deserializedActions, newAction)
+    end
+    
+    -- Import the macro
+    macroManager[targetMacroName] = deserializedActions
+    saveMacroToFile(targetMacroName)
+    refreshMacroDropdown()
+    
+    Rayfield:Notify({
+        Title = "Import Success",
+        Content = "Imported '" .. (importData.macroName or "Unknown") .. "' to '" .. targetMacroName .. "' (" .. #deserializedActions .. " actions)",
+        Duration = 4
+    })
+    
+    return true
+end
+
+local function importMacroFromClipboard(targetMacroName)
+    if not targetMacroName or targetMacroName == "" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "No target macro name specified.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Check if target macro already exists and has data
+    if macroManager[targetMacroName] and #macroManager[targetMacroName] > 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Get clipboard content
+    local clipboardContent
+    local success, err = pcall(function()
+        clipboardContent = getclipboard()
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Failed to read clipboard: " .. tostring(err),
+            Duration = 4
+        })
+        return false
+    end
+    
+    if not clipboardContent or clipboardContent == "" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Clipboard is empty.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Try to parse the JSON
+    local importData
+    success, importData = pcall(function()
+        return HttpService:JSONDecode(clipboardContent)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid JSON data in clipboard.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Validate import data structure
+    if not importData.actions or type(importData.actions) ~= "table" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid macro format - missing actions.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Deserialize the macro data
+    local deserializedActions = {}
+    for _, action in ipairs(importData.actions) do
+        local newAction = table.clone(action)
+        if newAction.position then
+            newAction.position = deserializeVector3(newAction.position)
+        end
+        if newAction.cframe then
+            newAction.cframe = deserializeCFrame(newAction.cframe)
+        end
+        table.insert(deserializedActions, newAction)
+    end
+    
+    -- Import the macro
+    macroManager[targetMacroName] = deserializedActions
+    saveMacroToFile(targetMacroName)
+    refreshMacroDropdown()
+    
+    Rayfield:Notify({
+        Title = "Import Success", 
+        Content = "Imported '" .. (importData.macroName or "Unknown") .. "' to '" .. targetMacroName .. "' (" .. #deserializedActions .. " actions)",
+        Duration = 4
+    })
+    
+    return true
+end
+
+
 
 local function getCurrentUnitCount()
     return LocalPlayer:GetAttribute("UnitsPlaced") or 0
@@ -1700,51 +1967,9 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
-local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local MacroTab = Window:CreateTab("Macro", "tv")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
-
-   Toggle = JoinerTab:CreateToggle({
-    Name = "Enable Auto Join",
-    CurrentValue = false,
-    Flag = "EnableAutoJoin",
-    Callback = function(Value)
-        State.AutoJoinEnabled = Value
-    end,
-    })
-
-local JoinerSelector = JoinerTab:CreateDropdown({
-   Name = "Select Stage To Join",
-   Options = {"Garden","Enchanted Jungle","Tropical Island","Toxic Facility"},
-   CurrentOption = {},
-   MultipleOptions = false,
-   Flag = "StageJoinSelector",
-Callback = function(selected)
-
-   end,
-})
-
-   Toggle = JoinerTab:CreateToggle({
-    Name = "Enable Auto Join (Endless)",
-    CurrentValue = false,
-    Flag = "EnableAutoJoinEndless",
-    Callback = function(Value)
-        State.AutoJoinEndlessEnabled = Value
-    end,
-    })
-
-local JoinerSelector = JoinerTab:CreateDropdown({
-   Name = "Select Stage To Join (Endless)",
-   Options = {"Garden","Enchanted Jungle","Tropical Island","Toxic Facility"},
-   CurrentOption = {},
-   MultipleOptions = false,
-   Flag = "StageJoinSelectorEndless",
-Callback = function(selected)
-
-   end,
-})
-
 
 local MacroDropdown = MacroTab:CreateDropdown({
    Name = "Select Macro",
@@ -2015,6 +2240,73 @@ elseif not Value then
 	end,
 })
 
+local ExportMacroButton = MacroTab:CreateButton({
+    Name = "Export Selected Macro",
+    Callback = function()
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Export Error",
+                Content = "No macro selected for export.",
+                Duration = 3
+            })
+            return
+        end
+        exportMacroToClipboard(currentMacroName)
+    end,
+})
+
+local ImportURLInput = MacroTab:CreateInput({
+    Name = "Import URL (Discord/Pastebin/etc)",
+    CurrentValue = "",
+    PlaceholderText = "Paste download URL here...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "ImportURLInput",
+    Callback = function(text)
+        pendingImportURL = text
+    end,
+})
+
+local ImportFromURLButton = MacroTab:CreateButton({
+    Name = "Import from URL",
+    Callback = function()
+        if not pendingImportURL or pendingImportURL == "" then
+            Rayfield:Notify({
+                Title = "Import Error",
+                Content = "Please enter a URL first.",
+                Duration = 3
+            })
+            return
+        end
+        
+        if not pendingMacroName or pendingMacroName == "" then
+            Rayfield:Notify({
+                Title = "Import Error",
+                Content = "Please enter a macro name first.",
+                Duration = 3
+            })
+            return
+        end
+        
+        importMacroFromURL(pendingImportURL, pendingMacroName)
+    end,
+})
+
+local ImportFromClipboardButton = MacroTab:CreateButton({
+    Name = "Import from Clipboard",
+    Callback = function()
+        if not pendingMacroName or pendingMacroName == "" then
+            Rayfield:Notify({
+                Title = "Import Error",
+                Content = "Please enter a macro name first.",
+                Duration = 3
+            })
+            return
+        end
+        
+        importMacroFromClipboard(pendingMacroName)
+    end,
+})
+
 local function setPlaybackMode(mode)
     if mode == "timing" or mode == "wave" or mode == "both" then
         playbackMode = mode
@@ -2024,7 +2316,7 @@ local function setPlaybackMode(mode)
     end
 end
 
-local PlaybackModeDropdown = MacroTab:CreateDropdown({
+--[[local PlaybackModeDropdown = MacroTab:CreateDropdown({
     Name = "Playback Mode",
     Options = {"timing", "wave", "both"},
     CurrentOption = {"timing"},
@@ -2034,7 +2326,7 @@ local PlaybackModeDropdown = MacroTab:CreateDropdown({
         local mode = type(selected) == "table" and selected[1] or selected
         setPlaybackMode(mode)
     end,
-})
+})--]]3
 
 local Toggle = GameTab:CreateToggle({
    Name = "Auto Retry",
