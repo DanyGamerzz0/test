@@ -1,3 +1,4 @@
+--2
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -89,6 +90,34 @@ local unitDataCache = {}
 local unitConfigCache = {}
 local placedUnitsTracking = {} -- Track units we place and their upgrade levels
 local cashHandlingMode = "wait" -- "wait", "skip", "force"
+
+local function serializeVector3(v)
+    return { x = v.X, y = v.Y, z = v.Z }
+end
+
+local function serializeCFrame(cf)
+    local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+    return {
+        x = x, y = y, z = z,
+        r00 = r00, r01 = r01, r02 = r02,
+        r10 = r10, r11 = r11, r12 = r12,
+        r20 = r20, r21 = r21, r22 = r22
+    }
+end
+
+
+local function deserializeVector3(t)
+    return Vector3.new(t.x, t.y, t.z)
+end
+
+local function deserializeCFrame(t)
+    return CFrame.new(
+        t.x, t.y, t.z,
+        t.r00, t.r01, t.r02,
+        t.r10, t.r11, t.r12,
+        t.r20, t.r21, t.r22
+    )
+end
 
 local function getTableKeys(tbl)
     local keys = {}
@@ -1468,34 +1497,6 @@ local function ensureMacroFolders()
     if not isfolder("LixHub/Macros/GTD") then
         makefolder("LixHub/Macros/GTD")
     end
-end
-
-local function serializeVector3(v)
-    return { x = v.X, y = v.Y, z = v.Z }
-end
-
-local function serializeCFrame(cf)
-    local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
-    return {
-        x = x, y = y, z = z,
-        r00 = r00, r01 = r01, r02 = r02,
-        r10 = r10, r11 = r11, r12 = r12,
-        r20 = r20, r21 = r21, r22 = r22
-    }
-end
-
-
-local function deserializeVector3(t)
-    return Vector3.new(t.x, t.y, t.z)
-end
-
-local function deserializeCFrame(t)
-    return CFrame.new(
-        t.x, t.y, t.z,
-        t.r00, t.r01, t.r02,
-        t.r10, t.r11, t.r12,
-        t.r20, t.r21, t.r22
-    )
 end
 
 
