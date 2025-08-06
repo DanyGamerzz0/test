@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local mt = getrawmetatable(game)
@@ -811,7 +810,7 @@ local function importMacroFromURL(url, targetMacroName)
         warn("Failed to save imported macro to file:", err)
     end
     
-    refreshMacroDropdown()
+    --refreshMacroDropdown()
     
     Rayfield:Notify({
         Title = "Import Success",
@@ -822,7 +821,7 @@ local function importMacroFromURL(url, targetMacroName)
     return true
 end
 
-local function importMacroFromClipboard(targetMacroName)
+--[[local function importMacroFromClipboard(targetMacroName)
     if not targetMacroName or targetMacroName == "" then
         Rayfield:Notify({
             Title = "Import Error",
@@ -952,7 +951,7 @@ local function importMacroFromClipboard(targetMacroName)
     })
     
     return true
-end
+end--]]
 
 local function getCurrentUnitCount()
     return LocalPlayer:GetAttribute("UnitsPlaced") or 0
@@ -2311,7 +2310,7 @@ elseif not Value then
 })
 
 local ExportMacroButton = MacroTab:CreateButton({
-    Name = "Export Selected Macro",
+    Name = "Export Selected Macro To Clipboard",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
             Rayfield:Notify({
@@ -2326,17 +2325,17 @@ local ExportMacroButton = MacroTab:CreateButton({
 })
 
 local ImportURLInput = MacroTab:CreateInput({
-    Name = "Import URL (Discord/Pastebin/etc)",
+    Name = "Import URL",
     CurrentValue = "",
     PlaceholderText = "Paste download URL here...",
-    RemoveTextAfterFocusLost = true,
+    RemoveTextAfterFocusLost = false,
     Flag = "ImportURLInput",
     Callback = function(text)
         pendingImportURL = text
     end,
 })
 
-local ImportFromClipboardButton = MacroTab:CreateButton({
+--[[local ImportFromClipboardButton = MacroTab:CreateButton({
     Name = "Import from Clipboard",
     Callback = function()
         if not pendingMacroName or pendingMacroName == "" then
@@ -2350,7 +2349,7 @@ local ImportFromClipboardButton = MacroTab:CreateButton({
         
         importMacroFromClipboard(pendingMacroName)
     end,
-})
+})--]]
 
 local ImportFromURLButton = MacroTab:CreateButton({
     Name = "Import from URL",
