@@ -467,13 +467,25 @@ local function tryPlaceUnit(unitName, args, maxRetries)
     return false
 end
 
+local lastFindUnitCall = 0
+local FIND_UNIT_COOLDOWN = 0.2 -- Minimum time between FindUnitId calls
+
 local function FindUnitId(targetPos)
+    local currentTime = tick()
+    if currentTime - lastFindUnitCall < FIND_UNIT_COOLDOWN then
+        return nil -- Skip if called too frequently
+    end
+    lastFindUnitCall = currentTime
+    
     local entities = workspace:WaitForChild("Map"):WaitForChild("Entities")
     local closestUnit = nil
     local closestDistance = math.huge
-    local tolerance = 5 -- Increased tolerance for position matching
+    local tolerance = 5
 
-    for _, model in ipairs(entities:GetChildren()) do
+    -- Cache entities list to avoid multiple :GetChildren() calls
+    local entityList = entities:GetChildren()
+    
+    for _, model in ipairs(entityList) do
         if model:IsA("Model") then
             local modelPos = model.WorldPivot.Position
             local distance = (modelPos - targetPos).Magnitude
@@ -486,12 +498,6 @@ local function FindUnitId(targetPos)
                 end
             end
         end
-    end
-
-    if closestUnit then
-        print(string.format("🎯 Found unit %s at distance %.2f from target", closestUnit, closestDistance))
-    else
-        warn("❌ No unit found within tolerance at position:", targetPos)
     end
 
     return closestUnit
