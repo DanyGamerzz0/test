@@ -1,3 +1,4 @@
+    --1
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local mt = getrawmetatable(game)
@@ -1905,15 +1906,21 @@
         return nil
     end
 
-    mt.__namecall = newcclosure(function(self, ...)
-        local args = { ... }
-        local method = getnamecallmethod()
-        if not checkcaller() then
+mt.__namecall = newcclosure(function(self, ...)
+    local args = { ... }
+    local method = getnamecallmethod()
+    
+    -- Only process if we're actually recording AND it's a relevant remote
+    if not checkcaller() and isRecording and method == "InvokeServer" then
+        local remoteName = self.Name
+        
+        -- Only create thread for remotes we actually care about
+        if remoteName == "PlaceUnit" or remoteName == "UpgradeUnit" or remoteName == "SellUnit" or remoteName == "SkipWave" then
             task.spawn(function()
-                if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
-                    local timestamp = tick() 
-                    local currentWaveNum = getCurrentWave()
-                    
+                local timestamp = tick()
+                local currentWaveNum = getCurrentWave()
+                
+                if remoteName == "PlaceUnit" then
                     table.insert(macro, {
                         action = "PlaceUnit",
                         unitName = args[1],
@@ -1922,49 +1929,37 @@
                         cframe = args[2].CF,
                         valid = args[2].Valid,
                         time = timestamp - recordingStartTime,
-                        wave = currentWaveNum -- ADD WAVE DATA
+                        wave = currentWaveNum
                     })
-
-                elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
-                    local timestamp = tick() 
-                    local currentWaveNum = getCurrentWave()
-                    local id = args[1]
-                    local pos = GetUnitPositionFromId(id)
-                    
+                elseif remoteName == "UpgradeUnit" then
+                    local pos = GetUnitPositionFromId(args[1])
                     table.insert(macro, {
                         action = "UpgradeUnit", 
                         position = pos,
                         time = timestamp - recordingStartTime,
-                        wave = currentWaveNum -- ADD WAVE DATA
+                        wave = currentWaveNum
                     })
-
-                elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
-                    local timestamp = tick() 
-                    local currentWaveNum = getCurrentWave()
-                    local id = args[1]
-                    local pos = GetUnitPositionFromId(id)
-                    
+                elseif remoteName == "SellUnit" then
+                    local pos = GetUnitPositionFromId(args[1])
                     table.insert(macro, {
                         action = "SellUnit", 
                         position = pos,
                         time = timestamp - recordingStartTime,
-                        wave = currentWaveNum -- ADD WAVE DATA
+                        wave = currentWaveNum
                     })
-                    
-                elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
-                    local timestamp = tick() 
-                    local currentWaveNum = getCurrentWave()
-                    
+                elseif remoteName == "SkipWave" then
                     table.insert(macro, {
                         action = "SkipWave",
                         time = timestamp - recordingStartTime,
-                        wave = currentWaveNum -- ADD WAVE DATA
+                        wave = currentWaveNum
                     })
                 end
             end)
         end
-        return oldNamecall(self, ...) -- Keep your original variable name
-    end)
+    end
+    
+    return oldNamecall(self, ...)
+end)
     setreadonly(mt, true)
 
     local Window = Rayfield:CreateWindow({
