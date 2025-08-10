@@ -1,4 +1,3 @@
-    --1
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local mt = getrawmetatable(game)
@@ -1913,31 +1912,62 @@ mt.__namecall = newcclosure(function(self, ...)
     if not checkcaller() then
         task.spawn(function()
             if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
+                -- Get entity count before placement
+                local entitiesBefore = #workspace.Map.Entities:GetChildren()
+                local unitName = args[1]
+                local placementArgs = args[2]
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
-                local placementData = {
-                    action = "PlaceUnit",
-                    unitName = args[1],
-                    position = args[2].Position,
-                    rotation = args[2].Rotation,
-                    cframe = args[2].CF,
-                    valid = args[2].Valid,
-                    time = timestamp - recordingStartTime,
-                    wave = currentWaveNum,
-                    timestamp = timestamp
-                }
                 
-                -- Don't add to macro immediately - add to pending verification
-                table.insert(pendingPlacements, placementData)
-                print(string.format("📝 Recorded placement attempt for %s, verifying...", args[1]))
+                print(string.format("📝 Recording placement attempt for %s (entities before: %d)", unitName, entitiesBefore))
+                
+                -- Wait a bit for the placement to process
+                task.wait(1.5)
+                
+                -- Check if placement was successful by counting entities
+                local entitiesAfter = #workspace.Map.Entities:GetChildren()
+                
+                if entitiesAfter > entitiesBefore then
+                    -- Placement was successful - record it
+                    local placementData = {
+                        action = "PlaceUnit",
+                        unitName = unitName,
+                        position = placementArgs.Position,
+                        rotation = placementArgs.Rotation,
+                        cframe = placementArgs.CF,
+                        valid = placementArgs.Valid,
+                        time = timestamp - recordingStartTime,
+                        wave = currentWaveNum,
+                        timestamp = timestamp
+                    }
+                    
+                    table.insert(macro, placementData)
+                    print(string.format("✅ Successfully recorded placement: %s (entities: %d→%d)", 
+                        unitName, entitiesBefore, entitiesAfter))
+                else
+                    -- Placement failed - don't record
+                    print(string.format("❌ Placement failed, not recording: %s (entities: %d→%d)", 
+                        unitName, entitiesBefore, entitiesAfter))
+                end
                 
             elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
-                -- Upgrades are usually successful, record immediately
-                local timestamp = tick()
-                local currentWaveNum = getCurrentWave()
+                -- For upgrades, we can use a similar approach
                 local id = args[1]
                 local pos = GetUnitPositionFromId(id)
                 
+                if not pos then
+                    print("❌ Cannot find unit position for upgrade, skipping recording")
+                    return
+                end
+                
+                local timestamp = tick()
+                local currentWaveNum = getCurrentWave()
+                
+                -- Wait a bit to see if upgrade was successful
+                task.wait(0.5)
+                
+                -- For upgrades, we'll assume they're successful if we got this far
+                -- You could add additional verification here if needed
                 table.insert(macro, {
                     action = "UpgradeUnit", 
                     position = pos,
@@ -1947,11 +1977,16 @@ mt.__namecall = newcclosure(function(self, ...)
                 print(string.format("⬆️ Recorded upgrade for unit %s", id))
 
             elseif isRecording and method == "InvokeServer" and self.Name == "SellUnit" then
-                -- Sells are usually successful, record immediately  
-                local timestamp = tick()
-                local currentWaveNum = getCurrentWave()
                 local id = args[1]
                 local pos = GetUnitPositionFromId(id)
+                
+                if not pos then
+                    print("❌ Cannot find unit position for sell, skipping recording")
+                    return
+                end
+                
+                local timestamp = tick()
+                local currentWaveNum = getCurrentWave()
                 
                 table.insert(macro, {
                     action = "SellUnit", 
@@ -1976,122 +2011,6 @@ mt.__namecall = newcclosure(function(self, ...)
     end
     return oldNamecall(self, ...)
 end)
-
--- Verification system that runs continuously during recording
-task.spawn(function()
-    while true do
-        task.wait(0.5) -- Check every 500ms
-        
-        if isRecording and #pendingPlacements > 0 then
-            local currentTime = tick()
-            local entitiesToCheck = {}
-            
-            -- Get current entities for verification
-            local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
-            if entities then
-                for _, model in ipairs(entities:GetChildren()) do
-                    if model:IsA("Model") and model:GetAttribute("ID") then
-                        table.insert(entitiesToCheck, {
-                            position = model.WorldPivot.Position,
-                            name = model.Name,
-                            id = model:GetAttribute("ID")
-                        })
-                    end
-                end
-            end
-            
-            -- Check each pending placement
-            for i = #pendingPlacements, 1, -1 do
-                local placement = pendingPlacements[i]
-                local age = currentTime - placement.timestamp
-                
-                if age > 2 then -- Give 2 seconds to verify placement
-                    local wasPlaced = false
-                    
-                    -- Check if any entity is near the placement position
-                    for _, entity in ipairs(entitiesToCheck) do
-                        local distance = (entity.position - placement.position).Magnitude
-                        if distance < 5 then -- Within 5 studs
-                            wasPlaced = true
-                            print(string.format("✅ Verified placement of %s (found %s at distance %.2f)", 
-                                placement.unitName, entity.name, distance))
-                            break
-                        end
-                    end
-                    
-                    if wasPlaced then
-                        -- Add to macro - placement was successful
-                        table.insert(macro, placement)
-                        print(string.format("📋 Added verified placement to macro: %s", placement.unitName))
-                    else
-                        -- Don't add to macro - placement failed
-                        print(string.format("❌ Placement failed, not recording: %s", placement.unitName))
-                    end
-                    
-                    -- Remove from pending list
-                    table.remove(pendingPlacements, i)
-                end
-            end
-        end
-    end
-end)
-
--- Alternative simpler approach - verify immediately after placement attempt
-local function verifyPlacementImmediate(unitName, position, maxWaitTime)
-    maxWaitTime = maxWaitTime or 1.5
-    local startTime = tick()
-    
-    while (tick() - startTime) < maxWaitTime do
-        local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
-        if entities then
-            for _, model in ipairs(entities:GetChildren()) do
-                if model:IsA("Model") and model:GetAttribute("ID") then
-                    local distance = (model.WorldPivot.Position - position).Magnitude
-                    if distance < 5 then
-                        return true -- Found a unit near placement position
-                    end
-                end
-            end
-        end
-        task.wait(0.1)
-    end
-    
-    return false -- No unit found after waiting
-end
-
--- Even simpler approach - just count entities before/after
-local entityCountBeforePlacement = 0
-
--- In your metahook, before the placement call:
-if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
-    local countBefore = #workspace.Map.Entities:GetChildren()
-    
-    task.spawn(function()
-        task.wait(1)
-        local countAfter = #workspace.Map.Entities:GetChildren()
-        
-        if countAfter > countBefore then
-            -- Only record if count actually increased
-            local timestamp = tick()
-            local currentWaveNum = getCurrentWave()
-            
-            table.insert(macro, {
-                action = "PlaceUnit",
-                unitName = args[1],
-                position = args[2].Position,
-                rotation = args[2].Rotation,
-                cframe = args[2].CF,
-                valid = args[2].Valid,
-                time = timestamp - recordingStartTime,
-                wave = currentWaveNum
-            })
-            
-            print(string.format("✅ Placement verified (count: %d->%d): %s", countBefore, countAfter, args[1]))
-        else
-            print(string.format("❌ No new unit placed (count: %d->%d): %s", countBefore, countAfter, args[1]))
-        end
-    end)
-end
     setreadonly(mt, true)
 
     local Window = Rayfield:CreateWindow({
