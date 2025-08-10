@@ -1,3 +1,4 @@
+    --1
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local mt = getrawmetatable(game)
@@ -1906,28 +1907,47 @@
         return nil
     end
 
+local function countPlacedUnits()
+    local count = 0
+    local entities = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Entities")
+    
+    if entities then
+        for _, model in ipairs(entities:GetChildren()) do
+            if model:IsA("Model") and model:GetAttribute("ID") then
+                local isUnit = model:FindFirstChild("OwnedIndicator")
+                
+                if isUnit then
+                    count = count + 1
+                end
+            end
+        end
+    end
+    
+    return count
+end
+
 mt.__namecall = newcclosure(function(self, ...)
     local args = { ... }
     local method = getnamecallmethod()
     if not checkcaller() then
         task.spawn(function()
             if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
-                -- Get entity count before placement
-                local entitiesBefore = #workspace.Map.Entities:GetChildren()
+                -- Get placed unit count before placement (excluding enemies)
+                local unitsBefore = countPlacedUnits()
                 local unitName = args[1]
                 local placementArgs = args[2]
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
-                print(string.format("📝 Recording placement attempt for %s (entities before: %d)", unitName, entitiesBefore))
+                print(string.format("📝 Recording placement attempt for %s (units before: %d)", unitName, unitsBefore))
                 
                 -- Wait a bit for the placement to process
                 task.wait(1.5)
                 
-                -- Check if placement was successful by counting entities
-                local entitiesAfter = #workspace.Map.Entities:GetChildren()
+                -- Check if placement was successful by counting placed units
+                local unitsAfter = countPlacedUnits()
                 
-                if entitiesAfter > entitiesBefore then
+                if unitsAfter > unitsBefore then
                     -- Placement was successful - record it
                     local placementData = {
                         action = "PlaceUnit",
@@ -1942,12 +1962,12 @@ mt.__namecall = newcclosure(function(self, ...)
                     }
                     
                     table.insert(macro, placementData)
-                    print(string.format("✅ Successfully recorded placement: %s (entities: %d→%d)", 
-                        unitName, entitiesBefore, entitiesAfter))
+                    print(string.format("✅ Successfully recorded placement: %s (units: %d→%d)", 
+                        unitName, unitsBefore, unitsAfter))
                 else
                     -- Placement failed - don't record
-                    print(string.format("❌ Placement failed, not recording: %s (entities: %d→%d)", 
-                        unitName, entitiesBefore, entitiesAfter))
+                    print(string.format("❌ Placement failed, not recording: %s (units: %d→%d)", 
+                        unitName, unitsBefore, unitsAfter))
                 end
                 
             elseif isRecording and method == "InvokeServer" and self.Name == "UpgradeUnit" then
@@ -2011,7 +2031,7 @@ mt.__namecall = newcclosure(function(self, ...)
     end
     return oldNamecall(self, ...)
 end)
-    setreadonly(mt, true)
+setreadonly(mt, true)
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Garden Tower Defense",
