@@ -1,3 +1,4 @@
+    --1
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local mt = getrawmetatable(game)
@@ -2063,16 +2064,14 @@ local entityCountBeforePlacement = 0
 
 -- In your metahook, before the placement call:
 if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
-    -- Count entities before placement
-    entityCountBeforePlacement = #workspace.Map.Entities:GetChildren()
+    local countBefore = #workspace.Map.Entities:GetChildren()
     
-    -- Use a delay to check after placement
     task.spawn(function()
-        task.wait(1) -- Wait for placement to process
+        task.wait(1)
+        local countAfter = #workspace.Map.Entities:GetChildren()
         
-        local entityCountAfter = #workspace.Map.Entities:GetChildren()
-        if entityCountAfter > entityCountBeforePlacement then
-            -- Placement successful - record it
+        if countAfter > countBefore then
+            -- Only record if count actually increased
             local timestamp = tick()
             local currentWaveNum = getCurrentWave()
             
@@ -2087,9 +2086,9 @@ if isRecording and method == "InvokeServer" and self.Name == "PlaceUnit" then
                 wave = currentWaveNum
             })
             
-            print(string.format("✅ Verified and recorded placement: %s", args[1]))
+            print(string.format("✅ Placement verified (count: %d->%d): %s", countBefore, countAfter, args[1]))
         else
-            print(string.format("❌ Placement failed, not recording: %s", args[1]))
+            print(string.format("❌ No new unit placed (count: %d->%d): %s", countBefore, countAfter, args[1]))
         end
     end)
 end
