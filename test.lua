@@ -1,4 +1,3 @@
---1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3562,7 +3561,7 @@ end)
     end,
     })
 
-    local Slider = Tab:CreateSlider({
+    local Slider = GameTab:CreateSlider({
    Name = "Start Failsafe after",
    Range = {1, 600},
    Increment = 1,
