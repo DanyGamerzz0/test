@@ -1,4 +1,3 @@
---1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2202,37 +2201,54 @@ local function StreamerMode()
     end
 end
 
+local failsafeRunning = false
+
 local function startFailsafeAfterGameEnd()
+    if failsafeRunning then
+        warn("⚠️ Failsafe is already running. Skipping new start.")
+        return
+    end
+    failsafeRunning = true
+
     task.spawn(function()
-        local waitTime = State.AutoFailSafeNumber
+        local waitTime = tonumber(State.AutoFailSafeNumber) or 300
+        print("⏳ Failsafe started. Waiting", waitTime, "seconds or until game starts...")
+
         local startTime = tick()
-
-        print("⏳ Failsafe started... Waiting for new game to start.")
-
         while tick() - startTime < waitTime do
             if State.gameRunning then
-                print("✅ New game started. Cancelling failsafe.")
-                return -- Exit if game started
+                print("✅ New game started during wait. Cancelling failsafe.")
+                failsafeRunning = false
+                return -- Abort recovery
             end
             task.wait(1)
         end
 
-        -- If 5 minutes passed and game didn't start
-        print("⚠️ Failsafe triggered after timeout. Trying recovery options...")
+        -- After full wait, if still no game, recover
+        if not State.gameRunning then
+            print("⚠️ Failsafe triggered after timeout. Trying recovery options...")
 
-        if State.autoRetryEnabled then
-            print("🔁 Attempting Retry...")
-            Remotes.RetryEvent:FireServer()
-        elseif State.autoNextEnabled then
-            print("➡️ Attempting Next...")
-            Remotes.NextEvent:FireServer()
-        elseif State.autoReturnEnabled then
-            print("🏠 Returning to Lobby...")
-            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            if State.autoRetryEnabled then
+                print("🔁 Attempting Retry...")
+                Remotes.RetryEvent:FireServer()
+
+            elseif State.autoNextEnabled then
+                print("➡️ Attempting Next...")
+                Remotes.NextEvent:FireServer()
+
+            elseif State.autoReturnEnabled then
+                print("🏠 Returning to Lobby...")
+                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+
+            else
+                print("❌ No auto options enabled. Returning to lobby by default.")
+                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            end
         else
-            print("❌ No auto options enabled. Returning to lobby by default.")
-            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            print("✅ Game started right at the end of wait. No recovery needed.")
         end
+
+        failsafeRunning = false
     end)
 end
 
@@ -3655,7 +3671,7 @@ end)
    Range = {0, 300},
    Increment = 1,
    Suffix = "seconds",
-   CurrentValue = 300,
+   CurrentValue = 0,
    Flag = "AutoPlayDelaySlider",
    Callback = function(Value)
         State.AutoPlayDelayNumber = Value
@@ -4012,7 +4028,7 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         stopRetryLoop()
         stopNextLoop()
         
-        State.autoPlayDelayActive = false
+        
 
         lastCheckedLevels = {}
         processedUnits = {}
@@ -4072,6 +4088,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
         sendWebhook("stage", nil, clearTimeStr, State.matchResult)
         end
 
+        State.autoPlayDelayActive = false
         State.actionTaken = false
 
         if State.pendingChallengeReturn and not State.actionTaken then
