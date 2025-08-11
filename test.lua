@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -55,6 +56,8 @@ local State = {
     AutoPurchaseRiftStorm = false,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
+    autoPlayDelayActive = false,
+    AutoPlayDelayNumber = 0,
     AutoFailSafeNumber = 0,
     hasSentWebhook = false,
     portalUsed = false,
@@ -180,7 +183,7 @@ local ValidWebhook
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "LixHub - [⚔️ DBZ] Anime Rangers X",
+   Name = "LixHub - Anime Rangers X",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Anime Rangers X",
    LoadingSubtitle = "v0.0.9",
@@ -1873,29 +1876,43 @@ end
 local function autoPlayLoop()
     task.spawn(function()
         while State.autoPlayEnabled do
-            -- Find next ready slot
-            local slotToDeploy = getNextReadySlot()
-            
-            if slotToDeploy then
-                local success, message = deployUnit(slotToDeploy)
+            -- Check if we should apply delay at the start of each game
+            if State.gameRunning and State.AutoPlayDelayNumber > 0 and not State.autoPlayDelayActive then
+                State.autoPlayDelayActive = true
+                print("🕒 Auto Play Delay: Waiting " .. State.AutoPlayDelayNumber .. " seconds before starting deployment...")
+                notify("Auto Play", "Delaying deployment for " .. State.AutoPlayDelayNumber .. " seconds", 3)
                 
-                if success then
-                    -- Successfully deployed, move to next slot for next deployment
-                    State.currentSlot = (slotToDeploy % 6) + 1
-                   -- print("Deployed from slot " .. slotToDeploy .. ", next slot: " .. State.currentSlot)
-                elseif not success and message == "Not enough money" then
-                    State.currentSlot = (slotToDeploy % 6)
+                -- Wait for the specified delay
+                task.wait(State.AutoPlayDelayNumber)
+                
+                print("✅ Auto Play Delay: Delay finished, starting deployment...")
+                notify("Auto Play", "Starting deployment now!", 2)
+            end
+            
+            -- Only proceed with deployment if game is running and delay has passed (or no delay set)
+            if State.gameRunning and (State.AutoPlayDelayNumber == 0 or State.autoPlayDelayActive) then
+                -- Find next ready slot
+                local slotToDeploy = getNextReadySlot()
+                
+                if slotToDeploy then
+                    local success, message = deployUnit(slotToDeploy)
+                    
+                    if success then
+                        -- Successfully deployed, move to next slot for next deployment
+                        State.currentSlot = (slotToDeploy % 6) + 1
+                    elseif not success and message == "Not enough money" then
+                        State.currentSlot = (slotToDeploy % 6)
+                    else
+                        -- Failed deployment, slot will be temporarily skipped
+                        -- Move to next slot to continue the cycle
+                        State.currentSlot = (slotToDeploy % 6) + 1
+                        print("Failed to deploy from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
+                    end
                 else
-
-                    -- Failed deployment, slot will be temporarily skipped
-                    -- Move to next slot to continue the cycle
-                    State.currentSlot = (slotToDeploy % 6) + 1
-                    print("Failed to deploy from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
+                    -- No ready slots found, continue cycling
+                    -- The getNextReadySlot function already moved currentSlot forward
+                    -- print("No ready slots found, continuing cycle...")
                 end
-            else
-                -- No ready slots found, continue cycling
-                -- The getNextReadySlot function already moved currentSlot forward
-                print("No ready slots found, continuing cycle...")
             end
             
             -- Wait before next attempt
@@ -1915,10 +1932,11 @@ local function startAutoPlay()
     -- Reset state
     if Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.AutoPlay.Value == true then
         Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
-   end
+    end
     State.currentSlot = 1
     State.lastDeploymentTimes = {}
     State.slotExists = {}
+    State.autoPlayDelayActive = false  -- Reset delay flag
     
     -- Check which slots have units initially
     for i = 1, 6 do
@@ -3545,7 +3563,7 @@ end)
     })
 
     local Slider = Tab:CreateSlider({
-   Name = "Start Failsafe after ",
+   Name = "Start Failsafe after",
    Range = {1, 600},
    Increment = 1,
    Suffix = "seconds",
@@ -3631,6 +3649,18 @@ end)
     end
     end,
     })
+
+        local Slider = Tab:CreateSlider({
+   Name = "Delay Auto Play by",
+   Range = {0, 300},
+   Increment = 1,
+   Suffix = "seconds",
+   CurrentValue = 300,
+   Flag = "AutoPlayDelaySlider",
+   Callback = function(Value)
+        State.AutoPlayDelayNumber = Value
+   end,
+})
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Upgrade",
@@ -3982,6 +4012,7 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         stopRetryLoop()
         stopNextLoop()
         
+        State.autoPlayDelayActive = false
 
         lastCheckedLevels = {}
         processedUnits = {}
