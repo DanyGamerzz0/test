@@ -1,4 +1,3 @@
-    --1
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local mt = getrawmetatable(game)
@@ -1915,7 +1914,6 @@ local function countPlacedUnits()
         for _, model in ipairs(entities:GetChildren()) do
             if model:IsA("Model") and model:GetAttribute("ID") then
                 local isUnit = model:FindFirstChild("OwnedIndicator")
-                
                 if isUnit then
                     count = count + 1
                 end
