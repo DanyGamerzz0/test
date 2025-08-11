@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3649,7 +3650,7 @@ end)
     end,
     })
 
-        local Slider = Tab:CreateSlider({
+        local Slider = AutoPlayTab:CreateSlider({
    Name = "Delay Auto Play by",
    Range = {0, 300},
    Increment = 1,
