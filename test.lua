@@ -1,4 +1,3 @@
---4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -81,6 +80,8 @@ local State = {
     DelayAutoUltimate = 0,
     
     autoBossEventEnabled = false,
+    autoSummerEventEnabled = false,
+    SelectedBossEventDifficulty = false,
     autoJoinRaid = false,
     autoJoinEnabled = false,
     autoStartEnabled = false,
@@ -1138,6 +1139,8 @@ local function setProcessingState(action)
         ))
         elseif action == "Boss Event Auto Join" then
            notify("🔄 Processing: ", action)
+        elseif action == "Summer Event Auto Join" then
+           notify("🔄 Processing: ", action)
 
            elseif action == "Boss Rush Auto Join" then
             notify("🔄 Processing: ", action)
@@ -1369,12 +1372,22 @@ local function checkAndExecuteHighestPriority()
     end
 
     -- priority 3: boss event auto join
-    if State.autoBossEventEnabled then
+    if State.autoSummerEventEnabled then
+    setProcessingState("Summer Event Auto Join")
+
+        handleTeamEquipping("Summer Event")
+
+    Remotes.PlayEvent:FireServer("Summer-Event")
+    task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoBossEventEnabled and State.SelectedBossEventDifficulty then
     setProcessingState("Boss Event Auto Join")
 
         handleTeamEquipping("Boss Event")
 
-    Remotes.PlayEvent:FireServer("Summer-Event")
+    Remotes.PlayEvent:FireServer("Boss-Event",{Difficulty = unpack(State.SelectedBossEventDifficulty)})
     task.delay(5, clearProcessingState)
         return
     end
@@ -1879,14 +1892,12 @@ local function autoPlayLoop()
             -- Check if we should apply delay at the start of each game
             if State.gameRunning and State.AutoPlayDelayNumber > 0 and not State.autoPlayDelayActive then
                 State.autoPlayDelayActive = true
-                print("🕒 Auto Play Delay: Waiting " .. State.AutoPlayDelayNumber .. " seconds before starting deployment...")
-                notify("Auto Play", "Delaying deployment for " .. State.AutoPlayDelayNumber .. " seconds", 3)
+                notify("Auto Play Delay", "Waiting " .. State.AutoPlayDelayNumber .. " seconds before starting deployment...", 5)
                 
                 -- Wait for the specified delay
                 task.wait(State.AutoPlayDelayNumber)
                 
-                print("✅ Auto Play Delay: Delay finished, starting deployment...")
-                notify("Auto Play", "Starting deployment now!", 2)
+                notify("Auto Play Delay", "Delay finished, starting deployment..", 5)
             end
             
             -- Only proceed with deployment if game is running and delay has passed (or no delay set)
@@ -2213,21 +2224,20 @@ local function startFailsafeAfterGameEnd()
 
     task.spawn(function()
         local waitTime = tonumber(State.AutoFailSafeNumber) or 300
-        print("⏳ Failsafe started. Waiting", waitTime, "seconds or until game starts...")
+        notify("Failsafe", "Failsafe started, Waiting ".. waitTime .." seconds or until game starts...", 5)
 
         local startTime = tick()
         while tick() - startTime < waitTime do
             if State.gameRunning then
-                print("✅ New game started during wait. Cancelling failsafe.")
+                notify("Failsafe", "New game started during wait. Cancelling failsafe.", 3)
                 failsafeRunning = false
-                return -- Abort recovery
+                return
             end
             task.wait(1)
         end
 
-        -- After full wait, if still no game, recover
         if not State.gameRunning then
-            print("⚠️ Failsafe triggered after timeout. Trying recovery options...")
+            notify("Failsafe", "Trying recovery options...", 3)
 
             if State.autoRetryEnabled then
                 print("🔁 Attempting Retry...")
@@ -2252,7 +2262,6 @@ local function startFailsafeAfterGameEnd()
         failsafeRunning = false
     end)
 end
-
 
 local function startRetryLoop()
     State.retryAttempted = true
@@ -3133,6 +3142,15 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     local JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
 
     local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Summer Event",
+    CurrentValue = false,
+    Flag = "AutoSummerEventToggle",
+    Callback = function(Value)
+        State.autoSummerEventEnabled = Value
+    end,
+    })
+
+    local AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Boss Event",
     CurrentValue = false,
     Flag = "AutoBossEventToggle",
@@ -3140,6 +3158,17 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
         State.autoBossEventEnabled = Value
     end,
     })
+
+local BossEventDificultySelector = JoinerTab:CreateDropdown({
+    Name = "Select Boss Event Difficulty",
+    Options = {"Normal","Nightmare"},
+    CurrentOption = {"Nightmare"},
+    MultipleOptions = false,
+    Flag = "BossEventDifficulty",
+    Callback = function(Option)
+        State.SelectedBossEventDifficulty = Option
+    end,
+})
 
     local JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
 
