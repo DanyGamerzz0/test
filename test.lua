@@ -1,3 +1,4 @@
+--4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -4068,13 +4069,13 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
             return
         end
         State.hasGameEnded = true
-        if State.AutoFailSafeEnabled == true then
-            startFailsafeAfterGameEnd()
-        end
         if State.SendStageCompletedWebhook then
         State.hasSentWebhook = true
         end
         State.gameRunning = false
+                if State.AutoFailSafeEnabled == true then
+            startFailsafeAfterGameEnd()
+        end
         resetUpgradeOrder()
 
         task.wait(0.5)
