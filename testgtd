@@ -1,5 +1,4 @@
---1    
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+    local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local mt = getrawmetatable(game)
     setreadonly(mt, false)
@@ -2470,7 +2469,7 @@ setreadonly(mt, true)
         end,
     })--]]
 
-local Toggle = Tab:CreateToggle({
+local Toggle = GameTab:CreateToggle({
     Name = "Auto Retry",
     CurrentValue = false,
     Flag = "AutoRetryToggle",
