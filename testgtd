@@ -1,3 +1,4 @@
+    --1
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local mt = getrawmetatable(game)
@@ -2613,12 +2614,15 @@ end)
     end,
     })
 
-    while true do
+    task.spawn(function()
+            while true do
     wait(1)
     if State.AutoSelectDifficultyEnabled and State.SelectedDifficultyValue then
     local args = {"dif_"..unpack(State.SelectedDifficultyValue)}game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceDifficultyVote"):InvokeServer(unpack(args))
     end
 end
+    end)
+
 
     local Toggle = GameTab:CreateToggle({
     Name = "Auto Skip Waves",
@@ -2628,13 +2632,14 @@ end
             State.AutoSkipWaves = Value
     end,
     })
-
+        task.spawn(function()
         while true do
             if State.AutoSkipWaves then
             game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer("y")
             end
             task.wait(0.5)
         end
+    end)
 
     local placingCooldown = false
 
