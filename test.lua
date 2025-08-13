@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2237,24 +2238,8 @@ local function startFailsafeAfterGameEnd()
         end
 
         if not State.gameRunning then
-            notify("Failsafe", "Trying recovery options...", 3)
-
-            if State.autoRetryEnabled then
-                print("🔁 Attempting Retry...")
-                Remotes.RetryEvent:FireServer()
-
-            elseif State.autoNextEnabled then
-                print("➡️ Attempting Next...")
-                Remotes.NextEvent:FireServer()
-
-            elseif State.autoReturnEnabled then
-                print("🏠 Returning to Lobby...")
-                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-
-            else
-                print("❌ No auto options enabled. Returning to lobby by default.")
-                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-            end
+            notify("Failsafe", "Teleporting to lobby...", 3)
+            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
         else
             print("✅ Game started right at the end of wait. No recovery needed.")
         end
@@ -2935,6 +2920,8 @@ end)
     end,
     })
 
+    local JoinerSection98285728 = JoinerTab:CreateSection("🤖 Advanced AutoPlay 🤖")
+
     local Toggle = JoinerTab:CreateToggle({
     Name = "Auto Select Path For Boss Rush/Rift Storm",
     CurrentValue = false,
@@ -2960,7 +2947,7 @@ task.spawn(function()
 end)
 
 local Toggle = JoinerTab:CreateToggle({
-    Name = "Advanced Auto Deploy (pair with select path(s) to deploy unit x on)",
+    Name = "Advanced Auto Play (pair with select path(s) to deploy unit x on)",
     CurrentValue = false,
     Flag = "AutoBossRushDeployToggle",
     Callback = function(Value)
@@ -3432,7 +3419,7 @@ task.spawn(function()
     local JoinerSectionDungeons = JoinerTab:CreateSection("🌀 Rifts 🌀")
 
     local Toggle = JoinerTab:CreateToggle({
-    Name = "Rift Joiner",
+    Name = "Auto Join Rift Storm",
     CurrentValue = false,
     Flag = "AutoRiftToggle",
     Callback = function(Value)
@@ -3600,7 +3587,7 @@ end)
     })
 
     local Toggle = GameTab:CreateToggle({
-    Name = "Enable Game Failsafe",
+    Name = "Enable Game Failsafe (Will teleport to lobby after x seconds)",
     CurrentValue = false,
     Flag = "AutoFailSafeEnabled",
     Callback = function(Value)
