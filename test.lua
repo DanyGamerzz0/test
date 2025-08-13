@@ -188,7 +188,7 @@ local Window = Rayfield:CreateWindow({
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Loading for Anime Rangers X",
    LoadingSubtitle = "v0.0.9",
-   ShowText = "Rayfield", -- for mobile users to unhide rayfield, change if you'd like
+   ShowText = "LixHub", -- for mobile users to unhide rayfield, change if you'd like
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
 
@@ -272,14 +272,14 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection("03/08/2025")
+local UpdateLogSection = UpdateLogTab:CreateSection("13/08/2025")
 local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 
 --//DIVIDERS\\--
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ Auto Join RiftStorm, + Auto Join Dungeon, + Auto Purchase Graveyard Shop, + Auto Purchase Rift Shop, + Select mode for team 4 & 5, + Fixed Bugs")
+local Label1 = UpdateLogTab:CreateLabel("+ AutoPlay delay, + Failsafe, + UI changes, + bug fixes, - autosell unit")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
@@ -2868,7 +2868,7 @@ local Toggle = ShopTab:CreateToggle({
     })
 
     Toggle = LobbyTab:CreateToggle({
-        Name = "Auto AFK Teleport",
+        Name = "Auto Teleport to AFK Chamber",
         CurrentValue = false,
         Flag = "AutoAfkTeleportToggle",
         Callback = function(Value)
@@ -2877,7 +2877,7 @@ local Toggle = ShopTab:CreateToggle({
     })
 
         local Toggle = LobbyTab:CreateToggle({
-    Name = "Anti AFK Teleport",
+    Name = "Anti Teleport to AFK Chamber",
     CurrentValue = false,
     Flag = "AntiAfkToggle",
     Callback = function(Value)
@@ -2886,7 +2886,7 @@ local Toggle = ShopTab:CreateToggle({
 })
 
     local Toggle = LobbyTab:CreateToggle({
-    Name = "Anti Afk Kick",
+    Name = "Anti AFK (No kick message)",
     CurrentValue = false,
     Flag = "AntiAfkKickToggle",
     Callback = function(Value)
@@ -2916,7 +2916,7 @@ task.spawn(function()
 end)
 
      local Toggle = GameTab:CreateToggle({
-    Name = "Streamer Mode",
+    Name = "Streamer Mode (hide name/level/title)",
     CurrentValue = false,
     Flag = "streamerModeEnabled",
     Callback = function(Value)
@@ -2927,7 +2927,7 @@ end)
     local JoinerSection0 = JoinerTab:CreateSection("🤖 Boss Rush Joiner 🤖")
 
     local Toggle = JoinerTab:CreateToggle({
-    Name = "Boss Rush Joiner",
+    Name = "Auto Join Boss Rush",
     CurrentValue = false,
     Flag = "AutoBossRushToggle",
     Callback = function(Value)
@@ -2936,7 +2936,7 @@ end)
     })
 
     local Toggle = JoinerTab:CreateToggle({
-    Name = "Autoplay - Boss Rush",
+    Name = "Auto Select Path For Boss Rush/Rift Storm",
     CurrentValue = false,
     Flag = "AutoPlayBossRush",
     Callback = function(Value)
@@ -2960,7 +2960,7 @@ task.spawn(function()
 end)
 
 local Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Deploy - Boss Rush",
+    Name = "Advanced Auto Deploy (pair with select path(s) to deploy unit x on)",
     CurrentValue = false,
     Flag = "AutoBossRushDeployToggle",
     Callback = function(Value)
@@ -2974,7 +2974,7 @@ local Toggle = JoinerTab:CreateToggle({
     end,
 })
 
-local Label = JoinerTab:CreateLabel("Experimental for now. Expect bugs", "info") -- Title, Icon, Color, IgnoreTheme
+--local Label = JoinerTab:CreateLabel("Experimental for now. Expect bugs", "info") -- Title, Icon, Color, IgnoreTheme
 
 local DeployBossRushSelector1 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 1 on",
@@ -3182,7 +3182,7 @@ local BossEventDificultySelector = JoinerTab:CreateDropdown({
     })
 
 local RaidSelectorDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Stages To Join",
+    Name = "Select Raid Stage(s) To Join",
     Options = {},
     CurrentOption = {},
     MultipleOptions = false,
@@ -3246,7 +3246,7 @@ end)
     })
 
       local StageDropdown = JoinerTab:CreateDropdown({
-    Name = "Story Stage",
+    Name = "Select Story Stage",
     Options = {},
     CurrentOption = {},
     MultipleOptions = false,
@@ -3257,7 +3257,7 @@ end)
     })
 
     local ChapterDropdown = JoinerTab:CreateDropdown({
-    Name = "Stage Chapter",
+    Name = "Select Stage Chapter",
     Options = Config.chapters,
     CurrentOption = {},
     MultipleOptions = false,
@@ -3267,7 +3267,7 @@ end)
     end,
     })
     local DifficultyDropdown = JoinerTab:CreateDropdown({
-    Name = "Stage Difficulty",
+    Name = "Select Stage Difficulty",
     Options = Config.difficulties,
     CurrentOption = {},
     MultipleOptions = false,
@@ -3291,7 +3291,7 @@ end)
     local Label3 = JoinerTab:CreateLabel("Current Challenge Rewards: " .. rewardText, "gift")
 
         local Toggle = JoinerTab:CreateToggle({
-    Name = "Challenge Joiner",
+    Name = "Auto Join Challenge",
     CurrentValue = false,
     Flag = "AutoChallengeToggle",
     Callback = function(Value)
@@ -3348,7 +3348,7 @@ end)
     local JoinerSection3 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
 
      local Toggle = JoinerTab:CreateToggle({
-    Name = "Portal Joiner",
+    Name = "Auto Join Portal(s)",
     CurrentValue = false,
     Flag = "AutoPortalToggle",
     Callback = function(Value)
@@ -3360,7 +3360,7 @@ end)
     })
 
      local PortalSelectorDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Portals to join",
+    Name = "Select Portal(s) to join",
     Options = {},
     CurrentOption = {},
     MultipleOptions = true,
@@ -3396,7 +3396,7 @@ end)
     })
 
     local RangerStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Ranger Stage To Join",
+    Name = "Select Ranger Stage(s) To Join",
     Options = {},
     CurrentOption = {},
     MultipleOptions = false,
@@ -3443,7 +3443,7 @@ task.spawn(function()
     local JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Dungeons ⛓️")
 
     local Toggle = JoinerTab:CreateToggle({
-    Name = "Dungeon Joiner",
+    Name = "Auto Join Dungeon",
     CurrentValue = false,
     Flag = "AutoDungeonToggle",
     Callback = function(Value)
@@ -3474,7 +3474,7 @@ task.spawn(function()
     })
 
     local Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Infinity Castle",
+    Name = "Auto Select Path For Infinity Castle",
     CurrentValue = false,
     Flag = "AutoInfinityCastle",
     Callback = function(Value)
@@ -3488,9 +3488,9 @@ task.spawn(function()
     })
 
     local GameSection = GameTab:CreateSection("🎮 Game 🎮")
-    local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
+    --local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
-    local Dropdown = GameTab:CreateDropdown({
+--[[local Dropdown = GameTab:CreateDropdown({
    Name = "AutoSell Unit (will remove it as soon as cooldown is over)",
    Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
    CurrentOption = {"No Unit"},
@@ -3499,7 +3499,7 @@ task.spawn(function()
    Callback = function(Option)
         State.AutoSellUnitChoice = Option
    end,
-})
+})--]]
 
     local Toggle = GameTab:CreateToggle({
     Name = "Auto 1x/2x/3x Speed",
@@ -3538,7 +3538,7 @@ task.spawn(function()
 end)
 
      local Toggle = GameTab:CreateToggle({
-    Name = "Auto Start",
+    Name = "Auto Start Game",
     CurrentValue = false,
     Flag = "AutoStartToggle",
     Callback = function(Value)
@@ -3547,7 +3547,7 @@ end)
     })
 
     local Toggle = GameTab:CreateToggle({
-    Name = "Auto Next",
+    Name = "Auto Vote Next",
     CurrentValue = false,
     Flag = "AutoNextToggle",
     Callback = function(Value)
@@ -3563,7 +3563,7 @@ end)
     })
 
     local Toggle = GameTab:CreateToggle({
-    Name = "Auto Retry",
+    Name = "Auto Vote Retry",
     CurrentValue = false,
     Flag = "AutoRetryToggle",
     Callback = function(Value)
@@ -3579,7 +3579,7 @@ end)
     })
 
     local Toggle = GameTab:CreateToggle({
-    Name = "Auto Lobby",
+    Name = "Auto Teleport to Lobby",
     CurrentValue = false,
     Flag = "AutoLobbyToggle", 
     Callback = function(Value)
@@ -3591,7 +3591,7 @@ end)
     })
 
     local Toggle = GameTab:CreateToggle({
-    Name = "Disable End Screen UI(s)",
+    Name = "Disable Reward Screen UI",
     CurrentValue = false,
     Flag = "AutoDisableEndUI",
     Callback = function(Value)
@@ -3600,7 +3600,7 @@ end)
     })
 
     local Toggle = GameTab:CreateToggle({
-    Name = "Enable Failsafe",
+    Name = "Enable Game Failsafe",
     CurrentValue = false,
     Flag = "AutoFailSafeEnabled",
     Callback = function(Value)
@@ -3631,7 +3631,7 @@ end)
 
      TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 1",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector1",
@@ -3642,7 +3642,7 @@ end)
 
       TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 2",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector2",
@@ -3653,7 +3653,7 @@ end)
 
       TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 3",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector3",
@@ -3664,7 +3664,7 @@ end)
 
     TeamSelectorDropdown4 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 4",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector4",
@@ -3675,7 +3675,7 @@ end)
 
     TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 5",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector5",
@@ -3709,7 +3709,7 @@ end)
 })
 
      Toggle = AutoPlayTab:CreateToggle({
-    Name = "Auto Upgrade",
+    Name = "Auto Upgrade Units",
     CurrentValue = false,
     Flag = "AutoUpgradeToggle",
     Callback = function(Value)
@@ -3725,7 +3725,7 @@ end)
     })
 
        Toggle = AutoPlayTab:CreateToggle({
-    Name = "Auto Ultimate",
+    Name = "Auto Use Ultimate(s)",
     CurrentValue = false,
     Flag = "AutoUltimate",
     Callback = function(Value)
