@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -376,7 +375,7 @@ end)
 
 local function countPlacedUnits()
     local count = 0
-    local entities = Services.Workspace:FindFirstChild("Ground") and Services.Workspace.Ground:FindFirstChild("UnitClient")
+    local entities = Services.Workspace:FindFirstChild("Ground") and Services.Workspace.Ground:FindFirstChild("unitClient")
     
     if entities then
         for _, model in ipairs(entities:GetChildren()) do
