@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -375,7 +376,7 @@ end)
 
 local function countPlacedUnits()
     local count = 0
-    local entities = Services.Workspace:FindFirstChild("Ground") and Services.Workspace.Map:FindFirstChild("UnitClient")
+    local entities = Services.Workspace:FindFirstChild("Ground") and Services.Workspace.Ground:FindFirstChild("UnitClient")
     
     if entities then
         for _, model in ipairs(entities:GetChildren()) do
@@ -463,7 +464,7 @@ mt.__namecall = newcclosure(function(self, ...)
                     print(string.format("💰 Recorded sell for unit %s", unitName))
                 end
                 
-            elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
+            elseif isRecording and method == "FireServer" and self.Name == "Vote" then
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
@@ -564,8 +565,7 @@ local function playMacroLoop()
         elseif actionData.action == "SkipWave" then
             -- Skip wave logic (if applicable)
             pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("SkipWave"):InvokeServer()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
             end)
         end
         
@@ -1924,6 +1924,22 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     if State.AutoVoteRetry and not isRetrying then
         isRetrying = true
         spawn(function()
+            if isRecording then
+            isRecording = false
+            isRecordingLoopRunning = false
+            Rayfield:Notify({
+                Title = "Recording Stopped",
+                Content = "Game ended, recording has been automatically stopped and saved.",
+                Duration = 3,
+                Image = 0,
+            })
+            RecordToggle:Set(false)
+
+            if currentMacroName then
+                macroManager[currentMacroName] = macro
+                saveMacroToFile(currentMacroName)
+            end
+        end 
             while State.AutoVoteRetry and not game.Workspace.GameSettings.GameStarted.Value do
                 local success, err = pcall(function()
                     game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
@@ -1943,6 +1959,7 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     if State.AutoVoteLobby then
         Services.TeleportService:Teleport(17282336195, LocalPlayer)
     end
+    isPlayingLoopRunning = false
 end)
 
 Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(tryPickCard)
@@ -1950,3 +1967,31 @@ Services.Workspace.GameSettings.GameStarted.Changed:Connect(tryStartGame)
 Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
 
 Rayfield:LoadConfiguration()
+
+    task.delay(1, function()
+        local savedMacroName = Rayfield.Flags["MacroDropdown"]
+        
+        -- Handle case where savedMacroName might be a table
+        if type(savedMacroName) == "table" then
+            savedMacroName = savedMacroName[1]
+        end
+        
+        if savedMacroName and savedMacroName ~= "" and type(savedMacroName) == "string" then
+            currentMacroName = savedMacroName
+            
+            -- Load the macro data from file when restoring from config
+            local loadedMacro = loadMacroFromFile(currentMacroName)
+            if loadedMacro then
+                macro = loadedMacro
+                macroManager[currentMacroName] = loadedMacro
+                print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
+            else
+                print("Failed to load saved macro:", currentMacroName)
+                currentMacroName = nil
+            end
+        else
+            print("No valid saved macro name found. Type:", type(savedMacroName), "Value:", tostring(savedMacroName))
+        end
+        
+        refreshMacroDropdown()
+    end)
