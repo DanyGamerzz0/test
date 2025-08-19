@@ -93,7 +93,6 @@ local LocalPlayer = Services.Players.LocalPlayer
 
 
 local Config = {
-   chapters = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6"},
    difficulties = {"Normal", "Nightmare"},
 }
 
@@ -118,7 +117,11 @@ local State = {
    AutoVoteRetry = false,
    AutoVoteNext = false,
 
+   isGameRunning = false,
+
    SendStageCompletedWebhook = false,
+
+   startingInventory = {},
 }
 
 local AutoJoinState = {
@@ -139,6 +142,14 @@ local AutoPlayTab = Window:CreateTab("AutoPlay", "joystick")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 local UpdateLogSection = UpdateLogTab:CreateSection("v0.01")
+
+
+local Button = LobbyTab:CreateButton({
+        Name = "Return to lobby",
+        Callback = function()
+            Services.TeleportService:Teleport(17282336195, Services.Players.LocalPlayer)
+        end,
+    })
 
     local JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
 
@@ -163,9 +174,9 @@ local UpdateLogSection = UpdateLogTab:CreateSection("v0.01")
     end,
 })
 
-    local ChapterDropdown = JoinerTab:CreateDropdown({
+    local ChapterDropdown869 = JoinerTab:CreateDropdown({
     Name = "Select Story Act",
-    Options = Config.chapters,
+    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "StoryActSelector",
@@ -177,7 +188,7 @@ local UpdateLogSection = UpdateLogTab:CreateSection("v0.01")
 
     local ChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Story Difficulty",
-    Options = Config.difficulties,
+    Options = {"Normal","Nightmare"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "StoryDifficultySelector",
@@ -210,7 +221,7 @@ local UpdateLogSection = UpdateLogTab:CreateSection("v0.01")
 
     local ChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Raid Act",
-    Options = Config.chapters,
+    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "RaidActSelector",
@@ -224,7 +235,10 @@ local function tryStartGame()
     if State.AutoStartGame then
         local mode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
         local gameStarted = Services.Workspace.GameSettings.GameStarted.Value
-        if (mode ~= nil and mode ~= "") and not gameStarted then
+        local currentWave = Services.Workspace.GameSettings.Wave.Value
+        
+        -- Only try to start if game hasn't started, there's a mode, and we're on wave 1
+        if (mode ~= nil and mode ~= "") and not gameStarted and currentWave == 0 then
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
             end)
@@ -250,6 +264,9 @@ local Toggle = GameTab:CreateToggle({
     Flag = "AutoVoteRetry",
     Callback = function(Value)
         State.AutoVoteRetry = Value
+        if Value then
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+        end
     end,
 })
 
@@ -259,6 +276,9 @@ local Toggle2 = GameTab:CreateToggle({
     Flag = "AutoVoteNext", 
     Callback = function(Value)
         State.AutoVoteNext = Value
+        if Value then
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
+        end
     end,
 })
 
@@ -313,6 +333,15 @@ task.spawn(function()
             end
         end
         task.wait(3)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoStartGame then
+            tryStartGame()
+        end
     end
 end)
 
@@ -596,6 +625,13 @@ local function loadStoryStages()
     print("Loading story stages into dropdown...")
     
     local allStoryStages = findStoryStages()
+
+    if not allStoryStages or type(allStoryStages) ~= "table" then
+        print("No story stages found or invalid data returned!")
+        StoryStageDropdown:Refresh({})
+        return
+    end
+
     local orderedStages = {}
     local unlistedStages = {}
     local storyStageSet = {}
@@ -657,6 +693,16 @@ local function snapshotInventory()
 
     snapshot.Gold = Services.Players.LocalPlayer.Data.Coins.Value
     snapshot.Gem = Services.Players.LocalPlayer.Data.Tokens.Value
+    snapshot.TraitReroll = Services.Players.LocalPlayer.Data.Reroll_Tokens.Value
+    snapshot.Cog = Services.Players.LocalPlayer.Data.Cog.Value
+    snapshot.Heart = Services.Players.LocalPlayer.Data.Heart.Value
+    snapshot.Honey = Services.Players.LocalPlayer.Data.Honey.Value
+    snapshot.MagicBall = Services.Players.LocalPlayer.Data.MagicBall.Value
+    snapshot.MoonNight = Services.Players.LocalPlayer.Data.MoonNight.Value
+    snapshot.Mushroom = Services.Players.LocalPlayer.Data.Mushroom.Value
+    snapshot.Snowflake = Services.Players.LocalPlayer.Data.Snowflake.Value
+    snapshot.StatReroll = Services.Players.LocalPlayer.Data.StatReroll.Value
+    snapshot.SuperStatReroll = Services.Players.LocalPlayer.Data.SuperStatReroll.Value
 
     local itemInventory = Services.Players.LocalPlayer:WaitForChild("ItemsInventory")
     local unitInventory = Services.Players.LocalPlayer:WaitForChild("UnitsInventory")
@@ -694,7 +740,7 @@ local function compareInventories(startInv, endInv)
     return gained
 end
 
---[[local function buildRewardsText()
+local function buildRewardsText()
     local endingInventory = snapshotInventory()
     local gainedItems = compareInventories(State.startingInventory, endingInventory)
     local lines = {}
@@ -705,6 +751,8 @@ end
         local itemName = reward.name
         local amount = reward.amount
 
+        print(itemName.." - "..amount)
+
         detectedRewards[itemName] = amount
 
         local totalText = ""
@@ -712,14 +760,44 @@ end
             table.insert(detectedUnits, itemName)
             totalText = ""
             table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
-        elseif itemName == "Gems" then
+        elseif itemName == "Gem" then
             totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Tokens.Value)
             table.insert(lines, string.format("+ %s %s%s", amount, itemName.."(s)", totalText))
-        elseif itemName == "Coins" then
+        elseif itemName == "Gold" then
             totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Coins.Value)
             table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "TraitReroll" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Reroll_Tokens.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Cog" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Cog.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Heart" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Heart.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Honey" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Honey.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "MagicBall" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.MagicBall.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "MoonNight" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.MoonNight.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Mushroom" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Mushroom.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Snowflake" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Snowflake.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "StatReroll" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.StatReroll.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "SuperStatReroll" then
+            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.SuperStatReroll.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
         else
-            local itemObj = Services.Players.LocalPlayer:WaitForChild("ItemsInventory"):WaitForChild(itemName)
+            local itemObj = Services.Players.LocalPlayer:WaitForChild("ItemsInventory"):FindFirstChild(itemName)
             local totalAmount = itemObj and itemObj:FindFirstChild("Amount") and itemObj.Amount.Value or nil
             totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
             table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
@@ -733,7 +811,7 @@ end
     local rewardsText = table.concat(lines, "\n")
     notify("Gained rewards:", rewardsText, 2)
     return rewardsText, detectedRewards, detectedUnits
-end--]]
+end
 
 local function sendWebhook(messageType, rewards, clearTime, matchResult)
     if not ValidWebhook then return end
@@ -754,19 +832,22 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
     elseif messageType == "stage" then
         local RewardsUI = Services.Workspace.GameSettings
         local stageName = RewardsUI and RewardsUI:FindFirstChild("Stages").Value  or "Unknown Stage"
-        local gameMode = Services.Workspace:GetAttribute("Act") or "Unknown Act"
+        local gameMode = RewardsUI and RewardsUI:FindFirstChild("Act").Value or "Unknown Act"
         local gameDif = RewardsUI and RewardsUI:FindFirstChild("Difficulty").Value  or "Unknown Difficulty"
-        local isWin = Services.Workspace.GameSettings.Base.Health > 0
+        local isWin = Services.Workspace.GameSettings.Base.Health.Value > 0
+        local resultText = isWin and "Victory" or "Defeat"
         local plrlevel = Services.Players.LocalPlayer.Data.Levels.Value or ""
+        local match_time = RewardsUI.PlayTime.Value
+        local formattedTime = string.format("%02d:%02d:%02d", math.floor(match_time / 3600), math.floor((match_time % 3600) / 60), match_time % 60)
 
-        local rewardsText, detectedRewards, detectedUnits = "no",1,0
+        local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
         local shouldPing = #detectedUnits > 0
 
         if #detectedUnits > 1 then return end
 
         local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
 
-        local stageResult = stageName.."Act "..gameMode .. " (" .. gameMode .. ")" .. " - " .. matchResult
+        local stageResult = stageName.." - Act "..gameMode .. " - " .. gameDif .. " - " .. resultText
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
         data = {
@@ -778,7 +859,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                 color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
                 fields = {
                     { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
+                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = formattedTime, inline = true },
                     { name = "🏆 Rewards", value = rewardsText, inline = false },
                     shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
                     { name = "📈 Script Version", value = "v0.01", inline = true },
@@ -821,6 +902,19 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
     end
 end
 
+local function onGameStart()
+    print("-----------------------Game has started!-----------------------")
+    State.startingInventory = snapshotInventory()
+    State.isGameRunning = true
+end
+
+local function checkGameStarted()
+    if isInLobby() then return end
+    local gameStarted = Services.Workspace.GameSettings.GameStarted.Value
+    if gameStarted then
+        onGameStart()
+    end
+end
       TestWebhookButton = WebhookTab:CreateButton({
     Name = "Test webhook",
     Callback = function()
@@ -832,6 +926,7 @@ end
 
 loadRaidStages()
 loadStoryStages()
+checkGameStarted()
 
 task.spawn(function()
     while true do
@@ -844,6 +939,7 @@ local isRetrying = false -- Prevent multiple retry loops
 local isNexting = false
 
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
+    State.isGameRunning = false
     if State.SendStageCompletedWebhook then
         sendWebhook("stage", nil, "1:50", nil)
     end
@@ -894,5 +990,6 @@ end)
 
 Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(tryPickCard)
 Services.Workspace.GameSettings.GameStarted.Changed:Connect(tryStartGame)
+Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
 
 Rayfield:LoadConfiguration()
