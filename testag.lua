@@ -1,4 +1,4 @@
---l
+--la
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -653,7 +653,7 @@ local function tryPlaceUnit(unitName, cframe, rotation, unitId, maxRetries)
 end
 
 local function getPlayerMoney()
-    return game.Players.LocalPlayer.GameData.Yen.Value or 0
+    return tonumber(Services.Players.LocalPlayer.GameData.Yen.Value) or 0
 end
 
 local function getUnitUpgradeCost(unitName)
