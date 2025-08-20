@@ -1,4 +1,3 @@
---lll
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -124,6 +123,10 @@ local State = {
 
    startingInventory = {},
 }
+
+local isRetrying = false -- Prevent multiple retry loops
+local isNexting = false
+local retryStartTime = 0
 
 local AutoJoinState = {
     isProcessing = false,
@@ -338,7 +341,7 @@ local function tryPickCard()
             end)
         end
     end
-end
+end 
 
 local Toggle = GameTab:CreateToggle({
     Name = "Auto Pick Card",
@@ -365,9 +368,13 @@ local Dropdown = GameTab:CreateDropdown({
 
 task.spawn(function()
     while true do
-        if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
-            if Services.Workspace.GameSettings.StagesChallenge.Mode == nil or "" then
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("StageChallenge"):FireServer(State.AutoPickCardSelected)
+        -- Don't pick cards if we're in retry mode
+        if State.AutoPickCard and State.AutoPickCardSelected ~= nil and not isRetrying then
+            -- Add a delay after retry to let the game settle
+            if tick() - retryStartTime > 5 then
+                if Services.Workspace.GameSettings.StagesChallenge.Mode == nil or "" then
+                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("StageChallenge"):FireServer(State.AutoPickCardSelected)
+                end
             end
         end
         task.wait(3)
@@ -2364,10 +2371,23 @@ task.spawn(function()
     end
 end)
 
-local isRetrying = false -- Prevent multiple retry loops
-local isNexting = false
-
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
+                if isRecording then
+            isRecording = false
+            isRecordingLoopRunning = false
+            Rayfield:Notify({
+                Title = "Recording Stopped",
+                Content = "Game ended, recording has been automatically stopped and saved.",
+                Duration = 3,
+                Image = 0,
+            })
+            RecordToggle:Set(false)
+
+            if currentMacroName then
+                macroManager[currentMacroName] = macro
+                saveMacroToFile(currentMacroName)
+            end
+        end 
     State.isGameRunning = false
     if State.SendStageCompletedWebhook then
         sendWebhook("stage", nil, "1:50", nil)
@@ -2393,41 +2413,27 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
         end)
     end
 
-    if State.AutoVoteRetry and not isRetrying then
-        isRetrying = true
-        spawn(function()
-            if isRecording then
-            isRecording = false
-            isRecordingLoopRunning = false
-            Rayfield:Notify({
-                Title = "Recording Stopped",
-                Content = "Game ended, recording has been automatically stopped and saved.",
-                Duration = 3,
-                Image = 0,
-            })
-            RecordToggle:Set(false)
-
-            if currentMacroName then
-                macroManager[currentMacroName] = macro
-                saveMacroToFile(currentMacroName)
+   if State.AutoVoteRetry and not isRetrying then
+    isRetrying = true
+    retryStartTime = tick()
+    
+    spawn(function()
+        while State.AutoVoteRetry and not game.Workspace.GameSettings.GameStarted.Value do
+            local success, err = pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                    :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+            end)
+            
+            if success then
+                print("Vote sent!")
+            else
+                print("Failed, retrying...")
             end
-        end 
-            while State.AutoVoteRetry and not game.Workspace.GameSettings.GameStarted.Value do
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-                end)
-
-                if success then
-                    print("Vote sent!")
-                else
-                    print("Failed, retrying...")
-                end
-                wait(10)
-            end
-            isRetrying = false
-        end)
-    end
+            wait(10)
+        end
+        isRetrying = false
+    end)
+end
     if State.AutoVoteLobby then
         Services.TeleportService:Teleport(17282336195, LocalPlayer)
     end
