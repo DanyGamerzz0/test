@@ -1,3 +1,4 @@
+--2
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -407,7 +408,6 @@ local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     for _, unit in pairs(unitClient:GetChildren()) do
         if unit:IsA("Model") then
             local unitBaseName = unit.Name:match("^(.-)%d*$")
-            if unitBaseName == baseUnitName then
                 local unitPosition = unit.WorldPivot.Position
                 local placementPosition = unitCFrame.Position
                 local distance = (unitPosition - placementPosition).Magnitude
@@ -417,8 +417,9 @@ local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
                     closestDistance = distance
                     closestUnitName = unit.Name
                     print("found unit "..unit.Name.." within tolerance")
+                else
+                    print("not found")
                 end
-            end
         end
     end
 
