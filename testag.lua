@@ -1,4 +1,3 @@
---2
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -157,6 +156,9 @@ local waveStartTime = 0
 
 local unitMapping = {}
 local placementOrder = {}
+
+local playbackUnitMapping = {}
+local playbackPlacementIndex = 0
 
 local ValidWebhook = nil
 
@@ -470,13 +472,6 @@ mt.__namecall = newcclosure(function(self, ...)
                 if unitsAfter > unitsBefore then
                     local actualUnitName = findLatestSpawnedUnit(unitName, unitCFrame)
                     
-                    -- Store the placement order for reference
-                    table.insert(placementOrder, {
-                        originalName = unitName,
-                        actualName = actualUnitName,
-                        placementIndex = #placementOrder + 1
-                    })
-                    
                     local placementData = {
                         action = "PlaceUnit",
                         unitName = unitName,
@@ -487,12 +482,12 @@ mt.__namecall = newcclosure(function(self, ...)
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
                         timestamp = timestamp,
-                        placementIndex = #placementOrder -- Add placement index
+                        placementOrder = #macro + 1 -- Track the order this unit was placed
                     }
                     
                     table.insert(macro, placementData)
-                    print(string.format("Successfully recorded placement: %s -> %s (units: %d→%d)", 
-                        unitName, actualUnitName or "Unknown", unitsBefore, unitsAfter))
+                    print(string.format("Successfully recorded placement #%d: %s -> %s (units: %d→%d)", 
+                        placementData.placementOrder, unitName, actualUnitName or "Unknown", unitsBefore, unitsAfter))
                 else
                     print(string.format("Placement failed, not recording: %s (units: %d→%d)", 
                         unitName, unitsBefore, unitsAfter))
@@ -507,45 +502,36 @@ mt.__namecall = newcclosure(function(self, ...)
                 
                 task.wait(0.5)
                 
-                if action == "Upgrade" then
-                    -- Find the placement index of this unit
-                    local placementIndex = nil
-                    for i, placement in ipairs(placementOrder) do
-                        if placement.actualName == unitName then
-                            placementIndex = i
-                            break
-                        end
+                -- Find which placement this unit corresponds to by looking backwards through macro
+                local targetPlacementOrder = nil
+                for i = #macro, 1, -1 do
+                    if macro[i].action == "PlaceUnit" and macro[i].actualUnitName == unitName then
+                        targetPlacementOrder = macro[i].placementOrder
+                        break
                     end
-                    
+                end
+                
+                if action == "Upgrade" then
                     table.insert(macro, {
                         action = "UpgradeUnit", 
                         unitName = unitName,
                         actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
-                        placementIndex = placementIndex -- Store which placement this refers to
+                        targetPlacementOrder = targetPlacementOrder -- Which placement this upgrade targets
                     })
-                    print(string.format("Recorded upgrade for unit %s (placement #%s)", unitName, tostring(placementIndex)))
+                    print(string.format("Recorded upgrade for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder)))
                     
                 elseif action == "Selling" then
-                    -- Find the placement index of this unit
-                    local placementIndex = nil
-                    for i, placement in ipairs(placementOrder) do
-                        if placement.actualName == unitName then
-                            placementIndex = i
-                            break
-                        end
-                    end
-                    
                     table.insert(macro, {
                         action = "SellUnit", 
                         unitName = unitName,
                         actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
-                        placementIndex = placementIndex -- Store which placement this refers to
+                        targetPlacementOrder = targetPlacementOrder -- Which placement this sell targets
                     })
-                    print(string.format("Recorded sell for unit %s (placement #%s)", unitName, tostring(placementIndex)))
+                    print(string.format("Recorded sell for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder)))
                 end
                 
             elseif isRecording and method == "FireServer" and self.Name == "Vote" then
@@ -676,15 +662,13 @@ local function executeUnitPlacement(actionData)
     if success then
         print(string.format("✅ Placed unit: %s", actionData.unitName))
         
-        -- Wait a moment for the unit to spawn, then find it and update mapping
+        -- Wait for unit to spawn then find its actual current name
         task.wait(1.5)
         local actualCurrentName = findLatestSpawnedUnit(actionData.unitName, actionData.cframe)
         if actualCurrentName then
-            -- Map both the original recorded name and the actual recorded name to current name
-            unitMapping[actionData.actualUnitName] = actualCurrentName
-            unitMapping[actionData.unitName] = actualCurrentName
-            
-            print(string.format("🔗 Mapped %s -> %s", actionData.actualUnitName, actualCurrentName))
+            -- Map this placement order to the current unit name
+            playbackUnitMapping[actionData.placementOrder] = actualCurrentName
+            print(string.format("🔗 Mapped placement #%d -> %s", actionData.placementOrder, actualCurrentName))
         end
     else
         warn(string.format("❌ Failed to place unit %s: %s", actionData.unitName, err))
@@ -693,37 +677,47 @@ end
 
 local function executeUnitUpgrade(actionData)
     local success, err = pcall(function()
-        -- Use the mapping to get current unit name
-        local currentUnitName = getCurrentUnitName(actionData.actualUnitName or actionData.unitName)
+        -- Get the current unit name based on which placement this upgrade targets
+        local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
         
-        print(string.format("🔍 Upgrading: %s -> %s", actionData.actualUnitName or actionData.unitName, currentUnitName))
+        if not currentUnitName then
+            warn(string.format("❌ Could not find current unit name for placement #%s", tostring(actionData.targetPlacementOrder)))
+            return
+        end
+        
+        print(string.format("🔍 Upgrading placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
         
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
             :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
     end)
     
     if success then
-        print(string.format("⬆️ Upgraded unit: %s", actionData.actualUnitName or actionData.unitName))
+        print(string.format("⬆️ Upgraded unit from placement #%d", actionData.targetPlacementOrder))
     else
-        warn(string.format("❌ Failed to upgrade unit %s: %s", actionData.actualUnitName or actionData.unitName, err))
+        warn(string.format("❌ Failed to upgrade unit from placement #%d: %s", actionData.targetPlacementOrder, err))
     end
 end
 
 local function executeUnitSell(actionData)
     local success, err = pcall(function()
-        -- Use the mapping to get current unit name
-        local currentUnitName = getCurrentUnitName(actionData.actualUnitName or actionData.unitName)
+        -- Get the current unit name based on which placement this sell targets
+        local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
         
-        print(string.format("🔍 Selling: %s -> %s", actionData.actualUnitName or actionData.unitName, currentUnitName))
+        if not currentUnitName then
+            warn(string.format("❌ Could not find current unit name for placement #%s", tostring(actionData.targetPlacementOrder)))
+            return
+        end
+        
+        print(string.format("🔍 Selling placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
         
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
             :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", currentUnitName)
     end)
     
     if success then
-        print(string.format("💰 Sold unit: %s", actionData.actualUnitName or actionData.unitName))
+        print(string.format("💰 Sold unit from placement #%d", actionData.targetPlacementOrder))
     else
-        warn(string.format("❌ Failed to sell unit %s: %s", actionData.actualUnitName or actionData.unitName, err))
+        warn(string.format("❌ Failed to sell unit from placement #%d: %s", actionData.targetPlacementOrder, err))
     end
 end
 
@@ -1331,6 +1325,12 @@ local CreateMacroButton = MacroTab:CreateButton({
         end
     })
 
+local function clearPlaybackMapping()
+    playbackUnitMapping = {}
+    playbackPlacementIndex = 0
+    print("🧹 Cleared playback unit mapping for new game")
+end
+
 local function playMacroLoop()
     if not macro or #macro == 0 then
         Rayfield:Notify({
@@ -1344,8 +1344,8 @@ local function playMacroLoop()
     isPlayingLoopRunning = true
     
     while isPlaybacking do
-        -- Clear unit mapping at start of each game
-        clearUnitMapping()
+        -- Clear mapping at start of each game
+        clearPlaybackMapping()
         
         local gameStartTime = tick()
         print("Starting macro playback...")
