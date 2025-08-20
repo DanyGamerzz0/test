@@ -1,4 +1,4 @@
---la
+--lau
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -665,7 +665,7 @@ local function getUnitUpgradeCost(unitName)
         return nil
     end
     
-    local unit = unitServer[Services.Players.LocalPlayer.." (UNIT)"]:FindFirstChild(unitName)
+    local unit = unitServer[tostring(Services.Players.LocalPlayer).." (UNIT)"]:FindFirstChild(unitName)
     if not unit then
         warn("Unit not found in unitServer:", unitName)
         return nil
