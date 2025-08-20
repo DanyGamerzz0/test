@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -1315,53 +1316,56 @@ local CreateMacroButton = MacroTab:CreateButton({
     end,
     })
 
-    RecordToggle = MacroTab:CreateToggle({
-        Name = "Record",
-        CurrentValue = false,
-        Flag = "RecordMacro",
-        Callback = function(Value)
-            isRecording = Value
+RecordToggle = MacroTab:CreateToggle({
+    Name = "Record",
+    CurrentValue = false,
+    Flag = "RecordMacro",
+    Callback = function(Value)
+        isRecording = Value
 
-            if Value and not isRecordingLoopRunning then
-                Rayfield:Notify({
-                    Title = "Macro Recording",
-                    Content = "Waiting for game to start...",
-                    Duration = 4
-                })
+        if Value and not isRecordingLoopRunning then
+            MacroStatusLabel:Set("Status: Preparing to record...")
+            Rayfield:Notify({
+                Title = "Macro Recording",
+                Content = "Waiting for game to start...",
+                Duration = 4
+            })
 
-                recordingThread = task.spawn(function()
-                    waitForGameStart()
-                    if isRecording then
-                        isRecordingLoopRunning = true
-                        table.clear(macro)
-                        recordingStartTime = tick()
+            recordingThread = task.spawn(function()
+                waitForGameStart()
+                if isRecording then
+                    isRecordingLoopRunning = true
+                    table.clear(macro)
+                    recordingStartTime = tick()
+                    MacroStatusLabel:Set("Status: Recording active!")
 
-                        Rayfield:Notify({
-                            Title = "Recording Started",
-                            Content = "Macro recording is now active.",
-                            Duration = 4
-                        })
-                    end
-                end)
-
-            elseif not Value then
-                if isRecordingLoopRunning then
                     Rayfield:Notify({
-                        Title = "Recording Stopped",
-                        Content = "Recording manually stopped.",
-                        Duration = 3
+                        Title = "Recording Started",
+                        Content = "Macro recording is now active.",
+                        Duration = 4
                     })
                 end
-                isRecordingLoopRunning = false
+            end)
 
-                if currentMacroName then
+        elseif not Value then
+            if isRecordingLoopRunning then
+                Rayfield:Notify({
+                    Title = "Recording Stopped",
+                    Content = "Recording manually stopped.",
+                    Duration = 3
+                })
+            end
+            isRecordingLoopRunning = false
+            MacroStatusLabel:Set("Status: Recording stopped")
+
+            if currentMacroName then
                 macroManager[currentMacroName] = macro
                 ensureMacroFolders()
                 saveMacroToFile(currentMacroName)
-                end
             end
         end
-    })
+    end
+})
 
 local function clearPlaybackMapping()
     playbackUnitMapping = {}
@@ -1472,59 +1476,6 @@ local function playMacroLoop()
     print("Macro playback loop ended")
 end
 
--- Update the recording toggle callback to include label updates
-RecordToggle = MacroTab:CreateToggle({
-    Name = "Record",
-    CurrentValue = false,
-    Flag = "RecordMacro",
-    Callback = function(Value)
-        isRecording = Value
-
-        if Value and not isRecordingLoopRunning then
-            MacroStatusLabel:Set("Status: Preparing to record...")
-            Rayfield:Notify({
-                Title = "Macro Recording",
-                Content = "Waiting for game to start...",
-                Duration = 4
-            })
-
-            recordingThread = task.spawn(function()
-                waitForGameStart()
-                if isRecording then
-                    isRecordingLoopRunning = true
-                    table.clear(macro)
-                    recordingStartTime = tick()
-                    MacroStatusLabel:Set("Status: Recording active!")
-
-                    Rayfield:Notify({
-                        Title = "Recording Started",
-                        Content = "Macro recording is now active.",
-                        Duration = 4
-                    })
-                end
-            end)
-
-        elseif not Value then
-            if isRecordingLoopRunning then
-                Rayfield:Notify({
-                    Title = "Recording Stopped",
-                    Content = "Recording manually stopped.",
-                    Duration = 3
-                })
-            end
-            isRecordingLoopRunning = false
-            MacroStatusLabel:Set("Status: Recording stopped")
-
-            if currentMacroName then
-                macroManager[currentMacroName] = macro
-                ensureMacroFolders()
-                saveMacroToFile(currentMacroName)
-            end
-        end
-    end
-})
-
--- Update the playback toggle callback to include label updates
 PlayToggle = MacroTab:CreateToggle({
     Name = "Playback",
     CurrentValue = false,
@@ -1594,73 +1545,6 @@ PlayToggle = MacroTab:CreateToggle({
         end
     end,
 })
-
-
-    PlayToggle = MacroTab:CreateToggle({
-        Name = "Playback",
-        CurrentValue = false,
-        Flag = "PlayBackMacro",
-        Callback = function(Value)
-            isPlaybacking = Value
-
-            if Value and not isPlayingLoopRunning then
-        Rayfield:Notify({
-            Title = "Macro Playback",
-            Content = "Waiting for game to start...",
-            Duration = 4
-        })
-
-        playbackThread = task.spawn(function()
-            waitForGameStart()
-            if isPlaybacking then
-                if currentMacroName then
-                    ensureMacroFolders()
-                    local loadedMacro = loadMacroFromFile(currentMacroName)
-                    if loadedMacro then
-                        macro = loadedMacro
-                    else
-                        Rayfield:Notify({
-                            Title = "Playback Error",
-                            Content = "Failed to load macro: " .. tostring(currentMacroName),
-                            Duration = 5,
-                        })
-                        isPlaybacking = false
-                        PlayToggle:Set(false)
-                        return
-                    end
-                else
-                    Rayfield:Notify({
-                        Title = "Playback Error",
-                        Content = "No macro selected for playback.",
-                        Duration = 5,
-                    })
-                    isPlaybacking = false
-                    PlayToggle:Set(false)
-                    return
-                end
-
-                isPlayingLoopRunning = true
-
-                Rayfield:Notify({
-                    Title = "Playback Started",
-                    Content = "Macro is now executing...",
-                    Duration = 4
-                })
-
-                playMacroLoop()
-
-                isPlayingLoopRunning = false
-            end
-        end)
-    elseif not Value then
-        Rayfield:Notify({
-            Title = "Macro Playback",
-            Content = "Playback disabled.",
-            Duration = 3
-        })
-            end
-        end,
-    })
 
     local ExportMacroButton = MacroTab:CreateButton({
         Name = "Export Selected Macro To Clipboard",
