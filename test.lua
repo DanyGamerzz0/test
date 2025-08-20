@@ -617,7 +617,7 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
 
                 local totalText = ""
 
-                if rewardEntry.Name == "Gem" or rewardEntry.Name == "Gold" or rewardEntry.Name == "Beach Balls" or "BossRushCurrency" then
+                if rewardEntry.Name == "Gem" or rewardEntry.Name == "Gold" or rewardEntry.Name == "Beach Balls" or rewardEntry.Name == "BossRushCurrency" then
                     local dataValue = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data:FindFirstChild(rewardEntry.Name)
                     totalText = dataValue and string.format(" [%d total]", dataValue.Value) or ""
                 else
