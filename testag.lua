@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -652,81 +651,254 @@ local function tryPlaceUnit(unitName, cframe, rotation, unitId, maxRetries)
     return false
 end
 
+local function getPlayerMoney()
+    return game.Players.LocalPlayer.GameData.Yen.Value or 0
+end
+
+local function getUnitUpgradeCost(unitName)
+    local unitServer = Services.Workspace:FindFirstChild("Ground") 
+        and Services.Workspace.Ground:FindFirstChild("unitServer")
+    
+    if not unitServer then
+        warn("unitServer not found!")
+        return nil
+    end
+    
+    local unit = unitServer:FindFirstChild(unitName)
+    if not unit then
+        warn("Unit not found in unitServer:", unitName)
+        return nil
+    end
+    
+    -- Look for PriceUpgrade in any child of the unit
+    for _, child in pairs(unit:GetDescendants()) do
+        if child.Name == "PriceUpgrade" and child:IsA("IntValue") then
+            return child.Value
+        end
+    end
+    
+    warn("PriceUpgrade not found for unit:", unitName)
+    return nil
+end
+
+local function waitForSufficientMoney(requiredAmount, actionDescription)
+    local currentMoney = getPlayerMoney()
+    
+    if currentMoney >= requiredAmount then
+        return true -- Already have enough money
+    end
+    
+    MacroStatusLabel:Set(string.format("Status: Waiting for money (%d/%d) - %s", 
+        currentMoney, requiredAmount, actionDescription))
+    
+    print(string.format("💰 Insufficient funds for %s. Need %d, have %d. Waiting...", 
+        actionDescription, requiredAmount, currentMoney))
+    
+    -- Wait until we have enough money
+    while getPlayerMoney() < requiredAmount and isPlaybacking do
+        task.wait(1) -- Check every second
+        local newMoney = getPlayerMoney()
+        if newMoney ~= currentMoney then
+            currentMoney = newMoney
+            MacroStatusLabel:Set(string.format("Status: Waiting for money (%d/%d) - %s", 
+                currentMoney, requiredAmount, actionDescription))
+        end
+    end
+    
+    if not isPlaybacking then
+        return false -- Playback was stopped while waiting
+    end
+    
+    print(string.format("✅ Sufficient funds available for %s!", actionDescription))
+    return true
+end
+
+local function tryPlaceUnitUntilSuccess(unitName, cframe, rotation, unitId, maxAttempts)
+    maxAttempts = maxAttempts or 10
+    local attempts = 0
+    
+    while attempts < maxAttempts and isPlaybacking do
+        attempts = attempts + 1
+        
+        MacroStatusLabel:Set(string.format("Status: Placing %s (attempt %d/%d)", 
+            unitName, attempts, maxAttempts))
+        
+        print(string.format("🎯 Attempting to place %s (attempt %d/%d)", 
+            unitName, attempts, maxAttempts))
+        
+        local unitsBefore = countPlacedUnits()
+        local moneyBefore = getPlayerMoney()
+        
+        -- Try to place the unit
+        local success, err = pcall(function()
+            local args = {
+                {
+                    unitName,
+                    cframe,
+                    rotation or 0
+                },
+                unitId
+            }
+            
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
+        end)
+        
+        if not success then
+            warn(string.format("❌ Failed to send place request for %s: %s", unitName, err))
+            task.wait(1)
+            continue
+        end
+        
+        -- Wait and check if unit was actually placed
+        task.wait(1.5)
+        
+        local unitsAfter = countPlacedUnits()
+        local moneyAfter = getPlayerMoney()
+        
+        -- Check if unit count increased AND money decreased (indicating successful purchase)
+        if unitsAfter > unitsBefore and moneyAfter < moneyBefore then
+            print(string.format("✅ Successfully placed %s! (units: %d→%d, money: %d→%d)", 
+                unitName, unitsBefore, unitsAfter, moneyBefore, moneyAfter))
+            
+            -- Find and map the actual unit name
+            task.wait(0.5) -- Small delay to ensure unit is fully spawned
+            local actualUnitName = findLatestSpawnedUnit(unitName, cframe)
+            if actualUnitName then
+                -- Update the mapping for upgrades/sells later
+                playbackUnitMapping[currentPlacementOrder] = actualUnitName
+                print(string.format("🔗 Mapped placement -> %s", actualUnitName))
+            end
+            
+            return true
+        end
+        
+        -- If we reach here, placement failed
+        if moneyAfter >= moneyBefore then
+            print(string.format("💰 Placement failed - money unchanged (%d). Likely insufficient funds or invalid placement.", moneyBefore))
+        end
+        
+        if attempts < maxAttempts then
+            print(string.format("⏳ Placement attempt %d failed, waiting before retry...", attempts))
+            task.wait(2) -- Wait before next attempt
+        end
+    end
+    
+    warn(string.format("❌ Failed to place %s after %d attempts", unitName, attempts))
+    return false
+end
 
 local function executeUnitPlacement(actionData)
-    local success, err = pcall(function()
-        local args = {
-            {
-                actionData.unitName,
-                actionData.cframe,
-                actionData.rotation or 0
-            },
-            actionData.unitId
-        }
-        
-        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
-    end)
+    local unitDescription = string.format("place %s", actionData.unitName)
+    
+    -- We don't know exact placement cost, so we'll use the retry system
+    print(string.format("🎯 Attempting to place unit: %s", actionData.unitName))
+    
+    local success = tryPlaceUnitUntilSuccess(
+        actionData.unitName, 
+        actionData.cframe, 
+        actionData.rotation or 0, 
+        actionData.unitId,
+        10 -- max attempts
+    )
     
     if success then
-        print(string.format("✅ Placed unit: %s", actionData.unitName))
-        
-        -- Wait for unit to spawn then find its actual current name
-        task.wait(1.5)
-        local actualCurrentName = findLatestSpawnedUnit(actionData.unitName, actionData.cframe)
-        if actualCurrentName then
-            -- Map this placement order to the current unit name
-            playbackUnitMapping[actionData.placementOrder] = actualCurrentName
-            print(string.format("🔗 Mapped placement #%d -> %s", actionData.placementOrder, actualCurrentName))
-        end
+        MacroStatusLabel:Set(string.format("Status: Successfully placed %s", actionData.unitName))
     else
-        warn(string.format("❌ Failed to place unit %s: %s", actionData.unitName, err))
+        MacroStatusLabel:Set(string.format("Status: Failed to place %s", actionData.unitName))
     end
+    
+    return success
 end
 
 local function executeUnitUpgrade(actionData)
+    -- Get the current unit name based on which placement this upgrade targets
+    local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
+    
+    if not currentUnitName or actionData.targetPlacementOrder == 0 then
+        warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
+        MacroStatusLabel:Set(string.format("Status: Error - Unit not found for upgrade"))
+        return false
+    end
+    
+    print(string.format("🔍 Preparing to upgrade placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
+    
+    -- Get upgrade cost
+    local upgradeCost = getUnitUpgradeCost(currentUnitName)
+    
+    if not upgradeCost then
+        warn(string.format("❌ Could not determine upgrade cost for %s", currentUnitName))
+        MacroStatusLabel:Set(string.format("Status: Error - Unknown upgrade cost"))
+        return false
+    end
+    
+    -- Wait for sufficient money
+    local unitDescription = string.format("upgrade %s", currentUnitName)
+    if not waitForSufficientMoney(upgradeCost, unitDescription) then
+        return false -- Playback was stopped while waiting
+    end
+    
+    -- Attempt the upgrade
+    local moneyBefore = getPlayerMoney()
+    
     local success, err = pcall(function()
-        -- Get the current unit name based on which placement this upgrade targets
-        local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
-        
-        if not currentUnitName or actionData.targetPlacementOrder == 0 then
-            warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
-            return
-        end
-        
-        print(string.format("🔍 Upgrading placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
-        
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
             :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
     end)
     
     if success then
-        print(string.format("⬆️ Upgraded unit from placement #%d", actionData.targetPlacementOrder or 0))
+        -- Wait a moment and verify money was spent
+        task.wait(0.5)
+        local moneyAfter = getPlayerMoney()
+        
+        if moneyAfter < moneyBefore then
+            print(string.format("⬆️ Successfully upgraded unit from placement #%d (cost: %d)", 
+                actionData.targetPlacementOrder or 0, moneyBefore - moneyAfter))
+            MacroStatusLabel:Set(string.format("Status: Upgraded unit (cost: %d)", moneyBefore - moneyAfter))
+            return true
+        else
+            warn(string.format("❌ Upgrade request sent but money unchanged - upgrade likely failed"))
+            MacroStatusLabel:Set("Status: Upgrade failed - money unchanged")
+            return false
+        end
     else
         warn(string.format("❌ Failed to upgrade unit from placement #%d: %s", actionData.targetPlacementOrder or 0, err))
+        MacroStatusLabel:Set("Status: Upgrade request failed")
+        return false
     end
 end
 
 local function executeUnitSell(actionData)
+    -- Get the current unit name based on which placement this sell targets
+    local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
+    
+    if not currentUnitName or actionData.targetPlacementOrder == 0 then
+        warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
+        MacroStatusLabel:Set("Status: Error - Unit not found for sell")
+        return false
+    end
+    
+    print(string.format("🔍 Selling placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
+    
+    local moneyBefore = getPlayerMoney()
+    
     local success, err = pcall(function()
-        -- Get the current unit name based on which placement this sell targets
-        local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
-        
-        if not currentUnitName or actionData.targetPlacementOrder == 0 then
-            warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
-            return
-        end
-        
-        print(string.format("🔍 Selling placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
-        
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
             :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", currentUnitName)
     end)
     
     if success then
-        print(string.format("💰 Sold unit from placement #%d", actionData.targetPlacementOrder or 0))
+        task.wait(0.5)
+        local moneyAfter = getPlayerMoney()
+        
+        print(string.format("💰 Sold unit from placement #%d (gained: %d)", 
+            actionData.targetPlacementOrder or 0, moneyAfter - moneyBefore))
+        MacroStatusLabel:Set(string.format("Status: Sold unit (gained: %d)", moneyAfter - moneyBefore))
+        return true
     else
         warn(string.format("❌ Failed to sell unit from placement #%d: %s", actionData.targetPlacementOrder or 0, err))
+        MacroStatusLabel:Set("Status: Sell request failed")
+        return false
     end
 end
 
@@ -1401,6 +1573,7 @@ local function playMacroLoop()
         currentWave = getCurrentWave()
         waveStartTime = tick()
         placedUnitsTracking = {}
+        currentPlacementOrder = 0 -- Track current placement for upgrades/sells
         
         print(string.format("Macro has %d total actions to execute", #macro))
         
@@ -1414,26 +1587,20 @@ local function playMacroLoop()
             local shouldExecute = shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
             
             if shouldExecute then
-                -- Update label with current action
-                MacroStatusLabel:Set(string.format("Status: Executing %s (%d/%d)", 
-                    action.action, actionIndex, #macro))
-                
                 print(string.format("Executing action %d/%d: %s", 
                     actionIndex, #macro, action.action))
                 
                 local actionSuccess = false
                 
                 if action.action == "PlaceUnit" then
-                    executeUnitPlacement(action)
-                    actionSuccess = true
+                    currentPlacementOrder = action.placementOrder or (currentPlacementOrder + 1)
+                    actionSuccess = executeUnitPlacement(action)
                     
                 elseif action.action == "UpgradeUnit" then
-                    executeUnitUpgrade(action)
-                    actionSuccess = true
+                    actionSuccess = executeUnitUpgrade(action)
                     
                 elseif action.action == "SellUnit" then
-                    executeUnitSell(action)
-                    actionSuccess = true
+                    actionSuccess = executeUnitSell(action)
                     
                 elseif action.action == "SkipWave" then
                     local success, err = pcall(function()
@@ -1441,14 +1608,23 @@ local function playMacroLoop()
                     end)
                     
                     if success then
-                        print("Skipped wave")
+                        print("⏭️ Skipped wave")
+                        MacroStatusLabel:Set("Status: Skipped wave")
                         actionSuccess = true
                     else
                         warn(string.format("Failed to skip wave: %s", err))
+                        MacroStatusLabel:Set("Status: Failed to skip wave")
                     end
                 end
                 
-                actionIndex = actionIndex + 1
+                -- Only proceed to next action if current one succeeded (except for non-critical actions)
+                if actionSuccess or action.action == "SkipWave" then
+                    actionIndex = actionIndex + 1
+                else
+                    -- For failed critical actions, wait a bit before retrying
+                    print("⏳ Action failed, waiting before retry...")
+                    task.wait(2)
+                end
             end
             
             local entityCount = countPlacedUnits()
