@@ -1,3 +1,4 @@
+--2
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -153,6 +154,9 @@ local placedUnitsTracking = {}
 local playbackMode = "timing"
 local currentWave = 0
 local waveStartTime = 0
+
+local unitMapping = {}
+local placementOrder = {}
 
 local ValidWebhook = nil
 
@@ -393,21 +397,37 @@ local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     local closestDistance = math.huge
     local closestUnitName = nil
     
-    -- Find the unit closest to our placement CFrame that matches the original name
+    -- Find the unit closest to our placement CFrame that matches the base name
+    local baseUnitName = originalUnitName:match("^(.-)%d*$") -- Extract base name without number
+    
     for _, unit in pairs(unitClient:GetChildren()) do
-        if unit:IsA("Model") and unit.Name:find(originalUnitName, 1, true) then
-            local unitPosition = unit.WorldPivot.Position
-            local placementPosition = unitCFrame.Position
-            local distance = (unitPosition - placementPosition).Magnitude
-            
-            if distance < closestDistance then
-                closestDistance = distance
-                closestUnitName = unit.Name
+        if unit:IsA("Model") then
+            local unitBaseName = unit.Name:match("^(.-)%d*$")
+            if unitBaseName == baseUnitName then
+                local unitPosition = unit.WorldPivot.Position
+                local placementPosition = unitCFrame.Position
+                local distance = (unitPosition - placementPosition).Magnitude
+                
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestUnitName = unit.Name
+                    print("found unit "..unit.Name)
+                end
             end
         end
     end
     
     return closestUnitName or originalUnitName
+end
+
+local function getCurrentUnitName(recordedUnitName)
+    return unitMapping[recordedUnitName] or recordedUnitName
+end
+
+local function clearUnitMapping()
+    unitMapping = {}
+    placementOrder = {}
+    print("Unit mapping cleared for new game")
 end
 
 local function countPlacedUnits()
@@ -450,6 +470,13 @@ mt.__namecall = newcclosure(function(self, ...)
                 if unitsAfter > unitsBefore then
                     local actualUnitName = findLatestSpawnedUnit(unitName, unitCFrame)
                     
+                    -- Store the placement order for reference
+                    table.insert(placementOrder, {
+                        originalName = unitName,
+                        actualName = actualUnitName,
+                        placementIndex = #placementOrder + 1
+                    })
+                    
                     local placementData = {
                         action = "PlaceUnit",
                         unitName = unitName,
@@ -459,7 +486,8 @@ mt.__namecall = newcclosure(function(self, ...)
                         unitId = unitId,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
-                        timestamp = timestamp
+                        timestamp = timestamp,
+                        placementIndex = #placementOrder -- Add placement index
                     }
                     
                     table.insert(macro, placementData)
@@ -480,24 +508,44 @@ mt.__namecall = newcclosure(function(self, ...)
                 task.wait(0.5)
                 
                 if action == "Upgrade" then
+                    -- Find the placement index of this unit
+                    local placementIndex = nil
+                    for i, placement in ipairs(placementOrder) do
+                        if placement.actualName == unitName then
+                            placementIndex = i
+                            break
+                        end
+                    end
+                    
                     table.insert(macro, {
                         action = "UpgradeUnit", 
                         unitName = unitName,
-                        actualUnitName = unitName, -- Store the actual name used
+                        actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
-                        wave = currentWaveNum
+                        wave = currentWaveNum,
+                        placementIndex = placementIndex -- Store which placement this refers to
                     })
-                    print(string.format("Recorded upgrade for unit %s", unitName))
+                    print(string.format("Recorded upgrade for unit %s (placement #%s)", unitName, tostring(placementIndex)))
                     
                 elseif action == "Selling" then
+                    -- Find the placement index of this unit
+                    local placementIndex = nil
+                    for i, placement in ipairs(placementOrder) do
+                        if placement.actualName == unitName then
+                            placementIndex = i
+                            break
+                        end
+                    end
+                    
                     table.insert(macro, {
                         action = "SellUnit", 
                         unitName = unitName,
-                        actualUnitName = unitName, -- Store the actual name used
+                        actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
-                        wave = currentWaveNum
+                        wave = currentWaveNum,
+                        placementIndex = placementIndex -- Store which placement this refers to
                     })
-                    print(string.format("Recorded sell for unit %s", unitName))
+                    print(string.format("Recorded sell for unit %s (placement #%s)", unitName, tostring(placementIndex)))
                 end
                 
             elseif isRecording and method == "FireServer" and self.Name == "Vote" then
@@ -612,14 +660,13 @@ end
 
 local function executeUnitPlacement(actionData)
     local success, err = pcall(function()
-        -- NEW: Construct args for spawnunit remote
         local args = {
             {
-                actionData.unitName, -- Use original name for spawning
+                actionData.unitName,
                 actionData.cframe,
                 actionData.rotation or 0
             },
-            actionData.unitId -- Use the exact same ID that was recorded
+            actionData.unitId
         }
         
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
@@ -628,6 +675,17 @@ local function executeUnitPlacement(actionData)
     
     if success then
         print(string.format("✅ Placed unit: %s", actionData.unitName))
+        
+        -- Wait a moment for the unit to spawn, then find it and update mapping
+        task.wait(1.5)
+        local actualCurrentName = findLatestSpawnedUnit(actionData.unitName, actionData.cframe)
+        if actualCurrentName then
+            -- Map both the original recorded name and the actual recorded name to current name
+            unitMapping[actionData.actualUnitName] = actualCurrentName
+            unitMapping[actionData.unitName] = actualCurrentName
+            
+            print(string.format("🔗 Mapped %s -> %s", actionData.actualUnitName, actualCurrentName))
+        end
     else
         warn(string.format("❌ Failed to place unit %s: %s", actionData.unitName, err))
     end
@@ -635,10 +693,13 @@ end
 
 local function executeUnitUpgrade(actionData)
     local success, err = pcall(function()
-        -- NEW: Use ManageUnits remote with "Upgrade" action and actual unit name
-        local unitNameToUpgrade = actionData.actualUnitName or actionData.unitName
+        -- Use the mapping to get current unit name
+        local currentUnitName = getCurrentUnitName(actionData.actualUnitName or actionData.unitName)
+        
+        print(string.format("🔍 Upgrading: %s -> %s", actionData.actualUnitName or actionData.unitName, currentUnitName))
+        
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", unitNameToUpgrade)
+            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
     end)
     
     if success then
@@ -650,10 +711,13 @@ end
 
 local function executeUnitSell(actionData)
     local success, err = pcall(function()
-        -- NEW: Use ManageUnits remote with "Selling" action and actual unit name
-        local unitNameToSell = actionData.actualUnitName or actionData.unitName
+        -- Use the mapping to get current unit name
+        local currentUnitName = getCurrentUnitName(actionData.actualUnitName or actionData.unitName)
+        
+        print(string.format("🔍 Selling: %s -> %s", actionData.actualUnitName or actionData.unitName, currentUnitName))
+        
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", unitNameToSell)
+            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", currentUnitName)
     end)
     
     if success then
@@ -1280,6 +1344,9 @@ local function playMacroLoop()
     isPlayingLoopRunning = true
     
     while isPlaybacking do
+        -- Clear unit mapping at start of each game
+        clearUnitMapping()
+        
         local gameStartTime = tick()
         print("Starting macro playback...")
         
@@ -1306,54 +1373,20 @@ local function playMacroLoop()
                 local actionSuccess = false
                 
                 if action.action == "PlaceUnit" then
-                    local success = tryPlaceUnit(
-                        action.unitName,
-                        action.cframe,
-                        action.rotation,
-                        action.unitId,
-                        3
-                    )
-                    
-                    if success then
-                        print(string.format("Successfully placed unit: %s", action.unitName))
-                        placedUnitsTracking[action.unitName] = action.actualUnitName
-                        actionSuccess = true
-                    else
-                        print(string.format("Failed to place unit: %s", action.unitName))
-                    end
+                    executeUnitPlacement(action)
+                    actionSuccess = true
                     
                 elseif action.action == "UpgradeUnit" then
-                    local unitNameToUpgrade = action.actualUnitName or action.unitName
-                    local success, err = pcall(function()
-                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", unitNameToUpgrade)
-                    end)
-                    
-                    if success then
-                        print(string.format("Upgraded unit: %s", unitNameToUpgrade))
-                        actionSuccess = true
-                    else
-                        warn(string.format("Failed to upgrade unit %s: %s", unitNameToUpgrade, err))
-                    end
+                    executeUnitUpgrade(action)
+                    actionSuccess = true
                     
                 elseif action.action == "SellUnit" then
-                    local unitNameToSell = action.actualUnitName or action.unitName
-                    local success, err = pcall(function()
-                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", unitNameToSell)
-                    end)
-                    
-                    if success then
-                        print(string.format("Sold unit: %s", unitNameToSell))
-                        actionSuccess = true
-                    else
-                        warn(string.format("Failed to sell unit %s: %s", unitNameToSell, err))
-                    end
+                    executeUnitSell(action)
+                    actionSuccess = true
                     
                 elseif action.action == "SkipWave" then
                     local success, err = pcall(function()
                         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
-
                     end)
                     
                     if success then
