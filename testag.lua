@@ -1,4 +1,3 @@
---2
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -387,23 +386,24 @@ end)
 
 local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     local ground = Services.Workspace:FindFirstChild("Ground")
+
     if not ground then 
         warn("Services.Workspace.Ground not found!")
         return originalUnitName 
     end
-    
+
     local unitClient = ground:FindFirstChild("unitClient")
     if not unitClient then
         warn("Services.Workspace.Ground.unitClient not found!")
         return originalUnitName
     end
-    
+
     local closestDistance = math.huge
     local closestUnitName = nil
-    
-    -- Find the unit closest to our placement CFrame that matches the base name
-    local baseUnitName = originalUnitName:match("^(.-)%d*$") -- Extract base name without number
-    
+
+    -- Extract base name without number
+    local baseUnitName = originalUnitName:match("^(.-)%d*$")
+
     for _, unit in pairs(unitClient:GetChildren()) do
         if unit:IsA("Model") then
             local unitBaseName = unit.Name:match("^(.-)%d*$")
@@ -411,18 +411,20 @@ local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
                 local unitPosition = unit.WorldPivot.Position
                 local placementPosition = unitCFrame.Position
                 local distance = (unitPosition - placementPosition).Magnitude
-                
-                if distance < closestDistance then
+
+                -- Only consider units within 1 stud tolerance
+                if distance <= 1 and distance < closestDistance then
                     closestDistance = distance
                     closestUnitName = unit.Name
-                    print("found unit "..unit.Name)
+                    print("found unit "..unit.Name.." within tolerance")
                 end
             end
         end
     end
-    
+
     return closestUnitName or originalUnitName
 end
+
 
 local function getCurrentUnitName(recordedUnitName)
     return unitMapping[recordedUnitName] or recordedUnitName
