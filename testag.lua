@@ -1,3 +1,4 @@
+--2
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -159,6 +160,7 @@ local placementOrder = {}
 
 local playbackUnitMapping = {}
 local playbackPlacementIndex = 0
+local recordingPlacementCounter = 0
 
 local ValidWebhook = nil
 
@@ -471,6 +473,7 @@ mt.__namecall = newcclosure(function(self, ...)
                 
                 if unitsAfter > unitsBefore then
                     local actualUnitName = findLatestSpawnedUnit(unitName, unitCFrame)
+                    recordingPlacementCounter = recordingPlacementCounter + 1
                     
                     local placementData = {
                         action = "PlaceUnit",
@@ -482,7 +485,7 @@ mt.__namecall = newcclosure(function(self, ...)
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
                         timestamp = timestamp,
-                        placementOrder = #macro + 1 -- Track the order this unit was placed
+                        placementOrder = recordingPlacementCounter -- Track the order this unit was placed
                     }
                     
                     table.insert(macro, placementData)
@@ -511,6 +514,8 @@ mt.__namecall = newcclosure(function(self, ...)
                     end
                 end
                 
+                print(string.format("Looking for unit %s, found placement order: %s", unitName, tostring(targetPlacementOrder)))
+                
                 if action == "Upgrade" then
                     table.insert(macro, {
                         action = "UpgradeUnit", 
@@ -518,9 +523,9 @@ mt.__namecall = newcclosure(function(self, ...)
                         actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder -- Which placement this upgrade targets
+                        targetPlacementOrder = targetPlacementOrder or 0 -- Default to 0 if not found
                     })
-                    print(string.format("Recorded upgrade for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder)))
+                    print(string.format("Recorded upgrade for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder or 0)))
                     
                 elseif action == "Selling" then
                     table.insert(macro, {
@@ -529,9 +534,9 @@ mt.__namecall = newcclosure(function(self, ...)
                         actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder -- Which placement this sell targets
+                        targetPlacementOrder = targetPlacementOrder or 0 -- Default to 0 if not found
                     })
-                    print(string.format("Recorded sell for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder)))
+                    print(string.format("Recorded sell for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder or 0)))
                 end
                 
             elseif isRecording and method == "FireServer" and self.Name == "Vote" then
@@ -680,8 +685,8 @@ local function executeUnitUpgrade(actionData)
         -- Get the current unit name based on which placement this upgrade targets
         local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
         
-        if not currentUnitName then
-            warn(string.format("❌ Could not find current unit name for placement #%s", tostring(actionData.targetPlacementOrder)))
+        if not currentUnitName or actionData.targetPlacementOrder == 0 then
+            warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
             return
         end
         
@@ -692,9 +697,9 @@ local function executeUnitUpgrade(actionData)
     end)
     
     if success then
-        print(string.format("⬆️ Upgraded unit from placement #%d", actionData.targetPlacementOrder))
+        print(string.format("⬆️ Upgraded unit from placement #%d", actionData.targetPlacementOrder or 0))
     else
-        warn(string.format("❌ Failed to upgrade unit from placement #%d: %s", actionData.targetPlacementOrder, err))
+        warn(string.format("❌ Failed to upgrade unit from placement #%d: %s", actionData.targetPlacementOrder or 0, err))
     end
 end
 
@@ -703,8 +708,8 @@ local function executeUnitSell(actionData)
         -- Get the current unit name based on which placement this sell targets
         local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
         
-        if not currentUnitName then
-            warn(string.format("❌ Could not find current unit name for placement #%s", tostring(actionData.targetPlacementOrder)))
+        if not currentUnitName or actionData.targetPlacementOrder == 0 then
+            warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
             return
         end
         
@@ -715,9 +720,9 @@ local function executeUnitSell(actionData)
     end)
     
     if success then
-        print(string.format("💰 Sold unit from placement #%d", actionData.targetPlacementOrder))
+        print(string.format("💰 Sold unit from placement #%d", actionData.targetPlacementOrder or 0))
     else
-        warn(string.format("❌ Failed to sell unit from placement #%d: %s", actionData.targetPlacementOrder, err))
+        warn(string.format("❌ Failed to sell unit from placement #%d: %s", actionData.targetPlacementOrder or 0, err))
     end
 end
 
@@ -1328,6 +1333,7 @@ local CreateMacroButton = MacroTab:CreateButton({
 local function clearPlaybackMapping()
     playbackUnitMapping = {}
     playbackPlacementIndex = 0
+    recordingPlacementCounter = 0 -- Reset recording counter too
     print("🧹 Cleared playback unit mapping for new game")
 end
 
