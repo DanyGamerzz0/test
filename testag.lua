@@ -1,4 +1,3 @@
---1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -150,6 +149,10 @@ local isPlayingLoopRunning = false
 local recordingThread = nil
 local playbackThread = nil
 local pendingPlacements = {} 
+local placedUnitsTracking = {}
+local playbackMode = "timing"
+local currentWave = 0
+local waveStartTime = 0
 
 local ValidWebhook = nil
 
@@ -374,25 +377,27 @@ end)
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
     end
 
-    local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
-    -- Look in Services.Workspace.Ground for units
-    local ground = Services.Workspace:FindFirstChild("Ground"):FindFirstChild("unitClient")
+local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
+    local ground = Services.Workspace:FindFirstChild("Ground")
     if not ground then 
         warn("Services.Workspace.Ground not found!")
         return originalUnitName 
     end
     
+    local unitClient = ground:FindFirstChild("unitClient")
+    if not unitClient then
+        warn("Services.Workspace.Ground.unitClient not found!")
+        return originalUnitName
+    end
+    
     local closestDistance = math.huge
     local closestUnitName = nil
     
-    -- Find the unit closest to our placement CFrame
-    for _, unit in pairs(ground:GetChildren()) do
+    -- Find the unit closest to our placement CFrame that matches the original name
+    for _, unit in pairs(unitClient:GetChildren()) do
         if unit:IsA("Model") and unit.Name:find(originalUnitName, 1, true) then
-            -- Get the unit's position
             local unitPosition = unit.WorldPivot.Position
             local placementPosition = unitCFrame.Position
-            
-            -- Calculate distance
             local distance = (unitPosition - placementPosition).Magnitude
             
             if distance < closestDistance then
@@ -425,77 +430,77 @@ mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
     if not checkcaller() then
         task.spawn(function()
-            -- NEW: Detection for spawnunit remote (different structure)
+            -- Detection for spawnunit remote
             if isRecording and method == "InvokeServer" and self.Name == "spawnunit" then
-                -- Get placed unit count before placement
                 local unitsBefore = countPlacedUnits()
-                local unitData = args[1] -- This is a table containing unit info and CFrame
-                local unitName = unitData[1] -- Unit name is first element
-                local unitCFrame = unitData[2] -- CFrame is second element
-                local unitRotation = unitData[3] -- Rotation is third element
-                local unitId = args[2] -- Unit ID is second argument
+                local unitData = args[1]
+                local unitName = unitData[1]
+                local unitCFrame = unitData[2]
+                local unitRotation = unitData[3]
+                local unitId = args[2]
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
-                print(string.format("📝 Recording placement attempt for %s (units before: %d)", unitName, unitsBefore))
+                print(string.format("Recording placement attempt for %s (units before: %d)", unitName, unitsBefore))
                 
-                -- Wait a bit for the placement to process
                 task.wait(1.5)
                 
-                -- Check if placement was successful
                 local unitsAfter = countPlacedUnits()
                 
                 if unitsAfter > unitsBefore then
-                    -- Placement was successful - record it
+                    local actualUnitName = findLatestSpawnedUnit(unitName, unitCFrame)
+                    
                     local placementData = {
                         action = "PlaceUnit",
                         unitName = unitName,
+                        actualUnitName = actualUnitName,
                         cframe = unitCFrame,
                         rotation = unitRotation,
-                        unitId = unitId, -- Store the unit ID for reference
+                        unitId = unitId,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
                         timestamp = timestamp
                     }
                     
                     table.insert(macro, placementData)
-                    print(string.format("✅ Successfully recorded placement: %s (units: %d→%d)", 
-                        unitName, unitsBefore, unitsAfter))
+                    print(string.format("Successfully recorded placement: %s -> %s (units: %d→%d)", 
+                        unitName, actualUnitName or "Unknown", unitsBefore, unitsAfter))
                 else
-                    print(string.format("❌ Placement failed, not recording: %s (units: %d→%d)", 
+                    print(string.format("Placement failed, not recording: %s (units: %d→%d)", 
                         unitName, unitsBefore, unitsAfter))
                 end
                 
-            -- NEW: Detection for ManageUnits remote (replaces UpgradeUnit and SellUnit)
+            -- Detection for ManageUnits remote
             elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
-                local action = args[1] -- "Upgrade" or "Selling"
-                local unitName = args[2] -- Unit name with number (e.g., "Shigeru (Gachi Fighter) 2")
+                local action = args[1]
+                local unitName = args[2]
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
-                -- Wait a bit to see if action was successful
                 task.wait(0.5)
                 
                 if action == "Upgrade" then
                     table.insert(macro, {
                         action = "UpgradeUnit", 
                         unitName = unitName,
+                        actualUnitName = unitName, -- Store the actual name used
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum
                     })
-                    print(string.format("⬆️ Recorded upgrade for unit %s", unitName))
+                    print(string.format("Recorded upgrade for unit %s", unitName))
                     
                 elseif action == "Selling" then
                     table.insert(macro, {
                         action = "SellUnit", 
                         unitName = unitName,
+                        actualUnitName = unitName, -- Store the actual name used
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum
                     })
-                    print(string.format("💰 Recorded sell for unit %s", unitName))
+                    print(string.format("Recorded sell for unit %s", unitName))
                 end
                 
-            elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
+            elseif isRecording and method == "FireServer" and self.Name == "Vote" then
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
@@ -504,14 +509,106 @@ mt.__namecall = newcclosure(function(self, ...)
                     time = timestamp - recordingStartTime,
                     wave = currentWaveNum
                 })
-                print("⏩ Recorded wave skip")
+                print("Recorded wave skip")
             end
         end)
     end
     return oldNamecall(self, ...)
 end)
-
 setreadonly(mt, true)
+
+local function shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
+    if playbackMode == "timing" then
+        return currentTime >= action.time
+    elseif playbackMode == "wave" then
+        if currentWave > action.wave then
+            return true
+        elseif currentWave == action.wave then
+            return currentWaveTime >= (action.waveTime or 0)
+        end
+        return false
+    elseif playbackMode == "both" then
+        local timingReady = currentTime >= action.time
+        local waveReady = currentWave >= action.wave and 
+                        (currentWave > action.wave or currentWaveTime >= (action.waveTime or 0))
+        return timingReady and waveReady
+    end
+    return false
+end
+
+local function onWaveChanged()
+    local newWave = getCurrentWave()
+    if newWave ~= currentWave then
+        currentWave = newWave
+        waveStartTime = tick()
+        print(string.format("Wave %d started", currentWave))
+    end
+end
+
+local function tryPlaceUnit(unitName, cframe, rotation, unitId, maxRetries)
+    maxRetries = maxRetries or 3
+    local baseRetryDelay = 0.5
+    local positionOffset = 2
+    local originalPosition = cframe.Position
+
+    local function generateOffsetPosition(attempt)
+        if attempt == 1 then
+            return originalPosition
+        end
+        
+        local offsetX = (math.random() - 0.5) * positionOffset * 2
+        local offsetZ = (math.random() - 0.5) * positionOffset * 2
+        
+        return Vector3.new(
+            originalPosition.X + offsetX,
+            originalPosition.Y,
+            originalPosition.Z + offsetZ
+        )
+    end
+
+    for attempt = 1, maxRetries do
+        print(string.format("Attempting to place %s (attempt %d/%d)", unitName, attempt, maxRetries))
+        
+        local attemptPosition = generateOffsetPosition(attempt)
+        local attemptCFrame = CFrame.new(attemptPosition, attemptPosition + Vector3.new(0, 0, 1))
+        
+        local unitsBefore = countPlacedUnits()
+        
+        local success, err = pcall(function()
+            local args = {
+                {
+                    unitName,
+                    attemptCFrame,
+                    rotation or 0
+                },
+                unitId
+            }
+            
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
+        end)
+
+        task.wait(0.5)
+        
+        local unitsAfter = countPlacedUnits()
+        if unitsAfter > unitsBefore then
+            print(string.format("Unit %s placed successfully on attempt %d", unitName, attempt))
+            return true
+        end
+
+        if attempt < maxRetries then
+            local retryDelay = baseRetryDelay * attempt
+            print(string.format("Placement failed on attempt %d for %s. Waiting %.1fs before retry...", 
+                attempt, unitName, retryDelay))
+            task.wait(retryDelay)
+        else
+            warn(string.format("Failed to place %s after %d attempts", unitName, maxRetries))
+        end
+    end
+    
+    return false
+end
+
 
 local function executeUnitPlacement(actionData)
     local success, err = pcall(function()
@@ -566,53 +663,6 @@ local function executeUnitSell(actionData)
     end
 end
 
-local function playMacroLoop()
-    if not macro or #macro == 0 then
-        Rayfield:Notify({
-            Title = "Playback Error",
-            Content = "No macro data to play back.",
-            Duration = 3
-        })
-        return
-    end
-
-    local startTime = tick()
-    
-    for i, actionData in ipairs(macro) do
-        if not isPlaybacking then break end
-        
-        -- Wait for the correct time
-        local targetTime = startTime + actionData.time
-        local currentTime = tick()
-        if currentTime < targetTime then
-            task.wait(targetTime - currentTime)
-        end
-        
-        -- Execute the action based on type
-        if actionData.action == "PlaceUnit" then
-            executeUnitPlacement(actionData)
-        elseif actionData.action == "UpgradeUnit" then
-            executeUnitUpgrade(actionData)
-        elseif actionData.action == "SellUnit" then
-            executeUnitSell(actionData)
-        elseif actionData.action == "SkipWave" then
-            -- Skip wave logic (if applicable)
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("SkipWave"):InvokeServer()
-            end)
-        end
-        
-        task.wait(0.1) -- Small delay between actions
-    end
-    
-    Rayfield:Notify({
-        Title = "Playback Complete",
-        Content = string.format("Executed %d actions from macro.", #macro),
-        Duration = 4
-    })
-end
-
     local MacroDropdown = MacroTab:CreateDropdown({
     Name = "Select Macro",
     Options = {},
@@ -654,33 +704,33 @@ end
     end,
     })
 
-     local function serializeVector3(v)
-        return { x = v.X, y = v.Y, z = v.Z }
-    end
+local function serializeVector3(v)
+    return { x = v.X, y = v.Y, z = v.Z }
+end
 
-    local function serializeCFrame(cf)
-        local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
-        return {
-            x = x, y = y, z = z,
-            r00 = r00, r01 = r01, r02 = r02,
-            r10 = r10, r11 = r11, r12 = r12,
-            r20 = r20, r21 = r21, r22 = r22
-        }
-    end
+local function serializeCFrame(cf)
+    local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+    return {
+        x = x, y = y, z = z,
+        r00 = r00, r01 = r01, r02 = r02,
+        r10 = r10, r11 = r11, r12 = r12,
+        r20 = r20, r21 = r21, r22 = r22
+    }
+end
 
 
-    local function deserializeVector3(t)
-        return Vector3.new(t.x, t.y, t.z)
-    end
+local function deserializeVector3(t)
+    return Vector3.new(t.x, t.y, t.z)
+end
 
-    local function deserializeCFrame(t)
-        return CFrame.new(
-            t.x, t.y, t.z,
-            t.r00, t.r01, t.r02,
-            t.r10, t.r11, t.r12,
-            t.r20, t.r21, t.r22
-        )
-    end
+local function deserializeCFrame(t)
+    return CFrame.new(
+        t.x, t.y, t.z,
+        t.r00, t.r01, t.r02,
+        t.r10, t.r11, t.r12,
+        t.r20, t.r21, t.r22
+    )
+end
 
 local function serializeAction(action)
     local serializedAction = table.clone(action)
@@ -1217,6 +1267,126 @@ local CreateMacroButton = MacroTab:CreateButton({
         end
     })
 
+local function playMacroLoop()
+    if not macro or #macro == 0 then
+        Rayfield:Notify({
+            Title = "Playback Error",
+            Content = "No macro data to play back.",
+            Duration = 3
+        })
+        return
+    end
+
+    isPlayingLoopRunning = true
+    
+    while isPlaybacking do
+        local gameStartTime = tick()
+        print("Starting macro playback...")
+        
+        local actionIndex = 1
+        currentWave = getCurrentWave()
+        waveStartTime = tick()
+        placedUnitsTracking = {}
+        
+        print(string.format("Macro has %d total actions to execute", #macro))
+        
+        while isPlaybacking and actionIndex <= #macro do
+            onWaveChanged()
+            
+            local currentTime = tick() - gameStartTime
+            local currentWaveTime = tick() - waveStartTime
+            local action = macro[actionIndex]
+            
+            local shouldExecute = shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
+            
+            if shouldExecute then
+                print(string.format("Executing action %d/%d: %s", 
+                    actionIndex, #macro, action.action))
+                
+                local actionSuccess = false
+                
+                if action.action == "PlaceUnit" then
+                    local success = tryPlaceUnit(
+                        action.unitName,
+                        action.cframe,
+                        action.rotation,
+                        action.unitId,
+                        3
+                    )
+                    
+                    if success then
+                        print(string.format("Successfully placed unit: %s", action.unitName))
+                        placedUnitsTracking[action.unitName] = action.actualUnitName
+                        actionSuccess = true
+                    else
+                        print(string.format("Failed to place unit: %s", action.unitName))
+                    end
+                    
+                elseif action.action == "UpgradeUnit" then
+                    local unitNameToUpgrade = action.actualUnitName or action.unitName
+                    local success, err = pcall(function()
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", unitNameToUpgrade)
+                    end)
+                    
+                    if success then
+                        print(string.format("Upgraded unit: %s", unitNameToUpgrade))
+                        actionSuccess = true
+                    else
+                        warn(string.format("Failed to upgrade unit %s: %s", unitNameToUpgrade, err))
+                    end
+                    
+                elseif action.action == "SellUnit" then
+                    local unitNameToSell = action.actualUnitName or action.unitName
+                    local success, err = pcall(function()
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", unitNameToSell)
+                    end)
+                    
+                    if success then
+                        print(string.format("Sold unit: %s", unitNameToSell))
+                        actionSuccess = true
+                    else
+                        warn(string.format("Failed to sell unit %s: %s", unitNameToSell, err))
+                    end
+                    
+                elseif action.action == "SkipWave" then
+                    local success, err = pcall(function()
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
+
+                    end)
+                    
+                    if success then
+                        print("Skipped wave")
+                        actionSuccess = true
+                    else
+                        warn(string.format("Failed to skip wave: %s", err))
+                    end
+                end
+                
+                actionIndex = actionIndex + 1
+            end
+            
+            local entityCount = countPlacedUnits()
+            local waitTime = entityCount > 20 and 0.5 or 0.1
+            task.wait(waitTime)
+        end
+        
+        if actionIndex > #macro then
+            print("Macro completed all actions, waiting for next game...")
+        else
+            print("Macro interrupted")
+        end
+        
+        if actionIndex > #macro and isPlaybacking then
+            print("Waiting for next game to start...")
+            waitForGameStart()
+        end
+    end
+    
+    isPlayingLoopRunning = false
+    print("Macro playback loop ended")
+end
 
 
     PlayToggle = MacroTab:CreateToggle({
