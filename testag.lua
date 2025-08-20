@@ -1,3 +1,4 @@
+--1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -373,6 +374,37 @@ end)
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
     end
 
+    local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
+    -- Look in Services.Workspace.Ground for units
+    local ground = Services.Workspace:FindFirstChild("Ground"):FindFirstChild("unitClient")
+    if not ground then 
+        warn("Services.Workspace.Ground not found!")
+        return originalUnitName 
+    end
+    
+    local closestDistance = math.huge
+    local closestUnitName = nil
+    
+    -- Find the unit closest to our placement CFrame
+    for _, unit in pairs(ground:GetChildren()) do
+        if unit:IsA("Model") and unit.Name:find(originalUnitName, 1, true) then
+            -- Get the unit's position
+            local unitPosition = unit.WorldPivot.Position
+            local placementPosition = unitCFrame.Position
+            
+            -- Calculate distance
+            local distance = (unitPosition - placementPosition).Magnitude
+            
+            if distance < closestDistance then
+                closestDistance = distance
+                closestUnitName = unit.Name
+            end
+        end
+    end
+    
+    return closestUnitName or originalUnitName
+end
+
 local function countPlacedUnits()
     local count = 0
     local entities = Services.Workspace:FindFirstChild("Ground") and Services.Workspace.Ground:FindFirstChild("unitClient")
@@ -463,7 +495,7 @@ mt.__namecall = newcclosure(function(self, ...)
                     print(string.format("💰 Recorded sell for unit %s", unitName))
                 end
                 
-            elseif isRecording and method == "FireServer" and self.Name == "Vote" then
+            elseif isRecording and method == "InvokeServer" and self.Name == "SkipWave" then
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
@@ -486,7 +518,7 @@ local function executeUnitPlacement(actionData)
         -- NEW: Construct args for spawnunit remote
         local args = {
             {
-                actionData.unitName,
+                actionData.unitName, -- Use original name for spawning
                 actionData.cframe,
                 actionData.rotation or 0
             },
@@ -506,29 +538,31 @@ end
 
 local function executeUnitUpgrade(actionData)
     local success, err = pcall(function()
-        -- NEW: Use ManageUnits remote with "Upgrade" action
+        -- NEW: Use ManageUnits remote with "Upgrade" action and actual unit name
+        local unitNameToUpgrade = actionData.actualUnitName or actionData.unitName
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", actionData.unitName)
+            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", unitNameToUpgrade)
     end)
     
     if success then
-        print(string.format("⬆️ Upgraded unit: %s", actionData.unitName))
+        print(string.format("⬆️ Upgraded unit: %s", actionData.actualUnitName or actionData.unitName))
     else
-        warn(string.format("❌ Failed to upgrade unit %s: %s", actionData.unitName, err))
+        warn(string.format("❌ Failed to upgrade unit %s: %s", actionData.actualUnitName or actionData.unitName, err))
     end
 end
 
 local function executeUnitSell(actionData)
     local success, err = pcall(function()
-        -- NEW: Use ManageUnits remote with "Selling" action
+        -- NEW: Use ManageUnits remote with "Selling" action and actual unit name
+        local unitNameToSell = actionData.actualUnitName or actionData.unitName
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", actionData.unitName)
+            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", unitNameToSell)
     end)
     
     if success then
-        print(string.format("💰 Sold unit: %s", actionData.unitName))
+        print(string.format("💰 Sold unit: %s", actionData.actualUnitName or actionData.unitName))
     else
-        warn(string.format("❌ Failed to sell unit %s: %s", actionData.unitName, err))
+        warn(string.format("❌ Failed to sell unit %s: %s", actionData.actualUnitName or actionData.unitName, err))
     end
 end
 
@@ -564,7 +598,8 @@ local function playMacroLoop()
         elseif actionData.action == "SkipWave" then
             -- Skip wave logic (if applicable)
             pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                    :WaitForChild("Events"):WaitForChild("SkipWave"):InvokeServer()
             end)
         end
         
@@ -647,7 +682,7 @@ end
         )
     end
 
-    local function serializeAction(action)
+local function serializeAction(action)
     local serializedAction = table.clone(action)
     if serializedAction.cframe then
         serializedAction.cframe = serializeCFrame(serializedAction.cframe)
@@ -655,7 +690,7 @@ end
     return serializedAction
 end
 
-    local function deserializeAction(action)
+local function deserializeAction(action)
     local deserializedAction = table.clone(action)
     if deserializedAction.cframe then
         deserializedAction.cframe = deserializeCFrame(deserializedAction.cframe)
