@@ -1,3 +1,4 @@
+--lll
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -329,7 +330,7 @@ local Toggle2 = GameTab:CreateToggle({
 })
 
 local function tryPickCard()
-    if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
+    if State.AutoPickCard and State.AutoPickCardSelected ~= nil and Services.Workspace.GameSettings.GameStarted.Value == false then
         local mode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
         if mode == nil or mode == "" then
             pcall(function()
