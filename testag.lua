@@ -1,3 +1,4 @@
+--l
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -664,7 +665,7 @@ local function getUnitUpgradeCost(unitName)
         return nil
     end
     
-    local unit = unitServer:FindFirstChild(unitName)
+    local unit = unitServer[Services.Players.LocalPlayer.." (UNIT)"]:FindFirstChild(unitName)
     if not unit then
         warn("Unit not found in unitServer:", unitName)
         return nil
@@ -672,7 +673,7 @@ local function getUnitUpgradeCost(unitName)
     
     -- Look for PriceUpgrade in any child of the unit
     for _, child in pairs(unit:GetDescendants()) do
-        if child.Name == "PriceUpgrade" and child:IsA("IntValue") then
+        if child.Name == "PriceUpgrade" and child:IsA("NumberValue") then
             return child.Value
         end
     end
