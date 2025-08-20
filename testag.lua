@@ -1,4 +1,3 @@
---lau
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -543,7 +542,7 @@ mt.__namecall = newcclosure(function(self, ...)
                     print(string.format("Recorded sell for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder or 0)))
                 end
                 
-            elseif isRecording and method == "FireServer" and self.Name == "Vote" then
+            elseif isRecording and method == "FireServer" and self.Name == "Vote" and args[1] == "Vote2" then
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
