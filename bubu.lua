@@ -1,4 +1,4 @@
---pipi
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -340,7 +340,7 @@ local Toggle2 = GameTab:CreateToggle({
     end,
 })
 
-local function tryPickCard()
+--[[local function tryPickCard()
     -- Don't pick cards during retry
     if State.AutoPickCard and State.AutoPickCardSelected ~= nil and not isRetryInProgress then
         if Services.Workspace.GameSettings.GameStarted.Value == false then
@@ -352,7 +352,7 @@ local function tryPickCard()
             end
         end
     end
-end
+end--]]
 
 local Toggle = GameTab:CreateToggle({
     Name = "Auto Pick Card",
@@ -360,9 +360,9 @@ local Toggle = GameTab:CreateToggle({
     Flag = "AutoPickCard",
     Callback = function(Value)
         State.AutoPickCard = Value
-        if Value then
-            tryPickCard()
-        end
+       -- if Value then
+         --   tryPickCard()
+       -- end
     end,
 })
 
