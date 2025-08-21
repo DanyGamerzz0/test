@@ -1,4 +1,3 @@
---pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2353,76 +2352,25 @@ task.spawn(function()
     end
 end)
 
---[[Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
-                if isRecording then
-            isRecording = false
-            isRecordingLoopRunning = false
-            Rayfield:Notify({
-                Title = "Recording Stopped",
-                Content = "Game ended, recording has been automatically stopped and saved.",
-                Duration = 3,
-                Image = 0,
-            })
-            RecordToggle:Set(false)
-
-            if currentMacroName then
-                macroManager[currentMacroName] = macro
-                saveMacroToFile(currentMacroName)
-            end
-        end 
-    State.isGameRunning = false
-    if State.SendStageCompletedWebhook then
-        sendWebhook("stage", nil, "1:50", nil)
-    end
-    if State.AutoVoteNext and not isNexting then
-        isNexting = true
-        spawn(function()
-            while State.AutoVoteNext and not game.Workspace.GameSettings.GameStarted.Value do
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
-                end)
-                
-                if success then
-                    print("Next sent!")
-                else
-                    print("Next failed, retrying...")
-                end
-                
-                wait(10)
-            end
-            isNexting = false
-        end)
-    end
-
-   if State.AutoVoteRetry and not isRetrying then
-    isRetrying = true
-    retryStartTime = tick()
-    
-    spawn(function()
-        while State.AutoVoteRetry and not game.Workspace.GameSettings.GameStarted.Value do
-            local success, err = pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-            end)
-            
-            if success then
-                print("Vote sent!")
-            else
-                print("Failed, retrying...")
-            end
-            wait(10)
-        end
-        isRetrying = false
-    end)
-end
-    if State.AutoVoteLobby then
-        Services.TeleportService:Teleport(17282336195, LocalPlayer)
-    end
-    isPlayingLoopRunning = false
-end)--]]
-
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
+    -- Handle recording stop first
+    if isRecording then
+        isRecording = false
+        isRecordingLoopRunning = false
+        Rayfield:Notify({
+            Title = "Recording Stopped",
+            Content = "Game ended, recording has been automatically stopped and saved.",
+            Duration = 3,
+            Image = 0,
+        })
+        RecordToggle:Set(false)
+
+        if currentMacroName then
+            macroManager[currentMacroName] = macro
+            saveMacroToFile(currentMacroName)
+        end
+    end
+    
     State.isGameRunning = false
     
     if State.SendStageCompletedWebhook then
