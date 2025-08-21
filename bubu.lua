@@ -1,4 +1,3 @@
---pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2423,8 +2422,11 @@ end
 end)--]]
 
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
+    print("=== GAME ENDED ===")
+    
     -- Handle recording stop first
     if isRecording then
+        print("Stopping recording...")
         isRecording = false
         isRecordingLoopRunning = false
         Rayfield:Notify({
@@ -2442,20 +2444,31 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     end
     
     State.isGameRunning = false
+    print("Set isGameRunning = false")
     
     if State.SendStageCompletedWebhook then
+        print("Sending webhook...")
         sendWebhook("stage", nil, "1:50", nil)
     end
     
-    -- AUTO RETRY - FIRE ONCE (NO LOOPS!)
+    -- ONLY RETRY - DISABLE EVERYTHING ELSE FOR NOW
     if State.AutoVoteRetry then
-        print("Game ended, sending retry vote once")
-        pcall(function()
+        print("AUTO RETRY ENABLED - Sending retry vote...")
+        local success, err = pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
         end)
+        
+        if success then
+            print("✅ Retry vote sent successfully")
+        else
+            print("❌ Retry vote failed:", err)
+        end
+    else
+        print("Auto retry is disabled")
     end
     
-    -- AUTO NEXT - FIRE ONCE (NO LOOPS!)
+    -- DISABLE THESE FOR NOW TO TEST
+    --[[
     if State.AutoVoteNext then
         print("Game ended, sending next vote once")
         pcall(function()
@@ -2466,8 +2479,10 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     if State.AutoVoteLobby then
         Services.TeleportService:Teleport(17282336195, LocalPlayer)
     end
+    --]]
     
     isPlayingLoopRunning = false
+    print("=== END GAME HANDLER COMPLETE ===")
 end)
 
 -- Connect to when the mode gets cleared (game reset/retry)
