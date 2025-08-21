@@ -1,3 +1,4 @@
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -159,6 +160,8 @@ local placedUnitsTracking = {}
 local playbackMode = "timing"
 local currentWave = 0
 local waveStartTime = 0
+
+local RETRY_IN_PROGRESS = false
 
 local unitMapping = {}
 local placementOrder = {}
@@ -2444,31 +2447,38 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     end
     
     State.isGameRunning = false
-    print("Set isGameRunning = false")
     
     if State.SendStageCompletedWebhook then
-        print("Sending webhook...")
         sendWebhook("stage", nil, "1:50", nil)
     end
     
-    -- ONLY RETRY - DISABLE EVERYTHING ELSE FOR NOW
     if State.AutoVoteRetry then
+        RETRY_IN_PROGRESS = true -- Block other events
         print("AUTO RETRY ENABLED - Sending retry vote...")
-        local success, err = pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-        end)
         
-        if success then
-            print("✅ Retry vote sent successfully")
-        else
-            print("❌ Retry vote failed:", err)
-        end
-    else
-        print("Auto retry is disabled")
+        task.spawn(function()
+            local success, err = pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+            end)
+            
+            if success then
+                print("✅ Retry vote sent successfully")
+            else
+                print("❌ Retry vote failed:", err)
+            end
+            
+            -- Wait for game to start or timeout
+            local timeout = 0
+            while not game.Workspace.GameSettings.GameStarted.Value and timeout < 30 do
+                task.wait(1)
+                timeout = timeout + 1
+            end
+            
+            RETRY_IN_PROGRESS = false -- Re-enable events
+            print("Retry process complete")
+        end)
     end
     
-    -- DISABLE THESE FOR NOW TO TEST
-    --[[
     if State.AutoVoteNext then
         print("Game ended, sending next vote once")
         pcall(function()
@@ -2479,14 +2489,17 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     if State.AutoVoteLobby then
         Services.TeleportService:Teleport(17282336195, LocalPlayer)
     end
-    --]]
     
     isPlayingLoopRunning = false
-    print("=== END GAME HANDLER COMPLETE ===")
 end)
 
 -- Connect to when the mode gets cleared (game reset/retry)
 Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+    if RETRY_IN_PROGRESS then 
+        print("Retry in progress, ignoring mode change")
+        return 
+    end
+    
     if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
         local currentMode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
         if currentMode == nil or currentMode == "" then
@@ -2498,13 +2511,17 @@ Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
     end
 end)
 
--- Connect to when mode changes (card picked)
 Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+    if RETRY_IN_PROGRESS then 
+        print("Retry in progress, ignoring mode change for start game")
+        return 
+    end
+    
     if State.AutoStartGame then
         local mode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
         if mode ~= nil and mode ~= "" and not Services.Workspace.GameSettings.GameStarted.Value then
             print("Mode set, starting game once")
-            task.wait(0.5) -- Small delay to let mode fully set
+            task.wait(0.5)
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
             end)
