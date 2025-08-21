@@ -1,4 +1,4 @@
---pipi12
+--pipi123
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2533,9 +2533,6 @@ local function monitorStagesChallengeGUI()
 end
 
 -- Initialize the GUI monitor
-task.spawn(function()
-    monitorStagesChallengeGUI()
-end)
 
 Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
 
@@ -2545,6 +2542,10 @@ loadAllMacros()
 Rayfield:LoadConfiguration()
 
     task.delay(1, function()
+        task.spawn(function()
+    monitorStagesChallengeGUI()
+end)
+
         local savedMacroName = Rayfield.Flags["MacroDropdown"]
         
         -- Handle case where savedMacroName might be a table
