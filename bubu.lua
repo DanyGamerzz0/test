@@ -2423,13 +2423,31 @@ end
 end)--]]
 
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
+    -- Handle recording stop first
+    if isRecording then
+        isRecording = false
+        isRecordingLoopRunning = false
+        Rayfield:Notify({
+            Title = "Recording Stopped",
+            Content = "Game ended, recording has been automatically stopped and saved.",
+            Duration = 3,
+            Image = 0,
+        })
+        RecordToggle:Set(false)
+
+        if currentMacroName then
+            macroManager[currentMacroName] = macro
+            saveMacroToFile(currentMacroName)
+        end
+    end
+    
     State.isGameRunning = false
     
-    --if State.SendStageCompletedWebhook then
-      --  sendWebhook("stage", nil, "1:50", nil)
-   -- end
+    if State.SendStageCompletedWebhook then
+        sendWebhook("stage", nil, "1:50", nil)
+    end
     
-    -- AUTO RETRY - FIRE ONCE
+    -- AUTO RETRY - FIRE ONCE (NO LOOPS!)
     if State.AutoVoteRetry then
         print("Game ended, sending retry vote once")
         pcall(function()
@@ -2437,7 +2455,7 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
         end)
     end
     
-    -- AUTO NEXT - FIRE ONCE  
+    -- AUTO NEXT - FIRE ONCE (NO LOOPS!)
     if State.AutoVoteNext then
         print("Game ended, sending next vote once")
         pcall(function()
