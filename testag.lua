@@ -2354,11 +2354,11 @@ end)
 
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
     State.isGameRunning = false
-
+    
     if State.SendStageCompletedWebhook then
         sendWebhook("stage", nil, "1:50", nil)
     end
-
+    
     -- AUTO RETRY - FIRE ONCE
     if State.AutoVoteRetry then
         print("Game ended, sending retry vote once")
@@ -2366,7 +2366,7 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
             game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
         end)
     end
-
+    
     -- AUTO NEXT - FIRE ONCE  
     if State.AutoVoteNext then
         print("Game ended, sending next vote once")
@@ -2374,11 +2374,11 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
             game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
         end)
     end
-
+    
     if State.AutoVoteLobby then
         Services.TeleportService:Teleport(17282336195, LocalPlayer)
     end
-
+    
     isPlayingLoopRunning = false
 end)
 
