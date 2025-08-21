@@ -1,4 +1,4 @@
---pipi1
+--pipi12
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2501,15 +2501,27 @@ game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
     end
 end)
 
--- Add this function to monitor the StagesChallenge GUI
 local function monitorStagesChallengeGUI()
     local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
     local stagesChallenge = playerGui:WaitForChild("StagesChallenge")
     
+    -- Check if GUI is already enabled when script starts
+    if stagesChallenge.Enabled and State.AutoPickCard and State.AutoPickCardSelected then
+        print("StagesChallenge GUI already open, picking card")
+        task.wait(0.1)
+        
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("StageChallenge")
+                :FireServer(State.AutoPickCardSelected)
+        end)
+    end
+    
+    -- Monitor for future changes
     stagesChallenge:GetPropertyChangedSignal("Enabled"):Connect(function()
         if stagesChallenge.Enabled and State.AutoPickCard and State.AutoPickCardSelected then
             print("StagesChallenge GUI opened, picking card")
-            task.wait(0.1) -- Small delay for GUI to fully load
+            task.wait(0.1)
             
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
