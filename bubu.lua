@@ -1,4 +1,4 @@
---pipi
+--pip
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2510,17 +2510,27 @@ Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
         print("Retry in progress, ignoring mode change")
         return 
     end
-    
-    if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
-        local currentMode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
-        if currentMode == nil or currentMode == "" then
-            print("Mode cleared, picking card once:", State.AutoPickCardSelected)
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("StageChallenge"):FireServer(State.AutoPickCardSelected)
-            end)
+
+    -- Run the heavier work asynchronously
+    task.spawn(function()
+        if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
+            local currentMode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
+
+            if currentMode == nil or currentMode == "" then
+                print("Mode cleared, picking card once:", State.AutoPickCardSelected)
+
+                pcall(function()
+                    game:GetService("ReplicatedStorage")
+                        :WaitForChild("PlayMode")
+                        :WaitForChild("Events")
+                        :WaitForChild("StageChallenge")
+                        :FireServer(State.AutoPickCardSelected)
+                end)
+            end
         end
-    end
+    end)
 end)
+
 
 Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
     if RETRY_IN_PROGRESS then 
