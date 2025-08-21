@@ -1,4 +1,4 @@
---pipi123
+--pipi1234
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2484,10 +2484,10 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
 end)
 
 game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
-    if RETRY_IN_PROGRESS then 
-        print("Retry in progress, ignoring mode change")
-        return 
-    end
+    --if RETRY_IN_PROGRESS then 
+    --    print("Retry in progress, ignoring mode change")
+      --  return 
+   -- end
     
     if State.AutoStartGame then
         local mode = game.Workspace.GameSettings.StagesChallenge.Mode.Value
