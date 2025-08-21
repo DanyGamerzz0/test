@@ -1,4 +1,4 @@
---pipi1
+--pipifg
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -130,6 +130,9 @@ local isRetryInProgress = false
 local isRetrying = false -- Prevent multiple retry loops
 local isNexting = false
 local retryStartTime = 0
+
+local ORIGINAL_AUTO_PICK_CARD = false
+local ORIGINAL_AUTO_START_GAME = false
 
 local AutoJoinState = {
     isProcessing = false,
@@ -2453,7 +2456,15 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     end
     
     if State.AutoVoteRetry then
-        RETRY_IN_PROGRESS = true -- Block other events
+        -- SAVE ORIGINAL STATES
+        ORIGINAL_AUTO_PICK_CARD = State.AutoPickCard
+        ORIGINAL_AUTO_START_GAME = State.AutoStartGame
+        
+        -- DISABLE ALL AUTO FUNCTIONS
+        State.AutoPickCard = false
+        State.AutoStartGame = false
+        
+        print("🚫 DISABLED all auto functions for retry")
         print("AUTO RETRY ENABLED - Sending retry vote...")
         
         task.spawn(function()
@@ -2467,15 +2478,17 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
                 print("❌ Retry vote failed:", err)
             end
             
-            -- Wait for game to start or timeout
-            local timeout = 0
-            while not game.Workspace.GameSettings.GameStarted.Value and timeout < 30 do
-                task.wait(1)
-                timeout = timeout + 1
+            -- Wait for game to actually start before re-enabling
+            print("Waiting for game to start...")
+            while not game.Workspace.GameSettings.GameStarted.Value do
+                task.wait(0.5)
             end
             
-            RETRY_IN_PROGRESS = false -- Re-enable events
-            print("Retry process complete")
+            -- RE-ENABLE AUTO FUNCTIONS
+            State.AutoPickCard = ORIGINAL_AUTO_PICK_CARD
+            State.AutoStartGame = ORIGINAL_AUTO_START_GAME
+            
+            print("✅ RESTORED all auto functions after game started")
         end)
     end
     
