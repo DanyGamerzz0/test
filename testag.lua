@@ -1,3 +1,4 @@
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -370,36 +371,6 @@ local Dropdown = GameTab:CreateDropdown({
         State.AutoPickCardSelected = Option[1]
    end,
 })
-
-task.spawn(function()
-    while true do
-        -- Don't interfere during retry
-        if State.AutoPickCard and State.AutoPickCardSelected ~= nil and not isRetryInProgress then
-            local currentMode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
-            if currentMode == nil or currentMode == "" then
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("StageChallenge"):FireServer(State.AutoPickCardSelected)
-                end)
-                if success then
-                    print("Card selected:", State.AutoPickCardSelected)
-                else
-                    print("Card selection failed:", err)
-                end
-            end
-        end
-        task.wait(3)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(1)
-        -- Don't start during retry
-        if State.AutoStartGame and not isRetryInProgress then
-            tryStartGame()
-        end
-    end
-end)
 
     local function getCurrentWave()
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
@@ -2458,42 +2429,56 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
         sendWebhook("stage", nil, "1:50", nil)
     end
     
-    if State.AutoVoteRetry and not isRetrying then
-        isRetrying = true
-        isRetryInProgress = true -- Add this flag
-        
-        spawn(function()
-            -- Stop all auto functions during retry
-            print("Starting retry process - disabling auto functions")
-            
-            while State.AutoVoteRetry and not game.Workspace.GameSettings.GameStarted.Value do
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-                end)
-                
-                if success then
-                    print("Retry vote sent!")
-                else
-                    print("Retry failed:", err)
-                end
-                
-                wait(5) -- Shorter wait time
-            end
-            
-            -- Wait a bit longer before re-enabling auto functions
-            wait(3)
-            isRetryInProgress = false
-            isRetrying = false
-            print("Retry process complete - re-enabling auto functions")
+    -- AUTO RETRY - FIRE ONCE
+    if State.AutoVoteRetry then
+        print("Game ended, sending retry vote once")
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
         end)
     end
     
-    -- Handle other vote types...
+    -- AUTO NEXT - FIRE ONCE  
+    if State.AutoVoteNext then
+        print("Game ended, sending next vote once")
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
+        end)
+    end
+    
+    if State.AutoVoteLobby then
+        Services.TeleportService:Teleport(17282336195, LocalPlayer)
+    end
+    
+    isPlayingLoopRunning = false
 end)
 
-Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(tryPickCard)
-Services.Workspace.GameSettings.GameStarted.Changed:Connect(tryStartGame)
+-- Connect to when the mode gets cleared (game reset/retry)
+Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+    if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
+        local currentMode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
+        if currentMode == nil or currentMode == "" then
+            print("Mode cleared, picking card once:", State.AutoPickCardSelected)
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("StageChallenge"):FireServer(State.AutoPickCardSelected)
+            end)
+        end
+    end
+end)
+
+-- Connect to when mode changes (card picked)
+Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+    if State.AutoStartGame then
+        local mode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
+        if mode ~= nil and mode ~= "" and not Services.Workspace.GameSettings.GameStarted.Value then
+            print("Mode set, starting game once")
+            task.wait(0.5) -- Small delay to let mode fully set
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
+            end)
+        end
+    end
+end)
+
 Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
 
 ensureMacroFolders()
