@@ -1,4 +1,4 @@
---pipifg
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2467,7 +2467,6 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
         print("🚫 DISABLED all auto functions for retry")
         print("AUTO RETRY ENABLED - Sending retry vote...")
         
-        task.spawn(function()
             local success, err = pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
             end)
@@ -2489,7 +2488,6 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
             State.AutoStartGame = ORIGINAL_AUTO_START_GAME
             
             print("✅ RESTORED all auto functions after game started")
-        end)
     end
     
     if State.AutoVoteNext then
