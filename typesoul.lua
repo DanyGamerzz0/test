@@ -1,7 +1,3 @@
--- Monitor for changes -- Script for Roblox Executors - TextScroller Detection with Webhook
--- Monitors PlayerGui.ScreenEffects for TextScroller appearance
--- Modified: Only notifies when WATCHLIST items are detected
-
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
@@ -12,7 +8,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- Configuration
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1407420078936555661/7E-51z4CbFv_fRRfda_uuFAasZg9jbqBH1cDD0ODA9VFD7EFx0lui781-WzkDFMNAi-V" -- Replace with your actual webhook URL
 local CHECK_INTERVAL = 0.1 -- Check every 0.1 seconds
-local ITEM_LOAD_DELAY = 4 -- Wait a bit for all items to load
+local ITEM_LOAD_DELAY = 4 -- Wait for all items to load
 local WEBHOOK_COOLDOWN = 10 -- Seconds between allowed webhook sends
 
 -- Items you want to be pinged for
@@ -31,16 +27,18 @@ local lastTextScrollerCount = 0
 local lastWebhookTime = 0
 
 -- Function: check if a text matches watchlist
-local function isWatchedItem(text)
-    for _, item in ipairs(WATCHLIST) do
-        if string.find(string.lower(text), string.lower(item)) then
-            return true
+local function hasWatchedItem(textLabels)
+    for _, text in ipairs(textLabels) do
+        for _, item in ipairs(WATCHLIST) do
+            if string.find(string.lower(text), string.lower(item)) then
+                return true
+            end
         end
     end
     return false
 end
 
--- Function: send webhook with watched items
+-- Function: send webhook with ALL items, ping only if watchlist item found
 local function sendWebhook(textLabels)
     if WEBHOOK_URL == "YOUR_WEBHOOK_URL_HERE" then
         warn("⚠️ WEBHOOK_URL not set! Please replace it with your actual webhook")
@@ -53,23 +51,13 @@ local function sendWebhook(textLabels)
         return
     end
 
-    -- Filter only watched items
-    local watchedItems = {}
-    for _, text in ipairs(textLabels) do
-        if isWatchedItem(text) then
-            table.insert(watchedItems, text)
-        end
-    end
+    -- Check if any watched items are present
+    local shouldPing = hasWatchedItem(textLabels)
 
-    if #watchedItems == 0 then
-        print("📭 No watched items detected, skipping webhook")
-        return
-    end
-
-    print("🔄 Sending webhook with", #watchedItems, "watched items")
+    print("🔄 Sending webhook with", #textLabels, "items | Ping:", shouldPing)
 
     local description, fields = "", {}
-    for i, text in ipairs(watchedItems) do
+    for i, text in ipairs(textLabels) do
         description = description .. text .. "\n"
         if i <= 25 then
             table.insert(fields, {
@@ -85,13 +73,13 @@ local function sendWebhook(textLabels)
     end
 
     local data = {
-        content = "@everyone 🎉 **Watched Item Detected!**", -- remove @everyone if you don’t want pings
+        content = shouldPing and "@everyone 🎉 **Watched Item Detected!**" or nil,
         username = "Item Detector",
         embeds = {{
-            title = "📜 Watched Items Found!",
+            title = shouldPing and "📜 Watched Item(s) Found!" or "📜 Items Detected",
             description = description,
             fields = fields,
-            color = 16711680, -- Red color
+            color = shouldPing and 16711680 or 65280, -- Red if ping, green otherwise
             footer = { text = "Player: " .. player.Name .. " | Game: " .. game.PlaceId },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
         }}
