@@ -1,3 +1,4 @@
+--111
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -368,13 +369,13 @@ local Dropdown = GameTab:CreateDropdown({
 
 task.spawn(function()
     while true do
-        -- Don't pick cards if we're in retry mode
-        if State.AutoPickCard and State.AutoPickCardSelected ~= nil and not isRetrying then
-            -- Add a delay after retry to let the game settle
-            if tick() - retryStartTime > 5 then
-                if Services.Workspace.GameSettings.StagesChallenge.Mode == nil or "" then
+        if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
+            -- Properly check if mode is empty
+            local currentMode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
+            if currentMode == nil or currentMode == "" then
+                pcall(function()
                     game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("StageChallenge"):FireServer(State.AutoPickCardSelected)
-                end
+                end)
             end
         end
         task.wait(3)
