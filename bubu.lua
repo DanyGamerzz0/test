@@ -1,4 +1,4 @@
---p
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -2427,41 +2427,6 @@ end
     isPlayingLoopRunning = false
 end)--]]
 
-game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
-    if RETRY_IN_PROGRESS then 
-        print("Retry in progress, ignoring all mode changes")
-        return 
-    end
-
-    task.spawn(function()
-        local currentMode = game.Workspace.GameSettings.StagesChallenge.Mode.Value
-        
-        -- Handle card picking
-        if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
-            if currentMode == nil or currentMode == "" then
-                print("Picking card:", State.AutoPickCardSelected)
-                pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("StageChallenge")
-                        :FireServer(State.AutoPickCardSelected)
-                end)
-            end
-        end
-        
-        -- Handle game starting
-        if State.AutoStartGame then
-            if currentMode ~= nil and currentMode ~= "" and not game.Workspace.GameSettings.GameStarted.Value then
-                print("Starting game")
-                task.wait(1) -- Small delay to ensure card selection is processed
-                pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
-                end)
-            end
-        end
-    end)
-end)
-
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
     print("Game ended")
     
@@ -2516,6 +2481,48 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     end
     
     isPlayingLoopRunning = false
+end)
+
+game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+    if RETRY_IN_PROGRESS then 
+        print("Retry in progress, ignoring mode change")
+        return 
+    end
+    
+    if State.AutoStartGame then
+        local mode = game.Workspace.GameSettings.StagesChallenge.Mode.Value
+        if mode ~= nil and mode ~= "" and not game.Workspace.GameSettings.GameStarted.Value then
+            print("Mode set, starting game")
+            task.wait(0.5)
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
+            end)
+        end
+    end
+end)
+
+-- Add this function to monitor the StagesChallenge GUI
+local function monitorStagesChallengeGUI()
+    local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
+    local stagesChallenge = playerGui:WaitForChild("StagesChallenge")
+    
+    stagesChallenge:GetPropertyChangedSignal("Enabled"):Connect(function()
+        if stagesChallenge.Enabled and State.AutoPickCard and State.AutoPickCardSelected then
+            print("StagesChallenge GUI opened, picking card")
+            task.wait(0.1) -- Small delay for GUI to fully load
+            
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                    :WaitForChild("Events"):WaitForChild("StageChallenge")
+                    :FireServer(State.AutoPickCardSelected)
+            end)
+        end
+    end)
+end
+
+-- Initialize the GUI monitor
+task.spawn(function()
+    monitorStagesChallengeGUI()
 end)
 
 Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
