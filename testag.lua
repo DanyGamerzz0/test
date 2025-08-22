@@ -1,4 +1,4 @@
---pipi
+--pip
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -115,6 +115,8 @@ local State = {
    RaidStageSelected = nil,
    RaidActSelected = nil,
 
+   AutoJoinChallenge = nil,
+
    AutoVoteRetry = false,
    AutoVoteNext = false,
 
@@ -125,11 +127,7 @@ local State = {
    startingInventory = {},
 }
 
-local isRetryInProgress = false
-
-local isRetrying = false -- Prevent multiple retry loops
-local isNexting = false
-local retryStartTime = 0
+local recordingHasStarted = false
 
 local AutoJoinState = {
     isProcessing = false,
@@ -153,19 +151,14 @@ local isRecording = false
 local isPlaybacking = false
 local isRecordingLoopRunning = false
 local isPlayingLoopRunning = false
-local recordingThread = nil
-local playbackThread = nil
-local pendingPlacements = {} 
-local placedUnitsTracking = {}
 local playbackMode = "timing"
 local currentWave = 0
 local waveStartTime = 0
+local currentPlacementOrder = 0
 
 local unitMapping = {}
-local placementOrder = {}
 
 local playbackUnitMapping = {}
-local playbackPlacementIndex = 0
 local recordingPlacementCounter = 0
 
 local ValidWebhook = nil
@@ -274,6 +267,17 @@ local Button = LobbyTab:CreateButton({
     end,
     })
 
+    local JoinerSection00 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
+
+    local AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Challenge",
+    CurrentValue = false,
+    Flag = "AutoJoinChallenge",
+    Callback = function(Value)
+        State.AutoJoinChallenge = Value
+    end,
+    })
+
 
 local function tryStartGame()
     if State.AutoStartGame then
@@ -335,7 +339,7 @@ local Toggle2 = GameTab:CreateToggle({
     end,
 })
 
-local function tryPickCard()
+--[[local function tryPickCard()
     -- Don't pick cards during retry
     if State.AutoPickCard and State.AutoPickCardSelected ~= nil and not isRetryInProgress then
         if Services.Workspace.GameSettings.GameStarted.Value == false then
@@ -347,7 +351,7 @@ local function tryPickCard()
             end
         end
     end
-end
+end--]]
 
 local Toggle = GameTab:CreateToggle({
     Name = "Auto Pick Card",
@@ -355,9 +359,9 @@ local Toggle = GameTab:CreateToggle({
     Flag = "AutoPickCard",
     Callback = function(Value)
         State.AutoPickCard = Value
-        if Value then
-            tryPickCard()
-        end
+       -- if Value then
+         --   tryPickCard()
+       -- end
     end,
 })
 
@@ -1486,6 +1490,7 @@ RecordToggle = MacroTab:CreateToggle({
         isRecording = Value
 
         if Value and not isRecordingLoopRunning then
+            recordingHasStarted = false -- Reset the flag when starting
             MacroStatusLabel:Set("Status: Preparing to record...")
             Rayfield:Notify({
                 Title = "Macro Recording",
@@ -1496,6 +1501,7 @@ RecordToggle = MacroTab:CreateToggle({
             recordingThread = task.spawn(function()
                 waitForGameStart()
                 if isRecording then
+                    recordingHasStarted = true -- Set flag when recording actually starts
                     isRecordingLoopRunning = true
                     table.clear(macro)
                     recordingStartTime = tick()
@@ -1518,6 +1524,7 @@ RecordToggle = MacroTab:CreateToggle({
                 })
             end
             isRecordingLoopRunning = false
+            recordingHasStarted = false -- Reset flag when stopping
             MacroStatusLabel:Set("Status: Recording stopped")
 
             if currentMacroName then
@@ -1880,13 +1887,27 @@ local function checkAndExecuteHighestPriority()
     if AutoJoinState.isProcessing then return end
     if not canPerformAction() then return end
 
+    --CHALLENGE
+    if State.AutoJoinChallenge then
+            setProcessingState("Auto Join Challenge")
+
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Challenge",{})
+            task.wait(1)
+            local portalpart = Services.Workspace:WaitForChild("CreatingRoom"):FindFirstChild(tostring(Services.Players.LocalPlayer.Name)):FindFirstChild("PortalPart")
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{portalpart:GetAttribute("Stages"),portalpart:GetAttribute("Act"),"Challenge"})
+
+
+            task.delay(5, clearProcessingState)
+            return
+    end
+
     --RAID
     if State.AutoJoinRaid and State.RaidStageSelected ~= nil and State.RaidActSelected ~= nil then
             setProcessingState("Auto Join Raid")
 
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Raid",{"Lawless City","1","Raid"})
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Raid",{State.RaidStageSelected,State.RaidActSelected,"Raid"})
             task.wait(1)
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Raid",{"Lawless City","1","Raid"})
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{State.RaidStageSelected,State.RaidActSelected,"Boss Rush"})
 
             task.delay(5, clearProcessingState)
             return
@@ -2423,61 +2444,122 @@ end
 end)--]]
 
 Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
+    print("Game ended")
+    
+    -- Handle recording stop - only stop if recording has actually started
+    if isRecording and recordingHasStarted then
+        isRecording = false
+        isRecordingLoopRunning = false
+        recordingHasStarted = false
+        RecordToggle:Set(false)
+        
+        Rayfield:Notify({
+            Title = "Recording Stopped",
+            Content = "Game ended, recording has been automatically stopped and saved.",
+            Duration = 3
+        })
+        
+        if currentMacroName then
+            macroManager[currentMacroName] = macro
+            saveMacroToFile(currentMacroName)
+        end
+    elseif isRecording and not recordingHasStarted then
+        -- If recording is enabled but hasn't started yet, don't stop it
+        print("Recording was waiting for game start - not stopping recording")
+    end
+    
     State.isGameRunning = false
     
     if State.SendStageCompletedWebhook then
         sendWebhook("stage", nil, "1:50", nil)
     end
     
-    -- AUTO RETRY - FIRE ONCE
+    -- Handle retry with proper state management
     if State.AutoVoteRetry then
-        print("Game ended, sending retry vote once")
+        RETRY_IN_PROGRESS = true
+        print("Starting retry process")
+        
+        -- Send retry vote immediately
         pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
         end)
-    end
-    
-    -- AUTO NEXT - FIRE ONCE  
-    if State.AutoVoteNext then
-        print("Game ended, sending next vote once")
+        
+        -- Monitor for game start and clear retry flag
+        spawn(function()
+            -- Wait for game to start
+            while not game.Workspace.GameSettings.GameStarted.Value do
+                task.wait(0.1)
+            end
+            
+            -- Clear retry flag after game starts
+            task.wait(1)
+            RETRY_IN_PROGRESS = false
+            print("Retry complete, auto functions restored")
+        end)
+        
+    elseif State.AutoVoteNext then
         pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
         end)
-    end
-    
-    if State.AutoVoteLobby then
+    elseif State.AutoVoteLobby then
         Services.TeleportService:Teleport(17282336195, LocalPlayer)
     end
     
     isPlayingLoopRunning = false
 end)
 
--- Connect to when the mode gets cleared (game reset/retry)
-Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
-    if State.AutoPickCard and State.AutoPickCardSelected ~= nil then
-        local currentMode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
-        if currentMode == nil or currentMode == "" then
-            print("Mode cleared, picking card once:", State.AutoPickCardSelected)
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("StageChallenge"):FireServer(State.AutoPickCardSelected)
-            end)
-        end
-    end
-end)
-
--- Connect to when mode changes (card picked)
-Services.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+    --if RETRY_IN_PROGRESS then 
+    --    print("Retry in progress, ignoring mode change")
+      --  return 
+   -- end
+    
     if State.AutoStartGame then
-        local mode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
-        if mode ~= nil and mode ~= "" and not Services.Workspace.GameSettings.GameStarted.Value then
-            print("Mode set, starting game once")
-            task.wait(0.5) -- Small delay to let mode fully set
+        local mode = game.Workspace.GameSettings.StagesChallenge.Mode.Value
+        if mode ~= nil and mode ~= "" and not game.Workspace.GameSettings.GameStarted.Value then
+            print("Mode set, starting game")
+            task.wait(0.5)
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
             end)
         end
     end
 end)
+
+local function monitorStagesChallengeGUI()
+    local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
+    local stagesChallenge = playerGui:WaitForChild("StagesChallenge")
+    
+    -- Check if GUI is already enabled when script starts
+    if stagesChallenge.Enabled and State.AutoPickCard and State.AutoPickCardSelected then
+        print("StagesChallenge GUI already open, picking card")
+        task.wait(0.1)
+        
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("StageChallenge")
+                :FireServer(State.AutoPickCardSelected)
+        end)
+    end
+    
+    -- Monitor for future changes
+    stagesChallenge:GetPropertyChangedSignal("Enabled"):Connect(function()
+        if stagesChallenge.Enabled and State.AutoPickCard and State.AutoPickCardSelected then
+            print("StagesChallenge GUI opened, picking card")
+            task.wait(0.1)
+            
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                    :WaitForChild("Events"):WaitForChild("StageChallenge")
+                    :FireServer(State.AutoPickCardSelected)
+            end)
+        end
+    end)
+end
+
+-- Initialize the GUI monitor
 
 Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
 
@@ -2487,6 +2569,10 @@ loadAllMacros()
 Rayfield:LoadConfiguration()
 
     task.delay(1, function()
+        task.spawn(function()
+    monitorStagesChallengeGUI()
+end)
+
         local savedMacroName = Rayfield.Flags["MacroDropdown"]
         
         -- Handle case where savedMacroName might be a table
