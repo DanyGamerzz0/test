@@ -1,4 +1,4 @@
---pipi1
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -259,17 +259,6 @@ local Button = LobbyTab:CreateButton({
         State.RaidStageSelected = Option[1]
     end,
 })
-
-    local ChapterDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Act",
-    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6"},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "RaidActSelector",
-    Callback = function(Option)
-        State.RaidActSelected = Option[1]
-    end,
-    })
 
     local JoinerSection00 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
 
@@ -2080,12 +2069,12 @@ local function checkAndExecuteHighestPriority()
     end
 
     --RAID
-    if State.AutoJoinRaid and State.RaidStageSelected ~= nil and State.RaidActSelected ~= nil then
+    if State.AutoJoinRaid and State.RaidStageSelected ~= nil then
             setProcessingState("Auto Join Raid")
 
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Raid",{State.RaidStageSelected,State.RaidActSelected,"Raid"})
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Raid",{State.RaidStageSelected,"1","Raid"})
             task.wait(1)
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{State.RaidStageSelected,State.RaidActSelected,"Boss Rush"})
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{State.RaidStageSelected,"1","Boss Rush"})
 
             task.delay(5, clearProcessingState)
             return
