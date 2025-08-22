@@ -272,7 +272,7 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection("13/08/2025")
+local UpdateLogSection = UpdateLogTab:CreateSection("22/08/2025")
 local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 
 --//DIVIDERS\\--
@@ -2634,6 +2634,17 @@ end)
     end)
 
 --//BUTTONS\\--
+
+CodeButton = WebhookTab:CreateButton({
+    Name = "Redeem All Codes",
+    Callback = function()
+        for _, stringValue in ipairs(Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Code:GetChildren()) do
+	    if stringValue:IsA("StringValue") then
+	            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("Code"):FireServer(stringValue.Value)
+	        end
+        end
+    end,
+})
 
 local Button = LobbyTab:CreateButton({
         Name = "Load Item Tracker",
