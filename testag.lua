@@ -1,4 +1,4 @@
---pipi
+--pip
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -114,6 +114,9 @@ local State = {
    AutoJoinRaid = nil,
    RaidStageSelected = nil,
    RaidActSelected = nil,
+
+   AutoJoinPortal = nil,
+   AutoJoinPortalSelected = nil,
 
    AutoJoinChallenge = nil,
 
@@ -2062,6 +2065,16 @@ local function checkAndExecuteHighestPriority()
             game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{portalpart:GetAttribute("Stages"),portalpart:GetAttribute("Act"),"Challenge"})
 
 
+            task.delay(5, clearProcessingState)
+            return
+    end
+
+    if State.AutoJoinPortal and State.AutoJoinPortalSelected then
+            setProcessingState("Auto Join Portal")
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer(tostring(State.AutoJoinPortalSelected).." (Portal)",{})
+            task.wait(1)
+            local portalpart = Services.Workspace:WaitForChild("CreatingRoom"):FindFirstChild(tostring(Services.Players.LocalPlayer.Name)):FindFirstChild("PortalPart")
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{portalpart:GetAttribute("Stages"),portalpart:GetAttribute("Act"),portalpart:GetAttribute("Difficulty")})
             task.delay(5, clearProcessingState)
             return
     end
