@@ -1,4 +1,4 @@
---pipi
+--p
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -160,6 +160,7 @@ local unitMapping = {}
 
 local playbackUnitMapping = {}
 local recordingPlacementCounter = 0
+local playbackPlacementIndex = 0
 
 local ValidWebhook = nil
 
@@ -975,56 +976,66 @@ local function executeUnitSell(actionData)
 end
 
 local function executeUnitUlt(actionData)
-    print(string.format("🔥 Attempting to ult unit: %s", actionData.unitString or "Unknown"))
+    -- Get the current unit name based on which placement this ult targets
+    local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
     
-    -- Method 1: Use the exact recorded unit string (most reliable)
-    if actionData.unitString then
-        local success, err = pcall(function()
-            local args = {"SkillsButton", actionData.unitString}
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
-        end)
-        
-        if success then
-            print(string.format("⚡ Successfully ulted unit: %s", actionData.unitString))
-            MacroStatusLabel:Set(string.format("Status: Ulted unit %s", actionData.targetUnitName or "Unknown"))
-            return true
-        else
-            warn(string.format("❌ Failed to ult unit %s: %s", actionData.unitString, err))
-        end
+    if not currentUnitName or actionData.targetPlacementOrder == 0 then
+        warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
+        MacroStatusLabel:Set("Status: Error - Unit not found for ult")
+        return false
     end
     
-    -- Method 2: Fallback - try to find current unit by placement order
-    if actionData.targetPlacementOrder and actionData.targetPlacementOrder > 0 then
-        local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
-        
-        if currentUnitName then
-            -- Get all units in the game and find one that matches
-            local ground = Services.Workspace:FindFirstChild("Ground")
-            if ground then
-                local unitClient = ground:FindFirstChild("unitClient")
-                if unitClient then
-                    for _, unit in pairs(unitClient:GetChildren()) do
-                        if unit:IsA("Model") and unit.Name:find(currentUnitName, 1, true) then
-                            local success, err = pcall(function()
-                                local args = {"SkillsButton", unit.Name}
-                                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                                    :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
-                            end)
-                            
-                            if success then
-                                print(string.format("⚡ Successfully ulted unit (fallback): %s", unit.Name))
-                                MacroStatusLabel:Set(string.format("Status: Ulted unit %s", currentUnitName))
-                                return true
-                            end
-                        end
+    print(string.format("🔍 Preparing to ult placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
+    
+    -- Check if unit exists in server before attempting ult
+    if not unitExistsInServer(currentUnitName) then
+        warn(string.format("❌ Unit %s not found in server before ult attempt", currentUnitName))
+        MacroStatusLabel:Set("Status: Error - Unit not found in server")
+        return false
+    end
+    
+    -- Method 1: Try to find the exact unit in unitClient and use its full name
+    local ground = Services.Workspace:FindFirstChild("Ground")
+    if ground then
+        local unitClient = ground:FindFirstChild("unitClient")
+        if unitClient then
+            for _, unit in pairs(unitClient:GetChildren()) do
+                if unit:IsA("Model") and unit.Name:find(currentUnitName, 1, true) then
+                    local success, err = pcall(function()
+                        local args = {"SkillsButton", unit.Name}
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                            :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
+                    end)
+                    
+                    if success then
+                        print(string.format("⚡ Successfully ulted unit from placement #%d: %s", 
+                            actionData.targetPlacementOrder, unit.Name))
+                        MacroStatusLabel:Set(string.format("Status: Ulted unit %s", currentUnitName))
+                        return true
+                    else
+                        warn(string.format("❌ Failed to ult unit %s: %s", unit.Name, err))
                     end
                 end
             end
         end
     end
     
-    warn("❌ Failed to ult unit - no valid method worked")
+    -- Method 2: Fallback - try using the current unit name directly
+    local success, err = pcall(function()
+        local args = {"SkillsButton", currentUnitName}
+        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+            :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
+    end)
+    
+    if success then
+        print(string.format("⚡ Successfully ulted unit (fallback method): %s", currentUnitName))
+        MacroStatusLabel:Set(string.format("Status: Ulted unit %s", currentUnitName))
+        return true
+    else
+        warn(string.format("❌ Failed to ult unit %s: %s", currentUnitName, err))
+    end
+    
+    warn(string.format("❌ Failed to ult unit from placement #%d - no valid method worked", actionData.targetPlacementOrder or 0))
     MacroStatusLabel:Set("Status: Failed to ult unit")
     return false
 end
