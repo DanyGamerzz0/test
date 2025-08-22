@@ -1,4 +1,4 @@
---pipi
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -300,7 +300,7 @@ local Button = LobbyTab:CreateButton({
     MultipleOptions = false,
     Flag = "AutoJoinPortalSelector",
     Callback = function(Options)
-        State.AutoJoinPortalSelected = Options
+        State.AutoJoinPortalSelected = Options[1]
     end,
 })
 
