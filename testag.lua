@@ -1,4 +1,4 @@
---p
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -279,6 +279,27 @@ local Button = LobbyTab:CreateButton({
     end,
     })
 
+    local JoinerSection00 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
+
+    local AutoJoinPortalToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Portal",
+    CurrentValue = false,
+    Flag = "AutoJoinPortal",
+    Callback = function(Value)
+        State.AutoJoinPortal = Value
+    end,
+    })
+
+     local PortalStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Portal to join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "AutoJoinPortalSelector",
+    Callback = function(Options)
+        State.AutoJoinPortalSelected = Options
+    end,
+})
 
 local function tryStartGame()
     if State.AutoStartGame then
@@ -2270,6 +2291,75 @@ local function loadStoryStages()
     end
 end
 
+local function loadPortalStages()
+    local allPortalStages = {}
+    local orderedStages = {}
+    local unlistedStages = {}
+    local playerInventory = Services.Players.LocalPlayer:FindFirstChild("ItemsInventory")
+    
+    -- Check if Portals category exists
+    if stageRewards.Portals and type(stageRewards.Portals) == "table" then
+        -- First, collect all valid portal stage names that the player has in inventory
+        for stageName, stageData in pairs(stageRewards.Portals) do
+            -- Make sure it's a valid stage (has rewards or chance rewards)
+            if type(stageData) == "table" and (stageData.Rewards or stageData.ChanceRewards) then
+                -- Check if player has the portal in their inventory
+                local portalItemName = stageName .. " (Portal)"
+                if playerInventory:FindFirstChild(portalItemName) then
+                    allPortalStages[stageName] = true
+                end
+            end
+        end
+        
+        -- Add stages in priority order (if they exist and player has them)
+        if STAGE_PRIORITY then -- Check if STAGE_PRIORITY exists
+            for _, stageName in ipairs(STAGE_PRIORITY) do
+                if allPortalStages[stageName] then
+                    table.insert(orderedStages, stageName)
+                    allPortalStages[stageName] = nil -- Remove from remaining stages
+                end
+            end
+        end
+        
+        -- Add any remaining stages alphabetically at the bottom
+        for stageName, _ in pairs(allPortalStages) do
+            table.insert(unlistedStages, stageName)
+        end
+        table.sort(unlistedStages) -- Sort alphabetically
+        
+        -- Combine ordered stages with unlisted stages
+        local portalStages = {}
+        for _, stageName in ipairs(orderedStages) do
+            table.insert(portalStages, stageName)
+        end
+        for _, stageName in ipairs(unlistedStages) do
+            table.insert(portalStages, stageName)
+        end
+        
+        -- Set the dropdown options
+        PortalStageDropdown:Refresh(portalStages)
+        
+        print("Loaded " .. #portalStages .. " Portal stages into dropdown:")
+        print("Priority ordered stages:")
+        for i, stageName in ipairs(orderedStages) do
+            print("  " .. i .. ". " .. stageName .. " (priority)")
+        end
+        if #unlistedStages > 0 then
+            print("Unlisted stages (alphabetical):")
+            for i, stageName in ipairs(unlistedStages) do
+                print("  " .. (#orderedStages + i) .. ". " .. stageName .. " (unlisted)")
+            end
+        end
+        
+        -- If no portals found in inventory
+        if #portalStages == 0 then
+            print("No portal items found in player's inventory!")
+        end
+    else
+        warn("Portals category not found in StageRewards module!")
+    end
+end
+
 local function snapshotInventory()
     local snapshot = {}
     State.unitNameSet = {}
@@ -2509,6 +2599,7 @@ end
 
 loadRaidStages()
 loadStoryStages()
+loadPortalStages()
 checkGameStarted()
 
 task.spawn(function()
@@ -2609,7 +2700,7 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
         end
     elseif isRecording and not recordingHasStarted then
         -- If recording is enabled but hasn't started yet, don't stop it
-        print("Recording was waiting for game start - not stopping recording")
+        print("Recording was waiting for game start - not stop recording")
     end
     
     State.isGameRunning = false
