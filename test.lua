@@ -2641,6 +2641,8 @@ CodeButton = WebhookTab:CreateButton({
         for _, stringValue in ipairs(Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Code:GetChildren()) do
 	    if stringValue:IsA("StringValue") then
 	            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("Code"):FireServer(stringValue.Value)
+                print("redeemed "..stringValue.Value)
+                task.wait(0.1)
 	        end
         end
     end,
@@ -3487,7 +3489,7 @@ task.spawn(function()
     local GameSection = GameTab:CreateSection("🎮 Game 🎮")
     --local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
---[[local Dropdown = GameTab:CreateDropdown({
+local Dropdown = GameTab:CreateDropdown({
    Name = "AutoSell Unit (will remove it as soon as cooldown is over)",
    Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
    CurrentOption = {"No Unit"},
@@ -3496,7 +3498,7 @@ task.spawn(function()
    Callback = function(Option)
         State.AutoSellUnitChoice = Option
    end,
-})--]]
+})
 
     local Toggle = GameTab:CreateToggle({
     Name = "Auto 1x/2x/3x Speed",
