@@ -1,4 +1,4 @@
---pip
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -297,7 +297,7 @@ local Button = LobbyTab:CreateButton({
     Name = "Select Portal to join",
     Options = {},
     CurrentOption = {},
-    MultipleOptions = true,
+    MultipleOptions = false,
     Flag = "AutoJoinPortalSelector",
     Callback = function(Options)
         State.AutoJoinPortalSelected = Options
