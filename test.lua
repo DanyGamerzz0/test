@@ -1,4 +1,3 @@
---5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -704,7 +703,7 @@ local function getOrderedUnits()
     return table.concat(units, "\n")
 end
 
-local function sendWebhook(messageType, rewards, clearTime, matchResult, disconnectReason)
+local function sendWebhook(messageType, rewards, clearTime, matchResult)
     if not ValidWebhook then return end
 
     local data
@@ -717,25 +716,6 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, disconn
                 description = "🧪 Test webhook sent successfully",
                 color = 0x5865F2,
                 footer = { text = "LixHub Auto Logger" },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            }}
-        }
-    elseif messageType == "disconnect" then
-        -- Safe disconnect webhook with @everyone ping
-        data = {
-            username = "LixHub Bot",
-            content = "@everyone 🚨 **PLAYER DISCONNECTED FROM ROBLOX!** 🚨",
-            embeds = {{
-                title = "⚠️ CONNECTION LOST",
-                description = "Player has been disconnected from the game",
-                color = 0xFF0000,
-                fields = {
-                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. "||", inline = true },
-                    { name = "⏰ Disconnect Time", value = os.date("!%Y-%m-%d %H:%M:%S UTC"), inline = true },
-                    { name = "📊 Reason", value = disconnectReason or "Connection lost", inline = false },
-                    { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
-                },
-                footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         }
@@ -810,58 +790,6 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, disconn
         notify("Webhook Error", "No HTTP request method available.")
     end
 end
-
--- SAFE disconnect detection - won't crash Roblox
-local function setupSafeDisconnectDetection()
-    -- Method 1: Monitor LocalPlayer's existence
-    spawn(function()
-        while true do
-            wait(3) -- Check every 3 seconds
-            
-            if not Services.Players.LocalPlayer or not Services.Players.LocalPlayer.Parent then
-                sendWebhook("disconnect", nil, nil, nil, "LocalPlayer removed from game")
-                break
-            end
-            
-            -- Check if we can still access basic player data
-            local success = pcall(function()
-                return Services.Players.LocalPlayer.Name
-            end)
-            
-            if not success then
-                sendWebhook("disconnect", nil, nil, nil, "Lost access to player data")
-                break
-            end
-        end
-    end)
-    
-    -- Method 2: Listen for PlayerRemoving (if we get removed)
-    Services.Players.PlayerRemoving:Connect(function(player)
-        if player == Services.Players.LocalPlayer then
-            sendWebhook("disconnect", nil, nil, nil, "Player left the game")
-        end
-    end)
-    
-    -- Method 3: Monitor network connectivity with ReplicatedStorage
-    spawn(function()
-        while Services.Players.LocalPlayer and Services.Players.LocalPlayer.Parent do
-            wait(5) -- Check every 5 seconds
-            
-            local success = pcall(function()
-                -- Try to access ReplicatedStorage (this fails when disconnected)
-                return Services.ReplicatedStorage.Parent
-            end)
-            
-            if not success then
-                sendWebhook("disconnect", nil, nil, nil, "Lost connection to ReplicatedStorage")
-                break
-            end
-        end
-    end)
-end
-
--- Call this function to start safe monitoring
-setupSafeDisconnectDetection()
 
 --boss rush
 
