@@ -1,4 +1,4 @@
---pipi
+--pip
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -858,9 +858,6 @@ local function tryPlaceUnitUntilSuccess(unitName, cframe, rotation, unitId, maxA
 end
 
 local function executeUnitPlacement(actionData)
-    local unitDescription = string.format("place %s", actionData.unitName)
-    
-    -- We don't know exact placement cost, so we'll use the retry system
     print(string.format("🎯 Attempting to place unit: %s", actionData.unitName))
     
     local success = tryPlaceUnitUntilSuccess(
@@ -873,6 +870,12 @@ local function executeUnitPlacement(actionData)
     
     if success then
         MacroStatusLabel:Set(string.format("Status: Successfully placed %s", actionData.unitName))
+        
+        -- Update the mapping for future upgrades/sells/ults
+        local placementOrder = actionData.placementOrder or currentPlacementOrder
+        if playbackUnitMapping[placementOrder] then
+            print(string.format("🔗 Updated mapping: placement #%d -> %s", placementOrder, playbackUnitMapping[placementOrder]))
+        end
     else
         MacroStatusLabel:Set(string.format("Status: Failed to place %s", actionData.unitName))
     end
@@ -881,23 +884,23 @@ local function executeUnitPlacement(actionData)
 end
 
 local function executeUnitUpgrade(actionData)
-    -- Get the current unit name based on which placement this upgrade targets
-    local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
+    local targetOrder = actionData.targetPlacementOrder or 0
+    local currentUnitName = playbackUnitMapping[targetOrder]
     
-    if not currentUnitName or actionData.targetPlacementOrder == 0 then
-        warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
-        MacroStatusLabel:Set(string.format("Status: Error - Unit not found for upgrade"))
+    if not currentUnitName or targetOrder == 0 then
+        warn(string.format("❌ Could not find current unit name for placement #%d", targetOrder))
+        MacroStatusLabel:Set("Status: Error - Unit not found for upgrade")
         return false
     end
     
-    print(string.format("🔍 Preparing to upgrade placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
+    print(string.format("🔍 Preparing to upgrade placement #%d: %s", targetOrder, currentUnitName))
     
     -- Get current upgrade level before upgrade
     local upgradeLevelBefore = getUnitUpgradeLevel(currentUnitName)
     
     if not upgradeLevelBefore then
         warn(string.format("❌ Could not determine current upgrade level for %s", currentUnitName))
-        MacroStatusLabel:Set(string.format("Status: Error - Cannot read upgrade level"))
+        MacroStatusLabel:Set("Status: Error - Cannot read upgrade level")
         return false
     end
     
@@ -906,7 +909,7 @@ local function executeUnitUpgrade(actionData)
     
     if not upgradeCost then
         warn(string.format("❌ Could not determine upgrade cost for %s", currentUnitName))
-        MacroStatusLabel:Set(string.format("Status: Error - Unknown upgrade cost"))
+        MacroStatusLabel:Set("Status: Error - Unknown upgrade cost")
         return false
     end
     
@@ -929,16 +932,16 @@ local function executeUnitUpgrade(actionData)
         
         if upgradeLevelAfter and upgradeLevelAfter > upgradeLevelBefore then
             print(string.format("⬆️ Successfully upgraded unit from placement #%d (%d→%d)", 
-                actionData.targetPlacementOrder or 0, upgradeLevelBefore, upgradeLevelAfter))
+                targetOrder, upgradeLevelBefore, upgradeLevelAfter))
             MacroStatusLabel:Set(string.format("Status: Upgraded unit (%d→%d)", upgradeLevelBefore, upgradeLevelAfter))
             return true
         else
-            warn(string.format("❌ Upgrade request sent but level unchanged (%s) - upgrade likely failed", tostring(upgradeLevelAfter)))
+            warn(string.format("❌ Upgrade request sent but level unchanged (%s)", tostring(upgradeLevelAfter)))
             MacroStatusLabel:Set("Status: Upgrade failed - level unchanged")
             return false
         end
     else
-        warn(string.format("❌ Failed to upgrade unit from placement #%d: %s", actionData.targetPlacementOrder or 0, err))
+        warn(string.format("❌ Failed to upgrade unit from placement #%d: %s", targetOrder, err))
         MacroStatusLabel:Set("Status: Upgrade request failed")
         return false
     end
@@ -1185,272 +1188,223 @@ local function refreshMacroDropdown()
         print("Current macro is:", currentMacroName, "Type:", type(currentMacroName))
     end
 
-    local function exportMacroToClipboard(macroName)
-        if not macroName or macroName == "" then
-            Rayfield:Notify({
-                Title = "Export Error",
-                Content = "No macro selected for export.",
-                Duration = 3
-            })
-            return false
-        end
-        
-        local macroData = macroManager[macroName]
-        if not macroData or #macroData == 0 then
-            Rayfield:Notify({
-                Title = "Export Error", 
-                Content = "Macro '" .. macroName .. "' is empty or doesn't exist.",
-                Duration = 3
-            })
-            return false
-        end
-        
-        -- Create export data with metadata
-        local exportData = {
-            version = "1.0",
-            macroName = macroName,
-            actionCount = #macroData,
-            exportTime = os.time(),
-            actions = {}
-        }
-        
-        -- Serialize the macro data
-        for _, action in ipairs(macroData) do
-            local serializedAction = table.clone(action)
-            if serializedAction.position then
-                serializedAction.position = serializeVector3(serializedAction.position)
-            end
-            if serializedAction.cframe then
-                serializedAction.cframe = serializeCFrame(serializedAction.cframe)
-            end
-            table.insert(exportData.actions, serializedAction)
-        end
-        
-        local jsonData = Services.HttpService:JSONEncode(exportData)
-        
-        -- Copy to clipboard
-        local success, err = pcall(function()
-            setclipboard(jsonData)
-        end)
-        
-        if success then
-            Rayfield:Notify({
-                Title = "Export Success",
-                Content = "Macro '" .. macroName .. "' copied to clipboard! (" .. #macroData .. " actions)",
-                Duration = 4
-            })
-            return true
-        else
-            Rayfield:Notify({
-                Title = "Export Error",
-                Content = "Failed to copy to clipboard: " .. tostring(err),
-                Duration = 4
-            })
-            return false
-        end
-    end
-
-      local function exportMacroToClipboard(macroName)
-        if not macroName or macroName == "" then
-            Rayfield:Notify({
-                Title = "Export Error",
-                Content = "No macro selected for export.",
-                Duration = 3
-            })
-            return false
-        end
-        
-        local macroData = macroManager[macroName]
-        if not macroData or #macroData == 0 then
-            Rayfield:Notify({
-                Title = "Export Error", 
-                Content = "Macro '" .. macroName .. "' is empty or doesn't exist.",
-                Duration = 3
-            })
-            return false
-        end
-        
-        -- Create export data with metadata
-        local exportData = {
-            version = "1.0",
-            macroName = macroName,
-            actionCount = #macroData,
-            exportTime = os.time(),
-            actions = {}
-        }
-        
-        -- Serialize the macro data
-        for _, action in ipairs(macroData) do
-            local serializedAction = table.clone(action)
-            if serializedAction.position then
-                serializedAction.position = serializeVector3(serializedAction.position)
-            end
-            if serializedAction.cframe then
-                serializedAction.cframe = serializeCFrame(serializedAction.cframe)
-            end
-            table.insert(exportData.actions, serializedAction)
-        end
-        
-        local jsonData = Services.HttpService:JSONEncode(exportData)
-        
-        -- Copy to clipboard
-        local success, err = pcall(function()
-            setclipboard(jsonData)
-        end)
-        
-        if success then
-            Rayfield:Notify({
-                Title = "Export Success",
-                Content = "Macro '" .. macroName .. "' copied to clipboard! (" .. #macroData .. " actions)",
-                Duration = 4
-            })
-            return true
-        else
-            Rayfield:Notify({
-                Title = "Export Error",
-                Content = "Failed to copy to clipboard: " .. tostring(err),
-                Duration = 4
-            })
-            return false
-        end
-    end
-
-    local function importMacroFromURL(url, targetMacroName)
-        if not url or url == "" then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "No URL provided for import.",
-                Duration = 3
-            })
-            return false
-        end
-        
-        if not targetMacroName or targetMacroName == "" then
-            Rayfield:Notify({
-                Title = "Import Error", 
-                Content = "No target macro name specified.",
-                Duration = 3
-            })
-            return false
-        end
-        
-        -- Check if target macro already exists and has data
-        if macroManager[targetMacroName] and #macroManager[targetMacroName] > 0 then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro.",
-                Duration = 4
-            })
-            return false
-        end
-        
+local function exportMacroToClipboard(macroName, format)
+    format = format or "json" -- default to json
+    
+    if not macroName or macroName == "" then
         Rayfield:Notify({
-            Title = "Importing...",
-            Content = "Downloading macro from URL...",
-            Duration = 2
+            Title = "Export Error",
+            Content = "No macro selected for export.",
+            Duration = 3
         })
-        
-        -- Try to fetch the URL content
-        local success, result = pcall(function()
-            return game:HttpGet(url, true)
-        end)
-        
-        if not success then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Failed to download from URL: " .. tostring(result),
-                Duration = 4
-            })
-            return false
-        end
-        
-        -- Try to parse the JSON
-        local importData
-        success, importData = pcall(function()
-            return Services.HttpService:JSONDecode(result)
-        end)
-        
-        if not success then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Invalid JSON data in downloaded file.",
-                Duration = 4
-            })
-            return false
-        end
-        
-        -- Validate import data structure
-        if not importData.actions or type(importData.actions) ~= "table" then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Invalid macro format - missing actions.",
-                Duration = 4
-            })
-            return false
-        end
-        
-        -- Deserialize the macro data
-        local deserializedActions = {}
-        for _, action in ipairs(importData.actions) do
-            local newAction = table.clone(action)
-            if newAction.position then
-                newAction.position = deserializeVector3(newAction.position)
-            end
-            if newAction.cframe then
-                newAction.cframe = deserializeCFrame(newAction.cframe)
-            end
-            table.insert(deserializedActions, newAction)
-        end
-        
-        -- Import the macro
-        macroManager[targetMacroName] = deserializedActions
-        
-        -- Save to file manually with inline filename generation
-        local success, err = pcall(function()
-            -- Ensure folders exist
-            if not isfolder("LixHub") then
-                makefolder("LixHub")
-            end
-            if not isfolder("LixHub/Macros") then
-                makefolder("LixHub/Macros")
-            end
-            if not isfolder("LixHub/Macros/AG") then
-                makefolder("LixHub/Macros/AG")
-            end
-            
-            -- Serialize the data
-            local serializedData = {}
-            for _, action in ipairs(deserializedActions) do
-                local newAction = table.clone(action)
-                if newAction.position then
-                    newAction.position = serializeVector3(newAction.position)
-                end
-                if newAction.cframe then
-                    newAction.cframe = serializeCFrame(newAction.cframe)
-                end
-                table.insert(serializedData, newAction)
-            end
-            
-            -- Create filename directly
-            local filename = "LixHub/Macros/AG/" .. targetMacroName .. ".json"
-            local json = Services.HttpService:JSONEncode(serializedData)
-            writefile(filename, json)
-        end)
-        
-        if not success then
-            warn("Failed to save imported macro to file:", err)
-        end
-        
-        --refreshMacroDropdown()
-        
+        return false
+    end
+    
+    local macroData = macroManager[macroName]
+    if not macroData or #macroData == 0 then
         Rayfield:Notify({
-            Title = "Import Success",
-            Content = "Imported '" .. (importData.macroName or "Unknown") .. "' to '" .. targetMacroName .. "' (" .. #deserializedActions .. " actions)",
+            Title = "Export Error", 
+            Content = "Macro '" .. macroName .. "' is empty or doesn't exist.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Create optimized export data
+    local exportData = {
+        version = "1.0",
+        actions = {}
+    }
+    
+    -- Only include optional metadata if requested
+    if format == "full" then
+        exportData.macroName = macroName
+        exportData.actionCount = #macroData
+        exportData.exportTime = os.time()
+    end
+    
+    -- Serialize the macro data with optimized structure
+    for _, action in ipairs(macroData) do
+        local serializedAction = {
+            action = action.action,
+            time = action.time,
+            wave = action.wave
+        }
+        
+        -- Add action-specific data
+        if action.action == "PlaceUnit" then
+            serializedAction.unitName = action.unitName
+            serializedAction.cframe = serializeCFrame(action.cframe)
+            serializedAction.rotation = action.rotation or 0
+            serializedAction.unitId = action.unitId
+            serializedAction.placementOrder = action.placementOrder
+        elseif action.action == "UpgradeUnit" or action.action == "SellUnit" then
+            serializedAction.targetPlacementOrder = action.targetPlacementOrder
+        elseif action.action == "UltUnit" then
+            serializedAction.targetPlacementOrder = action.targetPlacementOrder
+            serializedAction.unitString = action.unitString
+        end
+        
+        table.insert(exportData.actions, serializedAction)
+    end
+    
+    local jsonData = Services.HttpService:JSONEncode(exportData)
+    
+    -- Format as .json file content
+    local fileContent = jsonData
+    local fileName = macroName .. ".json"
+    
+    -- Copy to clipboard
+    local success, err = pcall(function()
+        setclipboard(fileContent)
+    end)
+    
+    if success then
+        local sizeKB = math.floor(#fileContent / 1024 * 100) / 100
+        Rayfield:Notify({
+            Title = "Export Success",
+            Content = string.format("Macro '%s' exported as JSON (%d actions, %.2f KB)", 
+                macroName, #macroData, sizeKB),
             Duration = 4
         })
-        
+        print(string.format("Exported %s with %d actions (%.2f KB)", fileName, #macroData, sizeKB))
         return true
+    else
+        Rayfield:Notify({
+            Title = "Export Error",
+            Content = "Failed to copy to clipboard: " .. tostring(err),
+            Duration = 4
+        })
+        return false
     end
+end
+
+local function importMacroFromURL(url, targetMacroName)
+    if not url or url == "" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "No URL provided for import.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    if not targetMacroName or targetMacroName == "" then
+        Rayfield:Notify({
+            Title = "Import Error", 
+            Content = "No target macro name specified.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Check if target macro already exists and has data
+    if macroManager[targetMacroName] and #macroManager[targetMacroName] > 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    Rayfield:Notify({
+        Title = "Importing...",
+        Content = "Downloading macro from URL...",
+        Duration = 2
+    })
+    
+    -- Try to fetch the URL content
+    local success, result = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Failed to download from URL: " .. tostring(result),
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Try to parse the JSON
+    local importData
+    success, importData = pcall(function()
+        return Services.HttpService:JSONDecode(result)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid JSON data in downloaded file.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Validate import data structure
+    if not importData.actions or type(importData.actions) ~= "table" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid macro format - missing actions.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Process and normalize the macro data (handle both compact and full formats)
+    local deserializedActions = {}
+    for _, action in ipairs(importData.actions) do
+        local newAction = table.clone(action)
+        
+        -- Deserialize CFrame if present
+        if newAction.cframe then
+            newAction.cframe = deserializeCFrame(newAction.cframe)
+        end
+        
+        -- Normalize action data for internal use
+        if newAction.action == "PlaceUnit" then
+            -- For compact format, we need to populate expected fields
+            newAction.actualUnitName = newAction.actualUnitName or (newAction.unitName .. " 1")
+            newAction.timestamp = newAction.timestamp or os.time()
+        elseif newAction.action == "UpgradeUnit" or newAction.action == "SellUnit" then
+            -- Ensure we have the target placement order
+            newAction.targetPlacementOrder = newAction.targetPlacementOrder or 0
+            -- For compatibility, set unitName (will be resolved during playback)
+            newAction.unitName = newAction.unitName or "TBD"
+            newAction.actualUnitName = newAction.actualUnitName or "TBD"
+        elseif newAction.action == "UltUnit" then
+            newAction.targetPlacementOrder = newAction.targetPlacementOrder or 0
+            newAction.targetUnitName = newAction.targetUnitName or "TBD"
+        end
+        
+        table.insert(deserializedActions, newAction)
+    end
+    
+    -- Import the macro
+    macroManager[targetMacroName] = deserializedActions
+    
+    -- Save to file
+    local success, err = pcall(function()
+        ensureMacroFolders()
+        saveMacroToFile(targetMacroName)
+    end)
+    
+    if not success then
+        warn("Failed to save imported macro to file:", err)
+    end
+    
+    refreshMacroDropdown()
+    
+    Rayfield:Notify({
+        Title = "Import Success",
+        Content = "Imported '" .. (importData.macroName or "Unknown") .. "' to '" .. targetMacroName .. "' (" .. #deserializedActions .. " actions)",
+        Duration = 4
+    })
+    
+    return true
+end
 
 local function getMacroFilename(name)
         -- Handle case where name might be a table
@@ -1876,20 +1830,20 @@ PlayToggle = MacroTab:CreateToggle({
     end,
 })
 
-    local ExportMacroButton = MacroTab:CreateButton({
-        Name = "Export Selected Macro To Clipboard",
-        Callback = function()
-            if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({
-                    Title = "Export Error",
-                    Content = "No macro selected for export.",
-                    Duration = 3
-                })
-                return
-            end
-            exportMacroToClipboard(currentMacroName)
-        end,
-    })
+local ExportMacroButton = MacroTab:CreateButton({
+    Name = "Export Selected Macro (Compact JSON)",
+    Callback = function()
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Export Error",
+                Content = "No macro selected for export.",
+                Duration = 3
+            })
+            return
+        end
+        exportMacroToClipboard(currentMacroName, "compact")
+    end,
+})
 
     local ImportURLInput = MacroTab:CreateInput({
         Name = "Import URL",
@@ -1901,6 +1855,21 @@ PlayToggle = MacroTab:CreateToggle({
             pendingImportURL = text
         end,
     })
+
+    local ExportMacroFullButton = MacroTab:CreateButton({
+    Name = "Export Selected Macro (Full JSON)",
+    Callback = function()
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Export Error",
+                Content = "No macro selected for export.",
+                Duration = 3
+            })
+            return
+        end
+        exportMacroToClipboard(currentMacroName, "full")
+    end,
+})
 
     local ImportFromURLButton = MacroTab:CreateButton({
         Name = "Import from URL",
