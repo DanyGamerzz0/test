@@ -703,7 +703,7 @@ local function getOrderedUnits()
     return table.concat(units, "\n")
 end
 
-local function sendWebhook(messageType, rewards, clearTime, matchResult)
+local function sendWebhook(messageType, rewards, clearTime, matchResult, disconnectReason)
     if not ValidWebhook then return end
 
     local data
@@ -716,6 +716,25 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                 description = "🧪 Test webhook sent successfully",
                 color = 0x5865F2,
                 footer = { text = "LixHub Auto Logger" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+    elseif messageType == "disconnect" then
+        -- NEW: Disconnect webhook with @everyone ping
+        data = {
+            username = "LixHub Bot",
+            content = "@everyone 🚨 **PLAYER DISCONNECTED FROM ROBLOX!** 🚨",
+            embeds = {{
+                title = "⚠️ CONNECTION LOST",
+                description = "Player has been disconnected from the game",
+                color = 0xFF0000, -- Red color for alerts
+                fields = {
+                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. "||", inline = true },
+                    { name = "⏰ Disconnect Time", value = os.date("!%Y-%m-%d %H:%M:%S UTC"), inline = true },
+                    { name = "📊 Reason", value = disconnectReason or "Unknown", inline = false },
+                    { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
+                },
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         }
@@ -790,6 +809,120 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
         notify("Webhook Error", "No HTTP request method available.")
     end
 end
+
+-- NEW: Add disconnect detection
+local function setupDisconnectDetection()
+    -- Method 1: Detect when Players service connection is lost
+    Services.Players.PlayerRemoving:Connect(function(player)
+        if player == Services.Players.LocalPlayer then
+            sendWebhook("disconnect", nil, nil, nil, "Player left the game")
+        end
+    end)
+
+    -- Method 2: Detect network disconnection
+    local function checkConnection()
+        local success = pcall(function()
+            return Services.Players.LocalPlayer.Parent
+        end)
+        
+        if not success or not Services.Players.LocalPlayer.Parent then
+            sendWebhook("disconnect", nil, nil, nil, "Network connection lost")
+            return false
+        end
+        return true
+    end
+
+    -- Method 3: Monitor game connection status
+    spawn(function()
+        while Services.Players.LocalPlayer and Services.Players.LocalPlayer.Parent do
+            wait(5) -- Check every 5 seconds
+            if not checkConnection() then
+                break
+            end
+        end
+    end)
+
+    -- Method 4: Enhanced disconnect message capture
+    local function captureDisconnectMessage()
+        if game.CoreGui then
+            pcall(function()
+                -- Monitor RobloxPromptGui for error dialogs
+                game.CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+                    if child.Name == "ErrorPrompt" or string.find(child.Name:lower(), "error") then
+                        wait(1) -- Wait longer for error message to fully load
+                        local errorText = "Connection error detected"
+                        
+                        -- Multiple attempts to get error message from different possible locations
+                        local function tryGetErrorText()
+                            local attempts = {
+                                function() return child:FindFirstChild("MessageArea"):FindFirstChild("ErrorFrame"):FindFirstChild("MessageArea"):FindFirstChild("TitleLabel").Text end,
+                                function() return child:FindFirstChild("MessageArea"):FindFirstChild("TitleLabel").Text end,
+                                function() return child:FindFirstChild("ErrorFrame"):FindFirstChild("TitleLabel").Text end,
+                                function() return child:FindFirstChild("TitleLabel").Text end,
+                                function() return child:FindFirstChild("MessageLabel").Text end,
+                                function() 
+                                    -- Look for any TextLabel with error-like content
+                                    for _, desc in pairs(child:GetDescendants()) do
+                                        if desc:IsA("TextLabel") and desc.Text and desc.Text ~= "" then
+                                            if string.find(desc.Text:lower(), "error") or 
+                                               string.find(desc.Text:lower(), "disconnect") or 
+                                               string.find(desc.Text:lower(), "code") then
+                                                return desc.Text
+                                            end
+                                        end
+                                    end
+                                end
+                            }
+                            
+                            for _, attempt in ipairs(attempts) do
+                                local success, result = pcall(attempt)
+                                if success and result and result ~= "" then
+                                    return result
+                                end
+                            end
+                            return nil
+                        end
+                        
+                        local foundText = tryGetErrorText()
+                        if foundText then
+                            errorText = foundText
+                        end
+                        
+                        sendWebhook("disconnect", nil, nil, nil, errorText)
+                    end
+                end)
+            end)
+        end
+        
+        -- Method 5: Hook into game.Players.LocalPlayer.Kick event if available
+        pcall(function()
+            if Services.Players.LocalPlayer then
+                -- Some exploits provide access to kick events
+                local connection
+                connection = Services.Players.LocalPlayer.AncestryChanged:Connect(function()
+                    if not Services.Players.LocalPlayer.Parent then
+                        sendWebhook("disconnect", nil, nil, nil, "Player was kicked or connection lost")
+                        if connection then connection:Disconnect() end
+                    end
+                end)
+            end
+        end)
+        
+        -- Method 6: Monitor for common Roblox error GUIs
+        pcall(function()
+            local StarterGui = Services.StarterGui or game:GetService("StarterGui")
+            StarterGui.CoreGuiChangedSignal:Connect(function(coreGuiType, enabled)
+                if not enabled and coreGuiType == Enum.CoreGuiType.All then
+                    sendWebhook("disconnect", nil, nil, nil, "Game interface disabled - possible disconnect")
+                end
+            end)
+        end)
+    end
+    
+    captureDisconnectMessage()
+end
+
+setupDisconnectDetection()
 
 --boss rush
 
