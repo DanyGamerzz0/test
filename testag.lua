@@ -1,4 +1,4 @@
---pip
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -148,6 +148,7 @@ local currentMacroName
 local macro = {}
 local pendingMacroName = ""
 local pendingImportURL = ""
+local pendingImportContent = ""
 
 local recordingStartTime
 local isRecording = false
@@ -1152,6 +1153,40 @@ end
             makefolder("LixHub/Macros/AG")
         end
     end
+local function getMacroFilename(name)
+        -- Handle case where name might be a table
+        if type(name) == "table" then
+            name = name[1] or ""
+        end
+        
+        -- Ensure name is a string
+        if type(name) ~= "string" or name == "" then
+            warn("getMacroFilename: Invalid name provided:", name)
+            return nil
+        end
+        
+        return "LixHub/Macros/AG/" .. name .. ".json"
+    end
+
+local function saveMacroToFile(name)
+        local data = macroManager[name]
+        if not data then return end
+
+        local serializedData = {}
+        for _, action in ipairs(data) do
+            local newAction = table.clone(action)
+            if newAction.position then
+                newAction.position = serializeVector3(newAction.position)
+            end
+            if newAction.cframe then
+                newAction.cframe = serializeCFrame(newAction.cframe)
+            end
+            table.insert(serializedData, newAction)
+        end
+
+        local json = Services.HttpService:JSONEncode(serializedData)
+        writefile(getMacroFilename(name), json)
+    end
 
 local function refreshMacroDropdown()
         local options = {}
@@ -1406,20 +1441,173 @@ local function importMacroFromURL(url, targetMacroName)
     return true
 end
 
-local function getMacroFilename(name)
-        -- Handle case where name might be a table
-        if type(name) == "table" then
-            name = name[1] or ""
-        end
-        
-        -- Ensure name is a string
-        if type(name) ~= "string" or name == "" then
-            warn("getMacroFilename: Invalid name provided:", name)
-            return nil
-        end
-        
-        return "LixHub/Macros/AG/" .. name .. ".json"
+local function importMacroFromContent(jsonContent, targetMacroName)
+    if not jsonContent or jsonContent:match("^%s*$") then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "No JSON content provided.",
+            Duration = 3
+        })
+        return false
     end
+    
+    if not targetMacroName or targetMacroName == "" then
+        Rayfield:Notify({
+            Title = "Import Error", 
+            Content = "No target macro name specified.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Check if target macro already exists and has data
+    if macroManager[targetMacroName] and #macroManager[targetMacroName] > 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro name.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Try to parse the JSON
+    local importData
+    local success, result = pcall(function()
+        return Services.HttpService:JSONDecode(jsonContent)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid JSON format. Please check your pasted content.",
+            Duration = 4
+        })
+        print("JSON Parse Error:", result)
+        return false
+    end
+    
+    importData = result
+    
+    -- Validate import data structure
+    if not importData.actions or type(importData.actions) ~= "table" then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid macro format - missing or invalid actions array.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    if #importData.actions == 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Macro contains no actions.",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Process and normalize the macro data
+    local deserializedActions = {}
+    local actionCount = 0
+    
+    for i, action in ipairs(importData.actions) do
+        local newAction = table.clone(action)
+        
+        -- Validate required fields
+        if not newAction.action or not newAction.time or not newAction.wave then
+            warn(string.format("Action #%d missing required fields (action/time/wave)", i))
+            continue
+        end
+        
+        -- Deserialize CFrame if present
+        if newAction.cframe then
+            newAction.cframe = deserializeCFrame(newAction.cframe)
+        end
+        
+        -- Normalize action data for internal use
+        if newAction.action == "PlaceUnit" then
+            if not newAction.unitName or not newAction.cframe then
+                warn(string.format("PlaceUnit action #%d missing unitName or cframe", i))
+                continue
+            end
+            newAction.actualUnitName = newAction.actualUnitName or (newAction.unitName .. " 1")
+            newAction.timestamp = newAction.timestamp or os.time()
+            newAction.rotation = newAction.rotation or 0
+            
+        elseif newAction.action == "UpgradeUnit" or newAction.action == "SellUnit" then
+            newAction.targetPlacementOrder = newAction.targetPlacementOrder or 0
+            newAction.unitName = newAction.unitName or "TBD"
+            newAction.actualUnitName = newAction.actualUnitName or "TBD"
+            
+        elseif newAction.action == "UltUnit" then
+            newAction.targetPlacementOrder = newAction.targetPlacementOrder or 0
+            newAction.targetUnitName = newAction.targetUnitName or "TBD"
+            
+        else
+            warn(string.format("Unknown action type '%s' in action #%d", newAction.action or "nil", i))
+            continue
+        end
+        
+        table.insert(deserializedActions, newAction)
+        actionCount = actionCount + 1
+    end
+    
+    if actionCount == 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "No valid actions found in the macro data.",
+            Duration = 4
+        })
+        return false
+    end
+    
+    -- Import the macro
+    macroManager[targetMacroName] = deserializedActions
+    
+    -- Save to file
+    local saveSuccess, saveErr = pcall(function()
+        ensureMacroFolders()
+        saveMacroToFile(targetMacroName)
+    end)
+    
+    if not saveSuccess then
+        warn("Failed to save imported macro to file:", saveErr)
+    end
+    
+    refreshMacroDropdown()
+    
+    -- Calculate some stats
+    local placeActions = 0
+    local upgradeActions = 0
+    local ultActions = 0
+    local sellActions = 0
+    
+    for _, action in ipairs(deserializedActions) do
+        if action.action == "PlaceUnit" then
+            placeActions = placeActions + 1
+        elseif action.action == "UpgradeUnit" then
+            upgradeActions = upgradeActions + 1
+        elseif action.action == "UltUnit" then
+            ultActions = ultActions + 1
+        elseif action.action == "SellUnit" then
+            sellActions = sellActions + 1
+        end
+    end
+    
+    Rayfield:Notify({
+        Title = "Import Success! 🎉",
+        Content = string.format("Imported '%s' with %d actions:\n🏗️ %d Place | ⬆️ %d Upgrade | ⚡ %d Ult | 💰 %d Sell", 
+            targetMacroName, actionCount, placeActions, upgradeActions, ultActions, sellActions),
+        Duration = 5
+    })
+    
+    print(string.format("✅ Successfully imported macro '%s' with %d actions", targetMacroName, actionCount))
+    return true
+end
+
+
+
 
     local function loadMacroFromFile(name)
         local filePath = getMacroFilename(name)
@@ -1501,26 +1689,6 @@ local function waitForGameStart()
     MacroStatusLabel:Set("Status: Game started! Initializing macro...")
     return Services.Workspace.GameSettings.GameStarted.Value
 end
-
-local function saveMacroToFile(name)
-        local data = macroManager[name]
-        if not data then return end
-
-        local serializedData = {}
-        for _, action in ipairs(data) do
-            local newAction = table.clone(action)
-            if newAction.position then
-                newAction.position = serializeVector3(newAction.position)
-            end
-            if newAction.cframe then
-                newAction.cframe = serializeCFrame(newAction.cframe)
-            end
-            table.insert(serializedData, newAction)
-        end
-
-        local json = Services.HttpService:JSONEncode(serializedData)
-        writefile(getMacroFilename(name), json)
-    end
 
 local CreateMacroButton = MacroTab:CreateButton({
     Name = "Create Empty Macro",
@@ -1895,6 +2063,42 @@ local ExportMacroButton = MacroTab:CreateButton({
             importMacroFromURL(pendingImportURL, pendingMacroName)
         end,
     })
+
+    local ImportContentInput = MacroTab:CreateInput({
+    Name = "Paste Macro JSON Content",
+    CurrentValue = "",
+    PlaceholderText = "Paste your macro JSON here...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "ImportContentInput",
+    Callback = function(text)
+        pendingImportContent = text
+    end,
+})
+
+    local ImportFromContentButton = MacroTab:CreateButton({
+    Name = "Import from Pasted Content",
+    Callback = function()
+        if not pendingImportContent or pendingImportContent:match("^%s*$") then
+            Rayfield:Notify({
+                Title = "Import Error",
+                Content = "Please paste macro JSON content first.",
+                Duration = 3
+            })
+            return
+        end
+        
+        if not pendingMacroName or pendingMacroName == "" then
+            Rayfield:Notify({
+                Title = "Import Error",
+                Content = "Please enter a macro name first.",
+                Duration = 3
+            })
+            return
+        end
+        
+        importMacroFromContent(pendingImportContent, pendingMacroName)
+    end,
+})
 
 local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
