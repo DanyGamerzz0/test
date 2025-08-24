@@ -1037,7 +1037,7 @@ local function purchaseItem(itemName, quantity, folderName)
             Remotes.RiftMerchant:FireServer(itemName, quantity)
         end
         if folderName == "Fall_Shop" then
-            Remotes.RiftMerchant:FireServer(itemName, quantity)
+            Remotes.SwarmMerchant:FireServer(itemName, quantity)
         end
     end)
 end
@@ -1396,7 +1396,7 @@ local function checkAndExecuteHighestPriority()
         return
     end
 
-    if State.autoBossEventEnabled and State.SelectedBossEventDifficulty then
+    if State.autoBossEventEnabled then
     setProcessingState("Boss Event Auto Join")
 
         handleTeamEquipping("Boss Event")
@@ -2663,53 +2663,16 @@ end)
 --//BUTTONS\\--
 
 local function redeemallcodes()
-    notify("Code Redemption", "Fetching codes...", 3)
+    notify("Code Redemption", "Starting code redemption...", 3)
     
-    local success, result = pcall(function()
-        return Services.HttpService:GetAsync("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/Codes_ARX")
+    local success, error = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/Codes_ARX"))()
     end)
     
     if not success then
-        notify("Error", "Failed to fetch codes", 5)
-        warn("❌ Failed to fetch codes " .. tostring(result))
-        return
+        notify("Error", "Failed to load code script", 5)
+        warn("❌ Failed to load script: " .. tostring(error))
     end
-    
-    -- Parse codes from the response
-    local codes = {}
-    for code in string.gmatch(result, "[^\r\n]+") do
-        local trimmedCode = string.match(code, "^%s*(.-)%s*$") -- Remove whitespace
-        if trimmedCode and trimmedCode ~= "" and not string.match(trimmedCode, "^#") then -- Skip empty lines and comments
-            table.insert(codes, trimmedCode)
-        end
-    end
-    
-    if #codes == 0 then
-        notify("No Codes", "No valid codes founds...", 4)
-        return
-    end
-    
-    notify("Codes Found", "Found " .. #codes .. " codes. Starting redemption...", 4)
-    
-    -- Redeem each code
-    for i, code in ipairs(codes) do
-        print("🎫 Redeeming (" .. i .. "/" .. #codes .. "): " .. code)
-        
-        local redeemSuccess, redeemError = pcall(function()
-            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("Code"):FireServer(code)
-        end)
-        
-        if redeemSuccess then
-            notify("Code Redeemed", "Successfully redeemed: " .. code, 2)
-        else
-            notify("Redemption Failed", "Failed to redeem: " .. code, 3)
-            warn("❌ Failed to redeem " .. code .. ": " .. tostring(redeemError))
-        end
-        
-        wait(1) -- Delay between redemptions to avoid rate limiting
-    end
-    
-    notify("Complete", "Finished redeeming all " .. #codes .. " codes!", 5)
 end
 
 CodeButton = WebhookTab:CreateButton({
@@ -2919,7 +2882,7 @@ local Toggle = ShopTab:CreateToggle({
     })
 
      local MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Rift Storm Shop)",
+    Name = "Select Items To Purchase (Swarm Event Shop)",
     Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Stat Boosters","Soul Fragments","Borus Capsule"},
     CurrentOption = {},
     MultipleOptions = true,
@@ -3232,14 +3195,14 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
 
     local JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
 
-    local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
+    --[[local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Summer Event",
     CurrentValue = false,
     Flag = "AutoSummerEventToggle",
     Callback = function(Value)
         State.autoSummerEventEnabled = Value
     end,
-    })
+    })--]]
 
     local AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Boss Event (Swarm Event)",
