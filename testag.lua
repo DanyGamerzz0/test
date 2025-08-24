@@ -1,4 +1,4 @@
---pipi111
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -190,14 +190,13 @@ local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "tv")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
+local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
+
 local Label1 = UpdateLogTab:CreateLabel("+ Release")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
-
 local MacroStatusLabel = MacroTab:CreateLabel("Status: Idle", "info")
-local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
-
 
 CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
