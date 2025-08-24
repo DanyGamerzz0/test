@@ -1,4 +1,4 @@
---pipi1
+--pipi5
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -3112,7 +3112,9 @@ end
 
 -- Initialize the GUI monitor
 
-Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
+if not isInLobby() then
+    Services.Workspace.GameSettings.GameStarted.Changed:Connect(checkGameStarted)
+end
 
 ensureMacroFolders()
 loadAllMacros()
