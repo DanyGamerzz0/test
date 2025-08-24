@@ -544,10 +544,10 @@ local function StreamerMode()
     if not head then return end
 
     local billboard = head:WaitForChild("GUI"):WaitForChild("GUI"):WaitForChild("Frame")
-    if not billboard then return end
+    if not billboard then print("no billboard") return end
 
     local originalNumbers = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Main"):WaitForChild("LevelFrame"):WaitForChild("Frame").texts
-    if not originalNumbers then return end
+    if not originalNumbers then print("no originalnumbers") return end
 
     local streamerLabel = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Main"):WaitForChild("LevelFrame"):WaitForChild("Frame"):FindFirstChild("Numbers_Streamer")
     if not streamerLabel then
@@ -559,9 +559,9 @@ local function StreamerMode()
     end
 
     if State.streamerModeEnabled then
+        print("woohoo")
         billboard:FindFirstChild("PlayerName").Text = "🔥 Protected By LixHub 🔥"
         billboard:FindFirstChild("Level").Text = "Level 999"
-        billboard:FindFirstChild("Title").Text = "Lixhub User"
 
         originalNumbers.Visible = false
         streamerLabel.Visible = true
