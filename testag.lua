@@ -1,4 +1,4 @@
---pipi5
+--pipi6
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -561,13 +561,12 @@ local function StreamerMode()
     if State.streamerModeEnabled then
         print("woohoo")
         billboard:FindFirstChild("PlayerName").Text = "🔥 Protected By LixHub 🔥"
-        billboard:FindFirstChild("Level").Text = "Level 999"
+        billboard:FindFirstChild("Title").Text = "Lixhub User"
 
         originalNumbers.Visible = false
         streamerLabel.Visible = true
     else
-        billboard:FindFirstChild("PlayerName").Text = tostring(Services.Players.LocalPlayer.Name)
-        billboard:FindFirstChild("Level").Text = "Level " .. Services.Players.LocalPlayer:WaitForChild("Data").Levels.Value
+        billboard:FindFirstChild("PlayerName").Text =  "Lv. " .. Services.Players.LocalPlayer:WaitForChild("Data").Levels.Value.." | "..tostring(Services.Players.LocalPlayer.Name)
         billboard:FindFirstChild("Title").Text = Services.Players.LocalPlayer:WaitForChild("Data").Title.Value
 
         originalNumbers.Visible = true
