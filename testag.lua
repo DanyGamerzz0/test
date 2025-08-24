@@ -543,7 +543,7 @@ local function StreamerMode()
     local head = Services.Players.LocalPlayer.Character:WaitForChild("Head", 5)
     if not head then return end
 
-    local billboard = head:FindFirstChild("GUI"):WaitForChild("GUI"):WaitForChild("Frame")
+    local billboard = head:WaitForChild("GUI"):WaitForChild("GUI"):WaitForChild("Frame")
     if not billboard then return end
 
     local originalNumbers = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Main"):WaitForChild("LevelFrame"):WaitForChild("Frame").texts
@@ -3114,17 +3114,19 @@ loadAllMacros()
 
 Rayfield:LoadConfiguration()
 
-    task.delay(1, function()
-        task.spawn(function()
-    monitorStagesChallengeGUI()
-end)
-
     task.spawn(function()
         while true do
             task.wait(0.1)
             StreamerMode()
         end
     end)
+
+    task.delay(1, function()
+        task.spawn(function()
+    monitorStagesChallengeGUI()
+end)
+
+
 
         local savedMacroName = Rayfield.Flags["MacroDropdown"]
         
