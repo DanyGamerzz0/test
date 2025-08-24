@@ -1,4 +1,4 @@
---pipi
+--pipi5
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -116,6 +116,9 @@ local State = {
    AutoJoinRaid = nil,
    RaidStageSelected = nil,
    RaidActSelected = nil,
+
+   AutoJoinWorldlines = nil,
+   AutoJoinWorldlinesSelected = nil,
 
    AutoJoinEvent = nil,
    AutoJoinEventSelected = nil,
@@ -322,6 +325,27 @@ local Button = LobbyTab:CreateButton({
     Callback = function(Options)
         local extracted = string.match(Options[1], "%((.-)%)")
         State.AutoJoinEventSelected = extracted
+    end,
+})
+
+    local AutoJoinWorldlineToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Worldlines",
+    CurrentValue = false,
+    Flag = "AutoJoinWorldlines",
+    Callback = function(Value)
+        State.AutoJoinWorldlines = Value
+    end,
+    })
+
+     local WorldlineStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Worldline to join",
+    Options = {"Double Dungeon (doubledungeon)","Double Dungeon 2 (doubledungeon2)","Lingxian Academy (lingxianacademy)","Lingxian Yard (lingxianyard)"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoJoinWorldlinesSelector",
+    Callback = function(Options)
+        local extracted = string.match(Options[1], "%((.-)%)")
+        State.AutoJoinWorldlinesSelected = extracted
     end,
 })
 
@@ -2397,6 +2421,17 @@ local function checkAndExecuteHighestPriority()
         setProcessingState("Auto Join Event")
 
         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("host",{friendOnly = false,stage = State.AutoJoinEventSelected})
+        task.wait(1)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("start")
+
+            task.delay(5, clearProcessingState)
+            return
+    end
+
+    if State.AutoJoinWorldlines and State.AutoJoinWorldlinesSelected then
+        setProcessingState("Auto Join Worldlines")
+
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("host",{friendOnly = false,stage = State.AutoJoinWorldlinesSelected})
         task.wait(1)
         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("start")
 
