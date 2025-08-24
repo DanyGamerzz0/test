@@ -1,4 +1,4 @@
---pipi5
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -89,12 +89,6 @@ local Services = {
     Workspace = game:GetService("Workspace"),
     VIRTUAL_USER = game:GetService("VirtualUser"),
 }
-
-local Remotes = {}
-do
-    local RS = Services.ReplicatedStorage
-    Remotes.MerchantPurchase = game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop")
-end
 
 local stageRewards = require(Services.ReplicatedStorage.Module.StageRewards)
 local LocalPlayer = Services.Players.LocalPlayer
@@ -191,18 +185,32 @@ local ValidWebhook = nil
 
 local UpdateLogTab = Window:CreateTab("Update Log", "scroll")
 local LobbyTab = Window:CreateTab("Lobby", "tv")
-local ShopTab = Window:CreateTab("Shop", "shopping-cart")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
-local AutoPlayTab = Window:CreateTab("AutoPlay", "joystick")
-local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 local MacroTab = Window:CreateTab("Macro", "tv")
+local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
+local Label1 = UpdateLogTab:CreateLabel("+ Release")
+local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
+local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
 
 local MacroStatusLabel = MacroTab:CreateLabel("Status: Idle", "info")
 local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
 
+
+CodeButton = WebhookTab:CreateButton({
+    Name = "Redeem All Codes",
+    Callback = function()
+        for _, stringValue in ipairs(Services.Players.LocalPlayer.Code:GetChildren()) do
+	    if stringValue:IsA("Folder") and stringValue.Name ~= "Rewards" then
+	            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Codes"):InvokeServer(stringValue.Name)
+                print("redeemed "..stringValue.Name)
+                task.wait(0.1)
+            end
+        end
+    end,
+})
 
 local Button = LobbyTab:CreateButton({
         Name = "Return to lobby",
@@ -233,6 +241,7 @@ local function checkBlackMarket()
     if not State.AutoPurchaseBlackMarket or not State.AutoPurchaseBlackMarketSelected or State.AutoPurchaseBlackMarketSelected == "" then
         return
     end
+    if not workspace:FindFirstChild("RoomCreation") ~= nil then return end
     
     -- Wait for the black market to exist
     local blackMarket = LocalPlayer:FindFirstChild("BlackMarket")
@@ -254,9 +263,9 @@ local function checkBlackMarket()
     end
 end
 
-    local JoinerSection = JoinerTab:CreateSection("🏴 Black Market 🏴")
+    local JoinerSection = LobbyTab:CreateSection("🏴 Black Market 🏴")
 
-    local Toggle = ShopTab:CreateToggle({
+    local Toggle = LobbyTab:CreateToggle({
     Name = "Snipe Unit From Black Market",
     CurrentValue = false,
     Flag = "AutoPurchaseBlackMarket",
@@ -265,8 +274,8 @@ end
     end,
     })
 
-    local Input = ShopTab:CreateInput({
-    Name = "Input Unit Name (Black Market) (case sensetive)",
+    local Input = LobbyTab:CreateInput({
+    Name = "Input Unit Name (Black Market)",
     CurrentValue = "",
     PlaceholderText = "Input Unit Name...",
     RemoveTextAfterFocusLost = false,
@@ -696,7 +705,6 @@ local function StreamerMode()
     end
 
     if State.streamerModeEnabled then
-        print("woohoo")
         billboard:FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
         billboard:FindFirstChild("Title").Text = "LIXHUB USER"
 
