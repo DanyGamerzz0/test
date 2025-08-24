@@ -1,4 +1,4 @@
---pipi6
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -116,6 +116,9 @@ local State = {
    AutoJoinRaid = nil,
    RaidStageSelected = nil,
    RaidActSelected = nil,
+
+   AutoJoinEvent = nil,
+   AutoJoinEventSelected = nil,
 
    AutoJoinPortal = nil,
    AutoJoinPortalSelected = nil,
@@ -298,6 +301,27 @@ local Button = LobbyTab:CreateButton({
     Flag = "AutoJoinPortalSelector",
     Callback = function(Options)
         State.AutoJoinPortalSelected = Options[1]
+    end,
+})
+
+    local AutoJoinEventToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Event",
+    CurrentValue = false,
+    Flag = "AutoJoinEvent",
+    Callback = function(Value)
+        State.AutoJoinEvent = Value
+    end,
+    })
+
+     local EventStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Event to join",
+    Options = {"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoJoinEventSelector",
+    Callback = function(Options)
+        local extracted = string.match(Options[1], "%((.-)%)")
+        State.AutoJoinEventSelected = extracted
     end,
 })
 
@@ -560,8 +584,8 @@ local function StreamerMode()
 
     if State.streamerModeEnabled then
         print("woohoo")
-        billboard:FindFirstChild("PlayerName").Text = "🔥 Protected By LixHub 🔥"
-        billboard:FindFirstChild("Title").Text = "Lixhub User"
+        billboard:FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
+        billboard:FindFirstChild("Title").Text = "LIXHUB USER"
 
         originalNumbers.Visible = false
         streamerLabel.Visible = true
@@ -2364,6 +2388,17 @@ local function checkAndExecuteHighestPriority()
             local portalpart = Services.Workspace:WaitForChild("CreatingRoom"):FindFirstChild(tostring(Services.Players.LocalPlayer.Name)):FindFirstChild("PortalPart")
             game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{portalpart:GetAttribute("Stages"),portalpart:GetAttribute("Act"),"Challenge"})
 
+
+            task.delay(5, clearProcessingState)
+            return
+    end
+
+    if State.AutoJoinEvent and State.AutoJoinEventSelected then
+        setProcessingState("Auto Join Event")
+
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("host",{friendOnly = false,stage = State.AutoJoinEventSelected})
+        task.wait(1)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("start")
 
             task.delay(5, clearProcessingState)
             return
