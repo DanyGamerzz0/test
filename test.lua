@@ -18,6 +18,7 @@ do
     Remotes.RaidMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("Raid_Shop")
     Remotes.RaidMerchantCSW = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RaidCSW_Shop")
     Remotes.RiftMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RiftStormExchange")
+    Remotes.SwarmMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("FallShopExchange")
     Remotes.BossRushMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("BossRushExchange")
     Remotes.PlayEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event")
     Remotes.SettingEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Settings"):WaitForChild("Setting_Event")
@@ -80,6 +81,7 @@ local State = {
     DelayAutoUltimate = 0,
     
     autoBossEventEnabled = false,
+    autoInfiniteEnabled = false,
     autoSummerEventEnabled = false,
     SelectedBossEventDifficulty = false,
     autoJoinRaid = false,
@@ -97,6 +99,7 @@ local State = {
     AutoPurchaseMerchant = false,
     AutoPurchaseBossRush = false,
     AutoPurchaseRaidCSW = false,
+    AutoPurchaseSwarmEvent = false,
     AutoPurchaseRaid = false,
     challengeAutoReturnEnabled = false,
     autoBossAttackEnabled = false,
@@ -166,6 +169,7 @@ local Data = {
     RaidPurchaseTable = {},
     RaidPurchaseTableCSW = {},
     RiftStormPurchaseTable = {},
+    SwarmEventPurchaseTable = {},
     rangerStages = {},
     wantedRewards = {},
     capturedRewards = {},
@@ -178,6 +182,8 @@ local Data = {
     selectedChallengeWorlds = {},
    -- CurrentCodes = {"SorryRaids","RAIDS","BizzareUpdate2!","Sorry4Delays","BOSSTAKEOVER","Sorry4Quest","SorryDelay!!!","SummerEvent!","2xWeekEnd!","Sorry4EvoUnits","Sorry4AutoTraitRoll","!TYBW","!MattLovesARX2","!RaitoLovesARX","!BrandonTheBest","!FixBossRushShop","SmallFixs"},
 }
+
+local script_version = "V0.1"
 
 local ValidWebhook
 
@@ -272,7 +278,7 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection("22/08/2025")
+local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
 local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 
 --//DIVIDERS\\--
@@ -751,7 +757,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                     { name = "🏆 Rewards", value = rewardsText, inline = false },
                     { name = "📦 Units Loadout", value = orderedUnits, inline = false },
                     shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
-                    { name = "📈 Script Version", value = "v1.2.0 (Enhanced)", inline = true },
+                    { name = "📈 Script Version", value = script_version, inline = true },
                 },
                 footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
@@ -996,6 +1002,9 @@ local function getPlayerCurrency()
     local riftStormValue = playerData:FindFirstChild("RiftStormCurrency")
     if riftStormValue then currencies["RiftStormCurrency"] = riftStormValue.Value end
 
+    local SwarmEventValue = playerData:FindFirstChild("Fall Currency")
+    if SwarmEventValue then currencies["Fall Currency"] = SwarmEventValue.Value end
+
     return currencies
 end
 
@@ -1025,6 +1034,9 @@ local function purchaseItem(itemName, quantity, folderName)
             Remotes.RaidMerchantCSW:FireServer(itemName, quantity)
         end
         if folderName == "Rift_Storm" then
+            Remotes.RiftMerchant:FireServer(itemName, quantity)
+        end
+        if folderName == "Fall_Shop" then
             Remotes.RiftMerchant:FireServer(itemName, quantity)
         end
     end)
@@ -1138,6 +1150,8 @@ local function setProcessingState(action)
             State.selectedDifficulty or "?"
         ))
         elseif action == "Boss Event Auto Join" then
+           notify("🔄 Processing: ", action)
+        elseif action == "Infinite Mode Auto Join" then
            notify("🔄 Processing: ", action)
         elseif action == "Summer Event Auto Join" then
            notify("🔄 Processing: ", action)
@@ -1387,7 +1401,7 @@ local function checkAndExecuteHighestPriority()
 
         handleTeamEquipping("Boss Event")
 
-    Remotes.PlayEvent:FireServer("Boss-Event",{Difficulty = unpack(State.SelectedBossEventDifficulty)})
+    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Swarm Event")
     task.delay(5, clearProcessingState)
         return
     end
@@ -1457,6 +1471,16 @@ local function checkAndExecuteHighestPriority()
         task.delay(5, clearProcessingState)
         return
     end
+
+            if State.autoInfiniteEnabled then
+            setProcessingState("Infinite Mode Auto Join")
+
+            handleTeamEquipping("Infinite")
+
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Infinite Mode")
+
+            task.delay(5, clearProcessingState)
+        end
 
     -- Priority 5: Story Auto Join
     if State.autoJoinEnabled and State.selectedWorld and State.selectedChapter and State.selectedDifficulty then
@@ -2588,6 +2612,9 @@ end)
             if State.AutoPurchaseRiftStorm and #Data.RiftStormPurchaseTable > 0 then
                 autoPurchaseItems(State.AutoPurchaseRiftStorm, Data.RiftStormPurchaseTable, "Rift_Storm", "Rift Storm Shop")
             end
+            if State.AutoPurchaseSwarmEvent and #Data.SwarmEventPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseSwarmEvent, Data.SwarmEventPurchaseTable, "Fall_Shop", "Swarm Event Shop")
+            end
             task.wait(1)
         end
     end)
@@ -2635,16 +2662,60 @@ end)
 
 --//BUTTONS\\--
 
+local function redeemallcodes()
+    notify("Code Redemption", "Fetching codes...", 3)
+    
+    local success, result = pcall(function()
+        return Services.HttpService:GetAsync("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/Codes_ARX")
+    end)
+    
+    if not success then
+        notify("Error", "Failed to fetch codes", 5)
+        warn("❌ Failed to fetch codes " .. tostring(result))
+        return
+    end
+    
+    -- Parse codes from the response
+    local codes = {}
+    for code in string.gmatch(result, "[^\r\n]+") do
+        local trimmedCode = string.match(code, "^%s*(.-)%s*$") -- Remove whitespace
+        if trimmedCode and trimmedCode ~= "" and not string.match(trimmedCode, "^#") then -- Skip empty lines and comments
+            table.insert(codes, trimmedCode)
+        end
+    end
+    
+    if #codes == 0 then
+        notify("No Codes", "No valid codes founds...", 4)
+        return
+    end
+    
+    notify("Codes Found", "Found " .. #codes .. " codes. Starting redemption...", 4)
+    
+    -- Redeem each code
+    for i, code in ipairs(codes) do
+        print("🎫 Redeeming (" .. i .. "/" .. #codes .. "): " .. code)
+        
+        local redeemSuccess, redeemError = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("Code"):FireServer(code)
+        end)
+        
+        if redeemSuccess then
+            notify("Code Redeemed", "Successfully redeemed: " .. code, 2)
+        else
+            notify("Redemption Failed", "Failed to redeem: " .. code, 3)
+            warn("❌ Failed to redeem " .. code .. ": " .. tostring(redeemError))
+        end
+        
+        wait(1) -- Delay between redemptions to avoid rate limiting
+    end
+    
+    notify("Complete", "Finished redeeming all " .. #codes .. " codes!", 5)
+end
+
 CodeButton = WebhookTab:CreateButton({
     Name = "Redeem All Codes",
     Callback = function()
-        for _, stringValue in ipairs(Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Code:GetChildren()) do
-	    if stringValue:IsA("StringValue") then
-	            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("Code"):FireServer(stringValue.Value)
-                print("redeemed "..stringValue.Value)
-                task.wait(0.1)
-	        end
-        end
+        redeemallcodes()
     end,
 })
 
@@ -2689,6 +2760,7 @@ local Button = LobbyTab:CreateButton({
     local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
     local GameSection = GameTab:CreateSection("👥 Player 👥")
+
     local Toggle = GameTab:CreateToggle({
     Name = "Low Performance Mode",
     CurrentValue = false,
@@ -2834,6 +2906,26 @@ local Toggle = ShopTab:CreateToggle({
     Flag = "RiftStormPurchaseSelector",
     Callback = function(Options)
         Data.RiftStormPurchaseTable = Options
+    end,
+    })
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Swarm Event Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseSwarmEvent",
+    Callback = function(Value)
+        State.AutoPurchaseSwarmEvent = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Rift Storm Shop)",
+    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Stat Boosters","Soul Fragments","Borus Capsule"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "SwarmEventPurchaseSelector",
+    Callback = function(Options)
+        Data.SwarmEventPurchaseTable = Options
     end,
     })
 
@@ -3150,7 +3242,7 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     })
 
     local AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Boss Event",
+    Name = "Auto Join Boss Event (Swarm Event)",
     CurrentValue = false,
     Flag = "AutoBossEventToggle",
     Callback = function(Value)
@@ -3158,16 +3250,14 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     end,
     })
 
-local BossEventDificultySelector = JoinerTab:CreateDropdown({
-    Name = "Select Boss Event Difficulty",
-    Options = {"Normal","Nightmare"},
-    CurrentOption = {"Nightmare"},
-    MultipleOptions = false,
-    Flag = "BossEventDifficulty",
-    Callback = function(Option)
-        State.SelectedBossEventDifficulty = Option
+    local AutoJoinInfiniteMode = JoinerTab:CreateToggle({
+    Name = "Auto Join Infinite Mode",
+    CurrentValue = false,
+    Flag = "AutoInfiniteToggle",
+    Callback = function(Value)
+        State.autoInfiniteEnabled = Value
     end,
-})
+    })
 
     local JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
 
@@ -3630,7 +3720,7 @@ end)
 
      TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 1",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector1",
@@ -3641,7 +3731,7 @@ end)
 
       TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 2",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector2",
@@ -3652,7 +3742,7 @@ end)
 
       TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 3",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector3",
@@ -3663,7 +3753,7 @@ end)
 
     TeamSelectorDropdown4 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 4",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector4",
@@ -3674,7 +3764,7 @@ end)
 
     TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 5",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon"},
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector5",
