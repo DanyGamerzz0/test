@@ -1,4 +1,4 @@
---pipi
+--pipi5
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -90,6 +90,12 @@ local Services = {
     VIRTUAL_USER = game:GetService("VirtualUser"),
 }
 
+local Remotes = {}
+do
+    local RS = Services.ReplicatedStorage
+    Remotes.MerchantPurchase = game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop")
+end
+
 local stageRewards = require(Services.ReplicatedStorage.Module.StageRewards)
 local LocalPlayer = Services.Players.LocalPlayer
 
@@ -140,6 +146,9 @@ local State = {
    streamerModeEnabled = nil,
 
    enableLowPerformanceMode = nil,
+
+   AutoPurchaseBlackMarket = nil,
+   AutoPurchaseBlackMarketSelected = nil,
 }
 
 local recordingHasStarted = false
@@ -201,6 +210,82 @@ local Button = LobbyTab:CreateButton({
             Services.TeleportService:Teleport(17282336195, Services.Players.LocalPlayer)
         end,
     })
+
+local function purchaseFromBlackMarket(unitName)
+    local args = {
+        1,
+        unitName,
+        "NightMarket"  -- or "BlackMarket" depending on your game
+    }
+    
+    local success, result = pcall(function()
+        return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(unpack(args))
+    end)
+    
+    if success then
+        print("Successfully purchased:", unitName)
+    else
+        warn("Failed to purchase:", unitName, "Error:", result)
+    end
+end
+
+local function checkBlackMarket()
+    if not State.AutoPurchaseBlackMarket or not State.AutoPurchaseBlackMarketSelected or State.AutoPurchaseBlackMarketSelected == "" then
+        return
+    end
+    
+    -- Wait for the black market to exist
+    local blackMarket = LocalPlayer:FindFirstChild("BlackMarket")
+    if not blackMarket then
+        return
+    end
+    
+    local market = blackMarket:FindFirstChild("Market")
+    if not market then
+        return
+    end
+    
+    for _, child in pairs(market:GetChildren()) do
+        if child:IsA("Folder") and child.Name == State.AutoPurchaseBlackMarketSelected then
+            print("Found target unit in black market:", child.Name)
+            purchaseFromBlackMarket(child.Name)
+            break -- Exit after finding and purchasing
+        end
+    end
+end
+
+    local JoinerSection = JoinerTab:CreateSection("🏴 Black Market 🏴")
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Snipe Unit From Black Market",
+    CurrentValue = false,
+    Flag = "AutoPurchaseBlackMarket",
+    Callback = function(Value)
+        State.AutoPurchaseBlackMarket = Value
+    end,
+    })
+
+    local Input = ShopTab:CreateInput({
+    Name = "Input Unit Name (Black Market) (case sensetive)",
+    CurrentValue = "",
+    PlaceholderText = "Input Unit Name...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "BlackMarketInput",
+    Callback = function(Text)
+        local CleanedText = Text:gsub("^%s+", ""):gsub("%s+$", "")
+        print(CleanedText)
+        State.AutoPurchaseBlackMarketSelected = CleanedText
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if State.AutoPurchaseBlackMarket and State.AutoPurchaseBlackMarketSelected then
+        checkBlackMarket()
+        end
+        task.wait(0.1)
+    end
+end)
 
     local JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
 
