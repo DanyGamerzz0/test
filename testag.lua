@@ -1,11 +1,13 @@
---pipi1
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local script_version = "V0.10"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
    Icon = 0,
    LoadingTitle = "Loading for Anime Guardians",
-   LoadingSubtitle = "v0.0.1",
+   LoadingSubtitle = script_version,
    ShowText = "LixHub",
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
@@ -182,8 +184,9 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 local MacroTab = Window:CreateTab("Macro", "tv")
 
 
+
 local MacroStatusLabel = MacroTab:CreateLabel("Status: Idle", "info")
-local UpdateLogSection = UpdateLogTab:CreateSection("v0.01")
+local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
 
 
 local Button = LobbyTab:CreateButton({
@@ -1383,7 +1386,7 @@ local function exportMacroToClipboard(macroName, format)
     
     -- Create optimized export data
     local exportData = {
-        version = "1.0",
+        version = script_version,
         actions = {}
     }
     
@@ -2843,7 +2846,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                     { name = isWin and "✅ Won in:" or "❌ Lost after:", value = formattedTime, inline = true },
                     { name = "🏆 Rewards", value = rewardsText, inline = false },
                     shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
-                    { name = "📈 Script Version", value = "v0.01", inline = true },
+                    { name = "📈 Script Version", value = script_version, inline = true },
                 },
                 footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
