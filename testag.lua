@@ -1,4 +1,4 @@
---pipi
+--pipi111
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -199,7 +199,7 @@ local MacroStatusLabel = MacroTab:CreateLabel("Status: Idle", "info")
 local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
 
 
-CodeButton = WebhookTab:CreateButton({
+CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
     Callback = function()
         for _, stringValue in ipairs(Services.Players.LocalPlayer.Code:GetChildren()) do
@@ -263,7 +263,79 @@ local function checkBlackMarket()
     end
 end
 
-    local JoinerSection = LobbyTab:CreateSection("🏴 Black Market 🏴")
+local function enableLowPerformanceMode()
+    if State.enableLowPerformanceMode then
+        Services.Lighting.Brightness = 1
+        Services.Lighting.GlobalShadows = false
+        Services.Lighting.Technology = Enum.Technology.Compatibility
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 0
+        Services.Lighting.EnvironmentSpecularScale = 0
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                if obj.Transparency < 1 then
+                    obj.Transparency = 1
+                end
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = false
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = false
+            end
+        end
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "ON",Setting = "Low Mode"})
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "OFF",Setting = "Visual Effects"})
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "OFF",Setting = "Damage Indicator"})
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "ON",Setting = "Hide Other's Units In Lobby"})
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "ON",Setting = "InvisibleEnemy"})
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "OFF",Setting = "Global Message"})
+    else
+        Services.Lighting.Brightness = 1.51
+        Services.Lighting.GlobalShadows = true
+        Services.Lighting.Technology = Enum.Technology.Future
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 1
+        Services.Lighting.EnvironmentSpecularScale = 1
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = true
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 0
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = true
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = true
+            end
+        end
+    end
+end
 
     local Toggle = LobbyTab:CreateToggle({
     Name = "Snipe Unit From Black Market",
@@ -462,6 +534,33 @@ local function tryStartGame()
     end
 end
 
+local GameSection = GameTab:CreateSection("👥 Player 👥")
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Streamer Mode (hide name/level/title)",
+    CurrentValue = false,
+    Flag = "StreamerMode",
+    Callback = function(Value)
+        State.streamerModeEnabled = Value
+    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Low Performance Mode",
+    CurrentValue = false,
+    Flag = "LowPerformanceMode",
+    Callback = function(Value)
+        State.enableLowPerformanceMode = Value
+        enableLowPerformanceMode()
+    end,
+})
+
+if State.enableLowPerformanceMode then
+    enableLowPerformanceMode()
+end
+
+local GameSection = GameTab:CreateSection("🎮 Game 🎮")
+
 local Toggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
     CurrentValue = false,
@@ -543,103 +642,6 @@ local Dropdown = GameTab:CreateDropdown({
         State.AutoPickCardSelected = Option[1]
    end,
 })
-
-local Toggle = GameTab:CreateToggle({
-    Name = "Streamer Mode (hide name/level/title)",
-    CurrentValue = false,
-    Flag = "StreamerMode",
-    Callback = function(Value)
-        State.streamerModeEnabled = Value
-    end,
-})
-
-local function enableLowPerformanceMode()
-    if State.enableLowPerformanceMode then
-        Services.Lighting.Brightness = 1
-        Services.Lighting.GlobalShadows = false
-        Services.Lighting.Technology = Enum.Technology.Compatibility
-        Services.Lighting.ShadowSoftness = 0
-        Services.Lighting.EnvironmentDiffuseScale = 0
-        Services.Lighting.EnvironmentSpecularScale = 0
-
-        for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-                obj.Enabled = false
-            end
-        end
-        for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("Decal") or obj:IsA("Texture") then
-                if obj.Transparency < 1 then
-                    obj.Transparency = 1
-                end
-            end
-        end
-        
-        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
-            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
-                gui.Enabled = false
-            end
-        end
-        
-        for _, obj in pairs(Services.Lighting:GetChildren()) do
-            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or
-            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
-                obj.Enabled = false
-            end
-        end
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "ON",Setting = "Low Mode"})
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "OFF",Setting = "Visual Effects"})
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "OFF",Setting = "Damage Indicator"})
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "ON",Setting = "Hide Other's Units In Lobby"})
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "ON",Setting = "InvisibleEnemy"})
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("Settings"):FireServer("Update",{Value = "OFF",Setting = "Global Message"})
-    else
-        Services.Lighting.Brightness = 1.51
-        Services.Lighting.GlobalShadows = true
-        Services.Lighting.Technology = Enum.Technology.Future
-        Services.Lighting.ShadowSoftness = 0
-        Services.Lighting.EnvironmentDiffuseScale = 1
-        Services.Lighting.EnvironmentSpecularScale = 1
-
-        for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-                obj.Enabled = true
-            end
-        end
-        for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("Decal") or obj:IsA("Texture") then
-                    obj.Transparency = 0
-            end
-        end
-        
-        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
-            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
-                gui.Enabled = true
-            end
-        end
-        
-        for _, obj in pairs(Services.Lighting:GetChildren()) do
-            if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or
-            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
-                obj.Enabled = true
-            end
-        end
-    end
-end
-
-local Toggle = GameTab:CreateToggle({
-    Name = "Low Performance Mode",
-    CurrentValue = false,
-    Flag = "LowPerformanceMode",
-    Callback = function(Value)
-        State.enableLowPerformanceMode = Value
-        enableLowPerformanceMode()
-    end,
-})
-
-if State.enableLowPerformanceMode then
-    enableLowPerformanceMode()
-end
 
     local function getCurrentWave()
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
