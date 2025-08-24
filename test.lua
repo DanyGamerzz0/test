@@ -285,7 +285,7 @@ local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
 local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ AutoPlay delay, + Failsafe, + New boss event auto joiner, + UI changes, + Auto Path/Deploy Support for rift storm, + bug fixes, - autosell unit")
+local Label1 = UpdateLogTab:CreateLabel("+ AutoSell Unit, + Redeem All Codes, + New swarm event auto joiner, + New Infinite Mode auto joiner, + Swarm Event Shop Auto Purchase, + Webhook Totals fix")
 local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
 local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
@@ -664,6 +664,9 @@ local function buildRewardsText()
             table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
         elseif itemName == "Beach Balls" then
             totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Fall Currency" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Fall Currency"].Value)
             table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
         else
             local itemObj = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(itemName)
