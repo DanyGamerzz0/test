@@ -2666,7 +2666,7 @@ local function redeemallcodes()
     notify("Code Redemption", "Starting code redemption...", 3)
     
     local success, error = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/Codes_ARX"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/Codes_ARX.lua"))()
     end)
     
     if not success then
@@ -2675,7 +2675,7 @@ local function redeemallcodes()
     end
 end
 
-CodeButton = WebhookTab:CreateButton({
+CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
     Callback = function()
         redeemallcodes()
@@ -3212,6 +3212,8 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
         State.autoBossEventEnabled = Value
     end,
     })
+
+    local JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
 
     local AutoJoinInfiniteMode = JoinerTab:CreateToggle({
     Name = "Auto Join Infinite Mode",
