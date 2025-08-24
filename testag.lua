@@ -1,4 +1,4 @@
---pipi5
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -307,6 +307,8 @@ local Button = LobbyTab:CreateButton({
     end,
 })
 
+    local JoinerSection00 = JoinerTab:CreateSection("👹 Event Joiner 👹")
+
     local AutoJoinEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Event",
     CurrentValue = false,
@@ -327,6 +329,8 @@ local Button = LobbyTab:CreateButton({
         State.AutoJoinEventSelected = extracted
     end,
 })
+
+    local JoinerSection00 = JoinerTab:CreateSection("🏆 Worldline Joiner 🏆")
 
     local AutoJoinWorldlineToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Worldlines",
