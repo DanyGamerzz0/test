@@ -2989,7 +2989,8 @@ end
     isPlayingLoopRunning = false
 end)--]]
 
-Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
+if not isInLobby() then
+    Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
     print("Game ended")
     
     -- Handle recording stop - only stop if recording has actually started
@@ -3055,6 +3056,7 @@ Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(functio
     
     isPlayingLoopRunning = false
 end)
+end
 
 game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
     --if RETRY_IN_PROGRESS then 
