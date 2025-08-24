@@ -3626,7 +3626,7 @@ task.spawn(function()
     end
 end)
 
-     local Toggle = GameTab:CreateToggle({
+      Toggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
     CurrentValue = false,
     Flag = "AutoStartToggle",
@@ -3635,7 +3635,7 @@ end)
     end,
     })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Auto Vote Next",
     CurrentValue = false,
     Flag = "AutoNextToggle",
@@ -3651,7 +3651,7 @@ end)
     end,
     })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Auto Vote Retry",
     CurrentValue = false,
     Flag = "AutoRetryToggle",
@@ -3667,7 +3667,7 @@ end)
     end,
     })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Auto Teleport to Lobby",
     CurrentValue = false,
     Flag = "AutoLobbyToggle", 
@@ -3679,7 +3679,7 @@ end)
     end,
     })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Disable Reward Screen UI",
     CurrentValue = false,
     Flag = "AutoDisableEndUI",
@@ -3688,7 +3688,7 @@ end)
     end,
     })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Enable Game Failsafe (Will teleport to lobby after x seconds)",
     CurrentValue = false,
     Flag = "AutoFailSafeEnabled",
@@ -3697,7 +3697,7 @@ end)
     end,
     })
 
-    local Slider = GameTab:CreateSlider({
+     Slider = GameTab:CreateSlider({
    Name = "Start Failsafe after",
    Range = {1, 600},
    Increment = 1,
@@ -3785,7 +3785,7 @@ end)
     end,
     })
 
-        local Slider = AutoPlayTab:CreateSlider({
+         Slider = AutoPlayTab:CreateSlider({
    Name = "Delay Auto Play by",
    Range = {0, 300},
    Increment = 1,
