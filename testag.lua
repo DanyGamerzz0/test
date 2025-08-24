@@ -1,4 +1,4 @@
---pipi
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -3058,7 +3058,8 @@ if not isInLobby() then
 end)
 end
 
-game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
+if not isInLobby() then
+    game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
     --if RETRY_IN_PROGRESS then 
     --    print("Retry in progress, ignoring mode change")
       --  return 
@@ -3075,8 +3076,10 @@ game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
         end
     end
 end)
+end
 
 local function monitorStagesChallengeGUI()
+    if isInLobby() then return end
     local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
     local stagesChallenge = playerGui:WaitForChild("StagesChallenge")
     
