@@ -1,7 +1,7 @@
---pipi1
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.10"
+local script_version = "V0.01"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -145,6 +145,10 @@ local State = {
    AutoPurchaseBlackMarketSelected = nil,
 
    AutoCollectChests = nil,
+
+    gameStartRealTime = nil,
+    gameEndRealTime = nil,
+    actualClearTime = nil,
 }
 
 local recordingHasStarted = false
@@ -3144,6 +3148,15 @@ local function buildRewardsText()
     return rewardsText, detectedRewards, detectedUnits
 end
 
+local function calculateActualClearTime()
+    if State.gameStartRealTime and State.gameEndRealTime then
+        State.actualClearTime = State.gameEndRealTime - State.gameStartRealTime
+        print(string.format("Clear time: %.2f seconds", State.actualClearTime))
+        return State.actualClearTime
+    end
+    return nil
+end
+
 local function sendWebhook(messageType, rewards, clearTime, matchResult)
     if not ValidWebhook then return end
 
@@ -3168,8 +3181,15 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
         local isWin = Services.Workspace.GameSettings.Base.Health.Value > 0
         local resultText = isWin and "Victory" or "Defeat"
         local plrlevel = Services.Players.LocalPlayer.Data.Levels.Value or ""
-        local match_time = RewardsUI.PlayTime.Value
-        local formattedTime = string.format("%02d:%02d:%02d", math.floor(match_time / 3600), math.floor((match_time % 3600) / 60), match_time % 60)
+        local actualClearTime = calculateActualClearTime()
+        local formattedTime
+
+         if actualClearTime then
+            local hours = math.floor(actualClearTime / 3600)
+            local minutes = math.floor((actualClearTime % 3600) / 60)
+            local seconds = math.floor(actualClearTime % 60)
+            formattedTime = string.format("%02d:%02d:%02d", hours, minutes, seconds)
+        end
 
         local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
         local shouldPing = #detectedUnits > 0
@@ -3234,9 +3254,13 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
 end
 
 local function onGameStart()
-    print("-----------------------Game has started!-----------------------")
     State.startingInventory = snapshotInventory()
     State.isGameRunning = true
+
+    State.gameStartRealTime = tick()
+    State.gameEndRealTime = nil
+    State.actualClearTime = nil
+    print("🟢Game Started: ", State.gameStartRealTime)
 end
 
 local function checkGameStarted()
@@ -3246,6 +3270,7 @@ local function checkGameStarted()
         onGameStart()
     end
 end
+
       TestWebhookButton = WebhookTab:CreateButton({
     Name = "Test webhook",
     Callback = function()
