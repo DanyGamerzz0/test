@@ -1,4 +1,4 @@
---pipi
+--pipitbag
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.01"
@@ -3364,6 +3364,8 @@ end)--]]
 if not isInLobby() then
     Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
     print("Game ended")
+
+    State.gameEndRealTime = tick()
     
     -- Handle recording stop - only stop if recording has actually started
     if isRecording and recordingHasStarted then
