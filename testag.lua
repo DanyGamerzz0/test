@@ -1,4 +1,4 @@
---pipi
+--pipi112
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -761,7 +761,11 @@ mt.__namecall = newcclosure(function(self, ...)
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
-                print(string.format("Recording placement attempt for %s (units before: %d)", unitName, unitsBefore))
+                -- Increment placement counter BEFORE attempting placement
+                recordingPlacementCounter = recordingPlacementCounter + 1
+                local thisPlacementOrder = recordingPlacementCounter
+                
+                print(string.format("Recording placement attempt #%d for %s", thisPlacementOrder, unitName))
                 
                 task.wait(1.5)
                 
@@ -769,7 +773,6 @@ mt.__namecall = newcclosure(function(self, ...)
                 
                 if unitsAfter > unitsBefore then
                     local actualUnitName = findLatestSpawnedUnit(unitName, unitCFrame)
-                    recordingPlacementCounter = recordingPlacementCounter + 1
                     
                     local placementData = {
                         action = "PlaceUnit",
@@ -781,18 +784,25 @@ mt.__namecall = newcclosure(function(self, ...)
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
                         timestamp = timestamp,
-                        placementOrder = recordingPlacementCounter -- Track the order this unit was placed
+                        placementOrder = thisPlacementOrder -- Use the pre-incremented value
                     }
                     
                     table.insert(macro, placementData)
-                    print(string.format("Successfully recorded placement #%d: %s -> %s (units: %d→%d)", 
-                        placementData.placementOrder, unitName, actualUnitName or "Unknown", unitsBefore, unitsAfter))
+                    
+                    -- Store mapping for upgrades/sells (actualUnitName -> placementOrder)
+                    if actualUnitName then
+                        unitMapping[actualUnitName] = thisPlacementOrder
+                    end
+                    
+                    print(string.format("✅ Recorded placement #%d: %s -> %s", 
+                        thisPlacementOrder, unitName, actualUnitName or "Unknown"))
                 else
-                    print(string.format("Placement failed, not recording: %s (units: %d→%d)", 
-                        unitName, unitsBefore, unitsAfter))
+                    -- If placement failed, decrement the counter
+                    recordingPlacementCounter = recordingPlacementCounter - 1
+                    print(string.format("❌ Placement failed, not recording: %s", unitName))
                 end
                 
-            -- Detection for ManageUnits remote
+            -- Detection for ManageUnits remote (Upgrade/Sell)
             elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
                 local action = args[1]
                 local unitName = args[2]
@@ -801,16 +811,19 @@ mt.__namecall = newcclosure(function(self, ...)
                 
                 task.wait(0.5)
                 
-                -- Find which placement this unit corresponds to by looking backwards through macro
-                local targetPlacementOrder = nil
-                for i = #macro, 1, -1 do
-                    if macro[i].action == "PlaceUnit" and macro[i].actualUnitName == unitName then
-                        targetPlacementOrder = macro[i].placementOrder
-                        break
+                -- Use the stored mapping to find placement order
+                local targetPlacementOrder = unitMapping[unitName]
+                
+                if not targetPlacementOrder then
+                    print(string.format("⚠️ Warning: Could not find placement order for unit %s", unitName))
+                    -- Try to find by searching recent placements as fallback
+                    for i = #macro, math.max(1, #macro - 10), -1 do
+                        if macro[i].action == "PlaceUnit" and macro[i].actualUnitName == unitName then
+                            targetPlacementOrder = macro[i].placementOrder
+                            break
+                        end
                     end
                 end
-                
-                print(string.format("Looking for unit %s, found placement order: %s", unitName, tostring(targetPlacementOrder)))
                 
                 if action == "Upgrade" then
                     table.insert(macro, {
@@ -819,9 +832,10 @@ mt.__namecall = newcclosure(function(self, ...)
                         actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder or 0 -- Default to 0 if not found
+                        targetPlacementOrder = targetPlacementOrder or 0
                     })
-                    print(string.format("Recorded upgrade for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder or 0)))
+                    print(string.format("📈 Recorded upgrade for unit %s (targets placement #%s)", 
+                        unitName, tostring(targetPlacementOrder or "UNKNOWN")))
                     
                 elseif action == "Selling" then
                     table.insert(macro, {
@@ -830,47 +844,49 @@ mt.__namecall = newcclosure(function(self, ...)
                         actualUnitName = unitName,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder or 0 -- Default to 0 if not found
+                        targetPlacementOrder = targetPlacementOrder or 0
                     })
-                    print(string.format("Recorded sell for unit %s (targets placement #%s)", unitName, tostring(targetPlacementOrder or 0)))
+                    print(string.format("💰 Recorded sell for unit %s (targets placement #%s)", 
+                        unitName, tostring(targetPlacementOrder or "UNKNOWN")))
+                    
+                    -- Remove from mapping since unit is sold
+                    if targetPlacementOrder then
+                        unitMapping[unitName] = nil
+                    end
                 end
                 
             elseif isRecording and method == "InvokeServer" and self.Name == "Skills" then
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
-                -- Extract the unit name from the args
-                -- Args format: {"SkillsButton", "UnitName ID"}
                 local buttonType = args[1]
-                local unitString = args[2] -- This contains "UnitName ID"
+                local unitString = args[2]
                 
                 if buttonType == "SkillsButton" and unitString then
-                    -- Find which placement this ult targets by matching unit name
+                    -- Extract unit name from the unit string to find placement order
                     local targetPlacementOrder = nil
                     local targetUnitName = nil
                     
-                    -- Try to match the unit string with placed units
-                    for i = #macro, 1, -1 do
-                        if macro[i].action == "PlaceUnit" and macro[i].actualUnitName then
-                            -- Check if the unitString contains the placed unit name
-                            if unitString:find(macro[i].actualUnitName, 1, true) then
-                                targetPlacementOrder = macro[i].placementOrder
-                                targetUnitName = macro[i].actualUnitName
-                                break
-                            end
+                    -- Try to match with our stored mapping first
+                    for actualName, placementOrder in pairs(unitMapping) do
+                        if unitString:find(actualName, 1, true) then
+                            targetPlacementOrder = placementOrder
+                            targetUnitName = actualName
+                            break
                         end
                     end
                     
                     table.insert(macro, {
                         action = "UltUnit",
-                        unitString = unitString, -- Store the full unit string for exact playback
-                        targetUnitName = targetUnitName, -- Store for reference
+                        unitString = unitString,
+                        targetUnitName = targetUnitName,
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
                         targetPlacementOrder = targetPlacementOrder or 0
                     })
                     
-                    print(string.format("Recorded unit ult: %s (targets placement #%s)", unitString, tostring(targetPlacementOrder or 0)))
+                    print(string.format("⚡ Recorded ult: %s (targets placement #%s)", 
+                        unitString, tostring(targetPlacementOrder or "UNKNOWN")))
                 end
             end
         end)
@@ -1143,26 +1159,26 @@ local function tryPlaceUnitUntilSuccess(unitName, cframe, rotation, unitId, maxA
 end
 
 local function executeUnitPlacement(actionData)
-    print(string.format("🎯 Attempting to place unit: %s", actionData.unitName))
+    print(string.format("🎯 Placing unit: %s (recorded as placement #%d)", 
+        actionData.unitName, actionData.placementOrder or "UNKNOWN"))
     
     local success = tryPlaceUnitUntilSuccess(
         actionData.unitName, 
         actionData.cframe, 
         actionData.rotation or 0, 
         actionData.unitId,
-        10 -- max attempts
+        10
     )
     
     if success then
-        MacroStatusLabel:Set(string.format("Status: Successfully placed %s", actionData.unitName))
-        
-        -- Update the mapping for future upgrades/sells/ults
-        local placementOrder = actionData.placementOrder or currentPlacementOrder
-        if playbackUnitMapping[placementOrder] then
-            print(string.format("🔗 Updated mapping: placement #%d -> %s", placementOrder, playbackUnitMapping[placementOrder]))
+        -- Use the RECORDED placement order, not a generated one
+        local recordedPlacementOrder = actionData.placementOrder
+        if recordedPlacementOrder and playbackUnitMapping[recordedPlacementOrder] then
+            print(string.format("🔗 Mapped placement #%d -> %s", 
+                recordedPlacementOrder, playbackUnitMapping[recordedPlacementOrder]))
+        else
+            print(string.format("⚠️ Warning: No placement order recorded for this unit"))
         end
-    else
-        MacroStatusLabel:Set(string.format("Status: Failed to place %s", actionData.unitName))
     end
     
     return success
@@ -2045,6 +2061,12 @@ local CreateMacroButton = MacroTab:CreateButton({
     end,
     })
 
+local function clearRecordingMapping()
+    unitMapping = {}
+    recordingPlacementCounter = 0
+    print("🧹 Cleared recording mapping for new game")
+end
+
 RecordToggle = MacroTab:CreateToggle({
     Name = "Record",
     CurrentValue = false,
@@ -2066,6 +2088,7 @@ RecordToggle = MacroTab:CreateToggle({
                 if isRecording then
                     recordingHasStarted = true -- Set flag when recording actually starts
                     isRecordingLoopRunning = true
+                    clearRecordingMapping()
                     table.clear(macro)
                     recordingStartTime = tick()
                     MacroStatusLabel:Set("Status: Recording active!")
@@ -2102,7 +2125,6 @@ RecordToggle = MacroTab:CreateToggle({
 local function clearPlaybackMapping()
     playbackUnitMapping = {}
     playbackPlacementIndex = 0
-    recordingPlacementCounter = 0 -- Reset recording counter too
     print("🧹 Cleared playback unit mapping for new game")
 end
 
