@@ -1,4 +1,4 @@
---pipitbag
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.01"
@@ -684,7 +684,10 @@ local function collectChest(chest)
         end
     end
     
-    if not prompt then return end
+    if not prompt then 
+        print("No ProximityPrompt found in chest:", chest.Name)
+        return 
+    end
     
     -- Store original position
     local originalPosition = currentRoot.CFrame
@@ -695,13 +698,58 @@ local function collectChest(chest)
     -- Wait a brief moment for teleportation
     task.wait(0.1)
     
-    -- Collect the chest
-    prompt:InputHoldBegin(Services.Players.LocalPlayer)
-    task.wait(0.2)
-    prompt:InputHoldEnd(Services.Players.LocalPlayer)
+    -- Keep trying to collect until chest disappears or we timeout
+    local maxAttempts = 20  -- Maximum number of attempts
+    local attempts = 0
+    local attemptDelay = 0.2  -- Delay between attempts
     
-    -- Optional: Wait a moment before moving to next chest
-    task.wait(0.1)
+    print("Starting chest collection for:", chest.Name)
+    
+    while chest.Parent and attempts < maxAttempts do
+        attempts = attempts + 1
+        
+        -- Try to fire the proximity prompt
+        local success, err = pcall(function()
+            prompt:InputHoldBegin()
+            task.wait(0.1)
+            prompt:InputHoldEnd()
+        end)
+        
+        if not success then
+            -- If the prompt method fails, try the player-specific method
+            pcall(function()
+                prompt:InputHoldBegin(Services.Players.LocalPlayer)
+                task.wait(0.1)
+                prompt:InputHoldEnd(Services.Players.LocalPlayer)
+            end)
+        end
+        
+        print(string.format("Chest collection attempt %d/%d for %s", attempts, maxAttempts, chest.Name))
+        
+        -- Wait a moment to see if chest disappears
+        task.wait(attemptDelay)
+        
+        -- Check if chest still exists
+        if not chest.Parent then
+            print("Chest successfully collected after", attempts, "attempts")
+            break
+        end
+        
+        -- If chest still exists after several attempts, try repositioning
+        if attempts % 5 == 0 then
+            -- Try a slightly different position
+            local offset = Vector3.new(math.random(-2, 2), 5, math.random(-2, 2))
+            currentRoot.CFrame = chest.CFrame + offset
+            task.wait(0.1)
+        end
+    end
+    
+    if chest.Parent then
+        print("Warning: Chest", chest.Name, "still exists after", attempts, "attempts")
+    end
+    
+    -- Optional: Return to original position (comment out if you don't want this)
+     currentRoot.CFrame = originalPosition
 end
 
 local function onChildAdded(child)
@@ -3367,7 +3415,6 @@ if not isInLobby() then
 
     State.gameEndRealTime = tick()
     
-    -- Handle recording stop - only stop if recording has actually started
     if isRecording and recordingHasStarted then
         isRecording = false
         isRecordingLoopRunning = false
@@ -3385,7 +3432,6 @@ if not isInLobby() then
             saveMacroToFile(currentMacroName)
         end
     elseif isRecording and not recordingHasStarted then
-        -- If recording is enabled but hasn't started yet, don't stop it
         print("Recording was waiting for game start - not stop recording")
     end
     
