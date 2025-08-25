@@ -1,4 +1,4 @@
---pipi112
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -143,6 +143,8 @@ local State = {
 
    AutoPurchaseBlackMarket = nil,
    AutoPurchaseBlackMarketSelected = nil,
+
+   AutoCollectChests = nil,
 }
 
 local recordingHasStarted = false
@@ -642,6 +644,16 @@ local Dropdown = GameTab:CreateDropdown({
    end,
 })
 
+local Toggle = GameTab:CreateToggle({
+    Name = "Auto Collect Chests (Jojo Event)",
+    CurrentValue = false,
+    Flag = "AutoCollectChests",
+    Callback = function(Value)
+        State.AutoCollectChests = Value
+    end,
+})
+
+
     local function getCurrentWave()
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
     end
@@ -803,57 +815,62 @@ mt.__namecall = newcclosure(function(self, ...)
                 end
                 
             -- Detection for ManageUnits remote (Upgrade/Sell)
-            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
-                local action = args[1]
-                local unitName = args[2]
-                local timestamp = tick()
-                local currentWaveNum = getCurrentWave()
-                
-                task.wait(0.5)
-                
-                -- Use the stored mapping to find placement order
-                local targetPlacementOrder = unitMapping[unitName]
-                
-                if not targetPlacementOrder then
-                    print(string.format("⚠️ Warning: Could not find placement order for unit %s", unitName))
-                    -- Try to find by searching recent placements as fallback
-                    for i = #macro, math.max(1, #macro - 10), -1 do
-                        if macro[i].action == "PlaceUnit" and macro[i].actualUnitName == unitName then
-                            targetPlacementOrder = macro[i].placementOrder
-                            break
-                        end
-                    end
-                end
-                
-                if action == "Upgrade" then
-                    table.insert(macro, {
-                        action = "UpgradeUnit", 
-                        unitName = unitName,
-                        actualUnitName = unitName,
-                        time = timestamp - recordingStartTime,
-                        wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder or 0
-                    })
-                    print(string.format("📈 Recorded upgrade for unit %s (targets placement #%s)", 
-                        unitName, tostring(targetPlacementOrder or "UNKNOWN")))
-                    
-                elseif action == "Selling" then
-                    table.insert(macro, {
-                        action = "SellUnit", 
-                        unitName = unitName,
-                        actualUnitName = unitName,
-                        time = timestamp - recordingStartTime,
-                        wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder or 0
-                    })
-                    print(string.format("💰 Recorded sell for unit %s (targets placement #%s)", 
-                        unitName, tostring(targetPlacementOrder or "UNKNOWN")))
-                    
-                    -- Remove from mapping since unit is sold
-                    if targetPlacementOrder then
-                        unitMapping[unitName] = nil
-                    end
-                end
+elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
+    local action = args[1]
+    local unitName = args[2]
+    local timestamp = tick()
+    local currentWaveNum = getCurrentWave()
+    
+    task.wait(0.5)
+    
+    -- Use the stored mapping to find placement order
+    local targetPlacementOrder = unitMapping[unitName]
+    
+    if not targetPlacementOrder then
+        print(string.format("⚠️ Warning: Could not find placement order for unit %s", unitName))
+        -- Try to find by searching recent placements as fallback
+        for i = #macro, math.max(1, #macro - 10), -1 do
+            if macro[i].action == "PlaceUnit" and (macro[i].actualUnitName == unitName or macro[i].unitName == unitName) then
+                targetPlacementOrder = macro[i].placementOrder
+                print(string.format("🔧 Found placement order %d for %s via fallback search", targetPlacementOrder, unitName))
+                break
+            end
+        end
+    end
+    
+    -- Ensure we have a valid placement order before recording
+    if not targetPlacementOrder or targetPlacementOrder == 0 then
+        warn(string.format("❌ Cannot record %s action - no valid placement order found for unit %s", action, unitName))
+        return -- Don't record this action
+    end
+    
+    if action == "Upgrade" then
+        table.insert(macro, {
+            action = "UpgradeUnit", 
+            unitName = unitName,
+            actualUnitName = unitName,
+            time = timestamp - recordingStartTime,
+            wave = currentWaveNum,
+            targetPlacementOrder = targetPlacementOrder -- This should never be 0 now
+        })
+        print(string.format("📈 Recorded upgrade for unit %s (targets placement #%d)", 
+            unitName, targetPlacementOrder))
+        
+    elseif action == "Selling" then
+        table.insert(macro, {
+            action = "SellUnit", 
+            unitName = unitName,
+            actualUnitName = unitName,
+            time = timestamp - recordingStartTime,
+            wave = currentWaveNum,
+            targetPlacementOrder = targetPlacementOrder -- This should never be 0 now
+        })
+        print(string.format("💰 Recorded sell for unit %s (targets placement #%d)", 
+            unitName, targetPlacementOrder))
+        
+        -- Remove from mapping since unit is sold
+        unitMapping[unitName] = nil
+    end
                 
             elseif isRecording and method == "InvokeServer" and self.Name == "Skills" then
                 local timestamp = tick()
@@ -1249,16 +1266,52 @@ local function executeUnitUpgrade(actionData)
 end
 
 local function executeUnitSell(actionData)
-    -- Get the current unit name based on which placement this sell targets
-    local currentUnitName = playbackUnitMapping[actionData.targetPlacementOrder]
+    -- Get the target placement order - ensure it's not 0
+    local targetOrder = actionData.targetPlacementOrder
     
-    if not currentUnitName or actionData.targetPlacementOrder == 0 then
-        warn(string.format("❌ Could not find current unit name for placement #%d", actionData.targetPlacementOrder or 0))
+    -- Debug logging
+    print(string.format("🔍 Attempting to sell - Target placement order: %s", tostring(targetOrder)))
+    print("📋 Current playback mapping:")
+    for order, unitName in pairs(playbackUnitMapping) do
+        print(string.format("  Placement #%d -> %s", order, unitName))
+    end
+    
+    -- If targetOrder is 0 or nil, try to find it from the original recorded data
+    if not targetOrder or targetOrder == 0 then
+        -- Try to find the placement order from the recorded unit name
+        local recordedUnitName = actionData.unitName or actionData.actualUnitName
+        if recordedUnitName then
+            -- Search through the playback mapping for a matching unit
+            for placementOrder, currentUnitName in pairs(playbackUnitMapping) do
+                if currentUnitName:find(recordedUnitName, 1, true) then
+                    targetOrder = placementOrder
+                    print(string.format("🔧 Fixed placement order from %s to %d", tostring(actionData.targetPlacementOrder), targetOrder))
+                    break
+                end
+            end
+        end
+    end
+    
+    -- If still no valid target order, error out
+    if not targetOrder or targetOrder == 0 then
+        warn(string.format("❌ Could not determine valid placement order for sell action"))
+        warn(string.format("   actionData.targetPlacementOrder: %s", tostring(actionData.targetPlacementOrder)))
+        warn(string.format("   actionData.unitName: %s", tostring(actionData.unitName)))
+        warn(string.format("   actionData.actualUnitName: %s", tostring(actionData.actualUnitName)))
+        MacroStatusLabel:Set("Status: Error - Invalid placement order for sell")
+        return false
+    end
+    
+    -- Get the current unit name based on placement order
+    local currentUnitName = playbackUnitMapping[targetOrder]
+    
+    if not currentUnitName then
+        warn(string.format("❌ Could not find current unit name for placement #%d", targetOrder))
         MacroStatusLabel:Set("Status: Error - Unit not found for sell")
         return false
     end
     
-    print(string.format("🔍 Selling placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
+    print(string.format("🔍 Selling placement #%d: %s", targetOrder, currentUnitName))
     
     -- Check if unit exists before selling
     if not unitExistsInServer(currentUnitName) then
@@ -1277,8 +1330,12 @@ local function executeUnitSell(actionData)
         
         -- Verify unit no longer exists in server
         if not unitExistsInServer(currentUnitName) then
-            print(string.format("💰 Successfully sold unit from placement #%d", actionData.targetPlacementOrder or 0))
+            print(string.format("💰 Successfully sold unit from placement #%d", targetOrder))
             MacroStatusLabel:Set(string.format("Status: Successfully sold unit"))
+            
+            -- Remove from mapping since unit is sold
+            playbackUnitMapping[targetOrder] = nil
+            
             return true
         else
             warn(string.format("❌ Sell request sent but unit still exists in server"))
@@ -1286,7 +1343,7 @@ local function executeUnitSell(actionData)
             return false
         end
     else
-        warn(string.format("❌ Failed to sell unit from placement #%d: %s", actionData.targetPlacementOrder or 0, err))
+        warn(string.format("❌ Failed to sell unit from placement #%d: %s", targetOrder, err))
         MacroStatusLabel:Set("Status: Sell request failed")
         return false
     end
