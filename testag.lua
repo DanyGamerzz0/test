@@ -1,4 +1,4 @@
---pipi
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.01"
@@ -116,6 +116,8 @@ local State = {
    AutoJoinRaid = nil,
    RaidStageSelected = nil,
    RaidActSelected = nil,
+
+   AutoJoinGate = nil,
 
    AutoJoinWorldlines = nil,
    AutoJoinWorldlinesSelected = nil,
@@ -523,6 +525,17 @@ end)
         State.AutoJoinWorldlinesSelected = extracted
     end,
 })
+
+    local JoinerSection00 = JoinerTab:CreateSection("🚪 Gate Joiner 🚪")
+
+    local AutoJoinGateToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Gate",
+    CurrentValue = false,
+    Flag = "AutoJoinGate",
+    Callback = function(Value)
+        State.AutoJoinGate = Value
+    end,
+    })
 
 local function tryStartGame()
     if State.AutoStartGame then
@@ -2728,10 +2741,95 @@ local function clearProcessingState()
     AutoJoinState.currentAction = nil
 end
 
+local function checkAndJoinGate()
+    if not State.AutoJoinGate then return end
+    if not isInLobby() then return end
+    
+    -- Check if GateOpening attribute is true
+    local gateOpening = Services.Workspace:GetAttribute("GateOpening")
+    if not gateOpening then return end
+    
+    setProcessingState("Auto Join Gate")
+    
+    -- Find the gate spawn point
+    local gateSpawnPoint = Services.Workspace:FindFirstChild("Gatespawnpoint")
+    if not gateSpawnPoint then
+        warn("Gatespawnpoint not found in workspace")
+        task.delay(5, clearProcessingState)
+        return
+    end
+    
+    local spawnPoint1 = gateSpawnPoint:FindFirstChild("1")
+    if not spawnPoint1 then
+        warn("Spawn point '1' not found in Gatespawnpoint")
+        task.delay(5, clearProcessingState)
+        return
+    end
+    
+    local player = Services.Players.LocalPlayer
+    
+    -- Teleport player to the spawn point
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = spawnPoint1.CFrame
+        
+        -- Wait a moment for teleportation to complete
+        task.wait(0.5)
+        
+        -- Look for proximity prompt in the area
+        local proximityPrompt = nil
+        
+        -- Check if the spawn point itself has a proximity prompt
+        proximityPrompt = Services.Workspace:WaitForChild("CreatingRoom"):WaitForChild("Server"):WaitForChild("PortalPart"):FindFirstChildOfClass("ProximityPrompt")
+        
+        -- If not found on spawn point, check nearby parts
+        if not proximityPrompt then
+            local function findNearbyParts(parent)
+                for _, child in pairs(parent:GetChildren()) do
+                    if child:IsA("BasePart") then
+                        local distance = (child.Position - spawnPoint1.Position).Magnitude
+                        if distance <= 20 then -- Within 20 studs
+                            local prompt = child:FindFirstChildOfClass("ProximityPrompt")
+                            if prompt then
+                                proximityPrompt = prompt
+                                break
+                            end
+                        end
+                    end
+                    findNearbyParts(child)
+                    if proximityPrompt then break end
+                end
+            end
+            findNearbyParts(Services.Workspace)
+        end
+        
+        -- Use the proximity prompt if found
+        if proximityPrompt then
+            proximityPrompt:InputHoldBegin()
+            task.wait(0.1)
+            proximityPrompt:InputHoldEnd()
+            print("Gate joined successfully!")
+            notify("Auto Joiner", "Gate joined successfully!")
+        else
+            warn("No proximity prompt found near the gate spawn point")
+            notify("Auto Joiner", "No proximity prompt found at gate")
+        end
+    else
+        warn("Player character or HumanoidRootPart not found")
+    end
+    
+    task.delay(5, clearProcessingState)
+end
+
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     if not canPerformAction() then return end
+
+    --GATES
+    if State.AutoJoinGate then
+        checkAndJoinGate()
+        return
+    end
 
     --CHALLENGE
     if State.AutoJoinChallenge then
