@@ -1,4 +1,4 @@
---pipi
+--pipitbag
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -653,6 +653,112 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
+local function isInLobby()
+    return workspace:FindFirstChild("RoomCreation") ~= nil
+end
+
+local function collectChest(chest)
+    if isInLobby() then return end
+    if not State.AutoCollectChests then return end
+    
+    -- Get player's current character and root part
+    local currentChar = Services.Players.LocalPlayer.Character
+    if not currentChar then return end
+    
+    local currentRoot = currentChar:FindFirstChild("HumanoidRootPart")
+    if not currentRoot then return end
+    
+    -- Find the ProximityPrompt in the chest
+    local prompt = chest:FindFirstChildOfClass("ProximityPrompt")
+    if not prompt then
+        -- Check if it's in a child of the chest
+        for _, child in pairs(chest:GetDescendants()) do
+            if child:IsA("ProximityPrompt") then
+                prompt = child
+                break
+            end
+        end
+    end
+    
+    if not prompt then return end
+    
+    -- Store original position
+    local originalPosition = currentRoot.CFrame
+    
+    -- Teleport to chest
+    currentRoot.CFrame = chest.CFrame + Vector3.new(0, 5, 0) -- Teleport slightly above chest
+    
+    -- Wait a brief moment for teleportation
+    task.wait(0.1)
+    
+    -- Collect the chest
+    prompt:InputHoldBegin(Services.Players.LocalPlayer)
+    task.wait(0.2)
+    prompt:InputHoldEnd(Services.Players.LocalPlayer)
+    
+    -- Optional: Wait a moment before moving to next chest
+    task.wait(0.1)
+end
+
+local function onChildAdded(child)
+    if isInLobby() then return end
+    if State.AutoCollectChests then
+        -- Small delay to ensure chest is fully loaded
+        task.wait(0.1)
+        collectChest(child)
+    end
+end
+
+local function collectExistingChests()
+    if isInLobby() then return end
+    local chestFolder = Services.Workspace:FindFirstChild("ChestSpawned")
+    if not chestFolder then return end
+    
+    for _, chest in pairs(chestFolder:GetChildren()) do
+        if State.AutoCollectChests then
+            collectChest(chest)
+            task.wait(0.1) -- Small delay between chests
+        else
+            break -- Stop if toggle was turned off
+        end
+    end
+end
+
+local function setupChestDetection()
+    if isInLobby() then return end
+    local chestFolder = Services.Workspace:FindFirstChild("ChestSpawned")
+    
+    if not chestFolder then
+        -- Wait for ChestSpawned folder to exist using while loop
+        task.spawn(function()
+            while not Services.Workspace:FindFirstChild("ChestSpawned") do
+                task.wait(0.1)
+            end
+            setupChestDetection()
+        end)
+        return
+    end
+    
+    -- Connect to new chests being added
+    chestFolder.ChildAdded:Connect(onChildAdded)
+    
+    -- Monitor toggle state and collect existing chests when enabled
+    task.spawn(function()
+        local lastToggleState = State.AutoCollectChests
+        while true do
+            task.wait(0.1)
+            
+            if State.AutoCollectChests and not lastToggleState then
+                -- Toggle was just turned on, collect existing chests
+                task.spawn(collectExistingChests)
+            end
+            
+            lastToggleState = State.AutoCollectChests
+        end
+    end)
+end
+
+setupChestDetection()
 
     local function getCurrentWave()
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
@@ -938,70 +1044,6 @@ local function onWaveChanged()
         waveStartTime = tick()
         print(string.format("Wave %d started", currentWave))
     end
-end
-
-local function tryPlaceUnit(unitName, cframe, rotation, unitId, maxRetries)
-    maxRetries = maxRetries or 3
-    local baseRetryDelay = 0.5
-    local positionOffset = 2
-    local originalPosition = cframe.Position
-
-    local function generateOffsetPosition(attempt)
-        if attempt == 1 then
-            return originalPosition
-        end
-        
-        local offsetX = (math.random() - 0.5) * positionOffset * 2
-        local offsetZ = (math.random() - 0.5) * positionOffset * 2
-        
-        return Vector3.new(
-            originalPosition.X + offsetX,
-            originalPosition.Y,
-            originalPosition.Z + offsetZ
-        )
-    end
-
-    for attempt = 1, maxRetries do
-        print(string.format("Attempting to place %s (attempt %d/%d)", unitName, attempt, maxRetries))
-        
-        local attemptPosition = generateOffsetPosition(attempt)
-        local attemptCFrame = CFrame.new(attemptPosition, attemptPosition + Vector3.new(0, 0, 1))
-        
-        local unitsBefore = countPlacedUnits()
-        
-        local success, err = pcall(function()
-            local args = {
-                {
-                    unitName,
-                    attemptCFrame,
-                    rotation or 0
-                },
-                unitId
-            }
-            
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                :WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
-        end)
-
-        task.wait(0.5)
-        
-        local unitsAfter = countPlacedUnits()
-        if unitsAfter > unitsBefore then
-            print(string.format("Unit %s placed successfully on attempt %d", unitName, attempt))
-            return true
-        end
-
-        if attempt < maxRetries then
-            local retryDelay = baseRetryDelay * attempt
-            print(string.format("Placement failed on attempt %d for %s. Waiting %.1fs before retry...", 
-                attempt, unitName, retryDelay))
-            task.wait(retryDelay)
-        else
-            warn(string.format("Failed to place %s after %d attempts", unitName, maxRetries))
-        end
-    end
-    
-    return false
 end
 
 local function getPlayerUnitsFolder()
@@ -2545,10 +2587,6 @@ local function notify(title, content, duration)
             Duration = duration or 5,
             Image = "info",
     })
-end
-
-local function isInLobby()
-    return workspace:FindFirstChild("RoomCreation") ~= nil
 end
 
 local function canPerformAction()
