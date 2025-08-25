@@ -1,4 +1,4 @@
---pipi
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -781,23 +781,25 @@ local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     local closestDistance = math.huge
     local closestUnitName = nil
 
-    -- Extract base name without number
-    local baseUnitName = originalUnitName:match("^(.-)%d*$")
+    -- Extract base name without number for comparison
+    local baseUnitName = originalUnitName:match("^(.-)%s*%d*$")
 
     for _, unit in pairs(unitClient:GetChildren()) do
         if unit:IsA("Model") then
-                local unitPosition = unit.WorldPivot.Position
-                local placementPosition = unitCFrame.Position
-                local distance = (unitPosition - placementPosition).Magnitude
+            local unitPosition = unit.WorldPivot.Position
+            local placementPosition = unitCFrame.Position
+            local distance = (unitPosition - placementPosition).Magnitude
 
-                -- Only consider units within 1 stud tolerance
-                if distance <= 1 and distance < closestDistance then
+            -- Only consider units within 1 stud tolerance
+            if distance <= 1 and distance < closestDistance then
+                -- Check if this unit matches our base name
+                local unitBaseName = unit.Name:match("^(.-)%s*%d*$")
+                if unitBaseName == baseUnitName or unit.Name:find(originalUnitName, 1, true) then
                     closestDistance = distance
                     closestUnitName = unit.Name
-                    print("found unit "..unit.Name.." within tolerance")
-                else
-                    print("not found")
+                    print("Found matching unit: " .. unit.Name .. " within tolerance (distance: " .. distance .. ")")
                 end
+            end
         end
     end
 
@@ -902,14 +904,15 @@ mt.__namecall = newcclosure(function(self, ...)
                         time = timestamp - recordingStartTime,
                         wave = currentWaveNum,
                         timestamp = timestamp,
-                        placementOrder = thisPlacementOrder -- Use the pre-incremented value
+                        placementOrder = thisPlacementOrder
                     }
                     
                     table.insert(macro, placementData)
                     
-                    -- Store mapping for upgrades/sells (actualUnitName -> placementOrder)
+                    -- FIXED: Store mapping using the ACTUAL unit name that appears in server
                     if actualUnitName then
                         unitMapping[actualUnitName] = thisPlacementOrder
+                        print(string.format("🔗 Stored mapping: '%s' -> placement #%d", actualUnitName, thisPlacementOrder))
                     end
                     
                     print(string.format("✅ Recorded placement #%d: %s -> %s", 
@@ -921,62 +924,94 @@ mt.__namecall = newcclosure(function(self, ...)
                 end
                 
             -- Detection for ManageUnits remote (Upgrade/Sell)
-elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
-    local action = args[1]
-    local unitName = args[2]
-    local timestamp = tick()
-    local currentWaveNum = getCurrentWave()
-    
-    task.wait(0.5)
-    
-    -- Use the stored mapping to find placement order
-    local targetPlacementOrder = unitMapping[unitName]
-    
-    if not targetPlacementOrder then
-        print(string.format("⚠️ Warning: Could not find placement order for unit %s", unitName))
-        -- Try to find by searching recent placements as fallback
-        for i = #macro, math.max(1, #macro - 10), -1 do
-            if macro[i].action == "PlaceUnit" and (macro[i].actualUnitName == unitName or macro[i].unitName == unitName) then
-                targetPlacementOrder = macro[i].placementOrder
-                print(string.format("🔧 Found placement order %d for %s via fallback search", targetPlacementOrder, unitName))
-                break
-            end
-        end
-    end
-    
-    -- Ensure we have a valid placement order before recording
-    if not targetPlacementOrder or targetPlacementOrder == 0 then
-        warn(string.format("❌ Cannot record %s action - no valid placement order found for unit %s", action, unitName))
-        return -- Don't record this action
-    end
-    
-    if action == "Upgrade" then
-        table.insert(macro, {
-            action = "UpgradeUnit", 
-            unitName = unitName,
-            actualUnitName = unitName,
-            time = timestamp - recordingStartTime,
-            wave = currentWaveNum,
-            targetPlacementOrder = targetPlacementOrder -- This should never be 0 now
-        })
-        print(string.format("📈 Recorded upgrade for unit %s (targets placement #%d)", 
-            unitName, targetPlacementOrder))
-        
-    elseif action == "Selling" then
-        table.insert(macro, {
-            action = "SellUnit", 
-            unitName = unitName,
-            actualUnitName = unitName,
-            time = timestamp - recordingStartTime,
-            wave = currentWaveNum,
-            targetPlacementOrder = targetPlacementOrder -- This should never be 0 now
-        })
-        print(string.format("💰 Recorded sell for unit %s (targets placement #%d)", 
-            unitName, targetPlacementOrder))
-        
-        -- Remove from mapping since unit is sold
-        unitMapping[unitName] = nil
-    end
+            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
+                local action = args[1]
+                local unitName = args[2] -- This is the actual server unit name like "Shigeru (Gachi Fighter) 1"
+                local timestamp = tick()
+                local currentWaveNum = getCurrentWave()
+                
+                task.wait(0.5)
+                
+                -- Use the stored mapping to find placement order
+                local targetPlacementOrder = unitMapping[unitName]
+                
+                print(string.format("🔍 Looking for placement order for unit: '%s'", unitName))
+                print("📋 Current unit mapping:")
+                for mappedName, placementOrder in pairs(unitMapping) do
+                    print(string.format("  '%s' -> placement #%d", mappedName, placementOrder))
+                end
+                
+                if not targetPlacementOrder then
+                    print(string.format("⚠️ Warning: Could not find exact placement order for unit '%s'", unitName))
+                    
+                    -- Try to find by partial match (remove numbers and compare base names)
+                    local unitBaseName = unitName:match("^(.-)%s*%d*$")
+                    print(string.format("🔧 Trying partial match with base name: '%s'", unitBaseName))
+                    
+                    for mappedName, placementOrder in pairs(unitMapping) do
+                        local mappedBaseName = mappedName:match("^(.-)%s*%d*$")
+                        if mappedBaseName == unitBaseName then
+                            targetPlacementOrder = placementOrder
+                            print(string.format("✅ Found placement order %d for '%s' via partial match (%s ≈ %s)", 
+                                targetPlacementOrder, unitName, unitBaseName, mappedBaseName))
+                            -- Update the mapping with the correct name
+                            unitMapping[unitName] = targetPlacementOrder
+                            unitMapping[mappedName] = nil -- Remove old mapping
+                            break
+                        end
+                    end
+                    
+                    -- If still not found, try searching recent placements as fallback
+                    if not targetPlacementOrder then
+                        print("🔧 Trying fallback search through recent placements...")
+                        for i = #macro, math.max(1, #macro - 10), -1 do
+                            if macro[i].action == "PlaceUnit" then
+                                local recordedBaseName = (macro[i].actualUnitName or macro[i].unitName):match("^(.-)%s*%d*$")
+                                if recordedBaseName == unitBaseName then
+                                    targetPlacementOrder = macro[i].placementOrder
+                                    unitMapping[unitName] = targetPlacementOrder
+                                    print(string.format("✅ Found placement order %d for '%s' via fallback search", 
+                                        targetPlacementOrder, unitName))
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                -- Ensure we have a valid placement order before recording
+                if not targetPlacementOrder or targetPlacementOrder == 0 then
+                    warn(string.format("❌ Cannot record %s action - no valid placement order found for unit '%s'", action, unitName))
+                    return -- Don't record this action
+                end
+                
+                if action == "Upgrade" then
+                    table.insert(macro, {
+                        action = "UpgradeUnit", 
+                        unitName = unitName,
+                        actualUnitName = unitName,
+                        time = timestamp - recordingStartTime,
+                        wave = currentWaveNum,
+                        targetPlacementOrder = targetPlacementOrder
+                    })
+                    print(string.format("📈 Recorded upgrade for unit '%s' (targets placement #%d)", 
+                        unitName, targetPlacementOrder))
+                    
+                elseif action == "Selling" then
+                    table.insert(macro, {
+                        action = "SellUnit", 
+                        unitName = unitName,
+                        actualUnitName = unitName,
+                        time = timestamp - recordingStartTime,
+                        wave = currentWaveNum,
+                        targetPlacementOrder = targetPlacementOrder
+                    })
+                    print(string.format("💰 Recorded sell for unit '%s' (targets placement #%d)", 
+                        unitName, targetPlacementOrder))
+                    
+                    -- Remove from mapping since unit is sold
+                    unitMapping[unitName] = nil
+                end
                 
             elseif isRecording and method == "InvokeServer" and self.Name == "Skills" then
                 local timestamp = tick()
