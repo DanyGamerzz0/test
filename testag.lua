@@ -1,4 +1,4 @@
---pipitbag
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.10"
@@ -1218,8 +1218,11 @@ local function tryPlaceUnitUntilSuccess(unitName, cframe, rotation, unitId, maxA
 end
 
 local function executeUnitPlacement(actionData)
+    -- Use the RECORDED placement order, not a generated one
+    local recordedPlacementOrder = actionData.placementOrder
+    
     print(string.format("🎯 Placing unit: %s (recorded as placement #%d)", 
-        actionData.unitName, actionData.placementOrder or "UNKNOWN"))
+        actionData.unitName, recordedPlacementOrder or "UNKNOWN"))
     
     local success = tryPlaceUnitUntilSuccess(
         actionData.unitName, 
@@ -1230,13 +1233,17 @@ local function executeUnitPlacement(actionData)
     )
     
     if success then
-        -- Use the RECORDED placement order, not a generated one
-        local recordedPlacementOrder = actionData.placementOrder
-        if recordedPlacementOrder and playbackUnitMapping[recordedPlacementOrder] then
+        -- Find the actual unit name that was placed
+        local actualUnitName = findLatestSpawnedUnit(actionData.unitName, actionData.cframe)
+        
+        if actualUnitName and recordedPlacementOrder then
+            -- Map the recorded placement order to the actual unit name
+            playbackUnitMapping[recordedPlacementOrder] = actualUnitName
             print(string.format("🔗 Mapped placement #%d -> %s", 
-                recordedPlacementOrder, playbackUnitMapping[recordedPlacementOrder]))
+                recordedPlacementOrder, actualUnitName))
         else
-            print(string.format("⚠️ Warning: No placement order recorded for this unit"))
+            warn(string.format("⚠️ Warning: Failed to map placement order %s to actual unit %s", 
+                tostring(recordedPlacementOrder), tostring(actualUnitName)))
         end
     end
     
@@ -1311,23 +1318,43 @@ local function executeUnitSell(actionData)
     -- Get the target placement order - ensure it's not 0
     local targetOrder = actionData.targetPlacementOrder
     
-    -- Debug logging
+    -- Enhanced debugging
     print(string.format("🔍 Attempting to sell - Target placement order: %s", tostring(targetOrder)))
     print("📋 Current playback mapping:")
     for order, unitName in pairs(playbackUnitMapping) do
         print(string.format("  Placement #%d -> %s", order, unitName))
     end
+    print(string.format("   Recorded data: unitName='%s', actualUnitName='%s'", 
+        tostring(actionData.unitName), tostring(actionData.actualUnitName)))
     
-    -- If targetOrder is 0 or nil, try to find it from the original recorded data
+    -- If targetOrder is invalid, try to find it from the recorded data
     if not targetOrder or targetOrder == 0 then
-        -- Try to find the placement order from the recorded unit name
-        local recordedUnitName = actionData.unitName or actionData.actualUnitName
+        warn(string.format("❌ Invalid target placement order: %s", tostring(targetOrder)))
+        
+        -- Try to find the placement order from recorded unit names
+        local recordedUnitName = actionData.actualUnitName or actionData.unitName
         if recordedUnitName then
+            print(string.format("🔧 Searching for unit matching: %s", recordedUnitName))
+            
             -- Search through the playback mapping for a matching unit
             for placementOrder, currentUnitName in pairs(playbackUnitMapping) do
-                if currentUnitName:find(recordedUnitName, 1, true) then
+                print(string.format("  Checking placement #%d: %s", placementOrder, currentUnitName))
+                
+                -- Try exact match first
+                if currentUnitName == recordedUnitName then
                     targetOrder = placementOrder
-                    print(string.format("🔧 Fixed placement order from %s to %d", tostring(actionData.targetPlacementOrder), targetOrder))
+                    print(string.format("✅ Found exact match: placement #%d", targetOrder))
+                    break
+                end
+                
+                -- Try partial match (in case numbers are different)
+                local recordedBaseName = recordedUnitName:match("^(.-)%s*%d*$") -- Remove trailing numbers
+                local currentBaseName = currentUnitName:match("^(.-)%s*%d*$")   -- Remove trailing numbers
+                
+                if recordedBaseName and currentBaseName and recordedBaseName == currentBaseName then
+                    targetOrder = placementOrder
+                    print(string.format("✅ Found partial match: placement #%d (%s ≈ %s)", 
+                        targetOrder, recordedBaseName, currentBaseName))
                     break
                 end
             end
@@ -1337,9 +1364,10 @@ local function executeUnitSell(actionData)
     -- If still no valid target order, error out
     if not targetOrder or targetOrder == 0 then
         warn(string.format("❌ Could not determine valid placement order for sell action"))
-        warn(string.format("   actionData.targetPlacementOrder: %s", tostring(actionData.targetPlacementOrder)))
-        warn(string.format("   actionData.unitName: %s", tostring(actionData.unitName)))
-        warn(string.format("   actionData.actualUnitName: %s", tostring(actionData.actualUnitName)))
+        warn(string.format("   All recorded data: targetPlacementOrder=%s, unitName=%s, actualUnitName=%s", 
+            tostring(actionData.targetPlacementOrder), 
+            tostring(actionData.unitName), 
+            tostring(actionData.actualUnitName)))
         MacroStatusLabel:Set("Status: Error - Invalid placement order for sell")
         return false
     end
@@ -1353,7 +1381,7 @@ local function executeUnitSell(actionData)
         return false
     end
     
-    print(string.format("🔍 Selling placement #%d: %s", targetOrder, currentUnitName))
+    print(string.format("🎯 Selling placement #%d: %s", targetOrder, currentUnitName))
     
     -- Check if unit exists before selling
     if not unitExistsInServer(currentUnitName) then
@@ -2227,7 +2255,6 @@ local function clearPlaybackMapping()
     print("🧹 Cleared playback unit mapping for new game")
 end
 
--- Modified playMacroLoop function with label updates
 local function playMacroLoop()
     if not macro or #macro == 0 then
         MacroStatusLabel:Set("Status: Error - No macro data!")
@@ -2254,7 +2281,7 @@ local function playMacroLoop()
         currentWave = getCurrentWave()
         waveStartTime = tick()
         placedUnitsTracking = {}
-        currentPlacementOrder = 0 -- Track current placement for upgrades/sells
+        -- REMOVED: currentPlacementOrder = 0 -- Don't track this separately anymore
         
         print(string.format("Macro has %d total actions to execute", #macro))
         
@@ -2274,7 +2301,7 @@ local function playMacroLoop()
                 local actionSuccess = false
                 
                 if action.action == "PlaceUnit" then
-                    currentPlacementOrder = action.placementOrder or (currentPlacementOrder + 1)
+                    -- REMOVED: currentPlacementOrder = action.placementOrder or (currentPlacementOrder + 1)
                     actionSuccess = executeUnitPlacement(action)
                     
                 elseif action.action == "UpgradeUnit" then
@@ -2299,6 +2326,7 @@ local function playMacroLoop()
                         MacroStatusLabel:Set("Status: Failed to skip wave")
                     end
                 end
+                
                 -- Only proceed to next action if current one succeeded (except for non-critical actions)
                 if actionSuccess or action.action == "SkipWave" then
                     actionIndex = actionIndex + 1
