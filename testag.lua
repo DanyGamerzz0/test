@@ -1,4 +1,4 @@
---pipi5
+--pipi
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.01"
@@ -1242,6 +1242,25 @@ local function getPlayerUnitsFolder()
     return playerUnitsFolder
 end
 
+local function getUnitMaxUpgradeLevel(unitName)
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    if not playerUnitsFolder then
+        return nil
+    end
+    
+    local unit = playerUnitsFolder:FindFirstChild(unitName)
+    if not unit then
+        return nil
+    end
+    
+    local maxUpgradeValue = unit:FindFirstChild("MaxUpgrade")
+    if maxUpgradeValue and maxUpgradeValue:IsA("NumberValue") then
+        return maxUpgradeValue.Value
+    end
+    
+    return nil
+end
+
 local function getUnitUpgradeLevel(unitName)
     local playerUnitsFolder = getPlayerUnitsFolder()
     if not playerUnitsFolder then
@@ -1473,59 +1492,103 @@ local function executeUnitUpgrade(actionData)
     local currentUnitName = findUnitForPlayback(targetOrder, actionData.unitName or actionData.actualUnitName)
     
     if not currentUnitName or targetOrder == 0 then
-        warn(string.format("❌ Could not find current unit name for placement #%d", targetOrder))
+        warn(string.format("Could not find current unit name for placement #%d", targetOrder))
         MacroStatusLabel:Set("Status: Error - Unit not found for upgrade")
         return false
     end
     
-    print(string.format("🔍 Preparing to upgrade placement #%d: %s", targetOrder, currentUnitName))
+    print(string.format("Preparing to upgrade placement #%d: %s", targetOrder, currentUnitName))
     
-    -- Get current upgrade level before upgrade
-    local upgradeLevelBefore = getUnitUpgradeLevel(currentUnitName)
+    -- Check current upgrade level and max upgrade level
+    local currentUpgradeLevel = getUnitUpgradeLevel(currentUnitName)
+    local maxUpgradeLevel = getUnitMaxUpgradeLevel(currentUnitName)
     
-    if not upgradeLevelBefore then
-        warn(string.format("❌ Could not determine current upgrade level for %s", currentUnitName))
+    if not currentUpgradeLevel then
+        warn(string.format("Could not determine current upgrade level for %s", currentUnitName))
         MacroStatusLabel:Set("Status: Error - Cannot read upgrade level")
         return false
     end
     
-    local upgradeCost = getUnitUpgradeCost(currentUnitName)
-    
-    if not upgradeCost then
-        warn(string.format("❌ Could not determine upgrade cost for %s", currentUnitName))
-        MacroStatusLabel:Set("Status: Error - Unknown upgrade cost")
+    if not maxUpgradeLevel then
+        warn(string.format("Could not determine max upgrade level for %s", currentUnitName))
+        MacroStatusLabel:Set("Status: Error - Cannot read max upgrade level")
         return false
     end
     
-    local unitDescription = string.format("upgrade %s", currentUnitName)
-    if not waitForSufficientMoney(upgradeCost, unitDescription) then
-        return false
+    -- Check if unit is already at max upgrade
+    if currentUpgradeLevel >= maxUpgradeLevel then
+        print(string.format("Unit %s is already at max upgrade (%d/%d) - skipping upgrade action", 
+            currentUnitName, currentUpgradeLevel, maxUpgradeLevel))
+        MacroStatusLabel:Set(string.format("Status: Unit already maxed (%d/%d) - skipping", 
+            currentUpgradeLevel, maxUpgradeLevel))
+        return true -- Return true because we successfully "handled" the action by skipping it
     end
     
-    local success, err = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
-    end)
+    print(string.format("Unit can be upgraded: %d/%d", currentUpgradeLevel, maxUpgradeLevel))
     
-    if success then
-        task.wait(0.5)
-        local upgradeLevelAfter = getUnitUpgradeLevel(currentUnitName)
+    local attempts = 0
+    local maxAttempts = 10
+    
+    while attempts < maxAttempts and isPlaybacking do
+        attempts = attempts + 1
         
-        if upgradeLevelAfter and upgradeLevelAfter > upgradeLevelBefore then
-            print(string.format("⬆️ Successfully upgraded unit from placement #%d (%d→%d)", 
-                targetOrder, upgradeLevelBefore, upgradeLevelAfter))
-            MacroStatusLabel:Set(string.format("Status: Upgraded unit (%d→%d)", upgradeLevelBefore, upgradeLevelAfter))
-            return true
-        else
-            warn(string.format("❌ Upgrade request sent but level unchanged (%s)", tostring(upgradeLevelAfter)))
-            MacroStatusLabel:Set("Status: Upgrade failed - level unchanged")
+        MacroStatusLabel:Set(string.format("Status: Upgrading unit (attempt %d/%d)", attempts, maxAttempts))
+        
+        -- Get upgrade cost
+        local upgradeCost = getUnitUpgradeCost(currentUnitName)
+        
+        if not upgradeCost then
+            warn(string.format("Could not determine upgrade cost for %s (attempt %d)", currentUnitName, attempts))
+            if attempts < maxAttempts then
+                task.wait(1)
+                continue
+            else
+                MacroStatusLabel:Set("Status: Error - Unknown upgrade cost after max attempts")
+                return false
+            end
+        end
+        
+        local unitDescription = string.format("upgrade %s", currentUnitName)
+        if not waitForSufficientMoney(upgradeCost, unitDescription) then
             return false
         end
-    else
-        warn(string.format("❌ Failed to upgrade unit from placement #%d: %s", targetOrder, err))
-        MacroStatusLabel:Set("Status: Upgrade request failed")
-        return false
+        
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
+        end)
+        
+        if success then
+            task.wait(0.5)
+            local upgradeLevelAfter = getUnitUpgradeLevel(currentUnitName)
+            
+            if upgradeLevelAfter and upgradeLevelAfter > currentUpgradeLevel then
+                print(string.format("Successfully upgraded unit from placement #%d (%d→%d)", 
+                    targetOrder, currentUpgradeLevel, upgradeLevelAfter))
+                MacroStatusLabel:Set(string.format("Status: Upgraded unit (%d→%d)", currentUpgradeLevel, upgradeLevelAfter))
+                return true
+            else
+                warn(string.format("Upgrade request sent but level unchanged (%s) attempt %d/%d", 
+                    tostring(upgradeLevelAfter), attempts, maxAttempts))
+                if attempts < maxAttempts then
+                    task.wait(1)
+                    continue
+                end
+            end
+        else
+            warn(string.format("Failed to upgrade unit from placement #%d: %s (attempt %d/%d)", 
+                targetOrder, err, attempts, maxAttempts))
+            if attempts < maxAttempts then
+                task.wait(1)
+                continue
+            end
+        end
     end
+    
+    -- If we reach here, all attempts failed
+    warn(string.format("Failed to upgrade unit after %d attempts, skipping action", attempts))
+    MacroStatusLabel:Set("Status: Upgrade failed - skipping action")
+    return false
 end
 
 local function executeUnitSell(actionData)
@@ -1534,12 +1597,6 @@ local function executeUnitSell(actionData)
     
     -- Enhanced debugging
     print(string.format("🔍 Attempting to sell - Target placement order: %s", tostring(targetOrder)))
-    print("📋 Current playback mapping:")
-    for order, unitName in pairs(playbackUnitMapping) do
-        print(string.format("  Placement #%d -> %s", order, unitName))
-    end
-    print(string.format("   Recorded data: unitName='%s', actualUnitName='%s'", 
-        tostring(actionData.unitName), tostring(actionData.actualUnitName)))
     
     -- If targetOrder is invalid, try to find it from the recorded data
     if not targetOrder or targetOrder == 0 then
@@ -1552,23 +1609,18 @@ local function executeUnitSell(actionData)
             
             -- Search through the playback mapping for a matching unit
             for placementOrder, currentUnitName in pairs(playbackUnitMapping) do
-                print(string.format("  Checking placement #%d: %s", placementOrder, currentUnitName))
-                
                 -- Try exact match first
                 if currentUnitName == recordedUnitName then
                     targetOrder = placementOrder
-                    print(string.format("✅ Found exact match: placement #%d", targetOrder))
                     break
                 end
                 
                 -- Try partial match (in case numbers are different)
-                local recordedBaseName = recordedUnitName:match("^(.-)%s*%d*$") -- Remove trailing numbers
-                local currentBaseName = currentUnitName:match("^(.-)%s*%d*$")   -- Remove trailing numbers
+                local recordedBaseName = recordedUnitName:match("^(.-)%s*%d*$")
+                local currentBaseName = currentUnitName:match("^(.-)%s*%d*$")
                 
                 if recordedBaseName and currentBaseName and recordedBaseName == currentBaseName then
                     targetOrder = placementOrder
-                    print(string.format("✅ Found partial match: placement #%d (%s ≈ %s)", 
-                        targetOrder, recordedBaseName, currentBaseName))
                     break
                 end
             end
@@ -1578,10 +1630,6 @@ local function executeUnitSell(actionData)
     -- If still no valid target order, error out
     if not targetOrder or targetOrder == 0 then
         warn(string.format("❌ Could not determine valid placement order for sell action"))
-        warn(string.format("   All recorded data: targetPlacementOrder=%s, unitName=%s, actualUnitName=%s", 
-            tostring(actionData.targetPlacementOrder), 
-            tostring(actionData.unitName), 
-            tostring(actionData.actualUnitName)))
         MacroStatusLabel:Set("Status: Error - Invalid placement order for sell")
         return false
     end
@@ -1595,42 +1643,67 @@ local function executeUnitSell(actionData)
         return false
     end
     
-    print(string.format("🎯 Selling placement #%d: %s", targetOrder, currentUnitName))
+    local attempts = 0
+    local maxAttempts = 1
     
-    -- Check if unit exists before selling
-    if not unitExistsInServer(currentUnitName) then
-        warn(string.format("❌ Unit %s not found in server before sell attempt", currentUnitName))
-        MacroStatusLabel:Set("Status: Error - Unit not found in server")
-        return false
-    end
-    
-    local success, err = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", currentUnitName)
-    end)
-    
-    if success then
-        task.wait(0.5)
+    while attempts < maxAttempts and isPlaybacking do
+        attempts = attempts + 1
         
-        -- Verify unit no longer exists in server
+        MacroStatusLabel:Set(string.format("Status: Selling unit (attempt %d/%d)", attempts, maxAttempts))
+        
+        print(string.format("🎯 Selling placement #%d: %s (attempt %d/%d)", 
+            targetOrder, currentUnitName, attempts, maxAttempts))
+        
+        -- Check if unit exists before selling
         if not unitExistsInServer(currentUnitName) then
-            print(string.format("💰 Successfully sold unit from placement #%d", targetOrder))
-            MacroStatusLabel:Set(string.format("Status: Successfully sold unit"))
-            
-            -- Remove from mapping since unit is sold
-            playbackUnitMapping[targetOrder] = nil
-            
-            return true
-        else
-            warn(string.format("❌ Sell request sent but unit still exists in server"))
-            MacroStatusLabel:Set("Status: Sell failed - unit still exists")
-            return false
+            warn(string.format("❌ Unit %s not found in server before sell attempt %d", currentUnitName, attempts))
+            if attempts < maxAttempts then
+                task.wait(1)
+                continue
+            else
+                MacroStatusLabel:Set("Status: Error - Unit not found in server after max attempts")
+                return false
+            end
         end
-    else
-        warn(string.format("❌ Failed to sell unit from placement #%d: %s", targetOrder, err))
-        MacroStatusLabel:Set("Status: Sell request failed")
-        return false
+        
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", currentUnitName)
+        end)
+        
+        if success then
+            task.wait(0.5)
+            
+            -- Verify unit no longer exists in server
+            if not unitExistsInServer(currentUnitName) then
+                print(string.format("💰 Successfully sold unit from placement #%d", targetOrder))
+                MacroStatusLabel:Set(string.format("Status: Successfully sold unit"))
+                
+                -- Remove from mapping since unit is sold
+                playbackUnitMapping[targetOrder] = nil
+                
+                return true
+            else
+                warn(string.format("❌ Sell request sent but unit still exists in server (attempt %d/%d)", attempts, maxAttempts))
+                if attempts < maxAttempts then
+                    task.wait(1)
+                    continue
+                end
+            end
+        else
+            warn(string.format("❌ Failed to sell unit from placement #%d: %s (attempt %d/%d)", 
+                targetOrder, err, attempts, maxAttempts))
+            if attempts < maxAttempts then
+                task.wait(1)
+                continue
+            end
+        end
     end
+    
+    -- If we reach here, all attempts failed
+    warn(string.format("❌ Failed to sell unit after %d attempts, skipping action", attempts))
+    MacroStatusLabel:Set("Status: Sell failed - skipping action")
+    return false
 end
 
 local function executeUnitUlt(actionData)
@@ -1643,58 +1716,79 @@ local function executeUnitUlt(actionData)
         return false
     end
     
-    print(string.format("🔍 Preparing to ult placement #%d: %s", actionData.targetPlacementOrder, currentUnitName))
+    local attempts = 0
+    local maxAttempts = 10
     
-    -- Check if unit exists in server before attempting ult
-    if not unitExistsInServer(currentUnitName) then
-        warn(string.format("❌ Unit %s not found in server before ult attempt", currentUnitName))
-        MacroStatusLabel:Set("Status: Error - Unit not found in server")
-        return false
-    end
-    
-    -- Method 1: Try to find the exact unit in unitClient and use its full name
-    local ground = Services.Workspace:FindFirstChild("Ground")
-    if ground then
-        local unitClient = ground:FindFirstChild("unitClient")
-        if unitClient then
-            for _, unit in pairs(unitClient:GetChildren()) do
-                if unit:IsA("Model") and unit.Name:find(currentUnitName, 1, true) then
-                    local success, err = pcall(function()
-                        local args = {"SkillsButton", unit.Name}
-                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                            :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
-                    end)
-                    
-                    if success then
-                        print(string.format("⚡ Successfully ulted unit from placement #%d: %s", 
-                            actionData.targetPlacementOrder, unit.Name))
-                        MacroStatusLabel:Set(string.format("Status: Ulted unit %s", currentUnitName))
-                        return true
-                    else
-                        warn(string.format("❌ Failed to ult unit %s: %s", unit.Name, err))
+    while attempts < maxAttempts and isPlaybacking do
+        attempts = attempts + 1
+        
+        MacroStatusLabel:Set(string.format("Status: Using ult (attempt %d/%d)", attempts, maxAttempts))
+        
+        print(string.format("🔍 Preparing to ult placement #%d: %s (attempt %d/%d)", 
+            actionData.targetPlacementOrder, currentUnitName, attempts, maxAttempts))
+        
+        -- Check if unit exists in server before attempting ult
+        if not unitExistsInServer(currentUnitName) then
+            warn(string.format("❌ Unit %s not found in server before ult attempt %d", currentUnitName, attempts))
+            if attempts < maxAttempts then
+                task.wait(1)
+                continue
+            else
+                MacroStatusLabel:Set("Status: Error - Unit not found in server after max attempts")
+                return false
+            end
+        end
+        
+        -- Method 1: Try to find the exact unit in unitClient and use its full name
+        local ground = Services.Workspace:FindFirstChild("Ground")
+        local ultSuccess = false
+        
+        if ground then
+            local unitClient = ground:FindFirstChild("unitClient")
+            if unitClient then
+                for _, unit in pairs(unitClient:GetChildren()) do
+                    if unit:IsA("Model") and unit.Name:find(currentUnitName, 1, true) then
+                        local success, err = pcall(function()
+                            local args = {"SkillsButton", unit.Name}
+                            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                                :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
+                        end)
+                        
+                        if success then
+                            print(string.format("⚡ Successfully ulted unit from placement #%d: %s", 
+                                actionData.targetPlacementOrder, unit.Name))
+                            MacroStatusLabel:Set(string.format("Status: Ulted unit %s", currentUnitName))
+                            return true
+                        end
                     end
                 end
             end
         end
+        
+        -- Method 2: Fallback - try using the current unit name directly
+        local success, err = pcall(function()
+            local args = {"SkillsButton", currentUnitName}
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
+        end)
+        
+        if success then
+            print(string.format("⚡ Successfully ulted unit (fallback method): %s", currentUnitName))
+            MacroStatusLabel:Set(string.format("Status: Ulted unit %s", currentUnitName))
+            return true
+        end
+        
+        -- If we reach here, this attempt failed
+        warn(string.format("❌ Ult attempt %d/%d failed for unit %s", attempts, maxAttempts, currentUnitName))
+        
+        if attempts < maxAttempts then
+            task.wait(1)
+        end
     end
     
-    -- Method 2: Fallback - try using the current unit name directly
-    local success, err = pcall(function()
-        local args = {"SkillsButton", currentUnitName}
-        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
-    end)
-    
-    if success then
-        print(string.format("⚡ Successfully ulted unit (fallback method): %s", currentUnitName))
-        MacroStatusLabel:Set(string.format("Status: Ulted unit %s", currentUnitName))
-        return true
-    else
-        warn(string.format("❌ Failed to ult unit %s: %s", currentUnitName, err))
-    end
-    
-    warn(string.format("❌ Failed to ult unit from placement #%d - no valid method worked", actionData.targetPlacementOrder or 0))
-    MacroStatusLabel:Set("Status: Failed to ult unit")
+    -- If we reach here, all attempts failed
+    warn(string.format("❌ Failed to ult unit after %d attempts, skipping action", attempts))
+    MacroStatusLabel:Set("Status: Ult failed - skipping action")
     return false
 end
 
@@ -2495,7 +2589,6 @@ local function playMacroLoop()
         currentWave = getCurrentWave()
         waveStartTime = tick()
         placedUnitsTracking = {}
-        -- REMOVED: currentPlacementOrder = 0 -- Don't track this separately anymore
         
         print(string.format("Macro has %d total actions to execute", #macro))
         
@@ -2515,7 +2608,6 @@ local function playMacroLoop()
                 local actionSuccess = false
                 
                 if action.action == "PlaceUnit" then
-                    -- REMOVED: currentPlacementOrder = action.placementOrder or (currentPlacementOrder + 1)
                     actionSuccess = executeUnitPlacement(action)
                     
                 elseif action.action == "UpgradeUnit" then
@@ -2538,18 +2630,20 @@ local function playMacroLoop()
                     else
                         warn(string.format("Failed to skip wave: %s", err))
                         MacroStatusLabel:Set("Status: Failed to skip wave")
+                        actionSuccess = true -- Don't get stuck on skip wave failures
                     end
                 end
                 
-                -- Only proceed to next action if current one succeeded (except for non-critical actions)
-                if actionSuccess or action.action == "SkipWave" then
-                    actionIndex = actionIndex + 1
+                -- Always proceed to next action now - failed actions are handled internally with attempt limits
+                if actionSuccess then
+                    print(string.format("✅ Action %d completed successfully", actionIndex))
                 else
-                    -- For failed critical actions, wait a bit before retrying
-                    print("⏳ Action failed, waiting before retry...")
-                    task.wait(2)
+                    print(string.format("❌ Action %d failed after all attempts - skipping to next action", actionIndex))
                 end
+                
+                actionIndex = actionIndex + 1
             end
+            
             local entityCount = countPlacedUnits()
             local waitTime = entityCount > 20 and 0.5 or 0.1
             task.wait(waitTime)
