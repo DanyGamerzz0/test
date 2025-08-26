@@ -1,4 +1,4 @@
---pipi1
+--pipi5
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.01"
@@ -184,6 +184,12 @@ local waveStartTime = 0
 local currentPlacementOrder = 0
 
 local unitMapping = {}
+
+local unitTracker = {
+    lastUnitCount = 0,
+    unitSnapshots = {},
+    placementHistory = {}
+}
 
 local playbackUnitMapping = {}
 local recordingPlacementCounter = 0
@@ -829,6 +835,68 @@ setupChestDetection()
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
     end
 
+local function takeUnitSnapshot()
+    local snapshot = {}
+    local entities = Services.Workspace:FindFirstChild("Ground") 
+    if entities then
+        local unitClient = entities:FindFirstChild("unitClient")
+        if unitClient then
+            for _, unit in pairs(unitClient:GetChildren()) do
+                if unit:IsA("Model") then
+                    snapshot[unit.Name] = {
+                        position = unit.WorldPivot.Position,
+                        timestamp = tick()
+                    }
+                end
+            end
+        end
+    end
+    return snapshot
+end
+
+local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot, expectedPosition, originalUnitName)
+    local newUnits = {}
+    
+    -- Find units that exist in 'after' but not in 'before'
+    for unitName, unitData in pairs(afterSnapshot) do
+        if not beforeSnapshot[unitName] then
+            table.insert(newUnits, {
+                name = unitName,
+                position = unitData.position,
+                timestamp = unitData.timestamp
+            })
+        end
+    end
+    
+    if #newUnits == 0 then
+        return nil
+    end
+    
+    -- If only one new unit, return it
+    if #newUnits == 1 then
+        return newUnits[1].name
+    end
+    
+    -- If multiple new units, find the one closest to expected position
+    local closestUnit = nil
+    local closestDistance = math.huge
+    local baseUnitName = originalUnitName:match("^(.-)%s*%d*$")
+    
+    for _, unitInfo in pairs(newUnits) do
+        -- Check if unit matches the expected type
+        local unitBaseName = unitInfo.name:match("^(.-)%s*%d*$")
+        if unitBaseName == baseUnitName then
+            local distance = (unitInfo.position - expectedPosition).Magnitude
+            if distance < closestDistance then
+                closestDistance = distance
+                closestUnit = unitInfo.name
+            end
+        end
+    end
+    
+    return closestUnit
+end
+
 local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     local ground = Services.Workspace:FindFirstChild("Ground")
 
@@ -937,7 +1005,6 @@ mt.__namecall = newcclosure(function(self, ...)
         task.spawn(function()
             -- Detection for spawnunit remote
             if isRecording and method == "InvokeServer" and self.Name == "spawnunit" then
-                local unitsBefore = countPlacedUnits()
                 local unitData = args[1]
                 local unitName = unitData[1]
                 local unitCFrame = unitData[2]
@@ -946,19 +1013,25 @@ mt.__namecall = newcclosure(function(self, ...)
                 local timestamp = tick()
                 local currentWaveNum = getCurrentWave()
                 
+                -- Take snapshot before placement
+                local beforeSnapshot = takeUnitSnapshot()
+                
                 -- Increment placement counter BEFORE attempting placement
                 recordingPlacementCounter = recordingPlacementCounter + 1
                 local thisPlacementOrder = recordingPlacementCounter
                 
                 print(string.format("Recording placement attempt #%d for %s", thisPlacementOrder, unitName))
                 
+                -- Wait for placement to complete
                 task.wait(1.5)
                 
-                local unitsAfter = countPlacedUnits()
+                -- Take snapshot after placement
+                local afterSnapshot = takeUnitSnapshot()
                 
-                if unitsAfter > unitsBefore then
-                    local actualUnitName = findLatestSpawnedUnit(unitName, unitCFrame)
-                    
+                -- Find the newly placed unit
+                local actualUnitName = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot, unitCFrame.Position, unitName)
+                
+                if actualUnitName then
                     local placementData = {
                         action = "PlaceUnit",
                         unitName = unitName,
@@ -974,14 +1047,19 @@ mt.__namecall = newcclosure(function(self, ...)
                     
                     table.insert(macro, placementData)
                     
-                    -- FIXED: Store mapping using the ACTUAL unit name that appears in server
-                    if actualUnitName then
-                        unitMapping[actualUnitName] = thisPlacementOrder
-                        print(string.format("🔗 Stored mapping: '%s' -> placement #%d", actualUnitName, thisPlacementOrder))
-                    end
+                    -- Store mapping using the actual unit name
+                    unitMapping[actualUnitName] = thisPlacementOrder
+                    
+                    -- Also store in placement history for better tracking
+                    unitTracker.placementHistory[thisPlacementOrder] = {
+                        originalName = unitName,
+                        actualName = actualUnitName,
+                        position = unitCFrame.Position,
+                        timestamp = timestamp
+                    }
                     
                     print(string.format("✅ Recorded placement #%d: %s -> %s", 
-                        thisPlacementOrder, unitName, actualUnitName or "Unknown"))
+                        thisPlacementOrder, unitName, actualUnitName))
                 else
                     -- If placement failed, decrement the counter
                     recordingPlacementCounter = recordingPlacementCounter - 1
@@ -1192,6 +1270,46 @@ local function unitExistsInServer(unitName)
     return playerUnitsFolder:FindFirstChild(unitName) ~= nil
 end
 
+local function findUnitForPlayback(placementOrder, originalUnitName)
+    -- First try exact mapping
+    local mappedUnit = playbackUnitMapping[placementOrder]
+    if mappedUnit and unitExistsInServer(mappedUnit) then
+        return mappedUnit
+    end
+    
+    -- If exact mapping failed, search by unit type and placement order
+    local baseUnitName = originalUnitName:match("^(.-)%s*%d*$")
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    
+    if not playerUnitsFolder then
+        return nil
+    end
+    
+    -- Look for units of the same type
+    local candidateUnits = {}
+    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        local unitBaseName = unit.Name:match("^(.-)%s*%d*$")
+        if unitBaseName == baseUnitName then
+            table.insert(candidateUnits, unit.Name)
+        end
+    end
+    
+    -- Sort by unit number (e.g., "Unit 1", "Unit 2", etc.)
+    table.sort(candidateUnits, function(a, b)
+        local numA = tonumber(a:match("%d+$")) or 0
+        local numB = tonumber(b:match("%d+$")) or 0
+        return numA < numB
+    end)
+    
+    -- Return the unit corresponding to placement order (1st placed = index 1, etc.)
+    if candidateUnits[placementOrder] then
+        return candidateUnits[placementOrder]
+    end
+    
+    -- Fallback: return first available unit of this type
+    return candidateUnits[1]
+end
+
 local function getPlayerMoney()
     return tonumber(Services.Players.LocalPlayer.GameData.Yen.Value) or 0
 end
@@ -1352,7 +1470,7 @@ end
 
 local function executeUnitUpgrade(actionData)
     local targetOrder = actionData.targetPlacementOrder or 0
-    local currentUnitName = playbackUnitMapping[targetOrder]
+    local currentUnitName = findUnitForPlayback(targetOrder, actionData.unitName or actionData.actualUnitName)
     
     if not currentUnitName or targetOrder == 0 then
         warn(string.format("❌ Could not find current unit name for placement #%d", targetOrder))
@@ -1371,7 +1489,6 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
-    -- Get upgrade cost
     local upgradeCost = getUnitUpgradeCost(currentUnitName)
     
     if not upgradeCost then
@@ -1380,20 +1497,17 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
-    -- Wait for sufficient money
     local unitDescription = string.format("upgrade %s", currentUnitName)
     if not waitForSufficientMoney(upgradeCost, unitDescription) then
-        return false -- Playback was stopped while waiting
+        return false
     end
     
-    -- Attempt the upgrade
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
             :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
     end)
     
     if success then
-        -- Wait a moment and verify upgrade level increased
         task.wait(0.5)
         local upgradeLevelAfter = getUnitUpgradeLevel(currentUnitName)
         
