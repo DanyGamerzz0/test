@@ -1,4 +1,4 @@
---pipi
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.01"
@@ -129,6 +129,9 @@ local State = {
    AutoJoinPortalSelected = nil,
 
    AutoJoinChallenge = nil,
+
+   AutoJoinTower = nil,
+   AutoJoinTowerSelected = nil,
 
    AutoVoteRetry = false,
    AutoVoteNext = false,
@@ -531,6 +534,28 @@ end)
         State.AutoJoinWorldlinesSelected = extracted
     end,
 })
+
+    local JoinerSection00 = JoinerTab:CreateSection("🪜 Tower Joiner 🪜")
+
+    local AutoJoinTowerToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Tower",
+    CurrentValue = false,
+    Flag = "AutoJoinTower",
+    Callback = function(Value)
+        State.AutoJoinTower = Value
+    end,
+    })
+
+     local AutoJoinTowerStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Tower to join",
+    Options = {"Cursed Place","The Lost Ancient World"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoJoinTowerSelector",
+    Callback = function(Options)
+        State.AutoJoinTowerSelected = Options[1]
+    end,
+}) 
 
     local JoinerSection00 = JoinerTab:CreateSection("🚪 Gate Joiner 🚪")
 
@@ -2594,10 +2619,9 @@ local function playMacroLoop()
                     print(string.format("❌ Action %d failed after all attempts - skipping to next action", actionIndex))
                 end
                 
-                print("actionIndex = actionIndex + 1")
+                --print("actionIndex = actionIndex + 1")
                 actionIndex = actionIndex + 1
             end
-            
             local entityCount = countPlacedUnits()
             local waitTime = entityCount > 20 and 0.5 or 0.1
             task.wait(waitTime)
@@ -3005,6 +3029,18 @@ local function checkAndExecuteHighestPriority()
 
             task.delay(5, clearProcessingState)
             return
+    end
+
+    --TOWER ADVENTURES
+    if State.AutoJoinTower and State.AutoJoinTowerSelected then
+        setProcessingState("Auto Join Tower")
+
+        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Tower Adventures",{State.AutoJoinTowerSelected,Services.Players.LocalPlayer.Stages[State.AutoJoinTowerSelected].Floor.Value,"Tower Adventures"})
+        task.wait(1)
+        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CreatingPortal"):InvokeServer("Create",{State.AutoJoinTowerSelected,Services.Players.LocalPlayer.Stages[State.AutoJoinTowerSelected].Floor.Value,"Tower Adventures"})
+
+        task.delay(5, clearProcessingState)
+        return
     end
 
     if State.AutoJoinEvent and State.AutoJoinEventSelected then
