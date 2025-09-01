@@ -1,4 +1,4 @@
---2
+--3
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2795,7 +2795,7 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local GameSection = ShopTab:CreateSection("🪙 Merchant 🪙")
+local GameSection = ShopTab:CreateSection("💰 Merchant 💰")
 
 local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Merchant Items",
@@ -3007,7 +3007,7 @@ end)
     end,
     })
 
-    local JoinerSection98285728 = JoinerTab:CreateSection("🤖 Advanced AutoPlay 🤖")
+    local JoinerSection98285728 = JoinerTab:CreateSection("🎮 Advanced AutoPlay 🎮")
 
     local Toggle = JoinerTab:CreateToggle({
     Name = "Auto Select Path For Boss Rush/Rift Storm",
@@ -3565,10 +3565,12 @@ task.spawn(function()
     --local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
 local Dropdown = GameTab:CreateDropdown({
-   Name = "AutoSell Unit (will remove it as soon as cooldown is over)",
+   Name = "AutoSell Unit",
    Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
    CurrentOption = {"No Unit"},
    MultipleOptions = false,
+   Info = "Will remove the unit as soon as cd is over.",
+   TextScaled = false,
    Flag = "AutoSellUnitDropdown", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
    Callback = function(Option)
         State.AutoSellUnitChoice = Option
@@ -3674,9 +3676,11 @@ end)
     })
 
      Toggle = GameTab:CreateToggle({
-    Name = "Enable Game Failsafe (Will teleport to lobby after x seconds)",
+    Name = "Enable Game Failsafe",
     CurrentValue = false,
     Flag = "AutoFailSafeEnabled",
+    Info = "Will teleport to lobby after x amount of seconds of game inactivity.",
+    TextScaled = false,
     Callback = function(Value)
         State.AutoFailSafeEnabled = Value
     end,
@@ -3693,6 +3697,8 @@ end)
         State.AutoFailSafeNumber = Value
    end,
 })
+
+local GameSection = GameTab:CreateSection("👥 Auto Team Selector 👥")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Enable x team for x mode",
@@ -3758,6 +3764,8 @@ end)
     end,
     })
 
+local GameSection = GameTab:CreateSection("🎮 Auto Play 🎮")
+
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Play",
     CurrentValue = false,
@@ -3770,7 +3778,7 @@ end)
     end,
     })
 
-         Slider = AutoPlayTab:CreateSlider({
+   Slider = AutoPlayTab:CreateSlider({
    Name = "Delay Auto Play by",
    Range = {0, 300},
    Increment = 1,
@@ -3781,6 +3789,34 @@ end)
         State.AutoPlayDelayNumber = Value
    end,
 })
+
+local GameSection = GameTab:CreateSection("💥 Auto Ultimate 💥")
+
+    Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Use Ultimate(s)",
+    CurrentValue = false,
+    Flag = "AutoUltimate",
+    Callback = function(Value)
+        State.AutoUltimateEnabled = Value
+        if Value then
+            task.spawn(autoUltimateLoop)
+        end
+    end,
+    })
+
+   Slider = AutoPlayTab:CreateSlider({
+   Name = "Delay Ultimate Usage by",
+   Range = {0, 100},
+   Increment = 1,
+   Suffix = "seconds",
+   CurrentValue = 0,
+   Flag = "DelayAutoUltimateSlider",
+   Callback = function(Value)
+        State.DelayAutoUltimate = Value
+   end,
+})
+
+local GameSection = GameTab:CreateSection("🆙 Auto Upgrade 🆙")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Upgrade Units",
@@ -3798,42 +3834,7 @@ end)
     end,
     })
 
-       Toggle = AutoPlayTab:CreateToggle({
-    Name = "Auto Use Ultimate(s)",
-    CurrentValue = false,
-    Flag = "AutoUltimate",
-    Callback = function(Value)
-        State.AutoUltimateEnabled = Value
-        if Value then
-            task.spawn(autoUltimateLoop)
-        end
-    end,
-    })
-
-     Slider = AutoPlayTab:CreateSlider({
-   Name = "Delay Ultimate Usage by",
-   Range = {0, 100},
-   Increment = 1,
-   Suffix = "seconds",
-   CurrentValue = 0,
-   Flag = "DelayAutoUltimateSlider",
-   Callback = function(Value)
-        State.DelayAutoUltimate = Value
-   end,
-})
-
-      Toggle = AutoPlayTab:CreateToggle({
-    Name = "Auto Delete Unit(s) on level",
-    CurrentValue = false,
-    Flag = "AutoReDeployToggle",
-    Callback = function(Value)
-        State.AutoReDeployEnabled = Value
-    end,
-    })
-
-    local Labelinfo = AutoPlayTab:CreateLabel("Auto Delete Unit(s) on level: level 0 = disable", "info")
-
-       AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
+    AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
     Name = "Select Upgrade Method",
     Options = {"Left to right until max"},
     CurrentOption = {"Left to right until max"},
@@ -3851,7 +3852,7 @@ end)
     end,
     })
 
-     Slider1 = AutoPlayTab:CreateSlider({
+    Slider1 = AutoPlayTab:CreateSlider({
     Name = "Unit 1 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3863,7 +3864,7 @@ end)
     end,
     })
 
-     Slider1_5 = AutoPlayTab:CreateSlider({
+    Slider1_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 1 until level",
     Range = {0, 9},
     Increment = 1,
@@ -3875,19 +3876,7 @@ end)
     end,
     })
 
-     Slider1_6 = AutoPlayTab:CreateSlider({
-    Name = "Sell Unit 1 After It Reaches",
-    Range = {0, 9},
-    Increment = 1,
-    Suffix = " Level",
-    CurrentValue = 0,
-    Flag = "Unit1ReDeployLevel",
-    Callback = function(Value)
-        Config.unitReDeployLevel[1] = Value
-    end,
-    })
-
-     Slider2 = AutoPlayTab:CreateSlider({
+    Slider2 = AutoPlayTab:CreateSlider({
     Name = "Unit 2 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3911,19 +3900,7 @@ end)
     end,
     })
 
-     Slider2_6 = AutoPlayTab:CreateSlider({
-    Name = "Sell Unit 2 After It Reaches",
-    Range = {0, 9},
-    Increment = 1,
-    Suffix = " Level",
-    CurrentValue = 0,
-    Flag = "Unit2ReDeployLevel",
-    Callback = function(Value)
-        Config.unitReDeployLevel[2] = Value
-    end,
-    })
-
-     Slider3 = AutoPlayTab:CreateSlider({
+    Slider3 = AutoPlayTab:CreateSlider({
     Name = "Unit 3 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3947,19 +3924,7 @@ end)
     end,
     })
 
-     Slider3_6 = AutoPlayTab:CreateSlider({
-    Name = "Sell Unit 3 After It Reaches",
-    Range = {0, 9},
-    Increment = 1,
-    Suffix = " Level",
-    CurrentValue = 0,
-    Flag = "Unit3ReDeployLevel",
-    Callback = function(Value)
-        Config.unitReDeployLevel[3] = Value
-    end,
-    })
-
-     Slider4 = AutoPlayTab:CreateSlider({
+    Slider4 = AutoPlayTab:CreateSlider({
     Name = "Unit 4 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -3983,19 +3948,7 @@ end)
     end,
     })
 
-     Slider4_6 = AutoPlayTab:CreateSlider({
-    Name = "Sell Unit 4 After It Reaches",
-    Range = {0, 9},
-    Increment = 1,
-    Suffix = " Level",
-    CurrentValue = 0,
-    Flag = "Unit4ReDeployLevel",
-    Callback = function(Value)
-        Config.unitReDeployLevel[4] = Value
-    end,
-    })
-
-     Slider5 = AutoPlayTab:CreateSlider({
+    Slider5 = AutoPlayTab:CreateSlider({
     Name = "Unit 5 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -4019,19 +3972,7 @@ end)
     end,
     })
 
-     Slider5_6 = AutoPlayTab:CreateSlider({
-    Name = "Sell Unit 5 After It Reaches",
-    Range = {0, 9},
-    Increment = 1,
-    Suffix = " Level",
-    CurrentValue = 0,
-    Flag = "Unit5ReDeployLevel",
-    Callback = function(Value)
-        Config.unitReDeployLevel[5] = Value
-    end,
-    })
-
-     Slider6 = AutoPlayTab:CreateSlider({
+    Slider6 = AutoPlayTab:CreateSlider({
     Name = "Unit 6 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -4043,7 +3984,7 @@ end)
     end,
     })
 
-      Slider6_5 = AutoPlayTab:CreateSlider({
+    Slider6_5 = AutoPlayTab:CreateSlider({
     Name = "Dont deploy unit 6 until level",
     Range = {0, 9},
     Increment = 1,
@@ -4052,6 +3993,79 @@ end)
     Flag = "Unit6DeployCap",
     Callback = function(Value)
         Config.unitDeployLevelCaps[6] = Value
+    end,
+    })
+
+local GameSection = GameTab:CreateSection("🗑️ Auto Delete Unit(s) 🗑️")
+
+      Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Delete Unit(s) on level",
+    CurrentValue = false,
+    Flag = "AutoReDeployToggle",
+    Info = "Level 0 = disable",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoReDeployEnabled = Value
+    end,
+    })
+
+    Slider1_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 1 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit1ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[1] = Value
+    end,
+    })
+
+     Slider2_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 2 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit2ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[2] = Value
+    end,
+    })
+
+     Slider3_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 3 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit3ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[3] = Value
+    end,
+    })
+
+     Slider4_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 4 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit4ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[4] = Value
+    end,
+    })
+
+     Slider5_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 5 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit5ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[5] = Value
     end,
     })
 
