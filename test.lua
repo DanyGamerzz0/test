@@ -1,4 +1,4 @@
---1
+--2
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2671,7 +2671,7 @@ local function redeemallcodes()
     end
 end
 
-local GameSection = GameTab:CreateSection("🏨 Lobby 🏨")
+local GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
 
 CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
@@ -2795,7 +2795,7 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local GameSection = GameTab:CreateSection("🪙 Merchant 🪙")
+local GameSection = ShopTab:CreateSection("🪙 Merchant 🪙")
 
 local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Merchant Items",
@@ -2817,7 +2817,7 @@ local Toggle = ShopTab:CreateToggle({
     end,
     })
 
-local GameSection = GameTab:CreateSection("🔪 Raid Shop 🔪")
+local GameSection = ShopTab:CreateSection("🔪 Raid Shop 🔪")
 
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Raid Shop",
@@ -2839,7 +2839,7 @@ local GameSection = GameTab:CreateSection("🔪 Raid Shop 🔪")
     end,
     })
 
-local GameSection = GameTab:CreateSection("👹 Boss Rush Shop 👹")
+local GameSection = ShopTab:CreateSection("👹 Boss Rush Shop 👹")
 
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Boss Rush Shop",
@@ -2861,7 +2861,7 @@ local GameSection = GameTab:CreateSection("👹 Boss Rush Shop 👹")
     end,
     })
 
-local GameSection = GameTab:CreateSection("🪦 Graveyard Raid Shop 🪦")
+local GameSection = ShopTab:CreateSection("⚰️ Graveyard Raid Shop ⚰️")
 
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Graveyard Raid Shop",
@@ -2883,7 +2883,7 @@ local GameSection = GameTab:CreateSection("🪦 Graveyard Raid Shop 🪦")
     end,
     })
 
-local GameSection = GameTab:CreateSection("🌀 Rift Storm Shop 🌀")
+local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
 
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Rift Storm Shop",
@@ -2905,7 +2905,7 @@ local GameSection = GameTab:CreateSection("🌀 Rift Storm Shop 🌀")
     end,
     })
 
-local GameSection = GameTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
+local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
 
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Swarm Event Shop",
@@ -2927,7 +2927,7 @@ local GameSection = GameTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
     end,
     })
 
-    local GameSection = GameTab:CreateSection("🎁 Claimers 🎁")
+    local GameSection = LobbyTab:CreateSection("🎁 Claimers 🎁")
 
     local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Claim Battlepass",
@@ -2956,7 +2956,7 @@ local GameSection = GameTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
     end,
     })
 
-    local GameSection = GameTab:CreateSection("💤 AFK Chamber 💤")
+    local GameSection = LobbyTab:CreateSection("💤 AFK Chamber 💤")
 
     Toggle = LobbyTab:CreateToggle({
         Name = "Auto Teleport to AFK Chamber",
