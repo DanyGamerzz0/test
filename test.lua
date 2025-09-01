@@ -1,4 +1,3 @@
---4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -305,6 +304,42 @@ local function enableDeleteMap()
         map:Destroy() 
          Services.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = true
     end    
+    end
+end
+
+local function enableBlackScreen()
+    local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
+    
+    if State.enableBlackScreen then
+        if existingGui then return end
+        
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "BlackScreenGui"
+        screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 0)
+        frame.Position = UDim2.new(0, 0, 0, 0)
+        frame.BackgroundColor3 = Color3.new(0, 0, 0)
+        frame.BorderSizePixel = 0
+        frame.Parent = screenGui
+
+        local toggleButton = Instance.new("TextButton")
+        toggleButton.Size = UDim2.new(0, 120, 0, 40)
+        toggleButton.Position = UDim2.new(0.5, -60, 1, -60)
+        toggleButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+        toggleButton.TextColor3 = Color3.new(1, 1, 1)
+        toggleButton.Text = "Toggle Screen"
+        toggleButton.TextScaled = true
+        toggleButton.Parent = screenGui
+
+        toggleButton.MouseButton1Click:Connect(function()
+            frame.Visible = not frame.Visible
+        end)
+    else
+        if existingGui then
+            existingGui:Destroy()
+        end
     end
 end
 
@@ -2752,6 +2787,16 @@ end)
     Callback = function(Value)
         State.enableLowPerformanceMode = Value
         enableLowPerformanceMode()
+    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Black Screen",
+    CurrentValue = false,
+    Flag = "enableBlackScreen",
+    Callback = function(Value)
+        State.enableBlackScreen = Value
+        enableBlackScreen()
     end,
 })
 
