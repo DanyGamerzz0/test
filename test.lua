@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -341,7 +342,7 @@ local function enableBlackScreen()
 
         local toggleButtonFrameTitle = Instance.new("TextLabel")
         toggleButtonFrameTitle.ZIndex = 1
-        toggleButtonFrameTitle.AnchorPoint = UDim.new(0.5,0.5)
+        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
         toggleButtonFrameTitle.BackgroundTransparency = 1
         toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
         toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
@@ -350,7 +351,7 @@ local function enableBlackScreen()
         toggleButtonFrameTitle.Parent = toggleButtonFrame
 
         local toggleButtonFrameButton = Instance.new("TextButton")
-        toggleButtonFrameButton.AnchorPoint = UDim.new(0.5,0.5)
+        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
         toggleButtonFrameButton.BackgroundTransparency = 1
         toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
         toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
