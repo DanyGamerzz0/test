@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -268,7 +269,6 @@ local Window = Rayfield:CreateWindow({
 
 --//TABS\\--
 
-local UpdateLogTab = Window:CreateTab("Update Log", "scroll")
 local LobbyTab = Window:CreateTab("Lobby", "tv")
 local ShopTab = Window:CreateTab("Shop", "shopping-cart")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
@@ -278,16 +278,9 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 --//SECTIONS\\--
 
-local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
-local StatsSection = LobbyTab:CreateSection("🏢 Lobby 🏢")
-
 --//DIVIDERS\\--
-local UpdateLogDivider = UpdateLogTab:CreateDivider()
 
 --//LABELS\\--
-local Label1 = UpdateLogTab:CreateLabel("+ AutoSell Unit, + Redeem All Codes, + New swarm event auto joiner, + New Infinite Mode auto joiner, + Swarm Event Shop Auto Purchase, + Webhook Totals fix")
-local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
-local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
 --//FUNCTIONS\\--
 
@@ -2678,6 +2671,8 @@ local function redeemallcodes()
     end
 end
 
+local GameSection = GameTab:CreateSection("🏨 Lobby 🏨")
+
 CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
     Callback = function()
@@ -2693,9 +2688,11 @@ local Button = LobbyTab:CreateButton({
     })
 
     local Toggle = LobbyTab:CreateToggle({
-    Name = "Auto Curse (open curse UI and select unit manually)",
+    Name = "Auto Curse",
     CurrentValue = false,
     Flag = "AutoCurseToggle",
+    Info = "Open curse UI and select unit manually before enabling.",
+    TextScaled = false,
     Callback = function(Value)
         State.AutoCurseEnabled = Value
         if #State.selectedCurses >= 2 and State.AutoCurseEnabled then
@@ -2728,6 +2725,27 @@ local Button = LobbyTab:CreateButton({
     local GameSection = GameTab:CreateSection("👥 Player 👥")
 
     local Toggle = GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Info = "Prevents roblox kick message.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
+
+    local Toggle = GameTab:CreateToggle({
     Name = "Low Performance Mode",
     CurrentValue = false,
     Flag = "enableLowPerformanceMode",
@@ -2738,9 +2756,11 @@ local Button = LobbyTab:CreateButton({
 })
 
     local Toggle = GameTab:CreateToggle({
-    Name = "Delete Map (Rejoin to disable)",
+    Name = "Delete Map",
     CurrentValue = false,
     Flag = "enableDeleteMap",
+    Info = "Rejoin to disable.",
+    TextScaled = false,
     Callback = function(Value)
         State.enableDeleteMap = Value
         enableDeleteMap()
@@ -2775,6 +2795,8 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
+local GameSection = GameTab:CreateSection("🪙 Merchant 🪙")
+
 local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Merchant Items",
     CurrentValue = false,
@@ -2794,6 +2816,8 @@ local Toggle = ShopTab:CreateToggle({
         Data.MerchantPurchaseTable = Options
     end,
     })
+
+local GameSection = GameTab:CreateSection("🔪 Raid Shop 🔪")
 
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Raid Shop",
@@ -2815,6 +2839,8 @@ local Toggle = ShopTab:CreateToggle({
     end,
     })
 
+local GameSection = GameTab:CreateSection("👹 Boss Rush Shop 👹")
+
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Boss Rush Shop",
     CurrentValue = false,
@@ -2834,6 +2860,8 @@ local Toggle = ShopTab:CreateToggle({
         Data.BossRushPurchaseTable = Options
     end,
     })
+
+local GameSection = GameTab:CreateSection("🪦 Graveyard Raid Shop 🪦")
 
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Graveyard Raid Shop",
@@ -2855,6 +2883,8 @@ local Toggle = ShopTab:CreateToggle({
     end,
     })
 
+local GameSection = GameTab:CreateSection("🌀 Rift Storm Shop 🌀")
+
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Rift Storm Shop",
     CurrentValue = false,
@@ -2875,6 +2905,8 @@ local Toggle = ShopTab:CreateToggle({
     end,
     })
 
+local GameSection = GameTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
+
     local Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Swarm Event Shop",
     CurrentValue = false,
@@ -2894,6 +2926,8 @@ local Toggle = ShopTab:CreateToggle({
         Data.SwarmEventPurchaseTable = Options
     end,
     })
+
+    local GameSection = GameTab:CreateSection("🎁 Claimers 🎁")
 
     local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Claim Battlepass",
@@ -2922,6 +2956,8 @@ local Toggle = ShopTab:CreateToggle({
     end,
     })
 
+    local GameSection = GameTab:CreateSection("💤 AFK Chamber 💤")
+
     Toggle = LobbyTab:CreateToggle({
         Name = "Auto Teleport to AFK Chamber",
         CurrentValue = false,
@@ -2939,25 +2975,6 @@ local Toggle = ShopTab:CreateToggle({
         State.AntiAfkEnabled = Value
     end,
 })
-
-    local Toggle = LobbyTab:CreateToggle({
-    Name = "Anti AFK (No kick message)",
-    CurrentValue = false,
-    Flag = "AntiAfkKickToggle",
-    Callback = function(Value)
-        State.AntiAfkKickEnabled = Value
-    end,
-})
-
-task.spawn(function()
-    Services.Players.LocalPlayer.Idled:Connect(function()
-        if State.AntiAfkKickEnabled then
-            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-            task.wait(1)
-            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-        end
-    end)
-end)
 
 task.spawn(function()
     while true do
