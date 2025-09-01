@@ -1,4 +1,4 @@
---4
+--5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -325,7 +325,7 @@ local function enableBlackScreen()
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 1, 36)
         frame.Position = UDim2.new(0, 0, 0, -36)
-        frame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
+        frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
         frame.BorderSizePixel = 0
         frame.Parent = screenGui
         frame.ZIndex = 999999
@@ -333,7 +333,7 @@ local function enableBlackScreen()
         local toggleButtonFrame = Instance.new("Frame")
         toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
         toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
-        toggleButtonFrame.BackgroundColor3 = Color3.new(50,50,50)
+        toggleButtonFrame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
         toggleButtonFrame.BackgroundTransparency = 0.5
         toggleButtonFrame.Parent = screenGui
         toggleButtonFrame.ZIndex = 1000000
