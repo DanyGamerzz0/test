@@ -1,4 +1,4 @@
---1
+--3
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3583,9 +3583,9 @@ task.spawn(function()
    end,
 })
 
-    local JoinerSection6 = JoinerTab:CreateSection("🏰 Infinity Castle 🏰")
+     JoinerSection6 = JoinerTab:CreateSection("🏰 Infinity Castle 🏰")
 
-    local Toggle = JoinerTab:CreateToggle({
+     Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Infinity Castle",
     CurrentValue = false,
     Flag = "AutoJoinInfinityCastle",
@@ -3594,7 +3594,7 @@ task.spawn(function()
     end,
     })
 
-    local Toggle = JoinerTab:CreateToggle({
+     Toggle = JoinerTab:CreateToggle({
     Name = "Auto Select Path For Infinity Castle",
     CurrentValue = false,
     Flag = "AutoInfinityCastle",
@@ -3611,7 +3611,7 @@ task.spawn(function()
     local GameSection = GameTab:CreateSection("🎮 Game 🎮")
     --local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
-local Dropdown = GameTab:CreateDropdown({
+ Dropdown = GameTab:CreateDropdown({
    Name = "AutoSell Unit",
    Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
    CurrentOption = {"No Unit"},
@@ -3745,7 +3745,7 @@ end)
    end,
 })
 
-local GameSection = AutoPlayTab:CreateSection("👥 Auto Team Selector 👥")
+ GameSection = AutoPlayTab:CreateSection("👥 Auto Team Selector 👥")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Enable x team for x mode",
@@ -3811,7 +3811,7 @@ local GameSection = AutoPlayTab:CreateSection("👥 Auto Team Selector 👥")
     end,
     })
 
-local GameSection = AutoPlayTab:CreateSection("🎮 Auto Play 🎮")
+ GameSection = AutoPlayTab:CreateSection("🎮 Auto Play 🎮")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Play",
@@ -3837,7 +3837,7 @@ local GameSection = AutoPlayTab:CreateSection("🎮 Auto Play 🎮")
    end,
 })
 
-local GameSection = AutoPlayTab:CreateSection("💥 Auto Ultimate 💥")
+ GameSection = AutoPlayTab:CreateSection("💥 Auto Ultimate 💥")
 
     Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Use Ultimate(s)",
@@ -3863,7 +3863,7 @@ local GameSection = AutoPlayTab:CreateSection("💥 Auto Ultimate 💥")
    end,
 })
 
-local GameSection = AutoPlayTab:CreateSection("🆙 Auto Upgrade 🆙")
+ GameSection = AutoPlayTab:CreateSection("🆙 Auto Upgrade 🆙")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Upgrade Units",
