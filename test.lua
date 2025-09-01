@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -54,6 +55,7 @@ local Config = {
 
 local State = {
     AutoPurchaseRiftStorm = false,
+    enableBlackScreen = false,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
     autoPlayDelayActive = false,
