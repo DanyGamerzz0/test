@@ -1,4 +1,4 @@
---6
+--7
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -326,18 +326,39 @@ local function enableBlackScreen()
         frame.BackgroundColor3 = Color3.new(0, 0, 0)
         frame.BorderSizePixel = 0
         frame.Parent = screenGui
-        frame.ZIndex = math.huge
+        frame.ZIndex = 999
 
-        local toggleButton = Instance.new("TextButton")
-        toggleButton.Size = UDim2.new(0, 120, 0, 40)
-        toggleButton.Position = UDim2.new(0.5, -60, 1, -60)
-        toggleButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
-        toggleButton.TextColor3 = Color3.new(1, 1, 1)
-        toggleButton.Text = "Toggle Screen"
-        toggleButton.TextScaled = true
-        toggleButton.Parent = screenGui
+        local toggleButtonFrame = Instance.new("Frame")
+        toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
+        toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
+        toggleButtonFrame.BackgroundColor3 = Color3.new(50,50,50)
+        toggleButtonFrame.Parent = screenGui
+        toggleButtonFrame.ZIndex = 1000
 
-        toggleButton.MouseButton1Click:Connect(function()
+        local toggleButtonFrameUICorner =  Instance.new("UICorner")
+        toggleButtonFrameUICorner.CornerRadius = UDim.new(1,0)
+        toggleButtonFrameUICorner.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitle = Instance.new("TextLabel")
+        toggleButtonFrameTitle.ZIndex = 1
+        toggleButtonFrameTitle.AnchorPoint = UDim.new(0.5,0.5)
+        toggleButtonFrameTitle.BackgroundTransparency = 1
+        toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameTitle.Text = "Toggle Screen"
+        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
+        toggleButtonFrameTitle.Parent = toggleButtonFrame
+
+        local toggleButtonFrameButton = Instance.new("TextButton")
+        toggleButtonFrameButton.AnchorPoint = UDim.new(0.5,0.5)
+        toggleButtonFrameButton.BackgroundTransparency = 1
+        toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameButton.Text = ""
+        toggleButtonFrameButton.ZIndex = 5
+        toggleButtonFrameButton.Parent = toggleButtonFrame
+
+        toggleButtonFrameButton.MouseButton1Click:Connect(function()
             frame.Visible = not frame.Visible
         end)
     else
