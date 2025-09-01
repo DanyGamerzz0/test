@@ -1,4 +1,4 @@
---5
+--7
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2836,10 +2836,26 @@ local Toggle = GameTab:CreateToggle({
     Name = "Auto Execute Script",
     CurrentValue = false,
     Flag = "enableAutoExecute",
-    Info = "This only auto executes until you leave the game. Its highly suggested to just put the script in your auto execute folder.",
+    Info = "This auto executes and persists through teleports until you disable it.",
     TextScaled = false,
     Callback = function(Value)
         State.enableAutoExecute = Value
+        
+        if Value then
+            -- Enable auto execute
+            print("Auto execute enabled - will persist through teleports")
+            
+            -- Queue the script to execute on teleport
+            if queue_on_teleport then
+                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+            else
+                warn("queue_on_teleport not supported by this executor")
+            end
+        else
+            if queue_on_teleport then
+                queue_on_teleport("") -- Empty string clears queue in most executors
+            end
+        end
     end,
 })
 
