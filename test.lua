@@ -1,4 +1,4 @@
---1
+--4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -56,6 +56,7 @@ local Config = {
 local State = {
     AutoPurchaseRiftStorm = false,
     enableBlackScreen = false,
+    enableAutoExecute = false,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
     autoPlayDelayActive = false,
@@ -319,11 +320,12 @@ local function enableBlackScreen()
         screenGui.Name = "BlackScreenGui"
         screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
         screenGui.IgnoreGuiInset = true
+        screenGui.DisplayOrder = math.huge
 
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 1, 36)
         frame.Position = UDim2.new(0, 0, 0, -36)
-        frame.BackgroundColor3 = Color3.new(0, 0, 0)
+        frame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
         frame.BorderSizePixel = 0
         frame.Parent = screenGui
         frame.ZIndex = 999999
@@ -341,14 +343,18 @@ local function enableBlackScreen()
         toggleButtonFrameUICorner.Parent = toggleButtonFrame
 
         local toggleButtonFrameTitle = Instance.new("TextLabel")
-        toggleButtonFrameTitle.ZIndex = 1
+        toggleButtonFrameTitle.ZIndex = math.huge
         toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
         toggleButtonFrameTitle.BackgroundTransparency = 1
         toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
         toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
         toggleButtonFrameTitle.Text = "Toggle Screen"
+        toggleButtonFrameTitle.TextSize = 15
         toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
         toggleButtonFrameTitle.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitleStroke = Instance.new("UIStroke")
+        toggleButtonFrameTitleStroke.Parent = toggleButtonFrameTitle
 
         local toggleButtonFrameButton = Instance.new("TextButton")
         toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
@@ -356,7 +362,7 @@ local function enableBlackScreen()
         toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
         toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
         toggleButtonFrameButton.Text = ""
-        toggleButtonFrameButton.ZIndex = 5
+        toggleButtonFrameButton.ZIndex = math.huge
         toggleButtonFrameButton.Parent = toggleButtonFrame
 
         toggleButtonFrameButton.MouseButton1Click:Connect(function()
@@ -2823,6 +2829,17 @@ local Toggle = GameTab:CreateToggle({
     Callback = function(Value)
         State.enableBlackScreen = Value
         enableBlackScreen()
+    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Auto Execute Script",
+    CurrentValue = false,
+    Flag = "enableAutoExecute",
+    Info = "This only auto executes until you leave the game. Its highly suggested to just put the script in your auto execute folder.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.enableAutoExecute = Value
     end,
 })
 
