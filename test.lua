@@ -1,4 +1,4 @@
---3
+--4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3698,7 +3698,7 @@ end)
    end,
 })
 
-local GameSection = GameTab:CreateSection("👥 Auto Team Selector 👥")
+local GameSection = AutoPlayTab:CreateSection("👥 Auto Team Selector 👥")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Enable x team for x mode",
@@ -3764,7 +3764,7 @@ local GameSection = GameTab:CreateSection("👥 Auto Team Selector 👥")
     end,
     })
 
-local GameSection = GameTab:CreateSection("🎮 Auto Play 🎮")
+local GameSection = AutoPlayTab:CreateSection("🎮 Auto Play 🎮")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Play",
@@ -3790,7 +3790,7 @@ local GameSection = GameTab:CreateSection("🎮 Auto Play 🎮")
    end,
 })
 
-local GameSection = GameTab:CreateSection("💥 Auto Ultimate 💥")
+local GameSection = AutoPlayTab:CreateSection("💥 Auto Ultimate 💥")
 
     Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Use Ultimate(s)",
@@ -3816,7 +3816,7 @@ local GameSection = GameTab:CreateSection("💥 Auto Ultimate 💥")
    end,
 })
 
-local GameSection = GameTab:CreateSection("🆙 Auto Upgrade 🆙")
+local GameSection = AutoPlayTab:CreateSection("🆙 Auto Upgrade 🆙")
 
      Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Upgrade Units",
@@ -3996,7 +3996,7 @@ local GameSection = GameTab:CreateSection("🆙 Auto Upgrade 🆙")
     end,
     })
 
-local GameSection = GameTab:CreateSection("🗑️ Auto Delete Unit(s) 🗑️")
+local GameSection = AutoPlayTab:CreateSection("🗑️ Auto Delete Unit(s) 🗑️")
 
       Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Delete Unit(s) on level",
