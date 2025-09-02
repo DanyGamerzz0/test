@@ -1,4 +1,3 @@
---7
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2539,31 +2538,30 @@ end)
 
 --//\\--
 
---[[task.spawn(function()
+task.spawn(function()
     while true do
-        task.wait(0.25)
+        task.wait(0.1)
         if isInLobby() then
-                local visual = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Visual")
-                -- UI disabled: delete and backup
-                if State.DisableSummonUI then
-                    if visual and not visualBackup then
-                        visualBackup = visual:Clone()
-                        pcall(function()
-                            visual:Destroy()
-                        end)
-                    end
-                else
-                    -- UI enabled: restore backup if missing
-                    if not visual and visualBackup then
-                        pcall(function()
-                            visualBackup.Parent = playerGui
-                            visualBackup = nil
-                        end)
-                    end
+            local visual = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Visual")
+            -- UI disabled: hide it and its children
+            if State.DisableSummonUI then
+                if visual then
+                    pcall(function()
+                        -- Hide the main UI
+                        visual.Visible = false
+                        
+                        -- Hide all children recursively (optional extra safety)
+                        for _, child in pairs(visual:GetDescendants()) do
+                            if child:IsA("GuiBase2d") then -- Frame, TextLabel, ImageLabel, etc.
+                                child.Visible = false
+                            end
+                        end
+                    end)
                 end
             end
         end
-end)--]]
+    end
+end)
 
 task.spawn(function()
     while true do
@@ -2738,6 +2736,14 @@ local function redeemallcodes()
     end
 end
 
+local function updateFPSLimit()
+    if State.enableLimitFPS and State.SelectedFPS > 0 then
+        setfpscap(State.SelectedFPS)
+    else
+        setfpscap(0) -- 0 = unlimited
+    end
+end
+
 local GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
 
 CodeButton = LobbyTab:CreateButton({
@@ -2745,6 +2751,15 @@ CodeButton = LobbyTab:CreateButton({
     Callback = function()
         redeemallcodes()
     end,
+})
+
+local Toggle = LobbyTab:CreateToggle({
+   Name = "Disable Summon UI",
+   CurrentValue = false,
+   Flag = "enableDisableSummonUI",
+   Callback = function(Value)
+        State.DisableSummonUI = Value
+   end,
 })
 
 local Button = LobbyTab:CreateButton({
@@ -2840,12 +2855,7 @@ local Toggle = GameTab:CreateToggle({
     TextScaled = false,
     Callback = function(Value)
         State.enableAutoExecute = Value
-        
         if Value then
-            -- Enable auto execute
-            print("Auto execute enabled - will persist through teleports")
-            
-            -- Queue the script to execute on teleport
             if queue_on_teleport then
                 queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
             else
@@ -2869,6 +2879,29 @@ local Toggle = GameTab:CreateToggle({
         State.enableDeleteMap = Value
         enableDeleteMap()
     end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Limit FPS",
+    CurrentValue = false,
+    Flag = "enableLimitFPS",
+    Callback = function(Value)
+        State.enableLimitFPS = Value
+        updateFPSLimit()
+    end,
+})
+
+local Slider = GameTab:CreateSlider({
+   Name = "Limit FPS To",
+   Range = {0, 240},
+   Increment = 1,
+   Suffix = " FPS",
+   CurrentValue = 60,
+   Flag = "FPSSelector",
+   Callback = function(Value)
+        State.SelectedFPS = Value
+        updateFPSLimit()
+   end,
 })
 
 if State.enableLowPerformanceMode then
