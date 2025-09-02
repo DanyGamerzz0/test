@@ -1,4 +1,4 @@
---8
+--9
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -58,6 +58,7 @@ local State = {
     enableBlackScreen = false,
     enableAutoExecute = false,
     enableAutoSummon = false,
+    AutoSummonBannerSelected = nil,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
     autoPlayDelayActive = false,
@@ -2870,7 +2871,7 @@ end
 local function doSummon()
     local args = {
         "10x",
-        "Standard",
+        State.AutoSummonBannerSelected,
         {
             Epic = true,
             Legendary = true,
@@ -2886,6 +2887,8 @@ end
 local function startAutoSummon()
     if not isInLobby() then return end
     if autoSummonActive then return end
+    if not State.enableAutoSummon then return end
+    if not State.AutoSummonBannerSelected then return end
     
     autoSummonActive = true
     print("🎰 Starting Auto Summon...")
@@ -3018,7 +3021,8 @@ local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "enableAutoSummon",
-    Info = "Will start summoning on selected banner, to send obtained units webhook make sure you set your webhook id and then turn off the toggle",
+    Info = "Will start summoning on selected banner, to send obtained units webhook make sure you set your webhook id and then turn off the toggle. If your UI bugs after using this simply rejoin.",
+    TextScaled = true,
     Callback = function(Value)
         State.enableAutoSummon = Value
         if Value then
@@ -3029,15 +3033,14 @@ local Toggle = LobbyTab:CreateToggle({
     end,
 })
 
-local Slider = GameTab:CreateSlider({
-   Name = "Max Camera Zoom Distance",
-   Range = {5, 100},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 35,
-   Flag = "CameraZoomDistanceSelector",
-   Callback = function(Value)
-        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+local Dropdown = LobbyTab:CreateDropdown({
+   Name = "Auto Summon Bannter",
+   Options = {"Standard","RateUp"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "AutoSummonBannerSelection",
+   Callback = function(Options)
+        State.AutoSummonBannerSelected = Options[1]
    end,
 })
 
@@ -3084,6 +3087,18 @@ local Button = LobbyTab:CreateButton({
     local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
     local GameSection = GameTab:CreateSection("👥 Player 👥")
+
+    local Slider = GameTab:CreateSlider({
+   Name = "Max Camera Zoom Distance",
+   Range = {5, 100},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 35,
+   Flag = "CameraZoomDistanceSelector",
+   Callback = function(Value)
+        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+   end,
+})
 
     local Toggle = GameTab:CreateToggle({
     Name = "Anti AFK (No kick message)",
