@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -56,6 +57,7 @@ local State = {
     AutoPurchaseRiftStorm = false,
     enableBlackScreen = false,
     enableAutoExecute = false,
+    enableAutoSummon = false,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
     autoPlayDelayActive = false,
@@ -184,6 +186,10 @@ local Data = {
     selectedChallengeWorlds = {},
    -- CurrentCodes = {"SorryRaids","RAIDS","BizzareUpdate2!","Sorry4Delays","BOSSTAKEOVER","Sorry4Quest","SorryDelay!!!","SummerEvent!","2xWeekEnd!","Sorry4EvoUnits","Sorry4AutoTraitRoll","!TYBW","!MattLovesARX2","!RaitoLovesARX","!BrandonTheBest","!FixBossRushShop","SmallFixs"},
 }
+
+local autoSummonActive = false
+local initialUnits = {}
+local summonTask = nil
 
 local script_version = "V0.1"
 
@@ -2540,31 +2546,6 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(0.1)
-        if isInLobby() then
-            local visual = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Visual")
-            -- UI disabled: hide it and its children
-            if State.DisableSummonUI then
-                if visual then
-                    pcall(function()
-                        -- Hide the main UI
-                        visual.Visible = false
-                        
-                        -- Hide all children recursively (optional extra safety)
-                        for _, child in pairs(visual:GetDescendants()) do
-                            if child:IsA("GuiBase2d") then -- Frame, TextLabel, ImageLabel, etc.
-                                child.Visible = false
-                            end
-                        end
-                    end)
-                end
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    while true do
         task.wait(1) -- check every 5 seconds
 
         if State.AutoSellRarities and typeof(State.SelectedRaritiesToSell) == "table" then
@@ -2744,6 +2725,273 @@ local function updateFPSLimit()
     end
 end
 
+local function getCurrentGems()
+    local leaderstats = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data
+    if leaderstats then
+        local gems = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem
+        if gems then
+            return gems.Value
+        end
+    end
+    return 0
+end
+
+local function showUnitInventory()
+    local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        local unitInventory = playerGui:FindFirstChild("Collection")
+        if unitInventory then
+            unitInventory.Enabled = true
+            unitInventory.Main.Visible = true
+            task.wait(0.5)
+            return true
+        end
+    end
+    return false
+end
+
+local function takeUnitSnapshot()
+    local units = {}
+    local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
+    
+    if playerGui then
+        local unitInventory =playerGui:FindFirstChild("Collection").Main.Base.Space.Unit
+        if unitInventory then
+            for _, unitFrame in pairs(unitInventory:GetDescendants()) do
+                if unitFrame:IsA("TextButton") then
+                    local unitName = unitFrame.Name
+                    if unitName then
+                        local name = unitName
+                        units[name] = (units[name] or 0) + 1
+                    end
+                end
+            end
+        end
+    end
+    return units
+end
+
+local function compareUnits(before, after)
+    local newUnits = {}
+    
+    for unitName, afterCount in pairs(after) do
+        local beforeCount = before[unitName] or 0
+        local difference = afterCount - beforeCount
+        
+        if difference > 0 then
+            newUnits[unitName] = difference
+        end
+    end
+    
+    return newUnits
+end
+
+local function sendSummaryWebhook(newUnits, totalGems)
+    -- Replace with your webhook URL
+    local webhookUrl = ValidWebhook
+    
+    if not webhookUrl or webhookUrl == "YOUR_WEBHOOK_URL_HERE" then
+        print("No webhook URL configured")
+        return
+    end
+    
+    local embed = {
+        title = "🎲 Auto Summon Results",
+        color = 3447003, -- Blue color
+        fields = {},
+        footer = {
+            text = "Total Gems Spent: " .. totalGems
+        },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+    
+    -- Add new units to embed
+    for unitName, count in pairs(newUnits) do
+        table.insert(embed.fields, {
+            name = unitName,
+            value = "x" .. count,
+            inline = true
+        })
+    end
+    
+    if #embed.fields == 0 then
+        embed.description = "No new units obtained this session."
+    end
+    
+    local data = {
+        embeds = {embed}
+    }
+    
+    -- Use executor webhook function
+    local success, result = pcall(function()
+        if syn and syn.request then
+            -- Synapse X
+            return syn.request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = Services.HttpService:JSONEncode(data)
+            })
+        elseif request then
+            -- Script-Ware, Krnl, etc.
+            return request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = Services.HttpService:JSONEncode(data)
+            })
+        elseif http_request then
+            -- Some other executors
+            return http_request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = Services.HttpService:JSONEncode(data)
+            })
+        else
+            error("No HTTP request function available")
+        end
+    end)
+    
+    if success then
+        print("📤 Webhook sent successfully!")
+    else
+        print("❌ Failed to send webhook:", result)
+    end
+end
+
+local function doSummon()
+    local args = {
+        "10x",
+        "Standard",
+        {
+            Epic = true,
+            Legendary = true,
+            Rare = true
+        }
+    }
+    
+    pcall(function()
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("UnitsGacha"):FireServer(unpack(args))
+    end)
+end
+
+local function startAutoSummon()
+    if not isInLobby() then return end
+    if autoSummonActive then return end
+    
+    autoSummonActive = true
+    print("🎰 Starting Auto Summon...")
+    
+    -- Step 1: Show unit inventory
+    if not showUnitInventory() then
+        print("❌ Failed to show unit inventory")
+        autoSummonActive = false
+        return
+    end
+    
+    -- Step 2: Take initial snapshot
+    initialUnits = takeUnitSnapshot()
+    print("📸 Initial units snapshot taken")
+    
+    local initialGems = getCurrentGems()
+    Services.Players.LocalPlayer:SetAttribute("InitialGems", initialGems) -- Store for later use
+    
+    -- Step 3: Start summoning loop
+    summonTask = task.spawn(function()
+        while autoSummonActive do
+            -- Keep collection GUI visible (game tries to hide it)
+            local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                local collection = playerGui:FindFirstChild("Collection")
+                if collection and collection.Main then
+                    collection.Main.Visible = true
+                end
+            end
+            
+            local currentGems = getCurrentGems()
+            
+            -- Check if we have enough gems (500 for 10x summon)
+            if currentGems < 500 then
+                print("💎 Not enough gems! Stopping auto summon...")
+                break
+            end
+            
+            -- Perform summon
+            doSummon()
+            print("🎲 Summoned! Gems remaining:", currentGems)
+            
+            task.wait(2) -- Wait between summons (adjust as needed)
+        end
+        
+        -- Auto summon stopped - generate summary
+        local finalGems = getCurrentGems()
+        gemsSpent = initialGems - finalGems
+        
+        task.wait(1) -- Wait for inventory to update
+        local finalUnits = takeUnitSnapshot()
+        local newUnits = compareUnits(initialUnits, finalUnits)
+        
+        -- Send webhook if any units were obtained
+        local hasNewUnits = false
+        for _, count in pairs(newUnits) do
+            if count > 0 then
+                hasNewUnits = true
+                break
+            end
+        end
+        
+        if hasNewUnits then
+            sendSummaryWebhook(newUnits, gemsSpent)
+            print("📊 Summary sent to webhook!")
+        else
+            print("📊 No new units obtained")
+        end
+        
+        autoSummonActive = false
+        print("🛑 Auto Summon stopped")
+    end)
+end
+
+-- Function to stop auto summon
+local function stopAutoSummon()
+    if not autoSummonActive then return end
+    
+    autoSummonActive = false
+    if summonTask then
+        task.cancel(summonTask)
+        summonTask = nil
+    end
+    
+    -- Generate summary even when manually stopped
+    task.spawn(function()
+        local finalGems = getCurrentGems()
+        local gemsSpent = (Services.Players.LocalPlayer:GetAttribute("InitialGems") or getCurrentGems()) - finalGems
+        
+        task.wait(1) -- Wait for inventory to update
+        local finalUnits = takeUnitSnapshot()
+        local newUnits = compareUnits(initialUnits, finalUnits)
+        
+        -- Send webhook if any units were obtained
+        local hasNewUnits = false
+        for _, count in pairs(newUnits) do
+            if count > 0 then
+                hasNewUnits = true
+                break
+            end
+        end
+        
+        if hasNewUnits then
+            sendSummaryWebhook(newUnits, gemsSpent)
+            print("📊 Summary sent to webhook!")
+        else
+            print("📊 No new units obtained")
+        end
+    end)
+    
+    print("🛑 Auto Summon manually stopped")
+end
+
 local GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
 
 CodeButton = LobbyTab:CreateButton({
@@ -2753,13 +3001,20 @@ CodeButton = LobbyTab:CreateButton({
     end,
 })
 
-local Toggle = LobbyTab:CreateToggle({
-   Name = "Disable Summon UI",
-   CurrentValue = false,
-   Flag = "enableDisableSummonUI",
-   Callback = function(Value)
-        State.DisableSummonUI = Value
-   end,
+local Toggle = GameTab:CreateToggle({
+    Name = "Auto Summon",
+    CurrentValue = false,
+    Flag = "enableAutoSummon",
+    Info = "Automatically summons units and tracks new acquisitions",
+    Callback = function(Value)
+        State.enableAutoSummon = Value
+        
+        if Value then
+            startAutoSummon()
+        else
+            stopAutoSummon()
+        end
+    end,
 })
 
 local Button = LobbyTab:CreateButton({
