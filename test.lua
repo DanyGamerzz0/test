@@ -1,4 +1,4 @@
---5
+--7
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2807,7 +2807,7 @@ local function sendSummaryWebhook(newUnits, totalGems)
             }
         },
         footer = {
-            text = "LixHub"
+            text = "discord.gg/cYKnXE2Nf8"
         },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
@@ -2926,6 +2926,7 @@ local function startAutoSummon()
             if currentGems < 500 then
                 print("💎 Not enough gems! Stopping auto summon...")
                 notify("Auto Summon","Not enough gems! Stopping auto summon...")
+                Services.Players.PlayerGui.HUD.Enabled = true
                 break
             end
             
@@ -2972,6 +2973,7 @@ local function stopAutoSummon()
     if summonTask then
         task.cancel(summonTask)
         summonTask = nil
+        Services.Players.PlayerGui.HUD.Enabled = true
     end
     
     -- Generate summary even when manually stopped
@@ -3012,7 +3014,7 @@ CodeButton = LobbyTab:CreateButton({
     end,
 })
 
-local Toggle = GameTab:CreateToggle({
+local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "enableAutoSummon",
@@ -3025,6 +3027,18 @@ local Toggle = GameTab:CreateToggle({
             stopAutoSummon()
         end
     end,
+})
+
+local Slider = GameTab:CreateSlider({
+   Name = "Max Camera Zoom Distance",
+   Range = {5, 100},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 35,
+   Flag = "CameraZoomDistanceSelector",
+   Callback = function(Value)
+        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+   end,
 })
 
 local Button = LobbyTab:CreateButton({
