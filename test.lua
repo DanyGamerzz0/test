@@ -1,4 +1,4 @@
---9
+--10
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3035,7 +3035,7 @@ local Toggle = LobbyTab:CreateToggle({
 
 local Dropdown = LobbyTab:CreateDropdown({
    Name = "Auto Summon Bannter",
-   Options = {"Standard","RateUp"},
+   Options = {"Standard","Rateup"},
    CurrentOption = {},
    MultipleOptions = false,
    Flag = "AutoSummonBannerSelection",
@@ -4710,3 +4710,12 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
 end)
 
 Rayfield:LoadConfiguration()
+Rayfield:SetVisibility(false)
+
+Rayfield:TopNotify({
+    Title = "UI is hidden",
+    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+    Image = "eye-off", -- Lucide icon name
+    IconColor = Color3.fromRGB(100, 150, 255),
+    Duration = 5
+})
