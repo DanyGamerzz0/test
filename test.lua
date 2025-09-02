@@ -1,4 +1,4 @@
---7
+--8
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2926,7 +2926,7 @@ local function startAutoSummon()
             if currentGems < 500 then
                 print("💎 Not enough gems! Stopping auto summon...")
                 notify("Auto Summon","Not enough gems! Stopping auto summon...")
-                Services.Players.PlayerGui.HUD.Enabled = true
+                Services.Players.LocalPlayer.PlayerGui.HUD.Enabled = true
                 break
             end
             
@@ -2973,7 +2973,7 @@ local function stopAutoSummon()
     if summonTask then
         task.cancel(summonTask)
         summonTask = nil
-        Services.Players.PlayerGui.HUD.Enabled = true
+        Services.Players.LocalPlayer.PlayerGui.HUD.Enabled = true
     end
     
     -- Generate summary even when manually stopped
@@ -3126,11 +3126,11 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
-local Toggle = GameTab:CreateToggle({
+local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Execute Script",
     CurrentValue = false,
     Flag = "enableAutoExecute",
-    Info = "This auto executes and persists through teleports until you disable it.",
+    Info = "This auto executes and persists through teleports until you disable it or leave the game.",
     TextScaled = false,
     Callback = function(Value)
         State.enableAutoExecute = Value
