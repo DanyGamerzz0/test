@@ -1,4 +1,4 @@
---1
+--2
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3124,7 +3124,7 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Delete Map",
     CurrentValue = false,
     Flag = "enableDeleteMap",
@@ -3136,7 +3136,7 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
     Name = "Limit FPS",
     CurrentValue = false,
     Flag = "enableLimitFPS",
@@ -3146,7 +3146,7 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
-local Slider = GameTab:CreateSlider({
+ Slider = GameTab:CreateSlider({
    Name = "Limit FPS To",
    Range = {0, 240},
    Increment = 1,
@@ -3187,9 +3187,9 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local GameSection = ShopTab:CreateSection("💰 Merchant 💰")
+ GameSection = ShopTab:CreateSection("💰 Merchant 💰")
 
-local Toggle = ShopTab:CreateToggle({
+ Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Merchant Items",
     CurrentValue = false,
     Flag = "AutoPurchaseMerchant",
@@ -3198,7 +3198,7 @@ local Toggle = ShopTab:CreateToggle({
     end,
     })
 
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Merchant)",
     Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
     CurrentOption = {},
@@ -3209,9 +3209,9 @@ local Toggle = ShopTab:CreateToggle({
     end,
     })
 
-local GameSection = ShopTab:CreateSection("🔪 Raid Shop 🔪")
+ GameSection = ShopTab:CreateSection("🔪 Raid Shop 🔪")
 
-    local Toggle = ShopTab:CreateToggle({
+     Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Raid Shop",
     CurrentValue = false,
     Flag = "AutoPurchaseRaid",
@@ -3220,7 +3220,7 @@ local GameSection = ShopTab:CreateSection("🔪 Raid Shop 🔪")
     end,
     })
 
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Raid)",
     Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
     CurrentOption = {},
@@ -3231,9 +3231,9 @@ local GameSection = ShopTab:CreateSection("🔪 Raid Shop 🔪")
     end,
     })
 
-local GameSection = ShopTab:CreateSection("👹 Boss Rush Shop 👹")
+ GameSection = ShopTab:CreateSection("👹 Boss Rush Shop 👹")
 
-    local Toggle = ShopTab:CreateToggle({
+     Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Boss Rush Shop",
     CurrentValue = false,
     Flag = "AutoPurchaseBossRush",
@@ -3242,7 +3242,7 @@ local GameSection = ShopTab:CreateSection("👹 Boss Rush Shop 👹")
     end,
     })
 
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Boss Rush)",
     Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Soul Fragments"},
     CurrentOption = {},
@@ -3253,9 +3253,9 @@ local GameSection = ShopTab:CreateSection("👹 Boss Rush Shop 👹")
     end,
     })
 
-local GameSection = ShopTab:CreateSection("⚰️ Graveyard Raid Shop ⚰️")
+ GameSection = ShopTab:CreateSection("⚰️ Graveyard Raid Shop ⚰️")
 
-    local Toggle = ShopTab:CreateToggle({
+     Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Graveyard Raid Shop",
     CurrentValue = false,
     Flag = "AutoPurchaseRaidCSW",
@@ -3264,7 +3264,7 @@ local GameSection = ShopTab:CreateSection("⚰️ Graveyard Raid Shop ⚰️")
     end,
     })
 
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+     MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Graveyard Raid Shop)",
     Options = {"Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
     CurrentOption = {},
@@ -3756,7 +3756,7 @@ end)
     local rewardText = #rewardNames > 0 and table.concat(rewardNames, ", ") or "None"
     local Label3 = JoinerTab:CreateLabel("Current Challenge Rewards: " .. rewardText, "gift")
 
-        local Toggle = JoinerTab:CreateToggle({
+         Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Challenge",
     CurrentValue = false,
     Flag = "AutoChallengeToggle",
@@ -3791,7 +3791,7 @@ end)
         print("✅ Story dropdown(s) updated with", #storyNames, "options")
     end)
 
- local ChallengeDropdown = JoinerTab:CreateDropdown({
+  ChallengeDropdown = JoinerTab:CreateDropdown({
     Name = "Select Challenge Rewards",
     Options = {"Dr. Megga Punk","Ranger Crystal","Stats Key","Perfect Stats Key","Trait Reroll","Cursed Finger"},
     CurrentOption = {},
@@ -3802,7 +3802,7 @@ end)
     end,
     })
 
-    local Toggle = JoinerTab:CreateToggle({
+     Toggle = JoinerTab:CreateToggle({
         Name = "Return to Lobby on New Challenge",
         CurrentValue = false,
         Flag = "AutoReturnChallengeToggle",
@@ -3813,13 +3813,13 @@ end)
 
     local JoinerSection3 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
 
-     local Toggle = JoinerTab:CreateToggle({
+      Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Portal(s)",
     CurrentValue = false,
     Flag = "AutoPortalToggle",
     Callback = function(Value)
         State.autoPortalEnabled = Value
-         if autoPortalEnabled then
+         if State.autoPortalEnabled then
             State.portalUsed = false
          end
     end,
@@ -3852,7 +3852,7 @@ end)
 
     local JoinerSection4 = JoinerTab:CreateSection("🏹 Ranger Stage Joiner 🏹")
 
-        local Toggle = JoinerTab:CreateToggle({
+         Toggle = JoinerTab:CreateToggle({
         Name = "Auto Join Ranger Stage",
         CurrentValue = false,
         Flag = "AutoRangerStageToggle",
@@ -3861,7 +3861,7 @@ end)
         end,
     })
 
-    local RangerStageDropdown = JoinerTab:CreateDropdown({
+     RangerStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Ranger Stage(s) To Join",
     Options = {},
     CurrentOption = {},
@@ -3897,7 +3897,7 @@ task.spawn(function()
 
     local JoinerSectionDungeons = JoinerTab:CreateSection("🌀 Rifts 🌀")
 
-    local Toggle = JoinerTab:CreateToggle({
+     Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Rift Storm",
     CurrentValue = false,
     Flag = "AutoRiftToggle",
@@ -3908,7 +3908,7 @@ task.spawn(function()
 
     local JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Dungeons ⛓️")
 
-    local Toggle = JoinerTab:CreateToggle({
+     Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Dungeon",
     CurrentValue = false,
     Flag = "AutoDungeonToggle",
@@ -3917,7 +3917,7 @@ task.spawn(function()
     end,
     })
 
-   local Dropdown = JoinerTab:CreateDropdown({
+    Dropdown = JoinerTab:CreateDropdown({
    Name = "Select Dungeon Difficulty",
    Options = {"Easy","Normal","Hell"},
    CurrentOption = {},
@@ -4388,7 +4388,7 @@ end)
     end,
     })
 
-local GameSection = AutoPlayTab:CreateSection("🗑️ Auto Delete Unit(s) 🗑️")
+ GameSection = AutoPlayTab:CreateSection("🗑️ Auto Delete Unit(s) 🗑️")
 
       Toggle = AutoPlayTab:CreateToggle({
     Name = "Auto Delete Unit(s) on level",
