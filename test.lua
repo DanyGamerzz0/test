@@ -1,4 +1,4 @@
---2
+--5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2798,14 +2798,21 @@ local function sendSummaryWebhook(newUnits, totalGems)
     local embed = {
         title = "🎲 Auto Summon Results",
         color = 3447003, -- Blue color
-        fields = {},
+        fields = {
+            -- Gems spent at the top
+            {
+                name = "💎 Gems Spent",
+                value = totalGems,
+                inline = false
+            }
+        },
         footer = {
-            text = "Total Gems Spent: " .. totalGems
+            text = "LixHub"
         },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
     
-    -- Add new units to embed
+    -- Add new units to embed (after gems spent)
     for unitName, count in pairs(newUnits) do
         table.insert(embed.fields, {
             name = unitName,
@@ -2814,7 +2821,7 @@ local function sendSummaryWebhook(newUnits, totalGems)
         })
     end
     
-    if #embed.fields == 0 then
+    if #embed.fields == 1 then -- Only gems field exists
         embed.description = "No new units obtained this session."
     end
     
@@ -2882,46 +2889,50 @@ local function startAutoSummon()
     
     autoSummonActive = true
     print("🎰 Starting Auto Summon...")
+    notify("Auto Summon","Starting Auto Summon...")
     
-    -- Step 1: Show unit inventory
     if not showUnitInventory() then
         print("❌ Failed to show unit inventory")
         autoSummonActive = false
         return
     end
     
-    -- Step 2: Take initial snapshot
     initialUnits = takeUnitSnapshot()
     print("📸 Initial units snapshot taken")
     
     local initialGems = getCurrentGems()
-    Services.Players.LocalPlayer:SetAttribute("InitialGems", initialGems) -- Store for later use
+    Services.Players.LocalPlayer:SetAttribute("InitialGems", initialGems)
     
-    -- Step 3: Start summoning loop
-    summonTask = task.spawn(function()
+    -- UI keeping task - runs independently
+    local uiTask = task.spawn(function()
         while autoSummonActive do
-            -- Keep collection GUI visible (game tries to hide it)
             local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
                 local collection = playerGui:FindFirstChild("Collection")
                 if collection and collection.Main then
                     collection.Main.Visible = true
+                    collection.Enabled = true
                 end
             end
-            
+            task.wait(0.1) -- Keep UI enabled every 0.1 seconds
+        end
+    end)
+    
+    -- Main summoning task
+    summonTask = task.spawn(function()
+        while autoSummonActive do
             local currentGems = getCurrentGems()
             
-            -- Check if we have enough gems (500 for 10x summon)
             if currentGems < 500 then
                 print("💎 Not enough gems! Stopping auto summon...")
+                notify("Auto Summon","Not enough gems! Stopping auto summon...")
                 break
             end
             
-            -- Perform summon
             doSummon()
             print("🎲 Summoned! Gems remaining:", currentGems)
             
-            task.wait(2) -- Wait between summons (adjust as needed)
+            task.wait(3) -- Normal 3 second delay between summons
         end
         
         -- Auto summon stopped - generate summary
@@ -3005,10 +3016,9 @@ local Toggle = GameTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "enableAutoSummon",
-    Info = "Automatically summons units and tracks new acquisitions",
+    Info = "Will start summoning on selected banner, to send obtained units webhook make sure you set your webhook id and then turn off the toggle",
     Callback = function(Value)
         State.enableAutoSummon = Value
-        
         if Value then
             startAutoSummon()
         else
