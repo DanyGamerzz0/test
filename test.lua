@@ -1,4 +1,4 @@
---12
+--13
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -58,6 +58,8 @@ local State = {
     enableBlackScreen = false,
     enableAutoExecute = false,
     enableAutoSummon = false,
+    curseMinimums = {},
+    selectedCurseForRequirement = "",
     AutoSummonBannerSelected = nil,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
@@ -3259,7 +3261,7 @@ local CurseSelectorDropdown = LobbyTab:CreateDropdown({
 local CurseRequirementsDropdown = LobbyTab:CreateDropdown({
     Name = "Set Requirements For",
     Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
-    CurrentOption = "Ability Damage",
+    CurrentOption = "",
     MultipleOptions = false,
     Flag = "CurseRequirementsSelector",
     Info = "Select which curse to set minimum percentage for",
@@ -3270,7 +3272,7 @@ local CurseRequirementsDropdown = LobbyTab:CreateDropdown({
 
 local CurseMinimumSlider = LobbyTab:CreateSlider({
     Name = "Minimum Percentage",
-    Range = {1, 50},
+    Range = {1, 15},
     Increment = 1,
     CurrentValue = 1,
     Flag = "CurseMinimumPercentage",
