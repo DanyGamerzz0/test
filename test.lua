@@ -1,4 +1,4 @@
---10
+--11
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -422,7 +422,11 @@ Remotes.SettingEvent:FireServer(unpack({"HeadBar", false}))
 Remotes.SettingEvent:FireServer(unpack({"Display Players Units", false}))
 Remotes.SettingEvent:FireServer(unpack({"DisibleGachaChat", true}))
 Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
+Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.Bottom.Visible = false
+Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
     else
+        Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.Bottom.Visible = true
+        Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = true
         Services.Lighting.Brightness = 1.51
         Services.Lighting.GlobalShadows = true
         Services.Lighting.Technology = Enum.Technology.Future
@@ -2410,42 +2414,109 @@ local function GetAppliedCurses()
 end
 
 local function CursesMatch(applied, selected)
-    local matched = 0
+    if not applied or #applied == 0 then
+        return false
+    end
+    
+    if #selected == 1 then
+        for _, curse in ipairs(applied) do
+            if curse.image == CurseImageIDs[selected[1]] and curse.isGreen then
+                return true
+            end
+        end
+        return false
+    end
+    
+    local foundCurses = {}
     for _, curse in ipairs(applied) do
-        for _, name in ipairs(selected) do
-            if curse.image == CurseImageIDs[name] and curse.isGreen then
-                matched = matched + 1
-                break
-            else
+        if curse.isGreen then
+            for _, selectedName in ipairs(selected) do
+                if curse.image == CurseImageIDs[selectedName] then
+                    foundCurses[selectedName] = true
+                    break
+                end
             end
         end
     end
-    return matched >= 2
+    
+    local foundCount = 0
+    for _ in pairs(foundCurses) do
+        foundCount = foundCount + 1
+    end
+    return foundCount >= 2
 end
 
 local function StartAutoCurse(selectedCurses)
-    if isInLobby() then
-        task.spawn(function()
-            while State.AutoCurseEnabled do
-                local unit = Services.Players.LocalPlayer.PlayerGui:WaitForChild("ApplyCurse").Main.Base.Unit.Frame.UnitFrame.Info.Folder.Value
+    if not isInLobby() then
+        notify("Auto Curse", "Must be in lobby to use auto curse!")
+        return
+    end
+    
+    if #selectedCurses < 1 then -- Changed from < 2 to < 1
+        notify("Auto Curse", "Please select at least 1 curse!")
+        return
+    end
+    
+    task.spawn(function()
+        local attempts = 0
+        local maxAttempts = 9999999 -- You can make this configurable
+        
+        -- Dynamic success message based on selection
+        local targetMessage = #selectedCurses == 1 and 
+            string.format("Looking for: %s", selectedCurses[1]) or
+            string.format("Looking for any 2 of: %s", table.concat(selectedCurses, ", "))
+        
+        notify("Auto Curse", targetMessage)
+        
+        while State.AutoCurseEnabled and attempts < maxAttempts do
+            attempts = attempts + 1
+            
+            local unit = Services.Players.LocalPlayer.PlayerGui:WaitForChild("ApplyCurse").Main.Base.Unit.Frame.UnitFrame.Info.Folder.Value
 
-                if not unit then
-                    notify("Auto Curse","Curse UI/Selected unit are not present!")
-                    task.wait(3)
-                else
-                    Remotes.ApplyCurseRemote:FireServer("ApplyCurse - Normal", unit)
-                    task.wait(0.5)
+            if not unit then
+                notify("Auto Curse","Curse UI/Selected unit are not present!")
+                task.wait(3)
+            else
+                Remotes.ApplyCurseRemote:FireServer("ApplyCurse - Normal", unit)
+                task.wait(0.5)
 
-                    local applied = GetAppliedCurses()
+                local applied = GetAppliedCurses()
 
-                    if CursesMatch(applied, State.selectedCurses) then
-                        notify("Auto Curse", "Done! You can now turn off auto curse")
-                        break
+                if CursesMatch(applied, selectedCurses) then
+                    local successMessage = #selectedCurses == 1 and
+                        string.format("Found %s! (Attempt %d)", selectedCurses[1], attempts) or
+                        string.format("Found matching curses! (Attempt %d)", attempts)
+                    
+                    notify("Auto Curse", successMessage)
+                    State.AutoCurseEnabled = false
+                    break
+                end
+                
+                -- Enhanced logging with percentage info
+                if applied then
+                    local currentCurses = {}
+                    for i, curse in ipairs(applied) do
+                        if curse.isGreen then
+                            for curseName, imageId in pairs(CurseImageIDs) do
+                                if curse.image == imageId then
+                                    local slotInfo = string.format("%s +%d%% (Slot %d)", curseName, curse.percentage, i)
+                                    table.insert(currentCurses, slotInfo)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    if #currentCurses > 0 then
+                        print(string.format("Attempt %d got: %s", attempts, table.concat(currentCurses, ", ")))
                     end
                 end
             end
-        end)
-    end
+        end
+        
+        if attempts >= maxAttempts then
+            notify("Auto Curse", "Max attempts reached without success!")
+        end
+    end)
 end
 
 local function deleteUnit(unitName)
@@ -3051,7 +3122,7 @@ local Button = LobbyTab:CreateButton({
         end,
     })
 
-    local Toggle = LobbyTab:CreateToggle({
+local AutoCurseToggle = LobbyTab:CreateToggle({
     Name = "Auto Curse",
     CurrentValue = false,
     Flag = "AutoCurseToggle",
@@ -3059,8 +3130,10 @@ local Button = LobbyTab:CreateButton({
     TextScaled = false,
     Callback = function(Value)
         State.AutoCurseEnabled = Value
-        if #State.selectedCurses >= 2 and State.AutoCurseEnabled then
+        if #State.selectedCurses >= 1 and State.AutoCurseEnabled then
             StartAutoCurse(State.selectedCurses)
+        elseif Value and #State.selectedCurses < 1 then
+            notify("Auto Curse", "Please select at least 1 curse first!")
         end
     end,
 })
@@ -3073,6 +3146,11 @@ local CurseSelectorDropdown = LobbyTab:CreateDropdown({
     Flag = "CurseSelector",
     Callback = function(Options)
         State.selectedCurses = Options
+        if State.AutoCurseEnabled and #Options < 1 then
+            State.AutoCurseEnabled = false
+            AutoCurseToggle:SetValue(false)
+            notify("Auto Curse", "Auto curse disabled - need at least 1 curse selected!")
+        end
     end,
 })
 
@@ -4119,7 +4197,7 @@ end)
 
      Slider = GameTab:CreateSlider({
    Name = "Start Failsafe after",
-   Range = {1, 600},
+   Range = {1, 3600},
    Increment = 1,
    Suffix = "seconds",
    CurrentValue = 300,
