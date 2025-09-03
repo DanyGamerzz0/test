@@ -1,4 +1,4 @@
---15
+--16
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2516,18 +2516,14 @@ local function GetSelectedUnit()
         if not applyCurseGui then
             return nil
         end
-        
-        local unitPath = applyCurseGui:FindFirstChild("Main") 
+
+        local unitFolder = applyCurseGui:FindFirstChild("Main")
             and applyCurseGui.Main:FindFirstChild("Base")
-            and applyCurseGui.Main.Base:FindFirstChild("Unit")
-            and applyCurseGui.Main.Base.Unit:FindFirstChild("Frame")
-            and applyCurseGui.Main.Base.Unit.Frame:FindFirstChild("UnitFrame")
-            and applyCurseGui.Main.Base.Unit.Frame.UnitFrame:FindFirstChild("Info")
-            and applyCurseGui.Main.Base.Unit.Frame.UnitFrame.Info:FindFirstChild("Folder")
-        
-        return unitPath and unitPath.Value or nil
+            and applyCurseGui.Main.Base:FindFirstChild("UnitFolder")
+
+        return unitFolder and unitFolder.Value or nil
     end)
-    
+
     return success and unit or nil
 end
 
@@ -3318,6 +3314,7 @@ local ResetButton = LobbyTab:CreateButton({
         State.selectedCurses = {}
         State.curseMinimums = {}
         CurseSelectorDropdown:Set({})
+        CurseRequirementsDropdown:Set({})
         notify("Auto Curse", "All settings cleared")
     end,
 })
