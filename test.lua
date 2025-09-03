@@ -1,4 +1,4 @@
---11
+--12
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2401,11 +2401,30 @@ local function GetAppliedCurses()
         if statFrame.Name == "StatTemp" then
             local icon = statFrame:FindFirstChild("StatsIconic")
             local buffIcon = statFrame:FindFirstChild("BuffIconic")
+            local percentageLabel = statFrame:FindFirstChild("StatsPercentage") -- You might need to adjust this name
+            
             if icon and buffIcon then
                 local isGreen = buffIcon.Image == "rbxassetid://73853750530888"
+                local percentage = 0
+                
+                -- Extract percentage value from the label
+                if percentageLabel and percentageLabel.Text then
+                    local percentText = percentageLabel.Text
+                    -- Extract number from text like "+15%" or "-7%"
+                    local sign, number = percentText:match("([+-]?)(%d+)")
+                    if number then
+                        percentage = tonumber(number) or 0
+                        if sign == "-" then
+                            percentage = -percentage
+                        end
+                    end
+                end
+                
                 table.insert(results, {
                     image = icon.Image,
                     isGreen = isGreen,
+                    percentage = percentage,
+                    slot = #results + 1
                 })
             end
         end
@@ -2418,32 +2437,97 @@ local function CursesMatch(applied, selected)
         return false
     end
     
+    -- If only 1 curse selected, find it anywhere with its requirement
     if #selected == 1 then
+        local targetCurse = selected[1]
+        local minRequired = State.curseMinimums[targetCurse] or 1
+        
         for _, curse in ipairs(applied) do
-            if curse.image == CurseImageIDs[selected[1]] and curse.isGreen then
-                return true
+            if curse.image == CurseImageIDs[targetCurse] and curse.isGreen then
+                -- Check if this curse meets its minimum requirement
+                local isReverseStat = targetCurse == "Attack Cooldown" or targetCurse == "Ability Cooldown"
+                
+                if isReverseStat then
+                    -- For reverse stats, we want curse.percentage <= -minRequired
+                    if curse.percentage <= -minRequired then
+                        return true
+                    end
+                else
+                    -- For normal stats, we want curse.percentage >= minRequired
+                    if curse.percentage >= minRequired then
+                        return true
+                    end
+                end
             end
         end
         return false
     end
     
+    -- For multiple curses, find ANY of them that meet their individual requirements
     local foundCurses = {}
     for _, curse in ipairs(applied) do
         if curse.isGreen then
             for _, selectedName in ipairs(selected) do
                 if curse.image == CurseImageIDs[selectedName] then
-                    foundCurses[selectedName] = true
+                    local minRequired = State.curseMinimums[selectedName] or 1
+                    local meetsRequirement = true
+                    
+                    -- Check if this specific curse meets its requirement
+                    local isReverseStat = selectedName == "Attack Cooldown" or selectedName == "Ability Cooldown"
+                    
+                    if isReverseStat then
+                        -- For reverse stats, we want curse.percentage <= -minRequired
+                        if curse.percentage > -minRequired then
+                            meetsRequirement = false
+                        end
+                    else
+                        -- For normal stats, we want curse.percentage >= minRequired
+                        if curse.percentage < minRequired then
+                            meetsRequirement = false
+                        end
+                    end
+                    
+                    if meetsRequirement then
+                        foundCurses[selectedName] = true
+                    end
                     break
                 end
             end
         end
     end
     
+    -- Count how many different selected curses we found that meet their requirements
     local foundCount = 0
     for _ in pairs(foundCurses) do
         foundCount = foundCount + 1
     end
+    
+    -- Success if we found at least 2 of our selected curses with proper percentages
     return foundCount >= 2
+end
+
+local function GetSelectedUnit()
+    local success, unit = pcall(function()
+        local playerGui = Services.Players.LocalPlayer.PlayerGui
+        local applyCurseGui = playerGui:FindFirstChild("ApplyCurse")
+        
+        if not applyCurseGui then
+            return nil
+        end
+        
+        local unitPath = applyCurseGui:FindFirstChild("Main") 
+            and applyCurseGui.Main:FindFirstChild("Base")
+            and applyCurseGui.Main.Base:FindFirstChild("Unit")
+            and applyCurseGui.Main.Base.Unit:FindFirstChild("Frame")
+            and applyCurseGui.Main.Base.Unit.Frame:FindFirstChild("UnitFrame")
+            and applyCurseGui.Main.Base.Unit.Frame.UnitFrame:FindFirstChild("Info")
+            and applyCurseGui.Main.Base.Unit.Frame.UnitFrame.Info:FindFirstChild("Folder")
+            and applyCurseGui.Main.Base.Unit.Frame.UnitFrame.Info.Folder:FindFirstChild("Value")
+        
+        return unitPath and unitPath.Value or nil
+    end)
+    
+    return success and unit or nil
 end
 
 local function StartAutoCurse(selectedCurses)
@@ -2452,14 +2536,14 @@ local function StartAutoCurse(selectedCurses)
         return
     end
     
-    if #selectedCurses < 1 then -- Changed from < 2 to < 1
+    if #selectedCurses < 1 then
         notify("Auto Curse", "Please select at least 1 curse!")
         return
     end
     
     task.spawn(function()
         local attempts = 0
-        local maxAttempts = 9999999 -- You can make this configurable
+        local maxAttempts = 50
         
         -- Dynamic success message based on selection
         local targetMessage = #selectedCurses == 1 and 
@@ -2471,50 +2555,68 @@ local function StartAutoCurse(selectedCurses)
         while State.AutoCurseEnabled and attempts < maxAttempts do
             attempts = attempts + 1
             
-            local unit = Services.Players.LocalPlayer.PlayerGui:WaitForChild("ApplyCurse").Main.Base.Unit.Frame.UnitFrame.Info.Folder.Value
-
+            -- Enhanced unit validation
+            local unit = GetSelectedUnit()
             if not unit then
-                notify("Auto Curse","Curse UI/Selected unit are not present!")
+                notify("Auto Curse", "No unit selected! Please select a unit in the curse UI.")
                 task.wait(3)
-            else
+                continue
+            end
+            
+            -- Apply curse with error handling
+            local success = pcall(function()
                 Remotes.ApplyCurseRemote:FireServer("ApplyCurse - Normal", unit)
-                task.wait(0.5)
+            end)
+            
+            if not success then
+                notify("Auto Curse", "Failed to apply curse! Retrying...")
+                task.wait(1)
+                continue
+            end
+            
+            task.wait(0.5)
 
-                local applied = GetAppliedCurses()
+            local applied = GetAppliedCurses()
 
-                if CursesMatch(applied, selectedCurses) then
-                    local successMessage = #selectedCurses == 1 and
-                        string.format("Found %s! (Attempt %d)", selectedCurses[1], attempts) or
-                        string.format("Found matching curses! (Attempt %d)", attempts)
-                    
-                    notify("Auto Curse", successMessage)
-                    State.AutoCurseEnabled = false
-                    break
-                end
+            if CursesMatch(applied, selectedCurses) then
+                local successMessage = #selectedCurses == 1 and
+                    string.format("Found %s! (Attempt %d)", selectedCurses[1], attempts) or
+                    string.format("Found matching curses! (Attempt %d)", attempts)
                 
-                -- Enhanced logging with percentage info
-                if applied then
-                    local currentCurses = {}
-                    for i, curse in ipairs(applied) do
-                        if curse.isGreen then
-                            for curseName, imageId in pairs(CurseImageIDs) do
-                                if curse.image == imageId then
-                                    local slotInfo = string.format("%s +%d%% (Slot %d)", curseName, curse.percentage, i)
-                                    table.insert(currentCurses, slotInfo)
-                                    break
-                                end
+                notify("Auto Curse", successMessage)
+                State.AutoCurseEnabled = false
+                break
+            end
+            
+            -- Enhanced logging with percentage info
+            if applied then
+                local currentCurses = {}
+                for i, curse in ipairs(applied) do
+                    if curse.isGreen then
+                        for curseName, imageId in pairs(CurseImageIDs) do
+                            if curse.image == imageId then
+                                local slotInfo = string.format("%s %+d%% (Slot %d)", curseName, curse.percentage, i)
+                                table.insert(currentCurses, slotInfo)
+                                break
                             end
                         end
                     end
-                    if #currentCurses > 0 then
-                        print(string.format("Attempt %d got: %s", attempts, table.concat(currentCurses, ", ")))
-                    end
                 end
+                if #currentCurses > 0 then
+                    print(string.format("Attempt %d got: %s", attempts, table.concat(currentCurses, ", ")))
+                end
+            end
+            
+            -- Progress notification every 10 attempts
+            if attempts % 10 == 0 then
+                notify("Auto Curse", string.format("Attempt %d/%d - Still searching...", attempts, maxAttempts))
             end
         end
         
-        if attempts >= maxAttempts then
-            notify("Auto Curse", "Max attempts reached without success!")
+        -- Handle failure case
+        if State.AutoCurseEnabled and attempts >= maxAttempts then
+            notify("Auto Curse", string.format("Failed after %d attempts. Try different requirements.", maxAttempts))
+            State.AutoCurseEnabled = false
         end
     end)
 end
@@ -3151,6 +3253,71 @@ local CurseSelectorDropdown = LobbyTab:CreateDropdown({
             AutoCurseToggle:SetValue(false)
             notify("Auto Curse", "Auto curse disabled - need at least 1 curse selected!")
         end
+    end,
+})
+
+local CurseRequirementsDropdown = LobbyTab:CreateDropdown({
+    Name = "Set Requirements For",
+    Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
+    CurrentOption = "Ability Damage",
+    MultipleOptions = false,
+    Flag = "CurseRequirementsSelector",
+    Info = "Select which curse to set minimum percentage for",
+    Callback = function(Option)
+        State.selectedCurseForRequirement = Option
+    end,
+})
+
+local CurseMinimumSlider = LobbyTab:CreateSlider({
+    Name = "Minimum Percentage",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = 1,
+    Flag = "CurseMinimumPercentage",
+    Info = "Minimum percentage for the selected curse",
+    Callback = function(Value)
+        if State.selectedCurseForRequirement then
+            State.curseMinimums[State.selectedCurseForRequirement] = Value
+            notify("Auto Curse", string.format("Set %s minimum to %d%%", State.selectedCurseForRequirement, Value))
+        end
+    end,
+})
+
+local ShowRequirementsButton = LobbyTab:CreateButton({
+    Name = "Show Current Requirements",
+    Callback = function()
+        local requirements = {}
+        for curse, minPercent in pairs(State.curseMinimums) do
+            table.insert(requirements, string.format("%s: %d%%", curse, minPercent))
+        end
+        if #requirements > 0 then
+            notify("Requirements", table.concat(requirements, ", "))
+        else
+            notify("Requirements", "No requirements set")
+        end
+    end,
+})
+
+local StopButton = LobbyTab:CreateButton({
+    Name = "Stop Auto Curse",
+    Callback = function()
+        if State.AutoCurseEnabled then
+            State.AutoCurseEnabled = false
+            Toggle:SetValue(false)
+            notify("Auto Curse", "Auto curse stopped manually")
+        else
+            notify("Auto Curse", "Auto curse is not running")
+        end
+    end,
+})
+
+local ResetButton = LobbyTab:CreateButton({
+    Name = "Reset All Settings",
+    Callback = function()
+        State.selectedCurses = {}
+        State.curseMinimums = {}
+        CurseSelectorDropdown:SetValue({})
+        notify("Auto Curse", "All settings cleared")
     end,
 })
 
