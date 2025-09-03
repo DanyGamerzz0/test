@@ -1,4 +1,4 @@
---14
+--15
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2524,7 +2524,6 @@ local function GetSelectedUnit()
             and applyCurseGui.Main.Base.Unit.Frame:FindFirstChild("UnitFrame")
             and applyCurseGui.Main.Base.Unit.Frame.UnitFrame:FindFirstChild("Info")
             and applyCurseGui.Main.Base.Unit.Frame.UnitFrame.Info:FindFirstChild("Folder")
-            and applyCurseGui.Main.Base.Unit.Frame.UnitFrame.Info.Folder:FindFirstChild("Value")
         
         return unitPath and unitPath.Value or nil
     end)
@@ -3252,7 +3251,7 @@ local CurseSelectorDropdown = LobbyTab:CreateDropdown({
         State.selectedCurses = Options
         if State.AutoCurseEnabled and #Options < 1 then
             State.AutoCurseEnabled = false
-            AutoCurseToggle:SetValue(false)
+            AutoCurseToggle:Set(false)
             notify("Auto Curse", "Auto curse disabled - need at least 1 curse selected!")
         end
     end,
@@ -3305,7 +3304,7 @@ local StopButton = LobbyTab:CreateButton({
     Callback = function()
         if State.AutoCurseEnabled then
             State.AutoCurseEnabled = false
-            Toggle:SetValue(false)
+            AutoCurseToggle:Set(false)
             notify("Auto Curse", "Auto curse stopped manually")
         else
             notify("Auto Curse", "Auto curse is not running")
