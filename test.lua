@@ -1,4 +1,4 @@
---13
+--14
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3266,7 +3266,7 @@ local CurseRequirementsDropdown = LobbyTab:CreateDropdown({
     Flag = "CurseRequirementsSelector",
     Info = "Select which curse to set minimum percentage for",
     Callback = function(Option)
-        State.selectedCurseForRequirement = Option
+        State.selectedCurseForRequirement = Option[1]
     end,
 })
 
@@ -3318,7 +3318,7 @@ local ResetButton = LobbyTab:CreateButton({
     Callback = function()
         State.selectedCurses = {}
         State.curseMinimums = {}
-        CurseSelectorDropdown:SetValue({})
+        CurseSelectorDropdown:Set({})
         notify("Auto Curse", "All settings cleared")
     end,
 })
