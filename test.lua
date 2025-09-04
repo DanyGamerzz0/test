@@ -1,4 +1,4 @@
---16
+--17
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2403,7 +2403,7 @@ local function GetAppliedCurses()
         if statFrame.Name == "StatTemp" then
             local icon = statFrame:FindFirstChild("StatsIconic")
             local buffIcon = statFrame:FindFirstChild("BuffIconic")
-            local percentageLabel = statFrame:FindFirstChild("StatsPercentage") -- You might need to adjust this name
+            local percentageLabel = statFrame:FindFirstChild("Value") -- You might need to adjust this name
             
             if icon and buffIcon then
                 local isGreen = buffIcon.Image == "rbxassetid://73853750530888"
