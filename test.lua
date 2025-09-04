@@ -1,4 +1,4 @@
---18
+--20
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -58,6 +58,7 @@ local State = {
     enableBlackScreen = false,
     enableAutoExecute = false,
     enableAutoSummon = false,
+    deleteEntities = false,
     curseMinimums = {},
     selectedCurseForRequirement = "Ability Damage",
     AutoSummonBannerSelected = nil,
@@ -2571,7 +2572,7 @@ local function StartAutoCurse(selectedCurses)
                 continue
             end
             
-            task.wait(1.5)
+            task.wait(1)
 
             local applied = GetAppliedCurses()
 
@@ -3221,6 +3222,8 @@ local Button = LobbyTab:CreateButton({
         end,
     })
 
+ GameSection = LobbyTab:CreateSection("🔮 Auto Curse 🔮")
+
 local AutoCurseToggle = LobbyTab:CreateToggle({
     Name = "Auto Curse",
     CurrentValue = false,
@@ -3291,19 +3294,6 @@ local ShowRequirementsButton = LobbyTab:CreateButton({
             notify("Requirements", table.concat(requirements, ", "))
         else
             notify("Requirements", "No requirements set")
-        end
-    end,
-})
-
-local StopButton = LobbyTab:CreateButton({
-    Name = "Stop Auto Curse",
-    Callback = function()
-        if State.AutoCurseEnabled then
-            State.AutoCurseEnabled = false
-            AutoCurseToggle:Set(false)
-            notify("Auto Curse", "Auto curse stopped manually")
-        else
-            notify("Auto Curse", "Auto curse is not running")
         end
     end,
 })
@@ -3391,7 +3381,7 @@ local Toggle = LobbyTab:CreateToggle({
     TextScaled = false,
     Callback = function(Value)
         State.enableAutoExecute = Value
-        if Value then
+        if State.enableAutoExecute then
             if queue_on_teleport then
                 queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
             else
@@ -3414,6 +3404,36 @@ local Toggle = LobbyTab:CreateToggle({
     Callback = function(Value)
         State.enableDeleteMap = Value
         enableDeleteMap()
+    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Delete Enemies/Units",
+    CurrentValue = false,
+    Flag = "enableDeleteEnemies",
+    Info = "Removes Unit/Enemy Models.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.deleteEntities = Value
+        
+        if Value then
+            task.spawn(function()
+                while State.deleteEntities do
+                    local agentFolder = workspace:FindFirstChild("Agent")
+                    if agentFolder then
+                        local agentSubFolder = agentFolder:FindFirstChild("Agent")
+                        if agentSubFolder then
+                            for _, model in pairs(agentSubFolder:GetChildren()) do
+                                if model and model.Parent then
+                                    model:Destroy()
+                                end
+                            end
+                        end
+                    end
+                    task.wait(1)
+                end
+            end)
+        end
     end,
 })
 
