@@ -1,4 +1,4 @@
---20
+--21
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3430,7 +3430,7 @@ local Toggle = GameTab:CreateToggle({
                             end
                         end
                     end
-                    task.wait(1)
+                    task.wait()
                 end
             end)
         end
