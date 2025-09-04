@@ -1,4 +1,4 @@
---17
+--18
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -59,7 +59,7 @@ local State = {
     enableAutoExecute = false,
     enableAutoSummon = false,
     curseMinimums = {},
-    selectedCurseForRequirement = "",
+    selectedCurseForRequirement = "Ability Damage",
     AutoSummonBannerSelected = nil,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
@@ -2571,7 +2571,7 @@ local function StartAutoCurse(selectedCurses)
                 continue
             end
             
-            task.wait(0.5)
+            task.wait(1.5)
 
             local applied = GetAppliedCurses()
 
@@ -3240,7 +3240,7 @@ local AutoCurseToggle = LobbyTab:CreateToggle({
 local CurseSelectorDropdown = LobbyTab:CreateDropdown({
     Name = "Select Curses",
     Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
-    CurrentOption = {},
+    CurrentOption = "Ability Damage",
     MultipleOptions = true,
     Flag = "CurseSelector",
     Callback = function(Options)
@@ -3314,7 +3314,6 @@ local ResetButton = LobbyTab:CreateButton({
         State.selectedCurses = {}
         State.curseMinimums = {}
         CurseSelectorDropdown:Set({})
-        CurseRequirementsDropdown:Set({})
         notify("Auto Curse", "All settings cleared")
     end,
 })
