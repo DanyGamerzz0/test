@@ -313,7 +313,7 @@ local function enableDeleteMap()
     if State.enableDeleteMap then
 
     if Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map") then
-        map:Destroy() 
+        Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map"):Destroy()
          Services.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = true
     end    
     end
@@ -425,10 +425,10 @@ Remotes.SettingEvent:FireServer(unpack({"HeadBar", false}))
 Remotes.SettingEvent:FireServer(unpack({"Display Players Units", false}))
 Remotes.SettingEvent:FireServer(unpack({"DisibleGachaChat", true}))
 Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
-Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.Bottom.Visible = false
+Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = false
 Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
     else
-        Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.Bottom.Visible = true
+        Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = true
         Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = true
         Services.Lighting.Brightness = 1.51
         Services.Lighting.GlobalShadows = true
@@ -3417,22 +3417,34 @@ local Toggle = GameTab:CreateToggle({
         State.deleteEntities = Value
         
         if Value then
+            -- Approach 1: Event-based instant deletion (most efficient)
             task.spawn(function()
-                while State.deleteEntities do
-                    local agentFolder = workspace:FindFirstChild("Agent")
-                    if agentFolder then
-                        local agentSubFolder = agentFolder:FindFirstChild("Agent")
-                        if agentSubFolder then
-                            for _, model in pairs(agentSubFolder:GetChildren()) do
-                                if model and model.Parent then
-                                    model:Destroy()
-                                end
+                local agentFolder = workspace:FindFirstChild("Agent")
+                if agentFolder then
+                    local agentSubFolder = agentFolder:FindFirstChild("Agent")
+                    if agentSubFolder then
+                        -- Delete existing models first
+                        for _, model in pairs(agentSubFolder:GetChildren()) do
+                            if model and model.Parent then
+                                model:Destroy()
                             end
                         end
+                        
+                        -- Set up instant deletion for new spawns
+                        State.childAddedConnection = agentSubFolder.ChildAdded:Connect(function(child)
+                            if State.deleteEntities and child then
+                                child:Destroy() -- Delete immediately when spawned
+                            end
+                        end)
                     end
-                    task.wait()
                 end
             end)
+        else
+            -- Clean up connection when disabled
+            if State.childAddedConnection then
+                State.childAddedConnection:Disconnect()
+                State.childAddedConnection = nil
+            end
         end
     end,
 })
