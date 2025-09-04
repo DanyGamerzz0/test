@@ -1,4 +1,3 @@
---21
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2386,6 +2385,38 @@ local function getunitRarity(unit)
     return success and result or nil
 end
 
+local function isUnitShiny(unit)
+    local success, result = pcall(function()
+        -- Check if "Shiny" is in the unit name
+        if string.find(unit.Name:lower(), "shiny") then
+            return true
+        end
+        local gui = Services.Players.LocalPlayer.PlayerGui.Collection.Main.Base.Space.Unit[unit.Name]
+        if gui and string.find(gui.Name:lower(), "shiny") then
+            return true
+        end
+        return false
+    end)
+    return success and result or false
+end
+
+local function shouldSellUnit(unit, selectedRarities)
+    local rarity = getunitRarity(unit)
+    local isShiny = isUnitShiny(unit)
+    
+    local hasShinySelected = table.find(selectedRarities, "Shiny")
+    local hasRaritySelected = table.find(selectedRarities, rarity)
+    
+    if not hasRaritySelected then
+        return false
+    end
+    if hasShinySelected then
+        return true
+    else
+        return not isShiny
+    end
+end
+
 local CurseImageIDs = {
     ["Ability Damage"] = "rbxassetid://129472130637846",
     ["Ability Cooldown"] = "rbxassetid://94734246361320",
@@ -2718,37 +2749,27 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(1) -- check every 5 seconds
+        task.wait(0.5) -- check every 0.5 seconds
 
         if State.AutoSellRarities and typeof(State.SelectedRaritiesToSell) == "table" then
             local data = GameObjects.GetData.GetData(Services.Players.LocalPlayer)
             local collection = data.Collection:GetChildren()
 
             for _, unit in ipairs(collection) do
-                local rarity = getunitRarity(unit)
-                if table.find(State.SelectedRaritiesToSell, rarity) then
+                if shouldSellUnit(unit, State.SelectedRaritiesToSell) then
                     local realUnitFolder = GameObjects.getUnitFolder(Services.Players.LocalPlayer, unit)
-                   if realUnitFolder then
-    local lockedFlag = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection[unit.Name].Lock
-    if lockedFlag.Value == false then
-        local args = {{ realUnitFolder, nil }}
-        Remotes.SellRemote:FireServer(unpack(args))
-    end
-end
-end
+                    if realUnitFolder then
+                        local lockedFlag = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection[unit.Name].Lock
+                        if lockedFlag.Value == false then
+                            local args = {{ realUnitFolder, nil }}
+                            Remotes.SellRemote:FireServer(unpack(args))
+                        end
+                    end
+                end
             end
         end
     end
 end)
-
-     spawn(function()
-    while true do
-        if State.AutoUltimateEnabled then
-            startAutoUltimate()
-        end
-        wait(0.5) -- Check every 0.5 seconds if we should start
-    end
-    end)
 
     task.spawn(function()
         print("🔄 Fetching story data...")
@@ -3484,6 +3505,8 @@ local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Sell Rarities",
     CurrentValue = false,
     Flag = "AutoSellRarities",
+    Info = "",
+    TextScaled = false,
     Callback = function(Value)
         State.AutoSellRarities = Value
     end,
@@ -3491,10 +3514,12 @@ local Toggle = LobbyTab:CreateToggle({
 
 local RaritySellerDropdown = LobbyTab:CreateDropdown({
     Name = "Select Rarities To Sell",
-    Options = { "Rare", "Epic", "Legendary" },
+    Options = {"Rare", "Epic", "Legendary", "Shiny"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "RaritySellerSelector",
+    Info = "This won't touch locked units of any type.",
+    TextScaled = false,
     Callback = function(Options)
         State.SelectedRaritiesToSell = Options
     end,
@@ -4993,3 +5018,28 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
+
+--[[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local objVal = Players.LocalPlayer.PlayerGui
+    :WaitForChild("Traits")
+    :WaitForChild("Main")
+    :WaitForChild("Base")
+    :WaitForChild("UnitFolder")
+
+local folder = objVal.Value
+
+if folder then
+    local primary = folder:FindFirstChild("PrimaryTrait")
+    local secondary = folder:FindFirstChild("SecondaryTrait")
+
+    if primary and secondary then
+        print("PrimaryTrait:", primary.Value)
+        print("SecondaryTrait:", secondary.Value)
+    else
+        warn("Traits not found inside folder:", folder:GetFullName())
+    end
+else
+    warn("ObjectValue is not pointing to any folder!")
+end--]]
