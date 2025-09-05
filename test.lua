@@ -1,4 +1,4 @@
---1
+--3
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2577,10 +2577,8 @@ local function GetSelectedUnitTraits()
             return nil
         end
 
-        local CollectionFolder = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection[folder]
-
-        local primary = CollectionFolder:FindFirstChild("PrimaryTrait")
-        local secondary = CollectionFolder:FindFirstChild("SecondaryTrait")
+        local primary = folder:FindFirstChild("PrimaryTrait")
+        local secondary = folder:FindFirstChild("SecondaryTrait")
 
         if primary and secondary then
             return {
@@ -5220,3 +5218,28 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
+
+--[[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local objVal = Players.LocalPlayer.PlayerGui
+    :WaitForChild("Traits")
+    :WaitForChild("Main")
+    :WaitForChild("Base")
+    :WaitForChild("UnitFolder")
+
+local folder = objVal.Value
+
+if folder then
+    local primary = folder:FindFirstChild("PrimaryTrait")
+    local secondary = folder:FindFirstChild("SecondaryTrait")
+
+    if primary and secondary then
+        print("PrimaryTrait:", primary.Value)
+        print("SecondaryTrait:", secondary.Value)
+    else
+        warn("Traits not found inside folder:", folder:GetFullName())
+    end
+else
+    warn("ObjectValue is not pointing to any folder!")
+end--]]
