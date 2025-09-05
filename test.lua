@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -4144,7 +4145,7 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     end,
 })
 
-    local JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
+     JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
 
     --[[local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Summer Event",
@@ -4155,7 +4156,7 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     end,
     })--]]
 
-    local AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
+     AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Boss Event (Swarm Event)",
     CurrentValue = false,
     Flag = "AutoBossEventToggle",
@@ -4164,9 +4165,9 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     end,
     })
 
-    local JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
+     JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
 
-    local AutoJoinInfiniteMode = JoinerTab:CreateToggle({
+     AutoJoinInfiniteMode = JoinerTab:CreateToggle({
     Name = "Auto Join Infinite Mode",
     CurrentValue = false,
     Flag = "AutoInfiniteToggle",
@@ -4175,9 +4176,9 @@ local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     end,
     })
 
-    local JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
+     JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
 
-     local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
+      AutoJoinBossEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
     CurrentValue = false,
     Flag = "AutoRaidToggle",
@@ -4239,9 +4240,9 @@ task.spawn(function()
     print("✅ Raid dropdown updated with", #raidStageDisplayNames, "options")
 end)
 
-    local JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
+     JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
 
-      local AutoJoinStoryToggle = JoinerTab:CreateToggle({
+       AutoJoinStoryToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Story",
     CurrentValue = false,
     Flag = "AutoStoryToggle",
@@ -4261,7 +4262,7 @@ end)
     end,
     })
 
-    local ChapterDropdown = JoinerTab:CreateDropdown({
+     ChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Stage Chapter",
     Options = Config.chapters,
     CurrentOption = {},
@@ -4271,7 +4272,7 @@ end)
         State.selectedChapter = Option[1]
     end,
     })
-    local DifficultyDropdown = JoinerTab:CreateDropdown({
+     DifficultyDropdown = JoinerTab:CreateDropdown({
     Name = "Select Stage Difficulty",
     Options = Config.difficulties,
     CurrentOption = {},
@@ -4350,7 +4351,7 @@ end)
         end,
     })
 
-    local JoinerSection3 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
+     JoinerSection3 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
 
       Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Portal(s)",
@@ -4389,7 +4390,7 @@ task.spawn(function()
         PortalSelectorDropdown:Refresh(portalNames)
 end)
 
-    local JoinerSection4 = JoinerTab:CreateSection("🏹 Ranger Stage Joiner 🏹")
+     JoinerSection4 = JoinerTab:CreateSection("🏹 Ranger Stage Joiner 🏹")
 
          Toggle = JoinerTab:CreateToggle({
         Name = "Auto Join Ranger Stage",
@@ -4434,7 +4435,7 @@ task.spawn(function()
         print("✅ Ranger stage dropdown updated with", #rangerDisplayNames, "options")
     end)
 
-    local JoinerSectionDungeons = JoinerTab:CreateSection("🌀 Rifts 🌀")
+     JoinerSectionDungeons = JoinerTab:CreateSection("🌀 Rifts 🌀")
 
      Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Rift Storm",
@@ -4445,7 +4446,7 @@ task.spawn(function()
     end,
     })
 
-    local JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Dungeons ⛓️")
+     JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Dungeons ⛓️")
 
      Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Dungeon",
@@ -4492,7 +4493,7 @@ task.spawn(function()
     end,
     })
 
-    local GameSection = GameTab:CreateSection("🎮 Game 🎮")
+     GameSection = GameTab:CreateSection("🎮 Game 🎮")
     --local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
 
  Dropdown = GameTab:CreateDropdown({
@@ -4508,7 +4509,7 @@ task.spawn(function()
    end,
 })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Auto 1x/2x/3x Speed",
     CurrentValue = false,
     Flag = "AutoSpeedToggle",
@@ -4518,7 +4519,7 @@ task.spawn(function()
     end,
 })
 
-    local AutoSpeedDropdown = GameTab:CreateDropdown({
+     AutoSpeedDropdown = GameTab:CreateDropdown({
     Name = "Select Auto Speed Value",
     Options = {"1x","2x","3x"},
     CurrentOption = {},
@@ -5219,28 +5220,3 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
-
---[[local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-
-local objVal = Players.LocalPlayer.PlayerGui
-    :WaitForChild("Traits")
-    :WaitForChild("Main")
-    :WaitForChild("Base")
-    :WaitForChild("UnitFolder")
-
-local folder = objVal.Value
-
-if folder then
-    local primary = folder:FindFirstChild("PrimaryTrait")
-    local secondary = folder:FindFirstChild("SecondaryTrait")
-
-    if primary and secondary then
-        print("PrimaryTrait:", primary.Value)
-        print("SecondaryTrait:", secondary.Value)
-    else
-        warn("Traits not found inside folder:", folder:GetFullName())
-    end
-else
-    warn("ObjectValue is not pointing to any folder!")
-end--]]
