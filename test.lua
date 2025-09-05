@@ -1,4 +1,4 @@
---7
+--8
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -40,8 +40,7 @@ local GameObjects = {
 GameObjects.GetData = require(Services.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GetData"))
 GameObjects.getUnitFolder = GameObjects.GetData.GetUnitFolder
 GameObjects.itemsFolder = GameObjects.challengeFolder:WaitForChild("Items")
-local GearData = require(Services.ReplicatedStorage.ModuleScripts.GearData)
-local MaterialsData = require(Services.ReplicatedStorage.ModuleScripts.MaterialsData)
+local GearData = require(Services.ReplicatedStorage.Shared.Info.CraftingRecipes.Gears)
 
 local Config = {
     DISCORD_USER_ID = "",
