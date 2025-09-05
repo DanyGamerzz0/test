@@ -1,4 +1,4 @@
---6
+--7
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -40,6 +40,8 @@ local GameObjects = {
 GameObjects.GetData = require(Services.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GetData"))
 GameObjects.getUnitFolder = GameObjects.GetData.GetUnitFolder
 GameObjects.itemsFolder = GameObjects.challengeFolder:WaitForChild("Items")
+local GearData = require(Services.ReplicatedStorage.ModuleScripts.GearData)
+local MaterialsData = require(Services.ReplicatedStorage.ModuleScripts.MaterialsData)
 
 local Config = {
     DISCORD_USER_ID = "",
@@ -59,6 +61,14 @@ local State = {
     enableAutoExecute = false,
     enableAutoSummon = false,
     deleteEntities = false,
+    AutoFarmEnabled = false,
+    selectedGears = {},
+    craftAmounts = {},
+    currentlyFarming = false,
+    farmingQueue = {},
+    playerInventory = {},
+    totalMaterialsNeeded = {},
+    stageAnalysis = {},
     curseMinimums = {},
     selectedCurseForRequirement = "Ability Damage",
     AutoSummonBannerSelected = nil,
@@ -464,6 +474,371 @@ Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
             end
         end
     end
+end
+
+local function GetAllLevelModules()
+    local success, modules = pcall(function()
+        local levelsFolder = ReplicatedStorage.Shared.Info.GameWorld.Levels
+        local levelModules = {}
+        
+        for _, moduleScript in pairs(levelsFolder:GetChildren()) do
+            if moduleScript:IsA("ModuleScript") then
+                local success, moduleData = pcall(function()
+                    return require(moduleScript)
+                end)
+                
+                if success and moduleData then
+                    levelModules[moduleScript.Name] = moduleData
+                end
+            end
+        end
+        
+        return levelModules
+    end)
+    
+    return success and modules or {}
+end
+
+local function GetAllGearNames()
+    local gearNames = {}
+    for gearName, _ in pairs(GearData) do
+        table.insert(gearNames, gearName)
+    end
+    table.sort(gearNames)
+    return gearNames
+end
+
+local function GetPlayerInventory()
+    local success, inventory = pcall(function()
+        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+        local items = playerData:FindFirstChild("Items")
+        
+        if not items then
+            return {}
+        end
+        
+        local currentInventory = {}
+        for _, item in pairs(items:GetChildren()) do
+            if item:IsA("Folder") then
+                currentInventory[item.Name] = item.Amount.Value
+            end
+        end
+        return currentInventory
+    end)
+    return success and inventory or {}
+end
+
+local function CalculateTotalMaterialsNeeded()
+    local totalNeeded = {}
+    
+    for gearName, amount in pairs(State.craftAmounts) do
+        if amount > 0 and GearData[gearName] then
+            local requirements = GearData[gearName].Requirement
+            for materialName, requiredAmount in pairs(requirements) do
+                totalNeeded[materialName] = (totalNeeded[materialName] or 0) + (requiredAmount * amount)
+            end
+        end
+    end
+    
+    State.totalMaterialsNeeded = totalNeeded
+    return totalNeeded
+end
+
+local function FindMaterialSource(materialName)
+    local allLevels = GetAllLevelModules()
+    local sources = {}
+    
+    -- Search through all world modules for the material
+    for moduleName, moduleData in pairs(allLevels) do
+        -- Each module contains worlds, search through them
+        for worldName, worldData in pairs(moduleData) do
+            if type(worldData) == "table" then
+                -- Search through chapters in this world
+                for chapterName, chapterData in pairs(worldData) do
+                    if type(chapterData) == "table" and chapterData.Items then
+                        -- Check each item drop in this chapter
+                        for _, itemDrop in pairs(chapterData.Items) do
+                            if itemDrop.Name == materialName then
+                                table.insert(sources, {
+                                    module = moduleName,
+                                    world = worldName,
+                                    chapter = chapterName,
+                                    chapterData = chapterData,
+                                    dropRate = itemDrop.DropRate,
+                                    minDrop = itemDrop.MinDrop,
+                                    maxDrop = itemDrop.MaxDrop,
+                                    fullPath = string.format("%s -> %s -> %s", moduleName, worldName, chapterName)
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return sources
+end
+
+local function AnalyzeRequiredStages()
+    if #State.selectedGears == 0 then
+        notify("Stage Analysis", "No gears selected!")
+        return
+    end
+    
+    print("=== STAGE ANALYSIS FOR SELECTED GEARS ===")
+    
+    -- Calculate total materials needed
+    local totalNeeded = CalculateTotalMaterialsNeeded()
+    local inventory = GetPlayerInventory()
+    
+    -- Track all stages we need to play
+    local stagesToPlay = {}
+    local materialSources = {}
+    
+    print("\nMaterials needed:")
+    for materialName, needed in pairs(totalNeeded) do
+        local current = inventory[materialName] or 0
+        local deficit = math.max(0, needed - current)
+        
+        print(string.format("  %s: %d needed, %d current, %d deficit", 
+            materialName, needed, current, deficit))
+        
+        if deficit > 0 then
+            -- Find all sources for this material
+            local sources = FindMaterialSource(materialName)
+            
+            if #sources > 0 then
+                materialSources[materialName] = sources
+                print(string.format("    Sources found for %s:", materialName))
+                
+                for i, source in ipairs(sources) do
+                    local avgDrop = (source.minDrop + source.maxDrop) / 2
+                    local dropChance = source.dropRate / 100
+                    local expectedPerRun = avgDrop * dropChance
+                    local estimatedRuns = math.ceil(deficit / expectedPerRun)
+                    
+                    print(string.format("      %d. %s (%.1f%% drop, avg %.1f per drop, ~%d runs needed)", 
+                        i, source.fullPath, source.dropRate, avgDrop, estimatedRuns))
+                    
+                    -- Add to stages we need to play
+                    local stageKey = source.fullPath
+                    if not stagesToPlay[stageKey] then
+                        stagesToPlay[stageKey] = {
+                            module = source.module,
+                            world = source.world,
+                            chapter = source.chapter,
+                            materials = {},
+                            totalEstimatedRuns = 0
+                        }
+                    end
+                    
+                    stagesToPlay[stageKey].materials[materialName] = {
+                        needed = deficit,
+                        estimatedRuns = estimatedRuns,
+                        dropRate = source.dropRate,
+                        avgDrop = avgDrop
+                    }
+                    
+                    -- Use the highest estimated runs for this stage
+                    stagesToPlay[stageKey].totalEstimatedRuns = math.max(
+                        stagesToPlay[stageKey].totalEstimatedRuns, 
+                        estimatedRuns
+                    )
+                end
+            else
+                print(string.format("    ⚠️  No sources found for %s!", materialName))
+            end
+        else
+            print(string.format("    ✅ %s - Already have enough!", materialName))
+        end
+    end
+    
+    print("\n=== STAGES TO PLAY ===")
+    if next(stagesToPlay) == nil then
+        print("No stages need to be played! You have all required materials.")
+    else
+        local stageList = {}
+        for stageName, stageInfo in pairs(stagesToPlay) do
+            table.insert(stageList, {
+                name = stageName,
+                info = stageInfo
+            })
+        end
+        
+        -- Sort by estimated runs (most efficient first)
+        table.sort(stageList, function(a, b)
+            return a.info.totalEstimatedRuns < b.info.totalEstimatedRuns
+        end)
+        
+        for i, stage in ipairs(stageList) do
+            print(string.format("%d. %s (~%d runs)", 
+                i, stage.name, stage.info.totalEstimatedRuns))
+            
+            for materialName, matInfo in pairs(stage.info.materials) do
+                print(string.format("    - %s: need %d (%.1f%% drop, ~%d runs)", 
+                    materialName, matInfo.needed, matInfo.dropRate, matInfo.estimatedRuns))
+            end
+        end
+        
+        -- Summary
+        print(string.format("\nSUMMARY: Need to play %d different stages", #stageList))
+        
+        -- Show gear breakdown
+        print("\nGEAR BREAKDOWN:")
+        for _, gearName in ipairs(State.selectedGears) do
+            local amount = State.craftAmounts[gearName] or 1
+            if amount > 0 then
+                print(string.format("  %s x%d:", gearName, amount))
+                local requirements = GearData[gearName].Requirement
+                for materialName, requiredPerCraft in pairs(requirements) do
+                    local totalRequired = requiredPerCraft * amount
+                    print(string.format("    - %s: %d (%d per craft)", 
+                        materialName, totalRequired, requiredPerCraft))
+                end
+            end
+        end
+    end
+    
+    print("=== END STAGE ANALYSIS ===\n")
+    
+    -- Store the analysis for later use
+    State.stageAnalysis = {
+        stagesToPlay = stagesToPlay,
+        materialSources = materialSources,
+        totalMaterialsNeeded = totalNeeded
+    }
+    
+    -- Notify user
+    local stageCount = 0
+    for _ in pairs(stagesToPlay) do
+        stageCount = stageCount + 1
+    end
+    
+    notify("Stage Analysis", string.format("Analysis complete! Need to play %d stages. Check console for details.", stageCount))
+end
+
+local function HasEnoughMaterials(gearName, amount)
+    amount = amount or 1
+    local requirements = GearData[gearName].Requirement
+    local inventory = GetPlayerInventory()
+    
+    for materialName, requiredAmount in pairs(requirements) do
+        local needed = requiredAmount * amount
+        local current = inventory[materialName] or 0
+        if current < needed then
+            return false, materialName, needed - current
+        end
+    end
+    
+    return true
+end
+
+local function FarmMaterial(materialName, neededAmount)
+    -- This will be implemented later with actual joining logic
+    notify("Auto Gear Farm", string.format("Farming %d %s - Logic to be implemented", neededAmount, materialName))
+    return true -- Placeholder
+end
+
+local function CraftGear(gearName, amount)
+    amount = amount or 1
+    
+    local success = pcall(function()
+        -- Replace with your actual crafting remote
+        for i = 1, amount do
+            Remotes.CraftGearRemote:FireServer(gearName)
+            task.wait(0.5) -- Small delay between crafts
+        end
+    end)
+    
+    if success then
+        notify("Auto Gear Farm", string.format("Successfully crafted %dx %s", amount, gearName))
+        return true
+    else
+        notify("Auto Gear Farm", string.format("Failed to craft %s", gearName))
+        return false
+    end
+end
+
+local function StartAutoFarmGear()
+    if not isInLobby() then
+        notify("Auto Gear Farm", "Must be in lobby to use auto gear farm!")
+        return
+    end
+    
+    if #State.selectedGears == 0 then
+        notify("Auto Gear Farm", "Please select at least 1 gear to farm!")
+        return
+    end
+    
+    State.currentlyFarming = true
+    
+    task.spawn(function()
+        notify("Auto Gear Farm", "Starting gear farming process...")
+        
+        -- Calculate total materials needed
+        local totalNeeded = CalculateTotalMaterialsNeeded()
+        local inventory = GetPlayerInventory()
+        
+        -- Run stage analysis instead of old material farming
+        AnalyzeRequiredStages()
+        
+        -- For now, we'll skip the actual farming and go straight to crafting
+        -- (farming logic will be implemented later)
+        notify("Auto Gear Farm", "Skipping farming for now - check console for stage analysis")
+        
+        -- Craft the gears (if we have materials)
+        if State.AutoFarmEnabled then
+            notify("Auto Gear Farm", "Starting crafting phase...")
+            
+            for gearName, amount in pairs(State.craftAmounts) do
+                if not State.AutoFarmEnabled then break end
+                
+                if amount > 0 then
+                    local hasEnough, missingMaterial, missingAmount = HasEnoughMaterials(gearName, amount)
+                    
+                    if hasEnough then
+                        notify("Auto Gear Farm", string.format("Crafting %dx %s...", amount, gearName))
+                        CraftGear(gearName, amount)
+                    else
+                        notify("Auto Gear Farm", string.format("Still missing %d %s for %s", 
+                            missingAmount, missingMaterial, gearName))
+                    end
+                end
+            end
+        end
+        
+        State.currentlyFarming = false
+        notify("Auto Gear Farm", "Gear farming completed!")
+    end)
+end
+
+local function FarmMaterial(materialName, neededAmount)
+    local source = FindMaterialSource(materialName)
+    if not source then
+        notify("Auto Gear Farm", string.format("No source found for material: %s", materialName))
+        return false
+    end
+    
+    notify("Auto Gear Farm", string.format("Farming %d %s from %s %s", neededAmount, materialName, source.world, source.chapter))
+    
+    -- Calculate estimated runs needed based on drop rate and average drop
+    local avgDrop = (source.minDrop + source.maxDrop) / 2
+    local dropChance = source.dropRate / 100
+    local expectedPerRun = avgDrop * dropChance
+    local estimatedRuns = math.ceil(neededAmount / expectedPerRun)
+    
+    print(string.format("Estimated runs needed: %d (%.1f%% drop rate, avg %.1f per drop)", 
+        estimatedRuns, source.dropRate, avgDrop))
+    
+    -- Farm the material (you'll need to implement the actual farming logic)
+    local success = pcall(function()
+        -- Replace with your actual remote calls for starting a chapter
+        Remotes.StartChapterRemote:FireServer(source.world, source.chapter)
+        -- or however your game handles chapter farming
+    end)
+    
+    return success
 end
 
 local function fetchStoryData()
@@ -3527,6 +3902,159 @@ local DoubleTraitToggle = LobbyTab:CreateToggle({
     end,
 })
 
+GameSection = LobbyTab:CreateSection("⚙️ Auto Gear ⚙️")
+
+local GearSelectorDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Gears",
+    Options = GetAllGearNames(),
+    CurrentOption = GetAllGearNames()[1],
+    MultipleOptions = true,
+    Flag = "GearSelector",
+    Callback = function(Options)
+        State.selectedGears = Options
+        
+        -- Reset craft amounts for unselected gears
+        local newCraftAmounts = {}
+        for _, gearName in ipairs(Options) do
+            newCraftAmounts[gearName] = State.craftAmounts[gearName] or 1
+        end
+        State.craftAmounts = newCraftAmounts
+        
+        if State.AutoFarmEnabled and #Options == 0 then
+            State.AutoFarmEnabled = false
+            AutoGearFarmToggle:Set(false)
+            notify("Auto Gear Farm", "Auto farm disabled - need at least 1 gear selected!")
+        end
+    end,
+})
+
+local GearAmountSelector = LobbyTab:CreateDropdown({
+    Name = "Set Amount For",
+    Options = GetAllGearNames(),
+    CurrentOption = "",
+    MultipleOptions = false,
+    Flag = "GearAmountSelector",
+    Info = "Select which gear to set craft amount for",
+    Callback = function(Option)
+        State.selectedGearForAmount = Option[1]
+    end,
+})
+
+local CraftAmountSlider = LobbyTab:CreateSlider({
+    Name = "Craft Amount",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = 1,
+    Flag = "CraftAmount",
+    Info = "Amount to craft for the selected gear",
+    Callback = function(Value)
+        if State.selectedGearForAmount then
+            State.craftAmounts[State.selectedGearForAmount] = Value
+            notify("Auto Gear Farm", string.format("Set %s amount to %d", State.selectedGearForAmount, Value))
+        end
+    end,
+})
+
+local AnalyzeStagesButton = LobbyTab:CreateButton({
+    Name = "Analyze Required Stages",
+    Callback = function()
+        AnalyzeRequiredStages()
+    end,
+})
+
+local ShowRequiredMaterialsButton = LobbyTab:CreateButton({
+    Name = "Show Required Materials",
+    Callback = function()
+        if #State.selectedGears == 0 then
+            notify("Required Materials", "No gears selected!")
+            return
+        end
+        
+        local totalNeeded = CalculateTotalMaterialsNeeded()
+        local inventory = GetPlayerInventory()
+        
+        local materialsList = {}
+        for materialName, needed in pairs(totalNeeded) do
+            local current = inventory[materialName] or 0
+            local status = current >= needed and "✓" or "✗"
+            table.insert(materialsList, string.format("%s %s: %d/%d", status, materialName, current, needed))
+        end
+        
+        if #materialsList > 0 then
+            notify("Required Materials", table.concat(materialsList, "\n"))
+        else
+            notify("Required Materials", "No materials needed!")
+        end
+    end,
+})
+
+local ShowCraftAmountsButton = LobbyTab:CreateButton({
+    Name = "Show Craft Amounts",
+    Callback = function()
+        local amounts = {}
+        for gearName, amount in pairs(State.craftAmounts) do
+            if amount > 0 then
+                table.insert(amounts, string.format("%s: %dx", gearName, amount))
+            end
+        end
+        
+        if #amounts > 0 then
+            notify("Craft Amounts", table.concat(amounts, "\n"))
+        else
+            notify("Craft Amounts", "No craft amounts set!")
+        end
+    end,
+})
+
+local ResetGearSettingsButton = LobbyTab:CreateButton({
+    Name = "Reset All Gear Settings",
+    Callback = function()
+        State.selectedGears = {}
+        State.craftAmounts = {}
+        State.totalMaterialsNeeded = {}
+        GearSelectorDropdown:Set({})
+        notify("Auto Gear Farm", "All gear settings cleared!")
+    end,
+})
+
+-- Helper function to show gear info
+local ShowGearInfoButton = LobbyTab:CreateButton({
+    Name = "Show Gear Info",
+    Callback = function()
+        if not State.selectedGearForAmount then
+            notify("Gear Info", "Please select a gear first!")
+            return
+        end
+        
+        local gearName = State.selectedGearForAmount
+        local gearData = GearData[gearName]
+        
+        if not gearData then
+            notify("Gear Info", "Gear data not found!")
+            return
+        end
+        
+        local requirements = {}
+        for materialName, amount in pairs(gearData.Requirement) do
+            local sources = FindMaterialSource(materialName)
+            local sourceInfo = ""
+            
+            if #sources > 0 then
+                sourceInfo = string.format(" (found in %d stages)", #sources)
+            else
+                sourceInfo = " (source unknown)"
+            end
+            
+            table.insert(requirements, string.format("%s: %d%s", materialName, amount, sourceInfo))
+        end
+        
+        local info = string.format("%s\nCost: %d Gold\n\nMaterials:\n%s", 
+            gearName, gearData.Cost, table.concat(requirements, "\n"))
+        
+        notify("Gear Info", info)
+    end,
+})
+
 GameSection = LobbyTab:CreateSection("⚙️ Misc ⚙️")
 
 local Button = LobbyTab:CreateButton({
@@ -3835,9 +4363,9 @@ local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
     end,
     })
 
-local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
+ GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
 
-    local Toggle = ShopTab:CreateToggle({
+     Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Swarm Event Shop",
     CurrentValue = false,
     Flag = "AutoPurchaseSwarmEvent",
@@ -3846,7 +4374,7 @@ local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
     end,
     })
 
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Swarm Event Shop)",
     Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Stat Boosters","Soul Fragments","Borus Capsule"},
     CurrentOption = {},
@@ -3857,9 +4385,9 @@ local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
     end,
     })
 
-    local GameSection = LobbyTab:CreateSection("🎁 Claimers 🎁")
+     GameSection = LobbyTab:CreateSection("🎁 Claimers 🎁")
 
-    local Toggle = LobbyTab:CreateToggle({
+     Toggle = LobbyTab:CreateToggle({
     Name = "Auto Claim Battlepass",
     CurrentValue = false,
     Flag = "AutoClaimBattlepass",
@@ -3868,7 +4396,7 @@ local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
     end,
     })
 
-    local Toggle = LobbyTab:CreateToggle({
+     Toggle = LobbyTab:CreateToggle({
     Name = "Auto Claim Quests",
     CurrentValue = false,
     Flag = "AutoClaimQuests",
@@ -3877,7 +4405,7 @@ local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
     end,
     })
 
-    local Toggle = LobbyTab:CreateToggle({
+     Toggle = LobbyTab:CreateToggle({
     Name = "Auto Claim Level Milestones",
     CurrentValue = false,
     Flag = "AutoClaimMilestones",
@@ -3886,7 +4414,7 @@ local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
     end,
     })
 
-    local GameSection = LobbyTab:CreateSection("💤 AFK Chamber 💤")
+     GameSection = LobbyTab:CreateSection("💤 AFK Chamber 💤")
 
     Toggle = LobbyTab:CreateToggle({
         Name = "Auto Teleport to AFK Chamber",
@@ -3897,7 +4425,7 @@ local GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
         end,
     })
 
-        local Toggle = LobbyTab:CreateToggle({
+         Toggle = LobbyTab:CreateToggle({
     Name = "Anti Teleport to AFK Chamber",
     CurrentValue = false,
     Flag = "AntiAfkToggle",
@@ -3917,7 +4445,7 @@ task.spawn(function()
     end
 end)
 
-     local Toggle = GameTab:CreateToggle({
+      Toggle = GameTab:CreateToggle({
     Name = "Streamer Mode (hide name/level/title)",
     CurrentValue = false,
     Flag = "streamerModeEnabled",
@@ -3926,9 +4454,9 @@ end)
     end,
 })
 
-    local JoinerSection0 = JoinerTab:CreateSection("🤖 Boss Rush Joiner 🤖")
+     JoinerSection0 = JoinerTab:CreateSection("🤖 Boss Rush Joiner 🤖")
 
-    local Toggle = JoinerTab:CreateToggle({
+     Toggle = JoinerTab:CreateToggle({
     Name = "Auto Join Boss Rush",
     CurrentValue = false,
     Flag = "AutoBossRushToggle",
@@ -3937,9 +4465,9 @@ end)
     end,
     })
 
-    local JoinerSection98285728 = JoinerTab:CreateSection("🎮 Advanced AutoPlay 🎮")
+     JoinerSection98285728 = JoinerTab:CreateSection("🎮 Advanced AutoPlay 🎮")
 
-    local Toggle = JoinerTab:CreateToggle({
+     Toggle = JoinerTab:CreateToggle({
     Name = "Auto Select Path For Boss Rush/Rift Storm",
     CurrentValue = false,
     Flag = "AutoPlayBossRush",
@@ -3963,7 +4491,7 @@ task.spawn(function()
     end
 end)
 
-local Toggle = JoinerTab:CreateToggle({
+ Toggle = JoinerTab:CreateToggle({
     Name = "Advanced Auto Play (pair with select path(s) to deploy unit x on)",
     CurrentValue = false,
     Flag = "AutoBossRushDeployToggle",
@@ -3978,9 +4506,7 @@ local Toggle = JoinerTab:CreateToggle({
     end,
 })
 
---local Label = JoinerTab:CreateLabel("Experimental for now. Expect bugs", "info") -- Title, Icon, Color, IgnoreTheme
-
-local DeployBossRushSelector1 = JoinerTab:CreateDropdown({
+ DeployBossRushSelector1 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 1 on",
     Options = {"Path 1","Path 2","Path 3","Path 4"},
     CurrentOption = {},
@@ -4008,7 +4534,7 @@ local DeployBossRushSelector1 = JoinerTab:CreateDropdown({
     end,
 })
 
-local DeployBossRushSelector2 = JoinerTab:CreateDropdown({
+ DeployBossRushSelector2 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 2 on",
     Options = {"Path 1","Path 2","Path 3","Path 4"},
     CurrentOption = {},
@@ -4035,7 +4561,7 @@ local DeployBossRushSelector2 = JoinerTab:CreateDropdown({
     end,
 })
 
-local DeployBossRushSelector3 = JoinerTab:CreateDropdown({
+ DeployBossRushSelector3 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 3 on",
     Options = {"Path 1","Path 2","Path 3","Path 4"},
     CurrentOption = {},
@@ -4062,7 +4588,7 @@ local DeployBossRushSelector3 = JoinerTab:CreateDropdown({
     end,
 })
 
-local DeployBossRushSelector4 = JoinerTab:CreateDropdown({
+ DeployBossRushSelector4 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 4 on",
     Options = {"Path 1","Path 2","Path 3","Path 4"},
     CurrentOption = {},
@@ -4089,7 +4615,7 @@ local DeployBossRushSelector4 = JoinerTab:CreateDropdown({
     end,
 })
 
-local DeployBossRushSelector5 = JoinerTab:CreateDropdown({
+ DeployBossRushSelector5 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 5 on",
     Options = {"Path 1","Path 2","Path 3","Path 4"},
     CurrentOption = {},
@@ -4116,7 +4642,7 @@ local DeployBossRushSelector5 = JoinerTab:CreateDropdown({
     end,
 })
 
-local DeployBossRushSelector6 = JoinerTab:CreateDropdown({
+ DeployBossRushSelector6 = JoinerTab:CreateDropdown({
     Name = "Select path(s) to deploy unit 6 on",
     Options = {"Path 1","Path 2","Path 3","Path 4"},
     CurrentOption = {},
@@ -4290,7 +4816,7 @@ end)
     end
 
 
-    local JoinerSection2 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
+     JoinerSection2 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
     local rewardText = #rewardNames > 0 and table.concat(rewardNames, ", ") or "None"
     local Label3 = JoinerTab:CreateLabel("Current Challenge Rewards: " .. rewardText, "gift")
 
@@ -5218,3 +5744,28 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
+
+--[[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local objVal = Players.LocalPlayer.PlayerGui
+    :WaitForChild("Traits")
+    :WaitForChild("Main")
+    :WaitForChild("Base")
+    :WaitForChild("UnitFolder")
+
+local folder = objVal.Value
+
+if folder then
+    local primary = folder:FindFirstChild("PrimaryTrait")
+    local secondary = folder:FindFirstChild("SecondaryTrait")
+
+    if primary and secondary then
+        print("PrimaryTrait:", primary.Value)
+        print("SecondaryTrait:", secondary.Value)
+    else
+        warn("Traits not found inside folder:", folder:GetFullName())
+    end
+else
+    warn("ObjectValue is not pointing to any folder!")
+end--]]
