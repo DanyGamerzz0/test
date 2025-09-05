@@ -1,4 +1,4 @@
---4
+--6
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2644,7 +2644,7 @@ local function StartAutoReroll(selectedTraits)
     
     task.spawn(function()
         local attempts = 0
-        local maxAttempts = 100 -- Adjust as needed
+        local maxAttempts = 999999999999999 -- Adjust as needed
         
         -- Dynamic success message based on mode
         local targetMessage
@@ -2696,7 +2696,7 @@ local function StartAutoReroll(selectedTraits)
             end
             
             -- Wait a bit before checking results
-            task.wait(1)
+            task.wait(0.5)
             
             -- Progress notification every 20 attempts
             if attempts % 20 == 0 then
@@ -5218,28 +5218,3 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
-
---[[local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-
-local objVal = Players.LocalPlayer.PlayerGui
-    :WaitForChild("Traits")
-    :WaitForChild("Main")
-    :WaitForChild("Base")
-    :WaitForChild("UnitFolder")
-
-local folder = objVal.Value
-
-if folder then
-    local primary = folder:FindFirstChild("PrimaryTrait")
-    local secondary = folder:FindFirstChild("SecondaryTrait")
-
-    if primary and secondary then
-        print("PrimaryTrait:", primary.Value)
-        print("SecondaryTrait:", secondary.Value)
-    else
-        warn("Traits not found inside folder:", folder:GetFullName())
-    end
-else
-    warn("ObjectValue is not pointing to any folder!")
-end--]]
