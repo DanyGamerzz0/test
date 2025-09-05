@@ -61,6 +61,9 @@ local State = {
     curseMinimums = {},
     selectedCurseForRequirement = "Ability Damage",
     AutoSummonBannerSelected = nil,
+    AutoRerollEnabled = false,
+    selectedTraits = {},
+    rollOnlyDoubleTraits = false,
     pendingChallengeReturn = false,
     AutoFailSafeEnabled = false,
     autoPlayDelayActive = false,
@@ -2559,6 +2562,157 @@ local function GetSelectedUnit()
     return success and unit or nil
 end
 
+local function GetSelectedUnitTraits()
+    local success, result = pcall(function()
+        local objVal = Services.Players.LocalPlayer.PlayerGui
+            :WaitForChild("Traits")
+            :WaitForChild("Main")
+            :WaitForChild("Base")
+            :WaitForChild("UnitFolder")
+
+        local folder = objVal.Value
+        
+        if not folder then
+            return nil
+        end
+
+        local CollectionFolder = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection[folder]
+
+        local primary = CollectionFolder:FindFirstChild("PrimaryTrait")
+        local secondary = CollectionFolder:FindFirstChild("SecondaryTrait")
+
+        if primary and secondary then
+            return {
+                primary = primary.Value,
+                secondary = secondary.Value,
+                unit = folder
+            }
+        end
+        return nil
+    end)
+
+    return success and result or nil
+end
+
+local function TraitsMatch(currentTraits, selectedTraits, requireDouble)
+    if not currentTraits then
+        return false
+    end
+    
+    local primary = currentTraits.primary
+    local secondary = currentTraits.secondary
+    
+    -- Convert selected traits to a lookup table for faster checking
+    local selectedLookup = {}
+    for _, trait in ipairs(selectedTraits) do
+        selectedLookup[trait] = true
+    end
+    
+    if requireDouble then
+        -- For double traits: need one selected trait in primary AND one in secondary
+        local primaryMatch = selectedLookup[primary]
+        local secondaryMatch = selectedLookup[secondary]
+        
+        return primaryMatch and secondaryMatch and primary ~= secondary
+    else
+        -- For single trait: need at least one selected trait in either slot
+        return selectedLookup[primary] or selectedLookup[secondary]
+    end
+end
+
+local function RerollTraits(unit)
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("RerollTrait"):FireServer(game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild("DrzonersonAloerson"):WaitForChild("Collection"):WaitForChild(unit),"Reroll","Main","Shards")
+    end)
+    return success
+end
+
+local function StartAutoReroll(selectedTraits)
+    if not isInLobby() then -- Assuming you have this function from your curse system
+        notify("Auto Reroll", "Must be in lobby to use auto reroll!")
+        return
+    end
+    
+    if #selectedTraits < 1 then
+        notify("Auto Reroll", "Please select at least 1 trait!")
+        return
+    end
+    
+    if State.rollOnlyDoubleTraits and #selectedTraits < 2 then
+        notify("Auto Reroll", "Need at least 2 traits selected for double trait mode!")
+        return
+    end
+    
+    task.spawn(function()
+        local attempts = 0
+        local maxAttempts = 100 -- Adjust as needed
+        
+        -- Dynamic success message based on mode
+        local targetMessage
+        if State.rollOnlyDoubleTraits then
+            targetMessage = string.format("Looking for 2 traits from: %s", table.concat(selectedTraits, ", "))
+        else
+            targetMessage = string.format("Looking for any of: %s", table.concat(selectedTraits, ", "))
+        end
+        
+        notify("Auto Reroll", targetMessage)
+        
+        while State.AutoRerollEnabled and attempts < maxAttempts do
+            attempts = attempts + 1
+            
+            -- Get current unit and traits
+            local currentTraits = GetSelectedUnitTraits()
+            if not currentTraits then
+                notify("Auto Reroll", "No unit selected! Please select a unit in the trait UI.")
+                task.wait(3)
+                continue
+            end
+            
+            -- Check if current traits match our requirements
+            if TraitsMatch(currentTraits, selectedTraits, State.rollOnlyDoubleTraits) then
+                local successMessage
+                if State.rollOnlyDoubleTraits then
+                    successMessage = string.format("Found double traits: %s + %s! (Attempt %d)", 
+                        currentTraits.primary, currentTraits.secondary, attempts)
+                else
+                    successMessage = string.format("Found matching trait! Primary: %s, Secondary: %s (Attempt %d)", 
+                        currentTraits.primary, currentTraits.secondary, attempts)
+                end
+                
+                notify("Auto Reroll", successMessage)
+                State.AutoRerollEnabled = false
+                break
+            end
+            
+            -- Log current attempt
+            print(string.format("Attempt %d: Primary: %s, Secondary: %s", 
+                attempts, currentTraits.primary, currentTraits.secondary))
+            
+            -- Reroll traits
+            local rollSuccess = RerollTraits(currentTraits.unit)
+            if not rollSuccess then
+                notify("Auto Reroll", "Failed to reroll traits! Retrying...")
+                task.wait(1)
+                continue
+            end
+            
+            -- Wait a bit before checking results
+            task.wait(1)
+            
+            -- Progress notification every 20 attempts
+            if attempts % 20 == 0 then
+                notify("Auto Reroll", string.format("Attempt %d/%d - Still searching...", attempts, maxAttempts))
+            end
+        end
+        
+        -- Handle failure case
+        if State.AutoRerollEnabled and attempts >= maxAttempts then
+            notify("Auto Reroll", string.format("Failed after %d attempts. Consider different trait selection.", maxAttempts))
+            State.AutoRerollEnabled = false
+        end
+    end)
+end
+
 local function StartAutoCurse(selectedCurses)
     if not isInLobby() then
         notify("Auto Curse", "Must be in lobby to use auto curse!")
@@ -3328,6 +3482,53 @@ local ResetButton = LobbyTab:CreateButton({
         notify("Auto Curse", "All settings cleared")
     end,
 })
+
+GameSection = LobbyTab:CreateSection("💎 Auto Trait 💎")
+
+local AutoTraitToggle = LobbyTab:CreateToggle({
+    Name = "Auto Reroll Traits",
+    CurrentValue = false,
+    Flag = "AutoTraitToggle",
+    Info = "Open trait UI and select unit manually before enabling.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoRerollEnabled = Value
+        if #State.selectedTraits >= 1 and State.AutoRerollEnabled then
+            StartAutoReroll(State.selectedTraits)
+        elseif Value and #State.selectedTraits < 1 then
+            notify("Auto Reroll", "Please select at least 1 trait first!")
+        end
+    end,
+})
+
+local TraitSelectorDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Traits",
+    Options = {"Endure I","Endure II","Endure III","Horizon I","Horizon II","Horizon III","Superior I","Superior II","Superior III","Brute","Sniper","Colossal","Investor","Jokester","Blitz","Juggernaut","Millionaire","Violent","Seraph","Capitalist","Duplicator","Sovereign"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "TraitSelector",
+    Callback = function(Options)
+        State.selectedTraits = Options
+        if State.AutoRerollEnabled and #Options < 1 then
+            State.AutoRerollEnabled = false
+            AutoTraitToggle:Set(false)
+            notify("Auto Reroll", "Auto reroll disabled - need at least 1 trait selected!")
+        end
+    end,
+})
+
+local DoubleTraitToggle = LobbyTab:CreateToggle({
+    Name = "Roll Only Double Traits",
+    CurrentValue = false,
+    Flag = "DoubleTraitToggle",
+    Info = "When enabled, will only stop when 2 selected traits are found (1 in main trait, 1 in sub-trait).",
+    TextScaled = false,
+    Callback = function(Value)
+        State.rollOnlyDoubleTraits = Value
+    end,
+})
+
+GameSection = LobbyTab:CreateSection("⚙️ Misc ⚙️")
 
 local Button = LobbyTab:CreateButton({
         Name = "Return to lobby",
