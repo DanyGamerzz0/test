@@ -1,4 +1,4 @@
---3
+--4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -2621,7 +2621,7 @@ end
 
 local function RerollTraits(unit)
     local success = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("RerollTrait"):FireServer(game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild("DrzonersonAloerson"):WaitForChild("Collection"):WaitForChild(unit),"Reroll","Main","Shards")
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("RerollTrait"):FireServer(game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild("DrzonersonAloerson"):WaitForChild("Collection"):WaitForChild(unit.Name),"Reroll","Main","Shards")
     end)
     return success
 end
