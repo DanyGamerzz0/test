@@ -1,4 +1,3 @@
---123424323qk
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1747,7 +1746,6 @@ local function checkMaterialsInStage()
     end
     
     print("🎮 [DEBUG] In stage, checking materials...")
-    print("📍 [DEBUG] Current farming stage:", State.currentFarmingStage)
     
     -- Calculate what materials we still need
     local totalNeeded = CalculateTotalMaterialsNeeded()
@@ -1782,7 +1780,6 @@ local function checkMaterialsInStage()
                 print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
                     i, source.fullPath, stageDisplayName))
                 -- Track what materials current stage drops
-                print("BEEP BOOOOOOOP: "..stageDisplayName.." BEEP BUP: "..State.currentFarmingStage)
                 print(source.fullPath)
                 print(stageDisplayName)
                 if stageDisplayName == extractedName then
@@ -1804,16 +1801,6 @@ local function checkMaterialsInStage()
     notify("Auto Gear Farm", "✅ Got enough materials from current stage! Returning to lobby...")
     print("🚀 [DEBUG] Teleporting to lobby...")
     --game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
-    State.currentFarmingStage = nil
-    Rayfield.Flags.HiddenCurrentFarmingStage.CurrentValue = ""
-end
-
-local function initializeFarmingState()
-    local savedStage = Rayfield.Flags.HiddenCurrentFarmingStage.CurrentValue
-if savedStage and savedStage ~= "" then
-    State.currentFarmingStage = savedStage
-    print("Restored farming stage:", savedStage)
-end
 end
 
 local function checkMaterialFarming()
@@ -1871,9 +1858,6 @@ local function checkMaterialFarming()
         
         notify("Auto Gear Farm", string.format("🎯 Farming %d %s from %s", 
             materialToFarm.needed, materialToFarm.name, rangerStageName))
-        
-        State.currentFarmingStage = rangerStageName
-        Rayfield.Flags.HiddenCurrentFarmingStage.CurrentValue = rangerStageName
 
         setProcessingState("Auto Material Farm")
         handleTeamEquipping("Ranger")
@@ -5963,16 +5947,8 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
     end)
 end)
 
-local hiddenCurrentStageFlag = {
-    Type = "Text",
-    CurrentValue = "",
-    Flag = "HiddenCurrentFarmingStage"
-}
-Rayfield.Flags.HiddenCurrentFarmingStage = hiddenCurrentStageFlag
-
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
-initializeFarmingState()
 
 Rayfield:TopNotify({
     Title = "UI is hidden",
