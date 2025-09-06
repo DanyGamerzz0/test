@@ -1,4 +1,4 @@
---16
+--17
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -61,6 +61,7 @@ local State = {
     enableAutoSummon = false,
     deleteEntities = false,
     AutoFarmEnabled = false,
+    currentFarmingStage = false,
     selectedGears = {},
     craftAmounts = {},
     currentlyFarming = false,
@@ -1828,6 +1829,7 @@ local function checkMaterialFarming()
         notify("Auto Gear Farm", string.format("🎯 Farming %d %s from %s", 
             materialToFarm.needed, materialToFarm.name, rangerStageName))
         
+        State.currentFarmingStage = rangerStageName
         setProcessingState("Auto Material Farm")
         handleTeamEquipping("Ranger")
         task.wait(0.5)
