@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1599,116 +1600,6 @@ local function handleTeamEquipping(mode)
     end
 end
 
-local function FarmMaterial(materialName, neededAmount, sources)
-    if not sources or #sources == 0 then
-        notify("Auto Gear Farm", string.format("No sources found for material: %s", materialName))
-        return false
-    end
-    
-    -- Sort sources by efficiency (highest drop rate * average drop)
-    table.sort(sources, function(a, b)
-        local efficiencyA = (a.dropRate / 100) * ((a.minDrop + a.maxDrop) / 2)
-        local efficiencyB = (b.dropRate / 100) * ((b.minDrop + b.maxDrop) / 2)
-        return efficiencyA > efficiencyB
-    end)
-    
-    local bestSource = sources[1]
-    local avgDrop = (bestSource.minDrop + bestSource.maxDrop) / 2
-    local dropChance = bestSource.dropRate / 100
-    local expectedPerRun = avgDrop * dropChance
-    local estimatedRuns = math.ceil(neededAmount / expectedPerRun)
-    
-    notify("Auto Gear Farm", string.format("Farming %d %s from %s (Est. %d runs)", 
-        neededAmount, materialName, bestSource.fullPath, estimatedRuns))
-    
-    -- Convert level module info to ranger stage format
-    local rangerStageName = string.format("%s_RangerStage%s", 
-        bestSource.module, bestSource.chapter:match("%d+") or "1")
-    
-    print(string.format("🎯 Farming material: %s from ranger stage: %s", materialName, rangerStageName))
-    
-    local runsCompleted = 0
-    local maxRuns = estimatedRuns * 3 -- Safety limit to prevent infinite farming
-    
-    while State.AutoFarmEnabled and runsCompleted < maxRuns do
-        -- Check if we have enough materials now
-        local inventory = GetPlayerInventory()
-        local currentAmount = inventory[materialName] or 0
-        
-        if currentAmount >= neededAmount then
-            notify("Auto Gear Farm", string.format("✅ Got enough %s! (%d/%d)", 
-                materialName, currentAmount, neededAmount))
-            return true
-        end
-        
-        -- Make sure we're in lobby before joining
-        if not isInLobby() then
-            notify("Auto Gear Farm", "Waiting to return to lobby...")
-            -- Teleport to lobby
-            game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
-            task.wait(5) -- Wait for teleport
-            continue
-        end
-        
-        -- Wait for processing state to be clear
-        if autoJoinState.isProcessing then
-            task.wait(1)
-            continue
-        end
-        
-        runsCompleted = runsCompleted + 1
-        notify("Auto Gear Farm", string.format("Run %d/%d for %s", 
-            runsCompleted, estimatedRuns, materialName))
-        
-        -- Set team for ranger farming
-        handleTeamEquipping("Ranger")
-        task.wait(0.5)
-        
-        -- Join the ranger stage
-        setProcessingState("Auto Gear Farm - " .. materialName)
-        autoJoinRangerStage(rangerStageName)
-        
-        -- Wait for the stage to complete
-        -- We'll wait until we're back in lobby or a reasonable timeout
-        local startTime = tick()
-        local timeout = 300 -- 5 minutes max per run
-        
-        task.wait(10) -- Initial wait for stage to start
-        
-        while not isInLobby() and (tick() - startTime) < timeout and State.AutoFarmEnabled do
-            task.wait(2)
-        end
-        
-        clearProcessingState()
-        
-        if not State.AutoFarmEnabled then
-            notify("Auto Gear Farm", "Farming stopped by user")
-            return false
-        end
-        
-        if (tick() - startTime) >= timeout then
-            notify("Auto Gear Farm", "⚠️ Stage timeout, moving to next run")
-        end
-        
-        -- Small delay between runs
-        task.wait(2)
-    end
-    
-    -- Final check
-    local inventory = GetPlayerInventory()
-    local finalAmount = inventory[materialName] or 0
-    
-    if finalAmount >= neededAmount then
-        notify("Auto Gear Farm", string.format("✅ Successfully farmed %s! (%d/%d)", 
-            materialName, finalAmount, neededAmount))
-        return true
-    else
-        notify("Auto Gear Farm", string.format("⚠️ Farming incomplete for %s (%d/%d after %d runs)", 
-            materialName, finalAmount, neededAmount, runsCompleted))
-        return false
-    end
-end
-
 local function StartAutoFarmGear()
     if not isInLobby() then
         notify("Auto Gear Farm", "Must be in lobby to use auto gear farm!")
@@ -1729,13 +1620,55 @@ local function StartAutoFarmGear()
     notify("Auto Gear Farm", "🚀 Auto farming started! Check console for stage analysis.")
 end
 
--- Add this new function to your script:
+local function saveFarmingState(stageName)
+    local success, err = pcall(function()
+        writefile("farming_state.json", game:GetService("HttpService"):JSONEncode({
+            currentFarmingStage = stageName,
+            timestamp = tick()
+        }))
+    end)
+    if not success then
+        warn("Failed to save farming state:", err)
+    end
+end
+
+local function loadFarmingState()
+    local success, result = pcall(function()
+        if isfile("farming_state.json") then
+            local data = game:GetService("HttpService"):JSONDecode(readfile("farming_state.json"))
+            -- Optional: Check if state is recent (within last 10 minutes to avoid stale data)
+                return data.currentFarmingStage
+        end
+        return nil
+    end)
+    
+    if success then
+        return result
+    else
+        warn("Failed to load farming state:", result)
+        return nil
+    end
+end
+
+if not State.currentFarmingStage then
+    State.currentFarmingStage = loadFarmingState()
+end
+
+local function clearFarmingState()
+    local success, err = pcall(function()
+        if isfile("farming_state.json") then
+            delfile("farming_state.json")
+        end
+    end)
+    if not success then
+        warn("Failed to clear farming state:", err)
+    end
+end
+
 local function checkMaterialsInStage()
     State.currentlyFarming = State.AutoFarmEnabled
-    print("🔍 [DEBUG] checkMaterialsInStage called")
     
     if not State.currentlyFarming or not State.AutoFarmEnabled then
-        print("❌ [DEBUG] Farming not enabled - currentlyFarming:", State.currentlyFarming, "AutoFarmEnabled:", State.AutoFarmEnabled)
         return
     end
     
@@ -1745,7 +1678,14 @@ local function checkMaterialsInStage()
         return
     end
     
+    -- Load farming stage if not set (after teleport)
+    if not State.currentFarmingStage then
+        State.currentFarmingStage = loadFarmingState()
+        print("🔄 [DEBUG] Loaded farming stage from file:", State.currentFarmingStage)
+    end
+    
     print("🎮 [DEBUG] In stage, checking materials...")
+    print("🎯 [DEBUG] Current farming stage:", State.currentFarmingStage)
     
     -- Calculate what materials we still need
     local totalNeeded = CalculateTotalMaterialsNeeded()
@@ -1773,16 +1713,14 @@ local function checkMaterialsInStage()
             print("📍 [DEBUG] Found", #sources, "sources for", materialName)
             
             for i, source in ipairs(sources) do
-                local stageDisplayName = sources.chaptername
-                local stageLabelText = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo").Stage.Label.Text
-                local extractedName = stageLabelText:match("%- (.+)$") or stageLabelText
-                
+                local rangerStageName = string.format("%s_RangerStage%s", 
+                    source.module, source.chapter:match("%d+") or "1")
+
                 print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
-                    i, source.fullPath, source.fullPath))
+                    i, source.fullPath, rangerStageName))
                 -- Track what materials current stage drops
                 print(source.fullPath)
-                print(tostring(stageDisplayName))
-                if stageDisplayName == extractedName then
+                if rangerStageName == State.currentFarmingStage then
                     materialsFromCurrentStage[materialName] = true
                     print("✅ [DEBUG] Current stage drops", materialName, "- still need", deficit)
                     stillNeedFromCurrentStage = true
@@ -1800,6 +1738,7 @@ local function checkMaterialsInStage()
     -- If we get here, we have enough materials from this stage
     notify("Auto Gear Farm", "✅ Got enough materials from current stage! Returning to lobby...")
     print("🚀 [DEBUG] Teleporting to lobby...")
+    clearFarmingState() -- Clear state when leaving stage
     --game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
 end
 
@@ -1859,6 +1798,9 @@ local function checkMaterialFarming()
         notify("Auto Gear Farm", string.format("🎯 Farming %d %s from %s", 
             materialToFarm.needed, materialToFarm.name, rangerStageName))
 
+        State.currentFarmingStage = rangerStageName
+        saveFarmingState(rangerStageName) -- Save to file
+
         setProcessingState("Auto Material Farm")
         handleTeamEquipping("Ranger")
         task.wait(0.5)
@@ -1869,6 +1811,7 @@ local function checkMaterialFarming()
         notify("Auto Gear Farm", "✅ All materials farmed! Stopping auto farm.")
         State.currentlyFarming = false
         State.AutoFarmEnabled = false
+        clearFarmingState() -- Clear saved state when done
         
         -- Show final summary
         print("=== MATERIAL FARMING COMPLETE ===")
