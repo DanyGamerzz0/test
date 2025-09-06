@@ -1,4 +1,4 @@
---8
+--9
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -477,26 +477,29 @@ end
 
 local function GetAllLevelModules()
     local success, modules = pcall(function()
-        local levelsFolder = ReplicatedStorage.Shared.Info.GameWorld.Levels
+        local levelsFolder = Services.ReplicatedStorage.Info.GameWorld.Levels
         local levelModules = {}
-        
+
         for _, moduleScript in pairs(levelsFolder:GetChildren()) do
             if moduleScript:IsA("ModuleScript") then
                 local success, moduleData = pcall(function()
                     return require(moduleScript)
                 end)
-                
+
                 if success and moduleData then
                     levelModules[moduleScript.Name] = moduleData
+                else
+                    warn("Failed to require:", moduleScript.Name)
                 end
             end
         end
-        
+
         return levelModules
     end)
-    
+
     return success and modules or {}
 end
+
 
 local function GetAllGearNames()
     local gearNames = {}
@@ -546,38 +549,39 @@ end
 local function FindMaterialSource(materialName)
     local allLevels = GetAllLevelModules()
     local sources = {}
-    
-    -- Search through all world modules for the material
+
     for moduleName, moduleData in pairs(allLevels) do
-        -- Each module contains worlds, search through them
         for worldName, worldData in pairs(moduleData) do
-            if type(worldData) == "table" then
-                -- Search through chapters in this world
-                for chapterName, chapterData in pairs(worldData) do
-                    if type(chapterData) == "table" and chapterData.Items then
-                        -- Check each item drop in this chapter
-                        for _, itemDrop in pairs(chapterData.Items) do
-                            if itemDrop.Name == materialName then
-                                table.insert(sources, {
-                                    module = moduleName,
-                                    world = worldName,
-                                    chapter = chapterName,
-                                    chapterData = chapterData,
-                                    dropRate = itemDrop.DropRate,
-                                    minDrop = itemDrop.MinDrop,
-                                    maxDrop = itemDrop.MaxDrop,
-                                    fullPath = string.format("%s -> %s -> %s", moduleName, worldName, chapterName)
-                                })
-                            end
+            -- worldName is "SAO"
+            for chapterName, chapterData in pairs(worldData) do
+                if type(chapterData) == "table" and chapterData.Items then
+                    for _, itemDrop in pairs(chapterData.Items) do
+                        if itemDrop.Name == materialName then
+                            table.insert(sources, {
+                                module = moduleName,
+                                world = worldName,
+                                chapter = chapterName,
+                                readableName = chapterData.Name or chapterName,
+                                dropRate = itemDrop.DropRate,
+                                minDrop = itemDrop.MinDrop,
+                                maxDrop = itemDrop.MaxDrop,
+                                fullPath = string.format(
+                                    "%s -> %s -> %s",
+                                    moduleName,
+                                    worldName,
+                                    chapterData.Name or chapterName
+                                )
+                            })
                         end
                     end
                 end
             end
         end
     end
-    
+
     return sources
 end
+
 
 local function AnalyzeRequiredStages()
     if #State.selectedGears == 0 then
