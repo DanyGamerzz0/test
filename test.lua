@@ -1,4 +1,4 @@
---14
+--15
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1729,6 +1729,49 @@ local function StartAutoFarmGear()
     notify("Auto Gear Farm", "🚀 Auto farming started! Check console for stage analysis.")
 end
 
+-- Add this new function to your script:
+local function checkMaterialsInStage()
+    if not State.currentlyFarming or not State.AutoFarmEnabled then
+        return
+    end
+    
+    -- Only run this when we're NOT in lobby (i.e., in a stage)
+    if isInLobby() then
+        return
+    end
+    
+    -- Calculate what materials we still need
+    local totalNeeded = CalculateTotalMaterialsNeeded()
+    local inventory = GetPlayerInventory()
+    
+    -- Check if we have enough of ALL materials from current stage
+    local haveEnoughFromCurrentStage = false
+    
+    for materialName, needed in pairs(totalNeeded) do
+        local current = inventory[materialName] or 0
+        local deficit = needed - current
+        
+        if deficit > 0 then
+            -- Still need this material, check if current stage drops it
+            local sources = FindMaterialSource(materialName)
+            for _, source in ipairs(sources) do
+                local rangerStageName = string.format("%s_RangerStage%s", 
+                    source.module, source.chapter:match("%d+") or "1")
+                
+                -- If this is the stage we're currently in and we still need materials from it
+                if rangerStageName == State.currentFarmingStage then
+                    return -- Stay in stage, still need materials
+                end
+            end
+        end
+    end
+    
+    -- If we get here, we have enough materials from this stage
+    notify("Auto Gear Farm", "✅ Got enough materials from current stage! Returning to lobby...")
+    game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
+    State.currentFarmingStage = nil
+end
+
 local function checkMaterialFarming()
     if not State.currentlyFarming or not State.AutoFarmEnabled then
         return
@@ -1836,7 +1879,7 @@ local function getHighestNumberFromNames(parent)
 end
 
 local function checkAndExecuteHighestPriority()
-    if not isInLobby() then return end
+    if not isInLobby() then return checkMaterialsInStage() end
     if autoJoinState.isProcessing then return end
     if not canPerformAction() then return end
 
