@@ -1,4 +1,4 @@
---11
+--12
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -477,7 +477,7 @@ end
 
 local function GetAllLevelModules()
     local success, modules = pcall(function()
-        local levelsFolder = Services.ReplicatedStorage.Info.GameWorld.Levels
+        local levelsFolder = Services.ReplicatedStorage.Shared.Info.GameWorld.Levels
         local levelModules = {}
 
         for _, moduleScript in pairs(levelsFolder:GetChildren()) do
