@@ -1,4 +1,4 @@
---3
+--4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -62,6 +62,7 @@ local State = {
     deleteEntities = false,
     AutoFarmEnabled = false,
     currentFarmingStage = false,
+    AutoOpenBorosEnabled = false,
     selectedGears = {},
     craftAmounts = {},
     currentlyFarming = false,
@@ -208,7 +209,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local ValidWebhook
 
@@ -1330,6 +1331,57 @@ local function isWantedChallengeRewardPresent()
         end
     end
     return false, nil
+end
+
+local function openBorosCapsules(amount)
+    if amount <= 0 then return end
+    
+    local success, err = pcall(function()
+        local playerData = Services.ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(Services.Players.LocalPlayer.Name)
+        local borosCapsule = playerData:WaitForChild("Items"):WaitForChild("Borus Capsule")
+        
+        local args = {
+            borosCapsule,
+            {
+                SummonAmount = amount
+            }
+        }
+        
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("ItemUse"):FireServer(unpack(args))
+        
+        notify("Auto Boros", string.format("🎁 Opened %d Boros Capsule%s!", amount, amount == 1 and "" or "s"))
+    end)
+    
+    if not success then
+        warn("❌ [AUTO BOROS] Failed to open capsules:", err)
+    end
+end
+
+local function startAutoBorosCapsule()
+    task.spawn(function()
+        local success, err = pcall(function()
+            local playerData = Services.ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(Services.Players.LocalPlayer.Name)
+            local borosCapsule = playerData:WaitForChild("Items"):WaitForChild("Borus Capsule")
+            local amountValue = borosCapsule:WaitForChild("Amount")
+            
+            -- Monitor loop
+            while State.AutoOpenBorosEnabled do
+                task.wait(1) -- Check every second
+                
+                if not State.AutoOpenBorosEnabled then
+                    break
+                end
+                
+                if amountValue.Value > 0 then
+                    openBorosCapsules(amountValue.Value)
+                end
+            end
+        end)
+        
+        if not success then
+            notify("Auto Boros", "❌ Failed to start auto Boros capsule!")
+        end
+    end)
 end
 
 local function getPlayerCurrency()
@@ -4047,6 +4099,8 @@ AutoFarmToggle = LobbyTab:CreateToggle({
     Name = "Auto Gear Farm",
     CurrentValue = State.AutoFarmEnabled,
     Flag = "AutoGearFarmEnabled",
+    Info = "Joins the required ranger stages and farms. You have to manually craft the gears this just collects the materials!",
+    TextScaled = false,
     Callback = function(Value)
         State.AutoFarmEnabled = Value
         State.currentlyFarming = Value
@@ -4104,13 +4158,6 @@ local CraftAmountSlider = LobbyTab:CreateSlider({
     end,
 })
 
-local AnalyzeStagesButton = LobbyTab:CreateButton({
-    Name = "Analyze Required Stages",
-    Callback = function()
-        AnalyzeRequiredStages()
-    end,
-})
-
 local ShowRequiredMaterialsButton = LobbyTab:CreateButton({
     Name = "Show Required Materials",
     Callback = function()
@@ -4163,44 +4210,6 @@ local ResetGearSettingsButton = LobbyTab:CreateButton({
         State.totalMaterialsNeeded = {}
         GearSelectorDropdown:Set({})
         notify("Auto Gear Farm", "All gear settings cleared!")
-    end,
-})
-
--- Helper function to show gear info
-local ShowGearInfoButton = LobbyTab:CreateButton({
-    Name = "Show Gear Info",
-    Callback = function()
-        if not State.selectedGearForAmount then
-            notify("Gear Info", "Please select a gear first!")
-            return
-        end
-        
-        local gearName = State.selectedGearForAmount
-        local gearData = GearData[gearName]
-        
-        if not gearData then
-            notify("Gear Info", "Gear data not found!")
-            return
-        end
-        
-        local requirements = {}
-        for materialName, amount in pairs(gearData.Requirement) do
-            local sources = FindMaterialSource(materialName)
-            local sourceInfo = ""
-            
-            if #sources > 0 then
-                sourceInfo = string.format(" (found in %d stages)", #sources)
-            else
-                sourceInfo = " (source unknown)"
-            end
-            
-            table.insert(requirements, string.format("%s: %d%s", materialName, amount, sourceInfo))
-        end
-        
-        local info = string.format("%s\nCost: %d Gold\n\nMaterials:\n%s", 
-            gearName, gearData.Cost, table.concat(requirements, "\n"))
-        
-        notify("Gear Info", info)
     end,
 })
 
@@ -4533,6 +4542,18 @@ local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
         Data.SwarmEventPurchaseTable = Options
     end,
     })
+
+    local BorosToggle = ShopTab:CreateToggle({
+   Name = "Auto Open Boros Capsule",
+   CurrentValue = false,
+   Flag = "AutoOpenBoros", 
+   Callback = function(Value)
+       State.AutoOpenBorosEnabled = Value
+       if Value then
+           startAutoBorosCapsule()
+       end
+   end,
+})
 
      GameSection = LobbyTab:CreateSection("🎁 Claimers 🎁")
 
