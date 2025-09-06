@@ -1,4 +1,4 @@
---22222222
+--123424323qk
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -566,7 +566,7 @@ local function FindMaterialSource(materialName)
                                 module = moduleName,
                                 world = worldName,
                                 chapter = chapterName,
-                                chaptername = chapterData.Name or chapterName,
+                                chapterName = chapterData.Name or chapterName or "UnknownChapter",
                                 readableName = chapterData.Name or chapterName,
                                 dropRate = itemDrop.DropRate,
                                 minDrop = itemDrop.MinDrop,
@@ -1783,6 +1783,8 @@ local function checkMaterialsInStage()
                     i, source.fullPath, stageDisplayName))
                 -- Track what materials current stage drops
                 print("BEEP BOOOOOOOP: "..stageDisplayName.." BEEP BUP: "..State.currentFarmingStage)
+                print(source.fullPath)
+                print(stageDisplayName)
                 if stageDisplayName == extractedName then
                     materialsFromCurrentStage[materialName] = true
                     print("✅ [DEBUG] Current stage drops", materialName, "- still need", deficit)
