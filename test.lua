@@ -1,4 +1,4 @@
---1
+--2
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1739,7 +1739,7 @@ local function checkMaterialsInStage()
     notify("Auto Gear Farm", "✅ Got enough materials from current stage! Returning to lobby...")
     print("🚀 [DEBUG] Teleporting to lobby...")
     clearFarmingState() -- Clear state when leaving stage
-    --game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
+    game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
 end
 
 local function checkMaterialFarming()
