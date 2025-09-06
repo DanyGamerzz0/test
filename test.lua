@@ -1,4 +1,4 @@
---9
+--10
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -552,7 +552,7 @@ local function FindMaterialSource(materialName)
 
     for moduleName, moduleData in pairs(allLevels) do
         for worldName, worldData in pairs(moduleData) do
-            -- worldName is "SAO"
+            -- worldName = "SAO", worldData = { SAO_Chapter1 = {...}, SAO_RangerStage3 = {...}, ... }
             for chapterName, chapterData in pairs(worldData) do
                 if type(chapterData) == "table" and chapterData.Items then
                     for _, itemDrop in pairs(chapterData.Items) do
@@ -566,9 +566,8 @@ local function FindMaterialSource(materialName)
                                 minDrop = itemDrop.MinDrop,
                                 maxDrop = itemDrop.MaxDrop,
                                 fullPath = string.format(
-                                    "%s -> %s -> %s",
+                                    "%s -> %s",
                                     moduleName,
-                                    worldName,
                                     chapterData.Name or chapterName
                                 )
                             })
@@ -581,6 +580,7 @@ local function FindMaterialSource(materialName)
 
     return sources
 end
+
 
 
 local function AnalyzeRequiredStages()
