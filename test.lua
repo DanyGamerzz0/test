@@ -1,3 +1,5965 @@
--- This file was protected using Luraph Obfuscator v14.4.1 [https://lura.ph/]
+local Services = {
+    HttpService = game:GetService("HttpService"),
+    Players = game:GetService("Players"),
+    TeleportService = game:GetService("TeleportService"),
+    Lighting = game:GetService("Lighting"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Workspace = game:GetService("Workspace"),
+    VIRTUAL_USER = game:GetService("VirtualUser"),
+}
 
-return(function()local k,J,f,F,K,l,t,e,I,p,o,Z,b,N=string.byte,string.sub,string.char,string.gsub,string.rep,setmetatable,pcall,type,tostring,assert,loadstring,unpack,string.pack,{};for T=0,255 do N[T]=f(T);end;local N=5;do local T={16332,{0x1B,0x4C,0x75,0x61,0x50},I(o)};for d,P in next,T do local T={t(o,d%2==0 and f(Z(P))or P,nil,nil)};if T[1]and t(T[2])~=not T[3]then N=5;end;end;end;local T,d,P=(function(_)_=F(_,"z","!!!!!");return F(_,".....",l({},{__index=function(F,_)local j,M,G,x,h=k(_,1,5);local S=(h-33)+(x-33)*85+(G-33)*7225+(M-33)*614125+(j-33)*52200625;local j=b(">I4",S);F[_]=j;return j;end}));end)(J([==[LPH@!'(r5>9R;sGiW/h53Sl-QQ%>e9f)T.H(s+1ShGjFV:-+!HX?\OC8KV:N*HSnU[tNc`sXr']5pqeESD>W`iI01eAR+RKR9)0l)*$#\[oiff`HO<]6Hbd.T.j-VL4_qG4`ZF*'iA4humYH$=p;R5Y-AKfj3tU.0*Y,nDV5/;m<a*XG,PVh-M[ndCe)>HGOt-34Egb72nJ9Gs'.80mHU%s%=dWHc6"lrsa4=>`BUO"*F8>.1S'BQ?jYX!msnFqorV^1QqN7a$l,J8Vf\DO\2b<=`(929tGQ;.@nr;d6bWS1##n0WD`)<RHmmQP_<EnJ;#gBp@'9Tef%[6nj*W/a*.R%nqGfRMK%PeQOKK#4#3`+6(5njNhN6*7-G[cFL>@/V?'?JB!jb_.>-t=[,8*oII6p0KQ]W"^'TG2VpS:t>YLt,5)T"&1mt_YkH(Xq;6\>9B][Xo\9PcHhMV,JVrM3h8M54#*-X4?VJ<E>be"p8/MYd60%$QJ0Af+Z<>g*dT\7GY6'hJ;`h[nD/-&t>,BXQIM?R`D@Sa%T.f=opk?3"lbg9?8WbXtXbtuJ1^Q:O->_]uTSA>cl+7?=TKS^XUl^q!3k7$?=iufN4$e!t!e=>&d?$%UH1W]L87ddEB;-baI+)BLF)SN3L0s@hL.@H>#oPWQa_\AAbn5@6e]$q4I'"MScUC*\sPjTWs;dDE]UG@Un4QN'Y\_+l%s7'%p8&@AF0t'g_go,]!Of4s(^r'Pl8TdJG,Olo/J(5,VQ6@H`X9W1W[D,G<o(kJI9)Fa<:J]unAF!O1),=ek>U)0JhPnbBf8B'"U;'h3ek7C"on'B5+\^AJ"XF1-U1j5n#@i?c*Z_CpXOAKE@a:E8jCH)^157"f#[#T]Nfc;fcEj;-S6bCi!bZFN`6o<P8R+D@Rc-"9hP!2m/u>4==\RuLa1ppil5FFN)'X2@Hp;<m.M0Cr8Le^>jhR&(58^/1E-j=&M>OmUM,+@.BM/>rCAg_t_/LNX-AkIFkkm3hX:T<<h"#;+',SrN9uDJR9EpH@>Orh2^KW.Fjg]lTbXJq8p2:RUmsP]A33l*8!t"SD:.RhOr8^_e#Ubt]_u)T#>i:Bi<p.oQ]p/:r%?R=)l][@SaQDM.O2!fZ/\T2E=%\[LPXku)m,i]SDL;*WJiI*ElD];O?"qQLr0>*FV]>`MpEFB*8K'hbX$K;/>3;i!'&]Z;FYW!oH;dR+<apQm+iMI]I!BV868Eb4SJ;R/e0-;Q[Ad,P8=*u>Whuo1/3:4`(RF;k!uDIV<%89aHl8'N]W2nZY]!>r$>>T/LLY&q?qQ<:2&f7an$.48`QD9Ga_DXJjVnA6')5,H2*bFtU\4s+./3E;`78h0`pT)@j)O9]IhH#XWe5.*JCWmWY1J\D2iM(;m<r6)*Rm+/rK6c>M>A\94k7#uRE6HS't`;EVhXG^W$\HY(6#pKSRd#/QKDD[ml#YZkLui+Ycm0L8*_")Kqkpa<>H=R+3t&+0;ZZfLZZIY_PLUPAk*P?@M>6@60aL#N-l<O49O[aO0QqXMqX"g6!n-=%Sb":c'+M5;)&#;7d:>l@D&Ku7qX<(][]KB4:'-G4X3X:]U:_BQ['AICXL/`_+8ip/kOZJ!9pUgH#lIm=5[J#/fcq9J-ra/#mB+VDY16I)9ZIJ8M#IUjIVV21t_^R#ZgEHQshW`*\'F?j;m2'V5_'t(F6%[Ki87]0T#j?gAR'D?*Wh&!-X?D5SX8,M#jdQgcUJ#iMKL%RHqH]VsLX9;-#p4\!@k:%L`.SXYgMa=;]3UUS:EKm;1KBhO-L98(!84p^g`nf8I)6OdB_oUuMpfElDhpO]e3J3i=hmiW\+LISN+4U&jQb1i&u*,Rd*I_=tQlD>Y9\;qD&(NMlDAgU@uPhTMV),!bsA[=snL)O,mp<ClU<(AfJhZJmI&,q-776-_Cl*q&Oa^aQV`+SB1?(FhUsJ<uX8J)ci5U,CAIcj.oE>-AF^i@6I\.Ss&";8Y`5T,!FC!2N'%b;5LR6Hs<ZPb,43jRcY9$eKkkok..jI?P"]#p2]Z&KF%ROSqh/R)^$0%.OARbao_?JkPF:)7$F)GQA\T!0h5X!;R[qAIsdGEG0BOhUQl81tk1i$+jJgFR1k0K5jIfp%MJd8[%@YiLf?4N5h^c!?3>LmIR*^S*]^jEL:/i-NI*6e)pR\"gnRcqj3TBh(Vn0M#p<KQbe4gS*C)1s6HAR^,)Agi7%9l/$YJV"/85^Ft3N4;]AE&)QOtd/9m8HFck>6L<3B"Xnf&tq(Oe^.M+AZ5H\6V7:ItO+:`@_dsMn"K+Z%mY(l*?&;@\o6[Ym)>grPci/g.4:VN0X=eaAr+6eS_q"p+%f<S:7QQ'-eMKbkF27/1KV?*$u=WpRSb#jHRUftqYKo"#Yc=nQh,67]_e->9<2EMt=QTN'U&ko4ukW4i@F]J-[\Uq)(2n27DT=5NT4V4sa]N[)+kcsKc9.hMSQ8YH!pV/qUoq\H>=O62ZH$o\18jl(>h7J!(`uV)8L*-?nV./Q@U7YAM@Dp9,ds*qF[L?4m>3;X)G7:Y63XuD93;@j9n8pua'^qSlhT5aa=YGun`P^@6Y#t6R`P<U..b.^%SqAIgX/sQfAYWT*ifm*LK:Um`J**;Pl+FQFSJRL_1%0Zk,P#Vbk7g#V]gssH<HMq`P>p;F"0cAj!^A:^+sj:l'c&$XR,i<VG!9PR<ERSb(]sDB'e9f;bZL:!8N)'A,T!Ab:KI@H$]U#K,+Q6?V;D5WfQplhZ\[$6Tf"TnV?'@ooK*D^o01'uGo@J_[\J+hE*rV?mqnRF"'bP)J>%ZEN3Yd?g0'dfFE8s!QH5+jr`X;cjL1DqVKi_"K*.[h0^QiKhK>Fi*_Tb6?WhZ1\JiHqE`Mam*M+HISN/V)(=4(O8]i.KZIZ/'6Z`'/kHnHe2>t"N]g&6t1"iJoq>IB8:_+(K!6f>m?Dp,>=Nc4q2F/+3l_Wd=H)dZ5glfh.PA2Fs+1fNk+":UGHQ-B%U.!tP6mJ)<j!_bM<Ke(R:L4-me_C:C?+$;$Zkh`H0CQ&gA&V.@pIgP,XTXF/2VT7/1Zf[*-VN*r5*K)%Eta'(3ZSs%pXEJYg]/NX<&f!LjtG6H@Ik)F4\E.eaNj&$P?N]s_ghqhVUX""]iP2rW1VcCN!3NZNJlpP?:Y&0do7"/FhUi\j0fEffskYK6fQoE$'_T[UCA>@P**FD+FU-n(\jgN_U9FeRFEFY,(G?XL>_k6p7Ap:5ZR(@-\4^g(6[P.a"ErpW/)pV?0oAP"o<P2c6R^coTEp8HOhaL0_.g&C02@oOs_\deiCV(q!YJY>%oT2mf'eFXm6gmDcIm;iRE:+:fUOD2@7LcEL)0d8hi:u@!TS6[/=j_#"r?*,0A0BQ`1@''M6eFVh.;/FkJdcj)@HW<g9U0No&LlF<[Np6?BX`H\#SZQIpd9iHsT".6LC%PZ_YjgQjU(F;f`e'/"3?$shSn,C$=dr\oI_%kFqL>)gq`[6;RD%#r:5'g$ID#:p*6`#dlga_W^`\n2tePX6pW7)>J>E%k#nT"q3D3UH\frB"O//_,DfP1n9#fIjf,X([:Il,Dhg1QhS%TFm,MXn"VoN#jYQSs!nknP(a"mT7]GK$C[=B%>6/c8/<9"@bO3$umAjrN"[?XLRNsg.;jO^A4/10kt+J0DrbAjjZ[o)X$KoFt\,V(iK(P*hgqVo(.S*lXdE7B0dG^/&E-m'"=brA(5^ODIqBV1Kmg^Pfk=Y*6S$E4@5IS.!_fa"BNt]q.o7#\86V/UGF]$OfI3uq8jp-^omNlW8Z/B;"f-6bRM[$V$4tPXa1-VNeG>5-KNsij3#r2d!ep0qUH)']OR/Ko#$f7$a45idC)3/:J_.#ED[?,;6k7MT6B$6#>3kHN4cuX$@<a-&.sd6P'tdpTt5F-jIY[T9#&a$5(cblKUeO=$ta*/Q5m6aR7$7T!Y+-'OJq3`58Oi4+k^,7Ud!rF_W3/IWMR'lB;jJ-E6Tun\d+]Z4q5pLXdJhGGBs4@`eZ@10C=`jm](10eoGj("#;lFaJZQRq%:GYUE5^\&t4OIf;QA"dGWsV2D__74"54'q*;N%GpeKhr3L,C!$p&Q<3Qod4Yq'.L/!:G[/$F%FSt90oL3]?(poq-:<!@RY/l"1+=8C*K(,]f8Aam+X[jl$XS[>>j9?;(%Nf7DBfcsCC$hki`'l;e;_V94bbZpWUiXOq%]<_^UKQa"g?T83=*>)@4.ku;aS_mqeSqKi)[++_G)+7t*TYT7pFu<i%a+s*IhpfsAfbIJn\McY('$6;__l1rgMj)=!s&?>2a_\;GppjTA#&)d2i9&=54faJUXo9/s,^1.eQ4^b8aN2dgC8&#j.E,DO:@(MfX]Z0GjD[6Jo8]PBB9MCUC^VhKs7c\?EaYH:)B!sbrqgH<HG[0q3-#QGp[)%g\*L%-@n(RU9DV;-&3/7$^aj7Jq<c3i]'W38a^)sA/`"+`+^h90BgN1D'2;t)>IZD7o4!5M)t^7rl/6[(O=A#OMNW\ZX[N`C&LC71[lZPj4e+E\.-0q5Z>SVs)=n3^7V\8M[9mJhX8?[.hXL'/)OT#Y,1:0Ur`Zb8k%\l&C$<O>U@3"ORX0j8RnY)_fef,F]7!jI&fd%>_j@)"=q!f013'-*4:2#X"2*&g6/0b]-l";#M.$S5>I:Q+8*uL-:qMt'+9EjflbVJGaAD:p7u5^g%O`q8L<VC37\69aPoKGW%UY+0;\t3h^-KRbc+7#->)nKjlU)%Y8>)`#QP2RL.\gk+*G*gS#qh/*?qfQ,>.M9BUk?R`M;;;,CBpk>p=_\IeZ\E4&oK*1*ogQP8F.45?Z_X]o4^k8o!^)8q\J,[cV>=ZM"j</;?t#9>.7[iD\-bNGl$qYm7LK=S/BSehcLB'$8uiH2;-910p*!GHa.hLR?nC'`>CcLZ.gRDbrRE#%=r\4u'sn`9V*OnDWJDU$c.XPjbT6cA0BE.-ml&"?4ip\+\6-ntt.,f?lb<95e_.U/U+uqYN)9*583W3N&g0C]CFk8Voi\Ul.tE8/t9<*^q8(2O7]r]d8SHlo8n,Be-l%b1VI"qV[j814eK6EAagr]@,^AC8r_#;>]sfICK/4H`YoN4qh8nl2j8DC^JhnN,#[=1-0C]&'O.5HnGJ_Xd7roToe%)6,Fa$@(pVPmCkQBdP>in?i1N]Pno=K18E*l9'\0Y;q8q7bI5EiP["br%%W)YqWq%BnW3=`oHgm;(l5D,hX0X0U6-)_f!Bh4hN?[TYA#?F>eENt^QrJ[!-@YN8:c59I/Q"k1JJ!&)\-rNKkaY=Cf&!5E0nM3S!sX=jB9q5d.Y1lJdd/,o+/goYUr=eAl#<I]>qST!a:auZHYnER]?,":.8&c['M*I4RrB(QGljkRtp=c/G;O>So*<+NAmQ=7=P0enuISI[]khWD/tdR@<?HU'N$P0A7NHAcbS&<j3*FB[SYd0)#b.Mfan!%al4U=`JmI),LS`6@Pb5[C-+MY28>K`kQB\]qtmeLpLF?TUQ@0#=DHP1TMCffH,*0)Bn3)^DmE"/B]NBfDpDp6mefq7+B:nM.SCir>h#I0EJM?!Wn4HY0%4u3&F1SAU5!Z[1eG'6!W^D)k4)>O&d/L)dMZ=A0HkEMgqg^WLc;&d+-BaG=X;8[gcd)QZs0-,Dg\W5<%,=BZ<[U4!D!W&"%6^k4AS/[;Ut7brNZ+H5c)$pYo-sf^7mu:'@*IH#E!338Y\I)5lm`J'Bg_I\Qt:9LS=d8hLr&CQoWk!pqQ9YC8hr5hcaqRq*N7FVG9Qi(Lp#IOGjOHlg.-:J@sndq=b),LM$Uo'5PY(BfE1q4MF>7J&UHEgt[bbo"$<D(`Ne!9iu>dn;C<[T!PYH;:GYLH\q/)8J=AjrIQKUC(V>>:_@`>BIHffK#aMh@>?rNap3+q\6-1C?/!>mJk2@@eo"ZGJQ9b+6<>si@EbgapFb@XLQdFg15,9>'s$fVj^t%u=2X2\J9;BP"p5Vl(NCS4=N.&5)t3VaAh+@PS+C1i5?P?=<Q3hWYS1Xsa>qA:j9B2]+pd7*eBZkXSp7ASD*rt?RB`4u@q&@*XXm.k(So"TmIX:smQ^4h2,0#I+@#nB@6ntI!eiqg0:6<JdNPI`KZNoGKa%?hS(do1ca6/Znkh?BN:Ep<_\cI8R[1^HZ4;n,-pc"N_VA6;FG[3C0uh(XEkPeI`jsdt#7^]!ZA^(4+%1>B%-l;WNI-hNfeccTd9Cg4OK=[A/+`jecC4c0q'5*UoC7>7=*6j>6]*aS[NhX\cYpa*Ge7UR'pS\K%V=FdTon"B=jlD.?38TPG]N;#KbM4nA\LP;K>P9ad&?#brYaFDU>$A,mg:EDS-RW_m5Ee;H%9lQ-sIcaJt3L2(Ia1mRMnLkOJL18E'dY2['8I0?:.'m.0CNnRikn;-SX+V's5>M@"u>7B-'/i"-Z-3iTt=Q"]^k@A=(roY<J]Ofmo9Y8*l+(XRs%>duH:JE__Z">i5)-3(p7ND%Su#iF7A>SCrt[/O!iBiTb_djgt;I`kBIiL,p5.!!&GmL6EUa/4V;'+5#=7:"9)lWXN,Mbj8pbo$K=VkAkP)`DP36>n;ooV4,gpZOslXFX48&)m//\S=TirN=D@bB^h]:2j+jiH&uiSdbUc>R40]$<Zm%mq[`W?c!#>gh]>H>%Q+S<`FOh-N?edBkCdr[GXt6rojq.(e$0nU"i_qB\VkW"'F[Tedh$*K-h9`^cB+X0[^\?7()IC%2[s]8D1[W&/n([n_&<4BN<8ffZYNajRI%VZ?<Uo3C:LR=8@6di8RUita!HKNe#O_>-'L0c[IY)o+X@\:p;+"[rN:-%T7;j6hJmrK5Ml"51XaChXYs8550GlKmpKr+GhPrS#<a9*+i2HCo]codTHH\bX9pE]f'qWo1ku@k1,7q?SZt'VN#8,B9lt'fbK=MJ0Uh[1$t1%4`?1WRi)]usBAsf,A'S9r"Wdg_@s3lW/(sc5$c3o$?`/od]X2&@8%YaTT5n!d[XdHS=^^r0i4WiV(l]P*T@PVDZloFMs"X%.S((<dKNCKh>a0uP^,A79,nT,G_q(BB`i>5.f->e/K.tKUT/[/FasWi,in=kASRP.6[l)gfiq#!ba9nEog@<7j"[>&Prk3M=Q!2*qgGd!E:]kZ/.93?)4!9YN+Km6`l7O."5p[pL#:As20/Z)]?:BUlG0<[Y6*2@pXEYT962MAE=9'_kn6*qAaeighm4%e!GcQ,#)<O9AF>F@0@3aaVgt#</<D<B:6M[5i_7bbUaF\o^g&VDYmmT<_8Bg8t3:NEm+lA"q*pNIlA]5.I0*\4>@<tr61N*XbR^?i9piC(!:MN>h[0Ea?kVlUq.thZfhL?,9qtFJXT[p,":nY>]cZ1;q"tt;`\Wdd'SDc+8q#`0V.]5%&kf*BR.BVm8h.d(ummaT(eX7QRo.E+e,7<u8)%[B2M>)nepc*55aMjO9_&-[Rq,nL2eP[*<aHN":^//k2m\\%^f!<gM"BGth54Fm+mu^%^+#-)(`5DsO-ZVG7A0;Qgad:/Z0PQ9)6:(C/.#-=)J:eouCB93j4iD6GpkQI?9t6LuYd+:KTq>MRSZ[8L:t-K8?R0L/BTNf-f%Kp0[6VuXXt]Yh`)L][p'ZMN1Rq)a8R#C3^33Yk9o]:u(:rdTG=cd_0CpZ?6BL2Xf3/,WF*;L16X7c$LS"s(j9<PW'JI0N4-JseEX:-uJC@`YQ=:<s]q)p+P;^"b:Qst^>4s%B#@jR8JM3idVP.;"n!V]K&FXD8H3Q0g8aSK+TTXXsF'B&,h^[6#N3.)HX,a^2GAa"D65_QboDSnmERd`!o<F;XXi+3_no(&pVQ0IdQc#B.>EE-4@/.$]YXfMdZLkl7%KZ]AD(0W%eLP'9f'.;`[a5P[?dSUgKbmQ,It@%Y#HVrB=GMtMXlo0uOY+TJ]Ec2spmX$h_1`t`ks`Zgp=18s?*lokQ]2N+*#.G/,YVm%Cg@uHj=#F#*iBI?]4u),7!Bm\e+tC(9NOnk0s>&QGsGPurpFG.8*X01C6%`$"6t9B(qtc-GH,CTc#pSe]/p"$5<IuKc?rs/+SDk=D7Hm="]CD28_<\Fm5Su'2VkI:r52mOY4r1q!S4?cHDP#F'am*]VrH^dIinK[=\3uI?n310ca7E!O(X[S;HWle*tp\]$&O_/<lu+/3AaIf;+pJN7OX`J+;P1(GhH/`/Td_UL^l\=c<-;F-TC&0Qp9.grl!Q_hcB4CcPUZbjthG1IPHnKoi?7C>^EAdJ-M2QR*I5Ah<,j-Td2;"4-UV_5\&RnL\B^7&qf*G+L'rPehkbIg^2S4GCJr<B93CS/UA&f1_b\m!TGQ-[/)SG,a[c$[\4-uTXqOsG&!?cR:L$'IZHK:h5gF`JXf(-a7aWCU4H/93lp3YWOJaPP+;c$U>j1H:3g\EP;)"qDP-TiriaTFaD_82T8jZu/!@dY`Z-,e\LkBh+C/sK9c'jp/+'mS3X55fE8']k=.o+(A?[?pmX9Zs'-OKX52B"Kqu@-kW<aH2D[>t#]4N`IFX2".'M6*Aop<`Zd5/l6g,$J\[Hm<FZ>F*;_,OfE#G<Mb"_W1u$/>2>WVo$<m$UXmMhtWWZ%J]BbpK3g5j/GHM=fGS9+]'V*S]UclA<"kHX,%-!K1"UHjRdY"MQ<>S*q)T%7\)kf@E,gM/bS;S,FLgcH$JFLO`#?O7]B8GGY_M/WiS;qf/7mCst-q9@D8GSd&6OQnWk!*EUC1pof,jL!k%GPGnF=Y9olT5EiiRMLB!O5bip;X8mR:*9tOh2V>TYNpPsI2kGbs`N]d]+F$i8hHa[b?SoRUV+2B5A>uS._,3h0>R4S!bCl_%_TA#Pb.FXAV2A(HJ\:[:D(OLF18LhCCJc<`&A,b9qnTBjfptM1>KB'XYd>rKfSN]*<YmCUBYT-$251,m49IGaIW$DW<!.\Z+ZI:#8pQh[?M@5`J<9#J[#WRE;E%RAn>_Eb=7:;V@Q=9_TlG!C*9$J6N78T3g3#Uk"ps]<*JV';.8c%p]c-5Ggo(G`r,@!3-'=nI04Le=JJ%;'&[#DWO%lk(p`glJSItqSqjs/,.Ai]``!kB%e'BH*IULQ^9>3.Pc,?'+]d71$;n-^t,!pi<1Y;YOk4<&%&0R)!04!V?S,0/6TI7_?LNECYXprFF`Bs0M;=jq'C8aSKVSQ#j:3DU7im`kPYS:*<Wd<!Sp]oPX\M^b;<sl6Y:O+0,%2C=_,nH!dbtcPFUr386aBSNU6ssia'tC#N5,p^o@m(VQ[;RRiT&MBaAR%o@##TR98Wf2-C#Em[_M*27ar,V"Qd*X"l4([)AO"Adn]IFHD\G0"O7@IL]#[p`3(g#ZK]t=28$rtb7a65GB8MM*Uk?:^.A4"tp-Dt>k+X94BCaHLH*@ck-0rOYEb:CQSHE0?3Em?p?iEo$OYMd6o$R"CUi`BZKD:B.8OYJ#4Y9*&<rLbjQ_up'C1fLY550if[<X0%6sUh)0`'K4YG7GR,3?LgNgfGG)36hT]FbP^(/*RfC&g7p6B5MPW,i_rjIE7B9<=O?V>L@G:h\d=A'pM!kTTKuWXg2dk[*XC1>/`OPn-&S.unLV?(LlQbcJR],#U7Q%7pUV6C1u(!5tI;1?0);]c0HfRA7#tf^=%2D=f(_fm/j"Jkup2"sq[81VsS[Djj&bYP3_m.)YbTJ["l4NKj[1Xq-W_Z]qRcH'g"5,*J_I291RGPV3KP_E@"[^-BeiL;U,@=fb^%(F\a65tTH.^6/Ub*H)"*[BqPl=FPB"L+sBRnt4lY44U1`HVp$DHLXjYLeniQSR3J\#Yid<<`RKf6KUC5JG8^oFU#5Q))D7*;kcbUap$7"5ZH#]&'INKdE0E$TH)?DUXmkGRp<&3R]*lkQcmm`o,`nFQuFq75S$YC]F<?5)i5DMKFc-#ru8^u6=?/A3L%7Ne;u%o4qe6EUS$#!SWoL0PS&HgHeaFegM!)pm_hO+k908=K8*UX5hLqQEE5:6P0`'lScB"X'B$WXb[`465*8D4E0Vqh+%oi3m?81I)7/5o>Lc("'7XE3o)jEB/nia%MG3qXl\ED=U<[/3-/!+g1("t<beSL5J]^;J%*jXtMQW_H/MfBkg;^Qm!#'RU^dlaF.Zh,u-(YjPA]@Ycd(=0>2r?bf?&89A7I$eWd6P)gj*^Zu)%u'.!LM5X4T)qEOD+1/e#5rdX<O6#^]Ys7SRU9^Yg9!l,A<TT5<5J/\,MA:re>%dBPka81u4mr)ES*9#r9g.\$)[<]=FK1Z4-W0peZ!X#ZOptMVHdM^XVILh?sq%mhFL:V0<M7kP=]tDFUk'r!Q_?ll$&5Z45ZEr,huR'b>EYH/Z:M[u/3R&^?_I[G#8SD;V(qV^:-_O+<g#;nP\.>`qeOf(N;NO*ZQTp#92H\'K3%,_FK`[1Ju+j*3i"/R$3+o?QtAs-ZoDcsm3gL`Y]%G8c,F`n[5,DKXII3/0dABI5Pld32bcGBI]GA77d;J3:UQf=J'7c3-#&`2cRZ>t$QJ;_GlkUlB\UjgB=eI%S0I%riZSaX$bS#H:Y=-m]P8Q>*J^.*P@i6[eWjoW>e,LME"bGX"K[D,<,TgR\n<cEZ[50jCn()cF<-T=;CV,[k:K',IqE@\+fK\e2FgK;I,cn>5(9BGU\irI6`[HI$20kr#JCci.HMI,='@b'VlKCG1X$a(DOSdNO,WE`U??cXXAD&R^Aa9<04H(fmBJVf2\n2`fJ_9\SKO]G7JCFQR&`Jd88KQ4[sV9Qnp*>QA>[KRMAY#<WPm+TcB::PJGt=5DLCaRI1g\UM5dEWmgTL^p:ZoVB&$4)WnRD',qo?.06ADV"f_MY]>=Bcqs'J5'H?'OSo'gIZTH>]L0Tpl!.DP:!6:)NB*fi?UFN__m\/eUR"jIY/?@K&9.Md$-TdkPYDL1'?C$Lt!Hr1?_BFEbub5Gh?+SOS\coBM/.<"!.gL9(gpL<&t6*:EVtJ3/S?:BOdh*W)K(6bH1L,O+uk'-$i*d%\koa*9M:+D5@pI"=8Er9XpFuDp;JDfo^9#2916I1UB,!'710]2g,.NhHc['.*.`kFHKQ>'_g,eU%u&R;WKaZfSM`Ce3&dX9I'r*MgMLKVj5Wg\Xi;E.FV%cP;u-`[V]G&*CP@aP="@9hl)j3@]7=9hQoYkSLpb?iOJ1P.4`_$qH)_$A/<hhrUaPBq_eop,LiNcIh(5u:r<3"gIPY7hs>L927f_W*K0kRi:1N'm%o6F"c2p9*2$9$Z1E^)G";H:b1F"=Ho:4i,e2[kB(I'm`.mh&gc;(0;\@f$e_mDSU>-M\8+%b3<8=:1KnuK/T$gAX6"kAZPJuO?amXep')'>l[;2SpYYV[HMRJVBCUrg\:65s9a:*BW;k7'J='8W"TSLS%)jDshbXZOW_ALY6W\>5B+fT+6Se`9YCbV"a=-o=!n,sD"`Rccb'-?5FY:Ah5kJ)^@W1S+bL<$gRrYlG63YJs_2XW`)nhh'C7(73L5l>4MYgDn`JrVc0U0k:hKM"m%Hi9!%MqT[s8^M9!im`r.4K4V17('g%8hMLn6RhY[^o*-qCU!,5In?);Y.[BImTuN\YmmV2SIR,cI]bXf+4mk8qbDM?+Im7f@GZr5j`K4\50s@a3QRCX!W,,=n^:5:P9cb)]&u`MF"7!RQp=4r!u28K*Rm1\.2J2b&&\YTo\IT.l&F,RBeh65T0pu7YODD/S4NaY&B:rbk<L:L\plVS_i[B6@P(((H/O[2D6a_%pUpKJcX4/;Kitj>4(6"V5<'%c"97`DIVp7L1Cb%o$\QZI3JQ/D?Z/!tM\Dt1QW-Y6OS5ek_/6@.5p5FU!<ZB)&cCP:Y*='[]_HtU\i0+o]kZ.nL/$\FaM62L2[<Vo&p)HD7<bkVpbG)SZ)0dX8CAD/:r((`=-Xm0LNN:s!MF<[E>)=f>#"9Kak&p$eI08K:1SY/]&aYll4bC5**N0poO\taC7NupVm(eV#OD1j.M$Mt_*IP]PfntY[h.JWYZaFp>*0%#[N6EJ[Qr6X_4(@O#LeU5O9hOQ@5DR?)5rEZFjp$D+r"p.Yla=aqDpu8ZMPUan.`+46G*bjG;)S0$W;of%X<;-Y(<b"cj:Vj$0#KEgsQQSH7Q7r34FuR/6>l<-W%2N&,Z<IlpRWC4\*Sjp=M'E31F%>6[c(CoU[,8]?2.(B[V=.iZEZbqU'hApn`f".(:<Cf-ER+4m&m:Zr])<Lc5g,)+=FDV6P>s9[S8po3&=fAanRi.h:4G-m,TP`gK'VR:D75`C6\.C[>sq\M3K"])oHDX<hM`X'T+C/M'+)7Rk(l7s.Q6=!f-9)-M0?:4t:LaJC4B*tSc<ijGk+joeZ7-7J";r@>%n*VAAnT2SEF/Mll\YR$cYnUi;+ACPu5;aM,uHV/Yd[T;P3kFJ3DjIt?mAb&rP=3\WrKj+^=MZg(i`)dt^B]+kl2"&hKJVeX9,(o/4dUJgPBP0&d"0XP*NEk9,aT&+Zc9`aAa!KU->.<OoL)_CT$n9LG:k=Q<5D";SK3.oj"uap#Xa-C5octTK5/_#:M4\&XMPk%C?+$Qb)Yc1ceBH4RAX3![K3OelJ@k"(cH\lUbmqV!b+B"!$'13eb,j>@>_gCKb+YA<C72rQdDIPYUOLdS?3EXij1f4hAHDWqR_/t/LhsEXig=d1XtNU6PDIt(eCFYK;kD0oXG4Qd5@#'rDA,dP`DV70C006[#UomY^0,</g.6:1[@1,Q$,Z$/4ZG_,;B\nn-ir6$)K!J?q`pI,,Oac'VPh&tD:UgF,J-rF1SnlT5rZARi?cqi=_ei$)Rq\'@Nh`+#q$E0mg6j\iNX/60D;W$*amNpqi86EW/6mp`aqKPqs0F>CDT*4?Ie/qEraY[#)cNq5JL9A,a$,Cj\Ut&]"_/aruh5mF!13+)Aou?LOb[UPUi:Gmkme']oFI?"-SOh1Q4^n,h^k?&fQB]lb;2]l.Ij2rjFg!FZ7nCo=0c(O_)bC3-nrP(9jVpiW^G;R00-j\Hc*M8/6NTArU5$;*bQ?;b3fHL",:9Zk\;85(>Xa8=9?sM3"MYcbVl4$B<=OIh"Bf!mGEiQ4u%)12_DK0m]NkHS!dhbQ_kBmE^nDPb*@OL#Qb\"BqX#oFsj(Uq?RH&`_'`SL?J'1d[8OE8`;cP0'Xb[F2EB0^_YEO]':R1b-mn]fKPm%DK7JA"=IJ4u"H>iAUPPPN-%nm1Dbm3>;Yhj\6GWZ^Z5@6<[j966*"NBlNpFE!VQIe(1)KWXY2d^MB\XeQi<\d#)dqG8^#V;<K#@/lY+AF5g'amP!D7at%o+BYsK$22]J%7cXoq/QKO@9X/%X`$9Z3"]3pMEh,m.?rK;AdL./#b3Zhd^9/-'IrI<N"-'?'2aOY@?'D8hm7#$j`0298A/'+_R=ZlXE3]=rq6liQ9-+[iK-C_IB%VF?%?"s(,46Di_QfO#3*Uh1ZAaPf!S(X(E<]gJXH0:XcEOnkdsTANiTkiGq^;O`j`A=D`dmhOB\VUY2q3_dHP#(q];^qpb$Q2JFbF"h4468[[rNC&aO"F]6BI/-mm6o03WkT^OTX^t*&m2$Z*fH;"\8TB]BMQ<5%js[[DlOX.cqWs7S8"V#Rf8RVPH?:=@a3rrpqbXr3RqL%P/Io+49Jk&&NPK9>!F5)'pQU:C,.8(oVhe4S4olP!.27'ojjgXYVVT@ul-E(cqWhJqd[B=Z>9U%5aBVJH[LM^+\[DUYI8I,^?V*@,C4\:fSf5#.bok<qKJteO)MDI;JUT9+l"Xj"XY?KgH2["IQ9"hM0)aq-(XPK%.1@b!T>Epuqn-c;S.7:os-K]D7L)=:?n%$%%F)B#u+#f=H`q?)nS*&/&\d]IW);#Hlu&gR=<;5V?^8R"=it6?j"q$;0c9V?nQ#1o^Z)gTeUi\ikrG:?p#_@*-](=iqFsQ*BU1hcH_F`_Xb5j',s62,*p/W`JR/3dl+ePYWZI5lTWc9-C%lmKqUqL*"P3S[l&BPkjgBa$<gH4hSJ7]_U'g'lI+o,%e:>6nP#I5^&@j._1n\:cec&d^6/Y1mWj:K7\G3=JI^0)9':Vp;RmUA#@DNg,?[^TB^BGI(Y5_:48:).>s088q&LcqRCRMb'g.GKn-RC=6jV8d)i2fA?P<L:j]W:F=kHG!uuB9\8Zgj,7GMc5aD*t"W7["!aW^ARt7V@JDC#@(l=kt,CIN':nH4]Fa[lLanV5qfJ@u7Og#*Fjc[Vlr`o8GU4#Juqg_qm!9MGg_T^V-PL+n>GMNZW#9a<8.:o&\:Rd/=BC]>g3c8L^nsLu`O6e#b8!IaK25^ge#9:?(\,64q8#T7D;$bno3)E>.6_F3"`nZ;p=ThfpoieA7iVVtGnKY_6gF=F(f3OFBc\#,:]XMVr>sG@Jk^k'"/S_c+j-$Ql[Pm+<fU>-#4OU..!o!6F=e1<T1Pd9bp!-7D2gSUcDA?W:e4BG!=-a'`J$%n$0AhOjoUjWqaCB>40DG*6qU=0*?OMfL]rRZPXleC<)"j5d,(M(Y?\C-rH"EPS]])T`DsUS"Br<pmh2;b6D^F6n/l:Z:EebdUe<&!M#H673/.n#'\@_@uER,)A(JFu+GRRorhkST6oh>_3h(qAr<-N9NE']Zu#IdA`C@&'7fKJE$M$Mt?00-m]K>\:1h:iMrAWDh&;fBm+jZNir@?8rP09?>t]&nMuGllLK#bHGMS`ps!G1d?7I5+MC"O'Q?Z;_`9(o*L`1&HJAKBVH:VJgp`'iJ9`VdGL?=u^:*j6l-cn4u'rCP3'Ep"16b:qUOf@fO'jnt2d<<V^d61d;hn<Q4;R0bCl*Bf/iR+W1<5DULs;&iIj9o[#k/GDZoe&NpLU68[&GLek5FF<thC-Yrj/CA%<6L,=.N?G(;!i!S`X\sDQ#e%),)N()47pqqsTR57]6V7r7g;UG&k>085;EWc+A4&t+=f`\TPDs%D7\<a!/HM+rV]:k"R"\5),`^bJQ7d%;+/K,45F-9@1mOPC+WtOIM+qNA82JC31I2[bt7O[u@R+`e*UIIqb)'4iP9Yi8\bQ=fJ=Xiq%rbp&RX<c;X1T=;:U9:7d,P/lYrp>OHlNgWieH3"p*%tL/0kd)UG(]F]KT7?q@@>Wl-FARP&:(ilpR4@@:]SS<NUW^u&eW\^B;E-=p]^W38R$$$Y'bZ'=fX3W41$5_P6(7nc$dk9A)"KIS;-p39@+>KPN_;N!<VH=/\`Eb5:5KW-m9K8YQ\5H"Abnm>1U-qa,.'5Md]Zubb>^k8Sn7@B*&5K.QJ;_Dh@=$6]Tl@hndnHn<Nel6t_"]LMO*6YR;!lpT((*mJb"rM=4I.loqAPc]g3[gX](-S@1&0O/ts_'o:!s!IHc"6/HC&qkLdSF7FR,%d&")^HH#_VJtW`A\l0MCFnACd[=^!ACqt\+4^]<EY/sWOm`2g'a#iQ:ndTtbU/PXL_PGJl,i)WVY6])#5l?t*AQ+Tc<iROLT?"DT`eQdlOUT_`\$\$k,W)uP;5(or:t@5]o]B[rbBZjFEoI(/A4"?(p:pa]!"C,01KVtJ:#\oGHC`EJu2=>R98:8,;fHU6;ZnL^?;hDa2]Wo@ujNBnX<Q8)E8;1-0US,hO]_s-ujQO99=Yq4:qbV+8s"4@#?uZ1L]EW+3'80S%Xc>nJ1^n5*b1>QH%@KP/9ZSBF3GHOt1As[h&bA-!#+:>'YBnTQ9P<rk.""'\G=&>@7>*^C`S,NT*hfpGs5.+,d/DCt:dTpL:I4l%)<[ZEqqr,5pP!b=5sIccsstAb<X65hDa?pa+U,j5rfif[b+M:thI0VMMDO(kHL:^V?./=YgcZ)tA5n(TtfsE(I$\.ZV;/oU)E\ahSPTe`/FWr>8q]e+nmq*:(\Ap*+5@RR%c.P>--*hukhP:j?+5#!ZG9E=([Do-qlDa;1&gqEC&21h.[X[qe7!*n]+A8`UT&iX#K/(Jr#;[r._h#oqE_GuO]Ho%@l$F'YrX!Dn1^itXrZGso\-XdQ@)ku98iZ-)WBb=OI&2nQBaoXHN'6(u<&WC=u17&s%@hgt-WOXrbMJ\NH@0AqE<oM*X>mdsIS=#$ZN)b'NTL>R<S(UZBdLQ/:NF\](%[W%UI[0tNt>D^T3`qPj^r)T*!"e(HPJ63[(R$c#kb6$Pp'lu_7854[ks5P_</PosrQnWpu6Di-Ji_]pj0PkepJbH6"mmdQ$Kj"]sAA8#0YPtuK$Ye(A%_!6T`/Qle$%kITQtEpM%ha!W-/E0"r2eE0_.XJMo4u&[D8"XJ;slS['W`>0`N&KB?V7-CE+J@IPI-!,\ba$4?\!R`57?^97oTaN+@t$[JVCFZga0)a!((/Nc,V%o\C@VD'X(,mBTJWW=pAIe+e3UH(MtR*o(uKG^M&Nl,%,FC/u@GPrC=`Jlk_>&/;%'7&,ktD*H$$@Ef@pSq:EWZq4iOh`d_dm+JOgLJCZqXQH6trSs0.@$0)E<6<e[K!S(fhe5J946]\VV<27m(Rq]2d#6kL5g`&GT=H93tOY!eC<_L+rT["I@cQ;`G@dsi+6dr93GuEPR>&p<]I5?j.Q<*.c!uLS'_!I_B:J-cE,5nU$eCH^fUA,4`Mh05N=Ae]4_3/?SXeIMPD=7$u]1H1elYJS%N_Gol+6bC9J]t?.=(dl!80a+k:&"*aVb"[op&QNR(tORoG+7PN+cqYo]6Yq^!>5"!2c*kGD5H?2a't=s(nlR;f$#0iVs+!M(MIf=C,>I8Zt(i`mNk@8UF.M4WnSNlM(]df;8.hm8cii\bN00_n:D#g`7A">/@A+$s).W`<=kWsOM(7Db0(SSV)T2PZ[6tif:jX`g+-GhO?gG@4ecatN0gOTln3625XIt%N;K!b(`0PYk$c;02r^e_8f(e8eG$tfn.VSMA+a-(@<44VfJr_KbTD/0C8)%Bc2?tifg"lFbJs:,C,X^OTM<(i&tcpf@c&)EP:pf?-c):`_krtgdm"#r1@`iQJ)_7i>#]9_Zm.)3mG,JYo@SN+(q,V:j*WV</0>S=)nrsL@;DB&)]hYE(6s3"l\ZWDjXT]\F;";#!($+%$lqCOY_hs5K6^9t_OF`+1-uC&cNoO]@Kdbn8T*i$+I[lPQi4d*<EPYV[0JGV/C[FR6umhCDd/RB,?-KRaY$;GRMPdHs1P'De86gsZ-eg"4+mbeTAG#VWjVI>K)BC3?f&^C=Z/>Y,AKdQ(D#jJ;YpL(Xg^W?/4c#,$,5I&RL,a<9qE!A[1KPIH-@SZ:X>&-lNsWh'7rhs(o9p)a-<Q`aIAI;AI(T;92,q?*.tG1?AlA8l>_/Lku`)Y0haV(7:)NHX#ZFF+`BGb8WHI1p$`*ER7O;#/g&sM%@:Q]d^4JD11=IgBS\L/.LK%i8)q;oP`BnCUBOu6(JQ@\G3*juZJ1]N[47Jos&C`\Hd@B*;k3*;]t!Y0b3!c)AQ7@P>m>jNdRp,fO?''*[\&**MjZ02+YJVFfqk"e!9ClaCr)h*A8k>U`#pA!*#;=Nf%eRK*>eCqNouu-@HV#uh^`&QA]QG5lY@#/]BR/N59Gi)0j,sQ36#V>ScZGQ9uil$c3C$X[Y%',SML0?^M`U9%*L[r?)58.baT)r8UJk:cHT?MK_pf5c%XTH/[rhC%"<CI#$f,JKNe;%&^XLo0p8/.''CYLhg,mfKffOp24-?-$hT)W-5<(nf?]s[a%Hh]BE]CKLPD%R5YD=WFth\"*3+fgn)`RBr!a=sEm*jRTs:=J)stDS+m3<D*KeKAA+(WjA0'#%pWlOO't9eoHDKo8N'7r]Ob8'!=[3-&?!>!UU2ml$>u#9u;TTb'P&U<R1F&QD8Ju5p.r,I+gL'9C%e3,'ko3,BN<'44L3lM9VJSde52_)n0nX&Qe/fW.V@?g7HNC3a,0?gAIBtBCMm2ZIerX?qq*C=N-)suflsl?S:E8jAb`j7cI=a4J3#FLmB2,IkEP:-\jB5&\7)O]ZP`lHUe'-eN%SQ`+1SbJ:PVgcgKX`,b"XegWN?seoX0uPd.QfA#_q6qga`SC_[3](uU:U/YRaP?"p/1fK.F,'4_C9s4?up0h862SemJ6[Wih=nLo%RWlC^rFg$d,cIR24ao"q7#m*4LC&8&rTfgd6rQq,?&CWS6?C)#<(/O@8tgFVNGcWS1#]MKnM2i,K:gdVk0,4+uZ,GHULtS3PDA.IoeMLr_JR0!V7O_Pj9:+Z24U>AZ"0[5S]2_ipEf:Iglk(2R4;f,j,e=CmTso=E^%L%73VI,qSced\e#48gTIn!omu&N@5Z@+97h6sB'%h`:@D.ATQ',[KPKb+h)#+Ef2`>A@G"(>Obem6Z6DP2Wpg[Y-3N!Hp$b@e]<9_:R:`\h24H*[6[d(`r'1m*:LC$.lFWL7LC,O[V$V6+Y;fo3I\D?3@V&L+8t/T:R&hp580nG7V/eDX_"I'0;Yr_f\-)1dpPB]S9g3*^T2eYQ7!Z4*mFK_K+L:D.QVn,Dg>?b)18%ZadDu<puclFnFhKT+()D0>BO?jEdIoLY_C.O[^n,F&$`>%7p,bC))$=Jf*CGNs>#4+0E+j+Rnc+6<q9a\J*:!Wa);YrK&<j-h_RJ_eBW*)(2">3%1"\72]oSQ-ib*)#/07YlZlpfFTLY=>iXI6l3\lX]ti76/u;'`;^qPXdt>.rA/@BH!:4&S9%d*"JJX7a(Lc8OkS\a&l/Ch[.b,0PQ&as$:`f*^loja"o\UJb13]))5;lo?+"0KrXlSAE:hIpF^#7'rpBmE8W:/&m&,>'r`H:X[,eru!0k<TKUl9*b6COX(XW#GpD],'*7><8#?YNp\Mc+P65o(ga(U2b5Y&p9Z;B6h!P&B79W6uDp1#R9GP&:?$Hm7<&<<FW=^$"5.:Q6oWK-]hOO:W6QRW3hUkcDTV]RTFN%6J^*CQV&88jaPJ9rbg,je\\m&$0#3pW'"J)Kh8,e:hhG"0YL/Oe%k4:`%HRINIb=Rr=7a!ONYKAl2,&ka`F[:ZXnp4P]Qi%4L3(ehD07h<8l6S9A108%^hKaFNZC/A=T]5Udj,plDRR=Xr&pV!$tPUS2gAVpE\PKraU-ACMlKT?a$SEs`n;R2#m`q=-k`)H:+6#X0<\+JYn-h&s6kJ-ZKL%pte)N$CVIc@ml<r"&p<HjatPAK;i?o6gL2FHS\['7=FFk=m3Mo(ceboq.j@Tod:*oF!2Ap3D`-Dr.I('\&U-;]>)850@!#t%kc>_b9@"hJGX!"1ZR=c(^`3Un2.\-[sX&C?#i*W<.R*Df8_q."9T_TZTX-a^m\<5'YGUlEihY1Nk4Jn6lUK@8c3P=NZh3P_p%;]Cr,:ilaW3<QCoVLQ1-Ea9=)3o'l_7k#^cf]i?JghBbB*HI:UnnJHK&2^-hJF4h^nbSm1]q&>=[>#K_=*D(]T<=ehrhB52_=?m&I$fF#fs*i$I,O>hDEskrFfQ@E!@g6!4$mR*Vd&=t3l5Ge#i"\[c?M`("n8hqDN=;cS;Xr`$D]<0F]2Bj.WaT;_C2]O#\F;Q4YfD"7)U)TA&Ai?IMDP.251gNd<>9`*'g4ed?n.h!X&qeruoHfB)MWDal+J44R)1d[r*J8OXmZ'0YEI`rrd#'7I?K4Ju)d55Qj@j03qW\#,:EfFmct+&G)RSac8L:Qj4&#;b805ghLj.Y1:%a.'4[;,?/Gqln^2AS'Y0km__7Qr+CfO&Ht,,5!+d`45Bi1$oN,YF:1sBb4>mX(B7C<j/QF5>HZ]XaGK:^"Hc1..VjS^<V5mZ<[Jiql4,S)6o'p0Ut`05:Gq<of*oB[aNK%IU".s#MO+^$.%JSe'9ps3lNi0fr0CDq#&h&adk:#:5M.E>dq'gtfR!Ic3tD4:n<i+kiTo(0l\r-)36SXp0qca'>:9>T2VB;*Srn6o%+H4!dc6U!lMs?L"porX+A4>nQch0b?*N4pLE4U7'GcoH[5mPJgc1pV@saRAJ.Z%un`J`T1bfPEk=`4Gon&EZU!8ua%%Sh09[ZULn--Db,@6Db2G4Y&&fqo=!O^<cNT.dRrl`6FECG8)rUJ.SPWTtG;:3pGcH.f.:$(r6I\0`(FY+gD4\QOcZjjs;f@iK@LAkLJ&TU(!W>paa0^#c!-?/fMKWkGrM'EmPZA[PE"cUq'\eM>J'qETuQk>*;8@K13*=@WBX+q6i'#h*_.CYHU6o9e:kOr$g:8%B-f@&4/C5mOHTg=UJQ@iYeUJ-X*3;5WTrrI"pd;0Y`^mp7MK-L7N"rfU9YX(*$Xd:6M:R^F70eF\r$Y+,hcakuT)Atp7/IM$9a@g:p3o=;1Y</Z62H/Uc8M=g7"V9W,A<qD0q`0"HLZA.AdX35h5=sTL=C$lF5--o%L>&f)'$kEJ>#$=/+kPoI2V``$W@V)#mk0H-RTfQ/qS!aZiC-tL?.f1%?>4B(QcsPJX>hosRoR'!Q0Np%o:uPmoi&LZ?t/$L)$aOZh42,$c8T\<0Nj!$?n+"hZG'CE%`lll/dc0/#u/VJ1(Y.6.6%!W0b?17pMNNO$HC"CM]=+)k/rP^1mg_/#rYj+7$S,k@s^cb6Q"WO"MnFu5FS"LAPqD4KWjIDe9`1i_S$QUKm+'ib1fidkh*LC-$iXTV0VZ[&-hL&)ZPNiXHeS>6?hNbIfILu5`@N%Rk1@!A[*srK$*R5)Y*I0QWP84*mti/;^?d85t>!KE9O=3lXk2WAGH()r#\[aIXM'adBR8rGh_/,:aHp.RX<_JfOJR"8Y#2Rfi]-uq-Cjn>j'bOp40>L<C6-"Ug,DpVo-Q&3""BtQ\l'O1a^a*%C>cN;FTrnJ8XsD><Rg$rTG@_JE+'%;_js,AM1qA9u%C0ZdF':k%qHp9/eIhUt_MBrnUC./;%Xq`$?,2_AQrEpDUnj@i.tR%EIk-oiH=XZ.YnQ;q$P/VN*<+p1%I(C;3.Ul$$_?G8,A:$Wl+NWpB@"8Xc8$q_p3f)a&s,-(oL+_.ll_/"d94+`dQ;Y@cYUgs`LcH$!@eph<7KSWA7U$ribl!P49:gfDq<]9BuL^C:PJ"*/L2@?9Gpb/A2%<NYRs@&L]Mi]b4t5c8H%dF-#,lOcK/;E>Z/ablsl72!5FIrNjMs"OhH>LL[8j::Hlrge#r784F:r79;YRn?+'-nsBZ8@V5d]-Dq][mOF_J;4n+SN$C\9OEm>:^\5]V_<h*\l3sVbF%TrEktm"-^Ko@c2="2I24:\I):f@*Rq&T[0U*PR+D5iMcA$;gpEOF3+OHRS*0tBH)*9GF*I!40h6H)fG!EBACB[#F=1d0[0Q@*g,ca2<Tf\DOmAPR(:=P<_5[3-ah\*AZYW@-k]O[q6:5ZdV2/ZRJuRD7N_.1:S),_E:f.b3o,qInYDLM1Z3`]4/`ik!S=m=BDG(&cl-m1q0aGW<"eZGVcSTDXl)-/@.L]'O#7mkiFMYbj)qG+up<V5fWCV%$_(A3?q3Z:Vp*I2HOQYt9/4_g8)^$i*Vj,(c+cmVO,hs\d@b%q7Lm$QmT,+_'N.Zsp5DA-PnT1,m<&Utp99=Gq;[fJdq\@Pb6=p')mJGs5LUq:,="8NE'#I3u(Ktkt\D+:iUa=qGd=hFHQ:oQ$h5#Q%VFu>!:dPSQrh<_i&a&^o'Y9k[SgTW8X<Npb'lkfX]Rd%FU'PmOfl"C;ffu:@5o8m+BBT-V?EiFtQ`js3?]K3keI8lY=#(&[>4'WWkWRd?;>'j,:<`pR2[s8H*/-kHTPbW(^Aj=eX[F?;T@a"bZ+8b=YKAscG5lNF2I2^QF(a09h=\"X98*XLnQ59P_(#ssMF9&mUKM+fSh'KJet0BRM4CqmL/Ziri.$dNXtD@Je[tK%ambN:cr']PMuH=TZe#'11,DZT:Mco(8``m")Rm/hgVRS=dM6):3Qr_>F_6ei)^oF/_?R=a<m./K-91m@#9)`hWFHJ0XgFBRi"r7BNJ"XA$K?+&s*DD_mgaOeKgR9UNUgjc2ImI@EbptjF?Q"mUte)g=>)=.F&-.R8%uj'=`/j_d%-lk#sj$uPU%mWfdF>C>@\10:IgY2T+JeSX]mWf^^rhYoSDWtSph/-/,*1i+ZWTZM$?RB&-pFK9>,)8^9OoG(P\t!IEXV^e2d58[kRIs)&uI42!60NL"G<FE[NYs/p!8cC4"8.&QfJ?6BHXobEbG%#*2u90Gj`OU0V>cRT,Nc<k]K1mcRP@8:lO<f<Hi6)%Ta@.Sknahg82S_]WBA)5e1phF1ui6nSB\YCUqeP%e0'oN$P).ee*JP%9_Kfj^3h>gkm9&qlV&ITc&miK\o;m&66mO&BbCLuP'_n.'6tr`Q81QuqPO\T]C*?OWcJ0@Q/(\fD%BMTtZKe'0O5:K&E&MJiDX#]o6X4"YG><"ndN<X,^RC`>/0]u%62+Oc&X[isHaD?XP>[%Bg->i9J-Fu/8#qgVLSp#5[LiAkf<DFj[V2(BF<cFg:fP8ARqI[Zl:%<_186osLeKHFetM5ZJK9?D+i]_d&#IYKgq^\(LebDn*KXTU@)BjM[/efM.4e:i$A1VY_EQpOg^Em:F-0'<iDMIYUAg#'TfnSP[;P\3't?_YV]GdZ(/3`2TB)11C8nG)Fc'[,D"NQ*[@A7P,:$7XC?atd"&As"X6Wrep\OY;MI-4iP6:iES+oIbKW;>>^E](*Ct7qu,=7>(;I4U1MpJ@-[80AK`tm7/3UGd3[YU_m>X(N6ne@smOM5n3L6?l@b7'9-57'cr>]3IrCQ;X64MKLO!1"lmN$U?I.U&m%8PpdSJdjT'_DDoTse(*fCUn^&fA_&OU\*c;>/&?1H](dCPP+L!DGmOk%t::Y#E?bfE/a\mg14?J6<)q#rr1t#j#KkT@Y(rK[cFS]?kUYLe4B^/:'T'bkB^\L@Xo^B&-4FV\U\QQTUCDN35>i%*k&+U8DC1/8s>RHFPObZqOH3]?TCNg=Hn3)"-S-S0.AgS+HorjY/p).5??`M(-GiI#G+mn9n58?H?#r!RA9HHEto\`qd;(+fVm&Iaen1/12.lUk<\O(c5<e6i^kJFt(\3UlkhBq4PRrD_C_MO,)^0/+:7E+!,GR4j=rlTK"_R)4^A!313lT0@<maO_]lP[`']UdOXkNnDR_OP".N3Hg,-(%Z;bl&Kn&lc1i7)Xs/(gH?SFsBrnNe5bUZ,3k`'5?kGk)t.652Hk&aK%ge7PhCk>9'-eQo&5!%62&l/\=tP?'G!"q*^kWP\/u<9@jCJrtM%_30n!LV9&`;a^lFIncj)p=2Pep.*Ll33'6.W>K6_'6>0n:JaF^S!RU[*X3pkU]N`>uo-m5Z>L1e3`g8cS5$0en9W[^)Me<%Ho\bfASIA60jd"f!Hg"Dn1)K>f7EEJC^qK*s;iD*k3>FCH%*L;4qZ#$K1E)8U_l;WkAll]3YMPu=T8a+VPc10EZ\7S9J+K0%lb_Cp&Tj,/WG)3)8P:-n.5`8+CG%WTffuJMlB!ar':%_jZagD=PYeF"@B<TkY/U_-WoDWVVu8jZ^<HclID'hhkurf\H28@2^e=3h#C-imYf5[8K93J.ZP/sM&iM7Lr@2sa!_44G45Mu8!H(@t<aiF^)1U8E"(BT?3p%.80bP'(*0D%kW7g0=i7N,EFPF%4EW5j8bG5)(gnG<]B(-X[Ra.!Q)OXDd;ap'U"C;U.2hso/O:lR)%!mEYBp]i?&?302l;"bl>p&U"1=GW&1?J.-3s%]_Gu>FJ:'\o9E2?3m'D8VM:A?(3$.!J8eb9r^cDB(i8.d.g1A)pCjiPF9eKWZe7%U"YKqe^,",7P4SG`mE_k:g70._t^"+m[c=_k*6'K`rXmM5Ekfu5l%[a(:k.m)Aq[N;@A5EOXs"$;F/8?:oQGFpp$PGX+I?kbiR4mnF$jJtZWh2Gla<aTfja^W4:+NDCY9&oXeA)jAIHn6c@9K7^?M&uVcm@/%U"&rBmY:^!CI-+4=)Eq2"S^(1a#APn15ubX=,*Z\7fC2:'*3F"=7Ytgg"BGq>bD83I)%?TEBV1Ma3cu,e@]jcskZ^HDZ%U`2-(>cUSO0:O'ZuF%C>D:dc_#IE+"#MH8Y]1j=[f&pD&I,2_t<;(&N-=ankd/O4'&;Lk)t;-M)&ncIt/'9%b`)_\)7)u;88SDLskGJodX!GQiPp0*lN@@H"9gnV+[6\CN3"DDLWO2oGud[SFP()Bob0@/'eu6[gRK#1Q)i7KqNUm0t1Q9ZS/#B#N06:p*0P4`H\NR,.<7]AQ-*4W^7fofOmBlI&CQVJ>SAceCVT$a3L6"EkkD=Lr*",ZV0&"iKW=;J&oPcSO<bbO*ABk@fhukgn7%`J^8la'bf)*?G<#JR$R;Tk]5kqkG_/`EN<Mi93g=?,J1:tBM;U6,?sp2PM=o-=8X;Q?B0p+o"dp;8hId'.7ebA!fY(Qp2isrfe*V8#Pq7=Xlu^bX,KF?4qRZ\l@]2%;le:"ACfSVTP45H%b-QDh?@A8mM$cu"Mp-<JmH3-^(M"8TNo[3&pc=P5N6R3F,+YKm2iF`jdc;h1N5E_E^>QGA))4=81:P:=NaR^m%CrU[1o0@L0M]cpZ1B_1@d>CM%W`DVbDJ\+I*Do`n0mICQT3!V7VjLqJgJN*>l/>!3=3uO]p$JFSbe\WmD>"K?=aslW1Yrm/l?t&(uYS\TquS&L_SFcmY[oYklFkAQA($LNUfB"&h,ElJ1?^Nj4Xlk7k5b^RZFWgdu$Za1JbUIi=Jkn5Adj&8q0=+?Wjf>d;9E!WFNm^JWl&]YuN$W(u]0%jMl0oUp2>qLr\okC/t6#Lr&gIW7%-G;3$u,9o,gK.<K.NAet6f-qJ7=8.^"cYJjkl2d>%:?JnC"3M>TLd"`ueBbGuI?=0:#q+^D3lMk6_OZY.><"!j$?ST<8.4PM?#SBk#C)B$O4boZ+1U@ILYI_@D\;e<9W.^3Yi&I9!"TJ<%%N]70A4c$2%^T/<ddG[8g+$%Q0d+1n5'pBmm/6h`Fs:m>NsZW&hU3?J+RFOd*Et,mLNhU/2E)jAO++c+_=hcW=ihG@S$IA974hD+@`s.d#KTD&3>]l\b&f,?=)p>o.[n+=56+=@Ta(AR;#2J?+Ye`+0<I%69dK83SgR8qOikKs*\O:`sAH&4u._:?Ui`5[=@ce-qTQ)6:HBl?>Hk^Q*rCb$ph`=AYm.E.tX:sk>oc,Q(?+,][4(6>GKhmZf;ljrr&A&XIBF?HU]"TY);]U3Grb9/g$W.`9O(hIu9UE$s0hQa)ZYHe@7#'20NA6,`]h&kspT"5Hsk11g$s.l;<T86<Q%5:)[eJZRt%@WuOL)TXrO4?UjtC&gqH_N-UTAmj818M%;aDD2-s^27=1BE-Ob)H7]/\12Oh/%SZPM.BK338pc"qkD.4A.^-TW$&Zn&]p?210_7a.6j._#h\uObSC3cNSeN5m*&Cu]euRU8RhH<-m\+*Q2L3I/MO6K1Shf$$<E4&$)d0i\h@E1MlJnSe9?HIcHFWu0cH$`C@ff-Y9Hg!3,C7@`2qTMEQ+47*&8N6U.mj:B=aS?64J/5+r6HW0p5U_2O@2GCnabT7DY,_SK8rq]FSde3^;Xeq+0HCR\EU]o-'Jh09<<"d,QTraa?RL:lTqu1AM2FQ_sFZMYiCIpA4*=+q3ctJbfHMGoPZhn>[T&_4cBlLRYBY\k7pc?6K>(f&*bG!9/*TO(l5:G9<_T!:qa>([B5mN5J,O,32hGN$2U4,c;_nb3n+T^9CP=g4uUO.3,)0bMbQQE1%bi")JAbFC:2+O==2R2[t+brUr#A%]G2&s065XJYTu7E&EaP4^pm'A`9fR.*QN;H\\-1`?%I7\O#mlWVsJ2$Y;8s6^VLf^Gf"kK`^B8D`T9Z?6n:lEq0;OL4;l\[JF:Q?=0GF@lF'@+.sE]_qs7rbn:A"f+E@Gt.mtT05=5A7'";X#P^9`cf#U;bR/>/KNT&>S8%,S"iA0d(1p@:%e[sijE2c)#^4-:aZIU;<-bE^r9PTM@R@KQN)s*!2'%i;iY%IcmVi9>CMPL%M:TO+*2a,2Kj6,kIEFDGo@4qeJ0\K.HL'=Fk)NY\)IV$0kZ7Mh[eH-Oq:g9SY(A-)H*\jT#aauIoi+-&JC?DFmC.`VFq:U&TBKpoN`sV@fcn?,f4CMIac/f4LG@4+UH-I7IhAUf0]cgaaWhJMlcX[s-%E4&8_IJ$Z\,Gmi'#%)2DPoPM=8^qh+Vk7T].%Kg@^5b/4EDBkXfD_*H1&olJQ8jjb(J7f.>SGq)pY.H3-5\<9P',c^p=TpkX,2?o)["5@<Z2!k-.T]n_s.+L#3OcBNBDY"l<3,EbUaLYL`sF:dK;&7eI[:;ruC,IB)OMPiXJNJRPXC-u,kKYe+DMr)Sf]+077]+^R^7KeYdq)bhR3":ehH[(cPRp?^gDXC_Qp]Ir<Z_U;cbCJb%\?j52CPR]!<eHQ,H%.W!/1;T7=@lYc6rbOhqfAnU(;gJDNeOnrsL^kJlb(<RS$rAQp8BO&Xo]Y8A/"!fNDnSH?d"K<*#D&#Clpo5XK]%#m_7$P2pl:mUs-$ZnK^:]sqZCj;oIgMK3Nj<q>dFNR!e*Ft?Ncp2NpK%q"Fig19715@:Yd0B*.s[V,OTsGQeOq$et@r6dN6a8oW,uD>MVu,Hmoka,KVGapWA=NjlrC`]/6'Ko2_3)ZGuIY;rC8;If:UKCODD2aU'YsI]$@.^#lL\EgeXf,BYUIDeGW3']F:Xg3MIYeg5&.)uh,j*q3dk'1(p8!'dl!EjO4SWnkGXA\3R8>Bb4Jrd2o86FmB-2!$BBh?V&kCRFb:3"&tiZ*oilMWjr%'S%Z;mK@77c'KSG&ER0V*<l46B,?FnGnEgdO/-3\<2")^4bgTNVSW;urLaO4Q)rZUYD;ePa.CHH(;Nc"<Ka-H@/p@mfn+(GcZ>S*GR`8,V&P84bttKdUW+Ja)9j>>6s?=BKF(0Xg%KX2c]=d*m(IZZd7T(e[n?bICgE<tXQWXfe^mf,/N_hnXcKJ"!COrJpa9`RghosWp.>B)U]SIAKQ!pb3GrMmlnV8nX,mn=\IcNa3cYuc]Id]K`HgEmdJ'73q4L\:/A_($5u0TarP5L+'>N57qMFa*[f7]4WW4<T^_@]<RXY",bu%ZW\CL0GlF2DC84o0fiE<#-WnF\U/cmiRb"o'5%%]*;9VA).%)WEGM7HRuO!B-)FO?9T.GtsDi8"W6_Vun_P?ApDL',$%WPZ:XCW>H^GK3R)=ZT0f59i4rZ/D+j7uNNc*#ZN^.L=#o$Z;?9YF1O^`WD/cWUc_QfAGV_E>KA8IN\)J#ntLGmgu.A]>9L_,nor/%HZ<-`4]$2ZI:8g4W?_:,'\EFPENT?5ND!WI1=5Rbb@E@p;nshe\k5Mag\ah9OZ<;hEPofR0d(de@gO12m2k)D8pbYpFOja(hpTWMGud(c]^+&D]D.[b_#bSpi,8U,\t%rX4Aso#Vg@'bk?t2;]V2;M@,=LXF&<t!8,cpUFc?L@I^eSPimn5e*'EB-4!;-j*ba@.<72::(4VVXIZ;c,4/S$gb>YmbdRG!dSre<kX\iq.OU.96TKRkYGmHRo2:Q'JaR79>33T$Oa^N;Y+8^`V_W`ZYH:lXG=`Ea0H@1(*^>A=jFEk:D5D\&CQ-?UgVh_sQtV[+:@hgHV1R\/jN<o$UJT+Oj@9DAO_?;Bj_BVT79Gs@g96t,'TuGjpm*a^'-H+p?N.M^=1cT(lZ_tWXuf,!>u%8\2Nnm?!@i-B@0Q&6[M7PuA`bWc\htSP#74s$P%7r^VJoNp?%Qo%G$JfXT+u52QB<2%Psc(tNHYgS/_*s.%[*.*2hhKfe\.(QL[`)*-f=jb6:DmUIuT3O]Ij+/8Plol*s_)o2MKtleP.#t-@`&F6"I%Hkf8M@M/KhhU8?Ria:E@MS+di^!E3/d'uZ&'ZgnmUB;bK<'?085XqmhSs%e3#Dh/^X5-/JZ>`*j;Nuo1j3<6j5@1^(NM1A>EdcPM!0nD-d<]*S[WsTr`!iGM])E4Z#E8c[r3sdt'*=m2&<jd#%[:%IMZ_HR$kUgu-?O<FY1%F0"<$tcTA7l^2-;?sK\>HRb^^\Oq6<koe2-q/B//>#(H'A_O7#CLY-4V1e34/ls9sMH<aRXf+N`ms;HC\h>puY34lC^M)Dc$=GEi_54TVV-7&)Geg4FhdFCF`H#H&tofn]5`WohRBff>4R4)Z46iPtq$<3-R'Hm\[[bn>]i?KAi]X_S'2)mM-\QeU0e_?lnN2Z0PXri-iO@g*]Y"ms.$rXcPjlK>,JCU,C0=mAg:-h:g[)X-teL\gb;bCkh.5(h]/CGt<:Rn33BQ7\7'/b<^Y"\:;^n*\;Q?hHkhcQ,5_NrsH4pZ.4%02dj^jMRqG-*tFNt?I643T"um`m[boh6pWBnmf<KjQ$39SZ99AZJ4QN<-B_70I2=c5Q0chWWGR_Dod[lb:El/;6MKt/a!7T%&Yh[J>;=\N;F'8]q4CTQeo_?tk@m$$9ane&+VDoUX0`KJn&+">CKc>Jc!1,p(UfmETqdm*h$11'rJ>WoM$;@eM9+N6QBa*6^@gO6o[uqlLT7KBc8SX>?Ec.J^W7EX1RadDSI9W[62;%.?kcf(2S>s=KWGhE$DPZ75H\!iJ-.+8OK;X\q@o[ad%4OuSg*YIURY0M'+SgVcXGZ?Ke.)ibP1b`k)%?I..ASj?PT!(U^a.*e=+WqMFm(<rs:@Yq#\rt-Rnh'r<mj"ShZ#&Gc7R7%%F[hmi#'DjDCf=LGl0"f!FRgA<+jOR3IEt_Mp/K&fN$*G/pU2bT(8`$EaMs[ZsERM+PTen%%S0G>T3`q\dbXA[:L%&ar@_8rQ8+1ui,>5<Js?j:`FK8@X/nKQUtjg]FR2T/<dZ-d_%02#r[$Id2"nr\idP'GH1bA!L7+S>>)`pgj]CT4<bCB&9I2ZUM3eo)PGiS6+pd-9l:%^*tUg2r9:h*OG(%>&+_,G3(R/2AQ9[2]FWG6`.EhQp+K;TgmH6+P1ILIJrb,,g"G<N&6,T6(o=7_B-&kQ2%`nA5Z1+B8m%gi>s4h`N,6jQd2Pi@pi9IYaZ1T0Ub'uC"$AiBi[lf?6W"h2::kXD38k$#pM6VWH2"27r4+ppJp?>n8\B>37nB?BOqet#>;)>p=RHRp9"&'P3T.o&cStCC7Xl]6c42Qj1(Ipd@3rZ6f:t*K./4jec;*!lj-UO)f!]'eDL,"[T\&#0;uEt8R`[q$YE%IKoiT5[-?XVqM0=-T$3*e'M<TM\M<+ULQZM3bus>F;-o2LHti#KUJB^4n;PNcl;WW52upeO_athr2!POrCqa#$3W@gcaJZ3nC61mG9._$<N%LqoR(:Dd&+2AOJp1>]mn4P%6RX^d#tf?ES';1l?8+m+MoI-%kQ?/aCJ6CbGDlH^j&X:S=t>U>7;DbE6Q`RT\1bj:``(S4%ZiZ^>%NTsVmSmZ9F_rA*[NOiE=b;M%.[>J9pEg(/LjRLmDQ37L`19r9rNXJ^$\D_?#c](oD4F,b$.=D40TC\3jpd7mSXV^FcE;n#jEDDOSFKhb.'eP2]nMer[+dBqoJ3LDC<:PRkq[7%XtB<Jf3mO9^D):n:)'d%hO/d*9C#ITjfXe<ZDLWnX.C[6=D/&0>fJ)3f)0^GDQ#fk`B#gS-t%1(I=F?om'5N]9X^C1LiJdiZ\Vfa;RLQU#Ba.CTfX/7Sm88IB?9\`#Uma0[rh*2Sl(*G$(Ton30>6d&S;d1XLN+kD#HEZdaA!@X5@!GpMSJNF6dVWG60JG+k*SRUcWh,E[)'9I:UJBRbH"9u>E*PbqtJM8ds$Pu/r*CZM5&FEYsBc">[o$n9#V8$Cei8]Gg)Z.eKoq@Tr7=kNBcgO`s-:0Vn79SQ?X7IT.oWE(pU1d\<(BYr7N'M9bf>UQAGNt@4Vmd@gT?3P)h;BU("UALW8cLP-ca@pOcrXDj!q9pmK[!A-\FU%rQrIJs&i-rY\301D>Nb=Nc,CF1\=n%O9EW>/$$3#NeqQ"HLhSC>kB&qgb#EiHgNL$C</2"ArTGC<;e;r&jmUt#=5geNo'B.MD0e7kL1qG37+ik)H]@Vb1.];c_@!L!UCcXfVF.pl?d\Ja4D"TU0>M`!o`bUM:>^?F4XBR.d#4d+saaJ:gbjhru*ZL3!,((a""Hn3/.6h-79[0BOlFQP^6]P1Ljj3Ap&!ek\&iR2'G*J&Q7krL6\?cZ:DNe*MpXe(K9\iD0i&_fl]lhX9as'Ja^%0)RZ+dafFV9grQfE(bb9j6nO#'D/N@;WHruIH=%?blFYHg@a':%(Y=\D*ODpcg2<@*"7XJISGGPI=DV"hXjesRU/"[!JNSI9HS:LI:J+V)K0Hnmos',f-:A)kg?,Kd_BacArA<,L+1)JLM>,Uoir8/ud#L5JuE1+H8o\4O>^QgS?!s-1q.bcR49]'bUO6$5lk'38(6mNef%,g\c/#kom:!=FY9Sl$2l8LuCD9Pm*)4rCpMQ8>Ek.72T-"P+Ug]Hti/+L3A[466PVAs.-ND0a%PF[0-3:$$\(WSoT36lmDFPs?Y[OY4D+9jQ@+-<Bh]KiZHJ(Mc!FV!)u$Y*;]'nX/PeEW_AD_k5rkX9`FW-*1=g9&Z#UP\,sYIcoJDa@3':hFWjIO!:[Y-`?-%(;-_%\QW6CX@*Hr@DC/0`9sMinYaF2583oj595U/<$6[_A@Z#*GEWIU96F<]C&i<i%\7j%:Al(h5X+Th0ADPe04F-.!Z2#unRFH^P"WcsS@E.lgR4$u4KD+GT`+PM`F4shHEcKQOQQYa6B;D(1g>9D?&0c5EbZc/I@aM%d2F\Pl$2#dYFD2p6;'m3`%qcFQ-T)b?cTS_akrQ+m'[2HKK3mlpX^:c0'S]s"9-,H[OJb#Y"AR=,Y*qX8TfG%IiTV%=$?]pXZBNtNj71u!o_G\:k^h:1c[*6+;Ea[m>Xse*<r>\6gq&HgGmBU6GQE:::STQo-c?:7hhfb3H8Jirq$6WW6S*TFLF":Sd8h8&4A_s]PcM9lQIOe^-']KrNJ;leC#8jq/#V@s-2ZLU:AJ_(H4^#ruB*`'1q_AO8AtnTP*"t[]=%odP/#a)`32^BXt_Ce"1l(@Efs-U3UH+7McLBG.JTC!bqbE2XO8tNlrk1oi^S97",H=4_;;t.d`#.olLrD13!H-f3:*lp?_-M[sLl.P?!+;bBH1Q3Ca`IGju:BbO-PJ2s(3A=FOH.*<%mPSk;Ze,VDAV[KnqmLP[;GG=#R$jQ_rRVQR+0FZ#>WH$.0^i4L_8//Pu&!"k.;NG*jlFYZ2b?hXgiatakI-drO<Rmo:A!Hn8I9A10M.j]4/I5;;"p=a-[jmR*oSkbpc,TK^Vb<Tfb2r,ea2**F5[0fTc7\["a7:Dpb5bF-ja<,=-(^fITd#QX"P[N((*`-qN%J:))7jZ5Xoo0;;=*#&Q]sF8KQ<7,<q4<44`&H=Z2u-JeKlEIa\4K77Q>2W`l]L<A%KW"fg;<EN.\+Fd.d-Yb8mm6'+(rJ]:"X9MCT]A3(Nnags+%5s&3<%18+M_H=m#u0-5^M'^[U2]X.&e(:rra^Qpql@Dg']MBI7nZ(Uc%%9i\nPV2Vk1c;4<e&h$b%m4-JG-!q4h@)Q,5hqXX[e8$K/E,WQ*.F2Lb/h`hEHAg!f26ti#NcMg-Tq@^/^>a\rjt?&\V3t>s6HOA1A^MQ/\+jm6J&K8@S9=#[@(m(]NCV"\m8qob1l'P,P8X*1.LhSi3.<k4l!(+AggKnI=h.I@%R#`:j8n*]2:GuG=q>YTK7osLUHngcR`1lDkh"Y?g(-`?W4kIDS%24+50>Hb4eU<*ZDH98U@^ltIcNC>)eIen>n!G7$XZCn][&d=D?LqLU7Jf+OV3DoDfc7u[<7"sU/u>c(lF?O=7R9$Ph#%:j.P1fkpr)#oVIT>KO;$;$8*sKDS/;Z=fhs8gLfGP,I(*qbZl4.C962&j$$=3jWbLUh-lsUO9YB7b?d_HrV1<2^n37EO*P,<j4Uu_-Be,=iqP%js0%c_0@D`i5VqAaNtrWu=oJ#=FS`kNr$^U:R'I1h3Ii&1>&DS_5`[Ze/Qn)Q)Y(`rkMK<VWApQ%X4bqB1fq)/OgE40#3PT$RRbo]^u:H-YBSLp$p=T<<V[s/CH1l7R:!R5(tJFkQ-^S@.PJ>LjPY'/U"X!i>`NVrFFcZY\oGV;nSR;1iGh'u(sMcGNNTWE75PJe=U[_ij]]URf>=9B3Ep&5.#6t!lnW6V6cH>S!)Cq:?rhW+\R9N8fDdbL%&[/Q@$kCH?8;:R.5W[gkWE)Y*qY2mh@c`PMP1h:"NOl7IVm>r3]/3Vr$aUtlIUo8;+i\_WR3#HWekj:qV#>@9Ld/p4"mK:(/*G`WTe_dP1;l"5g7$lo8c%E<kB?]@=[q`<r<Xg6fiOFNSR"+eQCA0lC!RDrX5hdf]D\+Hn:/aYn=TRWbIuVO$XG$=Wn#H*"1B`1U_m-dTR=/raAE;>=a!9;3MKn(7]!]_p27uJQ40`U/&cFKf:@:J*SK_<JBp[,E2;U8-/>on!SBX/HY&-q#Stl;?-q^)Hm^?magl]_K@sH02(oV;'o<5+deID0/QsDI^3ju@9&eJkcCZ-i7QsME-t!j>$W.\7;tq*idUoXjed<6iO!E_V;_1W'"2U?"/HAG9+pp[A]#4B7t4_aj1\sU;PBI];ESYBJ1Y"?d5m*@q00kjN5)2%9jlUU)(30GW\GJ<i![I\SbR4eT6Bs.%(URT4&1=]Ng'i$UY?cN?okAP__j;cF:CKIo&g_TNMC,:N=KtbnMl4C9_O\4l:Qjc$AF]"cZoAj\@gWF8$6aE;V/rgEZC0@XiZ`tr`lc(em.T!d?icl\617P[bcUOfJI=p7L/oZ<:H5//=Yd!/CL5KFGVCNPl1KYdaetN80*#;@O:63m\`/'auT+VR0H;7],3Qk&HTIscTKNm"VtJ'!?,X)N.4h<9(&tcZ5M9:)WXP5W_WmD&pY1q(@sII[15!4-47>AG\C!hZI<XJe2%.;B1k3i`C'"PKoKh96S$0pcB'9-<<7jn33W:8TM-?N:W"cAT[2&oN$,l$[2r]u;%M_N3F0DN)?=E>.uJj5];_U$/'rVW$-;\cM-hR":Vd.>X*7V#ZSkR]0kGWn3u+_4+(+A/4f@:1"V,i^O-(SI/W(b`!F#D#'Ug)5r*re`g9%^ki`!NCeL487%h6PO\T25FoD*Nt5Ep<1*,a\%],gh=$C^6MO&I4<Q^`Pd@`.MoV<**6ZGKD`^6dnBgIf6afuH__`F>?)]b;Qdoq_,e7YuE3g"AI%MV-as:HPXp%pW%IH8^H%i9WWh0a[)6?c0SR!Oh)UC0C/j*fUY^./:.?<RZ!44^ab65uI&L.FO(W(:q!D56`4-g1Pp>=_[!Koj&b$,l7<tbO&Kg;\qF1?u-#\AS6u9XAQUOG:*r(o"sJg-e=K;XB=HH<)DWmqkFRO@ZbBu#j/D*]&p6AO5D<U,R<`sGTRPMs5Qga-/Idt.-M>&e4T>MT('E@Uc&32U+dk*Z[%CCSM<c8a(tc.)`?.#,"%W3;'Pe)aF35<&E3X193V-6OfCY+5tXE7]%u72>CQ@_MIt6e`ZFVs[nFUM+3Ini85hR\Z-KPr8U2`Yhj!'s>n*bu4c.ZZ^(3;,H['-PY35V<<[B$6ZRl='HWQW1.D`G3SD_f+NMEX%02RLbrt^dQ`hZ_HjCO2&"6i9ns-$:5)CT#cW,e2LB+"Q82d/L#%1HIU)M#:c)"NQ.'\-k]JUMFu-%gp@==X=J,4dP)?)NbG,RdfClnb\SH^<&4MV:-JQtddEO*-A@Ll7OJ>j:jC#d)$+UtSVg(Jg*0a2"*(M#(XqS!@R%mpd7V'RBBF3:#]`"EXE0msG.!.m0sl`ph4Fn5F/%Z;m:Th<XK*b1t?A&b8>s:*5lBLh2H(,TdLkm1rTgM,@W<41Ro_D\/c9daO*&DRYdL"Zb(5J\g;VG:S)NAH?6TF+b)q9gbLJnc-UFRTM'o.HnEB$nEkE<@B3W>%^>TS)4q=g5(`X$53"+'fi!9J6,If!BD:O!e]Un[V;RW;A2ted'%_-0c(oHW,LiOgJ*m!ZR_lO0&5h9\`L`2DBf]_G,#1Op,8&rVq\"1n&n(h`>?deAGOO;o(JP2bDNLk)K--dl*dCboC+YD:u4L@jo5e[XRSCV6d(82TcnS[Ga(j\J]R]*203ORl2Q$T55`Of(4'^"r<`[PI"00)Wg%3bpe([<Fb!c`M\33EjVG*'RG]:YPaF=@5Q(Sd"u.1,$K1.u]80lai1eRiAB<3E(;'+FB)ao9@6m-TYZJr3IFr9<p=O/V5Bjbe0DG8c%)b&%8IM*`Q=t0RArgFk"6u&U!,+ZBZ$$:rpJc:e&3>gB)uG%ZFk[l4FGaq0Tm*h/p!Mbbo-o/Y8!2X?#'FV@^YY9)$W`F%$TuWKk51Y`8>+f".NX+dEB)(d"NX4OCSgr.CO1g/Rn#S_<&K`X`qfU*9f2+e:bMorN59GY1/0VP&p(&A3Z[>&7qj#%0ogK'g`&KPTA5n/--2`aV`r>D1kf(SQupQu&-B0:;ne`T''2bQ=$eHTpZ$Y6XnaiVHfRSoaMXkQJXSb(hir@XE+5Vp)dTa`g@cP3U2\:<(\8NlIkFPdksFeOW<g'hG;ulTI57qJ?1K_9bT_\rS"?JVpLdB$GgOqZFc$.1KH3.M8N==(qjJa:a/u<s'/%n%9sde2I&"M?cXp!]W<n=OF7"I<)u#E*k+,LTA"',$LEr4lSugW_Uet0C49GXrqlVSP*XUh[UNuX@e*DI=Hk?_g4/GIE4fo.lZJ5gP!CZ4I'+4Z@5SjJO>4@S=!(9tb[0'DWN=-1lEs"6bkE?%qjLM@O0il048^O74qiWZ#D;q[,7H.lY7LE-A,?e7"+AsZ5:0geUS=>Y!Q6d./1&-,r1.ILnD-cU*-a]O)QA#aULg\'NluJB-cQ!T<mK@5JN'N_$.>E^E9c?>KYoGc9bK8N3=0g%erM6][U'WWKi<MPE9D[F%/<08VD.GQbh<_n7?"Jf+ddn_H[Vf0Xr0oQ.[%eF:(I3Mel[:Vd-i\#6M#3WC:%nmj`gns+4:-$=T58#BFuf^>-;J!E+RF=\'PGptq+ZQ+9OS4r#gdjH.qVjIL7SbWnKeEOdns`nZ`%PKf5Mm$JaIno'f&12D.a8/8qAA<;j@GI=L9Be?bOG=dIea)DHpnbEt[$*fsF9+Vo'6=_K#Vi5lk%9("P!_N%YPW4!m#g\BUTG0dZLTI(7\V7j0I;4!h-.WJ>_')C@Q%Z62JY!E`!?%&Xtr:i0T3ac`_QQ7!;>m*ZYddme/3?Kp9l+!.aX]G;3g-M]Gq5[K6"a-a_NW(U0t@;$iURjV_&J2P4mRofC-5EB:YRR')Ek_-bnM$U\4E%_p,Dp3B!pH@Wh'LhpCF`t7>[Br*?Z=)UNs$1.gdZ!3"bu'KFNVu2t0PU=a2a[UVa't"\*HaiYa&IOH*uudtc>'=e^dXgtAP$EJT8<<\AZOesL#&,Ta%M=UDa3G.\=d%UJOi?tI")>)V-)O#1Kdr)+ip1LDa"VJf'^`lNRfI\,0iUs-rc7cDI+j-@0toTK)aZ<_c9=eo$Js'KE_@OV(SRm1VITi$DGkic=l=Nd@k=TF(f]m#s`L@q^#q,A&P\j6iQUS4j$G7]$Jnq8b]S7GKS@?3p)i:M*=`Ka7:P^:c@an=*`N"T"bkI7+or=1-4iG^D]44RH?YFTWJF]$el3s'SCM%.$dUe*F+ua0tbSNgOmBI/hFO\(5V*'D)lFY\UO@9NOhGi`Nqq!)Vc9uIujUE/f!9VNIV![B15b$?6Xb!p6[/7o<s)Q)ON0.h,b\l>r3L![>oJ)F6O]JK_@9M^MX+`Kg0G11H:ApI-('>kj;-6U^pm=Zp[[t_GV`cNHU>gU>@A`WH.jG^2^tTG]#d6/)Hq3ZKEB^c`Lu!__=(Q:FpAG6^s1*QY^fLl$Sl+?sYA>7eXlF+OY^A?b^E4nZZmiY9t4?#R)o]D0Y7!fX"]2g5W0T<liFtU1nS#"@QZah?/(Vg_]T4&Po=C0.a]&Eb7n!NX\IL)SAaCpUdhSh%UaZN<1ZfhUk)YYFegB%^aL>AaF/c&63MOA=4tA;UY<E+FJZ'httQ\@('tQBC+.4o&b4!Kop$!S%Fl]#,AdYBpW#bKHRl.Tukr"Kd6MrdeK]WC7m(.khZA0>(DO88n"Is/877XbhGNTeX$@$Ye'm03Z/`(*m5K#R7P:O@LnX='X7?C-#\ma"Wk#nX>T%p&U)UM:f]H`S7P'(RR3Yp2jt<d;0,K/H32]P$Zic!qBSaDe-;2!KttMVj'58Tld,,B8!4u/PnWZcHKf@P5gXa9)_%N4k:8:`#8Ui7mG10[Qf=Jf@qPrRCg$nN-:Xr@,M3Fomd]G=-Ypm1#uV<C3RX!eNZi7Dn<m[-*Ismi?r1Xcc*?]G`9\-A,<](9FpM9\[)=T$*'>XMi)UN?SV+l>J?XV-&C\DaTCOV`0B@+ll[>fXp(LGfp,cg0KdVJA>kHh56t^ZNj5(YXe%Wk="Y76V_q*%ICri:@$AgpGhCS9+\Ga[%g=n#Q)E.;T#VA/FBY;Z-\[6%H2g6m-=R["`2OH7#X(FAa]"GS>7rmf62-:UOh&Kc/]H>i&NPRu)N`T]goZCW>:K7&^[d$;7jER4WEqtqim"=fj,BI)`.&P2YaVXjjekWf-L41X*Ibqci\hI3?GlOL.Ke<QY"\hcQK9"t0_6qAmQB1bU31!9\80p^D&?^L:2rTcWef8Cb&e*'oBSNI\:P8l]?Bbl6dUq\9<`\X">H]2mAD&:Qd\TH>'/an_^1.A6<$b/I'=]LhFXa^SV=F"o]4Q&+9_H:eDi>'Dp^n)me&6(eq+&BD4'Okn6@fAgR(RZXn]uRYbSGJ+1Q@^mbA#V;kRYlcDs.ZQW4c3Cd",&H`adQu8g3ddfXQnf%&Y2nKt(]#h,s(m[OtKB)+8#0I/m"^J$_a<YT%9>BCQ]T/F6ZlkY.m**K1Uk9Rms2U$hZ9b(0up1qkhT`H@)_MkJRf8>G+"iMZtq"SNup;6ci\n:?h7>DJ+(SFI=tQ%;t2?a$(oLY.CQp\mS<5cGbI?,mtfin":uNf&7f:A-p;BkL0E_Y3FIMpVamhCEm7,d!s?:;-T_+7uN,cFu:8b1`:o7rOS0>oYBfFbHm9mIM9TTAm[s9W<[k11=^KUY[&@%=H^$?X'[gH62jVM_2N(/IUa+6+[)!=N'etQ1Acu_D'qDOKPA]dHmgXo+=.ZT)l=XNBE1l*(r7MbWIN<>,I)`AQ@^C$`%)e;op^g6Z2$lfHH(#3n\>@gA?3J.Y^mIdo1fX$5srpQc0R1aeu9lh+);ZYs8W)5$sn\B@*IM:[Hmj1KjV!;'Z4oeZ0Q"LV@S7QH;>):6uoBkK,JXa!Zd?1.DR'GirNJHCFCrW]];WZ,(FW$;,u7j0@@`b6At6B<mm<BT6gBX!@\kRN9Df!DBLZg'[2i-k1l+94U3VV`s_Ir>OL^nUKZprI1tGNk)lhig_24rCFBAFnlN0EpMso0:8iRpG=nlbnLQ9?GCR=<Y@S-fR5lpkL,Nm1[-iGS&]g#g*d8lKr<(($@^d!jnE"0Mp+Z)[:G24-<CaEd%?dY(L!eR@e!n'XYo)TPknd*2Qq%"17d4T3\CE'=d3bJeGmdig_9+![-IO/2t.&=)d:=P`p3kJ6id#I<oFdt+lj.``[Ob(QUNB>eVEkOA&L)2B+_rC+Zd&E[8TYN=SIQZ"@ItEDYelm.A:3=\oBj'.04Eh'RS7=S-=T@n'srh"Z?nkrbA!(CRd8Tf(c<E8L0Ks0@O7p]Y,J\Lq]Q?&2>aP\+LL]qWHAe6?dC+X)_lp(6+t.#kAH22oR)E:D6a8*)#X7rjsdM\1\2+hPFfl34%n'c4C0HId@6naK\$t9Ed"^[hIOK9,^HA&Ddib2?$[GqbX]@Q=uK?B;SXYB5k+PbD/)TGKihgk#FfQCJ>]h6WS[+([ROIZs7"]"$CG(f"A6c,HU`uplAY1U@"!3Ta8`>7Ac)d#RZNTqVn``%[j.Io92/42"^CVH=kQ^DX)*-H:XA-PIULSe'3qdhUqu5pl%[2<:*eHO\,tm5+m_Z9GoH]$Y+hpER6Z_R,nrRUuj<WQe(`1?AqkL2"tD+FVZ;i>+U#SF[N?l>*Je619l_l)^AZro;.ZEcL=%(%:(ZuNHat>;Uf3iK`L]*5SiZS"\F:EOlcI5p1stf[O/!JLE5VD`ClWB-L4pq'%&1?CHZT8<ej\tBH%tEU"2&+-8o\=^$i0)?TJAJKKeIe>)jEZr,D'3^_g@'HO!j%+WF_h#b*V4^pO.Pa0B%-+f69RQ1lr>>unp3Zc$'p[!T=g!P?CEFDms6V1cl.>#mCa6VMpP-KE<tJcbK;b/1=r$TcR\[O)48<';d&CK58HePZd:^:4"]$rUqCg%.4#$h=Sl/$_9$:!t"_2p+_VHW/?eSjjaVW!3.b3=EWL4j";Wib.t1*dO'm(<R081.M4#+UB"%fm;<U8;&:tS^KCD7kd?#PV]s;Z@CL@?,tf_eSOhQ/4?;n569R`XRr?AE"o$`@o:QnS_Q^@+K%HiY=B_*I3BrH;@<Egh-M<<nur)ZI;oQEqi6HJ4j-6n@C`_%:)^FJ6/9-/NWFONs/6X"ipNsP1N?B_*tcmQk'Y+<n\rSpCW`)8d4[RfRI\ucd>r$sm#4!:Q#0l*1]up3)U:9:$pXb_.%B8^^c-:k\#T$987sHnW]#DYi=NBeFa=J5C6nTkifW"rF^]gRi13"<.aY3c5EM(."+Pg=h-\qjZ]/,(4tld/N/W)_3`:+"O<i!AFpriQ@XF$HBt@k@ZHs6Nr)b)1^E?9)Dq9+DI0+Z0X]*+KF99d%S"Yp"eu_VFAZ@rGT'dnS<1BHojMpV6rt,E*$<bS8:coA08R!]UN-JgrEis=UZL&QL=<od"$$Qa=$7]*6WX\KR[g8aE,ki5o[<6cuj/>3-[,PQlaKo;Zb=8!U09-HRc'n2>RpEbPN(gIH1ce541dV/:d/j'-!`!,$Ksa8cWc1nOkQm5nRL)$VE:'R:=g1)g53/G1/$1J=VYP#M49o%if8aT>81m*)h1`*Pc5O^ua=2"X]d7UE;'m^TTGjP6Q9(*aj&&2U]k(SoN*^Fu.C@h7/Y7IE!jJEln3biNU7o^,]nf:Lr:1o;#H7Mus(L_B2Ob5X$)RW_Fr>LefUU*LJkLFtSOjp/F8>7[R(81.5nXMS$T,_EZ9.16Zs0:Kp)UfLP.']p`p"j2\1gI3#8MV3<1Jm-TlfDLm,RpJ>LP&\)>`>+gNe"tL*RaEl*4&81Fq'GVVp6)3.,@O^YpkD@u]QX(54[?oFKAF(V-gTpWY*oU/uRcb4n9N`<U_=C7<G/Y\9]OF@t:H,EmN4[oQQinA)k7qtpg6#tD?"Z3hB5=$euLIE7m?Q$KD/lu@W(QkM%N*7rTGd*_)(#*C5!]L*LPIlc@L,=VEVXKm[#Ysmsp'O>nD,Z;OAE!G$9FGQEB#V!O="'L.Y-Z3_E*mc".Q[YE!,gWLa12\nD`\$D=IXE;HaX:1Q*K!I;j7?LcdE%JE;;TV0"iLt(aSWd:R$qFE!G-nPFJ,?Sp^/oSW-$+eEF6deFUHm3dN@j%*<1N,O8mJ5UN)ZM'"4:PQkmg+<.PFj,:<3\>+7Xoi<=R&[e"3=pJA#@qScfTk?lcOi=`/"$=L.(60j(iIhfY_V%<3GXFX'D>3>UdZ3,"/]Q`mVgaa7K],R3f_8d^:+4q7ZNqURf4tU5gib<j)SHqHbRsW[kV^lM&'`Dp_*`6"O<tcMVOBRud`U^_/3-B)s!@oV!Q\;n%Y\sRk=#%Y`&I7,j^C\,LQEELUP*lT[(ZcDgq^Od3CVF7\RXA['4,*c`.7SjN,M<rfgjW&6P6%6,S)%,=c?"#^(KC5t_nAPK;Y65?0?[Zl9)H7_2EZjM<I3ta&%bYr<N9V?WJ]co4*UIFjj)F)gBb*//Kpp9R:H=8,P!>U-M>U2='4X:%)mJ@Tg;QTb3tURpWDpVL%%Dha@\^0$Tioo9oTI`06M_qoAfdX(jL7I*WUE\g)Yp;k8ZiKoTsX^jUbNjDum[u=M)G34)I@p`:-<N0@n[;'MH+U's'5Co+q$lISdEZ9E^jf*YDT%dfT5_2:%P/%k<5dBEpIMV6T#cW$8\bLlJr1YG2R,$@qqM-!T:?BUj@6+\K'_a\:%A&_\tN;(@gs^!8^H:Qrjr4bWqhTU2hW"`aYDLWc_#+**c,"u4,@]>#Mmn[6tJ\n'8Ll-*_Fg<S#AN'C9Kb-$:F!ktj<*_r?FiK!qL12ULcZq,mg-J2gbGrBAcorC]n/9-%!O(g:h!N<cX&0nD(gc?"#cb,k*U/[;a`fP<"OIig11*<ck?AjOW#uZ(id3Wa]"UD@_<phQQgNuN`4.,TYO_^jj$>sR\L<i"nG(=$!gbm:WmWJX,[u4_t8-@DuDt@S+W7Wc=Lo2quY>pRn`'-P^V(&<aNB+cG0n=GsZg?ker/9'.N"hO(M_4i%+_RT$0A&ql2T`oE01"FgGnMYh:/ca9NTMm;(&8#hiR"$AE1HW.ccm=eGO+2>[b^il4.>>-@$%7bkC@P.J$HP7gs&uF]AXlaMmfJXI4CIR:6_-:`"0@e5G]aS7[X]jh1?G3YQL<e/6.`kP8G\=#e@]DC:.bDT^i_BRnXcp;LO_/I!^YagLb1=;UHuLJSYKf&h!TAe_:4oX`tB;OEO'&&d6sVdo`]tXB2]S`_\uDi/E*=ihIRqeS;4PI@qj1<c5;X)s)k[:KlMHQtJ*h0NHNhh%3e+ZI*AT!1IKU-Ea>5aB6HS_`D4i/bk"^k2*Y@5"-g5OJJWVZ66mjj;gEd90B[P>V/'OL](:s8tD%[Z.9oH.G\AEcEiW`JPP^#hoC1HC`LD6S83[Y3$m5)[QI]m55ofX1RO%KfiqupQQ+;2%`r]VW65,ETJ[0.s4!sjZdV.9OE0;^27oF>>IDiZGl&m&B`tbc$tJ4BBIH#t?m?"aV(rL!NocUJo%)?`:Q,`oGHZqH]L2N,a$<AA8*C4pj=@-@fqC/0QS3Tm5*(BO52A7_XOf,fe)dCe+-ZgO[<b*O/G;:^Gq`icaq3qVfnFWr_K`g*M./Ir8*]6Gh](H$IBOS!g9Jakoor!D8,+#4HXManBjVr;aVuT3,L(c@:b(Bh",Dg8`nLkt.E\r,qsiIN0'Aj)meU7q$o=a[(BFI>^LiE0\;`0^5X7q6r3FCqOfah,)\hE=dpVcelf%))ea];0*6@F8hV"Kl7=k?=c)<9hB-Y0g:qQ*IM#'B+@]i%l(7IH]at*BVp3DOg7>]%T&\ki";KV;-[B!i@nC/8Qk0%E&[)bqJOmP\s$`R`:?(mb;7ACSp/KidmJoALo90XX$&I,df3:b/p">Re:7K"n0,X5Of4HIiN0;U;A,8]E4(ZUC4lLIbAOr5+"Y&,*^V;Fb45Tu$gCsP+.F8WepK>6l4=pZEE\RN;(1q4)7$^1X]P?d!X:Mjg4:[sY]<,uG!'5-Oaa^$t-iu5VCCr43YN@dkK.]G\q%O[u-]\"Q9Pur-%g#AsJA<T9R>jH\-jb\iX#Djna69`?\ou0'>HRZC??3Q=>GE!q<n4=g,,SR*%abOq3/7'Zq(ejK1$)l/rUi%T\&G9>GgFlnBNYpI8NrL8"gfoHWW7QGYoo4,4QI,0M9V"9u%\LME*B,T<,e;[6b9dagSQQ$[X#bdqm"cTMhI!nQApq=`X%^Z@HH-CtjPNq;j[WA'.1Mtc0rlJpCIi/E[<!5VAnm%@bBV?N$U6TEn%Q75gp_uu4>cJ1JF0oCHEQ+I02AV:\bhk?H\RYS_i`Yjm+e&J7b_&:TLL'&?#:*CbJk]qL$/DYJBMV`X:.QL.Xd21M;;Ic/5l0p4<s@98#%[O`H"P?0ABo_T4$X31SU1L#GgB7nLuV]-HmIDDWqSQEbRG/9C:onYo8Cq=gp$<-gDWoDHXahnl1Tf#^%\3Af=+%f6K2W"dO15'AqU:)I;<396dtGo=JVTSY6g423:5_d0Ia0%I&p.+"HN&%Jb(\>E(6O7C79G7PV;)$DsdXU(VE`ZUFjUqqmADTmp6!S[$qXb%f3",pI11+2%NCicu;c\Mtl"aPVY+%"dZ].\EY>s6nt=1jeFoD\$mG7YJD_U=KdN<r+aA>`I6/o#6p[/M2YQlbo_bZ4KDX!7`]DI,RmaX0'DWfIJ&\.gXN$bdl*&Re#_9F6&`RI.)e%lCc(2%bo>8AIXPP)EoS`6i_XM>9"iX`T6t@@sb0=M,V2ddY-/(3kfS8SGq=Y*HFtGq`NT<MB6&?m7thVC=m\58I>"Hf!Q]r/3kM5AdSe'Uq?,SEP>X`]6qKH.s=>=O*K;6[k]IMBY$RNoUBIFeH$uco<_q*-0VnZL*nnunP2enpS'D$%c00cKWX15@Ve[c8<SW+/IM,e_MB["^"Vb0]GnM9C7%R/D2Z;$m"jcFru@:ooK^PIY@B43A26$$i(ZUIO+RD%#I#_\6(TZ9MG?bMNu,U#]&lOU>i;p<Las1aOr2Mq?/:U.]m<enONs7,X]#`1_'Xl/TfGUr\nfAZpY\sK0tNfKa*CnSEbGfB\$[e"m^-"*IXi"P;P`V_D;_\E3+)N['<X+>X1883=iS9!#F-FG##jJ7`7pjEIY<%sGjV8X1N.QCBEIOunarL4Wab-e:G5L($Pi-PEr+OtPi:BVK(7$aP\1_"(rrJ1(?hr_\:^`rm'Y?l;!qQ%-N>E%A[Tg^b)n:JH_#>YM!\`mj3;Lq\8j!':<cWD>oX987[mAWHSLkI5IVTZp%"]\p!7(fBE;O5(XIYKK(XYT;_YMccfWh$?;EPB\MA.#=Pa+a\M!RoN!hgj]3dl918C"!WgsD]h`n.5o\)@P*^7A-J#X/qf3O=ITF[et4",+j.U&qIamDJ4?ZF<7lA<OfP?H]W6mJe=bn;)ES?$PV!?4PWQH';j]cj[cd,+La=(7+N0g/4aFfBp\eKupi(R9q@F"^GQQiZ=P]kREM'Ptn4R=`*#`Q'2K;^'Ti@oO?Jngb+M&-fEp\0UE=VfYr%U$nH4nmKiDf30c)Zk"cc3]tK*H2kn^`WiK6b.-b801'5l[p*SCk\qolNU9b<8k!9-T,Cip`451p42>*"Mtjt\mPe>CfF>cP=#+A2A)s&SAHDAGTAsrB`tIcYgD9[MC4WhJLL88g6.E/B&nYN`9\V2BW#2AgM%Q[ALG2'D9#s*c%$uk6*m;c"*/a&\XSb5W%qU]4MW=e0ODs:GTCTDP[+F(6">;Jc>W%8jdU([iQIDA@iqf##?-_:h.cZ*A/>S7%f_97+LO=MA)b"e:<SR;XF,l,d@U[!D]`q*e`L7fPL!5`@^)drbCD1K++"n&./4<^cXaeY(n&JpEbtd=K=8bfM7D4]Okr$nD&,RoE]c&aknbMH[IFYdIbOoq@Lh?=hCL/n,#m$`G5&4,L5c<@0%X&CMlh#]3[5qnE=LZ`(N:9BoDQj#b`ADY*>M;s6f;^D'$DZAVJF!l1"]aUk>>p,QI$QefR)Hla:q$eTl@4J]=]3ts$dTbKd:Y\t.NSa6&8Ubc6lDdI6]OX7\@J@MWEnM75jC[Z9%m1hgsOfV9a)X)27gj19*u)o1U@m*8m$OuFrjFH=h-*OfNJA/$`W-BU>r2Z?bRQ1V9&<+gt4fV!@Suc1"Q+d$4lJ6SALW^h#'':7amZlqLQ<8=-n)a.nbUNe?9Q5qCM;2`jQ!`2U5s(K&rjM@c^fN)7M\Wf#oiOO5?C:mLMiI'G6;d4C%9Zof4LS`ft&393-+6E9U,H/LE&_L>fGEr'42RM59iJbNt*fbOWPY,^U,46_gQ'<>g/Cl/h8(dY9@A^[/$C[6<&Ep;mL<<g7Wd3kDeU6>h1gAA7Z.EX/"7E#!(@^.s9s8l/5!:J*I->$@$MV];Ut0A"0%IaBL<b\S+`e[&WX8+'7o^%o"'g+e"FOLiY8W")34k&E@g^2C<W']QUA>kB>#&(A(Rpk);>I[\,8T&O^/N6[K60t&6d*Xj8X+P$U7Mfl+tRgi$*Liel1/+&]pQ7pAE6GtWaAo#`HGA@cMr_._'h5/;+;R>>7:5/_jUJHl3dQ`CbJj*O0e/:CA"\=Q@pR^t_?5/J0UtZs\X2=[Bgf;6&50_$r3$J=)dWOX0G/FG!iBZ%)Eo-oKY[]@j:0FQN'Y^bV7nsoh(q9?Q0H?$:*%t]`9U]k;0:g#i8'S%%SV+[CJd"tBf_kl!LC'foH[=-E#09Ek^s_&hM<kVoQ0:FV>&<4;dRMr%X0BT>WtVi09V;kb_80/1/8`Y\;P)487q6!oYq(eYcBpFi"9?Z!1&L+uWL=3&;5(oeE)3=`T;-^BcQn&XLYieH6rZX-lD8eIQ]G@'(9J(':dNK!i=Pb)*#-^KpPU_I"/AlL4s;BW*:0\r:k!TTSZ1HU892B`W<-YW0m@1R3m5jlkKjrU@pn3T%[\Br"g/'%IFd>J(k?j`N2iEFTe$jO%CN&&lBUl5KR`H0TnE^C!4Beud#(M,OQb1"GL2;),,NUtL>k@t<OmfZm&LuU0FO"W+#MCq,5.f&r'ulU/8'__r2WF1NJ1VPKn6N)>Qe:pq&5siYqp<oNMH+TNGS"5i);g;L)RSi)^d3B9d*m<_6$F#kIAO;q*F5R0WB6L'So]*&B81bYgT0r+*s(6^Z4t-9Z:B/r@:-T3Co='fa:NR3J_aip'5kq&Z=6EjbQM8DZ&n&Ytil#9.fCb9C`au0=GHrW$1dWl!iLP=Q*%rmktYi0pJl1I.kSd]YP7!7`FqS\6DG/5/QdWf4Mhm0Mq1+ldS0.8Qa$EiB%H]JcP(NV$FYQ.9pmG^N%XJe="7WG#4",n+&duR$(SVdg<Oko8I(BWdLK4g>8t?Dp,5;bL)&A'A0V+l4k(?<uFDQ-):,dn8Il.H1K6g7g!QK7^u25SD98_+QPt'n=9.EIj+*G^TU"obp'ErPcUckEd9rH29tSIVsDWeF6bh;F>JFdL!&fJoR$fY8tth&g.)Ch[p^rg]M`k/s0\K='(ns-D8$hN'_2D*'QSdZ9L74C0hL4G(Y95BW?/SH.s>a1eQn]:dX.aL*IBocd3a>;Y!DotdtM<+l,JD&5&H)F%)l`Yi[L!g*p@>]mj--*s&h1VEj5jie.D\+,r0!6_*Sb8nT`+O:b-g@e"3c(V(+l3]1bglm=C2@Q]eQRTlJhK2fsP$BhA(Yo-u>!N>rrA/C4O/:D6ab*)!-)gH*f<,AdIUKij]O#S?/iPnX+[4#)f'?>Ba:c#WsQh%\`bH3kDBM0A:gDR*u1U<^T7BRTUrBY1tUM1*D#bj'<T:.fO,P+CnY?apGROS.#bCLd(P:2;Pu)pS&H[lqAp\UqI4[g2(gbL,!+2Wg&tP/`tWp+TXi'a!sE%ig>&mZLt&q4tr`7>Y3j^4mP%SfsW6i<0RC:PJZZ([3V<1AUFg3O]^&QTt(=2!qr@#]cXSih4[>FZU1-Sgcfn6q6o930r"t%HTN"=QuEhUN%3LQY.ToY<8jJ;.9><a]^*t3M^iVB_'SFol[XKR%b<VrL,:Fi<;+sW*ArtG1Y7[R1<9AQ1>dg/&pj,:L"DIOb+<k8RBK(+o:-5Cfb:lI461=jF*MMa^OU7mu:2Hd#AlcPsGt$XLQUrM?4hYd$q[n5a8<oNhMAmVD<,9]Kd;B#MD[8bVY`b2I4E:Q`UR&1;p+2\,iEDK&N!$9V8#53@abl;\p.#*i21rWF=5PBr2H*8H(uW(!K/*\Y(<Y!/c#99uNBoKNSdRCjKBXfk[Yi2O$:j%#R=U#SH58p+8IhXO7PU>.RWhgo&tJC4--_fl(ao<uAkQe\CKMK2<Wk]B")(Qq)X>%t6]YngOie^NhIO!3b=p,\8WD`cp3":_.BE\C.rB"^:AR.>pF's01=H:&-.sF+`'nmjTART!j[b<MZh`lS)Fu/>rbo(6FY)jupSe"Ib056BhXDVUlPfC"#J(8ORUZ<h("0,^t(NDF5<2m.O(fK^<AgF*)O#TiLIlJ[)BLXNZ?jJ`(ceUbZ9f?(9\O'U@0A8-I#@nV_lD`EH1^b5l.jd91TFQKLYAHP8pbL([2hW=XX+1_C&DT(tMG-EPYP'32im?t0,ieS*nACSq=9jHLtY!0$YDR,oECNik=@=C"d79`X(KLL=bQFP:>kf/kbmGppa'C]uLBIKPR<f^Q!O[@M2Bm`M$uh^Ji\)!+HbfM1m7jDqfTdF7.eiL!^/]Ps`[lK1&oX@JMmM^Y#qEnh1[p"_rF\YKUi^E2fEOPXE!9NQ]Xopd4+2Zig]QLLc-A#/GoD6s4aTi$n(pk:OjI\.kWoFT(?F>j8@C%_jHO)0Y@p"RE)f@lcp/VB-6/g']U$N2Y.pf)^tg5[SLh0%K:"n(A'nM6M-b?se:.RuOk7Ac*OP[CRALA':1,`O:`(`1kW?^hP'nFg?_ep$mV`HL54OXBZN5`jh;btk\u8f/d@1!D_2qI&?qYEfKHl*'$sVr^qFa&bC!oTW'HB<3pDeKYdhMB"R^>>N7C1;ap.+HocS.YL!9X!QaT=;h:1W3?AIPmBu)&-<Z-6:)KcmY:WSG30a+<0Pnja,uj,-Vha&NfibLUKA?L7^ps]Ps^bR9-41MGsPO1X2cMrMKrN4;:Ki/q-=W;Ic_4fOP2(2.e#tf9TTX;DKM$"Ce,S[=^lA5;D5;eYTXf91Q<W:r4"Ts6C[M\!gDSW8\0r#M+ea5[>VeqC\U-:L+<+pYC&>Qp_)_mYt12"n>tI!0V#s6#*o[jecl$OWsXP+Er[3Tko"a$35;N&%O4uU+)=Et=MfL%cO^m:YH&QXd5nC^7M"L#rojl)U^7umM$S8b2D2<\RDMV913CCn25S)X\0(>D@e<6\S?e[p>U\2D%EA_]U7GJ!ebsPXmghEuX6#PWLHE$;LNF:86+'Gs*Fi\B[)Yk@"6jgl/f0rM!<"L:B.-(aiR><M$nqsF7I^(''@(X&-:^idUPPbe"V0(sQHNCRkI(s$q/2lokTaP=%R:1uU3^abeoj7ahSiS2jT!<Z.$8K4r%QVD1@>:Pi0+-a+4!uc\u[pYZ#nd6,d2Yc.<>[A(KdY%2\e5Z>>L([F92fhE&3=&)>34+25B6pRA:miA/eHf@bs*^0V1In;G3bo+CFb!oR"3c_C:C7?<#\+"MT7a]!,H9^jBZ9;h&0))cZF5,:r2f[d^:%]uV*:3u6m9i%Y&^=i6aWcb-Fo5j&L&/JH"?BR\E>#W%Z(Xu9f%/Men%,A_Xpkc%kd/5XEY[H]s=lCnrb*A'VH9"bX7H'jGOr^=s9FNDE>I"EX1R_RW&no;3%DfHXie',)H9e>iHYMj&1go.0n7eKlYT3$0JU`Ic#oc9@\X8ICT"df_Oa&9k4,)V4t/]b?)0aAG#QMq>$agt._/=LR7Je5a5bSNGfa46?Z\:EpM4fTAGdL5s+!V[HmG!e$_P90UX%S@:,$%9HgXuWYQcg95s&UWqi5SopNX8SOhI1*8mi9nW>aRYF_&<C4d2]o"c69OTj6_cr$&Yl<$>eI5IY+l;$-1e*3GCbcf'I:FsCcurcI&>T1QKslW=s'>BYudd6iQ,)d+e*OV@Tat[2JD"n#'3U?4h5LN)N&1[`fm_uC*0t>&ku9B]R=W`MJ';g(?5jVEpYg$%YY((W3H9f3>H`9il:A:MkeXFM'dH?SMkAOW\qthGG#t0.M14'nkOukjXLsKPg9U^`n$c\bR%@$=$6A_\&0,:WJaE;+tO):=n5i'*REClh\i`pVNDm=42m9e)O4I0ocUJ+"]dB2l$MLLRu9QDO>Lti"\#AO^n]*!nIILU!66So]=N!Rh]IMH]>l%W*0Y&k.I>j@$J>q/N'CJ-$hNa:%frB5<,O"o5,M\S7lAL-nRi)0[YX!5CSR.jeW,nJqViZ:]k<?_M^f6H!)DB\.$B"DL;A;n$Hri\cad)YY"WREVBohAVj(`cTD>[P.S9qm7l@qs?eUU=OYXo&`(=r(KRDeq$`+VQ@^!2pC?9rHXXZnM#1HZ9eIhE,jlRubjk0X3R->m45*PF[A/=CX+tMY98k?gknf"-LMU<D6R^1;2%EFU2:VJh%kB;+,RFs%:p+Rt5k(36S[,%"b,DhXp:n&143T?`b@24e8iCk5/9Rml#`nI<kZ\AVmXi]GiXH8I&Aa3A&WhsBR:^7ljV2-ISs,%1(O1!K@4+SQ?1#ZD$+)WkrW&]0teT)(/DI8C")\h?GjE*A-<E,&j*LfQ2]l)e$gJm];^:^kWf.pI*m?bI=mEVIc*5,V_H@H$7+$OI6VE67S@QI[f8u<3%U#h]kn&XTD?l8a"2-:QF@2"r/*:=A0jT@S#W89k\Z+%Te>5+4_b6g0n\j`@Mn+jJMFRdC/eV&k_YJ=#CJD#'uC(sf'F$9W];=P<oUIKDuH29<QCl_?^%AK\ANH/DLnL,_Ob&a):?d.O+a_#F"p]<L]#O\6UGkE_29?IQ-Q@Y1YML"[iMZEM1\4cr:Ye97%q3$)F@aeSgdfHC"NsSmLopFOH\)o'iQfNrsq'+Hdb#R0Pr`PDl]\>+'cDltrh=T4F?Q7gFgu'T.NY_)pcH#7dJOoP'(34!oG%,:r>/0C.dk1O\S8L(d="2nXZ%pGLQM*o3I!,_P:\J0S(Y%;:%*IZ\T(:9$Iphm&8NOL\:Mth2YV?0]*j!ZCN=YTS;<O:5gRs19SPf\3quXD@#h0_]'b4_%q12:Eh9tct8GV^.[da2/Oq"1_bQr^dN4^STL3duL_)kEuf?+2G3JZF><=,K_'L!!?M7N`N('t0dd^>gkcg4(9#P%dPisY/<(lq!)4FTV"jKCu'+!aRZBd.RH]n.]XLA/'c81"0m.%maA3/bl&R=k5fRn<g#:;'"G2+R#dR%mOO\-WnG&16;SJD.oplAYtlA4NV\KdA6']SF!,>jm&`&:II<*O@h\,FiY](81+b)0D8ZR!KNS3(!3sVhtq18H*r:A&U8Pi:&"#@.W=oJet#d)n#LGFEN,kWq*Uua[%MK9POlo'aEc!<OfY'#D+#2MjW*_0Hfm[:GN;EDb^(^p*e!g&#d(S(_LEXCCT6HCSV:&T?8c^i]H#S(b^*5?%`O?>I99e)qj+ph\NKQO%:g2h*rFC,P3/K@/7+\k-E*_Y@Os5/R5^CiEC55K@I+=!Q*jkFm,0Bl$DPM27tQ<RqD=;n\Cd3r?ZX=28TPljEFf;]_flQfK0i9+Jm>hS&Ig,ELEFE+u$`9hD_HIqmcGc@sEa7,NrGJo3'ZhBa.f@HGu<B?[0Y(lf*$VprsCJC4*5AGInO5*u_:Ub1-u7#=qF$HLi\b;`ali+85#n_'cStI;s3ts4B,hTXE<Z&AdbdZui9SnaF>JUIrB`LJ6KepEUSuXV\ishfF?1:\CsbgB5rWot?/YlX=QR78,)=qc^mZ8cb;M'LQNJ[F.2''iT]Z*;;C:VEhO#;=`S9S.a-XD$&^BTELtG@KMb@ekJP8U(h-7hEe8Lcp^NCK^g?&Y=o:E)J-8+7H?P.P19*(-O'aiqL8]Ti#6Nje/*E/a#%fmIOIR@=:5'Bek,m;5D9C;hD'=7X>gIFKL6^$h)q^=IrV6[3%:g``*_'Y/iHL.eFW"S74iQbWAVC.?B'C;f]odt?JjC+C&8$^#3;2+O$N-A.#WCt3:qpYCHR(U+H8dJe,B!/,TCn<k)k!$dnV9-X#+J<Pm1`\f_!k%\(Jj,m%7d:rJ^V%X30pb<$$u<rT'bBNGSVk"AFV^ORa2ujK$B$>%XK/(H*:^m!hrj_sal_p_rtja?">bRk7pV]"]-=TLpkGGDUq;acO?T&cGpE.^DW=ZFjDkWgis5@A-.jNU3V*.7SFABb`KDRO-\'7gH@`Z>r/-TJohb1@Ko6Q^0?k[\t<5H(%Q<7n3_$K>;?YSIl[s1Jm%UTkcBflgPlUWe#9u<s\=bd?(FRD$LHthLX%V1=AdNi*KQ;*<I[m<*%'Vl6N(r1Le3#Q%3(oEYIE)V]/*F_"?$\JHJ=(3[_mkS)28S7=#5\gT;NhH2#UVqtGn)E,Hh@UTT:C(;;X(ZEK#q0F4MjXR)BW;&($rG?7&G/Cebm-.B"V7bGO,h.oS90e+F9beH3k'X^LcZA7,@_Se1&`@O54d7\1kD1#8>74GM'aZRVQ&Xel60FWTI&UCR4aV+Z'GEUA.4P,>%0BofIBB3$1=-%@YA!PQK=H3WPcJ6<BoPb[Q,\qN<L1]:WIGu]=C&2-cP#$%([ji2g2P7!n_im2<h1e=i2RY#P/ZtS(dj_pf9fW4\'rKmiB)k]569HF\7[0*AJ+UAm[u!RXpRT3NAi:Y]3,-YQ;<&h#5oH1!%>6J2XH?i[X*9_R88+KP^KIY"WHl1RCKSblctP(aMOgV*5$4_V9[(l!Q?d9iQ31?-fsZ2hi7Ssn^4gi`qYC@oP="Kb*1N_CKVAq@A:JctI*"!hArl8Gh\*ZU_V[0?rOpgJF>ak=Z)V.`0P@^O'Woa\cjor827oY.oQhht$.n0QoZp2s&,PsKKe^16"cLR*C_R-71M?KsdX3KiCVSU6dO*rn6107t3f;oB>_@+HF$MsF*G(Ie**RqN^"f:V:$gPQ=m)9Wq!65#_Pn6jH]rIf9PNCLk5[rcLcU(M*$;t94=aK)XkeVpA:?;M3B)4<B==jU\9h/71e%c9buc,GF(Mn]?M"U$4?pF6M9o=C+pc?%=h'Z0LdL;#QCEeOhK"teLs//%L>B<1FF'(QMm[C$-?qe5aT!4bL&kaXC]=]"SsaR\,drF&qj/8!-j0m3Wp0Y$&nRMs^R,nqRe62)f9tU+-m4re#OhR\:7&0HTCI_3E_Ptl$Pg$0KFlUBL17o)UhZLr:8L_!21]t2-"b%1#r8TH(N*t5nDs)@]+u,kn1]Tl3a.[;DF,UZ,,>P,Vn*oD,(7>00&0L!<\fd>Ln1If4WSXl'-8n)EtqBdik.2Q+<Aa$gP/?F%k'=)413O8B=K'%7(:u,)E\iOWSl"!of+&+,_m!ei^Zd"bUb)UVBCOkoX1D<rCe2$3S6e9G;g>(N)p5>Z6S._(I1*%L4D57$";:9W3?!T6CF2PT7Pu3`!$JT)oSj:\q<tIHE+QS0bl)\d5SZ2p%A`*$TWf=:Xl&?5*g[L]'Z9b)Jf%Y$u^L,o@,3%G#5dSOIh52L+Mh@0-G.-X-"5-;!F8]]kH)+ZgEY54LC\lqgU`;*+q`%C^nKiFLm%-8[MV;dVBVXi#cW%g7>g1jBiM*5lRUo8096W(1uBG1)FRZ&`f?MaN(l\an+CUCg5Ih"koP:)a=Y%jV?VP,Wd^+qEX&mhb9W@n<LjEW$l@dbY08?q9lcfH5qQQ+u>?jqf=&Ufp^pHZe<68h_&89^lkbcZaur-?.X,RWm(UIqU8hoU_-+D#2os7OpE.*F@N?GTr]r]GLH-+($%kna#liL&+O@.j.,G8"!r7lT^OKEeAhUdqFR.[?JF@$fuWp64_ksVqX(9[YEpjLelO"3jCLKj9j$d0`^C+eaHs],YBoFfkTDO3Url*(GQ?<DV@05K_tr17eh`fY0kYh^J]#1baIEUl.js04j6W:XKd(i-GBE3uEfp:d<bXJ^nB"auX+G?/^]0G;<X,A5o\suU87.u"\KrF&p[":AZ\F$B48QKjH;f!ojk)/I'hT9!mGlFF=n[tjqV1><78),o9_2n08uYIe>hrL*(G/#:(S--e3&qn+DSZH-$,Ho6,M3Z+kcV"!*rpuNk,cE<1n&Oe1@<u@erH4]pjR5W/n7):&s@7<rCFmVkcm?]2u`Q4hPA`SmHE";!%1eEQB1WiW#sa)8c@ER3)\eCc'E%!prBnHF38^MPT.SX_jQX+H(qYeke'2SR63``m^J?_p#>hrkmj(;h%HA7m:nP:FOuLKqhg1Ej6#SB_rljOZ[d$W!X;%/W6TJ4\$o"MoD\LpR*0oe,bSPsUT/1&i(Z(;nO8A.B/EaVHDn%.=ZouFOZ6+g/hL8a9+gmJWsF2X%c,cp;L74P@&TNq3)7pPpMrS;;WO!,roogbOgZ&-i`sn3KDG@Zib0'!d'U_H*=4J8?(OjHY,pO'_3FoEDhPAo3f#\JOM_nJB)aQ_jm`egX\fPXf;5Y\m"LQCia^.!7\HY@=E=SbUC<A9K!P\rHhec?2Q<\#*f7O"F46TZ`Ef"gFCFlV1pPf?#d/):^eKi-ZA!'_(7+(Vi>t>*kGIL8BH&CQ!)ZCF1OtRk.Y#BflJA>GmAkOh+T)o1r?o9_jJG,86?I%t,G%uXTM]p=a3eVN.$YnqP/BGrCBZ:Q;W#>WN2DdK<:p@g4qF-M4K[iqh1<9JLqNc6h>Lh];Lm,$MZNWe9X164])p`$es]J#MAKUP+rmU+=KBd@8uE3g(Z"1);2XkhJ=/dHn>8]`I@5LMndQdo;Nu1AG"sVA>AspocAgrsUMO;0pR<Q+ZgF,b6Ce(un-=^<[Uh\5]Q[<+?_9i*H_PZ7#?I7+#$C5]RQ#2+!\6>N(,dPMRkj9G#F-2fnk>l5*K+&hDIKJ8nKYtaJ9u=*$1KT)5&&5ZW)1TJdmp`T7)*]V=B)gB?-Y,DE;s>^BRE5ui@S_%o(!eKKbE1Zd^\%pc=_LIQUUC.?>%XG-J^87cIg,2RsO'tMA<LS/,`,T[/ud6g<KTe3V!h;7a_!45YDVJ_ik3t:BJ(*Je<o2jjrSmHPA\SIHRZr[.L1;:6MMa5cOB2)KXap0&#VY@8C%hWWD*3\6CLJTc=YBAOoiX<C^lt5%(YjU>ZrqfD+$1T_+)2`a@7mG."+gn4u\TGs0>0)+9Wk:!^&fR9bECd,Fl*($p=?"S^/UQq,M(Lmt&P%53A?#u$raIE#LU8_so:$?OAT$nKKDV&^bb1^KC07LK&o<OH[T5dJt!<4c/&\l#r2]@k(:AZ'dQUDZBp$L7ToitQ_nD2=a#;]?pQd$G32fo&Nee8:rAWmmW9ZeO%>%"m-7SbTbcOWjFUkl%,<'*(f]Vr8.PN4rd@E@fn&V!`KD"rp#o;8i33U+fMc*_@`1,^+Ai1'h1SX)&a:'"abjI%*]ZkR8FqZPuRoS3%GF>S#@(ZS$I]gCZ`t36hdZRA5Ibm3o2)ABf+fh0dU=lMNJlWtG$Ga_=&:)"BnJK!/Lh]rOqD#@[[VO)$_1CNd%.r3h<Xnegc,%+5<e[CLitJIq-SqRDpePLQH2mo.kNd:)^j-@=R")%GPmBNkF/1<W77g#,W36ClK<0_.YWZGB;X1!R7sM);3AFl@1b;S;88BI!^^#2Q/R_MRN]iaQD#@6>67a]UP9C(B"Ns.\L*j(!&OnEFiu4cnq]<%:ZYYoZWnK^^/D@$@b2m4@@GR)HA2Xq6pgn'dd^gk.tc5\=-)@7774=#qc[,GC/hD3L%e]</Xt;$#=dE*]Q0FWQec8?PVa.K@Er[($sU)q\:]/6!th$EdSd$D"LDXeV=*0]Wg9-mKjP_#4o=M2sXE!C+iUg8shr3SB+eD(/iGUSqr@O!e;5+3*\4Si*E>l(j8YJXYc!l@G$:Rp]/>JF_o]GIq5AdD:HJ\(70S:O?X.aCY)R6rU[2HND/\ZW4;UkAE0.5X98&Oc0E4rERW=Ca'1b,S5`Y\]bX-.KVYS4[9O'hr?*N2!==&)Q`U=XZ)X@mn+^h9'!IOdbP.B@nW1cbB"E!=E"g`crcp,$\J*0-o0,p9B0^t@[@sR&6>I2:VX<R2^'"/dA%R*r-Php8#l3Vk+k!08:c)ea%EZ2G+>YB#>1f7Oq7>DE+aW$U#7)N7b'A(*a(]LQDe!+0Ei/q0:3/"pgA+r6E\WJOA&mFIj3"+/k5miXfA"d@^s:s^'UZ8>(eo8iBpaf#cG#Z>>D+`4QK'C+LhL`DQ6YsY>hB<8394N<<BPhb2Bi*fe2uLr+KA^Nu,\rC"G)c)[*OWSiU"Qm)gbtWNN))45UM]JZ=c9Z(jK]PgE)C?#,1HkO=b5R1tl/+_F7`okuW`U8LLgY],Ze]-OGJVHlB-^J"Xq#<dMY@@!hG<i3i/XiA48KkgNXll-c'?/_r,rEtM@es3=ZYRLsI4So?rK4s',Bc@OV-ch-+I9:F(SrKQQ=PNZt5_4C6:$^P227o-]pu[5%C,nfme[4BF24J@m]ccI2O*@k3J82HDIf1tDA=j:-c;iP3SB4"MO8Fq&Er<7RYBL6'jS%ca#hguD?*91H:0PK'QPg_q`o",6_lAW>ZJ>'fa>K9!$Fr[l^,]'+.^_0B,mQS5Cqth[JF?U>jCVeij@=<9GB&IVQ`nlnm$h1ONpmo0b>HMhK(8?E-q>q>%k\_s%h;S%W3lVM98P>8J[YCYZfR_UXji/;h^'[499jMc'IL&R2q0gBhCuR5;TnU(%:c(E@6+$0:6P\3fo^.u(0ZCa?48PlH>fb#*J.<FhRZR?DU-!<goRK'0^C=:i9L!4IQ?uTD!cT&5eB6,3=d/(h2+dF5c'F%;Kt4mHt'Vq2Hn?@q@X+4CD[gs-*7L6jW'TP5ZWYHn9\Rk]>?cQHgkpPg0IBMQAP]6oFg%rc]D;0+>%WU('k9gT,W?lNf9UfT!HBdpqas:5]R;STDuF4A>%6%;bfC?K?9V$Tb`*^Wkg*HkG0;M?f?T`AM&IRI\C92e!Y[_*b+]I2^*Z.WcK/aV=sa-!X,#;'n)U;[.jAcI7hhA#2X;ePpEN>8C!jEC14RgF^33nS7n1!ju_qNR<ab5L*c1&QYY9I;4dm.bSC]I1Cs;KE;b"naMS[EQ%\N1Mstb=T9.0=LAuC+KlEA>9rq9<$F]c,/&cRMj,#$3anXp*#3lPs,OSc9J8Ybe1"7AGn)iaG9#lB<7NCQ5&CuGBmYe]_Y=PbREufKN!0FsLM4Hjmi!&kb`gCOAImGa<3Fg]K0:p,U":S_sAh=!`LS))Lf87AZ`Q;5(k(-^"k0/EWdA=&:W%kPf#,UG@f'p-mE[Q*+c2N7*7`[u!1@2M732[jNXiJ!XMK&>.KH2IT_4o2WL/_rlPi<q2.^U\.>d(`hOMiTpp=U0"MZ:'O;P&XO#g#<PXJ@Pph-=a]S(rOqp#Y[o'\u[8N\sME<';jT@4\[*2<?=Z-9ZO\f^)()mGZhAaHsuegWl$e9R_Ed$a>\DfPF:Wj%b7OWSS7]@F^]1m2hOoQ2Q5X,rM>i+<-DYZ9&Paf)a$J<M%SRZOG+d76j!9.Z*.`H4\L>;*^iH=+3($"&:*Lo(!4gph'5]p]RhAj3/\WXrH9?9Cf_j&m(nikL1ka"TWEl6h#l%l%CT&KY_EfDIbePcNi<mE9N1/e`4n/GjiQuHi8D_.0HYtcdMn[.<pWR!]T_bDlq@6c_*eg.^B\35q"W7pT11d(n;.oE$K']`J2HO;dCl,s1i/if8s\DEQI)R0WO1Fi/LR8Lt;e.=,^OPf]W7&2Tb(dT@[+3#(OS:%J;`gr)b9Jm_7R]eU5\:iOL`&R\fd\V;&3C_?m+bXbokRHK6@m=-*W8.sXn@5CbO6]?UYhLNnk#Yj(sMCGYVWAGJokb6E9I":+ml_Q]$Go#Eo^/2p:Wj$ll8k>U?Lh:mO'^@ag[Vn;YA+,`J/YC4VB4BLg:&$&7*kgklGCkXPj$W'YGfop=BLJOdnr;J%1*aV?$QW4Eg<O[d&TRm"qM5ZO-9&Dh?pPr7"oJ=GTXFu>p8R[c8O%hm[]<aS"K<,Rf[:;rA>b<)LOuI[L!>>D#Um?J/^V^m?qDHDnG$98%hE/O:^o'f)'`rPm3c]GYFC_-8?[kp!+HYe05jXT;M2r[k(WZcj.EkBY1#Md\DN;<`.&hJ8U5ei(Y$YSW)1%)m+OKj]`;TLs;QMPZjam,<3(F81n/<\]lstZQHO7N"JqbXoa/D#Yi5"=)S2*7:%3D\XABX240(C$_oQ$QX4^S/5@8+4O-2>'Sf8I71!)u4VC,7l&rtI&N\<0?kFBJVs7=P]D@Oq2bplkOiH6Jd2E]I55!p)]S"/-FSUiV79?XNJ;plCC-mohn+F7AS;T*B%&*j@B.TFDKB1`YG6:uScH+-:1_[ATJNT(AY>g38i`i&OcjP5iLN>Oa9TnQU0t"*g02%s/YRqdIH8A]B\Y[@S0Vb;,Q/5WRCqI&':C0@M=J]Ac00"Z4g'VtUiG4l[7a.>3XC5[M3Gd#KN%DKo=@OpC-4"]>`,SU8,N^A9WHZjD_`IF;l-EI5uEKs2Rd'iM>7d&'2r_l_8Eq<*Qkb+S./2TA%&EJN4;>?"=mSuZ/C(:K=BT^KZ[ijJl0&RWlBO??--Vu91ee.JjmO4>s16<N!kd2`B6Y`^HT"t@$bo78>hhh-D;ge;-BfVriCA>&VY6^=3*hY:['1t[Ekhg"M/llg$?iPRKNI,2B,2Dp#T+*o:IhS@WVRp!q)KLMA`;"+m35&R)ZFek,V''8ZSJ%b1ei=1t?b!780h.XOK;=.OP-&Q;tZ9Sr];bL3%+6hp/I)QPrJ?/D-kIlJZ&Z[QVUBbo#p)X]`V-6EWMccD=bbsH^VWb;V]AJ'Q.Zg/C6%RG`8TT,S-R;Dp9Z[ZYG)UI=&mBm*S6H@D5P.Z.:?VitO=Y7aS42^B$ZKY)iAM=rY$B96BhaHU2]Z*"I?_aNJYCKFg%MKm\$5tSj'^1ec)6r15"#'obaR79.Z^>_A/fl<kA/=1<It@`BRN:R#)3.N@a2#`Y\jj$K[fjn\NUPN5`Tj-0C;$B51r!Jo+$U^f#V>UL^ta"JfN^6CUDdiPs=8k691E0#YeJ3iE'&"h*G^nMuE.)@^-0O3`t>7iNc9:cEV&98Nttmg']MmVH[]7,#XG-U!m7G,0uU<c'R,[O252OU=Bm1(/eF[iF'7@@ip6A@;m\_h\M&*AZDT/Q_bF8>CRB2_Z/8YoDtQB>iI)W8pneDTn_6ej`/:?jP[RW4mU/:Z5\o7aQ=3_YiqnDcb-UC^*^a?.kQe^F,"4iVD!m[Yt)[MBqAL<E=3lqJdm/GqbWuD;&H-Qo`AHBnsiQAHaOKfDfZdL@=O]6Qe&@5bdHe6L@JkbMlaY@r;B,O9euG0DNZ;'W/XjdRk)@GV8A9kJ"JCno"C>RIF!PPmnc*T*CPsV][*u4,Mg!"eSYXJM',XqrmDPVSaJ?,G:)O:Gsrh:@>rjOI@RbsrBQK(](W%O2l:bqDQf7[_k_9*V^J0*>iOu<P(cJd%JXf'cj[R:-/<(-]*OrLZc?&^.3+GQH?OQ?W@;X,f@E&781BUcKi8@&42:"63pRlt[uq-0#[Oh*+.8m:U4pupO`!D=il6Q&J3h![C<T&ZpIj_h9X\Ok4EJmEO]7ZV=0Y4M6"+eA0+q)5&:E#g'4UdM]+ne;PsA&naQHV2D',elBTd!8s-@SVnuYEUXNN6d4#SUC\VPa)/bhQX\7s'Wmp+[WPqd!AE=Uj]E8`At.?6DEe+RtR3B;]D3(>8O\\CreE2g;>\p%\>52]Ti`Fm.*a]/Bi%_UK"X9uH9ZY<,VSJ(rTg?)LK2`MOaX]K9=Tg?@8U4[;j2cWf2iqS5\2iU^W!Vp=E.J/q11[:l*P#s=W>4E$Q7HEZAH[T7\&_qIK:bRhRK0L5$:;^X%RK`2W$1DLp)g7dL0>bXE92-0%WUU%7O>:'$/3f=aFX/)#J"uX1/EK2&eT2$LDl6<!SPlX:gW*p*=2OVeN4qC(8teMFUh/<4o@EbTdsPH4?1KHO9dPHZP<bWQBnBIll@+2Mkkbd0K>6)Pn'^j1\[U.c&XG&R&Zb]7/f'aS5rin%5a,H<9_a"g;gI$4,9L4KF12(@9#$F?%ohss%rHX&,&5LPMZFr9JsQP31>,eX2M@c6!"k;Rg<8%3laa%poltno@O.o0#<F%7m3':U7u2Gj$h?pp7V03lhU_GjdtC1Zmu/T08,]'pq&EnmC;hNG]TOdo<Ie(haA_!5U5gh>Hl.<HO:_&%]87L$D&QUAp$Q$`@7@h=b$Yp5f.-Xr\MW`+j6Lm09:el.9\b58[aAli4XC/g1Ic>Y!pBu(5S:Zt%,4V<+I\-_4M<8KgT`B=QqCKgrkC<4Cji,l-9F@"&c7]_9k!8Q*^2OV/':%hDYWbOG<C+kb'QU\EU_4bA[o'tMG3(ann;jt?Z1[K-DplV%a&X3Zk"Gkc*?/&S!PQ[gI5:`MkCC-C;ZH$5a.Q#(YGKL/DKaLB_WlLRp$6rc[Ej'=>_G[eL#+5n)ZqHq"\kfL!@e18uK(%cRn#Q'\f%CfNbrUHu(1F7/"2I^-hf^pSVHH%6*m&Zc?4R8(e&G,IB\'!7p;+*S.]0cYn<DE:3?N)*s"#M?OodCIML"q.4L.h<_)NX.VGc)9E>mA-</2`!;]SBo@4-0BB2"N1B!bC7?;i[-8IgjEh5WOM\B6hBJ/?co#[?nMg6%g501)!7B6u8AImdW95/XHF:pS*.8p(.KK(7R0XDm8A0jhhm#oHioRC(WR6K:+]aFRWU/-a"K*Xu\U$+Fi;'4BK:>dGfK7>n"(ts^j[An$i=!4,T/ha-k_s#@Ts?H<'ehZi>`JPm0>pfAZcDVdj_8C$)/>Xu4HhMND9hN^#!DYA*ti,!$eaN4%J*uD`G$Q_LSf'"5/2nGH(*(ml8*B+2im4CG^n:YIA2u)$"/F0pr")]4UH!5bf5;bT84IM%m8Y3IWS=OKW5l!GpD^]-fsOQrIMIrj=]N!"_MZKMD*Sk6grN]9;nuUlZmdRXX>.I(KZ5TW*5!MDL5t4jF'615s[I62j,eKH)m8^+#U+!8qapFHh&0<$8EDFmb\Jg,Y*FU2`5#IBlV]M!$IR<*r_?;M_[=q?7=lr9apgur&X=`C_E91\2%fO'(0WWZMeCj<q:5Ah^pTUk/CSr1EbnXS#?m*E%ot_1b"rL-%T-#q9.(9]F"tUgOE!'d6c42\hnQ)[:u1U6%6E'B"a-&i2BQ9=N(A;*ngIr3^3%?4#66uiunaAPp'6O0b,mQKH#U=#QC<[nrI,,pOo_p:s#OZEp<!BWL:<(H?HiU37a0\5ZOL#%2f'0:(Ad)>/De%"K"T[ipGNkM;aSoELMPhX(7jp/"jMq;Zp'jX@0<%Duq"G%6?NRgTkR)$9GE5C1ln(K091qBB962ChmlKDh@r\D]^HbAtN1OFd6C8JeEq*rc#H^bHr*3F=gDI@"cek.)VLc+Jl8r]K:MP1YnY_;Ck&n4I`C*Mm^#f5eTMH^+FD7;o<`9V613cM+04Z0K$mo$%Kjek4i/@@R@'.&CuOEkBrgT47ngfkO=UWqLj4gM`s]8>E0so=?AMd_4g[u5,lHm_5`N)I&'`#+4)7K@EhFpo$n#304';E^&7)+Q]ds;:;[ESM')DZk>7-5fY[+a78R[qq<%32J.\7am!0t@[[8eS)u+1E/nsDPR[?),4CD#M2kshLl+-fq5L2:Sfhoa&J%Se+4HMG1M0K?&-3>a3T`o9VDsGec<*VR7Rf)bd\Lc25+WJZ04-9&q%AF#/`;"$Z-,9U\]*[!FK7Y'J]Z+`7?ht!,JqE4Ng9\lJl>DIKH+@!k@THmg3IG6M4H9gHTeg24a$qk$*:Lc$^<IU*2^MV4,Rl!pLujr%k@\L.,2_j(V/S]TnF'/X/UEO*V/l468\Pile+HMXJ(;sTj62jPLm#(EeOcr$M7Vu0ga$$Qa_N>FQD-laA+<R*%uOd1GUD1R$uh8$&^F>AG1NWJgl4(B+j:^&:Z[.HaC[=<'knWa,*^52Fo.'M4FfDQlVA",WXu8fodgnAWP,"O0X3LANU\/>(lWS9GBO@kE9h9"-`^<+:e_HHH-rK]j06r'9bk?h/,mEF0\BUYOVU"#%?&I"0-2rA'*6#WjT#ZI[6\d1l-C>R;Gd"a/W.nK"-isZ,!,3ZjuSEf7pW<>qEhh\1Obp#BjigjqmJ^2EUF@"]ia!UldcVS1@.<=-qULo)aENlFm7/!0'__$YG'i&-?B'*9fLp*@8Y*[ZES0"s&;Opd8mi*-lfe\Inku`S40]GK[$RYCMbO48Eq*S3,K"[&PS,/?,u/mA?*?i]Q)Ab0Ds`3R#qbj'>&)kP_.16cOJHnC!bF!(J]?'*Nj`@he/u?+%d*]U#kYFq#;Qr*LI'n8Qk**I$bZ1/#kIZNp1]';69#,f]X)Yo^Z<X_5%873!F4m_1IA/mVkhLq%bu$SCcEr4ig?;k-(DD0ZocR\H0lBospWOs+q,uS>CA2^.ggWcmh`)@G9]"nQDE.fOcp16$3b<N6/+QcoC0;Oq_UE>!*s67tbTo0uqThX<J.n:&=[0^mLZOFuMPudi>>Wr95/1K@j*GA2<_0Pp"rDUT]DD''@&GjF?#,9>pe8&^ilLa8/:ORaVumF:ONNC?H/d4O091fm(]%T2lShJe(_,Z,`nj7V,#BHk'S*=-7WCnqe1>-F0bFfLP&f!rZh*E9b(E=)Mik0fH$sNUs_i@QdT2p&c^s'YP/;\p@I_kUKFkVVk"38$DF.K`o,J3N1q/7Rq=d[eLu3cSZZiUR(pm`98QB54H*P;Fe4X)(Bu5$&'r5OOCG\_Oc88au6^ubl'38ZIXMTkG`T=6H"p#jQ)+]JSn=3<]\2$'sto82$M+*`_buN-J0<Oi'P]fY!<Hk*TQ7((Lm%DWP'2K>Zfb??>kLL_;SMC_RYDrk=s7<+%nlY's2UjBTORj:l@tL093[tl6<SH1iC5'er4BC_kLW4E)l4[&Dr3LUr7:Z[oQV@$nZX8>^-D\IL8UWMP@%OFRKZOXO?7WI#^j42BtGj@a0La%Gnc)$:s9(7/DB'!d9(e&+I+[RTh`hLUP[S?<AH$@C4-^cc)Q"2'RD+&BNs5>?H'Y\1(qj:`s[7o"+lE:d/3_2M>Cu=@;Wh,#`'lo^t:i=%L7s@W.8u>\PEmrqAFs4@H+H1P%fo%NA]:`DCal3V--a<,)T5<+b`*NB(Z1pnW>EaX9iR@6ib&A:[Ju7\bIXb?iTm<;ChX@.(Os*CJOL6L[9"nMWBOkH5=4JG&d>jlV(FD0eu*LJA9n#lcPOEAb@+#GHOZ.14#4%UDEO4aq+*k-K`^'2`Be&LX<Zrr;GiOFjOZ&D@tZpFR.30\kmQn3%c0Q^P<cCeKA'*P&LHRF];=gT=aD#+`rB;e0#5?ik\kOJj-5>+#&-MTGG*Yc+qL:.+AC^?*rQ0qK4j/p+Z]+1We:mpP7T_KC34.D6A(WdfOLU#/fT-QGbq:+-Fkgo@U:$l&lS/gRhEK`UeoMmUV6c_._'aXR*o',*gs\7eM%oR10A4&t,TL?YpR2rX0oNjnog?>'aNI,>'H?j^*GK/<+%`C_I1"5RH6@pdIl2c1hOa%)QTeY>*9fC9(*(L';6S\'Kq]7$L(iD'ABKem\.bXbgkJ"WBJgGXl1H8J]GA,QG5b%$^h5>a]+%W_V\A)@GFp[r#I`BH[B.rPJP+\?jT0S!9"?'7=1_E2J_+Q+pV`BG,ooq5KQ='UD)^hS(.-m+ijR=.m(5/!(Q>;Lgim"U9EhG]-H2`q)ScJHX'7&?>ghVR4Wr[`T&>]`[ITfoN"n'+XWTZfg_p/_p:2JS,o#q\[eg-:?"31"@/5u3hfdKoM-U)<]e,gC?0"2J%9I81@in+DGARXMm\Rg);1H)-WInR",_\[WbaArR0n2F"5Lf=A-T.jAeSQa-"IdmQ6FK>HL?3opWm(n@i+27>)aciP'LgU.7EcIdF8$q:WV:Ke.[7$c]Xr"h_*X/d8lGJnKP#$'LE%B']+=B&FXN/$%?-/u>q7M\D+`+uQR#]<eP\0!_[B%70T^Ejme@$@Rgdk-BhTJkPicXb7JElBZj5s@po1PH;m@,L*gBISD<Ah^W5Ns,EUJ"]7Z7bTjA8e0ODl#a)A.0(-D:%X+5+f/re"g[f8Og,5bQOkH-Ap?[i?;Z#56`DtK6!X3bn$sb5*\l137O6,Ebg\8XcdS,3%D.8M6sd9>WU6?tnM^7T(qEZgXS4.op&c&,-QN0u_RsGPMI\k?,K0&7;JQsYQ'*lMoe;TX_go'$Ni].1JD?^S:<I"5(Q8Lb8)H<]RLD\-#H`=Gn=`=@YYncC$1>4.pQ</p!R36s#5T=\@K#3up2Ka^F0pQX0je@!]F;LmI,l'YEQQLjG6[U%QpfTh,_d_=/UHZ8fX"eAROOXtA(E^:R`/itah:6H5*In:*Of#p)PQTU;mf)-f&BeD<\+EJ0O]Wl2$2UC*Eh:h&EQQ]l`r"Baub('#L,Oi!u$-pDAW)*M>%%W2TkGgFO@[_EKl2#5Q`u[3'RJ./G;9+<5*t-g)]oln2r8J36(p$S/iKp;dnun+oqCDG,V7I^)g$9BukGa@NQC+%',6Z?9&4aC8bs?RntA!<)(&mhG[B9:WD!')WoMLb$T%!9I5Pcfi>$QVIlm.mQt5Ed9!CkTPoRJHCF02f>@RphWd4L"TI39-p$24#_Xf"G-jPgBi]aSNA&8.,\LA!5.:u9"/l2qZPY/m>Mo;HOBTe0I/tekQe]g3J'hZdTA*conhrl]$qM)Yr$GGC*`1cb2YQ"*S!7Ma.^;fD3eP^MT%:PdMAGMVJ,Io$52P,Ear!'O6m$BBT_%O0nfSN8_O;4)*Gsj2/l?dbQ3_%4AR*]aR((_n:;M]kAu,)+4:N"hd&mfd-N`djB)S-6gSk2QcfcOa;<jEm`Yc5EGB$!R%GJm-e($$rLZ7D)Z[KO$@o\%[_EITN&O[PJqNRD.5mQ7#:HMI';KYgf/k3+%aSLnGUfn)klP*nHiYQSF;\GWlj!e^k_[<=,BKVI2L<ai')6e2r2qI"I9fZAIQNg?qJqZN4lSiM_(g025SN!<1i`Ju0;SMJB)l[j'D4@7EhSBgPrZB#]9T#BG<)-VY@TdkUak/3@f0llN@t@K"q&@Pd\9/nEL3:-P#h1U\I9f:uk*t09%:XFtT(Y+WAMITsd\rgD9O.er3TK*\<#Er>H&X)gds2Blnn*@8"GT%K(0U\*2JOOd<lO8bNgIE\akg3n2G@aS</.HRs4i]cEZJ8`Nf]2`kq20-#ceg9dR(hZI;3>?Z@euXdEM8ip*O*.*)3/^GS<XT.Es^jW<f+cD1p]tf=u'Ts6L?Pe>m4gRnC5L]LWHK\:.0K#qXYl#s3FTXX@NuWO<fi/5B0O>=Sf+>MlRY/ljr^'s3@#\0F=uH;>YXbPdaN4kR$>'dNiOoF`%S2`'E0;3/RDj8%Y-Jm=-#LbK]djn%/VcG7nZ_rgMqDQ*tX2/==]&A8^P[$U8.YG`I,5c,*n7.#KW98+FR_eTo`0<[,#7,39c"@jkq6@*)D@2mbeF"(D&,R_.-/9Q*[oB]LOXn+f43Sbm0OB/Z)NfF]?S7ebT6_nB.Gk%%F3?W/-'/V+iI!`kpXCYoe4Or[*gb_Jm1@5(N%i,biDL9[S95`^DL=ib.F_ZpPg$\Th+#MJ+MG,PCqlGdoOo;nj"WBT])&bqMP/d,"E4Z!"*[hX;KdO6=,,K%Xf+?=olg]o[;I*Q^jFZ&M=%$6'/1u'F%2=g=(65O,=9Zmu2Ue+knD@dTeHlJ,I1hF1-@VGmd!Z"g7)L<MoTcuF,2.+orPPsA(>LOugo%shji7BR+aI)[[?O;<i]*X!LWPdF:$>L/q6]ClH_*o(8iTZMI_=_iWe,RVnRghsN[A6AT":sPRB]CG'nAD*oCpJtW55Y@O+6<a)rAlAK:?<1\5<mZ03;uB*]bR@%uJ._PBfD?gSGf")NgKbmOT,-41'T#ZSBpC1>kA]67mO9HVpYXs2>7[+,>=1^2<@i:23b5qJ:;51>UgakY-[u][_Vs3qK*XiRbjs@OA`!dA7+FkF/F&X-:gipJ+nY!oR;G6P\i"i,e146hu"R6B18?s09#Nl3&P7"'+1R:M\L-aLqY.?SXq&ImSHL'%,'n+]=G4@46"V+DmU?6X/JBJS>DTbg+F5P"F&9S[4$82`(O,Rg`]\qV^?oqaYaUrX"9iE!S??_Q.'\9o&eN[+PT!=s'O=4'neA%WK-O')0O%kTncgq*?k:JZC\7*k=RQ_9?rS5!VSYoBZ,1TWo>rCdWgU6qgc(T$nGL*!V'am>_PHW/g=]=WT^g+eO_AX!PQ:5]>5jQ.)AP5WY0;%lT]^K#Icp`R(#s>Dn3QWq?P;$[E;r(ZJ$=-5HECL[`URS4!B=d:452r`4N*7hGh*+^ljejk5^Z]^I_=6XnKY%3Z%`JFAm3;YcXaT;ilcN]&Z<9)5IU/h4]T-@NtIaYoC<A<]P@8k)QH=4re@/k0!Q:dpp4(H0_^GE2\=Z\Eg!Y5*2IK2T\734Y@\Wn9c%'#=,ZP<EVe&heAXE9e+M&n-o1.W"W%[caS':Zi4u,`+9;aNBK;:$8bloVrSC#?(`n!HSu&,kW#"#f!`#@[d5_KCU@6@0V+g+V>=G-rt[_Gf?o'E6fq7*,gXL/8U*?^to\+T5:=aKpoeYSm@[*<c2l%GQoQhoV+87#N'4C=W4O&=]iC$>1J0j.KosEf'-DE>C'I7>$,,k5q.8K3,b`JYTV7sp<"'+pX&VU^="WTaN"1EpbD7eloia[?PI2GUkK<L#GP'dPANU^2f1?6NU9+i*bd@EFEHhi,Q-]DaC!4RL-&\lnlf>6=41+IffAJ(OV.;EF!qR+B0k0/Q,#:hO0r>'Ll)@gkU9$iCTO^)A?kQfF#.[o^G9poQ$A#bf5B=-"]GH:4j8IZf%bff/>@]c:ImD#2f*Nts1!u:\8-Kli=Ii_3JDHPV])9?bJ,%K'-OHKgVr+Rh'<-?"d'fVJO1,+X,nfi2FIRE5aU2"P[rJE"RdbmOr,F"djM[u]B]_C?pUMVCp0O_<]/Oa:7<;YP=TT]-mM1_LYqElDK-AX\K^:l[cNBI=)"V0N&.u]\6`iHXl/sCU.l[FTpo#PeGj=DrqREE%jsf,LI9$Us09C^,"&76H`3M-i<Ml2(oYJ,>9F&5Kh'<*s"m<;^BFIC*LdpAB:[U/$5UBkVhrlgWUtYn4ce[n-&Y"KP*bsZ40!'ukg4+eZ'UF'UVmKGDJm_JJT<S1g[8N.ON%miMiLRZVYkc+%"j:h#pR#:+([A."27.H1iFW[N##P-rZJ2D%Pq:jpatkBJ*#+$9F%hBN*eg8YT^h%gM@F?dAA/gL3Op(rEhmI3h=AT4ccV,SAB3E#dQ<I\e^@i1CadZ^rKceUA!u"VReaYnBf_\@j"Kdj3sNdRt0=OrhX3tp5h_#%L1HN0l(9R=dG0@k\"t++R2>+*_9e^_,?NCRb0I&Ti$chL_HVs.I5VY*([_1D.l&(CjK^;>_0"+6:Pn+HUG#99Nu3i";_I&Vgn+:VO7[r:7h8uFc9"+a6V:9"4h<#*q!C^6EYQ$I/A56cm`"Kn"T:IVntD\$(;A_'9Q6t@Z`/dRB1S9g:0Ho\c3Z['UHUj2p$/H`Y'6*V;NG/SrL.h=C,fZ/H&SX>87I<rOI<-c=grj',N>*\pNho"*#/L78pgVk8t[6eKRCi)]"V[>ja^/1VNP#]LW)bEFbr7l6PdQfI412n?c8H?re6H2f-Q,;Qlc12YYBTh)t9Ss3Om._?7Fm?_I>Wf,5E]jeYu$'Ls%3UI.-YLtfPiD/r'g"PpWScUlme5F]`F'P.TlD>R/VA=qiXmK5^0TOe!%+AnYtbe\su'gCA9-coQOm]b9A#f<t:2aLO_I7`l-Wtdrji.\\omX]t"$AY+D<VArk&:4gA@A.HHP-20\D*!r.Op&"O6<'(UO[Ra4Y1l;9_Jq[S;Y)eQ(2j&W7mHaIK2&2!T.8JT];@gAqd$Cb5hL<oL#:C9)T0NE+qB,f?Y<3Lb3l55I*Wk"mK<)6"JNU@T5"6>D&`h6TSuAno@1Njem0D6nXKcam_+^MX:kkC'AZat3?RMSbYqRfFMD.\0S-.DYmW:ioi1jsX]?=X?5"oR36rUeoi+kt>0NekK8!+ocLW^uDMrFnB)93WKooYRHhiWTlI5FO7G6Nt^HXoGAF@it'Apo,8rh6#j]5Q_J:q.N`)K;fQ:a@DTfR$IaZ@(KlNqWJ7n!]Fj"ij<!sqZZYair/3S79h!0S.HNW#U]>tI^3n`AIOgQb<IW/u34c!`AFVbWjk$O+]-e&n=C+TT[3MD5fQ1ho^l+QBu-P-M<Jec[PmnRckCetL1Fdhgg4b1^95DH]oGK;lk&qVUYm@Q_$ufiO`9:4+(Q4*!eQJ1Vt^RU&KC'h\>USa<[WbQ1JJ4)J%!,fJW=^K=93nb_a'hiCJ:R-8(F-;QC-ru)Z.Up4[M-nFrrk)JnCa=OiMKU"u9oi:TGV0AMEc\KpqT>;5B>s+(!'K573Z[GNMIt8<76S=kJ5+Q;TI7E'er<Q'-l:PaM8oFhr02#6Ql@BXF!US?Z6#\1hoa>%*Dei06@hR;X(cMq0/i`"->e/`i1mq[W^c7l2'6=:'MINX>-`DdmX5bp;s(?_+/^J9#ND+%Y7D&1-kW(q^5b2Xj#N\;r;7*6SX3J"<hp+XAYFR2lW4hAVq\fYIC*UPHGHV,+TP.u*5&QX:&N\O7'IS5Tg4?,U"hL0>jN78$P7pt6p'K7il9%MtQuE;Za:LpVnde)chSebbQ*dd!h%E(U;.6D\Lj%$;gLqP"n7MQ*6GdJsn0r$,\1'i9XM,c]=eFNWqR9]fhr8Zt^2kfq?ruc#ii^0+X-;JKDR1]UG^4f(943=DGhGM7fmt\_\a8oKDijIKfu.E'lF&Ud31Ge+*j(`#a*trSRIAbTEi.dZ6m<9"s1pNa^GpG<=V2j.W6'-\M])C#gC5_0**oI\ph3tZ);M+C5+XgX)?LH:mTBu=3;(4W#q!\LB%6@_6Y*8/SkB4+W-'9[\BoRh++,;7ENC$Dl)ZjME?pH>(&k:90s'din'CG*\1Oa/_O,DE3J7+/C<Q6Z/AfNAgGc4&j8NRiZnX?1iflJ;rR`uC@2`/_/T@dA6n9`KoU7Q(bdi,7'd@4,nTI^j,BmKL=GqT.Z_3sR9Tc!kVsNj?<lgjR8sP-op.[!DV228LEUVI7;qbPSVc!CYZQ4lXAHunE6[H\72K$tHms21+;%nPU60#t%CD@I"IL`DT#XP],m'KdJV]+R;nS'sp"J$GD`m$md&^aY-"0_csX`MSNIe\l9X@#62r<a]AnrVU"5I"t2nH%mb58'b`bkV:JO;nsk'49\TA5DNHbbsQoGt"-U2^,b>7[Bk'fo,#.VQ:.OapCgLb;t;B=7M)_^`p=`[,nFkX7YtN%J<_g-)XE%UH)2(^X#e#.\Ku!2"Rr!*L=ScT8g@4V-OD5>=^:al6.51R=4.,"aO@>$peja?2Ge2Knr3Yb9?+tS;s@+<J%2CO^CsmpTN3.VGp]X(5f>@_doK-:qb>eQ,DR%EZ9l^<X2@m7>C0]1ul!#l$O<%^trXI.M.*H:k^,B^Bjl_7>5[LMl!gK;<8IJ,?gBJ??JS-9lG)4nbeH)]]/^,VfVb!%fBKO!Z.C=m3SFn4-"50)s*VA1nZkOVPZ*k<24[c71ja4c`-TgXH<cHNkbqd%-Ko105n'*d""F:'=q>J/]9V]F1LLYVt(jX$_ILBIpRDEGs,'_Td)aCl)>G+TX3q'dcZc^9:CR9c&M./2SOam,XLpIIGNHOX=%bqY80Ff2<^?h:,PIg+$k8#Ue#E,gf-GnP#rIa9+@F3lGT_:F9<7d#O#lTNC]EPj/i9>$nV>aJ'p!RPtf#^(eq$j8+^l3C>7VOO*?ol;3us*!kY^]1W-ga^Q:'l!d-dM!3c'r8KlhuQAoaU1EO(mJCOg9SuDK4XD(-naJ#DZ>5JD<)_d.+,QKQ;9K;^Cl\ZF5e*"8Oej='$M9oX=ID`^ir*7.>\G>RQm=,ia85kA;*$4&l&%f"&OU$&nCd`tp_f+na&9nuK-J(k.f:7.TVJ?1Qa`7;-"_!`qnB1TrH)L^i9,V>u:KWn"00-g+GV;2WAlNc,;,P#K'MP4/jE\-*ee-SMSRkNR/gG:(eo`?XI1*8?(<d1',o+(pm:Q#$O,WRX7#84aZHI&DRL=d'hc_f0R:-tQ8Q*GFBDYskdT7m,+%/o+lBFP,^j9frdbT&o)q1oTkfK9<#+4XV'8O,,+:Tj%JI_q,i*njjj@i@9Gh=*h@4Du3/XTF#=a2A16b==&Q<"&U2$i=;qrYJ1Vk/FAj=8niDXTu\@-Af'N7(aRDre('k2.WiXR0:6">jU.!Y>atT'VV^VL?L1q<*>j\/r!JPUl!$.^V[]ZLE5"!D?RH4qO_^PqAT3JpuN0ZMXj_X6cSjQ'!W.k>#u0b.>$jp@M>s%o"Imks66",rG<R0rm)C*qWrnf?BoDE%KXQjr$Uk\1;DECZrMRK?3e[4L6W8AQ9hi'Dqr:/.M(dD48CfD0/cXQ3%I@'QL85S'pWEofn;q\?P+,2qFEFQ[WECKjeRMja"%lDUe1/!@USDhsJs]=N&NTa6?.(N:QFPEe?c-4WA4%J\hQU)#K[@?8,pYFYCH\nj=AP2,i:EV]Zls#B(`%F8ZKr8CX6$JUHiF*c*4c>dnN=[p9%W!.J17Q9/C.7"k^=f"d8bbj.39R&H)A:#1;C/NI+A[F4RZlu^9Mid8d-M7j`fAbWuFQVnsBr!HW"=lOB9jf6a7fQEIc8>!p9nZf.]mpJ$)oM+,rENp\hii*3EJJ6.VY<qPrj^u=9I#h\61sm)@6o93+F6gB3k+0lmXKUqf>T6@IIZtr\(/"(e/5O-3XD7CPSQ77D0D"<*\ce_i_tec!VYPb"s7O\or7ME$6]00G<KKs*NFs[Zq!hW0;AV(pil2`H:kqAJ=D%^9I'ZX#d5"#`ogQMWNP3H0KIF)l#\&;Vqm@0Z,)d`Tj4;^BC#NA/p$b]kEnbO[(2$84;:^$FjehAD9*F+#,uPN]mKXKT`bYATqpm03aF35$8&_TI#e;Cq\D9u3H^u;[U'Dg0]2=Hi`0W<8DqbZ$L9'%1!f&1F+tDA`eD_E7"((;b+7*Lj(aa)mS:L2b0kq'R_RX<=O$o8rH?YQNU:HaMc>h3Ba4!]_(S)ad60SgkBPkOqHj(G1V2uu4m3ug\]a9W/#AS4DG+XVHRp<d0j/a>!rpjuM2sggqGkd=IC7%bZgCbg>5<[:-!@,1NYKX$s4n$UG1a"0W0`M=8K+Q>F>s4W8\_QX2:6#]`?nUcHS[i`=XHZP#6RfE5=G6#2p+b5c$Bpo0+Z"U.=L/F--$KI]W_r+?EK)q)C'.aX05Ph)/1#7)HiW4'ZM"iGS8=cK0B9^4D:?8Q_53DN=m::IWle<7691&<P[DQ\%nn`DIOi<biiTG]70sq.DncV30>;4]?_!0"hU/sb&")c-&k7C^@OqPakfJSPfIG'3eLR$_L5]j!0DPZ@-V.nN64>]q.hb3K-<Q#jmQniY8^Z7bp\\XRAD0IDU?UD5RUA#Qm;)Agi%;J66Kb&9dhsc\ej]lE&7UqK$7=_4if8%"B`lWS"oR[9dSC#6m7o`\02ar:iHa:0q`4"oCTC(C;fIgL[ql#Z6W[.Js3V,_-hI`=;5gIIkoEkpE*85?1o)-XK'W?+rXRRVAsgL7PL,SZ+C:m$ct0/q]aD(%iE:Vu.g^MhYUJt5$3n6#aR4^JkY`(nU\$5OQ+,NtPX=56aqY`h3Rl4&-umWM?u*iH]&JV)&>@f1!E$\H@)a_`p@OQ=B70g2hKRD2;A,Y3QOQU%kb=Wff:IA4A!W9RJgEbb4)02Bl:e69?g"r]Z!N5f1u52t-6p3JGA-u\A2G<Hh2eGR+jV*75'[eVjYB#9"1'Y?n#_OgfXj]CVlLb.FDS?fkDRMMT<i3*EBI^a1s?LUs%:(1BRXX=IC0M0EP_7O#VgI?V2uirP]L3m&"mj(&RPZh@#Y7kp\'3i]@jkWQfbNr7M5DEecac^DN>qDE2>W8<LT\Bdoo.sgH]n[GT0iXAo;kEpYg!DBp^t_Pi5)>f]u@D@HW$qLre%.%d2as!D#5G(@ZUu[&]uj#+]BYcum#Zk'T#D]q0$-Y7!a;J)A<I<"oO@9*\Xp=o^P+pUO9gQ<=(?H2+@;]&9:j=/T*'N>ni"?s1N4]P*J7$J_:A-nE0.pp",`F'sBan"c_&Cc8&Qq7CgK1nd9FBPKBlWf#[FRqO.MN%7TF='m7^lr`T)B=mm660Ob*i!.7JENiWjK3UBCY0#@c6+u"lKITS)Q@$^9;Jj/6rda?mjudTC`^&f^cTN(f>*MHc[H+.?1L+\c:0UHM"$\&.I7!#6=`!0MfF!eUk.$XWget6YYCEg<A9$2&no03=P&UCS5Vr3\J(Iiu=W-IKE@]UI`RM-g$l!ilc,9*,6RSC\'+n@j#Nd;aSb`\0B9[(I9\("gr3DBe9D!m=4gSZ4lB!dhJZrSFM@)`T`"?!a(i?]r4JCtM,&IV,JGBfL'F+i=barn-ZbN46cjcO`@N$Dk$(hN2n!.]S\n:Za7"'S@+I.K[[,,e>#DA&fbhN3W0c>odhcZ]=&+&B/P_q_sC3+iQH)-#_o7"u1o%ii.RGkU-KIefog8Xff/c*6$P35nNEl.&^ddh980fMUe(A"$-kN:+HcP[iDBM,m1-8D0rmYV^(ZZ#KXB:g?o7,1JS)[aD;4XlUWhI985!X4VN`%=ipN@/03&0k_E]pn1a<U^28L&6':7*/XX:G]HD=8p_Kmuus-G`s$8lH(^JWUEYl!UE)*RUCpV7.#RSDTDC'9Pd-TU!qg;U.O<XRaoC],/`(+U%#IqTAPif.(='B=A;Jj_HC:pf\L./HQ:DN-;LGGG8U`KoDS`#$OR.qaJ1l/l\ul3(^,SWX"H`/'pPrtdQGH693774SDX+OZ')i@DBGVOdY[oOb!BDKod-K#FNmd&h)o;J-[[uZ]Tkd8-jX4u51XRE)6)J)@MVQ62-3tt6SCcLTGCEmJ'?ud45lI5dT4\MrJIpc7EP-%K)X(o5GL%X;@3Z2C&U_*/,0cWqfo#-#B?7=r7cUE5Gj`[\7_,#[\!A%dUb6H'4c]M`RqkDV(FtgBc$_=Ad$C6_$j1N9<<H-_Dp>lWhiVcE:C[qfgiS;N)WQ-g_o?/!e,13Cg^<#3&.E'RMLD\g:0=YEDK,"0c-_nan5&Oj,Wf1pWSVgAVEKk`+6_#)W=;.aqg`ofu15@/*9F,r:\DK\N)_fg)T@(KeOh\S+^/-@\$a_&%ATR`_TTnU8JW[c&ft'%332p@S-l<ErnsJ/2sS*`6EG:V(/(Sp`@O-HY$ENNBCZeqL!1&.Id^o?=W:h0k[+*0Mp1aOk-,f6#h"Mn@G$IaoIW7#2)6TfDj+E[L\ohO^eh-:VV&.6adFIFece<ZO-\H+n\Ro-[.0<^,W=if`/^@(AS+$JX$6lN>Y-X17PLHhu(`aF7bt<O//N>b#2l1`RgbYZXDGPYVZSM`PEg!iJq:)L&kVZ94Pa&6(fud[N#_'jh/g4?:aWCZgeTO&1p`>-#^ti78?#oSh8h%BD!:kR$Y1jJSsZfWt,InV,>htj5Vt#hoHEYJ@H3apQ[:r?ItTP:kn<O;=AkY`6?JCli0o7'lmam/jZ6$j63,S`[a"27I(Q'@QVeoQACg$\*)@6V2'(!,_IqI$FooCgRm*%VUK]U+7T0j[LJ(GX/O<c/GF2]T!upgo&\fBbP*16$l=iTcpk'TRjKunmGiXo.Qed$P6If$KTaB9nJtd$QLJT3inC51jYn:O%LE8T91LS1$@1U]C5R;>02pcVag(bhg@IVlaj'0oBSg*Igi7_j>Z/7BI/c-:*F#]K!,\2(bIH9m>l_Xd?]27P'V>6[U7G+rF[:`\OKV^)ZK$4"TX1\$)tUL_'0Tsb),U",Vb=8QH@l&-Aj_O:S&\2UE7%%o(i7[?/Y1T/pLc2tY+h5Ka7U@uO[6q<O7ldeOQ-NQi7=AX+L![GQ[k63Qs99GfIC]=2A$e?GmP>Y9jmhp'n6<;'?sRHKaF#j)U$GV33X0Fi"'M9Bd+!$Q8Ma(n/O+d,@9uS?oAlV_^]Mg![e?6"OT98P3Pp9T>qg:/,%m\?]'VhQ=FRB*0JFqL9.jegs*?q.s<-S3s*JHZ["uK("),_Uqj&JS>eS'!L"<-`KBZ%IfY@\]?^@G`U:":q%&m^B'>u5fPk.APjeGb:N6*(5Joutrm[!H>]cMkX#ZPE9jSnKE0&*e.D<96LZg/-dbsE<O<k)\8p:pC1JNOrjr8!SEP2spc[$$&=l"n]HAaHff!rH@P.nYnRccHbb$:Do$od60NHRTq[-Y]EVTM6rnR(L!ocJ,tQXoK]^BJ;"/8Ek2cK>t8P"JP+V!fP&R\i*,gea`]^k:6Gl\&no"a#>t;)s#=)#U1]le,)64AR#1=$-#OAE'Z+=l]rG*>5q0o%q>HIaL5J3^Iu'B$"Iu*]&tBeFlS^6/9*QH<E/>E]["D[oT`V5Jcbj:SV:RI\(2;Q;htaE(N'2n=,Y0=CZs+7\P:Tm\<RT/Sr=kmu'KcjAA9d7r409*t*]Q=a=K39(m?oD;1"N*<LDH0]Ne3^ZQUk,"F:5O:<5&]piTp3cAL_V-,E',6oFkMd)em?)d#54I42^LGjN%*G(\TAHO5]C-kH5W'psU#=0:.C2P.mWq;S^](^D?]p<1nIt*[4dtIS*)gm-.^1Xa[+L1d\?m.<KAK1;o\fY:]O9E\kC"D&]rN9?F8]Q0'-#CPUaKrc/FVESUnW*g*^<qI\.-)ggU^Fgh7BNjhorc-D4B$V+V!B%eZUHO\W6mn;'=VA-YMKq['R\4hPQZ[g'2r!j+QQ!*FJ"ppB)Iu+g#s1W<,(i5ftD*PkK].q:#@2P\eSh3"Fe^lS%[r1UbQ,lN,](EY"$g=b"Y*O87`K-J>sC0p)A\;p#@G^_(+n]\rg?J^o?cUA:kh0LMLE.l8>mANK49S7[h2iHNQ#l?f0JBZ(8X,5Y4.E'l`=gIP`#*'`gNF/JP5V>euOn/d1OK\+2,F8)t\'4Z-`V!#A8BORYEGj2^8(*irpAE8!J%/'_qnqA?E(9E+H2dJ$i]F3Mfs>fhu"&F%ckHAQ'TFMn)Q5%7a6OD*]p-LFn@l92K!gQYZ)77'7tML<T13,WuU^t.S-/sgZ*1pUg5(.l6PjmUgN<t5=7EY&?o=X,;0+0DWA>nB:3g2`T^+<#1T=!"aaE0\b:^^\ASc^Nm+_7AJcoqhBk_7^#MJjLEuKX5B#U5c54HHokqNJt)WL>;il/FmCQYqqVo92UIXI*n5,GBRbCjmg9\<9"TD!e'2oB?gbgq<E7<qt5G%6mZQ$DbLjUUj!E8#0jMe6IA=@_Cd5A5Lj[4lHm0TS/iSeC"rk#J-_.!jIm&MI29Y..IM/cLn#n]]?N<h(eZ"%q!k(=.^KVJ+7-MLiNVY)Zl9rt.h4HLJ0nluW$DX@R8Kr@a/%$LlPu?X45`(X6Hk%_O-1ba/DXBS"ZqC*p^"f7g0D$9:f/OD"u6YFr@Ns!>Is?".NP*kJ6h+&2t">UZf%\>jY`2)+$+os$r:k_0;=X6;9->gTr>*'=YgNsM`>49Dndb>-<_H$UNVVp[@Vkb6/!P>q8dBbBK-qm29-Okdrt1f=V3QCFiS!`%;I#!o=>-GJVC_afW`rLGlGoppoepCTU9f^DiR89Qk(-.6f&N"=LqiX=^Z4ZJQ8gU*eU>O:RCl\.Q=amY``&+[-.NGrb]`'r'!pE5R)7&Y\$\d+0S67n0N,?=Oi'lU06K)%l2$&%#"3JYU@_>mqZ>Y1pK^=N7E+.E-S71Ju3ru<#EH!o[hR[h.Ms;E?N$:C+5YXF'*H3m,DA&JR?c,M\O`Jr9eQ#8,XUF:n4]=%?0saC%L]THZ4TFg3Y%WNK6@O8%OU/+iG]U`K9Xi+=V4HcbUX%4-uP?6Pt:H)X_hQiTp_<@S2Y4=!+>p=+'Zt7ri*$^K9\s6H<8JXo0P[?ZC5)8\ZAs%daOHcO/e;cWjSmY)[*,?47dhh\<SA5q>]!+fZ!SBCB<eL5QnJd]75[+r`QrE5L")n9L>*CN.R*=g"4l1?O#`9D)>?ibF=g8&5m<Z"gI][eKB6ZpNqiDS%?GjU,Mp*25B+=(9;TlCW@/9PT"$/LVA7/JdEsSnb^jqZdKV2#@h`hb=H$Ms-?B\c.k[=<EoY\ELA2@8f_SedW.NA_8741>R4,XQXWPPGQD*mqL`/f<gcX-oG>lp#_GW=2'8+<^:4QR#DO&#t9G;W)`t!";m&q<J;Z>">gitkkkFT_k>FWZ#n33f]r09PH"N@S-li2K!cc8#.d;9qJSOC'`SdL#8cGN6YJ[gAbnC6=C<#:)#*H;e:JS%P.^54b!e"t5A/gS-DcPk*_Xp::"?T-,Y]s9qAK9E9`AJ3No7"nGbFL]j9V&J=uOGAALcT#5+]bre3mT[AIqFMjo80G`65+ECj\QP&(V*%ZDa[QVHEI7qr[NAQ%qpEFmL(Zc2?lU2RJ)[Z$r6t.P4I*HuDR93AK*6$`Gp=2W@&FTeRjiW,UKD'ogXW.#FN)keMZ$AUfAmZbuJ.,BK4*0(@dT(KZsh*=^]Q\'`rkcYM<jJ&=1lY7*r`("(0U3uISF@(u$C2m4jQ(F8@8[(C4JBg>+'VOa(%&58@9)'es.-7)jd/JVN<eg!Jkkt@dc\IuMA4rt[>ATJB=b[?6QkZTqWf+6dLDFU3'K:7BO\$pn3jqAIe8nPe$Hg)bMRI;Vf?a+SYY/YHTgJj#:#t-WLYuC9tcum(IUH7]goA#mjgq*Vu@=j`lA7Hr\E!&T'J_8:Gcd:fHl#aWj)(P5l6sJRMgg&&VVl$0cNclmBeS>Ube*!:o@f[u7psBh`%KJ-c-,PG&$>t(E7gjR@oY8bR&fPo?ZajAV4[]^-AG4dBj!.^:IKfBl4C`Th&nl_:3pW4Pge]$9\/+TNoTo\cUK0;,'"\E?MsXm&m$EJpeMobh"gEm[!)cAW0arcQJ`Ba4p"Tc2U&O_T<&rpJR$0s9j>M?=C,j=WDOHSuU,h_$rYkhub1h?Cj7Hdr\s*bV7s$j[<o)lY/hO(Yp.r;j1^>;%g]_Ia=3Vf\](p25:05eaIR"IO3H;]j]TfO63Z?/Vrnl'k!jKM-l;H2F)iLt+Z$056MZ@ElJfb58MV;OC;Sm(3:4rD1UhQb20?%>@DXVt%C&mQL`OthE0mhg9>@auEUL:-=iNfJ@0fIc_l"X"rX^)_4(fKUX_5:E,F]9);4tSL:I)VO(^G]:tF@rPF@m%;EBZqV_8!K*kCVU)lH7SH$0*<H1Q)q/\Zme#Drao@.MaccGWo@)<'7"kRkKH9o_./KZ6g*_b0/Mh6[Z\K3mZd!1Zk*2%ef4_gPG.H"n)%TbbqD4GkX")c*AuieO?<%j_$N!K/Yp;BBQ3qV(s?nW-L^SrYA>3uR?qu^=]42p^"NftK:pOB\81]@O%HiTJ97/p]M"cVL0OeC#T.86OO/6n$"Rpc9$NX#hYaR@3`,AA"'(l"0Ri(B:^U^F&P)B<rbrW&iZ01@b\&Mj]q#fLNHtiMh<H[ko@1%kJK2#.5--JIp$=ULX][Ym:!B=N+a%dQ/-pf3U93rtQBl]7*K_PB3im6@#@-GONki;h6)gB6J_q(Id5BW>3;=PGWDke:L[6RU%9g(^SR@I)EGt4N$I-tAds)EDNptR0ME[d:H>.=hjfGJEF\Tb2g[[2@:I3*dbK;N`l_?t]$At8?=KmKk"&\S7?H3'lJXe;RdK=714.#9e*'e(<f<HWJH+OiYc/g-?6qO$3a5TYYXp)6BSjF9S!f8gGK,2*4FHZJ/;E/CsR'LJAJe$8Kl9o%^7jeogKaH1KD@JC@..0^N*uBS%4$FZ^nc/UQn!*t+*t@,^!"gCW>UU<snZV06P-3s3\S@p!Vj'WU@%=h8@u6;+1DX$<#.$t<Rl_7W(Xdg3NPZ*;Yn^f6X``bD2"NMm#'.Us?57^GJ;J\^Lu2r=-3r\Q.P\CF@4Pij<M2DIr\#>0&WM1:8r['_<&s+hI6q6b>1'Y,cc]4;4he2J(Mu_M,K2TD.!<tQ>HO?;X!0R>V3h(s0!5PJF6!0EqU(CSh<'+G5HEs3%.73uq]S4iPrfjHIFOMQQ[\E6FOTNGN0b0?,;ab'Iq_=6r/`Z$)IL%o'V<@%-S]&gRr'1-DK=VPL#a-mrWND;/hDL2MmWL_YK^""JfN.8;a,pgmWd]`ag7BIm5R]F``BgdLPR%3;.efEZjRNa/gRi[[RM>M"j;P(M>o\861'<@m/I,-@L3n,Ba5gSYR)CO3<(fsl$9WUnZp,qR94Eg;/;l0NU4%-2Mu76g`a\8&RMn?N#Hi/)f'TkK(5/rijS0mj'A#6X:BWo^\&LGN]^MP1Q&Z(-qX1Ym/&%NZLDL)R<`O)YkUJ\]%Pp8IF@-iEOnDRDf%XIGj^S'kA_>_7tV,6i!3=W+!63<3r(X'n%RNrU'_mTU,Wn):>lam]_qgZS"\.[=k82I?mq]Q8A"0[/--sD,m3Sbk;frLWN`qsml(8h"LXG0poON\+R5E8Z9`ub!j])A`NM3-KR>hQH7X3%G(1]c@9]t,<C$.>S..S#r_Di:n>?9YgWPu)d/!@:gT7nm\#^%1(nUUC7&Y:1?dCSJn4oSN^P.,k_=OR:G1H<'F7*(2:S'Ir0Yg-$>=mY+4MlprfGk&_r>$+ZK;pD628i2pM!uU[;[U2P;moZTP(JVHbQDRg4L>ruSjZ6YnGgFaBL)4K8G-B6=sE)B2iMg;W^W%_DK1\-[9%JP2ceCL:<k+NGsG\E:F'5fK]#StgqC^.hVGp)5&n+lA$g,n'pRLu-D*,S%h;uuDie_Q]/:JuO[ggI=5(WH?M-sc>]rT9]2q+PcU@_6P=7pI^eGb<,c;Da;Bmo5KPW'?OqDkTWUMTa3,m^cP*i[<oJYI>:iP&9\pE6i8$:^Vn*"Q1VAVeg.;NL6*4tIV_pS(YAhio+"cCFe-4&ee=E_QuUB.4Wo-hOJ?Oejd$J]'ma$368T95]#)sm7oO[TW&4&?#cd\aY$)!uCOho,)-,I)SWoZms<A(u-lO%`Pu<\r6H)!p6-?oYTqB1PO;KBfC@U^2m$L%EphI))of%rcaK(*m0gJD$*gptq=OrCUD+r+=YbDS(@oA8I+uViTIQIdM=_YtNK-7'm$a1W*PuP(XPr=n1_IgEcGUgqR9=ClVFVYFj-qBPK(i#9*_n#RK'japl,DGj8>fZkaQ+.q'3Hq-1^SOY$=fj)l!bkX9eA^#HWikSEIdobmh53X[_hEsgk1WF8Zs7NiHScB,jA5b3Uje/^?)Ps\qdrHCho<k*H;a4i*i(m'<15?_Z,kE&cVN)T&b47CdijJ?fnKj,9NLWDZ(Flc\3$\HA&Sao*e3.$&d.IKW0A?uq?gmoM!4c2r"GY&\/;Ba)nLMLh3:XuZJ?0O]IcIP<m[e(XDe!b=<hj53pZ^?LG&l^0.U(#!@8#a7>8kg18fUF]"\l]%RQLhod>sDTJ@VJ=#G\P%qNngYb6U(n/Y+"2$8Gc!+QAE:O,it)&m;]g5f5F0c&#FAb%Co(lh:C?G7rU,ln__[23#p#:nG+6m]$_!6Qi\AQBg?]s/=L&enm8uo>I]o^q]%k0E/eU9P3',cirq5AWg9h*D;%^S].!+pakkL@>pPBk&kC:,Nlt!pJ8-M)hus4m`N,V%cA6>cgs3_pBme:]9RY1#E+QR3BS6kAoEMPA24U@R;XeahZ!(SXh?fJ%:_;#ABn$*"=nk(SlM<)J-X[he[a7NYW'e$'3fOX;VTE-'E]\e\PZ>[%AomVb$&%j_lJX1Hs8V*JruiY5YAdY;BL+mmHt"4:?B4$Pr8Ia`W\HDiVt*;s\/W`200oP\bYcV^:j;g=$?F2`dPD-:/s,O0Cms8L[_-!*.Pa>1YmP33R61)/s0P2%^M;eg>([DuLNQ.4kYG%>plT*m2;&pr^gdL:5\[,dNkXPW^U>@U?R;EH&S:K8!8+-/qV.-oRFrHAA"8Yl:@HQU]D7SZL*WX*!30gIm`boOJJ*Mu*T:=9'5?GIYA(t50?ectQ&p5nAZb'To^MG81U06Wr%8Wb8uS,!*GP5Ai44+$ct4.\IUVEnBGH]gm5;_)Y,ZWcq^$!OQ_>g_[LHQ)a]GXNrngPJ3hV=BZP0/<X[5)f1(d#Kke4-%W_5jDEO!d'7^_;'/$]u1,X*VoV"X"m]Ifb1_:XRKen"&/(n1?9CWG,XYhH'YDF$g\.[`jW*\eM+NUR&H`tr*UDH[aG:`ohOZGMokp.Q?f6oS=Wm\$0Sp!U$SPP9Q^2.O=#O8=Gq$Xj$Vld*BT^$sG,cW^2;TQU!!O959*^7!Zj'N1ZFs.?%O%_:g6\u.rY\SU2d<bgP1ZS7oA!-h[$2G4Zr=Eap:CT+?p,g!,H<o6Ss33/f/pQ6,r'oReTKqlB[O.XWIM2I8B:]&=!=#\VY4<$m,=&k6=()N8[R'\m^fb<#fS-,Z#2FKHdq(0c2l`6TNi<.>n=[eA?(kD"#,X)bg,El"mjTRD(F[b-]3&)fXJQu\#dB(dC0L"6;rDM0&gg@\O8K;.K-60r#<3.5Vq&^MlIKmnQ<+3SFace.47$MB,^XU>$q9M)TU<r4rI/qE2:d#G-\7(-l/c)ZDi6SfhF7p/iqif8+i4*$6$Frl=,W_6s'eB))h(\u/::Zuk.9AATd4hW]&NGm:aPc:RqXQ'k&:eb179bP18.='"ZU`G<OkB,):G7qb^=N'ToTYK'#Vpg$]%1\(AoT;$A(i=57;UcP'UT72(njG!>A`E-M4B\\mrMM@q=J0NRR-3j.X_#_]D-%S[(6AO(\jpX"(o67<W4"Z!(p62#/jXdF-JoE;HP@8&O!*\c(8$u3mr%a<f&2;&q?e#;$f'3*s6D9pbZkBNpNY.lfT_A/cuUhZ%mGVG*8lD?5nPd9s,tVeHK>sPY'm?0qL&ASJtRBZ22*n*$BbOZ$QF^1^-%*9TZ+<%*s#aY)K98D:76(C2Md_97/"(\j$J4hL9f-)&X#]gIG!M42Hh9T,c/;Tn@,2Zg>6]O1p0Rod9s=8k"&U84@?"jS.DB4+R*TOJ^-#DHn:QN@3e"qrrF>BaFf-Ub$4,pY?bEU-Z*TfXpQn>?Db&"RUaGoT\$d)-5-2ju>Lak@%[5f'U48C:Z=+A`J4D)!,N2/H1V&+E#`OB*?o\Vd%>m1/f=u<-iLA@ij*969!rbQN^@'<`f"D3/JuI"['Pg0rO`\aV5!KJZsCR(`cA`[GM@AB]WddS[MHQ/KbEo.C<g1^sqV&K=HA[dH32^n3nE_ec>AN6SnlERi(6;Wo?B(!f=^dCZA^fEb\Ah)(G5b^$*f+Z"%"5'8:lI=&f!]#BW^d"qQtGfpZ-Pc#iG*o2L(T(5dE-Tk@67l\-qK\14db?i%lT!TWLDkOo^@38NZp!\D!NiK89nXX\qG#Opl?!=mEBbjmB53XQp3EaQjThm?'sbmiR6HfsC/O6Q=6`dkV[_^8(aX/*VJn'H7aBYTT>`["^IHLPscNjqcS6b>3eB>mu0]!W#6ar%\O_10ZLZ_`74=`\fu)O+1`&p7;'+iQ0^0-)EZT68dspkr3-C?gS9WBo-sHY1h)+XS=,%=HMLnBIW4+SsCU5aX?R]GP57M2/,a*V_D`jBZOW)!noZTbs4c7uBR\X\Gm+l6M8ZIWN_^Q0qEh//o!r_Z<&6Z]s1>'$un/M5?j#_D5OnR*F;RhN,O%<7c^tBeH>]N"04W-8Q;C?M3e]O3pb87hmDa[=$.o_ZZLYi0H#'p,5QKD4H&e?\Ko@Al[jH$dm:XSQb'NI;<,'[VDWQ>b(m-Ge!@77:I`$!)e/\8MVJ;i-o8ZQ7>Q^s*,@aR*.=&H6ZPb][WBL3<fZLm,&.5jYC-G3WM;E-i1/kM:9EJX=S]G8jf=K97DaaYCZ.,^bi,bO5(?cdb)siPT\dQD7tkYVchi(2e1\=[jW8F*^'HkV[3YVkq:K!.2<N/kVjM$+-(V>E-pYI.kHN?$4KdCOVBAt'8stmI1W]6+90EgAS$mJPHhgOkSKA!LCmRoTFr5D7'mc;r%NW*]GHSA/Fjf\r_5qOf_)0Uk3'Qa'lm7Y@p_1j0VDj`s7%H_hgI!"&9O5N=>t5qJ\l?hoa)eJo(=>aXtqJoq%Qqm*JB%8;Dkit;,0mLei^skE(om/^Ni;i<ec/Z@SH`!M+6;S:f;,`jAH&[JpEa?CR#1&XUZS)9HCH\/Wo#o.p-DnDp]:rSs(Vnl46_',Fb0H9Kf_lcKP;s,b\O]b4I)tX)[j(&GUaUXu%4:K-8`VT,Kg5BP@-kBf1X'NB[+8U)$;tq=!6\kSf+8BgF>k4Yu\M,?G_^W@KoA9EHZinjMZfq*L>+UC7uO^"0]71TQ_0Gds70PC&*FT=JQ'D3[]@"RSCO*5.CTX?8AQW(t7XB<B2Ai[tigmjl].gt+kkb+6D:T`Hi2mZ&e;5k<XhUAPMc\M"`WL7@>8]314-RutS'=hB1OkLWKf>Gb.kGo\ck$[;]TUA7(NK:he::D6R,(2/F6>WJ8"[q@@(<1ogn:T;0WWI7@^[P3P_d5k#NRjAnS:^!Gt\EG26A.jYpfdp-ITc0Dr_=]HB=cu0pjRlh\e=)/trIrnS-#APL53>r8l&HW6^7BmHO\Vp#[X=XZ$I)uRV*cc"TU%4jQ%bSK(j>-`4R'1<p+J"H;JLu^g+rDJHlXEPhobaNXW-NM.oP2i5F0"JXX20"#]3=-%,L)b465Y8aP<I6dF%0ebisd/Iee(NS'C$*$gN$hhVP'fC@::adB^$uPlB4E*7qZe^C7TIZC0U$(oi(K3l%'\m91#!.ZEC+P^T)"N9s8Hp^9'>P&IJMd.gO$2;(GsZSPKdeQ-&!cGX6ih<#iPGC#0Z4VbO([HjGbF9e2lUXs/UiC.Bu<FE7?67k3=VT'ZC`%Jts.`S'!VYMCSACe,C>6l#8esq%(aUtYgO:]n3GlikglMe;B";U'dpn)<7U^n1NXeq67>hk/GON5ou7>Tk(VK4oE?cdNE'dgIBJ?n#46f5U%><N5(Otb'GNJtB^TXhs!2Z!2oLqfhBnmVjP\OK>,\ngcs:H+"_UTDVqTj0];>qc><nJNC=qn`J53dgenVXQ\N%AE508b03o"q+3jMNNk:riLej@'C(SIb3_b54)UVKp2#fEH<JrAsH!J\D4#"q`^HF*]Il;f,3uOcM<^oMk/7eCM[9F7@'BqN,LJk4^R#j\p*J:m(uM&kuWbA/h3lABm<T`pbs,G&os*Z'n<`Nak@rN*>CI7c&jV=%p.7bQcb;.A6-_C:JoXi9%8B->DX83T.,hYOLeg8K%!RIHj)W?Z0@Dah)kq9X`7aY\gP-gEppl>_n&Qto:]E(a'L$AXYThP=4?jD.VCM0s/Dq8b+ej4CT!r2hC>%f(Qp/KO7P>LpTeUN=CGP2\U6-Qe:5L@Q:U;1e<]$eM3@Ju]^%5qaLHL'Xr5!8r>(,3f^JPfAft4cJ]RK39OG]UoTu4<SUks&qjZG6j#DX;TE%enO_CN"MsT(FFte0)Sc#?e6X0S[-4_$AoNML1=@U1_/R*[i$CeuQ*seQ8KmE8X\Le!=2lYX'pRjGu+uj4/";XJp`+bb)J"$\!,j&<En1t\SE3%@`"okCFY;p9;]kTL4h.f*6!3[5:gV#-<eM*@,+tNl9<l!9i[tlHV9CdD>PIJ)r-Xg(GmJX1o:f&t`[!%?1+[cL/=R'h[3tC[SQc>iV^jR[TqTuOVrkM,na6QCmgA?8%)V7@ak[*<*Y0!1CIiedD9T\!!e-6+Eb0DpZUQ)58qL+Y@+;]u78Q;:Q@tXl>W@@W4KGrdUl=uGPQd4'J*gpc5H7NcaK9I"LAqZ!W6jU,XVtA0D$Ae0,q>"k`ZR#et>`k(&Ugg(4=gs,B3nduFAAc/&!)q,;6K(T!;kGur9Y]!B's=-<Q'IXfA+<$T4^q[^jIm&:+M[HN:YU/b_D9k.2"%6HPVTO4@+QqcolBDeS85\r*5/Oj_6Q'bZJ&mFM<?FFE%XUCV7;Y%H8G=WE/a@?i!`kcg@=o=,sWtn?h]r-5j>]kl=n[ph_Eg%k!Ob<>O0'9I&Al.d5ORepLg:HO=KLj;9Wp5eds^d1s_1l)0n]X_N7F.@Ha7DW-*cI5:Y:HdG\$+j?lb4bN@Mj$4dnsa)Ih4MTJ'IDEX'?50n;$7."!PCClX-BRq4cC[!O"Z.Fc4KV.0%*a'+UWbF^*E+5Qu7WWf9M_2;(c_eCr/%>'SmhjZgWL2J^9QecUjs!)Z-up_L>,8?j7mWJ$'dgIr/uKh%,$Lpla*mSlgjQ7R7RpcE2iZO.G8OqrVBk>+8I\u@j]PiMoZQBV0E-f7UugV)nHR4oL7(Gj"ZcKm@6eQ&:/7X'WR/_0K!9(`Be:$YRlQlRJS67+\_Y]Ba#_YGr@XRfYBe"g7H_3MRBFD0_:B9b2^SfNhVd3;L\%V-aNgP98g-1Cdn`rB:a\")4<EAf(mkJ-GTqU+,#G5>D=)(dFc^X^LFj+4-Uc+e+UNiEK`B,TKR\&p;^`.02JpeZ`GB6HW8(LML;1G:-2+DZ3b!IeTn5M.S;+4j\n:ebcJ.eiZ5+%+jQZ\I*>GD*1WD\4]#jg/!uI)gD/>)NS+MI[>Vn.d(mWK':JR]EPU]Fn$IVU'"@?lB-?"i!J*%NfAH1a\R5J/s;_K^6nH-EA"aVXn(">'0n#&H2JQ;gL^/"]3>jZD68ZT&2\X_HjLC7"+L-RkL:r9Y"XnJ*p/N9_u7Ku%%D1e)RS,Y)rFZ#AQ$D=J0rIdQ3T67TpHT7&kQ..h1d4F0-!>G<Z%9#jQ1W`4'?c@umI$rc(]Tb)KD]Di__&$2C*LbtJJJ\93omdgQW6CcElD`Q`k7Z8-b49ss+t4)aKbPHU!U.hV?Pf)Pi>be:E:p3CBl1D`AWRi&!%2@O+rY8`TCO'b/5<n%)8uI>Ap5?Wf2Jp2!$<n7l*o5.o%ECrDuY&5W_?;CF:H\8E;nF7+"XtD1%[!t7c<i'L^]*.qs=r\;0Nj"!d'Rn&AkWp-0=_\XAu??aqCY>Uq'[aVJsuJ',:YB7g8mX*(ft[=)/a=l/kLY<3qo(#/rIJ&lD:L$B_>20NuHKrJ_14n\2Slc\=2EYii4!D);*.VRsmig7Z#[Pho,>+'QEY!]I?dHn2e!)Wdogo?D8$iV$m3_sphs"Ub!pT_saObSDSRA-b7?V+aUSA7',<]DfCm#"%i'2?@.DqP'_,FUS_c_[8>N)0^K$7Cj"qD!^$>&l%?9^Q[-[2E_l4F>'lD`W^?G>d.h$W+)hg[qQ7\Q,h+_1[Q5?EM/;\!VSqI?m)(/jc)KZ&C',&ZCli&.jG`^)\4k6Dl[lRa.Q$9Wq\V1VGFeH&-_0Z:d6`O+<WGCjjGtIO#u^`8EgijgYk1E%"94$mme(Qh7FA/flSRe%8;qWF>M>2O=aEq$m:S<Ee*Cu=)IQOU"X!9Wa\:jNBe.uS9A#[$P?*n;F_(\0^I$5!bdmbU\gZa2qc]/"kDlY`a3PH)9SY$3[6qnf41[jVnS]6i#Mi6Xt7sI^@EOHhGnE:E<SmNW&85IUKgq]4!o<_BJ5r(q7IBY0a??,FD2922@^&Ji`N<#`cgL/aKjC\R5h;lhT]r^:PB<j!tD?b-IS:GD[Of<6dbW,-J33_?jg=SSXtk,l5,CB0'M@pU0tIj)&\8D?s]3o*DM"d(!XE)jAqH8Mfd@1j?\/WVKh*5E=kbM+LL3XX&ADX5&hYa>$[_Y4;OK<6?L0<I@#i27UT_MX$0MZ!n,`X91sJlg`gnM\]h3"<iQ>Op5ZPI8MOBU[_Y35D;djVF%uK9lb(#_G^21r0,\(V8Gdj]hs/!0f7X#jD7j.k%Ad'a+Dan^kj^>-&WRXimd1n]gI\Qo)XCXCIG'ZuMjp.%Wr`f``WR">e>a#unoj%H(@&s.cQSV)3`Q'g.u(OD*Ep>I_*)sZ&=MXa4F6?J@TFT^nnQjfUBc24r,SEoF.+i+'7r^d%OtfJEL(eo&,>?Qj0:\ZYH41dL\=5hgO3EY9]]+RjaU2-0&Q+ob8<k'QR<%i>jG!"7)1?\n75s]-X$]6B_"RNiA!3_.NWuj#siVck-$IEA)>ItY<B=&V#2Ji<2Kcqj<J9$s%K7$e4S3CP&;^qm#T2QV2qgO`qu>b]OeuPRhe2jbuH,j5;*OAfC?Y<P45j0>9[82n8^?P7gu*ZNW')$(<V\o-hN@k]O.5o^&\>A&]:%'0brh=jQm+4rI1t<!E0ut/D%2IRf]8//Uo[F&rDQs=mpabDs9SR:PZCc87iL8KFC@7=e2Rl^G1oG^Ki.Sl(N&L']5+/)AG`H6ok["c2,2<OOg(i3>LrV,sPuU\2bnmrF5g7$mOtOY'Xcj$$V/,QbQVUn]u`hq[1lg6&4\Q><J;_N#Ps1&3:uCaH[4Q%nCECrH>Zl`'EZJq%Z8K#IKnG8ATib>uqMq](@BMJRuQ?XdqhLhbH)K*@ggjG6W<ffRD4q$A1O>M*`A.'i#Af3hb*;`KHZ[U/&)`-e5GtKO,??1GRl;BV!FRb4k!lr.<CEZk(5D\)GmL-UZE!;Mo\.[Np8JSrL-f-S7&,q$BYgY!VU5/!.;(KD,A01J.R'Z>TJcjqLkj/Nr.`N,TFoj:`Z']XsTF2<o>KKD*m%i1AXY[K;")7I2[RF;d>I=IsmGVA")T@]\_<TRoe`=UHGD)=/QA_g9+9GX>R<f/7etel&,3jIJ!OV=h+dLhGqapIp%,0c$0XY$N.0j1l-824Sle*T!+&L/QcH9A_"d7(HSgWbtE/HhDA)>^N$p'`MXWp0q[.WUn;-X/$%bLe-+;%]OGI'h0q%3$!,_(iFN5/*AW%6#-N2r3aCQQUDY6:1[\DIF.D`Qd7dAX.#eEP-I]m?^W4Q2c[\m+hpr3h`"\@03:K,,3F*IBWKR=_FGM;\kd<R0Hht$cICgn'o=[S5+jYOK3*1\Hh6oAPlH[sEeUiRRoG]t,6p+3r%1=<^6h<[3ASKDkles7]H%;>LL%sPCe%3pMq@=(RCX*2TOS&(QoV./fp/b^e,e>,-ZV_6Qj#=oeZ^4'#a-`oF"?l[&khqc)o`p"D%6p3LZ$?q6O*\<55Y,8e%goMBNp?IFf<iea_I0^*9kI7PYqe>"Wn4QBT>HUT:AUHVNrAP8:cG/OlAgZls,9+:=5TUR2H^tOT0K!:7r^9E08Tn\?@(f#rb]9H^,g9qh4NWPZ]ILf$(5XocZ=+>V!#Z,-O24-RgWTA8Q\uJ/iupnu96[r4K:2G>b82h.69S!I:j\#2>]lg>Nl,%`tFBPLpMV"<ql3o'mem2rpVK];<`t"#;K8^s]R7-*q\"e!OC4ct6(9f42rZZj<u:Sl@"9$CkXhVup?lERW-nH[aAi?m$@M5*#%F-p<87`:qoW,aXq29iIDgYYU3#*o>Uo8ldA]ZicJZWu1=#83h[O6/G6$Y][thIlfcT;;3$S1$i?M=2sDs=aObM0]!m+q\-ACgV7;&BtMB1(.+`94LS5DRRrQfC>?_m[kl(?/h3ifH6,H3d\+@erY5F`@*IKo:_!4k0Jns>]jN"!9_'VT`=h4;(g2e/2q]2DbI+ZScZ\b.X(Y=@oaImAI:7R[:54b83toum4@5C=mW8bR3Ql*WrC;kB,kI)!pD`r!&J\[/NXNZDfgEd>:6#3d\Q5iae,%Uhrs**"%`pHp'F-./7koQ_[3K(f_5t`o=0$;CY5L/OPubaj/#LPFc^5_/QPBQ<EOp4TL3>\IL"sd4c18-]Tt[kg?o"l4QY:BYRQX7mlnhj<`<GpO5e0D[o@2Ns"7H<EBsTf9.?gMH_PG/LIC:f@1oU/4#Z^fd`23u^n]=Y>5eVmC[UgmS)jaB/PGX(a1m/N-rq7^`quMTB\pFDRQkrmn,6&Iie,2.\an2-@E?==bHQ@`U7s/PtF$=N6ZA"s4(Ar:%\4Jn#Ff4+c&67#_DQZT1]R%Oo.F[3&SDjFC+lCOI(Vh<U-+_'X.Q;)Cc6;(WNQ*^pl9/fi@!T3,]Dm1\#o39W?"==hBT:((e$"3[GZOg[;#3Ecp@Ap%ES<4WW9(/m1eXYa4W=2M<1uAnWAE$.RmJ\;B/+A:HMV^2*Eu=65'6YWla/hUclqt+YI._`DpEEK_8deaYaR1QF_X(3='COs"W)`<no*Tg&aX[LCtiNNU`(TV?U*jV)T_,+A*k8Miu_6EApb%W%J]eHfk56s*KY2^"8Pk8>gQDEBdRkn2P*6U2VHsV;b\)b1;!$'AX!>!4LX=S8No:B#h.ZSbR0:E;jS&oA@K]I_LU7LX<D-g[`<mkISAHL_KWhQ0Na[4I+Oh4AI[A&.gG:ihU")Qjr(mc*=7^I2=rg`=a1GJ5eG4/BIR"aBA[BuC1a$8ii;3mBQH"LK<-,04;X+t)Aibi(L\N`r-oK77Fq678qd&-D`#0SYSaC!6qpa:)#@Y#*$Ir6'7"6/!]35*O_)f&Kp#PYXJIXubqN+);)F#uXs67cm7q>n^;Li?h)ca-rm=XnR)2n/YM.LDL-Qo&2nI%^.n6&r'Qr]F<N*AhX"0RRpo7]92g#SROX8=_^Pgn-f2E+/(gWngAmc6XCfob"A>*D>0#W0G$2R6QP%_UCjd3_+?\;`8o[qnfYVYqTAHM-MB*n$Jmjdt??Lc_OXT>B,?dq34A+qn#_gD"IpQ?qj72FIV$,A[a5+Q'[kcIYks(e=6qGsKh3W^^dP>6N?.,]c!Y1s(RqskEZcJLmFpb8=NlU-\PUm]5EZ$Ka_[Io)9^L&/1.h<J9Tn*.uk\+7GQX93Mj;0!Z][38']ld%Z8Nkm!N$abq?2X23#nWmBS_D$4RQdg8Sm>+c1T@b1D@*OJ9[:W-IKbQHFu6>D0j[dfZs[^rs%ng$,(qS]cLd&s5=bS<=G!9o!b,nXmk>/Ti+eJmkTQ0\lhKU403h+c6NV.[@sSt+pV,L?&(gX[gPFBhJ([ru?n>8nQg26NW.3PD;Q%GRJ]R$;bJCVDI^&L2fI##.=IeudlP6=3V6/Lu2c%ID_a$-oc7'uBO2a2hK$rk6^>6J+@WB7s$S@X/r-u@:I4=\PfpAp_R>+WdAX<5=,)+[]^>H-!I=E2\(^P@Ze(-6mk$g!=\2uouMMg3Pfk"sdaH"W"o9Th-b`nRWiaZT34(oH'AO0OB"8ttql#EI\]F&^*jG7hk*=G*IPN@!]U?Ws@"uH]M7(X)`!6&?*^4e<%2Nd7:D)9i:\!G86\TK%E@96JOgtZ>TR8KM?Q0=ZOf*:Z01XYW"BRo*q]+MiM7Ai4m9Dc%/`Y&X.=AK+m;tpCjhd]/o_h@k_;)adchmI2J(6PulhhJ/Gp:IXbc:Eu\m4J#eZm0S\V<3iVXY#mK+Xaog$]4]JhQJJcJRnn$N[USCXC[$RITV4fm(JMb<=R8Sdr7U4VM*iI<aM'`o`:G"grOG9oT1BX^o)UkLZb<VJ7(p%NPaB_EmXAL#!f4@+<a`H$.<5srVh9BN"@TPHj?;aS*KR50DT%qW`KfP,i!"JGe<cs2LFsu(PdGsrDDQ',WjH`2Q&R@:+E<GSgc^<X8/U;_%nnQCp6tmI*\)RWgr1X@IH0SXnE%oMoWFtkk1tRPcDp#oVc)m''(V//D:huIcCYmD#M#'+l(;'\^V9UJjl2]#R$/L55Ve_U59cf8=qC.IV,$Wph/9fe@iNtYHd@L&.]'7INOYk@@*^pM7"hZE&<q!)Ua$;U<7Um<(]6k',1a>>S\9n6ptoS*4#.`<WS(<E:$uu'jc03a#S$(\rHu72a:$JL*NtTO9s(T82gnaZ,#c6WibCbnn[q@.7_+sZ,f$GdaGd<(5U`h['%<8E.\=nMZ*3<CZL)5l^o>(J!Ff=rr.5;+<tcP"Rs[g#GAZ<!5=T61t2";?]9XmS+S=CP3UmKPI&92>IXla.mbhL-6NH/\a?'[:I)#^Al)W%2+l@irqCn/jYQWH@TqQb6I3;_LAY$.7#qTV<(1*m9&MoL\<07c*D/n\El'dG=]<GmCLS0%DIJg."=pO^+&$u:bKcX8@2%W<@I*mJ$eHFs&*i6'D3Gq9M&mFL'E+bW$RtHf9kRuQBlc;Ja&#DQor-_L(TnGN5F2qMH:@XB7n0tSm=4lp)'hlDda5**B\0#<bEPu+=k;PJV;m9C(V0OC(T*@7Ub^DRSB,0]0)f#qj`Cil,pJlQjH0=PfU5V8A1V';^gfbES9f3KM?ts9U=b'DouYq<s$[E83n%A*5GXmh>,sqR0$APBGl:#l)roD8g\0""GXekTcB57u:R)!`>PkTSEH7Hh]ZU$,hu*IB]K7[h)!;khdB=(R?]p25e*,'Z]k-,k28RaRWCcVJm>hO-hdBq]L;G"+<sb5`^=)1i+D,/jNLl"`6l^7Yir`s;IDa'MrPp:'`fdk->C5eg#J1niVLS5o0`!0fj&2Q4oNt?/J>kj1&qL#_IKJ0#6#CKP$!BVqT1<NY&DonGQK$:[%C7gq8;jURI%%]rmfkO8-(R!r'ODqc.('A,&@A5OqGj:ldA<iRW')A"-k+-%)=+F8L0m"onQEQ3euA/>lP6`lZYYP*jpLLQI7$+'1cE;/\m0Hh6r%#.BH$7ESqEFA;As.CAmGi/`Xu!+LA-UG@5462L&8+:oP;.o8F"fQbnXIG"BNep$&WmgJ/rtBdCq"raZh'^6n0AQ4R:@^*G(Ws@^[\WJ*MVUU[E=gp-ffB_'g02oY;BG_CJ>j)c.&K?jrsu+(]%s:NfcX:BSB1[uE,(CeK-G;>M-2p;Z3(&hrS#6k#X(T,MYFm*ha?LoM(n7N@Vos(su5YpW0[)iK("12m]RUmsl*G"EgZB7#-a/jjB.%."=W;!E,X$^C4)$;)K!/GRKmNb3J9Kj8<!g+9s235LU1_aLK@3?c9Cp@cY0LAUYI%m?b,"HdaLL3WJ@MgsSXehV>cXtP$!N$n-f&"cWY*6MpA+`UB0CjQQIk28SQa\[e''At<r-I<f&kXsn?CYhrqjBT2sg'Y7!.P,ekMjfT0ALn=oJG1OdTTNo'21W%]q1WY<Pt&$8-%E7'T7^Q[(]>n`M+^$XK=)U!WC=\3mpq9_JM!rCID_a*ff]A+Yc6`]Anga_<5c;e;l-U%0ZM3a;m1[pI'kt9SUfpBR5gC?$OGLXj!f(/hiWGP01CncCa^+^'1m^JB$L#<LX0^ZWPk+<-H#'T->qWF-f3%87=:]n5?[gD]EDIJ7V)P`F>j6L_E1ogh&:N+pfV=Ukc9>0/A)\(n?pS][h^opQ`:l4F_2mKP8jXBQJu747euYUd:'2fN,bWl<IC5@VhPP#79:uII^#M,QEkqW"&i#3r[eO?F_YLGrbG%h/hn>CiscI%@dWp8jiO[N`B3,2i9=ota!^V]`ll_r+1[!.p$QjuAQ7l#I=867[L0p@@:^_f,I?,/H5IaCZY(Jgll_b_>)e\/.t1s(BSc/m-pnuKJE*?@`XqntJ,\^nmJ/sTUGJ`3Z_,'jKR8/+a."T[cS3),XLVA8Tra<SBFE"h5AR=Z]lI'd%iK2#1YAHW1IlgK5o+_f3`Qk;hu^2&04-s\Ja<gTJg@6.(8YR.%a>Ht[#]N/;7qllrK@i>gbR?a.]9meX'VeiUW67o9cA!1E[oL2'U;\r-p_^j[.\`ebOIf'[e#VNT#UW^^gnTc%=//G?)kQ[440^:kC2e`+JVX>B`4.*%_a)"L*OKZn0L&,M>R(<n0t:4Iomoqf!q2q2"+4#'hP'U4Z@6h_d'.PbAc#9/*mt0GFpi0BtS/XWp^o-8PJP>dVXol*3LTKb.T,q$%HQc@E0f^HGWKiU$O4SCg"*C1s\I88r]2:<AI%c2YZkQFh<!gjOT7]GViIZO*-sXI7?";j2=P^qb-]>%GImDE^h>gThDA7?/#cu=ALh4Ms+96!prI7&eN4j*D=!ATeHobpSV2^f4pj5H];F+E`]L4UPL[A0p`!gX3rb[_h@?+`g3iB8_LQ\FjKc=HV'3;p-74\8LOmZm#Y0.J"/%K#(g9N4uW[6JPBp]3k0?bFT>C'p^Jg;?5;MT)B4RJ?bmp\'_@\lf\6PGnki_AG5#J:3*+gOnB%jS`HmL7IGn]<DRsj^[:[DkaKX]-qepFia0*Pt^BL>?;W>!qPrqiMDXSX(2egW5WL8;$%o"Z'R+@Sn+LLq1Jc%olqd"aGYh9@braNag\f1R1.f62!E5g3(:q`tH?RuF=J0P1P>89"TlaD*Y)f5&TOXps+h-JpdCfG&.p*l;gf8*\'#_m/h"6bh^'V.;WdqO)r;_hgYji<]0-(i+`0Dohm.8\YH:<sS([O)!kU6h2]K"Jf9Lk!_U)@2i#=j&G"9Ks%d+;g3C/N\h\X!YJ0?"7NUG1ua3V^s!'B+qcqYp<$>I6VI[As5>CELS5^U7ECP;9Mpc,IrA69H&1BPaV\Uj#40TS/@:o-qUf.D2C-2+St/e__f?s%AB0NA/ps0;KjNc/[s]((T3Q&SP17.lm%/tX)KcI0Yn/s:=W9g[!BD9b)O2+&:uOilZ'*g*TlepD3pCW^Aq:c(l@k'jJZ6h^BoAaj<IR,%kINu$8/sS__,sJQ`CN*\?("i$V+C3QSS83E!O2'Z6q>R`(I)+OiH><?EEjh8e26)C26mlSPgL]f!WjLX!_h9cM.I:h>ISr^7olrdQUh$gB9isc=3rP,5EH!Plhf8S&1KZeWH]uIU/#7J.ecU-lE<.)eEbXdO0k4c!9[!P@N_Q6m(s$W[tsH<eaFFIS*ILVQf8M1)e4I[2S;.r>f]h'U\b7+$rs>A?d(,rh:'+>C.0Whe4MRKA!11Q2-?.MW:3-F:!KfasWTQ=0+*uZ0__iX_)#=^4#Mg8tdC@9`]<:;*?a(K<rN;=akBBq7[3[-0DuZf=?_FgciAI$RTW"T]E'/csc!A+e6NFKTC(H!g!!%/MtTnludFcF#nn04]Vg1<D4"":5dh+F?U[qdt/FT8,DVX(tk#='$lE4H0n*tLAO8u>'Kd^(1Bgi@]Uh[&:fksa3V@GF6i@%QbWX8Ou9!&HU+AekN)<2R%g&q&f=&&kOjPu-)acsj^8J8hhiq<MV]k:9J\ik8bTp>XCS2"U"<idAMY$TSA:tK-r/$.U_lLF[@(r[gG/.[@8>2O`dP@bqA)<E"?a$^@N_5#gEVKW&ik$g-j`FjKPSgL9sGSJ_t&6t)hE,/Nc[K_1a3[adMbpbq4+l(e/_STAlWH3GB:Fc5'3Dc"M>8&YU`^=\NZ10Os0ESkP4sff+7(<R)oLiUG3e&hR4]!75-].`dDIeG>8HLh)*td*/Uq^"S_T&9cd+:RgD.b%>+"blX+&r?A8,AAe1J/4@Zge>5m:bj(k$MQ]UF21H9ND`+AnU&CDX1H4jU,g4FGlaR:P,!9OLRn#[W9:$_Z3c)n6%?0<j'=%aes+1X*6$QP-.OdmgT6/dS9XO)t"*`0M0J?"CF6Cl["U4Ca?4#fg9;EcTtC5gnd1gN!%SD]kaPro\LDDJkR:FCLJ#+lG@nZTT_$GjFaYg1bsR/VkkLYU@"8/ro^:P1'r_+n[0^.L2X8&NWDqg&Ir@1C<Rg%fbk0`#i7b)ab#6HB@9I<=^I2`KnQ`n;14\PJF%agKIHBe>]-b"V-9V@[#%KlajFKfQ-n[0nZZ,47X`(bCdpV!!8A9J>4dfS5=Q[1_s*W;>:h9I?nNl9$G:/*Gm?l_'8?LL;R[8VFa#AjEm:"M,b42E@auYFSC/<)n-c"bgXg?;>KM.L@Jk73_=g?)"f8h1TWQ:uk_`\758r$+\iiXS]Lq2-!?%+1L:JT"L-?"LdP;VC>@.og?!OidJm89YF9'E2SF?kmI/B79qg7jtZUpc!njF+bh:=Ph!atRP4U2)D7Yii>%bd4OP>A>ar_ns0"*JRI>`L!Q`E*g/.II\Qm5GpRR9Nb1#gh%$qGrDNY9CTAU!1D3qPOO;,hdm;\HMK*$+;9]-Z1??<i6o4JX7"ST)/e6ONM<I-/'NcVT0.\pY>lo1CekRG/0j@YkRij4;]Ss\jGHO#^p_Rl0Obp":33>WN&'$kt$]OK(f/FQ#m\E')sObYu^8N4)741:7ql-cZ'&ZI9tTC]tV$Br0&.pKT"eP/Y$U`LHH!KF@k+)VgOo)u8-(M`/<V=l?@jCV4QFAZ`3We)1Cp$)Q6)HGU9ljTNqVQd80C8.-R^MPda8]QjBZiZ4Q`Kk[g+6(<gbt`tcDP4T=rAP8F>FTPBD=cT:e$G%F.e<Eo^FU*.5c($>:Qfc>eZ"gRW]`(R5]5<[*+[^I[QaX&K,VqRjg:k4:"e.k/YdqN)b/",(<.(qf_V>]\hgkb'*Tr'7kGfR0lXARJZ+.lG,=H#-Mh(T9"KdPIPD&":\"R"h6pk>3ocVGSA4&tXfU5;Y:uRfkrA[1TS[7!*X#]u0g2]*UR`8rK4#m=bK6H(p'HZthip$@*H1IK0e2#DZ'&*#IE"mgd`5h#:&jtqGq/'ZkJEbmZ0P4!mEAcK`W0D#<TW3ENu2,loEFmq3h+e19eoI$/:fmiEt0:4mf1;M.a<@j9qrhV?">jD.HBl$$Q5RsYf/m)+9WEZU'f9QQ6`@cSGH[0Dkjd$QHFLf>f+c<XnW\,DnRlZ@eFQIHO-VJ/Y+qZU+?Bk(]*7%D1irj5qt*KJuB*qh[)ZGQ/Ds@XaXV89*#0s0G($1$=9M"YYn=tPWgQg#uG5$!ME4Y.l6-:E7=`g3&tO5[!YgOLdC@NCI3X!)rV1#HE&1g*:Cl,=L_W'qapXn\gGa8p+Mrj+4+kEAM5R[#u'Zh!s%^APA1>_rj4_n'-nt2;V9f%(uFp/WGQ".GXAsG9p.RK8m([-Bjd@3)=[LHJP=`//]N%7NNf._JUOO\dGBSt8HN+irQ2@eJR0U)`bO-3LPL:`(k`PLlDKLenM]JU>61(K<Tji*Ak*[I1"N5n*EPR9cZ>gY4C$T\#uG_[f+-]MO%!`\r<ao@J<rYI/*@orhqLpd$>3olTN[L_msE8fcF*LBciC93W^VX18Q]d!KjT9n2Jp+,03R!p*hRqskX)KX2k%k>8W]88dlC>a5>OQ)VjFft*#,;[<\j\;>ZUpt3gbu8]5u_O:oBU^A9FCqi&\hebd]U3c)?b8_+5p1('`REjasS4<QJX=AgY</=d\tmCP0stFpF=8RS;(Dj.!BgY3;gumOY(:?bYnQD/Z,j4Eu%:RH)KP=FUl7NIPDY#dt]+S1k$O`k*7>g-9G,6't[JJ[f_3-W:rr/r9ih]nN,d!95A_GLiZKUQts:\D5=0r*S3h9f;U.Mqo!$Le&[0(>U-u*hV5\T@hU&!X'3u5QB.>nW;b(!afN<q)b@bi?6Z#Ri^^@>'f7#N`p34\Fe3Ql*t2Q9.G7c;:V9fDmK-:c5Ku)T_CZSlEP;cp@"MI!7@=*I+KHEWi9d;>Y-_D8R*Ad^pq#3"50O77M7DEO1[CDgm8p[f2LWQ6Ec3sgJfbUPE$s.*tP.jCG>=FN4l>7Iha$q&Da#ZY)W0-HXN-Q>FIOfG5<dePls)3j:q,$S.J9V]o80d\%qP(no:Ird;t$Xe8MA.XQ"u[1^mfkRED23'Ao.GSWHTa(>8rUqH+MQia$,;B=AkIV&q[6#QX!L<0"/N3XlQ*6b(Y9$I;;Wk3PI`1;=A-#@_WY$FtDO-p?43KcC/,^2k0n!H5qD!X^PCes9O*RSXNMYjX``!DHCQ[HMF[A:7Uji6E*F2kYQ^!W'c.^BW>,&%oJ&f\o.O+tfoCRs.cc=m:nG/h:RYn&nOa7/5.9?2up*1e5aL8s#;.q<2U'G\Y2n-i81fkab%\qT5YU,31ZS?.*/k//umOAU'\$j"MV1YI%pgH+QpVF2ZAS+GAV*'#/)'IH5(_-?5AI:gl4Ae1.-#S:WW@*c4:n_=;0acI3/9h$!aX5PlFb:k@=B]1P*E/!VY"YeRG&S9Ha;5fU1rZ=C^Ebak.POH%H<Ze%KH%"=5s$,pCQc2@0tG=bWSgsq'u6m\UU(Y7Wj)_h64JC]K$r/so.*4CfVJKs$%n:3o-G*`2P_kalCaR.')RJpj*35NmS6\3W^FsY4aS"p<eJ'm!&ML_,EdU`3sTRIV?n_N1H2,>s+crsK3'Ve2$`0duq+kfm;o(!$s8QTOjs#bn>k>Z<WC@KKYD_<c$g5d%TY[L?IqCT'0a>0bh=M%ni<,*J;]d?3GI>c"K_@BUN\ru-a"\V[A&2qdNLh4fFk+;N@Si1/NSC#fd='4kb(Os[$!:fN&ADpQ`J_4ZAa,mo)#X;r"LRTSs4$[VgG<dG^.PHcu[OX`0V=HPrj/,&@[\lncN3*MjRjbq8(kkALW^5cX>iTKLEc&6JY)]'8\[S5[]h!96pUYP75i`OS-kgFcHCC$d9?fgD=T]\;Y0gkg1<(.aD0iUd.)&c1IQL6l(6@O.[mQN]gZn6&KJ'HKYHb3gP,Rgll'%Km5]]kD>*X^5b9_$l%'T]nL;I/Z"r+\[mpI8K]+-)dBnG,l9T'Df%GR`9[9)(f]a6U6`S7qS?Q8Y"<_QaXar:5%.(W#0fdM[$=k.?`o=t4]d%0nopNRSP/>sfjqGe"n$Z409&)uIrmb@3rrBB!.H;B:<,QB(ji)KrmUkLLeb*--+5$dTV\P<&.Jfs_[aJucG^4#h`q"Q`pS>cFp1)F>JV@eprV[Q2k0'UZf?(*>"99AG9jEpM^JCX#]3@DeJMW+Ni<00R)MB!RdH46dg/3f6q>>hLMd6N>\"_LB#.:Amd5#Erbg\4n3:s?]e6$Yi5#GoZ8I`=9T86;#cpdO&+kiT+l$^Lcp!Z2W.hLB#od9A"V^&+l^+#/.4dFBnqPXqs#$Q+3k^3ChA59AA=BBFIu&4>C-L8);J/fGp4J?ND)GkFNmO?t^PWed-k=Z<"k-//>6*B1-"&VPne!\+hI"u>\eoPf)H[<ZsE!D!@ucSQIDs157rmKco:J!YA4XK[l]DBFr7X7.mM&@GMc<X[YEM?ui^UF;!fIa$k/.LIabZbn%c&hA5]n@[Mck$fW\i\Ngt@2gUBkZftP?bMHp-%t*>;'XP3eL@;4.<P*?D1J*ln<">>&%W>G_QsojfIq]N^2rrr9"J;t*+a)]EdZLB:*=[AK83Id+oaWg2m7$hmc9h9S/<s[=<#fOn'RP+]Xf^3/4nK"6<Wej:5bg#B/(dTnc*\7YjS?Y67b7>*Q0dA9SjkMYCa5nW>8&lQ69'W`VuX9#FddR=cU)IoO\,r!bI\!C]'E7NJEa8hN$O9*,d3i+Lh.IX<Jp7Ftafk)ps#.AA5g%$D<Zo)>/a;#U_;6X(jh9^7mt5M9EuO3+*@j]B1V]\cIW\(tFeN/K9*/d1^/f20A9BjR2`G5JS)U*F,o'qf2hAc2*p!=mtHl#S\.Rck90O^<U#b-pC04CS@D>DPI^9Q;dje(.HO#>B14lg"%tt1+3k(GVphW9K#h_nGW>4'CacZ_!73IG1`*F>WR:A&/.'OR5ZioDJ7IVe7Ju*j%&>LPP3gc>99.Rl"`upmPGU]i)#)oQ3f;=$U@PAD#8S&qP/ilVOF3k"i`>[^,u#FY8ha-2IS>/XL(Ra>(%qZdQ<Yu,R,L0.L):deZ#WOQG`h+C_9!6X/@mCdhg]](cI;^%C1%jo/kh:jCKUJS2Uk1')uVpTFu2;WH8C&WP%48);WEA,n:gAYt$RNiodba1n2q%!$PW[VoR!73W]j<d!-F^nlu)RS0-idn%Pg6&59S'1_a;%3^"[p)qAe7_Ng2;+64Hg`6:ET?/rZ+l@+#`VlnGqfLCmZ!K2R"H_Q4+i,2n[elE_JGS$Aq9Ad+Wpq*'t6i#msqi)MUr\1"d&#4,D`?bgS-T(&E?nn!%p"2T\2RC2-%O&'RKn`k!/kAS5A\+t23l1ph1]5thr=Mm[jM/fa/LO!4m$G2.cDaVR3^4Z'-FuP)L.SLs7e+CiEcmoQ5+lqI;(=RZN:/5EbK8=fIRJ..8RBILd45.cENr-8Nu5:t\_blcGWK#jmOn7El"mNg^V#.Y@OEs'VH0K&H2\8?fWK1j)\S+1^XOB$pe19-:%5_`PbU+J]l2Um.LeR]?%Lqec_7:Z0EPXU2Bb/:R-rtZ+edI?P0OhL?`j;-*6iZSaNs^qgTfj,;:`q^F_3#HSS9mSEfcT"kmXLq8C$3bZ_o2,[s`g-Rn-RM(LQ"8KG^L:k&Ro3PK\+4$gY?%8l"dECq1B]b;oUkSZ%G\g'pTjoo=(2C;g%:S]>fl(n.>UhKNL>c2_no8+_9"f=tB:6F7/?^BS`d^o;,]C4;(rPdtSkeq7.u[AqS5p+HH6Y=V\_P58(TH*qI>K8uR*:`lJS0gg.4<7@NG=^/ViO_J@!PiXD2_Kr?>YI-ebP,IZM/3>;gm&sluoKAfLTD\4/leNgE.>8'WfFMtUpWW$@@VOn'f\?qdP<I$7;P2nk,Zn&;l`7P395qZ%pmC@Y+22QLYo[t;GLN(NB$3#,?YigBDu00JqX+7j^jpX7j,X,MD_,+c?VW!g*lI0$iZ"P`/2;"?GE`I-2HFmiTrj\o5CrP%e57OHY+Ef')O-USI*XSRQiYi4)N&!X>]SP.[ijVS)o3KZIO_G=h?U3f;*f$iqg8'>%\O#d;Ot[TaPg?QP0\Mpo*80a=DD!HHSP#P<b;:(f"[T#[2#T#E@D>m62):Z8cCsB1n$a4)k>8uSOCVErD&S5I60XG:J<J4I-n4")+r)TJ%_<Kcme_e;BXi9G\gY/h#^&$kE,<4j)&h.SKFc/78#1NY1Me\Z1*._U9HQ;9!YKk&<q<3cO-1nWkbq^76"MZ/"Ss@_c;i?*G[3>VdZ5OS87fm)J[QZ=`lh3lY^*q`I*2%+EMo_h`r0mA&qF1YSKEs42FF<aSMQm-_$`>+-k(+G^8?$W!gdbCQr`F''@rW_R9)9mCNJ=j$>Yo6\e8<6$&)WrBXjf<IX6LU3#:K[='R`FV'C@nJGqB'a1nK#!nn1hop*\J1[fq%M#u/h;fSKPp'Yr-9T&%2!M<Y/'iNrF=ola/N'2crFH+n"1D7MN1RQhNuna&489=f9!2](A<F\BRN?T:E!J87gB@V`EiMlI=t[ti>/.V%(7'#^jjL"C;IK,G*c2NqOS4^dPOB+0Kf#:_U[3cHNcSAIVJ_]$UdP)GR!Ks^S.9rV2\5R@hugd\XK2Bb-X;Ge$[7n03:[/%RNKDif4m'SebojKlT:eS*m7C8#kSnOK;>I[4Lj@WUG?sjKIDY9q.>#n5#s;XY"nHiImB9".="Z_?Woo<r:G)q7?2\iM*fS0`3I$n2i?jQV0e2NN.@5qWKtH;1h;U?nc0=k'fruLIn\]AMJH&Hok%\`L:%l<hQKkY'_Cj%i_r+RK/8/IFW\^`L#q,s3#&64W+=hFgl+#`1C7;'[-nQgHp9;XlN^mmZCX3U^&B+-']KJ2FC`\Qd6VsTB6FUQQbWeJZomF9=jf@sCl>r5JtGNVcThcWoAEStVU>Je$Xu5(Y;>F'[4<)aI7kEc6AR=S',[@94>Cee`eDJH:@sNG?pARY==N7/m;L/t:0"#VZ22#o0Lhi>?AKi6#S?JULb0qY2WjKT]kZpJS.SL=T8C\p`+0hiR*HOT"0!-cK=!UJ4%-6+QL_nCDubabg&%Y-H-6]+jh!KWRe$BV8ueki9V365'rhg9'Gc"(nql+-o4H>pfIjQB@K]Wg+rg]fL'H$.FW<8jCP[G[V@X%L3<VW(lounkD+]6/!i-m=OM(ui0B%fRHIN9AP4D.-"^4;9fPI#YrSe:"H^b?cjo4:<I4q2Oc)KH(-!!"BTrLcg:!2+Wn09!CdWP;.Yh8FqZ@FVF9_>.Ug5jG8bZ8bbL"R>\YuJ;B6@?Xo0;RMuZ-C(pI9Es!)U90M:p(!D#i>#Pp$&ce$!\3)@-e..plL0So?4'tU*Af$6d!_g:+ubl1eoF9O3SgD&u<ofm[L;`*4N*h",=>JA7>BAU2%<a^rZ'B((cFA+"R1\i[?PMAN.f8jS4^M^$jheH6K*1L;-:MfFJ[q$\Uu,`DCR`nSpdUS3cFRHsR2<q!jj"F]#RKH"V=g6]?),Ie+&hO)!elnBkkM=h0fU0j1"):LK6pC?CC!N&\]_Z(cQJj&I*"X'P'$Y4UMqBA/;Z7tGh+f%="QKM*;8.!FfP#)>=&IBAANXG>[(;%EMaL@V$m@$0cZ9SUElFQ7ZYd%Ctjms2[8gS#6Zn'dJ'\W1os0B:=.Wm7kNC9sZ!Ild>(T4fDc5bT7R>j`YkWT4Ud8Ue%?kS%*ACOqiN<mQ"91^u"X!hd!'\;<h60"iK.0dD%#jJ`G\#RliE8dfGA"n(kJa<!/Sp+d,'-&\Y]1bu9[f55_BR6uIhi5K_L;71Wh:M-5o;$RJ^+<AXtQu3f&S,=")oY./!p_48-hA_kGHR/t/$]Vkg65=7pQY!M"Ru/I/7LmBmpLn&)S!olm[?#j(8tPF$hV>IhKNGJrO)&IA-^+pE0GilC96R)@FCg,q_?eO7Njr;h)i7l$@ekAC6kbi%OT`V6G+=%:f=V;`9!B4V]'CORo'\/$.4@H?_pp^P`aZ!FMFcer^Z;qliZ6bJf9G]3mEVta4[.SRY05CaX<$nZ;k-WB5Rs?'%j'\GCoY5I`PbK3W%nK+P^GF7'R\5[g<KG3[)Y6,a<6@B7DKM.C$4Ihd:pF(.-@$P6U*"^'14n2/C8?C0V;M+r!K@j+d5_XFS7O3%K*^8i7Se8D*9$Lj<i#.Y*Nh3"g3780s"]>?9fn;7"%!egPik3Mc3c%2@""/O-\'^)7+$n.8>8NY6l7MC)K*Q>"-AJ!3/Q%=tUrL4t%#M!/0X,kI".jZ8\JIVX\A`/7\m#hJ#"<&0K21K#4"F=cKm;'0Md!B)V2R9$-*mmj7B=6d?FM1@l4=Ij*TooECF&@FTaO[(m5[Wi*7Z&lO<6r+rMDfVDD8d%e.d9hX=4R!%16*WuKh7*_-J2r\Cq(7jWsW?a)<h]baB5#ltqTMQsHqX+\'r#Jr2iT?0#C0WR!c&>-U(dgl(<!/sL)Lt^q0VdN]O;(NO"5,<7%&X@iN<PPm*>e*XGBd7m8dhRgH1u[FU(u#e=.uEL?Xj:HQ#iccM[@7]VXL.s8LKsYkP.DkA=@qSp%82RY?.r@d5f\JR(^+fkuu>PW5.>Z\D[p!`m\loG2;[=M:"e%I?q1&T3@k<GClg2]*#*n@a-k85g=Q_8:ah*9"AXTlAJVpgS:l+,\%:5%fMR_SI[L*jf(nB#(pjn((M7i;5&T3'tr/D!)s,;k\X@$>pWuSku^60/;8T).Q"F9?OP*LS"N1MRk8;jga!2IdPN:5$;#F&#$I\ZKpa4PH9u*aEN'i2NX1keB$@\.Aa23%65AQaq?QPMT7t64fO.q8('csrH,cq<Ie^:I[ctC@[)2QKS]Hf2DE<U,qOKrF02rD/.8u]CJ#7/55"JW*2qLO]I,pDP4#GVWPEKf!,@)hXBt56>?"'+k1Ro:l6(:5p,377OJ>fB[lf<bq]jBk@k%^UpWWW!/=p3oiM:X>;!>EY9,FH<Lrk<DDV0e)LV@GC>]V01SQ"uZ/'G\Bqp*jbLNeR(BFFMk!PAgCl^lgi^0J"%G"+5*(qoTeWpT2T>"s#q$oOdT<HVb_ckfO]-2Edb_U$H[T6PM58Fe"8;YK4K2S?G'G(,_g7lSWm+0W6Zp6X%h,EO86%Ip4R]>"*'oSr<#X7g#f0HoOC02Eiu3#0Us&I"f.;^),B3&Wm'6q#]$5$C,Z2Kh*_Q1o+aAs,MhZ:Re+;XD(hQCLBcGi"J]V/cXfWZ0+CB^G?>O@,YTNO[2Ta\`S8SR33P3;0Og3Encg@VZ`_fW#nrd"QQR;oJhEG.\h8#3<u>VPQTAT;F0K)lE36[6>a=^SpPS-o;q!4LNekX`mMi%P:VqHUOiao"&dG*;RNrqVpR>\^uqcMg#`d%$_]&^(\5@5h3:9l)D5J&R[Ps!AluYV1.VHt5h)s&J:Q,P7?[b+\%LpBT(N,h3p6iT"$<KeV$4V,]YoEDm$:A9f@3#.h>=tPZL5_m%3']3cN^bV4t91V8^sEhC+f\jArI4VUd/B3D;lK0N:'&@"e9ed0Ye(?(=/;Tl_pn+YnKWuCf3d,!\]G?QWRlkn__^Ul*M/,4uM0DClb!d:AZPcS[.SN];r@1L!6"24!:rrcg4KHeMaV^mWoUo;ff8&M)q85A8*VfE8edWDL:etiE^nKm$t_^i>0i-.#m!^o&gG6>Q]cPMc^mrq*p'ShGJVB(rQhdV!t=p!#bc-5Ff\?8Njl:T"tr&!YUnqjD#,k-Mugn&Qb1g53t^/X,hp'8C^EQ;aQlQj,E,oM>:4In?m2-g_IuI2R>R,HQ_I=C)A**30JV]d6fOdfj.sRVjt[tf_:*C%1]_L<tG:(D_kg'g?(sN5"q*QPCb?9cb@iW]j1JS`_mB^&e!QiK328VP`X$tW`djE40r+=^4NKH8Q&Gm0e5A%j)9M'm2-gYOODkK;L_mQ$jE'j8-eEh,Fu/+kgFKE)XYh4$=N[*W^U98L=YGF@+\(hmP^qMJ=?lm`_a$60pi=oi0%C\0V7DGJm/?t"\>5$<o*a\f41bU/.,cGL'-"rSj;:.p71[XV;>MXC/)d@@Y-<n6uQ[1?sL(_Pr.,o#HVUcOIK\&Lm\u,:*3TAnSW,-EF?YCq7Mo:lIbT&'(*dY?H2pFTPO$q.$ht._2F(32sS,]N$]lt.c7AJnfWLg"7%WrgR*L-A&oLs*rdgI?9h,gZQG0@-q3p36HSL[=[L\kpl"i8P/f5l^;XHpkQ?GV%-o6iJ8I@H8U(='c6qq'@qK'@J8#TB<MW2k![BP2&@$u/0C^'dM_>raL`4G%_=j*5HkA4l>>Q=f!U,M:=N$4.kKis;9]A:qRYg;239g%!J=Q/qQL]e[AGa:QHe0SHBugH+bP-AS%[*J0Rs&rc\D22H"ts9j#kWM1WF`ZXK[WAJGHb8D6rn-%!QjKVT2t0sPFs3&h8S?f>i34gG`3*Yc<cLtJijg@VL]!gp-f1U4F]CI+V"TXRdWbFn28KmHjelK03[ltMWW)De.#H'@'+Tpdj<&mdq+6HB?"jTU;()j$a&0?b@[]#ns3i=]r$(a/JD11c[O@UT)_8NW2^u_?p?KD3KpD=2eG;H_>#l<L6,k$f(n[N^V^Qfol8^LcgV#g!Nb51!Ts&>gs_[gDj0k9FM[::AL3eeQnc8"qlWcoD?@*o%r4iCmFm6UJ4IG3)[OjE!_Vi4R#m-K($?h@H&9peg'C=L]s8hfrpa_9/4]p$aa2/Ilg#7:INoDJXEakLi\93Sa!J0[CF`'+IGk>8'-i[]Haa?2BJgrZpnTf)_!YE2#fY/:G_0&Z+&hZTPD6m//O>AuRpR]Zkt`%HWNP3;2fjLoBqk%9g[%(DSD1nOXji1O9tMg,<caiR\ECr_=EMlke0b-/J&<Pd7U1nsrlA-:+tG2<0ZdC7i^B?2%:"3>J(qi2k&Uf,PEu#R/RuV14,G7GBLpCYADIJ_M`]IR0nj<P>6J!nch`4n7[n-N6=2$EgeZ6R>Q"(7NI1Du3=.8]>hgQr"@bPS/opYEmM0e*n1&(,p]2?'mGJmA_TqOdFO\p9#*^:&/b'0Ll'`NJM4BOaEVRQu*5MX=j_RQREGKm)o$"-'"i`9`p#mc93=RIb-a2=)NUJiN=<_;u2Gbd*>F('J1fqArH\Oi*^eS)ATS3?N]*3SHhecBtQoknum8H[i*LAnTi(94Z+dJ9q(_")9+u#Xo3c+3</]OD>SU27nAeS/uF#;OIK21@A".H2O]oYl7Rrf\R]8EQ"$G=LN_0cgtZDPZre(JCj>1eBNH&:ZKW,r=>jm.j,mU"rfqFBa&*lUU,1cKo%08]q'1iCJ--.*p,j._%X11B.&_NKOq/,WcTa<\PUOHb25k/*/_@`q;q@UaaGk7d'qTfA]`,g3^0jtpA_I-@$<q5LSR(b;WGdqdkJYEV$OY$o()(t.9kr,!h!m%Rke/X\oDa9r1&T3XdknJn,.N%jW#=mJ2X/c+Jm]FF6a"'d#Ghp'objF6OmXjIO*N@SY-K'>MAdic[p(UTtJT@/]Rd7_,]6+co?c;9-s\0^re!1q+d%hj`qmB1^qP8aO0jG[3B!5s"S"UMf,^dqiaG9]q0m)7Q.p@pdR\$2*ID%)`j+PJS:']^;GNH*H[//:%(6>u(?G=#F]#"fsS&,2NhH`)Gi$)I[aU.POSj1l;3"Y*5`6u6Y&I()RR"U$Z/E'gL&qF3ClcM>fX*+g];'qTKK)"OtjNZRa!aT$=[M^6r4biM6B;A/EhlAB`^V/MM3pk34oj+W-^Q<6r8ErW6`dZ'Fi>P,VC8`iE&k39i4(?j3mY8OHmPcY(:b#o&76@;)8Y6Y=r-icNa?QX).o=$egF=fhAV!?,im/7!lXI;MLOF07@lkqNJXFur1\a(Pu8^[\eEtsp/EC=U&bBs3lqr331*j&,3i1/HYH+(i$p_I>VUpZn"ZW1.?,!6tU1]5>om?BV#1C&"jX;DV6).-IL'Tlhq?_)MHdh$oqR76"J(sKU5+@X$^C;BhQRsT'W]u'dE(\tE@c0K?lV)dXeCg0fr>0"So#khD60b8I_g\2JT5q;5Q\BOu@b$;3ioT,lAk]C^=nif)kq4J6O$Rf;hamI8_!YpNbNh$u)_,rI;Z/G4_Dk*W>WPHXa^P'>.N_n+/GX_(PCD9eq-CnnU6PFL+2K38MMDufh:4o*8j\Xt1\NDRB9am"OnbTUp%\j;+-bVCc"m([G`?^Yp]ZD$b+N(RGkOA*2m5Y`s(/5[j+1@B3E':dKN8`D_h+).U$4r)#]$4ZH@HNtXLCW>b!)!1,Od:q$rdD8L&3bh27h"tj!"=k[h"7N@;gd.cf]]!1#j7rqmWqV71YLdk.(0^9k5%cYibG3ZYphV%`';)aojN2W1DbE2V1@$''U-?HaJd1S`O$S`9<R*"m5MeHi*%jk?06>&F/B4e^^[,?@Ync6%C2HfaS<?ARWZrOUIn=%"gRrs732Kf[cHI[lBUU#9[`E*oLHQR;_"\qkUq>":7(ZG"pad*_-dPn@^lO@Bt&joWOohG11%DD1d92Sa4KJ"`ipQV87&P581p_!Gc,`!2d`0S-i*B5!*2[2V$HADbnWG)Q=R$ug@d1hFANO-5EJ8bJoBhPcOUSYgdk;Y0F`Vnd498"-*r)YlR#X.SUVH>R/<PF1:X+:Xak!E;UP)2(MZd%>5Uen1EgHb3`)a`QfdROj]]s@/G*5$o\APn2st<t:BYkk&GOTVIgod0(2\J-9-r]snae)$\@.+L<H%j%(lp(FFq%CHY=r`56;nOtM:.K7p:duO9bOqr*uEQ(@QPbIgV=/fe07IHmZ(Xt1(ZOa!<KVD6c?52JgF^Ij``2X[!8&#jf>`:F:m>/.Pm6nCD$S?=G8'e's0VN=d.Umm*ef681f3P2HlCsJ#FG!U"c9K7p2pd%p)>7@Y%ap*"I'8Q83q.3ZZ`pWOG8a7rQMaqhH:?H8bn.]kHp*O@%W?RF@ALn-a(#@*6$R.^T37=iQ"Z?e=DhT?sJ#.F)q.O2]c<lgTHaYX;fq+1n5AY;o<@/E1X[;>H`Mrq+*;0G<JYD&r'@6sMX@&5P9(PoB!'o7:9]9rb:Bmqs&-4RU)@h;c2$PKZ=Y)l3VXb't3ADslL?@h>sC<q<CGXF(?c8")nPA02",]J?Q@[011/_cq9nn)/(08N]B-N08i#+[j5:R"s?^\gNR`r!n8@<]269jG4_BMp>*u9G'FtV=\7+/28fRp7m'+#2U.$6?30hV6;EXY)7)Y>!kLBd)V)(@jtL#EY;6ifk:K<fI;4(rW%0PZ[S^7r*6^Up6IDC_P7hN'*adcLBTClkkUD^d_Z14oHlblWRgD#OFYLm>hL:s(flcT]oi8r.KC."H(r`P(rT':L-Ni<7b!rpE4L=p.a5#KPlglRXM_?!WjE1/.Bhm?#>-0=4TGW3q,@hDJO(nt6o*)Lm[9]hHW]#LecRV2WqU*o-43?!RB`C(>'8kK+Lp_E/DbXm]'jY#%0ME99;;imM2E!9)Tk3I8!M"^`jofi!h-*R27@.&k$W(,?&USXN8L1j^/*N6p6EWnrdXI+ER'XK_N6L\BJ,N^rHHoAG"Yau6-GssO6?f5=kR((<'U;k*3<p.chlQ(Q>4JeF)@`ITdbQl96a#-4AXP)4\N<ig<m]`^[Wt#,%>m(Vm@Dr2UdF"/6Z4d+1t3,+o:Gma/B:)g^%hfgW8s9rbSLOj6Co^O7KCd-+HK6!KU^e=XC$qmYoY[63#D<@c"#H.Dg4h7Z<s&R54M5jY#oC8q3&&T%>Y@T?(=fHl%^hl$+p:AV<rIB%%CQs4udB[2/LbosjgGN\3HENsd9,3T,?4L/4W<VtX!\)iKX0?n=b.gOq>J7;um!*W_V5#`'prO'567'h-@j<M=_H[0?!IEU7E"E.;n'@g3pdC#o*6.4n0aKs+&cNSSn)<Z3G=5hLGe<^OOJ7<"\JLC@i^;rk?Z-WHegdkA_#oE(]d3%(/@":V)Rl(2m2!]Z55^iA1P)c<'PT\R_hh<7"@^!$1$_^Uc8`phAX;$\rTI>&B=Nqs_CF^6SCGFY6led\Er2)1W]kaspS</>8#<`(Ue@'B'RQfW"]:Cf2D,D#9>I7hdl:\/f5DI&gg'$-Crq>'<#JpMhO2hn9E\FU`re^=A[%lg*]4+1*_R8HKK&rie#Y;DtG9s4P%&&9#&>$4u>!U="bI[B-=pQnjU*$;'A$[?Qa^-NlZJi\XM,cPBP2't)eIS^t)dkPGY8)nfXo6:DFe:imc.KeZq]Y4&VU?Ecl:5#SLp[U06.j,Sa*.^8"VpJJ$iFfP:bN2B5F8_+DW94&Mk,ZiP!kt4f!^K5hhV47\M0,shoeH)k'^JVk8W+94#F>0cWEk<Q!0R=o-=7"@Lc!#A2jXk8Eq__M-C\("!#'J1??Z-a0)HD&+qhmF;QrdK-V]"jPH-9IX"phU<83ZlSt9'6ifmne;rhl+C[<PPp74UI/iLT5-*g0+5:-.t(A/QN'Y60;oYjn0D!@5)X)+AhSulFj`s66kY?3a6n7a>C/-^WtrkM$cj)N;$R5r=S<)?Q\Mk2KFZ06NjN=f=XouHN3jq)du.^MKRk%^@d41EWc4O*!Ai%hV&W7?a4\m^pi]SDE=P#cX(9(F/fX)-mTX0)WL2S2Xj?!P[c"p9i))IW9Bm=Y(lY<VaM'<ZitbSTFHC=qg2oLcq!U/f\2]sZMQ'O)4D=BgY%i;`Kbob4C;+>@jkO'l\NnfI*^/"N4cGK6dWP1u%HF?Y`'B[[H&;Oo-Y4PpX+;g<.s<B`'jAJ5?ZRDL7oqg_\6:hH+m3tP"!&aJR0I0ij_g%Vr%IpDQp-d.]$.mo0S1@AV0iTPB"1M?eL/@BjT.&=e9asa]b"oZjjQO]?TJ*9=W[Mimo0^O,7MJqnY*DqQ[)"s!g>bR"+S%5(9AHgl6Q:IHcINW6U^HtVlIKfca[Q:5JO]?aq,s@8/V"(mq<rXT2]kCl_M,B)kM//Y'-O`2]94V5fY5,MeJM^'E>c:B_gVQgcK_J2>o!dJGT0\b#Y)h*3OSKj"IL%=o&tTM,1>nbq7A\7[&3=j`dFFCo$j=:Wajt;G$MC+k^u+^[c":!$*)i+!R;h'm4i/ie4BPhW]24N<H!7mJJ.^&oc+,@aV'-mW<@PH]FM=@4V4fo`ZSrg##)GOt'BF@*QktR]J?!,n0j*KS,]a90d5/]%%oeT]+DYunn!;X7V1*K3$@.5a_h[pl7q89mrpg8$4gU"B(8_Y*j_CD'/Gd;ZWt>!eiYn-M3p0i;\/.t"*\)hKNNE`E\_AlG=WJCt%`-b`g5!oUF+j=ojD:[CPQ/-?^C4mM9AY(li9HgXNH5J@N-7%cQ$6O$HW((i1NIr%p-+-87*$sWk3<cN/b]_ZR[Iu"VOr8s$Mt]AVg*NC2AZ(XFSK?r'(_)tJm&l^F/bh`P\Dos[EB$2iUL:4`GC?$f:^-L94R5V+Q*:7g]H;IOUCT_=b4Cu/EqIE.5q]j#+)%]SlP;);Q55g=I&N1URH$d5*jJU\P>b^&k(fqWCH0jE(.\%A<LAT9f<<=.UuBp8)CtO:X_P\&_(1E3m#P3_1%V)WjaZUo):6i5KOR9Obo6pKXj!,j#UNfO/k`khTsum`8;Ta`foh[R_dfNJgG.SC4aJhn%P/@%LgS:NANdV''W>mLF>U*(fg+"p,GE%7NdUEK&k[C.J7i;(3FV)\"]Zs(N@o9\.[gFprf`r2nG0_HK\BfFP=.occ%hAfBsE6p*GmJ5.WLY3?l#>F+o^Z:++6><.Rjq7r%Jmef,asK4t:jC2+O:.-#$\9O\JPBD.d!Ra.!s#'c6aocVq++)YMNq1hUQ._TTSc]uEqT-U<,T0)GHQskE*7P_Bd@_=0]P2(_WC'[uf3n?2n*HQ2T`n4sXN2u(o7]r.k0eZHI3b2cFD1"RVB3X3>nn\!HRJu_8hKYe@kp4\H$@I1kdC???T9a\^m^o>q0`.28_Z463!W6Bp<(.*nL%habN50&W5'5]#qBI&Dp4,6(3f/8u/(rRrSC8))g<JAg'q?IWqU![$X\_H:U)'7.YHMulZ(m1H;TBBbVLq@IL)'/1;ccD#I/:6c0W>A%Q(.b'9,rt`5']P!,n/"T54HmN\n*duC&[!5iE&3(9OO#B4t(ubN!6a#[UZ\dA+?^g$fPb9%\8d"+a5h&p0"Bke9WM`?%!u;5@Log)dV-h+LsVCPC6SK[^4P!q7F(qoU\/oGOMCo%8=>$6[0+'RVJ/a2-clh[0JL-,2iIX%o+QBG$Ya&j>S^u,*L7"0UT#6S2DONd;#"lBmdD9_l`bgUt.A5?58o`m561L`d.F1[qpLE`Sc$:Ep@D[UJ2A#4u"=^!CcBRJ(9;5!.VP2]hQu/JKB@s`/,q-M\kX#KT+\`BO;GX0NW[*</?G0]IC6,!rD]Wm7@oELmHbB[i8),@L-%MJ-/e_%,AOQ,f=c<Y\,&_+!SO)@Xag-kUdDd"5T<][W'A-p-N`4+UGF#jiG+d14O-]dTiuk2o>QT6Va[+-=Q1EF\O23O34c]_;RPE?N?ViJiuL2i\/\Dn@3-!=E2el`u`r`q&TL)ccL.lNGfl#/6FbS:c,uN^NQQ=_`YKEV_5uNF-eA80?+mfiitrFjj/lf!_IOI`S0>,QB)X_nb?dJe^dau)L*@B\7t2q)$=,_<&bZ8C+\i,QCTbqc`Tgq9(]-6L`f4H:\IW?YF$XYil&1-B[G1Fl)auK!O*DuBn#p-`XhocEo4_uHs'eUZ7QXGFPRMO1KeLo7rBfY@@O-Y#.r6^"4PuH8;a5lQ&<.k`18hXF3D:E9`qgWW)7g_PeU#c*h.SaPfM.Cl[hR=Pe0C,D(Xi!0KKG7,n'jV!:2Y97S^gIYQO*,:kiQ=#:0=6c+FMjP?*6d633d?CFQC.MW1DU^>U=.r?93#q44-EZY/M\@%\bf259Q^eaS$tCY)j]b=Ui3'-C$fIgsM*?STBl$sdm<<su'#EMoGY):$a,>f=>Wh"V>U?6;H`W[=d@HG$kOaP/Y$+%'jLhI'[oRPWU*AtS$)n26?TQTWltp6[V,QYsQ(b$33)$](7%3c"$35#PbiKcD'7c6$G2P9hH"7WHA_He?,.Oqk'K.AXi%R^_+lI*`n(/Wub>.0[a:8utm3'V1XCa3DK6ml6P(P7h@LEt-n_>78"5:mUETC>-c'%rBf8[tsgnq6D[1rH0tsP?61B]=c?&a4N[+]Gu,$]B6OHL5>hrO&h>\-Jj=rV`nPALmd:OH@7(,5HDo9Vh)l8ZbaEqB3(T28Ws(VV15X+!AF]48b3XuBE^0&7oGkMCom+-F00fgQTb2u0E8t-kBj#4.OVFTAQZd9bG+(jf7Q0Kba4[)W2JjRR=P>_N%A%0Q/&QLPi,h>fk5dLS-2*R+P]<Ja3MOLOILf=SWIpap2V`USHMPa<9RDQY`(A,VD_KpM;Rb1_-GAgF$A!0PZ,4(F9nelrYEO\?%kgpH%?P<\#@h&3RR\Rk+t$T]c;$*W1:7T9E=4h<7W#3D#^$Z]Z4O#PfXW#4^[:>l&2*_%_;IN3oM8^)(Z40JoQ0"&VWRd?a=]._AmK]OE9QTAu-6b':.t/`)PAtnR1b:^][H`kfbMm!UCtl^,6EaVG="@@IA[3Aj)ANB'g&`*s)%,GN*H0icSF$W*:FTN;-k"JW^W6:-t_l@4mK\Nn=l?c)L#eH]9*6iePY\6$.gjK$"dr3YXHmK&.,`mWE##'dci%hptIjUu,3eb,-U4OV]?'&\em,0$c4&>=_.<)g22hP(sHFB/bulCJ<!.2leQ5SF9<=I8/9Vp`9]sc+%=-'LTR3lX_,tYkI_&MWgX5acAosQ]\[fRrlJO77LO@%8"KC4.B!mHPtS1`P8<e/d33?Vne%g]'<,qc8TWai0PM)^/#Ur0ZVXJHSW96Rn/-We4,b/&AO`UNMY?aL&p"$`"Usb$%%%p4:GK\*9`9-<q8,<qD:4P.E[aLAni<Sc1U_8jo*3S<_MQJH1nH)mdNH0],'9d0/n&*40-a0;>tUN%I*5PkE_YldiNCP8e(ar$J"7.m>@>Y(mVb>^\2hfpOB9'R[*:pSM[8[cK!>^"6BZ:P$7P!\_l^5,k**i_XU(oX7N3!Q(_4B2V/`!>%uGK`"1%A`/aI7\.mYj^^&c)A*Rf(GlNpGr`ApQ`<=rIO@&Q41[<U]MR`F8_nV%11HXHpJ@ZFmP4!V)/gr"#kX2(KIU'Db0s:?I<"Whn,Up"'9#.#)1#^R%I=SIEW'G4Y)a&rUE.%;a1M<nB"P[%>CqJc;in;)"*KuENccDk$Ia;gmZ,Y48j&r8]8!]#ke])3o0^CJ<9'gE1HY!Jch-@"ST'*,m%W6Rdf,gK=@ZE$n]$S3?XRckAbD97J!Lm,oXa.of"?3R9_&s9Q!BS9LIIr?Yq*ab>k-of@)F+jm)6-Dh4qJ5H)(oI`3!;0%QSG[>D4-giF<pT'50bYoJ2T\M5ZRXtJ"]SU)hY/cg*^58RMGMoa5_.fb0PZX%8F)-4GW"1'&'"FiIPjN/hUg-p@]-h%["o#O20oA?Z+>!'^p1\Y><E["$j4&&^9X2RX#@*het^67<;MhWj"g54onQH>bfWd_rEL[6g0mRFFG96EQqHscQMKlYO\J)FW2+mK6h43NCk/lZqC0Yc+pb2\m?hGQ&FK,:q0)S\pYqeN^QYT*DVoYM[ecPd8`^GJXZGa1f;ik"Ve0sfj!Ep+i?Z3]f=KX`]5<PL8"rlJk&J'Q8Tr"_DXcg4%IPO>t+i`DtG*.rO5'lR!)c00R#(Y??'iEo=UAm3G9-V;,30+4,'C0Btf`5`+JD5+A3.7^<:i;4ml3V:H2A<KQ9Rp"EH<#kg1iR:ce73qhI8.[]*%iEWipQf=!ZPHQ<'h2\H&cX/PtSMTD:gld.24UdN2BoD"s^,q?E'E)uiXQ'O3!puI+8WP.p,YRV7H)9RTfWUdsp'L:K>c]n?N,)/*RG\(hZr+EPn:+Z5AN[F@6K)+99+1BW-^A>E3cmTKPZ8"!A+P)+$ART#BO?q>Y(K(k.;Jj%1Ci)JE@c;P\Df$^b\hff5GN,#`hEkI$rL^BH$rKml_j?0D1`NQm\T*<l7J%Y69:-hL"YeTDhJX;:;4-RcB7liTV$NEDf!E?n:4HJtIVKSbCc>P8Wd[uL?$HqX,.Zji46uRMD#h.JnCr'/+ZJt4]C.&D<VbbIqI=qD*f^Ynb8Zg#(blX9@JT^EMZbj8AtWW3e8XXS.G6C+"2K?NSQ(iP1L%InatE6;(@JPJ=7&R*hsnsV6?8B$S(BZt]K%SYmS/0gLm8?SbVqoO448d?XHEO:K'@OVWWk6LGL95"inAha9L6]L[fa4(>Gfa]Cm%il?!L#!+VuU:cI+Z0nK._bN]9O2/Ec-!4Cs6LXdBC%HSOgUk/Zd5NPRjqZ<j)s/nX6[J\A`6\GY`_=SXU:`E02il>FA_5673a#Mo\$IM34unj`"Z_f[[B2fRWqX+S-a$eDgA"a<&eYE5SI]81RkTuKGUjl<eC1g!M8JF"`r7GGd7#5^Bm)RXip9`leerpa!?Magm@Ze$:+(QON-Zm/%l6&g[>#%X7Z,(3Y6OJ68VB\U3gKd"\WVM<i26UE'S+?W*Dd?(?m;0.#S.)ALH@r/+_OUN(6hN[iR4MH$&T<i):"n<BE8(PqK3'$mDp=TgSQ"ToebZUdV`ug3h*:t;Hjp4k`jG1;k!&.aZ3TEglmc,WAOC$.;)p[H?WiJR*1?Z'H.2j2tqGD&;.."c#(]=d`-OD7B_SGiYAX60@WpZp?Yf]SFQCL8c_Gdb:@_o%7G;LR?I,/9K38A<6BiVJE_qCKXp<a"FoX8F[8alX*aAnh+KU&KZ7]\1oY)C'7"r/nr\mNS*;dmCU;h0FS=TUb^T<iR_&[*11T"l,L%M]Ho3R=a70A@3Hh)l;8W=J(Oc*7'?6IHbYkY@q(n9B)%,`XN58!hZnVfdVH'%uKPJHU:-eU>\WDr%[U.epDCK5!)g5Chi)<b$dF`Ks%N4?8fqjq37q_1Ai16Z\qQ>BgZ)D??tTg(2&DPY]']ZOJNsb!PrXd734u5Gnlhh1,r@?r<I!6#`<UN-h5LiWu.>\jX$0J&h4=B)o@A:(</sd8L(EcC,R$<-]K3Sg8dHdhqbpWuB1EANCdjnmK:V:i:Ct:2fRH7<ESH=DjjTd_#@g1qD6SHW[/l6a29nElUqUfD8?#,*.7t=n7,)2KK7V#JOO!(+a>Z=PA"]hCt0,'hu19o,(snp*uXOERm2licI*^*k;BLE!0;:-SFiLeWBePPnikq4I2DcL)E.ZU<N&['#fT)Ga'dJ7"PN#GCA:N09ZhTD9!>\D%Xdn<RbVSB9i+;?-,eP,c=s86imQ`!E0fuln&t'jj%\MQ1a?;Rj7;#nO/r-]Tr&?.'r)-W8c=dR<_&0[gC#10n,'&1pQ,Q(/6)hj\(\@(g1oP7-ietfu:^@R3Z=.b3'8NV:n6j-=9YTQ]a.:=8.jO[bhDt?)kBe_e*:VbB!U86W&tWfkq([GJY<a^PVRG9Y!algj.\\$frtZVFW5I6j]K'SOMuF4ZiZWQ_l<"HD`j"F^i\ZWToXp,3lb\>re/el\P;-IQUp^BhQ_n$nf&`-(C.&qG##XE*Tr')*^e%(jB^1EB[^O?Se';R(;3Ee*%2-(??:EU^5qW4-aL?28cP_EL9j+5m79.0;f.)9YT1.cRL18G6SnFUTXOjkspF3kjnU/X;66EaVUi[^g>oU]W[EH=)fEICX_\c`u?'O0'(LJ`/p,ln$Yp1#5V`%$B:AnkVB!b(T!CU"B2%t#&g-A&W0&r2aBeaK#O\2b)9AtV2d0UrlWjTE43G[h:Vj]&7T.-.R%GPZes_rpM%&BPN8$'>lpG__7<1J<e6@b,)YANfGToQs4+l3+CY1ZkY:_3;4\0lbo!UOLZT7#h5QYl)eOCCO*E6CU&V::YD$NOgYIFW.'nrA<t?H4NLm&NA-M>[F`!GLQ[Jpp]aM,H@;3BqFd,YP)c/2K"SUh]iu<i).-\2#:^NdY2^1%!"f2A!j'3+%h)\#@PtDK'J\V4'2$K[/J;'Ebe/_[gngkR=\WA)Ob@nlR,8cgaYQ5,0<qF'>3l2c=S6ZUNm-ru))c3E-('T57i)q)KKYkr,2#o]KLEM@84q-3o2RgdU+qm)VOD!gA=hU-n7A.TbV7kb#>0mnBIF3odT.jb[%dq=_BSXru0d!i$JAT#RjZp*.i9*Ja<V.1q2(7gJO6M=&5p,#o9UBr!qor+*@D/j(md7VXJBUXFqsblfduP8f&n<@:.c<K`1?t(dHg]!(H6&XnC,[[SK\s,\ZM!#-/e>7el5*mlI4Yf.0sZ3bmiN>HE"=,AgV$cndHI_s'JY1GWH>)U]_Y*)R-U$1))B?QBS^&K])&L)VTKjUrpZuY86O+""3.pEoQ`4iC)-Y';q96P)mOqNJMYgtPKeCU+hO@lb#6_Ajm*AEWCXIbHIlFnhFP?#\VYs!:f?[7D,@5=,B4.lP&KO:'l4r,d@WWN7N,G-'2=1iH&`8C)VZ-\?]1"E`g'r=eOZ[N>#,nHhY%B#bBKBSh2T\UFh5>00kX.DDorV04-2tM5,LAg`<oB1&!C5G",'.AIq<kpert=.+Ti2-:Oo52-EqjtUd%>;=F3Cie\1)@A)BTD+D"'RFCQ?lP+"a-qE[]%aQ&!5W=SD96M4h&L5_O]>uFF?%*o,uUU7bSr1\=2:,$C(mrbNSCXHRocXh@%RrHmd!kJf/JCqlrBW%;!V&<;9bjr]VD./<M'cWaDBiB2.>'Q?J&X(JT@^RaDfImtI5<#W_'j6TtJ;LYf4`,usZ:$a9nXl^dDCsiM$k9'o@T]>Q3m+4eR[qd"2Y*s/=\`/Mb83cS^<][0)7`RlRn;;]pU!03ci=cF+>fAEH;fa091#G.%CVpc[?4t'B0l=td\o`JW#O3i,=05=FpTU.i]K7<nPIh@]Y'8Q]@CL^%rnkf?to"u@7,=:W+=u)#Q(oQ,bQ]9@ATY,\eYF\AQ'$R<uJnHXS8LN5EsIu@X+!@rg=$nRkThP?.*\.heQ5NJ`jcH](Drr;C2AFJh-r5NdZ3%AaqEFXEl7u*ni9mnA]<s3LW]&"90nqNkWQsaZY_q7G<k"GGcHuZB+!dhL#0%LHNfTTFM(gG;(+'P4BuJ7Rm@$T68^2?j=V6L:Q/_,hlBbisL_N'kIugrg_YYaX=LV%A-Q[i.t`b*#F\6_CI#-H&<60&q=7QWhkT1n+S@W"g_]@TX8Pp5FC?A6"+*$-C@?r"@f3$ZppBhk's0eW=H.\gX]]'N1(gFC3?-2)OuTj,5lFG8Hd8!(g`eVrG75Ng\@nN;TAEZDJWM';*gJ^`mIS.Wp5F[5e;ehGH_LH3uR4"4SH#%nXH/"fm:Z2T-N=9&"jr>>9orlW!8HeTX@V"]8bV)7'Rg")<s"!DJIT%m&5BGiM*o2La4cV\/4\?AVN+i)8O@6Cn)93V$7I$1m65Dn:r7,8qOg0YO)U8R-Xu%#<%:5Yp)?8g-fipQ\qHoBg')GO/,FXi/@%d0V#M"ki_gDVY?Wn4^?b8RC:%)3Rq-%)+sP%.MtZilmlqhg/%JX#q$DI1<Z*&"nMCu;_8H[0!2tQ`nDc;9=kq_o+7*if\j/HoCd#m(D[/VBW95+el`YYO91aC?n:3PLmK%1iF42jn\kiH8Im9Ch.[<p&5^8u$J,$M+M5/F&G$P#bB#Oi+1;_."Ns+P2Xr+?G"*^8g(T,noGgZa;eSd]8koS9.r\%Q_@ZFQ=\Cd5o]'6`nCtt&[Y0Q2j%YU>G7:kB^-h+ZF%T#,4HcX>%^)B!-en,Z5+(59k,Rup86H/"ULG4[-t')h[%@SE[V:Pf:RJHD6TRVI3j"G9C2hOab`lOo^:'0pP&Yr1au1mHQJK(64htLPh<''rTmfhYrjEtCTf^UD$/.FV=8+=Rf3-tRk__3Zr2HX0lp;a@R"8M33`!'MUb"*/i"cte!jf0HepV?;fI=U;;1^>pqh)>".la8#/uuf19i]XD1`$Nu7P#$+_ne3C!H"b.d(q2(\IW&'(4X"A>:L_72hk(B'X0tPHL#ZM]CU!4X.HkVm)osJXq$m(Le(V'9ug"_,i7<fWOo1r(U8F7_<8pTbI\CYFUXXtT%=)KQ-cO?V$L>.gGSAo+d!3<hPo.4\c(4e]7+:BQc"ZlO?"ocgdK1g`RR:*Nn)?S*_[GjJ!\GLL38Tu9j8H"VT-e),S'La_IMUrT\Y,-\Yj?G0\WJ_0-^gOq@3SbH*D4Z\_d&hqFlg#!2n?CF'ABL`-o@=:FlrE\.1*#C7Wg+N+)qG@DPJ2=(WCtmU$q%d0@Q0rfI\PM#a3Gp:MK5>4*"S.U:JY54?bL`K0r,[[hK(6r.g'^GWLN(KO;o^@_Bo;Lg+dZ#f_a^SG?bLkG07IF\-g"RifsZ.bfSq[,'42^PkG=L&H)96SXN!ehKM'l#a`I@qp+mJGZq]U.aT%uDZG!e#3FRX2s/?[]MJWMi<b'eAi^*uQQfU72q$?4I7bW-aZ&'0DA'Wfq6&"o<brLu`LVS?;O\V'YqU:P9\LY7oFsQ0(%HXYP1W&p^m`Qf[.@qKf9ZOj9FKD*Umqf)HI<Wpg_\QYH0MJfhnOS8=@II05s#28)oc!K>hN"mH@g@5\YTQ4AYoO@p9ZfED^Ha/HYW>u$-O;<(kE8mt:@Q`=1aG/)%P<s[9lX"5aV'_p%^Yg*KY:Cb)7Fe;G(J4eS`%6\*p.el^75sn;>`*L_#-etQ)'h<@q01/"^JB_mqFo7Y)\BMr;KL3IV,$;O`GK_M!<%PGClf':Ck/?/1N:3UZ>"Q8/5,!Mc_ufh]9uJGT).FBhpotlDAEXe8r00WpmLGpV96a%qmM7kq@G7Y-ljgeFrH5U]VN*1$dD\J0\__49;0A9>c7rR9<D'`U9q[49b+,9rTo*gb.V7BfZn3&jE0;O+31(o_iDKL*Se%l]$-3_riQDqj#jF*85o%/J=)mbc@i<8]6%WQ8VlOo`b<abtD`Fpd[>&AO\+dUQaqR[2butF+Ic."(KMH)pbNZF0Poc8pm\oN"s7_ScfppeZ^Ajhe6Z.V]Z<1Yro@&$O]>.Ao=*"K@+>te-+Tq:l=k$3kQIle0n4@eSglr\&.#cpHV:-\9p=4DQ!e0l7)lZO^.!C]A`>^H1o,?VkD5s>sIm,eK6iD)sTiZ,[i0+cA94Xt+nU(UJV(R+k6KB?k8K*N1`Aqn*C!,bMRI&kkqH?#N2fjY=Dm(MEmcQDoGNmW@GQstrDi@8K*D)%$*cq0NBefJ"T1+B5O\ci/R)ln?a"&/jEOq!=FqVR<TP10oK)GB8=+0`d@F[YJ:O:$PZ2'D.ikuDMO'ir$9WZCg#4$E7UG,3K,WtA'%;qJ*1_I].$&oKjZ,!Q[*bF8hOV%tp-5Q*oT%`D#\DOKk:,2Zu'2u)F6sCQLJfR$J/DbW9MqR!c<kVr\3G,4L>iC2^DObR*m3?$6qkS/@-J@U(-5`Z+d$hI^?be6D9E!PP901cQ33,.M=j,Vt$?+eb&5+6tUpSPjObD:neBWFG-Ba)[s#guHY<j.Vb:]4=q>D&(RWU;3hnSY&/XocIURF_Z'@PQ3i5O^mV]+A+hbekP&=3g.?!h<rFW<?3?Z:Zd!bI)fn>mAf.>^.LJS+5=8>_F&KNK)`.>HrZ`jBM)Tg5D'O,K4@)k6>OP9O-.CB<.54lFg`dKRm/>Yq?.q5i*Lnr@mK8T(0+r2jA>1_oGug,on^7U?kJ$j+e*imP&$JOP.u`0l[ZRK4*0%l%!7OcZd(Zt`!JRK!<>_<fTTR^Vd+P.f8H64/QR+38$Nh-5J81mg/!B\:I?CL?Cd[h-p>E%eFM]DMt)*GsClZB#_Mm!hoK5nW6L,%lU(e/6>:+AZ_>am[j81QMlGLN&'27Cf5,KL&=K*.Z]c,>T]GiPFdK0OoP,E(MMMh+IdRm.NdVh%!+oQXh09o5+umd-o$d*=_IJ=_gY#;P6r0OS=0VIL(pEWnUcS/JOiB0Ycl1^"UW5KE.s$jEjhB5_hX[`QBc$1iS("5@lN3ds&=!]GN#j>0=%jq,g,52qH+]rB_"YWX.YdeENOdPuA[0I*3J#<H;m*.+B2\[:;(XMktY$^ob)%HWpC>cS.=\cl+TkJX`,G-26]5#dM#Q$*YZ"j;6%3TZ/#A+6dkE5.bF259ZaNH;89XZX4bjn!MRD<cl0Fk1C2"<CuZ_fkMr-c(,<@LP"n!L@:c"/;o9%"&EK5qL]*ogi5J<AVN0[(3f)pHk;hc_n=Kc+)R(aE5D@`_/I8F[nLGj9c'.S_+=qddFKERRMU[W2\=Xt&f^6M![\>OmD78&)L67BDMQUYE6TE[D.f"^bNNmlNnXm4>:JHTY.9<=i*l:U;s'3Q<$^+>CR_7@KjAh#(q@$9j?s#D=.Z.rEABk#S,=P?\9W5\MMk_h+Q[;b,a<9feAX5d0UFSe?8SUR[>KUS;SmH->^NMCJAn)hWtZ@=SKIP`q0f_GRrJA_RB_mQ*c!/sU^<GSr:p9>rL]nGJ"PmSeD'abHpM"<l2,<4_=Uje!GG#d#N]LAeR`TW$``nMpOb-3!,6/oKf$aDE(Uo+O\U9a"+J65Ha[S);P.OIA64K06nN,$P@'\rdF85@"Y1&60?]lYgN/cKBXS:f^$qg&f0FP#'_XKZVXC]E9JTtnV*N/HM0=Sp%<p,aeM;4A,eXo)%_,B(<:EFX*lXrcD&!0#F_$RE+ZuW=VN;(\mb9aG1lWQ8Xi7'/SSck=+rWF:JuT11=l0LNP=V5f3p?EQZ!Z'!c\'u.47(PpLb'1$ke2("U/Do8a$VN]V/\ec2Zj8!:FL-h4dir*c%!I-kQZ/(h`eKoQC&`0<lU_j9$24nd_2[u1aGj'3*lFr8;c`tjrTDkbrN'u$ZKroZUnt$Y1PB,!LDA`nb;QhS!6_=g&_Y&"9Gc#*C,7q,h)4i$q</M>jSq>j\--^Ue=;k!(3TK*Ps)=0H@j,E%pQ)'+G+K?!"*%C)%q_/=SR4X*tu+?J^"s_kjTY*2KiX]K*c>kY5sQ5*AK4Cql!lXG6<^H_k?c!$93):-_[@SaXE>T!J\>nkI0Jh`Odu4ZCP1-U]Qd3"fR%CbBQ]:7*$q/`=t9QVu9Y!@9,J61Y`cQ]2D)@jbP=ZZR:5)ULD9!^'^S56\)&eKVdaHr4AE1172eoheADcm[=]j9!m8p^j#g5&cR!:TP.aTBUe/o!B.>:e]?<J2q0S\(SH*"%C3JljuBTS3!@IR&Xgo_r$D<*H*(J-4$3$L?X,7/dXCZCugre-;;q=GB,amW3u]ddD0e6m/5mbGh]IOCYk;RUR`!0[7S:MNYc!-*-Wf)=J?Z,`88fYn=s4c&dA_5#f)Hgo^\!rcL8+gQUF['4cmZe!g_/iE6G\ME=!?$5=BYeW&UX[W7H1R&*Z,s.UG/IeR7C(;tMH;h$.GW%:[J"3NUk8RqLYMX.<&9PQ6hS&"&]tKA)32==*s>9X_hlPg:^L!rlV!TpGH=cq.fp-ZKhOj^7ThGH`e/AJlbckHB8*,V1qSF!e/L9)&El)gY_ll"Uo>*HN`R+?9]Z"Jb4)OT(H)+>:'4=YA(Kb8T/VTrhqF?Bh>T!Ub)9,')=d/utgS5fP,l3$A@8/I+;3=n,T$L8Bf0^$!XYU8.m_c)l^'isEU"m)N'j'Ra=HbDa[erl0'CI6]2+7U"UVatU)4LCHPoHBh[QPd5e8:/sS:&@>Mtq9K2h7MgpK88W!r9-a[NU4M:CX9pgY$7iqNQH=+&96!$-NP$j`qPI1#L/%PqJdEqo<@p6IP=5j<i_R_6Vht<JhY#akp8/>9ql7W5)L;R:?o99aOn]t>l*KJ;rZ`DsKsLQqj=!1+?YhU@+%<,)I:c#CMVFe&X'"E,\h^>_Z6U7NJn$MF/$&oDm,2Wo$uICkS/>6:l_/JSAk50ca.aTp``4d<b_e@4C3[_'89'/1G8'K<:P@*bQ6u<J(4Aq$=mT,LkX^&o3\_dE11AB2>QF1*=lqKe1Zk^)DC`Yc-u?u=?%*ru.PlcF/aQ(QT)/Tf+RD"YYFNLo/i$f`XAu%KX7)si*Jls-XE<dRYfI-;+Vp1k=WosEjJK9PX_@pC2nQN1Vp*.%2a<nf!)+MS`rk/S-q)ihk&*`Cc+X=FH!Efc>3+\YHsqi`a`?k&HSRp!)2Fhk%8f0ijg5>(7=n%=`ri]U.j&$@A*rIt43'db,=+l!+6(oaq>,jgEK?*3rC]f@Xu$Lh_CKfkpJ,#aL8JAE,`uG%)q3E!P.EAm.EUZLWi@1!*C_*WLnO/CGtYrD+#f=i$/]NBUA0]`\JTg52^<OU.iu:M0IWmn9=nP7!O<iEBH[4pEe_dVXFsV[d%_n(`h3ikDIRP8^A+J98mJq$_G;#j"#=u)X5325YLU@p*4%Q@#t[d0H=^`Qc!73tZgCIe4D`,FF7J@&RbIlqJ7$hk/mEV$]gKY;okq5!'CP:fl^W.-A(^iT0kjrZLL<n.2@&r4.IUiFd;^GK<n1IG==LYF?3@pd.q2J)CAd)D^5dOPM(a_V\4^CggkL:'='lQ3P$<BqO_j6^Jj:.#5e5dq(Q[u8;blp"-Dq:h=hU9PT0BQ4<-g*h5F0?5okcXC"g18!\pD]Aq@?:R1i'gSR,UC!%["R*k$$9ahuj6;n;'kmrq=+3!u/C8`kL[DkiOCBe$,oe;Cm,b3Bk+U1Zpr;^X'(.WJln\;WX"7L`Hm*_esVDhFm),s!n<4k,FqsahuGP__[G6bkEe:7F(VeOlYJ$'QI:RPA?Kn/qPX53Pi#'ma]WiAJ>,'?6X2[^.G+Y)@SG<s66#Brk<K7qXs7AeJm,MP81Jh$c:kcbr!YGi2OqP$DKs8TGN"Lh3Tp8IfF.0)@f$Q^i/5Dq=eEt?[e5`-9T:"@[<G]g58W>qUPK!SmbE>`OC4/rRR9c5T4!.&UToi?rftD"jtj/3;G\C>!H)sF?`kmUAI2_Fh;1XWU2c"H7Op]5CosYm,YQ='-W0-qbrjp0i;>$i!BhLL-cE]E2O6q"0u]s_FX/&T_)Y/XPq".67fG<hS:7&*Rj[Q!XsWNoMFB@&H\0)C/)793q-f9Z%;;%QC0f./."75=)mF+!Ut*$2;"4k\8$A8%U#WQ0*@A&df._YDUTQ&olYWH8'YiT4@7N;]8X'1T](O<pQGk,hU<o*ABN!I#'B)c]^T(?Cd:Y.95UVEYhK;("*Om-4h,]8c':B[%E<#&Ee7aQe[Y-jKDI`f=G[m7R2HZRjdLsaV;O\JLuL_i&[93'Qn=1TAn)jbmfqG<;`XRbH))u]$8d/"o!%15b'@d.UWKS&%<MlDJj_ZTN7NHbG[Du1j^A5:4:.%s=Ad/4lIJCk*:mBJa_Wq"\VmSI<914ZgV8>Fl/DGL7i!,2Oo2at*7$;<^cXti:]B[;Qc!0f[WRa["!L]IlPuu_CM@F`Q>@;^8e/YA)g`_d#1[HKcLds@mgj9-l]UW\l[-IOIq8jRO936%B,&9:H<0>KrlmKLIR&bZ/-2S>Oh$-S*!).qkah6^d-)fhZl*gYOuGnPGn_b:/DqY&%n)n"5j+d(7!L)IMfe5fUH8)TpDb@D.dBO$e/"b+]9okQ0E+c8iE>rXD`jg<q/?UR]_b%6+F7cQEU-IY%3$j-&5bl>$7%o:r1;H[ZcJ*rM$\&'W584jTD+D!3OJ0"74X/F>2."!f)#Po17AM',T,MtAk8;o)/G&kLU$_@S>=ojF\M+T5pYPh^j:[Q3A-f$id$llEGL6ufD=S1%f<.1:uEJtN0(7sio5N+=+hSp"F)ShG3[Jf>De7e@i&tTH_g(\a9aaYL/@bf>%EmoRGpaFO1-p&\u?esUaLE!jHGI]3hdhG)m>9_#PbgBB'L-,=)SqZ[a8$ME#QXf![#67b659nc@'*O4!Bg?d?adeHr7L-*.XkAhLA#+:n)oK$T)tk0Ur*S1WLVES`eK/GM4A$mpHi;rinCF-QUSXcYF/((9B;W;7]WXr!LB=)bO$%hUjfQ@-(7CMO+5+^Z1X#T:p2$7AM!M3K?_$VGF&[98;5qF6ZLYkBH5&\IAr`:1F[=Hr*&(Kc6SEKe4o>+bc4M8bF!;1sFXJ9Lj:<&d\JGP841%;/,uN.bR(Z*n#Uahi):,Jq"],]P/@^mEZ\s*k8;Q='K^ZPGRdkD>Er**sujn&\TSuNb#s9[@/j"GMmR3ocePkmfO(ApQ^]sIWS-#8H$N["Z>u*b0!k0+2s's-i.`_2BO@Mc"@,;)F)GuJ/X`5iu9.6CXG$joq>RFlYa;BoeJ>FVbB3]c9%s#XPN&tg+GFe!^!StTUN:W"rG5n:=aHFmmVsas6E9F(:6"1nhpX=DNgC.i_LH*o5Jh0H0PQLq6o3-``Y$(eY6oI<$"Qq:;<p9TIJ5j'J:Q-'4O85D,qUos2TaK]']Ong]6sh/4)k-.f[rUa2A!mG2"^2kV+jEqlE_+R64X6=grQ,5XCc;9r1BV7)i,$@qk1X6s^2Ub9DZt]!iu^R.'jNpY5=S\4,iQ`r-oB*$@&cR8YQ!oj2'-pGX>(4)!_?:7d=IO><kdIab'kWJfps<73%GCdit0!W:V+OkeXChK\t16rH3!V5AMApOl*qp9sBMGj8%)&'/0K0Z/Nr`Sb.;GnhTt7*n?>Z.\61D[4nf,O%TV&21+Yr`;RW4VC_O.]jokj<r#Md/&BB/$1uM6/A4`[<\!Yn/D2S4i]aOGb>Il(Kbu40b:O$D<*)=eXf^sVJqRR*Y3,c96L9\m00&8a2:n=mQaA4,pYOlf;_L^3>^5#F_I`87Fl>!5:F?bMiuBBZkQ<9Hb8djTCHBjU'XBceh2oV)I_ZfE0n3r3$I5JPP`s.hHo:aPJ+e"1aV19q[tD8MEpZV5HthtD`+rM<BVr>@[0l1PQ8gkjecKs*\W1+e]CAoS;$c8GCrJ(fN952;5cCKhd]QA"es(>,kN^.dI?PdN$(Cq9FagF3Mq#dYSW=5WVDlA'cGTfq"rdTJ#.NnJKO&*X+G/IbH!2QhsYa]@?)/=`!i('E\DUim#g+2!@Yj(]T881La6Y]5$<#>J!("a<s>R37[)%!>:<?-K&%.qDgrJ"&iN4Z%#neJYci392-aNTYYf>8!Q!=!J4Q1pqF::j3,oHNM5$?=Gs.]lq]Hg%5gP8HYUt%i-aPJ?;<XHfPD=C;<<gi9a9cA$-B0GA70p>_/^cbM[gEA!jKrX`%391/%8(2Uh@*.D`CJjdh=hrU#`/ltY`a]og)W1(b&%'U=t7l;AP/Y@GS0t%^,J?l0u$#2H9ip-Lf;?Q7O0E(3k[pidUd^lBG4s5]!*gkB/k0r"6>2[(Wp-neD#f-FSn!<JfR9Boc%drrt:lF_RZ@0^8=6oof^iof2Wp'`B=BlT:,>sZ@6?<)%>u*7LAS0!-N9sKbF'8$s"+A9FFY=X9Yi;U4Fe[]`0SE"0ZGo@VsTem76>iLuVbu!aRC)OJ[1M!1u;Se09BFJj^S]fZeb3RKkp0"G'H8N\6[&%B1cr,ZS.V-=mYb^(Y.cdaA1;Oq3A#D@J1)J;iUKk2DL'&d7($.e<JH$9oISp.*?,ZeF:E+B9-<QWWio<sE8EO]Rg4GSSI`f9rPLO&:]`-DL$/9N-uCX9:H\-r[f&:WA]_.j=,U[H99HNe_,uNKc$=0q/j+_3?u"^:;>6EV7n^#,Z3F\hk_X69O%&aY2WhR;]dUaLF7om:&tK:'kc'[e3G'MEPkhbB>r\($>;6&)7a>fPu]nCc"c9K)II6T,>3OE2LGRQssC</?N*Y@\%psO(OgDAkpnjg%4:e>q*/GObHu.6q]^`NFXnLI1]A%0/&tc&1h^(8tV4T-)@@m`\k3E$f6Ru^]<KAl47/bT3%[+f\pm@].+2%F>577mkXkc=h;O7-s@VG(')%f'0,Y$7q-1dWHr<2IUgk<1A#i8%TpVMoX!D'$/kA:c#1A2Jo8%a&Q/$A'Nn>=/lTlNH\37Y_CrS*X5<fLT\=h('E1[]_P;jLT-2GLTC2cOCNnjjd2Qh$&UN/RgR%B_@9$m0Ea'Y#^ggJ<[YQc/o86'n*AdnR>nVkH")1p]h9`4OKS;Mk\TD8u;Vkq(94`M,LQ9"3YLP)frG$Jd"6CP'#qMf70Qd*fJ,V(W`O>d#!m;G<r%!+Kjr="\4Yg!)q,Z(tc#F&6"L.6*f>=8+ThiYB\QW1/#;;XM(u,hOl2Yng&hB-_[7S3XE^ST0q_u6Sh*HJo(A&h9NQLLI)@6&+Y$o#14*D*CpO$Ze:*6jt^mjP"4l>r)bZ2rbp>%,r5P_91r:L49D_oSHp467rBe,e556B%[[t;O,9GH)<#*OCtKe7\oclXNRiVG`=SKmK^l\`O?8$CpQf51[%78eYTe!Mkk&TU\$'/-^5&>r;]j]B)ODdJtaqkHn[U1Nah_IL7'(Dr3*[\a9k>6]-O!F<4Kj'4:8(Al<pn7_lVNE1R.45@C:?/*bAN(=ePhB-Rc@fkGnX'1NQLtMTom^Q:*B)t4H]U8QD;kU[O)>PblD+lhs[(!W\khWL3==9fg9dalhc%h!9fuJSag-n;cpeHm&LMoML?F6I"#a3Xa?/*jf+N02^0,1+#7]iY:FiduWgal#noNT>H2\irYs/c1$0$Bo=Ef2MdpM"&dD7m,t<>O3WE%sL*m\+?"j)PNm;[Fosk0<KaG:EU>&dG^P)u!T-5kaMAIa_[;G*[!$&VHT>(_TE%<=D"EnVpQ+_LX7&+_(@l;/rlpo_"h&?Vs,Y^604SJG]QS+]Ke<q/B[8:0EVd>BgN[l*_u24%'R=1e1cf;NPFWfU.>&_L;0$2W-c>=S-b>*s1hI3'M=q+7l3!f_`;t@Nc0#F_oc$p>!4)-%"Jgq"Q8[(Y1.fhi5+,G(HAO24BN:'j,gsm^81NItS]S:I.#nIX[n:3]%(:-"EngKQdV..;s"]J$al&P]'D/@0-m^@R(il3O8ep@^YJAo\_NESis06)stX*pJP!9GL.7tq$Me+6??[;+<'^92]?s^0R1.Vi&K%hHRCK^#R);Ma<o/25#2K-ag58$8]egSBA_lD]]OSbn"_[o4fEqe/U#1f-g*!!A)l[UOmVPr;,Q',#'n%il6Qg"-hqgRgDO:4I,Ca-UGA_Z$#aZf.Z#XbDG>>D"q04Be'Hi3eO!&6$3<^@m!9V`:i]DD@iFNIRZi>ch%_\/k%\n[*%h5gZ)(5YR8TW98MmibJRAs9&LNNU$$njJY#IFJjp+;3bE,jQ:\id8+D/uJ:`tR`RZpB;,NN8kn*R%9Y*!BUh:I:?aI4u;VI[N4KaIXj9X4%?5<:gRq^X*_DQ1*/Z]qED^3:TBW%*,s*0\E#BJKQ+q;>^"!kdIUQ6mMGUf0[Bd'l]@-:7'lL]+l1l3">XmFR!<^r+:Z5X87IoBR>gCB*VS?lam>\q)'rMXY.SW(X_F_#Q/3W=,rq\L/f<l]g&\kOSZ*Z(Y"%bcA,q1sN(S_*(ju_cbsn$^]9aG+#hPi@^TX.9'%rL.kd;I[Pi)%Ju'Ub"pJ;gInZk+L6u6$9>n14NusL3fco<\19<9E;:ZW4B>D.Z1FP&>UuNZ2Gah/(Yjc:Xo-kog>UT_0'H.KdQb/t<)<k&p`M4K83ocn]j<H<E2jA\,s([JlRGP89^$R0^+b%HC/0pIB`@<iW1&J5bH.7ooU03^hl=+"YZlR@#u:?o"5:EC]eZMJ3:+72^:O6m<+b,gcA/!@?6u"`9p[93,"[38M%V$P5,j9h56$&)`Rhq4DYi:&370JKL\Yp)=DC0]F/#,=Qij<qDu1!n#Ih;dUC^AU]D4XPSg#8!fBd2h!*]lorecWFb1HXN3YjAr:\WVeL>2t6?ob;s"VJ#>!JnZnWqipa#p^"6U5O4Eh.ZmO.N7nC]7a-^au15XcJ@3:;%rDQb>oFb/7KC-Q)+2sa@XZ?B8b2_H;YfR'KEchPfN86[lAlN@*PlRJC`8j?;FbNc"BiDQ^$gIQ[MYa+H!>/E\^P^"[f)f=n,_D<nn=-Nm5cS;S1UnV24*4[['uCee=JFOYeM/Dn[Qj=QqT'bQ$slqC)>6Ed[6%Hn:f2(od;d.EJYLM<g7=\?8s0R[b^HK_:oU[&VH8lYGiC6=nk5M]:<%]I<?sZ6"/OF0u/4=IFZ+l7tu+N';UU5p10rr0;ig*5?Rdg=$#7]iUZTkSM(La[&Z`lZX6h-\ZP`?jVg/G1U?Y.\a3WEMB/)K'_F+&Cs1\X;K&VI=<48oF8;-=99^/eJ#m5[(KB;5V[CVY3eP[`W#:%k?kn*CF;QK8.Ng7\rCjL87^e_j\.ogX1J]H[QB\0&MMrN5,o)sc6BjFLT']ZRZ1!dkKBG)=oU3)XV)'KP$ncFV<.%rcT#Z%X[s*b*FOTb.!_1?Nru#I._\*9fYC7t:Ja+tV_4luZdfs,L1usoAM?=ZkteXp<?>R(l![H`2bZ;aY3/P*km%^MrOK1(m4B$%nOrEDaX?<#CC*e#3r>/Bei@e:s'dJBQPbjtEpAe#)\,]mmp-gM!eJ,=(JH/q?rT2:=3,K[0%*Z.b\Q3aQ$:H1cO&I^k;Ja?QV]&M2A$WS.4Xj:Dg2:V7;CEQYsL6%EDR&(MYTc2_<2m`9)<JW?&lr[P"6W]J4ouk;7+PFYetE%S*SH(M3jXuJ(MsB!@&R*NIkQidFMR&+HO)H7s=b.*hEf6D.$,P;ReG?O@Z*9)AF?MbNlJE)]3Zf#eoFd;H#Q7ejVq^)mg@l#1go@9b(C1Ak+;RMd6k,7Y9:[9t?@HOtqSCJF=[X8aLjV8EIdLT,\I7s-k%9i8k5j75$k)\A)a&C=KC!?Q8$&9dGJAN;g*kBZbL)e9e:+)HZ160_.EUE`3N"Pu\6Op*a](SrjGEg)T<8@-LKMhdltca7^M-8L)&(iXcr^'uo_u3#tY+`pN^O0L5`r?9o$KPmB@Nk4+rBL?9s/ocB>0Po3$uiZb>hU!olQ$&qaff"MsXQZHl1cO@OjY0etF;B?jSLq4:3pAWr(R0bjXNS_MLAE;@?KRQT.?c(kffp)Spg5o=uM'mFmF72'#1>3[;c%/qM6X?[t<_ig>k`t7RqurL!6(#.pA0JW;*-LZ*^7XEI^mo=Z4eFJ%(%?/#f3tnc1#b5h_4ne$-;.O,D;V;udEKB-?j_ocREa;g[m);m1/rgMpOGiq)-q^Dql-(?FV.9gh8NGcp5q22BrPdV)@*/.6s]VhkuagVT)Z!E9N/VLQW418=duKk.;dcRn_(gcTMAp&[WF5hd7A&YF+DF@`_H$%'ZjMoREt8`_fD>B6bX4a,!,1_(3IkDS'i\<)9mp>;Kg2T3s>eUIEe`,btp=**FSkQa\I1`P1RN`ZLrJOC2B9jcSN0#o![B'/<A`=S#gqj'8&Gh<Uqhr]bmR8.ZZ5&H#W,Err'a3#NGFtrE&u%f1RY'nkDd?%Mi1gaH.WG+<,46!5h(Qe(jQ8oBC$-YH0n:XPYsa5ViGP-^EbcR>9*N`&do"g'M1r805_L&NDN>L<M`EIIGc.Eu)),.[XM"bO?HXhis'V7E8mTB$g'UWGp[CgALrn_gKEKD4/:I/7FMK%4s>g\e<#:c/6%Q.o_F(-o'JrW'KA3&h>%Gh7Q)Z.H$gON'?0DleIr"b\eTt63N8`J*naf<MU6YDNG4.s!Cm9VlALnGWOl%[A0"/WDQ@Vd:l`1-+p=jrF/tdU'A5O16pt'p661epYF-Z+B8`DeZj<>KjhQihX,+ZJZ5TXDS,XuARaYRH']^C>:T3a?!A1f)s39S'r<J5/l+m3NF*mB8XgJNY#9r$Wk)`+)fsd?_ZDoTcB0dY6O1Lt8lXZ?6Ai$2X1*af7ZA>-><R##K6WS\%,e*8>'V^mLaXRPHA;MMASeX6dSD!!*@;*(fXU_\QAK`3iJ5!!-Yr`_6i3!-dFJ,BE;[J=Tk:"YRf]HJDstio)0[o6FU!q21>\K.&Att4T!4&?#jrtXBYSY,3Np1-9M.![UXQ.lfZ/1nLl&mQ57>('r3,]2"d_StED8""Q@mVS,3;Xg-c(TsA#Dg<OBZ7LhoNM$)Y4_0<6K8E8R^RdLj(d7fmJ%SWclP:MKf^3(e#!pCGZgS96#Gb+RY5Ji&8HFk$\Uc?Jd:&:&oTIM1[CC&CrZcd/.ksTDXhoBS>Q&&Fr"fY+FT?,.o3:nkEg=<J=T!mE$RQ?l'jO-KU@\Cj0D8\[5Nmq81B`0."GGF+!?,O_V54Z,`m3I=A;R8'a`q5#D&Z!-c'q\Bqhk:>mB$<PUX^bP$7X^c5VLms&C'JKFs=oc.X':0]3Y)%Fg;l(2Or'1'lq#m*ZhiVT2U59RB`Z\Vq%it>m(bfrKT4IRH(=p6t&p$de*U2,U:D\(9lgB$;,<6O5:BsB1T2/*.=7],E@i8L:ISka-5cPR!NdM:O)EaWq;DigmIkrF-L@ca20'rPa4g1,Q$'(q7=npj+Ip6dWSP61n7(!]E8&aRE%q0,EBE/7`/itd7&J4+IJk'oNE4impq*t@Ga.S<&RHT6^TNcTMpI;MmU1OjB3\(OuGGL-W"VE7qcM':B!@&B;de&BNZ4]e=gB&()7`FlUj%$4*a26mkfQ;MB8_-k"cXJGg573/cMOc)?cr;-4=h4'EG%=u6QOTSWFpA;tUo4Cc;j9/Z'orR#p.EXmi4)SM5(N36Yh\NS`k)+NO%9P#b(Y3@.`1X&sRL[8NK^$>"D7->bV@A$OBAV--WhHTUm9j8:lBV0%bk&P@8GYe4?4oV==^tK_.r0QY!=Bh/CNC^hoHk9m@iB3?#L>T<3acm)E],fT7*f^k\FZ"CCW^"4PbcmbJ%3LJH6NV'@Sc2X%rF2NlnJjnR30?6<I7esY1+cXJm.g.*qOd6Z;Z#T)?dojdk=DWB#C&;S[5gKf8E6%X+j35^WQO^:`(Rmrc'bP<R_!Sm-JBiH'e<.C<SXmGH'`YB4hN=HS`6,4:j$#T[FQ>9dn:adgV2?7X&0@4<XOE#t$-?pdk^WM(AtAKn2T\dq_08cE5,^O3L8@Pd^m,&!?t>lj$*1bgmMh1K\MM'd%=V]4cN=_@"5__/eY-%u685IFPp:=S>3iX40cYpc2)i1WU/Nj=O`hU9(jZ4f>kc[l'K.k"33iSj/%A<Ak9,C>YZpF[C9WQ,H`oP&JUQpEHq6G-TEr4>-o,))U9U`sN5%&(\HECCBH6V-1t8j.No`[r<SE-TGVFJpVo9#&fP;m#.0/M%LaIA;XBq:T9>r7QFQCP8D2WgsoG,RQZadYkq%e1cZ6K2sjt3;_:k92.All"#+RBT#S;'?\=T/G=i:`kA.mOn<pW;dBCtKq5tB9DlsQY*eQHbBQZ0^o=;bMf>UM$1Qs$WB5\H8*N1U3Ph`n8,/_(Jbt&4.'<He?o!=ut*FPV]Un.@C(=&KV<TB)G!=*CGl=ml.9]l=VVtHpDgF]^+Qt1*""uK,OpZLX&(t$1%g^d[FAbC?X=qSY<3(181s0H#d&ZrKhXhbYBgG1i_4j@jlJjI2J8fR"nQB(6D*iZ>%-,X)NB6%i%DgQ_j:"bs^3jd"t]%knGp257giB>)V:_t_u?>7IR3AlC8,'g!AfW'l2DI*Bh9As[>nL^[1j6)sH,L=)_0'kK%$u?8sZk/L@`KW<b25NY]BHF.q\*TQ*bech`pfq`,_0^D).,=_)hL<,%R+k\f_G;JogEl[kBAF4h1d989B!i.N%OHDT'+tI=iRsH!o47tHf'g::']Me-U*4noi6Zpnr,AHK9Di,l\sF!VY5:4Z!2,2."]`J3,oj6?jFk;kbP3/f9:IQ7+e:muq/c>a(EAkmA\9fRK8al!ap#Z3eg:/d8oCZ#.leS3-tp=O;O(XXNY%5SW=5Qo#5b70<9"q`,!+lD!LADM%c>%e*8#:g2t5cYA35[$K6aO;2q<h#Tg+nqG,&0$0U'D4+PoZi8]SMb(OW!d)O/msbFuM1%9@gc%q*MOD8>!!L3qd13?Q-;[FC7[l/.1)`LNT+3>o7!1s3PoMrIUC.])Iad!g#!E&m=i\Uc18\s+NCleU:<fH[5o.LWja^9(MAaLN-M'fpkW/i'n-)7u2h-<1-9VHq-V@'NiKoPal@A0qXn&,(\9cR\:K(`"'47"gR`a#[[j1Uku*"%CPu=-q5eB=s9hSW_lj]sr.\;l@gg-5fH:N`t\6rqR@!X:lS4,`e7&U-t6<5,_?a9M@1'U(-#s]_r^ND@Pe$\N_@2je2q"`EjUP1'g1P6E]`d1o'g@1d1U))'4O^T]H]nL<gRql@u5jmZ_%ojhmjrEs3381V0*\FX;0=V%(??-"`FJLeWg<_&]0q'#3/]V]?fJZQ:-'EA::pFZoT7b`koCV-r]E\V:cm+GI.ZD78;qPBWCr3t"H;04u"-.i23(h0PUXegV'GZud_L;d.@cB/oO0]Lm;!<WV&%.]Cd(Q'`6\/6f`jW]SAm]te,WBm,U7(6p/TMp`a^3:&tiH;IjkFsMf>K78aJ2a<N%UJtKm(EaVYAN92pmlkWb@4GG\fUuu=$(gf!6)95c($kI"'QLWa-lKbDn@u)iBSDXD>40X%3<4_Y2[J5D!&2@A7dAA^OhK_G^&uudm(m#ScGeE[T';;u$%S3'q+h/QV8,)W[m7:1W-[S:"m[21Q.dmA"<T3$=X+G*ZK06u3&)\*#K>#dO5G2I"GG'nm@1Y2%G74c\7D@Kq9Wt&CU8lrN.F5[-qU&K&_J\RSC(])6.7rn(fuea2e(pS;N$Z;;nEbjS!P__X;A7)h-gaAX=ArgcBqfH(o=LK/ed99jC*&Ka-aNbr_sP0(lNV$\Us::X4Q&i5&jLp-jfb^#UuVFUm;OCKce02V)6'q5iDTl+b/pD#RhiIVR':)K:p/bE3tnK`$L)Z+LbIm9@GVk9BnT*Ohg.&?m;MW:qDkiUc[EG%Wl[Y][9?!XUrdj0`6'<At]Hli7QXKB0QUH,L!YULJ<#j\^9^/jKPb+'`CD9XfM/$&"71ZW.>dRS')h)LHj2NSdIsKdg\n6`Yl*+ILnk)=qC61SsVLs<Pm;L!X9Gf)@j-HlKT^e6<."t4DI*Nrt3`P5BjT.X\03p`#?jhAW/^3Iu2+VGc'DE(f\LDWQ%X$4`]M&JhB1DW_B+-Ee3<f?u)`H<o'Nf</7dY["s'KUCNj?NeW^tCr&X<j!pSE)>9n'*1t,F]tYk`m<fBnVC2m(1u,/qE>#pkZR8:?FA=Fb42o[-(a:ZO+WWGb2PBR[H6U8@PnQ6_gR)KA4#pt.GcKY^F&.u79.<An'NrftZZ\<jpYp]U2QE*8Z4Ds?)dW(=8uf!4-59tCRd@.+TQeF2,UEZ#&-u8Hg@rWEbKG4USIJ;tU3Q%=o=:Q;c*gL3=GonnFS^?(;YKDmK^cl]k'@B5`c_+IdRkG=H:eBFhJ"4s"b#0G7FWr7Aq-p?`%qa!VJm\+,01qN,l%pRop2*9PHC/H4Z3%LEHU)=&)q=,oN?W>r16&-WARlqF)W]n5'k%eY*^XN$$Z>3QWqNMVg]a[*UO<%-:=UTFp<1,oiDsGS4?mQQqEj]YD))XE&qpdg9_17q]8l3eE<A-+g=cD=#fB:+OI_>>n`U.G?q-N$Ns[imNGajX:Zs>BkhCR:9Bd[X1p19dtr<m`_.n"N9,CfK'H4"j<1*!gcO)&CO9e`J%:2kh3m'XA#W;D1*"2T-f5W9M!DpG&ZZ<tmeYV`?g3$-9*A3TPXWhY/$O):caU]Cq?h3"1_,[0S1&Bk0&12:8eK':]IQ?#*md2Gk,KI'>tZPHf2&DlnM;%E%FoaXLE;/3UJAC)do+j+?4'ODn+>^8pkP;,%6Wh`/'<dh*`ep).O.7^4i8,3s)WWu_l]A7DlXiioqNiZDpi!sdG#q=;ku<AearQhg_37^%:/MC0VF:L]*I]tR#A_DSBT<sN4-j^lqlE'kB>$rWPNtQh/l03FAijHDBVZf9o7N>'rXYp2uBs1[/"IF?EVO'<[(i=""5\db&sR65'EC^Q:KF\M6&n.UU8S>7RMY^OC!#p5t'l9aE:<n,*DII73:-:h@/W7MKmW6&GB\Z>P?.Mrc4+(+M]u4KaW\!qBf=]"5*J\V)LtoT1nF!Z)!1^5^n0h(U]DUk\RP]LMaA>-QIa]p<F%q]pG(-9&--@BX:-3:6AkrPH"rN8OMU4rRQomZ?D`3^kPkS!Uf,(fTF!*P.O!Rqj<@)g,:^-U\ghl^hOK?EBt(5nV9<C#tPoG/inZXlFHfN[A/3&a5GdPK/UtQ$AJ`hm5WSe*ihsR*U'e#IQLYP3?KsgF+RsqoZW't?_q#_ko)<1R)$KcSS7<MMsR'b6k!I;I4tn0[fYr$NY$^/BpE$U)'d,NiV<RrBlZqL)J_'PG<*iH\__\</VpWgOOr/Sm(66g^g_N]>bhp6E*e'tRtOu;a:^",$_2N9:ZSk5qHq+TnP1;0m.P@j>uMc[CV?@B7br$OKK:;koRcH*+KGK5^U)t>U%:'()S(`4[n>3)"=2EWiF./RC<#O+MQar`b;uf<m5-ureX:?!oP1M+?f,sbg3f$#2KRAX(TM(<'4FW11RjDtqF5gbY5&he((td;*HbR[irfoMD"ck%hIRju#B&U["A6BcYmB5\R']_<!d"G=p\siPGF`_s];eH/pKcWKrY0Oi;U.7[I#;m>b9iAU_;>0K#;[Ae."Ajs8\E=j[g6`#q;0;TQn$_.L0C1_cc?T%8<:Y_3G1b:E-F!6jNVVSTJ(>mfq('<-XZ:M$Lp1QPqAmn2%kI-ON5f1"f=e#R5/IPG_508_=EB8-dC,"*gTRXblUOhBZC8N25)!rGL^uJ3M*!c_0PYK[6iqY'<^?D.s:hb.a:Fu"BKLr*O_Dhit,]LghSh2PFkZVYX>_BLs2#E24/PnrQ..Z/E%"Bn3:c]Gk>(]QMNdiIJopK7l+(6LB?g5-NM]&\0Hu`VtHA1G=X<L%FLir%0S$+V:?M1*h+">I#7[P4@4-FL\J%uq5a['*^!5`*M_cWC5p48i];G9;qjp;.2kDhF=2a)aqS9G0h@Hq,K(/L7*le*ZrDXgP>!LcV&B]`<.uAK+D.MMaSF@h?n6:1.8FQ2bd4,YM-j-*;CJ`/B..D2'B\>XG@<6;[F82aKU21.Cc!+cZQ;PAT0oo0L0ARZ_?'IaAAgB&l+bS(=@YN$8fE0CLp*\>+bIfK%Sejr0=)huGSh1#pA-/9lQM,Q^+*rtkt).923LhV\\JWja8"q40pL`8O]:R&I%;04=0L"5qB(1C7h@nHMGp#L7`L:%g$TTU!4gG,6!GWtV<\lE"j5deK`b+'2095I8=0ll+<]S27<TloYC%sK;cfl&8hGJsm_X]*+auA/+shZNrpqAG.(ZRhpg!SmDiU($.@hbs@@YXpb4lVT*,0m65R<k0q/7[-r)'"1TJ^C3ZR_tP;3.S1g7lbcA*bJWmBJT].%FEd&2ne^;hJb<,:0W]j2;(aVWuW@$H)tB8C,BsjS=>/^Dc+E^Ph&I*+e0Z1nB)3I4kilJATV=Z0HN$pk>!*=Gua\B1V10a<"2?R`M;Dj%Yu^hY/./Oui;F1Nt[2c<2Z^oCd8U0fn@TY`JQrbXoD+GD?<P.Z1IuZV0o*gb"k@kB]3:N$!o[g_U"<:0LSVJ+UYnHc]0/gBnpa@i:G4#LtO\X&h4*k'\)f$0oP)jEKIlKKnqLd:WqmPW0`U/+?#f6icQ!&6n!Y&jf4p')Z_:T%[iaKA5/ajdAb*@jH6968sP+l4sA7H[4FCMm.I!'8k8p#26i'%&MQ\:OCM3E]!`=fD:J!O50;oq;],-=_N+k__>DreN6=t9sd=MZ`1IS`l>_remV/i6Z,qo/E/XAh]4\T,_*!;[FiIS;m3]kdQckMg<'2UK]em[(XMqP[ubj10An+P?%`g)YDenIW!;m2/B!AB,8m5Za36IL=fDgo2QY$VQ(0PU7I5TKjsKoPJ*hN>6CKTUVc.6Z^EIP`ck0HdJg3'^Ws#GRPOhc^Mq#]`NFhdpC2]`'[=3rME$>M!iqt?9j*mR*W,_EE1bDN<jP%Zs@tEhC:aiomS+(_).=fH@no,=pj;X\Ql;U\1>fur<\DR'gG75Ep/RgQ,XDpk\YW'TEh*.`X>*`lb`B='=g*^:DXt.iOY/mMb"&=UdPr>$#>!^7*dY8Y#i!Muk;\F!+flK>/Nb*5KHkk&t[]`2kY"5E[mPTDh6)!^WRX)*Y%k@4ZOJ=a)j?#Efai7b[Q4`K%+pP,LN"9pj0].ZsUo#9OBWds!<F\Oaa!Fip<O`u7:s1^n?a,TY+-&,rOU6V>U?gKK$3&"W'4":C*Jl5_Y(=(.o\>Jf?55GTTZmaD(5g0ojq^lJG2j"`eEhYu,N`1>/i/nB+Q^)1gEs.PDr,A-lJost"GPLkjt#Q\E0-@I4HQLQQb48B<`a?M\%dOLga7"BXjp$1Jsr;#>tc)5h#7/@"=a@I2WU@@(e^U>%0hd4!q+Jqhb^;7?Fi*&4q.#8lAf7]QHGUd:$'$",'\;`ZePm5+);DT9'ribL:a;O3R7blI]MUr?:E2bRq?]ns/ajj*)&PTX6hYVGTn!b"qdPED2R7]le*ok2roLqTX@i/jcgq4ZuZ)iY<sUDWLGcC=h)(,LJ2*uDS%e>XR)"*:$sW#kZ4ga#?GGY!4Lt\JYi)Udab2;Y`d5;Ll&ok@CW8Q0=A2n/YAho"kfp$q0KtYbbuNFTr;9'&Ln\O#J5TA,/G<Cho,oRJN'\&T_U;T-h>AYJZVdB*2*N+4_9aR6N:=GOoB&lR+kh;\T)8T(fGct>-/R#I3%;t?o]t/,Y9T,-dl&F)f*8sC/+m>5HDV'I(BMdX%*MkF[JM`9*);#Utt\(_p2hZBO5DCcn+N2;_+uKK$[UUd#^_^TnsfSE$qH//$@86QsX6NX.Wsn1lBcNR=99K@o1h*M2>N_n^CJkRsrg5&oM58H7h-6HV+=jkGONIL_r[#.[itMS6h#+VPBQqb\KHMJ1==BX>Paa=gJ0E(?bLDQpouXjc&&SkR@R6li3^I_W/s/Bb5^2dM8I%;A0=Yp7A`h&lSFueo4?,Jf#,*<fT"i#NV?#mmopGOm1+X9m)Plf[F>?CTDMgfu,VDj?%@'S9TadA^b\]M8N\4?04V4A:]%Wn=\(o_&%I%]2A>,2qtkW$h7/]_?d(Q4Ij[ADlR4d+@nr50IdSsGrHABdS&%Z,&o7e$Dno\l)<>7Dd=jHL2cp]<\bK.<Def6V/ntSLb?E@?S`j2=[IZEjM8`Lo0h#ViPdO!GLQZ=:D)<,YfWL=0bA=DVp-fWn1Q?hEZ$BZFh7u]kQ.XPjdr/5<lf(.s*@BnKts8:oiKRCQ^I)*%ISH2_rud<\'C=9n4.&"/(E$HBC]nAR-aIfrNIsi/,tBVib&90R\p@GIm^=j&V[RdUe!mE!`,dZ"$Ju#e3o94oo2r4J'QVY3S1:Q>R>phfcPqBBjqJr(Rokalgc-[,,;F5\ZfPKgIZ9$5jNeclksH30MbJ^X"&tCHfT]Dh^VG"WF70M+/30GPhR:i>k8W:EA;S<Q=DceaRne&RJk$-*1$ut%SV]`<4*J*ZflJHeNVkRT=4g=Hg0"]ENgK1XsdEa6Gu_-aWs#G]mbNqWbWX"ecU@tD9)90\(;Ch\GEL!P[7g/[="u6g!c!^>+>K%Vo(g3poIK9;$/=!e@/DqVG8>fC`knE`$Of:Of8<(Q(/F_IUrg)7!M',F,G,a]K`jM]dFu!jI+c4luP^"cbbVb1uiEki#/`U)t'f&o1H41rb6uY'a\jqfg-4J4cM\*]&D7r.0F:nDjinK\#l=6\-A:PH1EX1-+6h39*[l)5<\RWOO]E7_b6ai6fS09La'0M6bPa%!A3s8+<nnA*<R.#Ar-,Q?[#Y/s'BAG,PTsJ+S]*+nR;@<;I?RMqboh3IA818DA'Ir?12+j*R^U&oBmhBN;\!6B9(s:a2#UBfWh[\3s@<rMq\RaR$O#p0KqYUi[85"JUZrgY#UEelJO?Xf3/:tJ!gWQ#RQNhG9;+2@%-6a5XSJ`AV;7p^<:c>H9s!;CT57Ja5ET#4c,E(Y@^c=N^S6UV'UH@RoV,#9XhIhZ,g7ON#6pZ/7o,s/=<jq[!^6d#'!-Ahd)f6foWR7r0R9:o'BJSnu4mHIcXW@aQ/StE@!.7\2LYL:h\'("UhG@!]8'e.UT1td9`$uJbI-hfDf%W%>/>;O0$Bs]3ZeS_e=F]LKT8"^)R91od?O+<WKa>b[qDUMt6jo'Q7/!+7/b-hHh8bcQOV@,Oo:9+&99C.1[:K^nc4I5Y%BkJ1tX9*k8I4j5Bj[6>H>3IK/H6fo<i5p)Z</B.&qQ`?5@q-VaHb(k@enmP8Y1r6#7l^>*Q_F;hX.9a*PGk>.9-JqVZ<P/%sj*o3Cb7Ta31,3u$^@klL>jHE/eZ@<$7TBr1LFs9#DZYTtA?.K1cq?<.#PRa-f?]fW[T(24r`EE9)mOkK;^Ap<d@6VoZJ4,H%),S3<fuKcRK9nOI9nM0QP#bZ"3;3fXrEq;]8;l>=ciuZNSDP&J_9^laQ>Ko9d$sSB4Gh?KIHM6S$W[7a-A#*1O[k%A=9RI%'#@LAc\YL@5]4d^@h7H@_<geOIb,FG*PH:oL(=bM6dp%3^9>QV:mK_3iI41@I$kB#SG*;>jS\n6C?;%4re4Zu8`]b[MOp0iJ9uePP&E+8=K_Il1h%[l)QA9jJatM\0(]r,i7e[%0Or>8ZI-G!Z9>W/pm_W;HniAX;U3E#5%hUtoBkSF4@'U.f5F/H3XU\r39crGO:uA9%,G=%9tdd*F3:ATC28\kQk%a.Ml;LljWal\ELGP2/A6g]bNFm'M8ZgT!Ca5r47[r!Cmc)X36RJS/.6(#l[oA>#!E/:EAill!c>&(i9kO#G$>eKd)83q[-llNm!g-*B?BnI`Q!HCIJ1KINSLW;:S6b/q[[/9[onH2W)%L(^?b=j'=;XD-0_lb9=OoR<,bj=IuFL]<rc_M,k+4iEtH.s-n"C>6U*CBG]VV$cQ2u.b'Iapa<,KL^:gBU->9Y7llb^`PoKflEfP\+K5%Sab2HuOP]^aWlU71dg*i!aI4Ap@:hb1F<<m<OIj\<fQ@CsWF_LfaNsA0a"rB##r63W7d(H11f3s'M/`\O<+Cdk<ER`TQhT9M%M+H`^lCr;d?VqlB&<2WO7a859>#Np.Y01&Rjt+/!0XTDLeN(QU_/h.$kR4Nd1=]X/:G2kR,FLY&YtXm&VWOqLhmmD*YT7+_j!L(K-PqI@8"//Ei158Md<#ZIM-e0iX0(HreM\dHkL-sPc&r3h-_>\bL)<tJWg10:>9KXu,E&[p?]B+`<\.1_@atr)ABQ]/e_0`O$>H-or^KunXsXQ<\6/<W=aIbeXV"oGG%e)aToAL-h;*qfa'`Ns>V?LR<A,(Y3HdKCqG9;u)?JTc1t-goC2:_JW]=&dF^js3j49r_-$%#A`aIeSOkR_SR#mC_,?GYp_QdPrGQ(`Mq$F>XA\"6s2'V;Q!n5b8P3NnQl&&[C[IIc75FG<E1fd^c_F5j0"@tQ-/#R2@_YdtU2'?Pl=.QQ+3IC]OPR3l^+b9Z:;LQO"7H[H>+Tti'*sb4a,"KaMA^QJ2]Dp+S_*^)SOSh\AG?TY%'ch5XV/"Sdrf,"T[Y=RaJ/9?s>jPDB3YFR_M<O>l,ciaZ!h2LNj9T]GbA,T`IJ7gS-cO9V4^f%i-FObM%2(H)[Q'X>d;D7h222!\>DsY2XC=l9j03UX%,J/5(G=D+J\l?jO,C6CFs\Gg0Sh\K@qiN)r-Xnfo4Xd`pUL3LbE=4N.E,fta[G7Y'JK][>uN_5j$g4gi(0B1MenHP'A'Cg%JY$:Zl"(OL/HrS"tA4#Hd8D$`Zd0M:A.&+"r,*(FSTZVaC_pJk.$JGMM@Jp,0e<H&Kt-KMX:'5mMV6!XKcH`4DrW!@646'bjQSMJ[qVudTh,q2pLq)hm-Ij2toUch>&#,4rbN-^6&&G+-^7J:8*Mi.sd)3bm@LSdtk#P3.0DaDNuF:#_H-7d=VGbN"elA5VIOm"O'qE@CBPOnhZ=o=m$MM/q_*[U!AAg_"kW]??"=h2!V?9;skXh*-0-Ve)<fujAnas,[8nY5C=qok,oDNotKmmhV=l8_c#f+6n\JW)qF"*gJCVHDVMgfFW\t4W8#2$3iqkj&$l+[mn5$SBOr"rI[_5N0+5j\@H+^3G3K1*T]7Bl(=8+6AMTB3qRBblEe/0sU%Gsn3^U'c)1sGq>Z:#s+6A)'-:F-kjS?.ZO>;!3ms)r#!?&M3,BZRs"ua=7coLSDQTArHkKb-KV+ifcihhHegqJ!0oPR?GN7+``P=P-pd9I)##"9NN#5I@nm6<d2(^*B3mR<VW0#>rs?4=n[D4p:&&,A[O"OP*=G<h721HLUp9i7]Z-bZpHd>YcM,JG5NQb_lf#MZ&tW\otb`>V+@$*l;i('("-:6TN2jWl-g9M`NP@BS(MQR?(d']p#tDLmK:Dt>#[OYJ^XmX'[D5#"+C/D0%P2?<fRMq'h=d9-?%a!c1('9=ZBWZTV64(Rf6Oj6N&VgnSd)EfA[:39sM-cE_QV7,MR6Udr\c_?lXL"&X'YXOnOqMO,Dr?@eD^(=do>F'0)4S:`Q"4pfR+CY^I*i>qp]>t'bp0K6)lBCSen,R@>/g)jqrp,g#5GW/W]GCY,gh@`Uqf(HC,'l/VE$>/t<u[n^47W7)e)uO(g+H]>?Hq\kdIo@M"lL[_<YQ-W#smdQ"!0Am]<$ig'K/Q"(A,q)C@]#ko8kX'rs_O3b]M1iA>fNV&MukmQ:XRe1IZhZ;-e)F#Sd^o,'D7M<@1;A:=t1l@f>[KUEUm$/>A1;\g\g+U!e"k"11T`REFFYKMq=tX3QsbdtCL0j4E%jXa[aZ`ocJRS]F9MdR+=FE#u?V1OWYB-8t_jQs$WQEu`kZF6;)+#>+tNk&N]bbMnn$q,*SGKp3K[8-^k55pcf93k5t$pg/qnnjFBY<)s9>']n&Ke$4I#R3&?#\Co'pK%DTA9R1?\eih<?2-GoD<(R(X]KEi<p6jIVqnR.EB[d)r<lnaCm'3VSCrY-,ZGZ_036ZOX'1-J"f&O)!Zg+[Jo@uZ2[;8V3#fI4(gDp]/:[l8>4o)iMCXc&SA9NXn=E@j;pe?p'hga.`E8f-dd2a\egOD&_%)96!'$fu'YZq!TlJJH@kNRH><=Xk_)Hed[j2Wu=<$#/W0tc'9,_i[IcJoYOSZL[8QWlHq5RO:GUEte[EBR(Gbgk"N%eq)daQ;pVm1iepXoH_G2Vd)#UK<o:lY"a/mepUYS;(,57ec_.2kat0T@Mq+`KRsI'RR"g)4A90%cU)ZEaZj..gVtlf<p!Zr):FS^&N:_qB]otrA)K-Bs8`p+7nm13l.r'aN(-t65F!I.tWdKD,iB^%g)mDTY#TeT]6\hB:Js]3KHY`k;fJ=EBu)2JNJA+.Z4`Hk)-)TMQa/QD+F[\1omrck6'JFLiTq%Y>E.`*u#JV%`dMphs`9k'Eo;,",:?*MpXEroV9?VF.a:K$?RUr;;lY6NTVU'Du'.do"%S"A;QR&5>C@gk\qtg>"uCTpW,*uhO=^I,)MJ+(:6#_6nb<s(!P"K>,5ki4XApMD+qo@Zb#A`-3As@A*mIK.Hb@#SrSY(1V5p-;f#HOn5;MK:uoZmOTh4rK)LTN(hPhmJthHB7JA/Cd,LsT[WUJc#^g0._fQE&hq?kXrH!ksK0fd5kKP;,Cb_'9>*(DHm#aNOkm]Mq1S%JVBqhYK@9I.P&qAaBjLH`NDXb*@Z^'QAiYi%K7^'@7omJXFJMaAoc%E[=C!QR@R:MuDNu>V![Z\S3e^VAO@##3G,1#Z8)P><(Ef`6a(P.,5]TZHhZg9%5-)K`Fh-/$/le>tpRXr7IZ_4^^]81`FJ?@KX!I]8Am2/G_LfTqCKIgHf]K8d7::(ZA]eFeMJqFhLj!_+KSf)a#G9oj^6>5SXV/'t&8rX>MG-;DuED,@XSpaIcQ#SV9#]2MuUckKKjL+]sg8XR01njPJ^d3J+]95a.amM90pFm\uB-]55pGWaJPl;ogDt"53cW#L+%,8Nm1($!:@cup#kE9(=%tA.Rgc#)HHr%<9]@QLKmg:E_Lti,.6(t$nTZsE;Vaf*`n5TO@[7&H+j)s%Kc$XCo<!a:ln4X=t*<!N[>["B0$'*,?PBkj1pp6ONJ7f9!\16e9(kf"T7]23j@0u;4&qM"'&e/Ub*IT+U*Dc=18rWj41\9F5Z*qqPonqM1[rpRr6>cRVZE8HF+T_iF/0u-an`8=j!`-+GK3MpCObUDs"pEm3gTr9,JHWhkn$^IqP--\_[feT.jFAVSES[F@k#UY2.</4P:e3':lWPik=CH,,B!.YF=B@P0qL6tTaSdL")(Mf>Y:LC8fl5a<3>)Q+"gtKJ)(f?Oo&%gV)hQF07"^+I?O'Qf7l5!^1uBi[Gu-eMIJ#&geU6)k!YOo:FD>o`h^W7m/2*<*L2m>)(g9uf>F7kV_!KQj,!/j\dY"o?CqW4aoDi3Y(&,q;5>C9%`_1%&d<LD[0ABB(8%+hcG.'<!%PQ)HSNPV1I#Zd?U[KOkgAC=$[o1end5Om:0"9+uVVLr@4.9$iWf2Hop'F"L\C%m@5)#bh`3j'roQHF/^0G;s>(7KmbtE:RokE:#DU#-WFe_aaEER8O%&EG1Lp3XiC5gpT9krk^qT5@jfCa#6!O'A7O?`#AMsF:0@<Xd7RI@jAA5EN^`je&A0)RQrUG>GI&/10&Tffd3rLlj7-rlLeAep>\d1ZF"+drG3P7(l<`oirF+%<Y&4bGcoqGS:OI1ld$D0m;DW]*Wj"[]$IYGh"k$ORJ_dW)ISPI9#)2l_SpP:E^`]Qt@G6Hm(ZIg%^l`aB!LTb!]W6F@-8*CZ"X^`e\Bco@RUcJQj9<+pZ1G%<UKPo*<.KKg)6H;(#k(E:d\,*^`AfH(W>q^t@d=FRf!9fcFBB!%.A[/ARl%R3[RB5V%(L,?In*(t/j;*.6nac5"QPj[NLgnfjuBDVIGK$sA/N=JdY(th7Paml[k06#BG56;,O#Yj_mKT[/pI-7jF%$+FQ(!VacI49le_B,/`N[=3JX$;3(+p*N*]nkujYJAOepKog"0pRlRFf?PVl]eF=nEhN;MtJHe4!G3[Gt)6bUD(Q0(3.5/ZBB\_hb\8n5g4G7E,*aG;<PXr0ld2D$jMU8.k:N'.`9h@9W>-Th'oV$c>OO!$P=0o$ej[K/8SmO@g$UcQnAW0Mp8pW.W>'7AeP[C5BubsgQJVnClDd"4GlfG8,olGq,so?p]Oghj$k&S%VCp$Z/1>-&IZfd5JHRt5)EEqCkOm24G)s0S`;#V`Y]d?Ab42>L+G_DL4C%ub+6NB+,DZ#\&/p@=Yi9lfu]T'>25&C59r"-n-^UdA0KUE>4dWu^/F8#DgtPK/d<j8Bi8V!9<tqX7tKY4_RecP1g,0R%2kdH\'d1R8mA*?jS7C6hE0L+6'(V^8e8U&G>Wpf#T@)\4]`sh_%\qiQGM&uLd"j%fgp+Vj"*:&f:.-:`P4dl`(Qh(YO=\iCL4]spqQnMO)i[R<J%Lj59'UrHpB^q9ss&&lrmEY0a+\,'":S#)rg[MihK+R\RgXu<F^f:/N*ieXK7[!:I<pm>g6Ef8Gs%Me),Yg&Q;B6.WlIFoG$t"CCN*B1/?;nIN!%i3GH0--*Ct`hh2BMk#<]rAjn6cc0h`j,l`J>70/nuYB7;Vjdc6_!YL/d;3KqM[to4kaP%h^_-pSZ+#q6d)%b@0^t0#Df1ti14L^SPoL1`.Y4j&7%:i3h/%'I5Q44eP<<Iq(Z<]&,eQiaXI#Rq/$ORT0rGEF>?so/arZ$9Z3FY(%:pIhuI&5JN&='poW,o="hsAUXf@js(KK3V;U\k:I>j4!ZqlfI9>J!g$imGkLVaGq#IGGX)#t#J+FfuX2AB=qmpb6?]lj],k[@obIU9C0F-q9pp`$@6Z88Cg/5TO2Zqk,O46tXZ58+WX?l=0UTd<U*<3Y9^I,\3g\i"OIW+1[o"=GHXA!Mj]]:MkRhmZ=dl=-Zdq*[/#I!c5h7$\:PO^gZOD2H/&;o:CS4l+!pIB<p9Gqn[cL/Ve;%H#1/M[<FVN#!<3P/MK(ldkZiFnq>%f+HX%\,UQP_f>nB9Yu,ScB=K!/YMuDtlhnJ%!!m6KM-\]`:NL"K$@4BW.*B(7/TV]g,[QIKg:KN"XSTRqM!ib!D4l`!4;%4:oZ>pe-`[a>s#B1"qj%+CaC]t;SI\7G2o1Ko.X-A#-`m42NFnWF\"k^/e%ZHN.B*j2o2?-:ER_sbG8X1;)-jggoDe$/M1RO'7jm8m=Ec*/,[TOsh6+]H->$."9Q=<OgrUuAVY8SFO#0bK^'%/q?CHZs=AAiKkqn0h/:ALYHJn_**<@du&eKWd'Z\UaoPTFn_C,.?F&>F6\Y=`k^o,lPT.CC'=+U\>hdbQk\M+=0=E1;4BH_6'aF9ck8=ra%Gg<9?!.d?=Qs;rERBIH\+3tO5oH#L>9P<B#d<D/9V=j0>KflYE&?=?<'5dh=.>$3e#mLgS6s(*n%UOH`%-@[/Hk8)Y+Nq2M<HFi-Y:ifLX)J'8bL,n6dp@XaR74l[KdY$"MWT/7LjY>`Xr<Zn2XiQ$1(nR_0m2D=c(dre>iGWZ[]pSP%PnlJiE`5/\*"Y]jb_EtT,rG8j5KiniOaa:K?34)`^cQYAe["jNap%]"&%-?-;Oqq%r`'hP$iM`HRuDfgU31N'c(7$_cr^rWnC"QE+'V94Do@Wd?9g_O#RAC;e6,MRU(F8/2Lf/8m#M;14licGh&BDa;k/\U/rlB8QGQ/6@gJ#l@-,*%ouL#LiH4Ra&.fBi]@s_&gaZPE/S"h467BK7?gG/c4E=,)6(!V>G6$AMnaE`@ABV4UrXK7.F%82K#]f2I9qFI[S"S#:DqLY0a_,3'Zg<,CA5#f-nlQqOr@H_%'G-B,%H=&4Zjc$A\rAlN:<hZA>GY%10"odYFtt'b;kNAMZ)iDQl)1!:7Su>Em4=@0Z2)U1mkCE,U@:(QF>38lmo,&YD0:u+.lm(qS"6'X=R@cl8_[m(/daVb*h+:(Y.4B4F-Q&Sb&,O*GL!FSqt$g`k9g7GFm.4Rl"8dj\"1GRskj-d?p`_N7W*,5\%.r-HNtgYk/OY=aaH-c4dNC?j(l&,FQe'*`=^$IBEDN*FXtg1bbe1hRdE"=u9u?F#JU.I"Nu5Q`)90i-`V.4m_?S.@M"b=V5t:<A@n!(/CUb-&VrT=kKXC@P@?UMNhOgK12tge,ePiT7)qN7$&2Vr1>fK#\rM*d]cDfO<\3e369.kLuuRI`mN7(jsh(s^9`SInMq.I5?EL/UTk$b<lm5lme;bN-VunYL.n2dU65qRRtL_DVM"gt(F1lgNf]s0:qP^lgP#fXA.V_D4:8]G$([DBZT!pJ);s)]_83E1\n"3WRI$sPppItBE:+&,>mh02IYi\$Q[#j!>sU(.!GP-u;MCJP4"fX\=o8t=>XRAK[5d@gJC'R`eKKatorO;uklUatc5kRLZ)UhF6Vgi]AWC5RoQYr)>S&tTp4]IVXJ>)N*0?TMg=^;hmh)C2[.c:4n?Ble0KAlDrsi8lM,%)'`@@Ja<^CrK3V=D`9K]A#h$,5X4TG'D;Ra"r`+\!tF(n4]PL!=@o+F_*Rkh9IoOa']QKTEZ)s_%_S5jh]@;J\4;:'$\KVta&=lT&5,05M3^cgF,HZ"H<^'L;/F>>.P^n]4-@O#pU$<RS\R-*8*OpX`'gM^6,]2_ODl0ml@^s2u:8';#"Ju[YTfOj[,3)(3C5,b'h+uLSP+H$J>j1+u^BUf)ccY$,L5B/O0;mlI[FBkKRr`S!!7f-Dk-Gl)Ia6-<G60OLHX[s6OOVE*[<UKB:WH:#Zb9g+&53EPkX=Y876-B!LE]QUm$HXHT!s4S@ThP#_CW8U=ZL`g@YX99ciTiZI>quj_)12/_F\dr^r["<LNbP2EZ,84%S2F4U,C#o'ec5"!`jUZfeQS3:PLG*jiIGT>]i.U`8+%]E-co=^8n3DhLq2Fg,/IfgI(b*R<V-CLnHhjVR$A,%X&$K\cq(W]T3lJ2/*+Ptqp)J5g+R84i&=d!XBZso1[r3p:3Y)uJEL2*R.^KeAB;>SMCZ&O>4D[#.psQ'J0gjVBg5&+H^X%b:eh(:K5>Mb2_K5)ITK*)(Rk%>KNm[2h"tr.D?MEqdsXfB2GO8=W_j,:XEO<I^<k6B>q_'qjXq=%%%a6fn"S!S<beehQ5g]6BPL5B]s,2<lSX]e'q*@('Pn_1ZFTk%FP8_M;M13TaH;=<hLZnbK>EAZAgU$T0CW'3`1Dth6_[J\)X1a"UkbpU(+IEDRJ4eekXRmO]-F=gI^a%ElTrnB]j:jJ;_NsjIW6K3XkKT1Fk"[a`6MMC[nm_MZ@,nBn3;=pB?KcH*6U'40K\5DO:E%B?l]Zse?l#3C3U0O4IR(+HJ"-7_0)0TS)rLcH3N69,r1C\I\@HYQ\6mfU_(Jj_52Q@AL=Bt5)rB,p])kW9qkr_nn/*G[Jr\]/BBe4$0uDUU;WA[\JQ50&28G:oL\;D-3&G:]/R'kZ]![`?=g'@kDpUCY:E3;*>aqdj"t=CaA*$eWitm>).rd-m+*\="ld@8KiPpjfdj,VmF2:ToAo]]:qL3r>CV/<_jIPO`8Yen]TM0TfNndtr.%*g^D;.hjAh"7gpYVBNnBtLAkr;Nlu38T/:Pj=^V(/0T.cDqM)VUH0u[j<4D36UkMYD-.n0b[`5d0o8@`,kKigeGPI#&p$0T.6cY0E8T*gPXJ>tr82d7.)5r`0fl3bCU61!MbFi]TKeSoik=mhF7aCr=44o#WKUa_K'I7V95s-FB<`%fe9M$kGni](M)3C\>=r'f@S<F0El+JZY*)QSL6."[89.LtTUl_:^HmfJu[5BcY,.J4V'$CF7AB&Leg;m/eK@u#B;!gD#'K;qX30o!R>HY40,.4Q9&&V.`)ib?gk?U$#8V`XfH!n+VX*:AtKSn2Vob7a+u943W+VMfX'*>4;QCkk)ml:le+Tj%"-GLfb`ENW0*/e!Q-.TYLqm^R[[1dNKA7ZeACI%[Lt'IiZ8!;HFQa:04mUBEK^-ca,t=;F4g^]p>(h8"4W<`8_9)7W0)L<+STkY!c0ITHZH+;,e3\Us*['S"It.nXJ0AaI'.[\L-8-mN&\Ce84EQ,Fu-l]TG;++dU<Tg'87&Up/iO6G\UL8e8MaD+%)ojh+Hbd(#'g@R.J'_;#_8GAa6/Ot#HAusM*Qm=9AE#P@^Ma:"q;k72L(H=K)*6[mA&lDe,H$@usZaX!6HK?I>O4H*B:K.ahVq]326;BC2aG=2jc>RCo4nY*VbR&V,oYOM>\HYJHVa8$Srq&4aRm,Vm'oEe_qdX-@^oA@/],,l\DC--5-<Ht379?G]45:%Rfh<p%;^Klrh;WEZ2^;"g;BSAtd*&\^")%/A#Wp!;,qRLHVW<8t4,ZZcTsQZ]IPSC%+p`qAC&?^g;JUA:b<\.6&-,`7elolNS11)Cab"hk8H'H34KJOc4d.4FZrc<I4_@7Rm!4"@X2<"`Mo0<?\K=oXnuI4<;uWT4FaVae9eOD=++_J53#/@qq]+Qbd+\F6](fEOGX")/VNPhhVV;fjY-T8P:U3%]'+;S\psKNN&3Z*!&P73<2]6X^lV?JD^m&K[WU5kBd&>q%c-!UjJ&s3*P*YPqaN"di7X1\GcC'1J9Di[[SN/@N\n$k^j\rR9UgH<!CN.@_&Qa/X_U9C4eO6^I2SbQhSGhZ>-bt.5A+LROX314iK:-CT/Md_(Xl&f8\G\ugB7!O2Ju$[jji@Q"q57o^&sR"h)>A7obmbOs0jEeb=2Y^)]s9N1Sc7@o$1A/q)q7].ZeJAq4j>2[+rmi>0d2p!Hje!g5q`at]VV9+hH7MM.Sr5hfPRTTK!#cG"7F'_@74Xa4-e2F&'e2%2m'&Lrl/1<*N:!Kb!G/O<DoAYs+>UO%`o.8*F[J\CA/qlIdP%(c]!>N>N`[QK@Vr)^B,"b/?*a\>0QXZ\?(GrdZKnB7?F[^cL1[!\*S.f=<A-XglKOI85cb<dnQj/UUh\qcksL4QEjZ-UXiBg.7=i^H-DC@[$Z9p$s-r.i_pn*=?TdZdo\Z)MZPiNeT*6nPu:`\.FEE3Sa!H?("]SZ#8]#C$-o5a]t!F6s00"8d-F^9.1)3DG"9tCIK_5dY>1,3<0?QJJ4uOnMk`5_6NJ%c#c%+"@&DAW:O/Af=FY=Q^8oB]hKZEdIQ4V+f127ro56K#.VZG7S\4jAm^Jn-0-+S"B*!)C*M&DSg8ZlimAP:gG)kD9hO+LDHPO3sU+4ab))oq^nD[*q$c<("=ft$,"TPm+&a=Fdb?FiV[M(u;OUj]pV?2_0)!@F>UJcUH5PD3"o6[4GIE-p\!2_1[p*m/+nYkIIVKEP2X?LtSDBiZu0_pJrVu0W`@+[WrSQuT$H;&@OZiOq7/^edajLN`T>,jS7bQf&!))"0)o,0,el5s<uV0.Ut@tF)5kD,:KBV&Gr\d'"Y@@Ess`Z$WkWXir(s2t-Vn80sq_c*s`'dMEZIXIhd^pPg([IDZ(s-DQ2IdEQf>0(6p&'8P:hJ2U8KFOKr,(<h@Y>m'e1K8M]#f-O"iHsR-$&f'_>XA$oY\gtBM]i^ga\a6`+"O3V#G\"<+V%;t6i^h>BRJEELROth^'o1R(?.BV1MVMOh`=6tScFBD*JE16Ld7(<3<e0d[taMO3DaRiC2^ok\BbC1&EajifL?h&AMVV2WE-J-P:+>\LdX=R?PsOX'$qTj`!*h:-LdHu!mL_l,FnQ_OP8lZLZ3$8_32TO:fB`?HiL>#>ko?95[`8qPJq@3g?_Cu@CACD?mi](*o4kPi%t$=P@mcD6bVUa9@kTq+<EQiS)c'V6`%J8[it4]lACWLS?oB,Tkj;<HV=JHb6$g]7Q=_GAm!WB\-H9=:>-mR-nJ@2O98u!608XGBk_SF5H?F2g\.eAbJ(<>B.7]a+bIm4M_$>5OW/EejqiW9dg60V&pZQsdj-DZE8&Via)_(Rl3S.GqoIo*%lgdkVX:uk"Xoh+Y5"^oLX&#-LRlR2]&=e#RP]Pc`Onms'O/d$p>ZbNke8:*"Mnb6n5)Lcd)[T8SN+1u!f$MBa(K>B;KrKLFlg/u9qjaZhph/BH,rFa/d!L?YAF3tk%E=I)ltV"mVd:Ji;K)#LUaGhKQ>SXc\BrZ0(NoRSgiiX1@!Wm<G^\WLu&d#!g&PDqCjGL1oO<f>PQMkJ>I4."dP+pjZ]6Cm-Vnu;9YS]at<MTUb+.8k;2_gr_-DOCYj4cZ5;hZ74n,\S5a'TI:_M=+AcTgZ/k4=_OXgu4fu)]Xc-8n.VB(FL)r@dR)fq%ic]p"B0Hd1d+`E?HNSHjSek?p'eK!4kDBJC_Nq)k68aEYXg9e44e*Wf>_*EEi<4]0R*k?A;(bnerW)J%qXr-uUT&ILZN*LN'c6k2pb.X;/u*:',6kJnW6cc?Cdf=[W)e>TdL2])%YdikbrmjHEshr`<nhpkop-+;R26om;Kujk`DV9q"Qtg;Q]Ypp0F2HHa4.=o"e,78NPuuT`-48"Hfs2o]rnO35JuK4NpVRKYVcoj4r7\E_6nn>+U@V-s'%8EDsW'I2ap7T$Xm,H3N(:LfX3pN<;[q$0UoT*qFTGC8qFX5)fJW0;ZQk6cYB*34O/t1?&nZ8!Hm$a/Dp\6,ZHs4`7&d7=og[(c7<4UK,t>cM^[+iR_;KiHnY(RFo"tI1(_mOSZ`[n4J4u\FEW_o/Z[gi\)Dn&f:B@F%R\LDr7C"6l;4A809=>c&0e3`CK*g!hk$MdEk4K&B_P\)ggP.r&aYN5=Vf?#\<N\e&QejjUDE<51(klhhS22#Zu)5k.*.(Z']F[j[aN49b2TOBq9]C3m<\t95umqImu:7f.(@CGSgEi]a+a?W5"0V'$u<AocRfXVJP<HGN&39sUi_c]/sLmR&OCE3:1\]bhed/Dc.iBXc#4__-+=OG&^B?W0G$MM+#gm_hlH-G[<.bprkmb?qH>Z(M!dh;>5r6ZXXEq3MgitBF$%Z!Ec&l]>L(R(NEuIBB<UXs-D^(p56P=0eN6q/iqJbhMX<"ceX/=0QloISb1'1C1u_jTq-fOY"J:sJ<@1tDV3(L9;Jm3i\L&@:>akIU&3*6T.fng'4GcuXP0VCLekkbfG_V!4j6,Hd>*c[5%]Yj7*)2jBEmb,[+/[F#A)?<Y5`q5ApFaV\;fQWHRWs[5%mBGo'+N5b>:`#:7=\0;Y0QB'B)ao`%qHfPfH4\c)k7:McVF.7U;sV42=giPj.Z1PlQMr^KcA.ro5k=X6Qpmn2CWR$jsW!S%k&62He?Vg-Mi*"\F'jAY@`-Q#pbkn*/$%_3^VhZh,eoC!T;leDbj2nCW7b&lrDO"(EhWR3=hHt0IK-rJc1:j.mQeh`X.AeDpLDjqcU*RjPESEO6^N[n:r5?(bTDdUYR=4E>"e@.Jo2O:;6BZ[l?*D;*o.F5mM-NK9OIAg2kS@NA5AVgAJ_T:?J1$PHR3*NH(a>mmp#@P%jR,d,m@"VJ,h99Wl"0&^!1]`R?,r>C8ES`,pMLG?(9&HU/mWlh6d9r43arlfq)4rXD^2V+%cq^7P+"D;3IMi7D.6fKZXUd2.jE$87!9T%b#qROV?WdJ#`R;%Y*T,eB0)"S:Rd2Q:lM)_4_eO?ph,N<fjbl"n8m*i]hI&?aYr;Zm9JcY3XW/*uF;;57a!5,sWNlP$p1>:',RXUBR>43H^)_N2bn&9GrVM*k^Ghb19#Bq!KU#ZP7s*gi=5U!o3EojLfFmK"a$cq'hTD0i3_Ot3^c%^cXENPOqpo]efR21CSE:99X8kou02&b@L@(+-SLq-TqcdcL\UHHJ=9PQ)6X.k.:96t5Ar^#R8]BZNPMD=m^+?@,Yg-k/ZO^Qq5b7L5-KjEVj]$_,@u=2.WaX`<5fLH4u3m,UA3`L<bgCi#"I)AaM5Ic=>6mEO%H#.sC:Dl/]G5WV8X4tcF\YsRBb4g\kOGF=E]i1>#NKH]=K))3t/]S#kf(j`%W`$)ODAnKBmmb1G!KSAXEfM&EIoo:V"`4)%>4L2:\E)#YcA2mf2AQ<AE-SAHk?H'A8cKl!8F-Fl2<!`<TY8%0F4`]bFrK"p7c$i1J\[dh*oNNK-2V].".]Z%5Wr_h57Dm7f&Ms]]a!*rp#FMWoG4[I[!+qp%&CVGiG$VH;gnAo+"KR<S2aWLNA-"On`%7P8HhrR174CLMeO4>hTW8V=ZBAMDa'%l)244jnMe>q(9\4]UmJo(mR)=uEVCh?!-_":(o1EaXem"qqjtdf\2j"Lnk3KJn7c'XEVT\<)+c;agDPg%u5H9XB/5e08')()u+N._b@&tMY;efF+%)P58`!S3=U>Di2Jf9q]0A_?u7IZLEUSVGb1).s^iM(%]P-?D)hR%63>2hECOio%g@!JT-lCZa%\8&f?9Bt#+&<-<W5]%U6`1hLaC-](b"MH+i\^IC$e1IJS1=Pl+=AAmF3G`uuVCI2k%lJZ-Bj?GK]iae3P0RuJHYW[3W`F*06R9"dq_a;/U?*j%`'4FfGPFduTBOhGTY#bO=+ANIb>5:C[@)m/W8JIf$sC1*33>Yt7qk?mgW$G3HTC@/AZ*ED,<<%'N*gH9!k-U-2X5#)5o"%Z5GVh\oqaA2(b.m-.#.)`$7Np%c]::Tn\j`@\;`W57p1AU>PUYoiFI97,eHq_48\'71;`+jCUEHKZ[**/pmfGub8`$VpF-0UpRgpT#WIkFQcYVaA)0ki[q?rISM4M8)l;6)$RP^UI`J-C_EB,bKNa"lNm%3iK7\9-fDF[P.>;M1iSO%qX>s?#"1h"B,7lE5.M'-jgXj8!>mTKDT`;&[4"\og90d-b^;kZCG*BS)"N$e!]*Do%c;Rb'1L./>/tIbhRaD;9CMXt1'Nt@("9<p#4"ZQj)4:adlh5sP2.trn:'7V^0L\Amq-2JSgZin#7(\bM$FAeYpWNe5atD^H?LT5\g2dYP6OPFJVt>Ouj[*&h-u'mYJ=#)Ps&]1,:)SM+gPE;1LZP;?-"ZJ9)2XtSoD:V`'`0kKF+[Zm<sHu#=ksG_L#%NDlA(O_FW('":.Fjs$NM?QF(7#V<%O$_a"o#I`;e07rt4m18=N"FO1-lQG"iHG_5TpWWGLYHD>a]GqE'1W/t-g0;eDW6DioZbC7D3B\j%%>D.dWV.GZlFFc"-q<N`H%$_gh_$'&SPVt/i=dQ\&snAJIC/<.]oTWHJcg8@kYFP4h9QZ=F`LY9'd1O(AD5>??3K0=3-4tA[NLY`9D4VgG]$VRmQ<_KbXkN`b_Si6VKrpYND>Ahq?o_*Tc8>#gkEdTnjY7EB&g0Da=cRi#<.b%blNl'@4bs"Vc*:VDgg!V<jr(95&b]_7'JIQ%FM*,+o?#0itZGaG-7LL0f42P]C#/C+@&1gPh[q^%!2J3a-U"80Zm]`W_>ttDV:l+7V?1X*]*o=2h1hh9t3$C7L;4c5Bl6]G9W+;kt6aKCaG5COj-t_*:'2$a`(./>Zi;8Y#UXt!In\Ga<`0)G5l=nOA^22s'Z!TiCW*r!=%!kao]P?NFCK$(<hT+XXB/g0;SZ)Ph&n6Bg@7X/hLl*iGJt9H0CB=1?s1[[]o?1'XcI.WYI4%8">r_tepQ'`dI\5X)V4O`m;=BL/%//tWr[(g?R@mA^KG_+sE.O73M!/hSXSiP9duZ'[Tf2lB;!.)Ylf`Z$Vimb`QIQ(NSTNWV.'Y_7^e;$d?Sr\#P-U]@\6Tq(6/al]B\SUsEUp=>n71D?6hkF,Q(k6DT'<rb/hOOUr%uH=51;J@"uW!>$+rMiSa.XE^"BqS)XjrmZR,t.9`U0EG0j`9(<>%=@81VifQg"4bR@jp+O"Y69OPg$LQ.sbE]e0'd,,qioiD6m-q2%Zl)]!aC/(trM!hCY2tR@I0O*TYI.SS&FPQJY:S7p"e*88QN&N+.gpNZjNKj<8r2o%8`f#QO724J$r!d'h])afrfpKZMl`j!u0+6mVrBe"%qeFg6d3qEZ4/.rlOCK'*R4iRORIl]hjRg[$F<+Lp6U]72ne4LR=a.*K)*:,U1<7)6Q-ri`SS=!B\UG0U;O&B6QMD`I[%YdK3KB>3INiQaXB*Sm'KVuInWKFm'0g2*b5R`q_X*B,*k@EA@S/7Vs2W:YTcq5Tc5i5#Ugqa'FPVC54Kh;ncF=Ho;"7M!_rB4#n^iK*CQ*7#!Pdi6&ZErK_/oqZi-XJ4BSMs8Y-B%2D@l),ntVhC,u;'/$Mb;;KI2^Y)6k&KDO2Q6T=ol#lX!/t.MX_Jg!1U0dH\bmM-7WZC"Uh!)>.IIV$jg.(msCWKi`'Ym!*1lf5=p-_a9up+.QWt+[OMDF4h>n"q[7=L&$\n:8sl`jW[?]Vs5"tW8k2H;)OsuJQN?@n/g`PXCtO/NB2L6mn+="%J#pECR"i]GAN(G6$YE-<?C/_W81jNiJ'P[oYm'Zr"I,cagjOkJoXKZFVn$f!R!^6kAr]S\0Gq9fDMf#$(gCDd*>;?M=K9/=)e0$:#@@/gYCQ$K]GI1Fm?_Bk.>H5IpC'a93o1644E69:A3-mCM**XdtS@6m-\60hbniDT8su,gNj<2Kdb-jWFa.[m+DIa1\2_es+a2'3Lg68a/i*!Bi8=1V'lKj;UM8?Xas@rH^6b%JB#O:_BM*_F&#>O4i.]n&I@?n^<G8/lF12>g_U[=BKt9XcWVR[![F+\hWfc,&&NY%5O&-YH$g23Pr!^jFp$\irhb3\RQ*BJq0T1;BVNc>)Y%sG=VFNVU9EM-D$=l':7@DH]`DKEfiC^0\(%2Z^E*.4hUSIiT[IaW7SaT_[3n[D3R[L5`Wlu%`q*-T#ppKrX)A7lE6$]pM&:-;_WSEFjm'Y+=ju"AYR6d0nh;"SYkapHXX-f+J0[BdE/=a9o%%4g`$3K>8T2_D=P_"gak>Go>F;],5=Mnp/8B(aadoIN.-nAorROr7,_KGZ/uC)!*VLV]QOZ3l1(_A]A^X?[9]hYL^8=Zo<.#>N-=l$a&Omj4>_caU<#5(A&n00;S5<KH[U08*`RF->/i\RU?+)";K=q6MnO0.Fe+4HD?CmiflrBS(&]tF:SCAW.0M8s!D?WVKaLB$!<7=Wifn:!O#>M^l$M_Z^?Zrpkf"(uB^RS^u9XL%iOGOeZL)Mu6oW-e;.3KQXV;%K+UQlBEFl7h@(#cY%/:TomSK@K4o%gff"59@3)3,m5EMaC;j)deqecu3UfN7QIAVVSbULj1LiaN9?=6E"[idc`P\1="u".1D[B!#Ao,?9kSL')Z.[7;_T1IuogZQ[korAc`cE>T1i,$JJM,BS0nq0Cpd;5Tm&%hO`R^/RcrN/P_#`YKhRAGe!^B;$@u3VT@'(IVK26H;G%AobA"SM*BV#'<h!HR!BOLRdB]gL$0[g[bP51FB0Bm2_Hi0sM$K)&7pLQAsMU_'*L?SN)%S"IQpO3`/GLqU%SHa'eS]Be$p*FP,#A=6ZM)XF,n:;pd+um!4,1>+=$;K!$\k1B(^i\q2-!-E7tQ68BEijeT_o-F+e&W1S0tH9Hb)=BM_=!$GtRd5bp#I&lYGO4KdQq<o^oS[qFC?U^ejpmr@3r5lSPKc"J//(J^+,`(:n>4ZrB^.m&d/#m-uh]]3uC:0E+6m(lqooe5l9MrkifkXaL&+R9JJP$4nO8nX.eMu^nU/k6fT*LBTCl@?l?XB%Y!AN1se7Wu@/@"/'Q'QdaVQ\MfJA$CuI>=?cobR!jXs$*U`;4Uh;49i&]/E^?i!sdmU!757]Lt]Z$fegKjf/,h:Q0Sobr^-1s)GE%!)RVA]GdK?!;[]b!rI2^22hHu'=]Qi?p`2e08:#YO?=h78TYu-#SM>C"tt%'KhL2(7emgGXhGkQ(s=,$7m#6.(knkV:6`I0Un4n'9WWUXnU(@Z:l4\>JkaGb/i)VC_?i^qrZMt'DgaA9$6'6?3VmYJ[SeM1[:IOG:nFh:N(@.HG5i%3bVMh,Zf5gB.Y]8+rV_t2Kh*&%b].Hk_MW[Q89/YI$'+o,2!_8)4bpIEC>jKB-t9BHY?4#rc4fcrL9dR9/&iCS`Un`Mm9cqd*`a0CRkA'/`5%j$#MH8jK(jg#\S&70=&d.hZqgn5#O'/90t.\[cQ<:n3:\74I9Mg'"GhF4=^V,J6qc0<n]i$Z4WT,P#GIZ)R1`EhT8=#p<\Sk;&$7>]0kWS+*o/XY"57!l_L=duh7VS9+d?K5\9X24b>M!]A)\(A-BWJNl7U':UCuUP,'fClP%iJ'>'&9E'B_PJ&&j+_isLZr:04<Z(Jf_TqV8NE\<@XN=*7!i,@!e99oNTuSIo2GE<g=e<7d+Qd<\)&nDgjYr,S$k"8dl_Vs'OYo&+>M<E*;sZQ7<H7Kb!];5LErlX:H/kq"o![joO\8uQ\)nF4T_2i%q+1L%]S+rRZTedaJS6mD?LL\qQ.h$<;;JS,CE%5J(.J!#?6l_RtpT.ij4#gj)[:Z&PmPu!!$>=k*NO"=a>fK>07e^_/J3H'06X,Po_O6V@ci2ATC'&RUCDLeb+-pl&lQe'A@<d1=.fE_OH<^L)AZZo!6H$IDc"\U,40sZ/i93ktiD0RQ!i2_0uosGY<cS4t)k+,n[Ot3A<7d%SJToXr%Oq0&:!7HFZ<*]1-S6u!6+1X/M%eG`9-"K52Wh?4@<sYuZm?,8kfs3m.-92;%r]E^qn-_,4<CYI-]sgb'LPNs(@#3jDq*kO?[[mqh@\1LjnN9?X,];W\RX[+)IrGJr(jI[,4u;>?XUo@.Lbng?e>5Y>/0\j"o9<H<Hc-VV&j\`tf`,uf2e6,Z9do95@h2]=3W'*>8caZ^qC!J^(\85NB?b_`i$!B#C,JjQFT*F#.&Dbsrsf?-b/lKCWCP[1+Oa(=)V8&3)Q%p4c%^h?84<G>]1T@G0s_-A]mEP*Yb'',g?pXKj^+#-5!!r-SjcKdjosD`?nfXPE7%JSY>F0?bm^oX&BTQr)W7>'K7_+nne[2%DMF,V73.m*gP#fMS"j\Ei,%"$pu@N/ns-LZ(83=+G\r])9jgRFkX@?IU=<;=cZ0qV>uu]*:Lu<%c/')JRpKdhDgdlsBdg@I8[0SWGZ<S)s3XD%6ArRjl0sUs!Tk+<`YI16Rk(6J/W\;9OU>:K5"Op/Og42gTAtfFPfPtH;1cU.d>["(:['?-]/;3t[u-NB>!7aYp-O9d1]7&+U(,D^"f@)[]kMc!Ge-,Fj7OVJ]6^%QI"SO*[`LTN7##-ONtO?t,EJiAG-d,YXZ3qFa8fOT_#Fj_-GC`U)Yp<:Fc])B+/)>fJk*&:XBXD^^_lXXmXg"rT*]Mn@Ar??ZYO/J$4Z2*Dg*tcGTGsHeAQbP<'+J5fM1D.PiQJ10;+=/.?[(U%6!(6".gANZs5.igp3'%<Rur\qdp3:pg@Yq:Fugfr@G(T7D'MhLeCgGL]gKE6uYD37QeBUH,g_N[;rm]F$Z&;,`GEDEV;hu;J`:'U+EK;1B4Kc>oqG=:;$;i6:N(<2*b,8qC%eTOmHr$-,`c&jN%3XFa*EC&8A_eb;!G4<?)AJWhII9g<J)7TYA4nStEa`8@bs#m?-AB.+Q1QV`OYlnT6#C-pFr[U,P\+b)EFr'K.07_JDo&m6G2nL0T+_1iNp[@sk?]+Ci)LW/GD/IDX[he9/+61>jBlGb@ikeZWnAQf_"P__U=_pZ[=Mb.oZ0=IbROm!9!ldB*eA'SPI_>70%,nd1=3)O\k2IgYLRH'>>B8E&3@^b/@4jAB$27m0`>%CJ)s<>XNKVXo9,UVS@IiV(E1G:;UC6[CfN>S'Qc"s><"o7R>;+4'_ikQBX'0+n>G@<IrocnE\(0jO-4r@":ah0H],<hGe56%RRCo(@/LYqA<nr+<#"LK>=5Qb3?.F;7r^kqjpnq%Un.fH@+j[]+O+Ffk!/=ZaN8HEVGLGi/[a2,c<`5mT^REBuaei-5mgTUg(WB'<d*@T8>I2b.djDj*V^[&_np/Gle5(_@>I?/;3f/+Hll_V-)GW[b.jJVc2Z$:>02[*X9(?j3(EZ3[s'RUiI'HCd.E')rjTR$L].`tcNBL1LB&4oW\YMjMHZKHZ?m<n)[P_CQQ%o@4r/@8U@tJTM2[A%p?oatWu-Oddn1#jAgqi-XU$$ga8]PdHt]EdU9A*W$@9<-Ah6.KD&JiT6HWQ?VQ>PW&]j=Vr7>8'I;KX0LNKH:DELQX._uUf:6F^obFOaqjE(Ai:6]R)31SIJJ*+%=U:.=%KOp)pAfX'.!Z/3?1]9#ltrJTke$;g4W?bM6pkC>X+BVk0L2H=T!kC)M2cR1"jAq+5;7A;CE\F[t19oo.9>e2!"OdpL])S5[e&$Rc\iNl/SU_G"BZ8NI;)k[PU?$o@^UFNl1@?(XSs.fSXYLXf!!Js7.c96caTCc]&jWk`7?Wc8m[@^o%o29Na#=rgiI>!mWpYb2/<T\T.^pn/b-<g$lR2l6*\sG*CWB\fbCd9F_)6iLr7c'8`tBMe(I,b>6W!IIfBWo]3Y/H+Jr9nm5+B:g*C1LLd+Qpa7u9q*XP";n-[e\G?Rj^p/h;mT>4ThaL!?ot2/A\m[n1g"S%&Ki,ZmIHEq2hgfZL9H8IMb#RH<YCL9rLHTP=Oh#rs7P"n5m*"K.:XH7lGr`E99sVEQR`@2bJ[i_801(KAWuP0g`k5D!A7R3DM/8hYTs[jL3/(u#ELi&Q0mVAY8E,OD,;5\A?YWkDq:rbGQf2a@LQOdh%"+k[14!/g?Z6Ojj/3@tCe+FYlVA4:QSla"Fn:WG9^+J<I-&3Hh;SlX\^A"3H%[=jcY/!5DGp%NV(X?bI*-Wu1Pn"U^F@&d?8`I*kn/lNoSe22%[fVGDPtYP=Uis@kk?A/J'.=PEsr)H]=k@;#>fUsgL48'+#2.Zoro2dprZjm%,("JET)b5Bf'VSlhHD$>CqncEVuZ%j](SG.3;bAX;YZhdKu1H,%OMqrjjHAT06OuO6l&c]WH1l6+YY<K"b,Fd%qJa?;*4'U06RGjXKrO=*['H12nYb?h0P9$N"BOgt.1TYos5\'[SQ(DpB2]'3UEYb!%rGfp^)uCGO,ua1bCS.1j*'C-(JE_4%G.q!j'bI0%A=)EjaX19=ZF1=_:0*dK"lCde:Bg^o^C0W5-<\CY"`@E_q\SGPOcn.LUpHGVsf8bdk\Z')UfaD]40FC!T@p)]Hul#6O-gQ3/qfcG>WGL@t),t4p.Om$I@@`iV9/>;,!f-_Dr92!>FQ`,>I>,Qj&b!#%_^NB0Xncs?q(78etC)[:65SsV?p5Oo:kkIX(QXgj>:RCKUG<r(aW/llhcN\,\"HA'QOmfR@YL50!r?pTRf4G;g<aZ;fT(Hk^]7XeF?bcL5GUUYO=CYb-)JBqpY=uEl2\iC"#?6d_iLKH_!^_48mb52\n/7+s8&V<>;AN*Q7m<%9GF7]PVuT:q_&[SnTcLLk",4gs>%CX0FU?>Heg/J8gVA^GU$g5^T+XsLdoZU=ekD.Wo=$J_Z-73;gW28Bc[:ih%-Pk6dR04f%jm7&ZNf4edeR#)?.AXeIjbkM'^Pg\kW.uOLL4j`2SkKJ)Ua9!##<l87?jb8AN?Np)(&=/"gE,*3Gd;m1Jep<"c!))c;E\3@I\G-BbKY9c+5]s?9]hIVd?8YluQq1P4@[e<,<pEF/m_aA@)3<2A("^Q"QX+HblV-(62_-Nn_.]VSmSb^*(nfXu'u(<XoQuJ[Y4;*+,G6#91>kK.Z4%a5#EGRc)l-G+E\+E[L>.Y=-e4]:oTU.nc<g"!IUegNh-j8tt@?[`*;kjD$Kqn`_C<cZac"2A2%pgs.h7/99-MM58g'4.>&0k>NipD05;%?gX)OC=*T@P]hC?X;B]F+m>*Wet"&STNC4aZGH0>e$UJK<cU<dEHqQ8/;6\@YcI"\m'?IpgS%'OR(%gL`l_O/Bqe(2C#pfj$oYhq2lHESCquopn8+_*\=T2g"$oE_Vf,UPUsJBV_=qkhj*C#-,lXt6J!g[I;>JUHTr1[RBF8V+1G7\Z_%VG:aFc)&cC7G`%q/'nN`;REdKZ%t!Vda,i8G8FDmb3K2`HG*3"d+/j@88Bq=&0?KuDBEmJ/^/j`UK*&pYgFjfnGF%D_3PeS*kl\p]pHpP19mp$HIV:ssQ1W/-)Kod-C+ACf[$g&t>Vnijo3OHh#"U;e>1idMLW>)hLdbU8h<\U!6f6m3.;(qKqFjE+*UAdIA.c?b\I!8]N:/PX>'r8>OgM>\s!5q&;U"K`_*"6#>*EWk';Xm=Z9ct#t(r4kK]_Ko57X*0/.OWA*EqH[YEOXk=cs-1_i=$ElgY%ED)7kbaU924D+J6>\H%5mmDZ=d;>U*1QW;tRFYH<DGW=Ehd-"ou1nLVJof<G.97/@UQP]I@M;lAkf1*s39$2J`8cjDdi(nK.kg*/$9Zm:p,-_^ZWNi"?4mQm"q^9%NPd42&HIF5Mb6T<a_<,T_b&3)4gEm.3Gc#T7c3M;6.^;(2GTKE5e,a$h5rAY'c"M!B5406iEiF*EtGGr'Y--5Eh&*tO"c=K?Lc%?,_Y\G6j#k?'l;6aIu:7N)IY8;jsHr4Yu4i8(fjSQ*\NQ`P-f^E<t:^SrgeG-#G`[nD6ZZ#)Y`Sb*g8^%:nP;G*N-""&nC#5@S/8f:>fqc+X4'l\(hmEOrY.:k3dk88i"X*3gCL!B1;R_@iq2lD8JnlAM<T,1P\B8S2j#YAmd#&b)Z\A0pX7Pb,\4XsP#d&dDoZ?KhjO)tr%gs:U2ZY'+ua9_r-,TGS;rh0r&bS@6sd)+5:>[@1DTI\SPB.)605XpRTH"_#6mRilETD'@SQh5E3nL4:5ff;@-OfOfsf3+edK4a0e%"')84`V.M>8k/#F+1Vc3"QYu3G+"n*TH+J`5/c&@\cGtXX1\,``jO6S&:oh&FN8c;:0X!)S(k,:b<Gnq($<eVi!"tRF9;r!Ja(=4/S=(F]?LA$PWq,2?O*!m9GQs8&YY&)^cLn[)!W"Ma1u@^MG6IR=jS!X,pHiK,O\r-+?a]4l"K+-$H/2%9NqA9`];RPKIDpqKDVVIjt0NVQ`:uZU)M.ZnbZ(:Q1&5H`>1W??"s*Ds^Vun-0sqhjE0\?X1r\pu$@0l%.ZqnsJjc.0*^DcTb/ChGE*<P:X"ro&p(TDtu@d>m_%;jphGiT.0dE(OB$_BqTXO9<$a>(sqF0%Ll2=i'sdV2*;\eKPiQAX2l!@LEs$@L)ST)d'XI$8A"<oVn/61ns1a>6B&Yq(UrBl0<Vf9rmqWjo<))lX='/M1Xq1^9bn//R5S>DW)`*iPNe)@!UBN6WF_fn8n#T(^^$1.Ek.^gajukG^<VP0gp*6)7LFL$g:BoCM<ton[R-)sQG!F[_(f6<(Z$D=Z8E)Bkr4$Rs6&+YE?<,coQ9[Qa$9BX_/Vm:YcnD?H.GT6?e!Ih2^DjP%Ql4.qliidO*OOf[[^G1^g8bhB$#O"#/q@Dqi`[tP/H#_5tMnXdk%>#4RsVi[&K5JPMSQim%3AU9^VQt-(:B&O(3AKl(hXbMuQCXD;BG)@u<K3?8_*kGRKH!\L,^;2tr&LdSTL(ZG<i>PUrOXd"tgb^80))bQ*iV"W!Jfe@ic']<'X7/ORDrk/&U+%]^t#Uq(75]qnhne20l6Cj:$%3L@+Wok.KV^2kGBft?!g9ZbbagGgFb[;BmtLa^V7RR=`HUC;d-QcTW/,q>c>?^)9EKFNCU97&2sH1CTfPig/6%B4+`[4k0`.%0d)>X;k9)_f&eT4J!1FfKM:V\2!jr%4C*p30o)%mItH<4ULT2?R+cmL]kF*21,34o;hfN9EWCru9G>SljO8-<\iJhP+e=#+>S)>P1&58pM=G"V)PoE,o>b\qAQmAZ/\C9a_t5E,'43nZL8M+M?#*q)+;E_:nDflG0!Em`:d5TBHFhKW;PPE7+4^bJ/\j[Eof=Hd>/7!5-6!&M#t'N(dkEd*d1sk7Iht+:iC,MMk-D4.]dH*Y#q??^\,9BI]GAG1_+[pN/XscCKY#H.DIRPZ's?.'8RrV>_^_<!j@;"lDN/Rsl.6h/B7D%D0CEAmO6[eiMM1(/6mZND>UWQBQcup7Vh]#>REJR)e:?WsIa0drX;NddOJup=cpd_o=-DcO3*seb@I@'5j4t#db++0K\=8F2,\GY!eOhMej_p4KA?Vo(`.QYP5jf?Y(jKAiPKN8#URc;+"'>*/AP`Vc>A8&LfgkbN-]arE\3hg;'q\*$"m[nhV/;W?ZQD;T*<$+[EK+2?I=jDjUTb9lrufR'&1u55S,H^Z'kB3uR65R%b/2')SC-/q8_*aF<&BIOtXS]]>TR-AnP,IDurA7<dPZ:VAdN_Nbb:iZ5-"*EmWl,W`KmA>JkZ`D+OmVe(2?C.(m);&O,UQ4)>f6BFeUM^"4a\br!<8n[&8Vr,eXA/s._/g&@V.:Hg4G(N(DZ3kIaAGL'SaoIqr82.T3b%]l'r\/sr`bUFu"SuO$ka&Vd]$O6CXn2-#MnA[5?iaT$>c61:dqIf`6Hu?:aNYfW&1(:hiEi/)qL!4nR[ckQA?a2)GOarC+t*:T<YM3h@FU+8SWPT8>[DLa.QVCpnsPC)EM8'Cm_gqM'7Vu&=^`QIg5o?&8D6W*dHEdYi(AEY`kf+ck(fOd']i[b2\4th#WhB'X6M=7,7V%SogInc.I?C&Tb]G:dJ26F=8m\:?'J^r^Si`J4^R=F)*?HTh(L_/#d-jsJpjqUi5q7W=-Pm0H!c$R8.t1Ia/KeAb,_5RS<_i9jX6Wn-.i?BZ&WGWi"e\`(U#1$YSp6c7<Ug./iVVWfKZ8DaE=&EU3?Q-CHmJ"UauCJ2/1VR$QcTAWJB(5#\o6sfh-q2TZH"t7&]_AdfMMe&%31W3E)dg1o&`ZamV>\Of0?e8m-Y]BFGBF(k+Y4I<pQtGs#MB53?kYB1r\"XqW5Dli&Qgjtu0-+)n8e=B:8QGa:(2B8BZpdHPE0aAa6XQ"e.+1Ohi&Qe@o#qD6tRkDU/QGl1uC7_&YH2=8FYJ'ma'`:`2/j[?"IMPj[La[8NA@D]f?d@tN;&2BtaOXn9'@CY=bk-b3lGF8ld,a-MG\F1;L;/02!@0OE[2@Po+\_aZQ7eC>VfVW\F[ZgJ;NpFP'm/ah065-ZgK]=SU\WR"(G0DlG!HZr:%DlfG-pkM@Gg-+Up$=9sOQdZ2h\3N0*RfNS_R/W>dJV)n`8u5*^E+B38Rl3\DsQ^s1rJc,Ti#*fOS&P3a'6h\k@F-K%RaZ3S`(P<^;WYp(i@8I9Ck86$1LpdDXLpjaEZp^!@i0M,liPYl^*Io,u),#85JTnJdEaN`ER2aT9;sR$b:DcH780Ur!%?hlAM,rj\JVYJ#!NpqRl+fE2Nu.cY`f9%['\3f0[9!4mY8B7"0tYVW/bG.,n8lN:5=ue22I(')B%lBg;/YT/dlq<q+N259!11TbT=p`LJMf8goK,-&G&1pL35j&Zf7(UP%gu=jPi@C*!D%_D-oH'g29$aNh(l&8R@W,t!?,eqp,oXLg@W9J!u\AZ'*gXh@T>s!eD\IZr_tqQg"R#&qp1e.3V)#PZ4`$u%5[Z;88#R=f6J..1A*.>Q1NWa;aSZ_*TNJ-cSF4LB?04sM!YBfAZOR+;7ZZu3k\H>S#;%KGJQFm(-?2a-4HADcG8&9!u/`Z]H+[S.`G\psfURt'%oi"[N/ABo1Ah$=SXR]:EfRS($Jp@`jdp"jaeplHsBl1IVSj;]?RPpF(-MU+lNgVo/(:l][S]5qHYeL@]kA70.F8>HZ&O.nL52B3ppd:2MCorqo6'YuXQ8d[QiM(_g+7<#C+7`gdZJp(?:>`*n3<R^&#%.WF&fO'WA#ne^dGI;>PM?:C3SVt5iNF1!_VemH`@GAOg]3[D%\Xdg(UQ:gI6'K=G%f03eYm9P:+kUbVldcc$Ot#HP8'.O757du#11@G6=97jUR4'G;/:WE#*+fpf:da!f<;Q8f&n<>KNNRpmUK/__*ZBB$`b"&T.;S$k&P='DqE!*o30X<MDbI68fTMr?G53[lfDAce9A^7kBqRaF'hk$);"]NbJ:&ZCjVcBF'k;bMUIhF:M"l_MX*pn"W!Sm:i1#V?Z;Hq8r7&h=c)S+[JYim7T=t(8SK3IRc\'W8kA[K/RppmeT<NA!_F^SLKHGCU6ER=-;4q]]J:idZ]sKi/g1[RIUVNG7Ee\FEi;Uq,Fmt_>5$e;,XV<f#h^`VG[g$@K/kY6pYB+>dB]sP&75E[>Nb,EWg!ensa*L0ldf!7M?`piTTK`$2J0bZm&a,h_njl)QZ!Y=q#CT(&R'K*H66Kd^m)f93G5Ihl`6!:SZF)](_"Ci^fKF_qW^a+_q:i<E"QkPMkSlBl3h-4^@e[P'6=5f]>TA#;g)?f;rJo\MSg;n[G4OhA,+:[q(_h9/+%`[Qb`#Cjl.b373J8^)/^:LF\-$L)AIN(.hgEBO#MuS]3`8b@:TnJ>aORJ8\HeaL(,K1G?b&gtOf'`q/+?M^=oP,%^r%L8,/X'Oc>YA!EQP[]*UO3HGfUX2dZ'#-Sggs\P9!]uTN0r*^-ajiI*nN=;9qpVAn*lS.i(r7ZT&l"q`0DZi7mN/IBG>!5T==-#JT`N`*QM"ZTcG;BAZ4(9qZA,\thU7#JEiYYkZI\Zo6ZJ1,R5&n66nML1jV.94"*BXPX"=:[n,Uq*dnU-Oq^#h$G4\o-tskhFnK(D/Q2Yd21EJ<Q#\I1f3RP"s]$PMRs9f+iN7ZW\kS"Xam;N:gS7FHdA/i.E#r>k<]Z\,l"QcXn`QI7rc8t%A2Y)At8`BEEn@hZ`>9`4h<#ICi$X(o>I[M_Y.Z@#r.Lbcd:FGnF@gh_H!c/,1Xe+e.2Z0VXPUec27<C4ck8_7Ed'&TR"Ct2>dF05ugf@7/Ku:e4U&WfOBs"n>9_qFm>1iZ?mrKZDj<Dki`#g07hC3Kgq%>c%IQ[;f!g;;;j(Tk#B!.H[B^fh?]Y/1>/!3mp08IhC2\lSkuV.+9a"<:EK>N[mH?GM!E\<CHoeL2/8FT+681!B`FrInd:\?*<'gt\pVTcDNNNa>\acGYEZ[n?e>YukP=>B+ob/.8Q$Qf>cEn:Lju]7IFbiG0J89(DT#gHALoX-@-4i:LlU^<X3)]'>;2sul2&t:&9@U`les0kqa[IpBq(TgTd@VXTg/Fs^PX&HGUJG4+>R@HmNpZPK38nF-8U49Lh11C\Z\uO'AG4!a8(V'Ns4[e_PC3+B!iO+@mGckCt3C^rLjQ"A-m'%;&;a3KL_\M^d"uLQP1QgnWq\WCHo^N.(U4[R:^dsk#P_tfNPFbZX"&^+CuhiAqF8Y<T=2[6eeabA4IjMGY`AJmCPFfk"HW_n.;#EiX8#^(hUMn+a!Kn/3j/='H\`?[a3ED8TN&P@7`e_c]lP:0o^saXV;=9?6T-GSkd*C8UOVg,aVW(hC8J%WW;QuSM@o2Ga^?l)iAUg!L@L.a9U)0U_+Din(m(eF&e%aY<MJ.j2O5a0MX''8R8h+/M]-af(ca035HMOrU@IsN(M_`21dYXHGb(u&@"dZNWAJ,BDVX6kS/)#*!!=%ooE1rh89+f5qXf:m)>?gWibm3fcM0!(hs:/1',+tSeiK=?@Diq<Zp"WGTAoLcAT4sZV!bT&Kl*^>fjn495n@17I>@CnS*fG"WK<R]0`JI3Z7'G&AS2]Xqttl(fl%\f@oSV7^j(U)r;eDaW\25)`AqAZC/LpfM>sX+[Q7;HBB'*%44T&P`S2+fEnLu(uCbgs-['?L3284FF8cC'2/.;>eVGXMBUribW]%b?`R@\j*t=,`)jZ*<'\aMdU;[O$4a_:ll':!nr/BhFc&WAeRa5H#)qM6hsU1i7W,\1FZ`GO/<jMI,qm\b0ht7"dR"=@XZP1RW)*RkibD$dL^[\r=JK4WZ*(k8Sp!:\\X)Zq_6fi^,b,ISjg41BDu0tNe+<VNh[59.>T8V%r)dQJ#BK[4H72/./^('bc.i&JaI[OuQrWGF5ilE2W9.J9jXH]4fUOU=edc1oOS>,uF7KU^^%!WZDIbG642K=5Fmjs*U$sitl*Q]ACf(CFXB2;YD1WB/k_r"SoBm)l'392+E&eptEsJ[D[]g03Cfc@qYm!te`Cma1]42,9XO4q]-^_5h!dF:iK0u*c6Pqe,pD`]OQ%c%[S?jDQWrQa=F#p0'i*)JE$CfSpU_:VioSc*Vfr!Icj6o-!6KCec01fT:-%;OKFD4%7Ou#<=DHC"C)pc&qP:e3!0o`\2X`qX32ig_(,uDkB!>OnHUFq/&Cb?t*KK<%N]'DF<10WP5@DX?IS*!Jh&'>iBkb.6-mecc.ZRX922\dZ$3QhX^8FeTZ8m$Yd)"tAt>?6b/8pKq^Kk:/F/2NO6f]\p1Yg/AmM\+afW1JO>US)%khpFr%Te5u/ad$%L-/P2LJNN]r`SX>pig3A&Zq9,kcB9-JP;)M@_bc++ISP!a-MKu#CU&7Q'=h.-&E6\SFid5Y2]jZZ$15.b1s]O-IcfU?[oqDg@n06>RgWP*1<ar,'TI`I3O^6MXu"1lQ?CAV!:*^@L4r`Vdr#0ChVb?XH%-unlg+r/6:T,/pGd0BfuV#KTATm"*[J,(:CXsfEC0[J"11"Xnr,_7k$/*:Z=p*J?lTPfkkp:Xq^^<rGdf6FJtP\hm>VK1G8:S0W9ib4,HL'SX.Td#nFEKa<B__MqN:J8^tcYfbEM_3.5u2NfRBWZoV2'TgbnY';P0R$7=m*#W]<'3aUeQ.Ru^]61g.2:U`(eA=,,5M,TRUi+=!]^JqgX[1i!1OW+jYj9$Ftb)m$X43:2."l`k.J:=p^Th>lQfeJ!LNj@)m#NT87@q",iT?]71n_J@+uRTb9goF:]#K#LS7EH4`<eEL@M#VNch.CB%ZaI^n9=7>\T:%gaL\bBcCk>;jIWFb!#&5j-:8XrIpp_HJ-#R0'g2+q$Tn#?=P(_BVharBptq^EHL,Cqq*X5<)jYDjuLIRc5.J_sGJgsub!C5LmR\2g_/CE4bXSMn#*Jf5(N.+<E<_g7C<,3RR.jLQiX6gO5\\qfigZ(aYg"b"1rDa%YhM@LVf5%-BSB9)X?+QA?Rle4Zd[d4c<NAlfX(`&kSC?t3aB*W.(1H]1;5dE0RCat//#i\k%f+#d;(`qP$qQg6V!Y>$#Fnbt`%_;\'=<\Gc>mD&+a,uEKCb8C`gR:#XlhFT^C4<D9EH:h;XgebdaB0^BOlP-rJcA1u-@DV(d`IMd*u^5oiVlLL5rD!o:p.OqWnNe3;,)K1Yo;L]qp+e8L$jVQQ=e.(1.PoD9Zpjsr=\9AGuc4i3lK.s"U2n1k/c8hD+_X]YkE*tBo,JPD!+*rTb1=o*s.Qf&[Wj5Sd^q.(H>hhZ?>+EBl)^\-=Cpib;OlPURNA.!`:1]*VDSB1bY@HPLMIVE5q;Fh`AuRCD!/XbQE,!Z(hl>.D(1cmqe[-*SX^50M:Apamc#-Hndf:3``4T%Vu+U[(N']=5=`<6d[BV11p;p%_)&j9E>q35_]e.<m=9[\WHW!1/rsJKb@2)/?e+"(u-mGQ>&\;r4>VIq"@O!Ccph<?W#n'&d"Eq=(M>bI>$c?[F8K-etZ=f&]\<U"D+U;VV7bpDrr\HmYh_1FjY/nkedi>dtB];:dlhoV^6bbm(::JfQ?!dPi-7i)%A!snp.c7"@f\bo(nXgU,u[f'%+)si(^0)?Y=c5AQ>"de`WSlTF2^JIf6N'PO5<#/cT^&LNTUACWETAZXYtgH81U"j\&ak*l<F_cGIJf\PAee>7lSFAWJl%gA5TXDb/NN)_,"Z^/j'rE.[<uNVM7o*W.9a;C%WKjW6I_AnFkXJNcPnrL?N!I#--d\P=bpZO'PhN=LjI&NH@gQVCM($1a*gU[aWBaBJF$Bh0`k\fa<7K=Amu+F\-H:!hEkkM)(\&<YrdU[(n]7G?o5T;+2n?/P^*>s&]g6l,V6=DChqQF`p@M'-U$)Jk"Hdf4f&&+`KKVb)j5,,Jln0JF5K5,caSRh6rGDh>>8XfFjnMj"0U<XH>t)F@BigU^KV-5odR-+(0i"gs\UD]$pDNS?eABHG7b6F^dqdCcU/Y7r]JF85"=QZ-knX>)GcR:-bQ$r`K8Rq@)2$_S'@7uEG'Bi[qO'GIhFkU6XnbUDH*K+1OrpJ`TeE%>V8?S1D]o75W"FOLGj0P\gU\ZVCr/"n@j$THQsXm:pLP&5DKqm"LQ.f\%Sh9nA<Dt!+8]]J>'MkQ"-Mr.Ki6d$Gm*e@`3/qNu?ZOeY4CYWGDUJ8a[^7R.?0onOnU\Z<D$6/*pB-qoTDi0:A8+@=3FgbSp=ZZ-h%\KUeW/IQVYi"7:Lo`1:=gCV!;MKo6/)A*2g2<;nNTcFBMfkf0bHO6Pf?[YWB#^J`.Fhl\=)p8Cg[RN3\I6&83Sl'Wo-YJ!A_%#[#RLt=BERmF3$F-Im=Y3l/(O/#aT94'10qAWDl,l[1=cJB_f[JP=P*c(-epDbquIIr?C^EeM_BCPl:#.4RJOHk_EXKWAH??7Y2I%IiW^dSGP2tR&+(]36L1tLHRf0b!)IQTaeo0uqJUpbRGS/r[OnbXh^Q`eTnTS)n05^R5=ZPu9[?o.A'f#`@HCqVj=aXZ+)5hT&\e!IHIQ%*Vs^e$_TI7^BJ0`frq2"nh?=s&I3&</)bC*.mN1Sq/e@'"9*VJb>^U]-ZpikF`3KY8h.qI:.ds;7A,Q2$hfg&Y0$_JFGEZ,uHl-e3!t//Yc)aD=AHQ4dj1]'l@.,263j(hu<QB:0fNphBTsS`SaT(O]8"*#UE;m5;I7N8>R1\XVN_RD17fFKCk;a;lf,L\g_Hs_cW\hE>NaA(G8u`X,TJgPX5.>h&(TDBsF$L4k1Z]IhCOo-G3s+_RS*7Xh.B>R%(sp_FS%i?skDUW4Stmm!BJ?7V\@0#nidj^4_/lO[g8f7c.0&_kecb?`Jl)56$1Km\2_3im8.aP7Jl(G8Xe3)W$Sj?r#[nG4a.bY7("p_!0?"ac5(Frbee]Rgra'f(Y._;iH"t:hl)T7&DB+l7outL)n?l<n]]#<lQBT`$kSs1K#_WpXWuTisi9iN^ffl?2*Z+)"_\:8_1YVg;(n+%UD<7AlF?>n&YH[7;W@r=Ipd]bGbr?SUe>YBa0,)e)FF!1b!**?'@0gmW8\fU<qZY:TUIQ=&\3PiDYe8bb[bA$135cS/9JMc,,!#c.hucDG+3A(]ZH8D,.-Ir8l\;t$8\PYkl5!TE/h3lI^Q1'SjCP16p&\*_7DRMJT?Y?(iUgI/-d)e?U*slHbk(%/9gTl"04%gK!\#k-<M(e5#p`%:h!@[s5(ugBX6"Pe-,;tirA)pg9R*+'Y<H/fH5';DYhiLNQ&b@>n6;e7GH:&#^))If,qXV\4RsKubT_eQ0NXRaK;?2eE$`3T;;AHQ2Mo*Ubcc"aM`Fn[,'U@!D8(Z8A`6NRHr$UGjbZ*aHI5sbHrtNECQn+.nL/1@?>.SZ5M?W-EOqmshDIB#YVh>nR)gOm/7V"hK&aTcJN5A>`.W&#YVk.DK_QY(SAO%lB`SRCjfuMi1U1BK%ON)0ZUdf[5O`XMbkjE*is=1Qj#\q#7NFZs9'9-Q<cEgpES0/NH!$!V2&NBf.:uRK8h(rI]h/uHa]S4I7&[Iq@!]cFl'Sc1H>''P*DuDtZI"?G.1A4P,RlHWOu:#Q=5''W0g</t,olI5Nr(,Nd"5U[(:>"AmFf*#Bq!dg&H#)nAVn6;g#Ur3b7n,/aLp49>G$':MAla+TgG.eS;-U"qE_4$.A&Z^!T<Ve\.q3Y4Os3LIq602Dd/O`3=2li0<:RaJcLkB0m>:V2HUr#`rNHR)bi6VaemV./UkXt&U`4m]"hf@_L++@n6P[;_\D6=6)BbHOu?NM<UW"#mm.<[S^QDSh3?p8OfWlQKiXP3AXp"P+IXF8qpk3iOm[.lHcbYA?KmjGA3N8e3&W>oX(_M6cnEQ\>;<(!!aIZ^[R[%HKdnsnoA@[nJ"R5A>Dc-4PV>$uDq)XoDBCN9'HpqBO67GQT[?cG+"WLPpc:]W0f60n0:?J\`V#<s-,Vo(%[70pi/,r8p"p@b@XgQZ"L`EUf(;iH2IHr0;m!^rH%-a5V`h^<Th-?TQ6E'M-n8_3Hb;#,0A=qA"PrNbLcF^q8`.9XXd,nJ?^53Rk`2$`mI^ljE#+g#kV5A-)S[g1<JDQ1dUO=6cuMC#]tuq#I$8$U-9'FNM.hB6%['n&U:W\Q%nKa;7$1ujZ;8)U?`R2R@$j;+B;%pa^]\%JTe@M`E9NaZkX-q02m";;Ws/-:,@B-bR@DJY=\0:^EpqM\Dg&DDonY\9Q0(tcgNWOp>T_>!'"Ef,B]WF_6<VC@nfeC':=&&0<ZK)Bg)ar>_Ed<6A=LTM,oU21[u+*\9\/`Vc1ClRh"N?re<2!-q>`=bM;XJRqY3LZWj*mXZI6VE7k0,\X6#cF&N9P:C)0c*r^+s9`3Pbn=^`liGqC'NYJ\Isl*c@"&Z]-jEX5_SJ\Z-W_W<%mMBJ^M&o^6gL+J:!h']h[b>BbkT8MMCD/;eWWpPnW+G2AVD0t3B$:j!j\o@G7h33=fP7NpV'pgY5k7AV#XbT(K8%Je+Y/E1&S+>g+(AZF$&gel&Fuf(ZP6noY8?s.[;XT6p"Lepk34'3lV&_eAKhVg8ID0&:'UJ06D_=5&j1Yobr2O`iZc(L%da#C`)qcFR25M`0^4^fZ3WCk@+r+?mMi4tF1+"AlI>LF%5"cY&iB.`%_3<cfcJ'NFC=##>[pKOL&_2i'VDmG(p0POW:U$'X[glV6F.&NTQ4U+W4Xs#j:INF.oACCRC)!L.H;mu'F4,NQST^>epbR@*]k'pP0>.Qp-bQ:E#k=ZG@X!(]]r6Ih1%I0/@_NJ^5baKdAd#PV]dNeKU$qJ]%]t_jS=LYt3<tf$X7uD]:l3Q,3OqQ!pT%__1`W6/?V[GN_\10//8bJXrQ)U\>6=)e:Spd#6(>2$nU>,e.KR^I;aXRs,V9*A?.RVCF2H0r+h`>VN(b^P:/59.OgYeEZ*0Vp+Tb,4b`E;ARRaK(o63C<[QWboN'uj?cC51dKf:uf;T">34+`..Gd*(?''NTLjPJTuiTRQiIJOJtGL<`arFl;?+EjCgQZ(78'JWHDS0?!X/gec$PHoBhOW[Wo&K(>q&Z7K6fp0kD\3$HE]/(Pp>1G3AYA=,:$u"^M%.GJV1X:E3.@1sAb"n@>#:.pMX>M2S*sfPHFf+0R5a@A/fH)]UCK%k:A>M1o,2P.>#WkCqDnAQup9M[k@U<U=.j;j1TbC<cU/lF8YaU&7cYjr62HNH;]!uO:A^4]\#KVD5G>^qFrW$)J%:]b=ArKu>ZG2Y,hP&5(0UXQL><aE5f5j;#`&>A`(STtQCI;;)ZrEW.kbXq_W8!PUb<]1Q?d@ukD29HEEKH/s?as)ef-Ud$'G`9$d0$q[EZmBWnRo1%dne*Q_$V3,rsDseo/(R=k8=aJY%/tcAetCu,d5H\%:nNiSLp/q?WqfmX]UVOMhcd(_rA(*E?kq4BtUOA3n#m'.@LX=knT,8ATc3Z"0%/:8Wc#3*IhRKl8!migUVr.VG-=jS.]@ag_-DUm]*!>ZTB(.<k\"BT-T(.q;c^YC7!j"88Mn+9Hb!E)>8m:K,tuHI82-/e3"cKlSURDYF4,i#sL(h2;\L?%tSfK3YIF?Mh/F6C;Wsu'jt7t:>17l\[DW>#]'F@b%9Yb>k9@VYUR[a]imHq@Y6.gWu=[mU:Ajj?6\,kG=id+'$&HUIur[-LNrs1kla#\N^JEmh+8KET)G4DG&P\[k.^AtrA4\tH"3@ikDWmF]r,JJjf94M/G"c]o[9gI#?[hf3%,iGbU>/JGg&]jmC=-\5*Q:7!>BN*=Y(FoHeZFh43@+KlqF26*F'U+AI2-08nZ-tjO0o>NFl-V9qbO0l^HZc_I\(n+,=3Hje,(sU"U2Ui.#A&$AT>&3$g;-MerCU,Olhm+\XacV`71>S+HTQH,\JKCEoCl^knKe<mY7G$GZdY3OSWrGV.7@*]p;t97YFm!&Er<f1=Tfm?KR]Ij<E93Y"Ujek/I;Z&>"p,>gD,2DpKmMdR4.T$A'rlHK#28?]h#-,2b(EpO'@fK[72f[K^bO9*DbT;ILEf%F$n@pa\&Vg5Y:i7Ih?kVWkIcF@&fR[rR+_12R*0a$#4)c$+n]F^g4VDNJ>[gucifS!kqhFT.'D-AhYOGS4eO?A)W<`DMe"2;?\)iUu[Z5^-(0+T@#.rogoLj7ehB9!H2l]gk[-sc8KZLdF=,ij^<;9rbg-llTs[+eMbchs6^`!?`%H>JuBmCAtr-%\'WNLVBNDS<ZPR;Tm-C+""S`">>M#7HE]]lHPLhfOCGA>!1t$>D-JfR=9bm-k8C1JmZdF]kSi_+8cl[LTsT[H3)2S<.+X%V)#G^BEf/E\7Z(*WVJQM-/D>1d3D]ihQ<1_\t\jEoSb`pF?!US`$tU]191&8Dl-MqacsD]i?s.bc:"[,e-70SHc8q9:&s6<^sjtW_(=TETj1@hbR\oBihesVIeL!l8>><1tKK5BB;olosnf[ej6B&og)^YkQOm9/uM%e\o!Pg)).jrc(iLqlYClrWr]L[S7IG<WNl]mNQ*s+Y:+$DJi!D(`pscQQa^Dh+j2X%33b$$fr;#3&\9U@$*)Go(uD4][b'Om\[Kk9^hS`8mPIUo'G\DAs.5<^\!&M(k?3FkkDjbrT5U+@Q/KkML)@h^:&`7UhuF0n<8[\aW0R=r#]c*ba(&lj><B**X.4;a(gp"J;Lt6n28;#7;Y_7sXK*\kko.j5ap$3aj*YI.EIoG;3jm%RD.FKrNJ_aPq,t;2RmKXVit5,5(,:m48-]8&M[AWp8HaAg<"K4)rs5%grK@@<l!(`ua9Q9kjk]Js*?"eb#$A\j#n4[S"P^P@(AE0#5k\K,6'n15OS=FWXG.M#9fCt88;%+tj)pp,/6SA#I,KH$b'W4WK<KJZ2"\=XT+D.HG=`FqAq8,(mB=8\W+B`VRDY[gjN>P[R2mtu2/6k^`8tOO480UU?\ZBu9&#N[VjL5!p?^:URg<:f:k^e'f/`b!3oVsJ[N;,OQ36t+[(+"1e"fBeNd+p9rcMrWBksJI:l?3l6s]oh'`LuSq?K&t,UWc1V!R%CoD)<'F?Hk,OdE0[eB/i;nS_D5]-I_k8sq%'b_`a$S:T*>iUXFJlkZ-g>gCn4#$FmK^lTfVJ([T]&,m+S!&Qd0/,_s[oAp<I()EW'!T-K55F)TPVXuAD)B4%`Vah^PQh47J$j>b.7ul1)3p2T4(5(:#@e6oY!4n/QQ3o^!8[#_q'Qqt-fUsMZX<#sfY'??4$gl_"fKN>mf\lYET(V"IOlUspZYCPs[L<IW2Aal3.fX5%6-dIJo'GZ>!"L$C6<\X0/f<b[RTb&1hef[:'5/C!B3J?>I`$X^*s4WcAfg-&U6s&k&S@FX%+.1n%(i[foNC8u]/9:eF%qF9/N1CAc3R;MRo;1[=k?&4$6r0IRj\jh0uC!l?gu%VI2FLY$X[RhmA@^anCE$#[JgVWND/Ar)($3-iAD^fJ9,^'2QL,^PQehqL*l9hrOZAHg?&fJ<sqr+_2=A]=L+F4/B5a!93\^0nV9-TLa=oah$)bO)P@\iQHgt[q!>F8>Y#9?&$S%<&-mQ9quomP7Ea7t0Hi`'8)"n_FU)KAIdi!LV4ci8h!Pq/adoZ(VC!.U3-I:4IPTZ<6bBI%CZkYB_4+E%,lrlmC9+Q$'H0b=S?kZ[oIiLqSp%=YIhGGC;>PW#G,g+9Z[NlJJAXq']-o;uc:3CXYcg\1@,>XQ2e"Rf*HWDrhtAm[nN[960E[-4ro3orhYA>F8QCXQX\$(\h<T#_ZhjM27+N-SRL+P2Oj>0gQ(]qRa>ZTT]n:k9*m>@Np$q(NHK4mW=9-!$cC![gC^_<okj2MeBE/Rok6eItB_!%9`%3dUqAC/U`>kT[Q_$ptTEY$H=L:hRI)"am^eePj(pst`]hf;kcD/SWY.K4rfD+7e:mP^]-1ht=/`!9Gk)GO7mC)Dh$3Qr,(L=8CBMpa^,cNem9nEVNHgHLDf2)6J'h=nt8V8'qXS;85coqZ%kB%S`KZ&tI.Arr*3(4S-`StW`F)Hrb\ZIO07HCPjk^*>o,]jk\]i&01U?)S-J#"U9Dof#,''?6@P"6/GXY)<R_ZYp1\iY]Z%G[1W)D*`=2@pL,:!WuXOYHO0%=9fTR<PQ/A(FPZS,'3W?+aCI`NW97/T;"spY`41pb7n(3JRE0o3QAnrKf/W)Y7>n,SsIY"s,L('3Qo??oans@AkGdm%."\3g*d<5h30lMk'G!ZSA]\jf+e)<Ht+%M.s63/H!:(m@.BmT!n<'QR%o3WOU8/bD2t1-<Oe;=t<-]'fSe">'`3$[2S$eeK'j4,.hODSJiX^KO[]pdNje;$.e$%DOh!l5:KUgrG1KCOtDni,@=5/]731$mA6k+8'TfV6sn4Yf2fP8*Vkf!as-#:m-.H_:)4I<h_9qG,V00GRsZOsf+Y9oLtZ$u$^L;A->b)la8tkY$8JE20"'s91D:56!hhQ/N*kfsFKTXT,q5D_.:WO%X"pe?]N6K,X:MHXN2A9ITV.ADJm_6@fZ<`o!44ZJ*u2Gi)3Q7^QrXM8W+Lgl1%Nsoa_A,=!?+f!iZckNY`>o5&G4!n@2S_'YF*GOJ2NP)HTZ"+fLiK`H#31ID4\*%Z2@3C&$NXkH"YD<e$of/4B%YG"U<FuIb,N%_K3BY`4@K]kJ;tK_4Ke_%:6Z>];!SA6$ed?s/K=-i9>5lE?0?/7*1[J\WU68f6SP(;a"qFlO8J7\=9"Vq*k-\?p!@TT=Lfe*0425o&CK(DqqbdlC:C#j'aE6Ha"WA>;#Bk(/?KqmlALkck._O]`12Aj9[*XImGMBl8E_/H%`TAp;@o:1%e`]N-8M?<dH=c9,;*X<[`sq_Zg.YRj[h>GMaIjPN@4n1N]QMn?4";".>5*VT@2VB:PXoJSf7:4Bt_@&Q'eWjT#g:_KSE#%,bQ`_/"4!ga,UD6.DGdk3TE)nU_n79dh5:EkY1#eH2I#=fF9`%T['1Epg4dA2q%*4'i[c8ClCd`k)?7%D0nm:jlU3l0Cj*dt7P+7aq=*Fq5ET"_Yjs6g^!e6@'j%D=TE4?(&,0H_Y^_2QRrh]%-PrA+bFDh@,"Q:N0@;+31kr4=0+)(B:1W@oeUo0g7;lq#VN&=e#(ENridf`lL"n=]u><;k0:<"Jgs,FCO8u3E^7`f$#9O;2iFC^^ebR)/'iL=OqONW;GQA8o)jADui(ITkW#,a$c-QXtk^foGFj*f5I2ELp-TrfniDkn*IQh:Dn#e$Q]=OhShkQ)HqnCp]p.C$AI\a%>.]K3O[QT,c\o!&<"Q<K@[mqP"RMMC6Y%6Bm95?F(a;-_m@$6$C!hdEjY2N87lV)\JD(]aV+$=,IrN<M%I,rR<I0F=rYOMJObFRjpei.gIdEM?3]u'D<D!O@LpLg2bXVQ9"'"0W81>?ST;Nm4J7r@0Nn"dJfEBF.5&LX>M$'2hAqnDdiBG`9NMeQHEXUp\4Y3>S$$?`2AJc1UR5:Mi;qpJ_%nXl=RQ<U1./X'qXHajqL^LRl'IsQ[HSRD$9`OK@W0KIUOL,1X)kGt^H7C@G;Sn#i]:[!0MrC<Ur1fc7!aiWTCrWq;\)8JLR-a*,(7D\-XTj*=?I$i/T.PijiO=WP*GJ@8T9*s%O$Y39AW27h?Q'IgLdco+6NJN3?r)J?Z(pUVhd=an#?#M?ZQ+9MQ`nFWYn(:\n_h#b9okd8/o9t9q8ooK.BpS`rD!#Y6k+OE!ERO*C@i$)?.>>lp($R1#cW:)_@@3_5qK;g@o\:lV)E6f#q74VG_J]>i:"Nr&,?g=,3e!Hu[kuQnLp@.<J1Z9Cskk\YJ.,IPF'Y3UBanh1a<kT`S8t491)P'@>M9(;i\)7TMtIHHT(oSJ]39klK71R<I=n`b7\r"7%#g.A\>OD9?_*!6oLEd/MfNGBbj95;PFah'f4km)d5=49gb7X!r2)IVRL_auo90@gbG8=?!B?N+%Y0gJPoD31akaC!8=2T&5,qo%1FK:WiCB\kFREQAY08`t1J0RY8BlQMhRLmb,3$Y<9HefF-t]o6?fVZ17l3hUu1<d0ZI!N97Ifp@!/^cXi<P3%@]a=im/*`W%l@8WPkQJJ"`E8N/K3Y4gB$Yn>HS33mmXdh<Ih'<NOecN(b5ZMC_cW\8h>3"kT[m\;Etl7NsJ3%GQoo+sQTB]?!0IgPM+]%p#bV\\uh/II<+h6-[YrCoZ$nV1*D<-e:BSRb7f^.lo^h&p]NGgXoNU.4?n'/@V5LQI'Di[rMjY3*akj#?%%K>%?%!'lVqKn8)VI(6Q=)GZ[h5eU[s08^$u`ti7DphCP3D]L3b-JEDe9a\o_o/c-#;J\A$7=+d'CMrUL"kf\^&YZ\h#kc'F/<Bf@_hR(n1*gEaJJ8iZoH_Ld[,gPT+&&i?a9Ve500@e0]/lihj`Z]%%o?c7=f^s%j'+5%i-nCXO0@9:P(pIp_uR&[1*3nFr4*;JnS+2+5bX5'qM[d#C^;pbW6n(CSuACFn<ugX."?M\C6$FjBeLrcT,1^f%Y]To8+^J21\q@<`Uu)dQuTT<CGQ8OYCmZRU4DS+]-/1`Z@^sfG<TXU+u*%G^/KWH<<e0XkYLO7S(2Xj\E:<BTrVe/8sTV/=D_U2@saP)Wmfu]s2knOUGa>G$fafJ#@3E9</Fi'K?4F7M>_0j.sqYQVp$K5pMb3SSh=PB5ns4nG!]HP-c2I\"0*5HY)elT[dh,\*>WrYLQS.@!pIFfdN"2#,<2%\m=^D.ZH9"I'MTaMI3$Ks$Z75**d&+7GBh:^o+%[>!DEBD<=Hi]Y@qomlXb3"q*K?KU+_2].Kd<Ki3GE$o_Zo!N8@*^,(arm,X:$jXcs;T]Jd&PTS+eG@UA/f\(Ui[a"WTLVl%[<.a_^p=2=g3+#W5M8'k?Y'a'(E1Ia/4B9c*m%qE3Z31pTTi2I%Lp0]DK#p<l-XXYd%_<3i4l-'AI&jTKeIg,KSM=#n\,5DG2RDG82f]EQr#=cOd=l)@=o)th2YPs'in6f+_>/u;%Rg"gH>iH7[pR+^dpk+9lJnm0tq)PoLDeSAUE]Rs2:YTmA<W:8#@N0fO_[@:t1V_9Q!ZPj.ro]'2mD;\TAtN<S<)!-5G'Uo)="_+riWOP/J,=_SL?abiX\b@&So8..gh.S#TL%/BHh*d6+@Iu4rd3jL110&R$o89K9-oU)36J\fEtp#Y`l1^?:oUWR;7BOoPdB9R%6G!qL2l$pLq"0qIA4o6RC1+JVQ_"$4RCq"`,hl,,g<[?M8uEg\%()2<E%rSZZI:bn3^<*]/?7U7WA"SqB%k345jg=>.aY,D^5`t=$&V?Abk%U:X@<a2$^'KYpZst'F8>SON:"\j3Y-bAa+El#Cg[33YH3(=PL:J"lnJ5\]>\^f(kAdEQ]#![aA#2_rkt53=C%;g=057+[E.$Hl/%;Uh`f^Ni1AMDNUu.Tr^+_^*<fY1^pLUF[+gc/V$hBVMXV+fmLn4THjfs</'ZTC;r.\!l:+X$r-)e/3/-bFN?@#"Yc^lAO$NjTh[["CO&%5R0C(C0iX.QKs/LN;gEBqR];)tpqXp_1>)(Vf.np>>XnS<e$LsdXs"iQM?jT2"?]N]%I=c9)0K&8A[5(Hh-Ad3(-Y`87jf-taZ>)CQ)YYY65Ur+=I4I$Fb1.3m24N3QWj">6Z#2th?RVRj/2ZZnDeIYMI*;%hP(TFMtc4dpLhI7aZej"+i6HIk_YSM*[/D:.OoR5YUZ_D`At2?\c\t'P6em4')4Gbn\ecO]Q%G6lm#jt,=V25o2#'bCs0tqbEI0`#B>9Z.g,B&XHTt\p#;F%Kn]#q's^*Q7/Ng7C`jptIR"9eV@)9$O3ifM2%eK>CdJ"t.`9h\P\k][6Ht`t2`)h=S's"4d%S0*,ItG4eOF'o=1H1U88C]`dpDB29[-/Q7$JjUj8C2.#Fl;'m9fpIWaacD+DBIIde&2G8\!eg,@4;?f38p74;';U4A55.j=7GK3E71@WHd<Y5&P6)_<\$@V/:DgC.qgA41?\:Yqc2Gg7QSrZpJq#PH.R<`6^[S3u#Om[h_@QDD<oLb.jE<jDO1%XGJI1,5\pAW)*F'Z0)^?m.;pr."2(smjF]bkh1li$;`fRp=qq-mb`$.OO>P>]-u+@<A3OWXIi!#E&S3*>r4VVC$<,G#c..2UjPN+7IQ=K@-Q,KU.)WrdB<u=>R$QhW)Q(i.8Nil+^d9+8Ic>0(L:*:_u7B>q7Ikm5$=!9;;OjGff`*`4b6lCDZYF$:.]?Wf%h6*5"ps:WQr`<NSC[HPgUqH"iT`&Ot_NoO""X(jkIo-+!rB7(=tg(;?$#Spm$QC1=rYC4pV#(V%99_aaW-27`lL]#rhJEfG0U%<Wq_U#d=mUijV,6^@gfZ*GIlKGKUdcA]mfJF)P\h23'/5lW>Ft2hc^r_mK%F3UEs?-E/CYk%*i$OR>:?'6hScep*\8'[IanLBb>Z:))QroQs$A(r]P)N%iRjc8I^W>hrG,O)mIXD:IGp@]&W"ZbFg5N@d(.k171Smjjj(C>Y>0N/^<$FLi9LGFoE$#So=K!BjuqgOpPg&'4(<_^+uJK^YYT%agobC*5`d<`K*3`,!NIc>(=)LgWBZSjs\")-cG6J^r/rQ.[a&>E=p5SW6fdP\fu=#.+uUpUO(&_-eBOd)ZRgHbRBdB.i6*iiF+D#X]ELE7^tmR9P!<fLTa-p%gac[TOGj^%])l-46ZOefH/^Ih(Z[P5V*%M)P0>jJ)=r[i@-f,04&JQJet`mAKIE[2.@ILkso9nOeVMfX.^tMXfs"L09kX7Af>T+WiBAMbI%.(n8p,&MDijl)=?%%^'%YV!F$:(.XdjZ0`1NKf^VtYZ-Xteo.l/(OF8%_;A/_3H%XWrH&-T#bD6X.U$V[o.s"qAt`7d[=$.Xmkul6#^`4qB8T_f:N\d4D<Eu'<;)dcK7<OF1_P]nOX[m);Mu4-K"nZ)Jn"PmqmtREC7-iDqOF#9q<RQP%VXco@q/>Re@9u7Le,uJnsSc$*7pIWakf$ImhPCtiL7cH-rRm`f#^`RgZZ2,A[fe\o0iP1r#Gr?kW,A0lH:gZEW5+VZp>"^g=37+><F4([UeSp+P[/H#140!@W]H"*Xt),DMP$k-,pL?d.!.$'!\9>3FM(gYI-s3$G>QAFCLp0a97JFPg<a*r*q-!'_>+FP<hQWL0>5cURN?mHFfB\or9%;e@?EUQmX(P#4`R0'F]0<(;<^[m/e+'6j1aGl*8NL.f'[Zg<?1D,G-H.R/s8=$et.I&c@PHBSC1cT4i6d8'(gQ%*(W^+2H9qEg3(A(gNj*2oeCT[cET@feo6\;h0^p!!ZI4Xt>@CLaZ=^Ed\%+%K^rEeY[MANn!GqBO?8!9@.SFaMIA7mch9+n9pHIgeq=%?Wq@F`6Rb'NF,nC9:&cpbap'J`GGPXlrl$2q7oIW?WU*K6?m<-*X*Bm\:g*LHHF.((JZ'0/naAW4+_!T(j@WWbG'U9S]3CCmpRu$CnhcgR^A;iEj?tG)7,sr<&`#2(<&_@8sh.$_X\Jcr]M'chr<AJY.ib]@U->)IEci<2+D8@q![\#'&>rIJba2*`J@K\ZNiZVUJOTgk(`9XhF6l2>4l7FI*W)beO_]k`5!]lGe/(R`^gQQ$L&JoDnLiaR;"NN$]YHBEcs7l5V1,WiS'!L"kk5OFI!8_B"1\8Gk<N\hZ;geR;er,DL2^!Od9@0LYO_D@)\QU6h:9-aaU&q3'B8AB`9;j&aA5W#:Z[08iWm/%L3H-;eE!^TMOi'oA4Qlj[6hcE2&<q@GJAJ05,rs*#*W?mu&6r4UB$Pg?fPlS0'Y$1VqXp3LTrj&'uS-=;iEVV<GH8'T:NQn6`*(9#U24\6=ee89'MbClHV"E5<7_SMTlB3St$HR$8:j4cJX?<=/O*p0,i.bdtAG1ms!R-1_ti_R<q*>YY'q-Yi>`$*QX5KU6m]dnMkY.%GEpG3hL%OD0[>TPussD_M@,E^/M&_2^[5rSHQV(]Lte>eMKHnkS+T2gKDP*iKaB3(3`,18I:XB`S#gZ8J2Yf%<lXQOZ:Kc_%o9P2CYJlo0p.p].]T,c,Fc9=V^NCoOZ\cuTYF/DNU!RuT6UlSGFCLGWGCU!8t`e(/d=fdU=#I<q6^\#G/b[]MF@gSHPY"e/3']bd0mP67!$\TN+OY?ARtm*J/">*-t??tOfuh$JH?`M[Yd[9Le:(Y&7g/0qkab=l%5AhHYOD11%7MT>98.I;1-*T![IVKF:kJi#KHkX;+1%EkYoD/e=*W%XEADTg<oh!#nHYI-g(]R`mGWnp8i1`ZB\@H'c7iSl#iJ+iAF7Na6N_oN][oI)(n,=r$[q$+R-m'\hfm&/I:6\Nn[R]:&^"K16l!(*iA)Ds+GIE,5Td4sD''!PQ^n-%?E-R?t7(^6m9i6a8Z,.D;FL<!'U86?#jTa3@6]+d[eQ#SH&G[/'U*m!bN`*68=n'LaWb=C77.?V>=KHm^KI4VYAS-[O?$=eqdeZONJbW-TnT:+>pFj3;RUYk&iKf6;U<[#H05>L:]:hFnTjY<ZJC='d(IV0cVS;tZ!n+7"tPR"5fB#!pn2bJ)CMA?D$LDNF8U^h9Y_R@A7o2!A_,><u_P#<j>lo.8\(EBHkJN=UHF[F,\E(Bup?R-I/ZcE>k*//Z@%@j;ih0mPahEH69I2*n\ch'F3T"4`t^<n)Fhp<0D2hNR*aghK2?6GR>35!s;,jC41<N$Aa!ugX[B\;F,+UdbR&RQWcMOSrd`!IE?<&o#@n4GUCY7S%=A271hq1I"@6#&nRC7:83QLp:o$g(Y6OdO%,N%q(;$'d88PZYu`B>b1t\pZZ2*rs3sX@Vqh+X1>%^5kD4JH(;@46!$TMj8I]AA"C3WSfTRG0cFJ_ZQ+Vp]cJPn_',^m%o\"\/WRs]3#e06Vbfa/+RF1h;JlgKsAV+;jSH>jjIQVIWd8IFQS8nN+D:48?C:*NZ*ljH<WlI'qh8^"L*5GfdSr10$ucO#sq0sRj:U>?Pag:\cN`T:&-YUmK'\Ykkr()680*V?5?N>6bU#UjqjN7I0]_J*bl<4&hEKV(e`>lfr=.!!]IGA4T>tn\<VUhL5ab`LkX;X"7.S#oX*',Cd;1e7IWRK+49^a9DHL)"Ck%fq_g)B.RY/*I.cG$6RPs'T]PGc-gIeh<?c\I:^eP[`\8E?[t%nG'V8i0M[[.@BDHtdphfce;O_lRpTD==cS]$4[SCKToA.<=HY8jtT-"fI>.u^B8uW7*n+urGZbQ93L<;B@-)gRe`>RF$E;qr4A[4DPk,MJ?cD1If@Cmu<2-@F<8[Ds!%J8ZJ^_rm/-2g*!QQg1gQ&L[7[J&2Sq)RE^L*!UM<T\>F@jh7(#Lko[S]$6-W+&l5AXW\`6L6+OqS,/;Q`p./(\T"V$9(j(GUCe&KB/s+k^h7%<1$h"PHa%:I5PiB\I.K@fT$J#8(!j+rH"9r0IZ<tHj+8PUN/2)EpLtKD&rgL/a3.rIk^sm0TAaL6[$C?)Hia&-9+ZYO+\8)i`QC4W:U8.e>u`tN,ZUQ"[_##<"$RY]o,[jX<KglE\Q9b0H5L.p/'r@(\K5P[e'SEX^m2e_Z9n'<sRYJ7Sl(qY)r!g?F2n*>"h)nP)0JTdLbt,V!BXVbUWZ$I9%K012:7:U[1+YEl(sU\(+3H<e3k5m:aV4$>B=?:tU7Vp*;#;in.JHY3M[78\7\4BfRMWn^d^>WZ=j5LD5*U-?JY%;q_-I<VW2D0BkoUN's6dSrs7IM2^9qG]bJ4XT`7CB5JSeFI,o(HS1^:aoE4@"AbGcM*6gS(tSq:V.&Uhql'2j7$8iqU#,tPOZ0T(A42@6>XkqtJV+pQK?Mf[c@a,?U@:oTKTPol>/95XVrLJf)E"I`^/^7dlrFqcl!,f;<rN[$S=[VR/XccAGVP58IJ9BLdVsjkB\;=d\d"\+2kQ,gY?8d5p*KOmVp)=02f3-eaM4HbiN9']gm3caBS`,2d:-LGQ'DP[11IN<4^3:>In=OD:LH/Zk'Oj#bUJrC]UdbKk$ucG=nnBfB;NSe,ZX*C#5[+QU%&YWYjN<@_HLjK1Kr\km-B*sGhBObM)!Hj&&GFV\2X^r\&"jc&1IAQk`MZpZ%6CV`g@`t`qF'ek@#igNN`l6QN`iiLFSc?G"!^C[EHESf0NmsKM(BJd_'=O*Y#*`^CLOTb8jh]I9CTM?qd8*lMSh5R3rBS5>Nt&.o$(AT%B*l@b+HWB8(rHLW8+i>ek>Zn4N0a?%3@bS)(t+ZmZ4"gYj?@PgK'+SFJD*<jcNref#h-j$CBNiMZ]p<4lL.f/\;1&f9U:SQfRiRN%HiKnsk$oPBGq\G=hgGL6du?c,4]8GDHFFdYnLUs!?=pt+m:@Ddq+UO^'I:HLtgaOf+tlsr"C$$:&c`*asJ5@O+"2:GWb:rsU>p8pmlbH@@'Z\cJW*:a9"+?YH@<;5BBX$I>#=rbsP"[(js/m_=BMX[YD]fqiCs(d**2g*8R1h40^0hSJ3\X_`eZrG8`JjH*>.,:YQT1oc0+ojW2$sh$JaZ.R;_NnG?T!%9$kj3f3bZ^8AN<tA]Aflpm7"Trfj)-@nnP[qGU3A$<=jWS[NnmnPnd-MV#ob9m?i!G(lich@07GRMC+k(V49Pu_<lohN?$7\;qCE8[QfP!S<uJOsHb>YQ^RMOXbgn"lK.sPhe$!rl(HWrX,)^RV"MUP1Hm%-*k$jNMEWo;=C-ak7((GRpM]M(M)rEh0"/W.CRuR%7<8Km<!Y+E$Rtu$t(^LC7`2na9kMSmOkS[GFO%4FRg?3sUHF;@-J<]b<&s',3a7O@GHF"uF\GWd"L`MXL/WU"jemaL#1"ROh:-r<KJaZ(\6cC3KD<H/Z\DFO6iW.i+=Z_ZNX0LZ$3u1%]68Am:P;\6I]Qq:uEoFo&68pl_J4Q@'\9chied"X/37spu#u[9,`f63<n]q]2;0?CJ;Up!.0S#mFWb&us(C.4.5#a/sAHPMnY#Ksd4lp@KE<uE[(u6_on#,+0o0-2*V(bU:br)gfR:FuD6kXp)Qg^JGb09F+,eG.5F&0/q!.[>f]ng1aJM=g1rWda"_POoE&q@T+?h!kG2mF2s#I,`%,ft>'m.Te6I,@1C8()\/.Mbb8l[80:(A\t4N>>Xs#[m;`[0b'SeGJ#Y5](\_P%lKQDT>2OZk(n9<V-edY)&g(^tMoF/"ru6<e`*p%^$:6KPuG]@cJZM&!`0-)1obi:.B6QeT<bhR0JOVII=-S6SFl"Q:qP0+mfXUkYn7Od0&?L*a0nV?!7.+ipD1Q$]ZRLs4Xb<,ugJHUK1F40@T*uL!/mqF@0%%?">IU$h%rCk?f$#F#`g[\qU(=Odag@ph]>Q&Q)lHh5mCr80%$,NH,OB5^FNOHW,0JNY-ZMgmUKkK;8N<#=i0RK7R:Xpf7NGk=s1Eol]29qVm.9J4(J[>uq:5mo_F#-g-ku"Tfm/,0N:>omGU.s1K+;<kSC4dlQqP62Vt9?_#R09DNWa':-"`o<*tFp?20#Zp6udK`O3R_Ks+BRi#rK?jtng)eQ:0,--ce6@*2sI_kVG\M"T1rm_k%c)#h-J`m,a=sRXea)ta_\@3*U0SN3FUJQ$fR\)h;BTu$AU<3+@)=CdeNiBb;nbbqO'"?O[/`$[KeqIe-X;QX[DXkRB=9Jl6d(7,aG`-'UD&K<lW5c1Y;#)`u0;5$"Dk]eJGo]/M3-2nji(71k7Ljrqq@9l?]C9eG,oj@P01QbWVo*6r]qhq&8S3><[uS3oT6E#MbsC6?qR3nI2F_]L@R##ab'V.+nl@?X9ULtCY*;;o]eJXCaF8,X_b@50s'hui^2Yr*O@t]%V9OEGRR-`9X$oLeHfi6PBG+Y\1R-Eb@[,en:jX7^:r;VDdEXOM)W'+po9!Y+%6TqW0YA'fh/)#699Ics1A.rl2AoguO8)c43EL>hai]=Hm2MFDCaKZ$DkA7FQlgdB:^%=V42a(TPhc^(^JI0WK)d^^M&BJP_m-N_K;0FkSdoOZ+Mf?D\hUEJrK=51jM]&_!Y7^@_)7RTnI8Q%N"Xf%!r%+:XBd0UCGK:-9Ss0cfT:NVI=K5C3<,bo[if>-":m&,8OpPaZrIodj"cER0:EVZqh$Gh\b]C\Jcg'bS((IJU"bOoO*A)tR?LfoB\ML-\;jY2j)>t\bRrm/9/JKoO+A*p;f6Z#HYt,>8\p3sk>t^m'-lh]nA/=NlW*UYci+chZh87@mNEbm&,IAL!9dc>Vt@H#@+"9M^Cf(J^)<-j^A`J3Q6b0%5#X1ZTIU/;ptRl5<CX6mCL,+b]+3em69QY5d+dhTk>#Ti]475"/rhSn2hM"!8;r2i3Fk,&R7jc-!HqB#b"o-`s&*f42c-ga4`RErhtu(:Bar4>04,_@aun0H0iVpB0f6#<Ep2V@,SRtL!rJRLK@/>sSdSoe5%C"30:_k[n\%3g1:H=KRK0\(PT">"]hA5TXBK-=g*nL7^.<F*O$irT?RQj,bHTj7g5c)*>m.GlgS-,o9sC"Y]bGb3%I!U+b.mI35,<<&&"mgX;pX%:iIo-Sh`&8)&:;%NE+Kh?7OBF2hU-P4Bc<fXc:dP-/Beh=re?0l.)/k"Ws^Kcn1b#,]$pdaSJ!&aCVdJdCI>;5b<WP?rQNs\"l)^cMGj@*<>JP0.P@GdG0""@-Q%A3>G:>1@M7V#/>$;dGXiX59&L2>-!V?tQnV#_/d@%C2$T]BU-?LMO[`Hc4d,m%WdZ#"R$gKd!C`!jMG$J'Bn//gKU,$nn:\@a/j![L)7ngQ[-5%,5Eqk9%Hs4-S5G/GF7Fr)4N..$Ybk&tRj4[FEgV`%"BLa/<9=&1%quFR/r3(N[Q(d2b;_2T7>+WV65'6^.gI"+0dT`d=V@n&mYZ!$#Lu-!\7&2;Uu9T336p;dX+]u08q._JJZ`".SGE*H(/>$3ahs5;g1-Bo4:+[.:/;'dM'!#XU$*Qgf!,7<D66BOi+pe,.<ANh9kq"HCGh\ALJ0*fMm`W7IH(6oos=N>]VJ^)7hf:SgW+05,8/qE<11M=Po)4BC]m(MYgbCHaNs20]&ap^-s8/n",!eKfn<'t(;&FQ'qc;7RO)Gsd?o%/IpHE7brNC\Pt71P.>#O2'X:<[1N;r&ZF49%mqI1#F3?ed(n"Db_N(EfCBUi"b9"Uh?#hm-!0/(=`<(I0\mdAg"l2TM)dp2Q/NNhnLeF#JIc#E@:nQG<'EOatJuLe7$7lWIKQe5@+3W_[>^[ttX+<uLMjPa+?lX"V>+3`hg_MmK4NQ?HcI%d_`kVE-Gp"-@b2V</Zf>ftcJ$t_F9e_!!Vm^ekd>)(HZWUgj$LL2qL9eI3YZ5_aEk\R>=0%WMa\eRpHYQ5Xi\W_*3`b:ACZ7(V/Zf#6Nc)0Z+pND1?_H72T`oGa:dg7(8M1@$.G;g4/=d8cD:I'&:XKO";n8=0\mR^I58cZcGDPa\-nu0mZ4tH9]l6F77od#cRAioc#^e\(V_oUNNC1)=5I@UC`O5e5M`_dr4U4>?dQX`U=b3[^on2-H4@TB2$GX%I(b78+7+hUK0BU*H-'m@mpk1fZ@o&YT9N>D3O<OR7ZYiNPM;a81N!%NL_pT"'\cN.EeQM?8th4hh9Xf!cgt0+4H'p).:/"Di,1iC&iE1n&#d$G>tJGpWpdZC_XrUY>1#->MaW7\#m>n2:&Vk&UfH4a*lJ'Q-tML*n>hB2&CU8DYW#CW3YS-T`2C97UE,cA:S#G)duf4+]#;?in-?CWW&Q0?Fe]P*G4?">\Aj`6W+<1E,.;HbgA.`pks7$BL*GCX;?rt92J=LD"b=5l_W`Yk&Ij&:Q`#8-)mjoW=FMBM[305!IY6KXI@\r>>]u[Y,=m#rgQHl*NIoE-`NW)frVB;j0X?:YiBL>ApQE8+iC/!79HA9=]n2eD9"!I\.HC0XkQ1CT'Hl6cR-m(Qn0Y:d04gf@Ph>?PP=]T$LV5FYfomTc.ZIZH0u'jINB'ka0.M^`gK)`.nunI%LGJTOO&>*+P-f<"Wpu`'5`C[jJiF&or%i53(VQ_PM8.$*:X*/O<4KY&:WlJkG4JW\MX&`[`i&-/ER/tS%XLH+;5;8RD9"F,qn0ngiAr$U>MOI%5n60k+BHh]a$F[sYGaK-ko2Y[27$[;*d9,q%4$]rBs-6OBg5buAk7LllTOPZ<Z6Yi$^aFl,Rsk"BMYM9P897-:*lTI/3B?(0s^A9\"UD)DCr*lBE2MS_2:(Q8q$"+;,4okQonY"@X!J.-o09jUf\W34F$%/G#V;sqW^aY22GVT@<7^d.Zr5+j/=\eq:Ye%hH<)j+IX]keGTdeBX/6Cl(^OekHa`gHVms+OrHB6Q%j^:P-%[L05Y#Us%UqNIK`[&6o_L\qEji-hP#iE6+lh>=F?a_jm);2>N]E1;Qru_]-l<8E.J-`#Ou=r/hhej[CGfGdTm+97XJpu(o/RrDkf\;5.dVHM-TQU_.fHYR$J0sB=fNHW[[p._cIu[04j[2,b2qKUm*@K>U_&o\:oI9gdG)3&!l4B^R@Xt.sBBHg6n:T0h*JeR^9":5`\:ZaJ/RTOg't,fe_l>Bd597Q,;O#4_*,irEcma,X9t?#Pu@5p?Kr3W9/aWQ.@<Xo3>!/L5$Q3P3mj@^T>*jNQR\97]XRF6@ct&k@!dR2mMX\6?r6@W[h9Qe=R5_0"W0E9Ptn([O5h5@:96F?=JkdD#`L$QCO??`<^6;j0aWfii%7C^V=gB?*7gE)-#D^7V\`9KgmRdNi8JIO_FANR^#;R$fT"Q=2#CL7R&cnCS+K`WLT=(Z`DM(c/Ik-Ut1$CL20N)&WE_mL+7C*V?BUO0h9OADhVBY=``+iVu":9Luei]&c<.Z,`1h6^9YPVg0:]EE=nDn2CE\Si(Vg?_N]bXjN7fUU<0GW/W"a$L-'<^c7fjklqIGjbt>Ir"=fZk/65Hp[g*o>1QS%W"7iK*lO$!)URh](QpNu*3<E@eMKa7hm[JIFQ0GE@$15QOSZHrOrmq^"#b3'Q][S.j:dp76l34BCPXQS#b[I6dMC%k0b0r'+GB5N0B@>?2Q0?G8*s?`0?9j.KEr%d*4XnG`,UpVL1$Ys1bCr&Cdrf_(2`kG$CsVLE!RH*u*B>dhI7$>qGLn8[Rt6B<q^&jI.nJ0,Nm"562N-VBKbh__Ys/)tBb7+@?j=27/d_\LkN294@f7F[Xp#YYfJOE6+DCP69tsY13Yfa2>jF0`$-!*I5XLZ/C)tWN1t!Mk"Acd45uIP>a/Pk[C'SkN9J7$<7rW\_4sX@M#_Dp74Qn9d82:U"D-e$f&_<?agTmnur!TC*L,5mg(D)cm$K/ut.9,;f909062Jq`io<D28n)HQlm*jHV\@ZS<7ViS!hVhVC03O3]#mqK=^kX#QPesTfI*'i=o85sF!3bI#]P+l6r:'O6e-(<2I(<e!+Gf^Y78Se;[8mD0.9Dd'U<.XgNGrOf4:%7_:Xhf``#YMMa_Tn1DBeTp.?alMp5W/A_MeE.U,Zi&5DhMUU=Q&+9Vd^XN'P-bKg0OnN5-Wi/dj^-lj.)0d@c\3,CUmZBqWSm_NJJ6<?<*n4]mMh<BL)*Cud'+n7(q:Vc+[TUd\Zl,'i(EN()-XK.<0SZm\6n=UK=ac&@-VXGs:fH%a:)_S)'_3+%^LHaRBW<Q"[U=S'AU+AMl0?P[?RJZDT;mRoE9$HcGi%]DcS-Dl]/\KdD_r!k0FkdV5SRD;>"H$<<(j72;r^PliEYi$+iP?a"Z=ViVZkuPVr<B$q$8=>:=ls,=kA[9GM]UJ9rXanH][PA;1Dh*M5DC,=D_$#'Kn&SE=g6=sP?5+G[:NOUN0:2AIjsM)6deHP;c6PNpHPZGlIuWm&!Ti1bK)llgn@`.6S?hJ321<-1!7;*#a8alP#J1b7fOos@d#SX0?j;/9\N$&B8R?$d&KDNem)PQb)VNNg`A&3O:/QaDQ@::%dc1.qV3%d2?-DNU=/<+c<.Bik3u%DT_l>#.lS;*Li6]\SqEjQG=q"jp^s\-q%eCXPFP&-tPaP@S-B@'M*d"Ak1SfKu(\1LRCpG]:UCm*%E_tJ"N(M??83k520HO#.l:WOY9c0#A7ip2<l"Ku7RD,"hMTn*!H>O,]3MnKFF"T)2N4M5WTY7fjIt%/d.K3jsU]-AK)V1Q(A,Yp,TXp(=\URK;rN]R]_ie"2J,pF[162An;J#ELh3Ds+K&9D\72*.iiclkVm$sdK0$c"PUs[(Y1F9>Og-#uk3l:2qX\^%5Cs#i*^VZ##<=c=ir4pjHWMrtTpe:,S)BUEjCUMnKYd"!37Lg/@L<C,lO]&<@eDSVY_eaL"6-!*7hS2:1\:AF/*Teli@BYZsI(GR=-cU1V33!-ERkphp8e[&[G\3RK/G$"n<JM\t+u2BFo/A8%];+G#B453gXkc`gCJTh`>k.I%`Qen+>6A_tm[LW0^ZJeD!a&'D;#jICHL2e2>]00=Xc!u`WRX_r]?F^mBiN.@k$\2M\/JSeXN$kj3T_2412pln8@*bnjMS_1/60`h`F]:XI1otk^4h>Eq$Kg##QLI6>2'!L3AL%H9WI0KOmcFq;dI0k=pL/L/2/AQ1bt-l"8AdJ4b\?jB^b1]Z@0[F)&KgTbofb_'_j@k.HS=pm?61*bQVc`l?;<S$$o@j%loo.i407q(];eQ%SF`uV#XoVWADCNT<Z+,c^I&6FUMKT-rq[ZZ\QaqmAGkTNe[Go)mI3!>-^?=W4l=YVfseEjUeeeoE$sb![Q026!qVno_S1I_4'G13P[&`=m\3RfnICQFERE.ks%H.a+bkgs0/#5V4"0NO$!>NZf8/6iqG'>Pg"Wn?N$KLWf"t*38c-C;mpRF*&6SC^9Gk,4I`rO(`s<!e7hSrp\s&8cH^eE(Q%,hRa.YpUlgeVng/IbaL9\8mKfQ-<dMB>oTIPh*u:XihedtFg5P?":,Ptt?29#&,Ykc[M?kk*HG/TOg+)1R#5+^>ho\ZJ$H8@kiDEtZj#8H]9bhW[B<<VfoFdd)cbeK0+r`B-#8OiA:7c9>;63"1VR*;Xl>6O"k^O>ZU:0B5C[8V=?"u6cJD=HkMH::n^=%QCms)CToRl1l6#8SA.gS8e^:"NRO945q@Mm*N>B?`be*SR+`>CdHCTa)+cbJ;]'R16D1ACMO2YW79Fgb>HjX'NP5PYVq4bJ&(mF;Brgu)ukp4!JQMY^h=9uXW_`3e^gH>N#X>81udoiPf<q5bNNWJ'H0K3]Mo=[dp>5Ej'"bN`^AdB=!?37h!PcJ!0>*j"3L/s?&"TOk31Z#9QbCO0,ba[qbM,M!hb[UePZVs5dDCh*pea1F1^niQcoMm[!V,?q=XB_e%!L?0m\I1.j27k+c]C_$c_)()#D1hh[Ze;B,,!#O0_2#I#FE*s6OY`NKm^Q9l>H#tYKYljG.(/lf7L)G)8Z:e-KMSWiC%,X>'#0i7iY@3%?V#quV[q+So%_1*jN^UW/VTZt_aR8O?-!=^rU<-?h]F>/WH.rPE\pHUMNP?6FTT;5d>*WG5d"8S(>X\Db:H^bCA&ur'pjCaM:mnacaO;\mS5mfZ,2p:J's&^'JuY//T_BoeemJms6>rZ#>+ADc&\aG,&2dIM]-fG1T-@c*8g&gT1?hZ-0APa(?M5@aVr&/JiVW+\*2#")QaRkM"J!l/ZF2q?RVRY>F^tU''krjM;,KV*Yj\h\8OX3iCigUZoXFtp-LQ_e>]$_%)#INKchq2]S&Pu%5gNZOb*mY,/%?@*LKahX&2S6MlC!fZ^.RmqoPbGF2NYO:j85)!2`_r&Y\%=fd;T1mb.]]^MY'LO>Gj)Z(qIR$M[[n7m<!+(0cIm(%XHTmGFNB4284R-4]IH9H]QpFQ9-)'3(<9rY-^$mV926*l7MkbfP;tg=3f/4n^N""=Wecj?gm`Pfbm\gPNpkS7,@L+,Gp$7#[pmr%`sur_L-,b1Eibm%ZMrf&+*^oo9*UWj,:m2Tg$IQOl"ul9=75eL995s$&%hOO6q>CIk%m.\AkU7XXRmme'H,hg?#gDiYbb&>"ACHljpgWaRB-US$#b\Q2g*0hNB]b;C-0E'n$ukpc=Fn3NJ8IR3DZ!;ud=,BXTDm*!&GLd5<4q-T9Ku"\97)D?<`,8!ue&:;k!?\L@J,M!dB0OJ#/@b^2e+q4C[5UbAUq<"HR`VuiF[,M8q2"GZ'W6f3ea"@MCn!KBoVXM.$2+PB?7dDT)SS$1FPCb6-tJ+p)ghlgW;(c[;md-'Zm_(l@l[c;cKT]ff\f_[8Y4-b:QTYXZN\a0sXWJEN#jK\I>Ej]'@92nBQH2L0bC9o.SCX`Ia[ecM0HUNo#Q8lTP7:9*G=8Aj;!,/Q%OWL=t[,?S+?h4C#ORMd*1O;;Wg<UWImES2Koa0,SL:bh[q@V_c'^Y[>@WeS2F.b\IJ*764d.+>E1/K%jL31u0=OVOYE#`7gTEo;4Nc[%+-DknA@,]af#_LW]g'tT[!/A7%kB_bEldkoIg2)Km>a!3UC$FnuDRFu(OKNgoT52>"Pu_9%p*XusjTI"C9i`i"l$n:"c^o*e-.*2V21t6:/S2_fjsM$3PkdC`-.-a;AaXreP2E+7QqCR5,.h3+]a<n^c%k)<7O]Vo!'jch$G#J"J+H`Y=_DSsQS_EBpV@KL>]d5uo\2HK(nCeOnqSR,KETr`"<?>ZLV`f\g/$2\I([d,B^XFG-6-n=:=[h3OH/Wu4hlW75gGHtP&;f*?,-FY$_pBMg]\5?c.c]\,d/'kP;BSn]j06*K3H3!iHtu<-`p*p$Z%OR@%WqV$8lE3n)h5_R3YN1j,)sO"l$Qk"(4>Ma@MilQLHQ[TZ5OBrsEFeqtOd8/_r&p&P2^S;t?Gl+`I=a!/.9BKI+I8-`1iBU$pAc/P`i!U$Yce8o9lSCYQ[2$k]5p/[m5QW/j5G,)GI@p&'Q8Y"JYkPLeVRMau`Cnp"$o(mX]Qh8HLb?Aq+3-+cN77<C4+UXam0g<8,uU+.!DBW'0Y'&aUE\/7Jj3@l5Ic/-7alhSnTnNVG.'Rr2QM=>;*4Z?+3$=7]?<ti:FL]qi!3<C]/>Bj)MLd@<CGoquBD:G4Jacm%KMVd&dluA1DDma_'.EPIgi"r!^:bJA_KWduNn!a3N)4V'(!3bR[R[<NeaG,cWMenj+NJC>37n4MZXbG=KY+djo0"6#6"?X'sqsV\Q'r0dQr:lhAHgl:fBh-jArYe8.qI%7F#T6ScS=MMF<T+RJe_BdpSF,_mq95Far)e90(6L?7I_Jlk/sIG)XKj.O*Hf;H0mCZNcoL>ji0%On$iYur==)FROrso8-/CB6SNo[BhD9&DG9SRB:9q),B8=a6%&tp:BiV;Od&n7LS/aj4n:!c7XR!f6&u4,_B^*?/C0Hh/jW[?Yb;T4Y?PsG5mb0u>HjD4=qa@4>];Y6F+W0NQ4i^K!gO)1CP[r7nG2-/J4PgKUT'0l]'(_U\#`C[4:^`DR.5<N`pIIOL>ZC+M#tC5[HE[K@0^<l'1X-0'$%75>g]P(mi:Y!AE]iT0ABjF09-D/<4W_s)D'5*o1)bB@!M"@O&t@cMb6]R=-!_AtiYABX-nh'(ZE3;+2:$(`gVh@-Uk)@3P$/W`Zu:Y&`SR?<##i@>XBb=IO,k%YW#97[k.0JKGmO9@W7%=ei6<ZP3P[`PV@0q<22OcdWA&BIe*./XSHY:#&+jO3C#W1FFeOSq3?tA&Gk*b]9gr@*(rMoMLs=8h&@8?E2kZ<R/kJ7*Qrdn@c:S[XDtFt%)R'[gY8n&GDnB>7Q4K1EZKCKq!\=Ol\0[1-B.j:<2C^&*#iSY:qCaM,cUj?W;J6k=SK0&<$'.63"+u:M)<pt,`(ChQ*Xp!g?%D09*T=.`7%`OGMQ[XG=iVXXc]CYOhQ:=Y.Q7_BnE+A@)d_mHia+loUo+pMO98b>h!M_g=.,.'WR<EkNHtX+q]6L6KWgdA+Y!:;>a4%_PeI)\Ji$X9auD->pXH9PYIRg[H=%c+p4+/.0="?H.'P(2$-)R^L%7rlkA'"hWpPeQ@*f2?-<\bm]Dg%2qWO#O,#AXKktib0alnFEqe5%.@AfC)K8_q@d9d#eL;u&rLI=FpQK+T09\pG$+J9;C-ms(+ZPu[b9_^]c^^P5lLh_MsM0mKMqT]b^N*c08IYEOQCAW/[foCP,:h^s<j#@NT:#\'PVXM-V4N)ELj_HZsfC2DUE_ebE4iAu4UHXa;=i=l*.!iiIl@XT*McHYU1.#p=Vs@t\05<(q)CLLYVQoUf4Fc38U1mS;BH$3Bi/O`pjsLQ#I537Oaj1LA*]Q5/.S@Wjm2Y90U3ppiNtnL>llF!(CZ!U!)EJ,91JoQ<H6HP"0>sRRF+.I<<'Q&&M2R$G[65\cJAS9@0acO8gqJNeoNF#bSHKVbSGk^8&bSs^faqML1d5o>8@hN+Pqe.1UanE#4\"NH,Pj&_#JNGEi;ZGQq0b(=2&BQOU/aCYmL4B-`:+"@o#si_[Q]f$e`gbPIZlpkWa)+0F^)/-QUqAU2.+5-R`VU7[Apr\%1GkgfXq*Gfo3tX>,FHq@")+7,qO:=HsG8kpX+AS6N-g<7=DXPln*V",PDJMdkRWpd8Gfim5$.HdkZN&"_0YZ--d1;EF(Rs(l7U14-G&i4XTB]n)Y3Prp-&,WohXqkm?,/qO%/tqLE*\h%SZF[3?hL/_duL?X87*RnC`Z=OiFinQN:q.b0hSP6[4F0"b-!VWnd_o%uR[koioEVI:TO=29%ZidltKD46_IpbZN+l=<AaJ[4Q0e2<H&EnuPZW*QHAS0\B6Nps>_-RZSsVRQ&0?^sBE=SNO%8/N.EOK[?ZP:gY4;Nh4c2L-pIkXp4L-8`DPMFlminp-if`37#M`TEgV1gEmS2a?jBilY:4@8au:do,df>W1*if'1)+O#$$E_j!bTLKH;A2*!)A>K>NkjG)XbAM=N.jV@DS3JsfpdQ0^Yco.p1F#2N@)Z<Ap/SHmi\c9=IU?N"1o^^/`B,"W-&=EWa1uTb$$D8YeP)n.W]W\?Hl/B7C4OYL.h&lNoMr2?9)do:6:iY8EeLp$YV)+cU&HOAUN`*[uXLp$'^uD+i1gcJoco`Y)9L7,omI7?\2*3?;"2XJGIs*[t+^d=#Gfs.i9q6E=(0Csf@Fsbl.-GcS-BoXb`8A2D5k_KVY.-oA57dD9LBZaBPFT=k(9q=?P!n@%ScJ1@N-lo7jHK5$0&3Q"Gofps*>,mW!9ZHteCTiTS]aB86*7k)ll_D_UdD>S].8?/BHLMqg@LR9+:gbR$S;1reudZ=M5"k2^7q#lj\[Jo,8DV$!=A<mM.6p;*2.r(n5G)\GYYOVTd'G8EC"1;*7g/MSZ_@n(VA>D8#iqq[%a'1#tjflOMT_lXFj8`GU,&V\g=Oalhh$O?M:\Sr!AMPDSYCt5,FeD7*9Jp5-sX2s8%n#2A:7.)Zh>.Ae6u7s7XGTru!l\]Rp7RQMi-@8=klr,">00`bpn`c("9EY*N."6Gp]@ElB:ICUPTA_hV.[N8K!0e]K]_P#q12U&$/B;7usOEe&"3I`p%/4M%k;?-I0tm=a5YZFSs;4G7&!4UP[1)/hJdPO9+7<.:="Q4%[mL-rEVY_@Y(I]%>h;J2NgZ0!*0-l\C'o`;5u@k@>#hChh0$DC'(UIGYPJomtPi@*4]S(;RW5OEL`JBs](Me130k$ggF^6c8:>2EofS[D=)B6.iSCrFUX<4[IHhA=:4@!3[Y5G=&eodI^JR2?>G4,Xq3"@15/N7X]s!cHrWi]<cBPW2OK\[/Og3[,"COC=mJfV+7iKL6JOOaL&4i9SsdWHof757^PdXOQ\bh4:6e-*a_e(GZrI3'PA8%nBEt@VsBo=S*UWb=K5n`oifJHLaaMa51p<jJ3815EKTt]&(oLVn'R%FEPe\)]21=G51'Ua_5GRZ_UlgAS@No#(^2"@p(,K=\!hbX;&C&auHD\Wh@<QY_?!C*T-B>e;uPC5=k[:?sOB=[9@q+1e"d+4kT_P8:?P9+K$*^6ds3qHiaOQFj\jM!*n4N-`cj.$%]p2/L5rcQ8bW\5]0P:7\5&AYcE^(\DTBehBDPLW]-sB@jSGV[JegS_e]H_`#c>W@&tUeJe]UY>r@J>0nalY^=+7;e.F+`6*erM<o%!Kh74p?dq0XD$_*:/9^og$eGk,A7etLd2DZSE.'Mt>.l>R>j,*[*b'T\iFr,LhK'pOVH.CD<($Dsqi_Hb/hRif3l3sd_M.-VVi+-\Wdlb%R[QmA$RqHX;qUf+Z15.Bh'KXJFmDB5_+cadG$!k$>!?EVTCG9./eK1j<-ql7MOA]i%j0Gp#lHS`FJs7kbDc9Q%F4k[QIuaLk**3=qj,@;D,YX<\Nd#CaWf+t8cTa5D1j-`1mIU2nhAFJ`'8X]>E41]3'q2L/@V)QCN#+k(>\;mGH:NYR&oCuJBMKMOZD[t$^]8[#3LR4+`62lsiGnWE':4Le.*cU+gGdCf<nIg144Gt^K_!Iq@4(L#()T$tiJR=a\p;u:rM_5*gSWYU6Rj<_K&Si<q5#&t(u0GpPopK,/iNeVX["AMPUPbCIsUFWC>uQ$!,BSc2?3<l"sVCFLaO@h-8QHGV]`PaS0KjM(QNh:..mUA$Z<P@!FbYI&=Cr35;2#n)"'n>jr4gX+)?n!)!c+Se+F9J6IPL6qDZ6-\]SVAaP=X"$'4\Zkgm:9gM:b^6L1t+<$H\lFO[^%Z"j*W]?8_[;Hm.EoHfi[L@GUlM%)&k^G$qK#(<ViG,^Tap+3+:9G"OBcZ%t4\^uj`:-4@]R%^Gih.1Ph8($KRmUf@HKmWm.F=Z>(kU6,`N!HqqE)8eUMiMQSN]bN+k.G7Y8e0S-8M.q_D#dW<T1IHA,?m=Lh&L<Q-Er!?^KOMqne)k*p'U2]/4TW8oT3l%+.q?J4;_-#n7UAtY#X_[,PdA.P/%$kiE?oaBTV#5.J`fq+_NBur1*ufb*=#=*n+k(fq,hB"Ud)7-7?n>KU1*4<QbpeNh;%ci!<(6f)XhnQ$KP+64d6$R%c_K$5,pjVa;kH4&@oIT8?s@C-?t5pu&^cbi?hFBT@<k+Gf2V0gM/QVS';.dqM:@[-3.4hnhD,Hqcj-R2\Q>aR!<KS\6&\&4\:*\Ml[I<6d&lnT.X$+`D$gUe.>L7@btqS84Q!nD;_j7!rZ(F>@5m)/ZdGP!B0&`I^-fC)K^,iWDJ=i(!lu_!JT7WRj\J_=X:hHPOd["3D+A3?.<eDIk:j\3WWA-r!a/'d&:!^45"I"/g^2=s;#jis%PeE7A5NQt`)iYRWX?ZO@$8n4<'DRg]@3i9s\t%J+BK(A)D<6=_49_5l;@W$3,RI>4DXTteL!jr2DH#2kf)e^JYsM1+B5f/Yn$kQ3C*\#Vr+%ea<C)t@!BGI<ps8ctq.oBY0.]BQWjhd\Nt"YM>'&j[mPnVnJBG7@Y[brZ<Y&X,_3C7K[RH]/uZ&X@<>Ye]*Prn8K$6EGL*$+@dSiI54h>Pn;eA$u,,EqpN$jP?X]>nfBF*HrE\(?_Up^A2dLOP/:tS9sF[,R*[?/,sI1R)U'e#.6nK7&Z-El25SVV(n/UgiYL7*+*6LYQUYUg[`Ub0?Tj2T/03QoQ6P!ouP3bM6VIOjMQKf_[%s@lgi%^1j^$-ATE#+frIcfhWA0f9.YfFVY/Tt`HK58-[/_sVprm9pS;Ik4n[6gku+RFD/!hF_==RLXp%@_Ba'Qdd99c&%*Q7RI]4hIC,=W?:C51qI`k>'`?sTsn(`94<I_TS&R:)*$%qhRqB\hq0bk;JPttd5+S$e?]QTUWoN'?HK;BZ%U@l\nqV?8AP3[VX[M72B]XCKY!Yq$omaUFb7<`&R<!/X6[T,)^.@sn%@YWEg!qH%>O!,L"TG[UoFKIc]ELi]Jn+,3O1UGU&3$"qU-eWNGn`4\rSjn2rbcRO@>&s3U/Ni`/rlblOkt3]6aQGC#1PB:<\%m^da6W2&r)+?G",L<=V4;!bib_j5Np>MrA"-sajY#bbBKbr,+NRBr672+cRCG\R6c3hp!J>@#"$V4?qF(V1a9.C[98DZuA*7,GRWo<9.6K.Y>WGb*bj@a$AqaI[:tLfXQKZ0e?J_LT(\nu3lb/-S%s$tDrGFR1X=i<4]ls1O/k"6CApSnk%B5Br$&qm",Y-(.&rXXh^G!K;N<E_<YC>?H6.[8)3DboO/>/VEe`sMc^+Z@EDUS=L:es8\6dkWrm)0T6QjI+N*Ie*73-S=3;0ruo#tnD>9Bbb(@!FOpg,`u=:MP!E0O/@=p-oV_"c^W`XY-BShP!eK.>3BYAZ"Y@b@Y8UqaeXjNth[6Xe4+t`N/2=7=-fEh;K34,kE&pMi>>JJjZ8r:)8$p&K,`BfT'qc6+i76Mp:;4U),8qbNEm;VJVbbLVMUs(Ym[]a+f,]>9q)7atPT0>OC#mZ%-Grd/3Vb-f6:I7O7A>76JWKPt+_C+6g90[e3%&rNu`TW,0Ak5:M[RXO^Vt*pZ"/i.S,b?3UMBc/(\O!s@Z).sQt]_`fIC'bKXnDM;?i3Z5mP*^e7$Bu0/o"bW&TD$Kb@muVI]4b5ug2$Hf5L?1W.hQ)9hVfindi;)m=.QI[npL4onPS=L?)A#Zdl-a5:Vr!-=!?RQ97uHu=/=rn\B_m-1RmK\r4jJJXe4Mb]6MnVo5Q7u<@!==(O<lofRD4&"$o_5:?`BM/k]5p^*L/Ym55#"J>FR4ikUg28Yr`=E&t"kB8bJ$N&cYZp,Y>>YeOp;,+7kj;epUDC'*hHVq\]r7EhX4:;a5q<I)(,lGX8ChY&._'2n3Bd`.P3JJmsd@'9=0tbdb#`&G_a]R6='&<iTGAcmhoXEh;qIr*_$eILcCp+%fRZ19b]N/^XE3O*==8q*'hs8sh50CA?66IU3)UpJdf28;=_hU'EPnb&;G<1L"K_0bK!'P#/TC;fdn;p/aicGf?6UV)s4,/q)&]]*Ia5gZuq<&g:2bN@TCGWRW8h7mlFCc"Y3/SSjjM$>>=bjl,1c@s.Y6""kVo$XRo\0-crY'QZeVKKA%'"%Y>\(,'[4r_Gj9Xp#RA1^@47"dEV">'r\(iM1i?-=%l>_m4Hm2%jSN<[bL;M\.`W2XfZcI0d\`1t*.AfXm9?*K-IX.]X:UAQJ>^"+AL\FX-Jh>okWC(fr-_,9\o)7:FS0^d6cs17d?-KrWGpla[+/T1,C<M2W]a&$e^8*#h9a62e?,<;D+qRT/u03RRs<WoKA._n78\H8G]/Z3ei"E7lEX5167+9!epo)k*tqr^iF)gQ!?/,'U8rBVjQtq3:`Hf*J+CD1+`cSGJ<<Ok"q,2j*!dWAM]cg'QLoJWp`//@IAT<hmBpWf91cGV=,\=Do6=oIL=d:TiP`=6<!`ENrp.Dmu5b(8_fk/6l&$MEOe3VNs=WiHi+R/?RE?d@_9OZBPTSApl%uJ2n>ZPmt7U$O"8<)drsEJh>f3C8\5ae=d^DCm%)ZI/%B.b(uciTn$U3W`JZF>A_)8a,kO`]>+%#Plf#`GCR"u_2_70kZs']51CBM*LsB1-D2WUPo2ghh?/;#,qkTLXXY[sGm"^Nb_GF\IV0V'i5f6u<oTYbMA0*!he;37Vca`s^XAUt+U&YS8`=m';aTp`TXRt+HmFCkPd?<2IS@IC2`dpc[K5o)'D.UcoaQ%\$h/MjL+e5`9."(;hPW<Afk3GeSjuVufU?gj?Loh91<`@"7RiS.,'F^+YX2d3lS&to'_R3r.Fb=P5$2WU,D$fa8)&eD"Oa-V2Jo9VogXZWT6[gJ"*'&RFf4tHD^.8mIE,H%7dq#EY5[p0LmlskiK1uN[EF[.CZncJnHkq,F8<mh'Q>*CEbAV#NC2Z7YOLKO(0UUjKB*Y,P_M3VR2]=ZI%=^+&?K9!8$3/tEfP_@A&rVAWBu(9^dZ[HINd,`W>/KQG(P'Rl0RXJ#W9DQU3aM+(BaGfNm6@(GX:<F_h0haUN2*9D)]JBDD-X&R8E&5EjS<=iS$[8Ij-%(U(+K_=E<p%poT$44h>Jp9_k[Y-jrHH(Z'C*X0o=H>LVZK;1>sZr1DGR`@r7[$:WHHM?oC+^hC.O[6?HLJtdIWTkANZ0gc0h>VaV&DA60me?&qV,79/3L(:`HgDZY7:IBSk9]`Ai]Af[+X+s-j?<_ODVos*pF@:$D'#lIc<f;t9>:?X#`P5J]A]nbIV<V'eVtht9>nJ*>OX)MNFU!akNDhB-j(S"N4GNXm=g\S"i'.+>W&"ahKmFIG4;$05a#\g3FI^%-W$)<61aaMo<eE@%:-QH_FTXe09ksH!M1$f0)7$H/-e6\R!uU)h9rN787d>8'NbbjW\Wp[5D*8iq3?%1jo+\AP3.)F*;YQn%qR\?:FOdbS7cTlE[I7W%%uG:0n)_BQ:b3V8=DX?H.">*\&c\V)>o@F45XK:,9#UUF_@5AHP-u`9=ol]C7iMLtVB/0$;c)LfK"S]*Hebu!XAe)`(D"f-os7+1g34^oELGm8n6faY(#83&R44'OYUQLqe@R&5>/*`.U*"qX(^n@NGcTICDjnrV=O68EhP#Ee2&fo1Z0mt*OJMQVg1X"X@4R,0_BXis@tmEclRR9-JSmStOL3Ycgt>j%rZsZ=UjI&'<Pkai*E;(1+d!=L^'5hG?pQ'NAA!i@p[imB#[3C5k>:a0l!;8p,==,)act%A&XtZS`u=qNY[hc\MAh--n]i;7W-bi)e[fiaa%uCO<(MgkU!CPj.m5<F#,u/lODi,In`$/0*]NKj5?C!u?(*M5fBeEh[ONbE(B[$e.e8=oDX*M8'a\3E'SqVSI%WT>A[Oe=g(2U/>`EO0Z4$u%Mt4u*doUBIU18@f.$W2!HZT]cbN*;'UYBThYUl=/[0EQBf[YVA-0XoCAH'\uC77-aB*^-&Z"'Y'ng4X\Y@O=$rn0?ffnKY#&g*W/X)@%j'=rd;GYODam5/Ij-Gi+nhp;h^i3.e"[giksqfbPun1DiSQW<e5+?HI7RfOrQbmqcq^aAlaLJtXM3euCsc*H"4Pn8ZW-2.Y*/?E'SMPN6]N8FEBV;Zhr`=iLhCB#&Gb0X1-pM%GY"5J+ma.RTMmBBQIkG/<[C%#8g-8K=-B!.CJ';`*_hQKT>60iaMl.Rni:9X"I*?f@lht:I^Ngl68BK1$nC;U&V6$Eu:Iq=@-<D`a18oi$<W,K3?/+Uj$0k%o<;M3Li5?/(k6\UUJZ=Q;9rIdAQ#akT`L0rHO^)=gNdHn2%%jV3A9uAJY6&"T)E]%Y@28+K#[=gq(60WKbPZ"__MfTU7DQDqK<Q4PW7).!h&\<l;'EA&@4irVC)1'i2WkKIKrd_M0Ep8$=i%7H5fI8_93eP"^H*=+2[06j[j+$L')9pb/8s**prZ<SH5cN1;YXAaUU8sbBkMr3M:d8-(#N>2@#1"fJHEe`$P!lL>RJmJ`QKFS0?LN8`H^T&m@"ST/^L9WI(6W2#ClCHpO$<8*1o!ZcglX1e#G*r28i7Ls1-uK?0%b*WUli3mj^l,;P2)mDnBCQE8f(EPg:A;NqAkMN<6]a[5pJipb"@<O&l$!@(0nq^;1io7ndIjOWpXZVRit+d85k2P.fOL#b^m643U@(CCb1HcnfC-3RKpgFdLTO"e]&W,&DQZ)>,Rhe%R]he=*P\U.'%Y&d&H-5D<6iQ,-R.sWT_Suh.'e%"4LlVBHYb>2b[dUii1<7H>[F0[t+_u4@@0CSpmb;"VReQND(54?H:WZZMK/[(d+XNrT3$ofFj,upOIh0X6,C0S/Ot:AQ'Z<6;e@(]<T&S>ct2P/\Q#r;6!9J:d;J@9,b%h,._CWoI\:Wp1hZ#6AD<haL.%lSJ/b0Q1&M/4jmm"3/'&L&En3Q(^a3E;1\l\6Lmcd#G+D>_kOeQ'A#1co$(87mX0SMEBd>,m;3Sb]o"@!hRRB07NZK(K,fjY&-os;6ZCVR!'08t`l2\<U2Ao&\`N\]?C0<\Tq-H;Xah5^:@%r59Yo`C'.^]09.3hBb0N(I\q8JbYMe-Ao.9(R<d']0/6q@D=.T0\=+NeC=N6Atni;)GB6(`is!'aKMN&,dE6;0"SKIc7c3hcAIOB@[k5q)2Ih!H^HJ!R:cC@fS4iK]Z5W@e)Lh^30=I&?D\EYsNko<!%kMR#3b]:>`JGZXS2Oi*'K+)#9\^;N5d[$SGn.rqXh5Q^TNk&!mU\qUiD$WC9dC=Ki>o^AR1i(AVM]7?*)=7a!bX$>jnP+o]/6q1uG^riM9DMuc@odi\U>>:_H:+R(f7WIm`\_id3;G$9UsZl!!Pgg'KgG8:D,+e'1k6jHq@<cA7-$nrUa[3=?2/X10di`.=p\^4E7gFP6k^N.7=uU0/XU,c377ZCG<I"\EK!o53&_L=00-!A>qi@(s"lfd]U"]$*&$DRTSC1UgY2R@s/Xa@,rHJlp*O<T2/XF%jHut!30e\&)r/sa!\ts7m*.2Io@M!9rG#$[(iRNK$(%1d6qWUH>6=2n6'Z@em,TrCB#X2SJY3:S1Ni7(Co3SN\R)Y,M!o`0>H8nNZ39-3-(&]g"nT!,`PYK%]^'I[d!O&UI[9G0?;IlUUa!PUs5u,G3#>7_Y)[83BU9cH>nY;B(2`u7:VSm1Pj<4-ZcV$&ck-Di7)Z'aY6%UB=$80nn[i13$=Oa9Zo6.4+%CV?OlcX2r@u<#m@!D#Z-<SFH17Gg2cS6TO41L>WSE=QPT<6W0B7auesg`F3`R,61T+Z<M1tmSM>9aA;B9-5XS/fA(`$Tfm'j@uaq6qUS"c-;?sPso,P%1c;:mpd,l]D.g?\M=$PIT+9m8Cbl'cbKkrmU&:n+[+P%secX\V8WE-PdM*'+*eC-LLYLhltd!iGJO8&ekW)9oe.@6q"*GAX[ZAN4=;k#\C8cIj:1e^84\\nu#&]lSN5AX^DW&P#*(N2THF!<JQrB,YrF;oW^$RQa2gmTVDaNE#q=#bjZ"_sMEf!(rQ%P1C"aH*/$HW:1KPfpBh#@)#M_8f>=f@FFY-R*AXDm&:g7GCuC%II91B1[82*FqD\S1SfSm>aFKi[%3oWo:.BrH3]e<V'@:Ggf!QY$W#Ha*Jo\^j%umV;'W![mC*B`.9A9KO@0OPeh:J5)Up@.""8dG2gii3b';>riEbK<4-Eirb5"gH-B>a`Le"V)&TZ2M.4)!QmcPm20Wa.:)O*CiJ.lp,RJUu>QSp7o&b'/sNb4?VW*_kqaJTlY%)^[]R47k9TS]-q48A;bN!ckUiA#B`a'>ZFFXffk89Pp`iD"Sak9uP'8`DPPKSlE=@JsA&<\Od#'R+*OKB[Gua61t'DJX2p%',#2W"N_A,(Iku!U=;6P]NOkkIAVl&'mLh(7&p!!S>"9h<Ef2DL^`BKC"qSo"#pOU(L>N4<A&B#A*#E"/D-fDgI(=O:&?Yj<Yg;Jt^\.<>nB#Y+RLFkjTU.&m%V&i04VkW?cGUHRdRQQ&D'<Bck`+CIbIr?3i='QuuT8LjMe&qj(+\jMQpr^/lm,mWT<ZH>uq)+517#iq5VZ71S?q^%u@$HI]2m:=ZH98<IQX^o,"r.N0i^ha@rN=ZdR'<f(@*3+jcK"t*O;m&>&h[ECe+fTL"^%G)U@,ofA%bJZ(=jd4h@PAu#aPb3..4XLhh?t?O.X>%)`.<ZZL190;O4Jc^b\W`^uX87P@)-8]+,&mKtr(dl9CX`pnn=/\7HMqL31Q'Bq`kKZuc%C#frr/60d:E:IO2^[*plPaF"X"tPhJ-QaNeo"+#]/pNo@T!56WPnj*Wj>Z7ql`OY<hUsgSi%.^_'D"A;]4SZeP)gC^3hI"kJU]G)W:/7K?TWW:dr7i\Zsa>'V`0R=&+-IJ1lF(BTQums0#_E#al--^:a6<)(kMc-_/TQP5JI=[a&'7Q#?_7dip*U_kTN,!FQ#^_nt*ToU"no=CW,W(3i2+!NTa0u7K"9[D:QNEefDm-ZT's%J:4XK@SH3fRPab+;>5l:RFWL]3H].#QOTpBW;A)&r8t+1+Lq@.0mINB`b75<.eoOS-b_J$+O_D^T@E7Tbn+0iXa#oZ_Vg[2Fin[]<&DW'_VWGrH!Qi"Gb(a[T^X/RS[L?rcJ*\NjSBF1Dkli?\af(oqC8'N.V>/bT#S9I#!/1[,<P.dgP?CUbJpQmA+q,oUM=a4R7fBan6qH@4$Ugr<G.Y1oce_1DA-*nB^\=0p8Qd'C-Y++2fOapXtYr.9"Q2TIrIkg"(pa'lihI6X++LPQ$N2oP-)+SC`<(R_PtE8U(C6Eu`A<irj3mI&%6r:P(4MMj9OVs9)a:rdrYk1s#;XbeH+qZXuJ_K"h8SoGg!Y/TukBr[fRF@N>-nS5g*b1?EASep_e!>F(J(JKe+A5X5Y8YQ'Am32;BD6eLLqf3W8L7:_dM?K>cA!/mt!>5VOjq>)1+\OCh+Ubq59kNIa#%i*(-?NiSmWYbU8k8YMg>2\^Wlo<3(/hdZ3B"Vqc12bD!h*_f+Y5)9?Hh@-X%*ljn0"OH_nQh2pW7-j6;h.!Lgj3VJ=sJYO4m;G]^5?X7+`se@\HH0kPljq"oL<'r:KGB+oUMSZPk;2`?NN/N>IFV@'Joalm/o^`q`#BLI995]:nbAlgVUh.4ukqQEMT4MO>0*H!i/0A@2ak,4*dO5VEW5c+9P':[Q^\@T<FUXe>bmiWpX4ZqU=-;q[PLMa+rUq,Q/6ol.<k>c5(sY)7CNJZ4.dPe$a:h*Ko/((O$$H!sh/Fj:-PcuI>=Ko1pS#9+B*Y@!>9gr:#iXPLM?0_,GkkXV$lRGIUZ5n-)mEHskI=9[r&E#b.<lM4R:OJrdQPW*'LRkP5[[*Yu4D6W[n0sF;("q$,qjeCW3$WY9^VMq%LbI5E'F<#r`,*h;G\#1s3BC$F+O<6*>AHMLYQ5ZjIWQ:FY2&h#g%+A=6!@c.F6(8(\<+3U[j^40:]fP/&"JfVk*T>DW*&cX?Gqp.VYt/e`LXpF<SBcWC"1,.gdTLRm.Ie2s]UKFi8s!r$9*`%^"6+2]^hSeL8,+j,Y?c(*+U[A-_/1rG^:t]3#tk5E!Tk3Z^0`:`+9j5U21i/CM)umC]IeIR5!h1e%:i(bU4el,/=l_>'b5@^*`WB)[+d<(P2m8:;Q`fcqN!mI8$ZYZ=rZ=u-mEtc1a*DH&fd`Kq:.*[rL9\d*B>`f*?]e)(0,<bq,gn:`d!1?MG/VoB_2_+FDrGq&Alj?8m/i/XC9@[<m@APAffdEGUO@1I+!XAWi=5h:?6i36A3%ZcafrKS-'[[UqOe0CN@[=ffpuh),OZU?LllSbRL,/X)2KfX,j+(3glK1Xg[hVI/H\?N?Gt_cCZ+Arf/EllITjG]DOtI>Y(DrG\A#Eba<tt/+MNYNIgHcr.dd,Gd%og>[/\tP2\h>>1RK7^K`7efYEi^B:Km6WY6D_g'X0e5.eUPN8lSC2L!=WKHGl?(6ktrjdHaT'?]V`p<R3YC1j$)*a/dM;t-YhI_olD$Nk+PX4J_'3N616hNh7lH.,gP,qiP^?DZTj1Le+#po>N@5V-_+Z^@Yh;.^l@W'N8)hJ/DRND-q$n"SWh:b5.<d(8RoA`AJ+gY6DspT3t)KYhtbT?TEA0oNQkQWWfDNnt7)[/ZP[@IZfYh)rGUq+F&Vs)#N)WK?)goiuF:<6$U&#SWJLU@fDs<$I!T9hSTO,',>Mq1/XfYbJV\MM^h8(<(M*L69A]I3r,,g`3A/[f1Gt@kB(AggY"pVq0p4Ma*X/\u"?-+u?<Q=(^TYm3#O;TQK,(ZsQbtZR3"o]OCNX3)7Gg@=BZf1*H"M93rV8`@<?O&::8,;bLU8JS+7s:;1,HpeBE3f*,!#W;KJhhL>5OrN(t(IOGX]VQYN;]Q']]H/D#RaA&mlD\itCI/njnkXVd9ANXT^+Kg,i"O<[qRVPVD@=F6Yd`SVUO#^%\?j)2cOkK4+SmCS)rRkb&eV-pk"0kGi.[$E<\O,Ol@tjZkD5%e>[)@'&f?7[HNPJ'6bK9km@Cm]qhI.(^Jq!UDm_C]i'ThTulL3_[j=NmI^E@s[_.2D?[-4c`]8skNXGm8F,u.^_>?)^-cdioL!a6lj)@I>4P%RFC'.fKT]HeN5l$,n.3L^\(cs^_$$GH=P%>TV8_%OMPCnp@INu32ZFq<dF)NEJ`@(Ok"V]_BPBH1]K'`FTkFb&We+01lnK:2CXeW(/a:].q,81O@m,Wd)QEBs84@j$9B5O'\J0.J.5@*AVn7]9Fh@O^lmR,AbiPrkZUjr/8@^rS#[NUR>X&tB>[>[n0HQQTEMU\S7PbEX#c4ZoIm1:nOl<C7/&1c-`?/9k:dfD'7?*t\%e&b*/,[SSF5CujsF(-GU"ithgBnimZm"*^nZ>O=h;dQB!4:2,-80__JsOO#Meo'[a'<h:A+M"=>1gZhZdfibA=S%8KQFE^*\8]E4M?5CXC8*;.u7j<A`NfZ6ig5m5D7?VELi)&A^LU<'1-C#tI[E+5^n,&Hf\VL1cpUP7c>d1?!ncP(XbC<CU!#=4U_)+[m8Mg!(;j3M[lMc`G:rBAKFFqtb:HLp%n("EkgGq8K_RVG7GI'1TcOe/9'#B$=8=>a/(7F^$aiYV:D!X)83$jE*Ss8@3::7AN2E9FCSH\mPSE%Am6erB9j3HoPF)SWdMj7htUQ>`K6[=YHR*b(t/^U_q^7`Oc"Fp;$2`?_Z%sT(^*u.13;r5cUSLV!QOb\([&pR>h>R;SFb#LGDcB^B;5M.l\3&<hGrgK/^.j]C7Vd4OO^#oMfoBH"mXVbr]D6HI;jd/u7Du1Kk^MPV`C2=.fQKZ4:iBS9VfsDI:Z-,)2C5K'^3mb#3NL`m9]3B3t19O7&PgBtG/gDR1%HgOQ"fB]3RW?dL'[aT@b,/oGg0iMuH*'ZFBE)baPo[ddWaKo>`nbF+%B*]FFFb'o4i*bkIhLP*n+L&Do+HJ'0@ef3;>.Ac"8AUYj9WN`3t<s+0+>Q567hoC6VrQWjBZNFJ!W!cXR-FG(I<]RHhc=HXp@4-0k[Q`$>H+^oQ_XSNWSW8B56L9\<l?En9]bH2U37ao(7'*dPKCt6ueg8^p8lecubjmQ!C,A_l_K_D*B].0-`f_JQPVG,fu5^keb([#73'O/7=ktkl6at['Pm3U<#mOkamPsTXg)4oO#2k9Y;9&`95j9#0aia"YM=WE2fhT#?OQWdZ4Ph9:Y\h_Y;,n_cY"*rU6e[+EY"G0<MZIGu--,[d.]^7lD:i9mbA2$.Oi1574Oia$QBR%ER1X&84!5:,99g[ePt3L[*=8Rk(*a;mG+ch$r$If*$DO'9gV>\Zkc@:3]KDc_#r[$K\28_q%<o+2YtdS1MrtL''D=mBgm\JCY08RPf5=kAsjXAuo4VCIE,eVB!!tb7b3nV%-)"fIlK18ScWGeF<SC0popG2Ki;?Z)/gUr76*pZR!,0WZA[9\hTbBI?(l8$7B$iMtfnB%8,?iU0fo(.4=q#ic`K,3qRtCc@C5ZhSD)L??m\b7q"Ic?lrd$%Mf;d\qDII/=iXDpcW<;Uh86R&@CCg8?^)/ioFtj6`)Ys50%r=*H?*Qn52o`:P%f`Kr_ga'>N'UD7KO^&tAB8l5q7#2Dtj/AhG_oF#`CHZZ#oI(To%)>q6$h4>FTFEHP0Y0p)UN[5&eg6I'Z^I/hsJ[1_M\gA#4XH#EEO]s7MZ6=IalkWup1ob9G:mqucJZ.0s<ZSKFCof;%1BW9J)kP5l[+o[_m&?6N)P7(uWip*Lj<bYAq"*0t_Z$oSdqRXnM]OGO"0e!$9;Ei[ue%3@FX;Y>9>9+n(:E`27G6-fOVJSfteX7m#ru0d;m+fmK7&O/E9@F/k!(NrRA_^kOK0RSe$LaH+oY8qq\nUQ62tE#iWJZ4EqZ7P\\,kG:3pZblnAPlUmnYu7rRRR]i?0KV:9NH+UASt3puUJ8ADhJLU$\?O65R^,m[kFYMV.ljOT=5qJujG;=5";a1ojsobI:Q`?TKACEnSUhnI3D4H3sWel[^cC2oh[CVqJrik.!Cg.E<'_lJQQ'2pO"X\TDQkc0+Mj%c\(RmLmD'?[F!nM!cU9^!"9E.QX8)(;\[i/m@PW!]gC<*#k+C1IY`3<n#?M+5(<U1.ih\KH.<ZprErG.p2kspFpgidR>uHBAQhP0CAOZe[7jbXrVUUfk_gK3'QTW`@m<nqQHWDpLRVdm4"(.r=]JCXd10+HQOhrH7B6('r?b!?U1HH9-*%^`MmZWD3IGpGmm)KOieT+]P+]5f1EJ/c1M>:I`5.X.Zmd"0CrdXlPLIh$__,#UHO"j`:7RZ)`0a]Qm/6rGfH7+iFU1Fe7E$,08'rbm02&F1(6gR\<>-f.!jC5f,coK;_+eSIrbC3EW-#?YgL?MkJFcV(!`D]nZO2?#cb/Pa[DE;R8Ze5-l7*\ra<>aL1^=+a+sB.[oP2_'Rl`fWi?(NSc-6=fWj>cmN=BYmng!dI1']d3nT#f$/dC<<^&^58oefM/a_ODcfgFI>FYXnra.E4;8Wr8Ui@$Y?'R:#D;'K@de-e";'F=jSR%/*`otDOV+:VG,uq7\l8;GNN/0Vih<-1"9o$T48:sjaL><u'PJkXYE3Dpfl!pCj:i5opD:.)FMQoq<NTF$MoYOSk#?1gt]_r#$Pr-$GNUO;r$oRVu5(:j(a:c/RjWs1'&=8"m/i)SQ$tDMt<a,L*6br4PgFs=l0Hq:\^)rVQp;6h(,M>Hh.rES$DPIcT+JIB"<P'tl)ri1;%S0HD=)9!?$KRV?JWam^QUHY'&ZU;Y^WlFUQ+;6H_VgU_(Nal*WJ@H@Ps'1m5gAiim0ju3E=Fe^qT\'k.(WS03[NNVmToJ6ps&;J*-D@X$F$O"-IrE+BBSIXcZg-sZ>C4h-)C+V\1<@Bfgu[>9!K17aSAkgJrfJC0`J#Df@<LUrFn-W0`iBM<f&>DMK$73:EsQ#>1p^Y=5+IDX$IeX7f4iBMfF4q:+O/;8e,oW-bZ?k_,eGQ(DfjZ-@.tMQ&`3_).0J%+kBdC2>M5"?>k'uPN68=P`$PJbfbpA6nm.!Z)Ae_J@sNtKYJ8'TE<glc9e]g[^i?Mf7j_ZAqAbPE?d:S3QE-b6I0U.rk5'M5YTO*")QH,(=.*OT5j_=N&^Qtm[Is/M8`"m>MhZ)h-rW9=J"LMJe+/VFn#kcPJ/(eY'Sc?\q@oo$Qu`p%]M'Ni]S="q*4P\EcMRq%4PXXBpGY/(X8D,!Ef'iKV'6W#D1A9#jPBW'8>aN%iHBkolTZo8iN[a*gKK;8om?T^d'EgSL$'L,2@A=JLcn-HOuO&<$%VaPF)?1qDVS$.n)D04dZr">Nok]S*icjiD*.nb0dQ[_-:QROr@+r;sB7r2h-#JH!YcL=B`JYqH4Yfmu%YDY_EC3!nU&^S%b_,rb9M#94:%%1[q1HQ"H*S\JmU!9_8e;4T%g%;29=Q;cV$m#UQB\G3\L;)jK3'aJdLlI6Z4tQrlI"(4;8\`hV4:+,N?UaE.f*'9:?e0;5B]:CI2=f$YIg]?`D)43?Ok6$'qigPL>oGm(3Yc[4no,.!2gH9e#>4eMHJDEqI[EdK:1i=.?AKnM#\%3o-C][\9pZQt@M5cAcGHI<<10_;_)a/kc`_ZL*\]ciOiCZ6-ZjlBl4h<4s2f^tV4^?s,pg=91EN3#UU:kklq8ZF)!39s]IUF/g=&o"W8A/tkWnpNSs0?<dJ."1.ehPE96FIZX$puZ;L:\BAKQ]u0&g)kh]@c%<%;?qBI^,(fjJaPrB[?W.((FBr7/Is"0%:OI"%huC.TQ1$;GbflpKoGkD!]YB?!Gl5EMEP'h=L1qJqrtWa$fL,1QDnM$CHX.O31>i0Q)4FLC3EbKdGRs,D^3N9HJ[0nnoW/[^Mfh.QgmN7g:Z`JSu/rUd"DM.fsfaC\f*qe+^5)=5WRH^+r,cK*IFq9>;+pY61H'cCKWT:p'=-NIc++4.E@f9VtKG<n?=k*W\/@lOZ\$RbsF!cmLiV,fC*Cd(T+6b9FWaqE<u+a+"rG-VX"te;M1WoH6pI!MTj]:%4,87M7F.a.D[[7#Q.+pR%7ZVK7f!D]#[u$d$>Rl=70ulfo2Q.`.I"mPH*T*pH<YI^Du6+BpnTE,cOO2.%dNo3f,a=j9"ll&GeJirTuj=R"TB!#U(q08L@9]6?@P#7Rjo<'#d*f@g2ILA"WtKR"iOb^nr*%iM2iu8T'6gm^h:NSXs=JPII=@n&r475Gj=4).?f?,GN+@%7\0&?>NRfgj44,"pGBB4-'ZROr\W)c5i3oCtp?rH[:m#4VbIl:3S2l%HX$3O0?=b!,8oSap@UfC:nIMP$ns+ApBA4&#rkt5pWKYk<VcJdD2#IVRJ3CQZb>^:R>LLE7C=LdM$Ydo$/7G`)C[XVu^MFc+.Dnp'78bBHJ?=SSlOk4,`AbMB1^=ha&UA2n_"JDlt"Dh"eDB@(Kr+?%)?TX!B#g0t6bq"`:#_'4a0gOGkp_g472'%=]b#@$6Vu1.qI.XIcKY9IYur'`61O<h(=h6DFUf+/>Q0Tis7^Zj-jeTE/=k7C!Wk%<bf#,A*&q`[s$6'QcNDWH!s+r'E@Kp'*i6DI)L3Hb]E=8WA,Rc-NY1X=nP"XSI?=#nh6IH"R?<=[W@"@,5/N/Q!';7#Kj'=Rup'_p].GfXaTQRRJnpD#D[g>+*&3pb_F#Dm(cO=X5M3093cH2?E+PH>i_tM";!.;f,E\Q^u;;471lFDk2I_VYAOr+ZZ5]kt89lh=\GMf-ag%nYcKi]a)E747Fl/]B/+B\+ns&,R+hV-\<A#Ho]@OgG%uG,ck^dN7\ml5PbrTT>W_rl</ELaL^=6:S$tapn!CsKc=0of`-$A.[&Ens/Q])9p<ujU5b'fbm1<p2g]c:5_`k0GCI<?'H.2_G#7E>2QkC)7/a,/SLF@_ln0KZg6i4(5W2ZV&[=DEo%j87*qh&!+AlMPSpF?BJH-k364cF.#/C7aFEo2PDC&;DfXLnQ>m,V2=<RGN8KGBLJ]&&G5:.M$+^7biYSR8qRcdkMAl#[W=3:7WWn@dq(V,RSOBji-htpaR5>Gg^M\>f!&Zc=WR1,11O`:mUf]OnuHE956:MjUd^<(].+77G8iC<eV4.;tWg(ar0D?Ne5WR7V2G-s]BRm\@b8SWn)&LkjR+Ss.(7h;hBZ5bS+LCsQV-3T6j7?DVg;/ZP"WGU:K"R8%6bCO]N.Tc($os\PN1=okoS=%8@me?V2ALqG@&,Hba=3G3\/K)L</37o;[[XUW!c(;nOn6QP:EK=RpJ\`<O?<T+IOs&FEZNa(`kKoH9tqS`7`k.c?4?urBH?@X&WqWk>'mX9%Sag?MPA#"Fk;lp".*%b\,VUSrEOK0Rn!B\Q2T^NYAu>BAaDT@.No_IX;&8_3aN&SV%O,QalX(\JXrRj/q]O?m,Y.8R\X]l4JUr,Se+pPgV!@_\<9pJ>t[)-+R=beY/@TWLkI,`1Z`B%Q:WGN8VMMmSiS4!(pk(ITAJ^Z@pt)oa$_]MI*$/e-%f/0\YngrL>>Eo`/b6F(fnoJ\'m.6c/ZA]KS0B.b6E@=CSRErUV-\12TZRP&*oK.Z]ffa[_6YE(tO/KE<><p8E&E.g@Y.VKomR^csXjpHK]t"L\$F!KH!c]&cJ5+!hkc#hr';6>_sRO.G-D6)loG>Z6SChi%"]3l[uM0?AJ91eiQ.]M6/ph^+q$2/5N3BZ$98;&u=0q,aaD,K5OZ@B8.!aG#=WqK]UHcQ1ZeJ[iffR6XMl!klQO0BJ:T5cREq)J*H<H.4=h+Mn"^*=1i\j"GF[_gbbS>EE7VC69Pn7O0>hbpEGSDRa\ifZpQ7d.(krE+QD4G38^p7lX%l77Y;k]\uVX8`%p>4)=*`LN4/7l]004R=V(Nra>;]Z=\PK6+9Cum=W(a],07)>Ip*k+4rX\8o-+hUIE'p2RcY:0AC(K.kLBN[&#`@>ibE#fqD[tWW(N:ui?EB+G^nAO=M)$.Z^L=$V)_2:CE"OUkuFLN$+VmO4&gW,\J]u6'>.p5)$?k787E]cMO&&-BZZ?kB[`Kf_;C]PLHe8dDiJ<][%`N9*r:@R::g5qWnd`S?Yl&^Gso>9e)]3Kc'rTF+T+A;h=Yr4r%[Q:9FN1cg.P0ap6MR*\,Yp6r"qXJSE$.D'JhLL*A=>ll@?DA`XjoeWru1gUEgn/)_%[[\[8S^Oi5Jf.CPS"I'8beATmggGEmA=m*GDqCrQFuT`dI('W4`ucO2.t1g3eO)]p('kDZ?IYu!0FfBd68Y-OaH/`nF\aXme4WlG/e%q'c^T1G/5pT7,""EZOpYGg@"SB8XndM&^3jjt>9d,5`f`\5Y\<Qop"GE23<"R]HGb/%&Tn$A&e_b\]&"/g<]XC'?\$%F%VJ(]jnBBNc_WL2[,O#R:?";C).L2ibRkGA;5jo?fV`[3c'g/2Cb"[^_Bd\l&Qmb:dK_t.]!Vs7]D,Z-rak<(>p"Zb/1&>B2:NMKD@&N)/*+W9TEYc_FViN?7"A@NlH/h[s)41`:(/Og/ZN#qjO(9';mEB#sPebRX-kj6fmcB?a6T1eUOlQcks127D[T@7a/rO`\NhegW2YNYY@4O,MV=N+qah7L-%og(O>&#6eabe";;-:P]-hYK<Sn4<.;-7P'@fiUf>YtS)&/?:\I<e<R+pkM<T\GLUM!J2U5HG_5#]8+A6VP*-p!A/#HdaTaj5*.7jb<pi4S&QHMKm\k[YTA!qcNT"S51s?SDRDr<OP.G:M3#\."7_4%A(`"fFJ%#>:*t?L1lbQ0iTbS/2f75OE^d35`Y_;]2/Efc;a1-*_b99l,f)"?%Qd:!Y0*P(=-2=I<.V>FD;43]f(0D_+T8Nfr9n:$o!='].8AdXHY=8=](M^)m[pkRVs&TC_kC^uUPkKQ9_1b&_759\?jBO6$SU08S\M%-L\/;JNa2ZXA0eWqqNAZIa4-'9?G*;1^SM-tY0in30kuTr*ga6g0udH!GML'\HQE>QWlT?m=3GmPKF9\enjn^V#`@:E2,73,@pOdNYrJLdlKj!;^kQ9,SP3:hUh/GS94.>eqk\rhJPd.CAk#G*6>LHf??u*>56+J\Ic#EniP^%JLG&Zo<CruMq9!**:=;=b7QHi?&;:pCG0uBqYPSc?TlG?S^^/@dZ:D]<@taSD>>3R;W5D"-@aQ*nF;X.7$$q+>4W;T.29V-MD5j)O87UlEjg)Kb;JPnL6%-1P_dK>A(?JLip!Zjmp2))sQOda'XE`1(+^m#dr@-M,&5o7Vn9ui*YEAh5<Zb8!fI8G(%5V_3V@RH,EN*=C,4N$/gh0"KkO#k]T-><k]Hlp'2ub7Mq)COn!\%JAUET"1<ZW')Wo^@NT@b`"I"c:,,(/b@f7muoF@(_@!hrT/VO_Ze@tX?6$g0ThgcP^f$F(!`**k5Y)kM)b+4/hRQ5d>/ZC:MQW>C$bIaPJ7I*m=$8!7JSdF[#.MDQCrH.Ia`*@=3$@,oPnXed@6g6Xh8\(L&9Yr,>5VWT-J=YABDNi+8f1fs(6F$:sCadq*AHdU&CMFk(OKof?pj<e/=6I;/568cO`3*3%k\HSj15=cYcb[;W1<t$:46t^;H_*r?f(*&O;%+9m&m!A:#Soi;Z-QL/&(5*G(Wn#)Jenp]>*E$%,T)=Q(Z]VVU>X09r'nse4qq9V_T$1m]UsT'X[TGU=Z"Dku2C1KkA>T0aPZuPid5<78aWIA\kL8udfjeXe)n=B(Q0_XPY^;m\:de[hP2MB*=0VVH-S'.(Z_Z0ng:;(o)1uFtG1^O,F9gL\j.Z=(\JZNWe`R)DkF.\JIA&8<"K6D]"#r"lhO+J?CXo:C,#>j)Um`N4<gI#VImSZ&E#Hml?0@QgT.9nU]f,P:Kpt9Ci_sQ(6uf.J/MDr&K7YtiGYdshH0a_QG$bNEs!<;Lli<?sa'hL[BraSjPeRnXgB`MomqiGK.aMZX$5_Q&?P\W=QeFfs&_ON=j=Ru026I-J\6E1H`A7bBq=[)_Z$^#*$4gr7@V'M-P;OVUq(\s2f(BYG5O"I=,q";l<PZD+-X'MAq"U"Efk!K=#sI+>^XJD59Uhm-+Fr,C9!sk[Nn*O*GA6!dUN%cMI)ditm.iq8qP@jWBViXFPpeZ5)a@%LOK$@U`AV;u'goVMonLstNI?JjU+HSH5A115nh#M`4Ct1gcFnT#V&dH<P7N\7"ptP#m5j/<aq*dr4'q%na8&V>+0?g;KkrD>URBP/CinLZ;'3`0aqYht2GqnUk!'#Uj,PN;Q'R-d(Z%-0g<^e__]W7[U$8,9o2^UV$P5/qHiU(p&g(P)mK5"5]XSnceNI&W_&PDRcrC/=mlrTGGTA#(72:gRb>LJk1d(k6G59V*@7<N+pa4I=S`Bs<G;kV@fmY2^i+`lE(tc0KL\&bc"^KsO\cPQo8(B[fn7HZ,6j`c`_3(i,3fkpi!ka_XMin>t++hHV9eqGWZNn-2$.I)'^<o#`/"n))RUl<BU<]Fm"5&meIP</@lW^\>B&@$SKmZjkJ#p>DAfRY+SV1*elbtM*gg5@"l7I[$'55Io$#P,G5o<).BE!B&)/V5!l6%;>%2)(u>+E3_>O.n4%nSu4>^#JjRmX/W0g`<tOt9J6(a&FI'^js8Xmm6C/b=RGE]5Crg^%'$R%$G:)&4-GTm?;)kSQj5.>Q@:Dr8a^L2d^1aq":KH8c:e;8fZdoUn-]i"QmGW]J?\&;CJ0f%*m9*PjL&Dt8RUfju^S-2)Iu5,E,#i7qN>b%uX)iqI4UM-,Pl\re?Tc2DOLWelN;c>j^=_!>6!iYOKSa(qdTQDG;@<Qdm[\]kcr?!V$$8<+KJj?>F?[FF.R(m(d?l\37l-Q_lR>BjnWUUgZs2(AK;\ou+miIG9CK,$5d.^V!h/uA^\&U>E,Ij%1Eqp>4uGCS]X1ir<\=*p<S7m9G@,-;22IDT>\b@=k/60D%$m2_,X0F*9l4;7#4mTMle>/+F+"_5a6+,05_gf&14%R(c,Q1Or51cQFF]j%4aI+KH`fWe60M]iGl!O2<=OG`)eUKGnX()<6X(CC!FSG+aIT!U]Z[q,2_hob3:TE!^Cd>]*)&u@<'62s*$&8_;=ZP)g&:qZ;==no?IDGZBUQ-rL+p2p.u]d:'mbu*g7PL^P7>5<(r"&&W79t?s/-c*KU+rm'T=:%k._6<4fGnZMQCEqa@EifS;2TSiHCt=a(I3"`-0Cs?pelSVm=DB'V(,#[5?sR?%;aqbS6Jk?VIEDM_ek<@!DgY[(qnk;r'O3\^9+LaG6k`t6,UoZDg$^G(fR!gm(hG[HjY/%a60iK1R@!Dr`J(5u&ZJW\PRH&:eb6nTTf1Pqd0Bg2Q$R+4M$'Y*b9]X7+0%<-J4S<@3T=DSQ5<P/Ab3S4N@q/X'Wj;o_D5*L+F[BjiME.Ck=7/ePt$Ooj*Kn.,m+8uhUt-mOKC5'Fst.K7uPc3"_.\YIMj)jgO7\/GYdUo^BA&c\l3(^<IhI!l/7'C1?_=\YSm-H&:9A*k"*M]!;Wqe4R@'??Is&Icr<U5o9H%[,COe^U3K7pQfRTd=/?m?))99;<q'e:92H&?!=msJ?3U`D[OTOGm-")R%&@B`;#B,]]L9\bk^u@jj_`AYRi2]#a.n15F9[GAqi,.-5_Ind&OQmq(7>7[KIl`L^RjmXJ=6,pi+<ha.,WWBhKL,egqFVfn!bTGJJ.Rd)e3uBF@J?_#5i:tEOmMd*KJ;fb1nMM6;Qu6Oggq\=aeRjMQQ%)gXSi;nd`/[m5^I,rmuMCdZClLZ^#M9O\B;i*2,]2+`fO0!_"$%C;RMC\3E<(%@-#a=2ko:kt6WdR;66JdO6_$f'_XhQp\Bj:@4>KrT&Q%ek!>cOFM_u"D%_cbu_8AWuonAR>`mPfH)jr0HK*&=g-:rmXb^Hn]Oe8U/e0:D_.3F@-k/B92747Wb?I?`>q`kH!&Hp'=FCDkKcM;%kS.qB/bFV-qVdo-)Tr:nL!?rjHoPVfPA?/\t[*'9ubLg)ec>e]WQL9)j\WM6`.F#7o8Zfj`q%HjrV#pH"iO15o=Zc*';9h`gDo:$rGBup"K3D4\0:Q-uVMYMJ9=Ga2erB7([:<-oGh`'#W[LmB\:-24j@4l[o^r.Ema^<""o1ES\b,%9hB!+g)F7^PT:H)?<d#neFL;=Gqo?N,bj'Tl&=nqD:TqPk6d)e/.tcPjb1?jAQq4@5&dCiEtbQC)`?:Y)D[I;Ei<!(dI2V)E3r<es5D!E4S1q+/[/u+mBQL,jASB!fRs-aWh!l'VjhqGfpB^W*s7F?d,?a:UVPo.(eJ-gOKK\DLoT^o+>DN9[Q@rnPN-!/E2$:9sTV7"d2JQo)H"T(?$759@D)ng=XZ_o,U4+DLud%OTqrQ%hW*j+[A[2(*OS<=XVJ:@$!pqFMl`9$a^IkTE<4E<SuIbW\SC`?duGjo:/d_T.U'>pT+c6NbC,.c'cP7EabU-Zt-'@47%NNInkq*C+rf3'+rfXAFDP1iSZ$;qL781bi/5j\=^_ho3cGOBu-E4-mD=XX3k@2K.d/pge^nhoL<i2o1sVWl4T,^$'`_G@Gg,u-V2ZJRPud0iCu@m3j_Z-Fm&LMMW9J<m3a*XFDmalK,m?dAjk[-;fhaHBfIDUS0,DB7u^nulup6^?lU<["IrJD(ejbD'hKG2)Pa!*mDU@--Fq!'%'qA%A`@^M3jR+'94p1DI1"l?9&T7m)(S,AZMJ+fLL(C=-QJjMJ_(OEauKjG,Y%!i%%,3U(b=b?P!eAE.Y@89"9^IV.Q:$q^*)sN,<Sc=R#@r-.mK6R=cOFe#t@P7<f4nPr6jQfr`IJ'X^R''5aB9uN(*1g-P1<!C^R6%a,Uaf#.GtCIf<-_e^+u9_[=TE\?\1<]/B=o)uTZD0W*G35?"_BX'hEVLE0FZi1j1s"A*T=ZNW$ZAoUKb8Bl(iaL:Gf'"8I=YJ'fKrnsk37>6PA^Y`Vcd/Ef=KCoE`%fLjTFi'm(.]B#\G>-kjZ]3(VVbVtGGFS\tpUn82gNYT?9+n#>>/.e<3[!j/I?V_<p#>)ForFK00++."jIAs0ihO1sY\do.ZNd#1PB9i>S8D>7/ZBAea_Qm7?9:lJS.O=%6?[=g\6=K73M%),HS#a%DTVGIeN5Ho,\4Yd-BLHLlXH!P_J2p;bK/]uG.-0hFKl#2N$ee,b@;V3"2\hHh<KS+8ODg*Y2`"YS-S1t]!n$K)JR,5K?DEW"u-H2mHYB_^H+2o@0iTc/q:9Cl;mM68u,A"a'I]J+*@U2Xjg4?gmfGC!Ei-:%LXLG.m-T/W5,*L3VpIORMNepmU;RjK9kY3I9%LP0%$,8-:)C3]cUP,]F,2@Ydit9;G%9i9[3P(U_>8]6Ekel'?)?b'W:.c8<bpBTeDXK@h%?Jb`D^bWsVikjmCrY\B>="Z!GL\&bIU<j*^]?B[mM//g"gCmYmCQ#j(rbO3L'"g\\pG<8l38\Nf1*5@('k5^^gZ9U?`C;VA@o"FLbKS<frJ`o8\"[F-gWaPp)lf1_I$9[SYVK[-I/]>lm:A_!/!P>[W9Rl^dl1Pl'!CsqC=OCXYQpru<-8:;XWhYuk#:?<*T[Vt)h2Rre"&q/,'XPUG1Y:K;Wk*FKUe<#L-(<h_N21uQDM`CWL1`<*\g?Yg+iZ7U2ZYcKYLrLt+o-VAm*.e:gGk]V+LI[OKqV4aS@iV3eA"on04gW=SF9%8*Y4mOL4OT1e#$'3*,ReQ!2BM,%#;\AS2AN8@"XYL\r9%_%HC)\4@u^hf8mP:1LRLk>M<CeqeZlFGqF^T1@%&XTg/XaPqD+PoTpo3^'I46iOT$=P&$#l2PqNmU4bs@&/aqX)^tD?L!i3fC.#BfeN#Y#TXCKV1C7sPJ%b>o8[kH4_?V56QL@5F@]dXl')@=;Qj67o&=CGFE:Jt`+CkXXd#VT$?*$auPG^ErijeI4!"j)ZlKiDSpeM+f3nFo)KMd"FW!3+nnIdC)rG?m/=CrhU2qjm"/iW1-<r_W^<+4sD'_%0uW+O0G^7b*Gn.]/BPkh<GS4k60tTKWqLX.r@mk%\6uJT995SUu&%.PY1@4M1K6Ue=Kcf`+bjQ>;&:%:QU9Hh[GGhfb$?d%K$4i?$[<FEfSD78n#ag^4&g-8i)YhH=AE>[!HnTc_&;'`3ZS\<1n"k@@Wee45."]&`#th)Wkj+'ubX:62j8T>9`!o4dDllcL_[N6ZpL`/Z[0K:mpG;mB,9]6F^/-3np-C)I+-1>AT+p7-)?U9I;6dM\)$$?lKjO^Bu3L$hm/*a806YmV@Mr_?.u"'3[bc$s=XM-SCe,$MfAG.>s0;J*I7M$@e8%4[-W.[9?/0,?1HLV9]ZOUj68Pr9R^M@X+EFUf?U)n00TH)8AXlLS%%'mNQ+V`,_SW?_jg`@Yh9NYn"_-3;q1"ZCFm[A4*ZKarP9n2hY.`mX!GgQ;hh3H[?Yd+AmX_2,TrNArle,9q(IFs2)oF@eD-BAdkgYaloYSB=:)aArkNd.&kS4XHkF%OB,q1\O#sDiqgL&RB-GXW^d3`-5_GaE3kn[5DWWPjg+`e4+60CTWGbY&b91dt$R<GAW5QX<,,C"9dC=%pq+%[+6&e&e75@#u=;+C'YLC;il8^XCsA/`OqqOr*.^3N*%'ZnF'bJeXe2aQgXVF@gd/7H5*:a"(')nPKX[K=^'77/0"iZXqeIgd=8\+^aHPl+QT]\YdWCt!tfGoH-#o(CsQ"eh$rhdbP\=fhN_E6o@q_[UCNQ;J<!C<&+N/8hq*aa(5>?)/s:/O=P5Q4fXB;Q.D[lT32E#'AF`Q:D\"o3Oe-?-393_%r=^KI+VGQ`r&))589F?(4(%!ecJkV%eREB19_`#nP6:@i"+)t:ihXOfYZm#+_N,olocg\dh$O[<MJuSqLHjY8@-P2;=4W6OMEWBY8CKq#Pe)E-4tf^Yqd'5Gp0!;in6$3BfWdT+>a^m..BuZ-D[q1bj"3IZ$p2Yfm\ueqkb-r*,PL3+f!/=DdGI8C/2@HO)?913_`,NfY\nob!S<th/VZhnq992CprdYG!o).2>=]\A4?M]Lgb1LW=ds,b17i-+DK9qXJpb1E1!Vc!qPt']Da[&9.j#D'i6[\.A?/K<FBoCr?SUmO,a88"^VbLV[Ne';hd@_#1[Xa3i4)Xs8Uf]/XK4RXjt]CKNgMt&E"U)-jg.UG&PgkBA[2%`FFe*?Bonc>r7B_;+.5BE0ZKaY[7r4.nsJm7&.5>>F$2/HGhNP6HNu?r$-pb!m#ViQ;g'kG73RACcfcTY[huml9MAq;,p5J$MQ#3lF#\j.-Y%u^,@Y\p?35*OCf#ZG3=IjW;Nrd!,VYV)Hq@t);1VFerI/W,4*K4p[%NaR($NITTsYb;:Di!X\pJ,$4EM>lXFSJQqp+oU.7-I(]M4fCh#i=#\O@U46KS^n5bfEU=-#3a8H*Ntd=R:OjgpBFIU&jJQbP4%UD,3%d`KdUINAqN+Kbf/J6q$/_&%7l%N!c9Lf</=YlmSl`#k,69nBl`I:bRRiWQ(VO>e]b$g@LuBQY[,Uqg/NfCTcN@?<.,n<T_N;rK(^J#)b70c.iB^qL#2VB\hF'?9._EJa=eR$Jmfs+gOUM0r89IM+cA&[D"arWS'tX[K9\53A$ss$@VL84H3[gVIVM*c`Ec()&?:GMgUKZg?MgG=,m87(33kD04Q2d>r=jjLD1CRF:A<28/c%&iIogV%>McfLS5Wd@%CT:5[4Z+i-$($uHPSKU&+&?!kp!^iOdF<^pfYLXSTTB,V*.4t_:4IY]jAZ'M]9b5Ri\?^kR'+g3PcU;%0?ib"RE^)eSKX`CMLYY"o9K4I]<"h9eLdZE0\@`L5@aV#??bY:]k)gOL6[Eopt=F7n/--S_P7qPtf;%/uak\L:+HQd\/))uENbG]#LGj8;PkS#pFj%p.=KQ`)DK&+%W:I/Y=XOj,[M:0m+=/BN$)<LE8Jg?(4VF!cW-28HB'LX)12S2*MfU<K)0GYi\?=h$L1sB]]NA3l!f,pQ_niDd`TT=o$bWq?YJ%1!O:IcjJc`sCfQc-f+4ZTs\X'8.!HuPB=a--O9]M%FSp4`=*5ug"@'p(aMo=cOu;LJB5A&!.YZnN)#Z:Z7lL=7H;_rXjM/W!7`I@OhI'a/W\X$pciTOH"I?"HlJ;Je5aV@Y<F:QTLc$j&mV_-70iLoD!":W8ghnJ-na)B9/J#8h>FdSQ19gSm6;mE:(J?iETn#IukJ3W%V)?:rFK`np"O%`9`],qkEsdSop\KEo'\Wntn'%'O*44"uZ#H1ZqTr906_@XiAtdrM):>-*/XB5;\7@D3FH+7C!4mu)S[ZR!6@9e]+@2l`WNACsDNa@oMQ'=VVTe:/@Md0<sB60oH^)+"672ctadX7ST??7iriPGu9>Dl!OJd&@2%;_U-8^=`pp:pE72U-pKjbEE9f];U_!4Ce;Za.N'TMaVFeq.-[k@37[+1kT0]ln7QtLlpBk4BF;?Vo']ii>U<'jQ'(L5T3XaZF_C5'Gi.Y?8Z6j-@94.1X._jDEQ0`B=.2[*I!)QVF[cR.I?Z@c)$B7fND+er>)Y!eYMh+3/9"FS7:84bIAKF@-B"<I?b`+_k\ng7W,l5+UfqZ07'sN'@TrSr:]@!H-^$</ZAd5FQ=`:5>G"Jd#N=mfpf]A+/HuGILFFUd]9`FnVXF=`A0+_BlE4nCQj%!h1.p;7BK7J2S!:Z(U#sD#MQJD5UP]j6jY2IBP?^4*p8uF5&_u4Y,Tb(efNI29OaL8lf%fGqBYUYjDOQ?6antYA]k#M@`i"-%S-^FrYF&8U+hbP$?C,>k:RC2\D#>`,[VKh&p,p)A!dE[<=#^nhqS?dG]k_1pp%?#m5p*M\^X@ZA3f"tn"sNrH'dIJ+C:NIdk_`6ZV6VM<O1*=d.Z+"#L(ED?k,gu#20)DX]3=]+fU]sZ%Z9\3Sc\J+:1#j0^8]H])rD62NJb.<UXheQ(kt&<(NGbj\%8^rZn>]['k>P>Jn7S;HbT3FRPKT2,10`6fcX9&`j-OIYU,8lRM1b9eV4!-URJ1'L)RrA7\CPJ<PB,^]k,rrp/A9)0$6T;tg&SCY'1l)-a'U!f/#"1cc$4fp(=6,ZYp.2C`K7&Ksh;Pc6s)Pj#s=kb?8?-=5jH:laKa_kO4AQ&m&Bi<\!R'P1@=R(!`LL4;VT`n<<g`d_8^.RUtN^]ICCbq8bBai(C.W/\D<H;E-i(_l!%R7U\SO*$],V(2X*p-A1ug.(7V_@aMQeZZYed2VECb526><g:52DU+;cU%A:=Y8Fa2R(=4fQoeh/6KF$!Uu*;!j^sb6mI=9O0MFC%BnD"K/fcJZ`!!W8pM/itV!1hiW-pV%-[,9e\hZt5K#n;@IMq0?77o32d1,D0mtYA5-hSMf)=?Uu%K-"YOj&R69(1`U&a&fuUIgLj$;%?QgaM@SAS?8bVnC5'*#j!f#4b(%iqDi=aNB;pBF%#m$-T<G7nErE>g/5M9TUdV4+e.'/-H,B<RNqfgpThM[e7XTh(VHgUA3!FHrB&B1I::Li=B\3_$rKD'9Z'cZ/4Minf=h5OEpmhJQTLB>CD!9":SF(4Em^=]lh\tY-uY4=X4kZa?n>V#Y5cha#h;h+_%%lh=Ha[P2QYRQWb,4HG*3VM!8/B=Pt[_[':@9IN=2/Y19n8-V"Yh\le!poQ:<glGO\),$])EJN_\R]qpAtcZ?t*2m=c'T]aG^\1/:;,9g1*_sdf?in/q>M<kb&$pTej23MMtB>D!onS1:cTmaRGG*[[QRi.P0UZ5[gn(sAP:I/\g%PaK#1V7VF5NGEN1%MDGds'1(#*pm3Q,<nXfPj3qbnk'q`+hY@_n`ldiYH=+IeZE'(Ve)[jUfW:AmsR!L?73HfeLnFI4-\^+>?Q&'%g/<&&RabEV_RrOr$%n`4bHX&M^V^TXm3[Ko>oI'TF]ll\++r!7`au(&5-hUj>alNf^KL?B$s`,#)DNHElL99dYY@(A#d/lN6*N'3(>[SFXlqdb<7`lFY4#;ihpTqe0-[(E8S>M1=qQGLgHcS#4k_ZECT*<$$BOpmkbb[qK=hWmMX(4MBA2f+gRoX>h5-%mJX&;q4\8O414=Cd:NC6qN_hs1D^EoDejk]==],N)),{[0]=1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072,262144,524288,1048576,2097152,4194304,8388608,16777216,33554432,67108864,134217728,268435456,536870912,1073741824,2147483648,4294967296},0;local J=#T;local F=function()P=P+1;return k(T,P,P);end;local k=0;for b=1,5 do k=k*256+F();end;local b=0xFFFFFFFF;local function N(T)local _=0;for j=T,1,-1.0 do b=b/2;b=b-b%1;_=_*2;if not(k<b)then k=k-b;_=_+1;end;if b<=0x00FFFFFF then b=b*256;k=k*256+F();end;end;return _;end;local function T(_,j)local M,G,x=_[j],b/2048;G=G-G%1;local h=G*M;if k<h then b=h;local G=(2048-M)/32;G=G-G%1;M=M+G;x=0;else b=b-h;k=k-h;local G=M/32;G=G-G%1;M=M-G;x=1;end;_[j]=M;if b<=0x00FFFFFF then b=b*256;k=k*256+F();end;return x;end;local function k(F,b,_)local j=1;for M=1,b do j=j*2+T(F,j);end;return(j-_);end;local function F(b,_,j)local M,G=0,1;for x=0,j-1 do local j=T(b,_+G);G=G*2+j;M=M+j*d[x];end;return M;end;local function b(_,j)local M=1;for G=7,0,-1.0 do local x=(j/d[G])%2;x=x-x%1;local j=T(_,M+(x*256)+256);M=M*2+j;if x~=j then while M<0x100 do M=M*2+T(_,M);end;break;end;end;return(M%256);end;local function _(j,M)if T(j,1)==0 then return k(j[3][M],3,8);elseif T(j,2)==0 then return 8+k(j[4][M],3,8);end;return k(j[5],8,256)+16.0;end;local j,M,G,x=0,{[0]=0},0,{[0]=0,0,0,0,1,2,3,4,5,6,4,5};local function h(S)local a={};for y=0,S-1 do a[y]=1024.0;end;return a;end;local function S(a,y)local X={};for E=0,a-1 do local a={};X[E]=a;for E=0,y-1 do a[E]=1024.0;end;end;return X;end;local function a()return{1024.0,1024.0,S(1,8),S(1,8),h(256)};end;local function y()local X,E,B,D,w,c,W,O,Y,Q,n,z,i,r,v,C=S(8,0x300),S(12,1),h(12),h(12),h(12),h(12),S(12,1),S(4,64),h(115.0),h(16),a(),a(),0,0,0,0;while P<=J do local J=(j%1);if T(E[G],J)==0 then local P=M[j];local h=P/d[5.0];h=h-h%1;local P=X[h];j=j+1;M[j]=G<7 and k(P,8,256)or b(P,M[j-i-1]);G=x[G];else local b;if T(B,G)~=0 then if T(D,G)==0 then if T(W[G],J)==0 then G=G<7 and 9 or 11;b=1;end;else local P;if T(w,G)==0 then P=r;else if T(c,G)==0 then P=v;else P=C;C=v;end;v=r;end;r=i;i=P;end;if not b then G=G<7 and 8 or 11;b=2+_(z,J);end;else C=v;v=r;r=i;b=2+_(n,J);local J=b-2;if 4<=J then J=3.0;end;i=k(O[J],6,64);if i>=4 then local k=i;local J=k/2-1;J=J-J%1;i=(2+k%2)*d[J];if k<14 then i=i+F(Y,i-k,J);else i=i+(N(J-4)*16)+F(Q,0,4);if i==0xFFFFFFFF then return b==2;end;end;end;G=G<7 and 7 or 10;if i>=j then return false;end;end;local k=j+b;for J=j+1,k do M[J]=M[J-i-1];end;j=k;end;end;return false;end;y();t(o,l({},{__tostring=function()M=nil;end}),nil,nil);local k,J="",#M;for F=1,J,7997 do local l=F+7996.0;if l>J then l=J;end;k=k..f(Z(M,F,l));end;local J,f=t(o,k,"Luraph"..K(" ",3),nil);p(J and f and e(f)=='function',"Luraph decompression error: "..I(f).." (does your environment support load/loadstring?)");return f;end)()(...);
+local Remotes = {}
+do
+    local RS = Services.ReplicatedStorage
+    Remotes.GameEnd = RS:WaitForChild("Remote"):WaitForChild("Client"):WaitForChild("UI"):WaitForChild("GameEndedUI")
+    Remotes.Code = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("Code")
+    Remotes.StartGame = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VotePlaying")
+    Remotes.Merchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("Merchant")
+    Remotes.RaidMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("Raid_Shop")
+    Remotes.RaidMerchantCSW = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RaidCSW_Shop")
+    Remotes.RiftMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RiftStormExchange")
+    Remotes.SwarmMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("FallShopExchange")
+    Remotes.BossRushMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("BossRushExchange")
+    Remotes.PlayEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event")
+    Remotes.SettingEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Settings"):WaitForChild("Setting_Event")
+    Remotes.RetryEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VoteRetry")
+    Remotes.GameEndedUI = RS:WaitForChild("Remote"):WaitForChild("Client"):WaitForChild("UI"):WaitForChild("GameEndedUI")
+    Remotes.UpgradeUnit = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Upgrade")
+    Remotes.NextEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VoteNext")
+    Remotes.SelectWay = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("SelectWay")
+    Remotes.SellRemote = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Sell")
+    Remotes.ApplyCurseRemote = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("ApplyCurse")
+end
+
+local GameObjects = {
+    challengeFolder = Services.ReplicatedStorage:WaitForChild("Gameplay"):WaitForChild("Game"):WaitForChild("Challenge"),
+    AFKChamberUI = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("AFKChamber"),
+    STAGE_MODULES_FOLDER = Services.ReplicatedStorage.Shared.Info.GameWorld.Levels,
+}
+GameObjects.GetData = require(Services.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GetData"))
+GameObjects.getUnitFolder = GameObjects.GetData.GetUnitFolder
+GameObjects.itemsFolder = GameObjects.challengeFolder:WaitForChild("Items")
+local GearData = require(Services.ReplicatedStorage.Shared.Info.CraftingRecipes.Gears)
+
+local Config = {
+    DISCORD_USER_ID = "",
+    chapters = {"Chapter1", "Chapter2", "Chapter3", "Chapter4", "Chapter5", "Chapter6", "Chapter7", "Chapter8", "Chapter9", "Chapter10"},
+    difficulties = {"Normal", "Hard", "Nightmare"},
+    UPGRADE_COOLDOWN = 0.5,
+    maxRetryAttempts = 20,
+    unitLevelCaps = {9, 9, 9, 9, 9, 9},
+    unitDeployLevelCaps = {0, 0, 0, 0, 0, 0},
+    unitReDeployLevel = {9, 9, 9, 9, 9, 9},
+    oldbartext = Services.Players.LocalPlayer.PlayerGui.HUD.ExpBar.Numbers.Text,
+}
+
+local State = {
+    AutoPurchaseRiftStorm = false,
+    enableBlackScreen = false,
+    enableAutoExecute = false,
+    enableAutoSummon = false,
+    deleteEntities = false,
+    AutoFarmEnabled = false,
+    currentFarmingStage = false,
+    AutoOpenBorosEnabled = false,
+    AutoSwarmEventEnabled = false,
+    selectedGears = {},
+    craftAmounts = {},
+    currentlyFarming = false,
+    farmingQueue = {},
+    playerInventory = {},
+    totalMaterialsNeeded = {},
+    stageAnalysis = {},
+    curseMinimums = {},
+    selectedCurseForRequirement = "Ability Damage",
+    AutoSummonBannerSelected = nil,
+    AutoRerollEnabled = false,
+    selectedTraits = {},
+    rollOnlyDoubleTraits = false,
+    pendingChallengeReturn = false,
+    AutoFailSafeEnabled = false,
+    autoPlayDelayActive = false,
+    AutoPlayDelayNumber = 0,
+    AutoFailSafeNumber = 0,
+    hasSentWebhook = false,
+    portalUsed = false,
+    isAutoJoining = false,
+    hasNewRewards = false,
+    pendingBossTicketReturn = false,
+    gameRunning = false,
+    hasGameEnded = false,
+    retryAttempted = false,
+    NextAttempted = false,
+    stageStartTime = nil,
+    skipCooldownSlots = {},
+    lastDeploymentTimes = {},
+    startingInventory = {},
+    unitNameSet = {},
+    selectedPortals = {},
+    selectedCurses = {},
+    selectedRaidStages = {},
+    AutoSellUnitChoice = {},
+    AutoDungeonDifficultySelector = "",
+    DelayAutoUltimate = 0,
+    
+    autoBossEventEnabled = false,
+    autoInfiniteEnabled = false,
+    autoSummerEventEnabled = false,
+    SelectedBossEventDifficulty = false,
+    autoJoinRaid = false,
+    autoJoinEnabled = false,
+    autoStartEnabled = false,
+    autoRetryEnabled = false,
+    autoReturnEnabled = false,
+    autoDisableEndUI = false,
+    autoNextEnabled = false,
+    autoChallengeEnabled = false,
+    autoPortalEnabled = false,
+    autoClaimBP = false,
+    AutoClaimQuests = false,
+    AutoClaimMilestones = false,
+    AutoPurchaseMerchant = false,
+    AutoPurchaseBossRush = false,
+    AutoPurchaseRaidCSW = false,
+    AutoPurchaseSwarmEvent = false,
+    AutoPurchaseRaid = false,
+    challengeAutoReturnEnabled = false,
+    autoBossAttackEnabled = false,
+    autoReturnBossTicketResetEnabled = false,
+    autoInfinityCastleEnabled = false,
+    autoRiftEnabled = false,
+    autoUpgradeEnabled = false,
+    autoAfkTeleportEnabled = false,
+    AutoUltimateEnabled = false,
+    AutoSellRarities = false,
+    DisableSummonUI = false,
+    streamerModeEnabled = false,
+    enableLowPerformanceMode = false,
+    SendStageCompletedWebhook = false,
+    AntiAfkEnabled = false,
+    AntiAfkKickEnabled = false,
+    AutoCurseEnabled = false,
+    enableDeleteMap = false,
+    autoBossRushEnabled = false,
+    autoDungeonEnabled = false,
+    autoPlayBossRushEnabled = false,
+    AutoSelectSpeed = false,
+    AutoReDeployEnabled = false,
+    SelectedSpeedValue = {},
+    bossRushTask = nil,
+    currentBossPath = nil,
+    BossRushPathSwitcher = 1,
+    lastBossRushScan = 0,
+    currentBossRushPath = nil,
+    SelectedRaritiesToSell = {},
+    currentSlot = 1,
+    slotLastFailTime = {},
+    slotExists = {},
+    
+    matchResult = "Unknown",
+    storedChallengeSerial = nil,
+    selectedWorld = nil,
+    selectedChapter = nil,
+    selectedDifficulty = nil,
+    lastBossTicketCount = 0,
+    lastBossTicketResetTime = 0,
+    infinityCastleTask = nil,
+    currentPath = nil,
+    upgradeMethod = "Left to right until max",
+    upgradeTask = nil,
+    ultimateTask = nil,
+    currentUpgradeSlot = 1,
+    currentRetryAttempt = 0,
+
+    bossRushAutoDeployEnabled = false,
+    bossRushDeployConfig = {
+    -- Example configuration: [slotNumber] = {paths = {1, 2, 3, 4}, enabled = true}
+    [1] = {paths = {1, 4}, enabled = true},
+    [2] = {paths = {1, 2}, enabled = true},
+    [3] = {paths = {2, 3}, enabled = true},
+    [4] = {paths = {3, 4}, enabled = true},
+    [5] = {paths = {1, 2, 3, 4}, enabled = false},
+    [6] = {paths = {1, 2, 3, 4}, enabled = false}},
+    bossRushCurrentSlot = 1,
+    bossRushLastDeploymentTimes = {},
+}
+
+local Data = {
+    selectedRawStages = {},
+    MerchantPurchaseTable = {},
+    BossRushPurchaseTable = {},
+    RaidPurchaseTable = {},
+    RaidPurchaseTableCSW = {},
+    RiftStormPurchaseTable = {},
+    SwarmEventPurchaseTable = {},
+    rangerStages = {},
+    wantedRewards = {},
+    capturedRewards = {},
+    availableStories = {},
+    availableRangerStages = {},
+    availableRaids = {},
+    storyData = {},
+    raidData = {},
+    worldDisplayNameMap = {},
+    selectedChallengeWorlds = {},
+   -- CurrentCodes = {"SorryRaids","RAIDS","BizzareUpdate2!","Sorry4Delays","BOSSTAKEOVER","Sorry4Quest","SorryDelay!!!","SummerEvent!","2xWeekEnd!","Sorry4EvoUnits","Sorry4AutoTraitRoll","!TYBW","!MattLovesARX2","!RaitoLovesARX","!BrandonTheBest","!FixBossRushShop","SmallFixs"},
+}
+
+local autoSummonActive = false
+local initialUnits = {}
+local summonTask = nil
+
+local script_version = "V0.11"
+
+local ValidWebhook
+
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "LixHub - Anime Rangers X",
+   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "Loading for Anime Rangers X",
+   LoadingSubtitle = script_version,
+   ShowText = "LixHub", -- for mobile users to unhide rayfield, change if you'd like
+   Theme = {
+    TextColor = Color3.fromRGB(240, 240, 240),
+
+    Background = Color3.fromRGB(25, 25, 25),
+    Topbar = Color3.fromRGB(34, 34, 34),
+    Shadow = Color3.fromRGB(20, 20, 20),
+
+    NotificationBackground = Color3.fromRGB(20, 20, 20),
+    NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
+
+    TabBackground = Color3.fromRGB(80, 80, 80),
+    TabStroke = Color3.fromRGB(85, 85, 85),
+    TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
+    TabTextColor = Color3.fromRGB(240, 240, 240),
+    SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
+
+    ElementBackground = Color3.fromRGB(35, 35, 35),
+    ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
+    SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
+    ElementStroke = Color3.fromRGB(50, 50, 50),
+    SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
+            
+    SliderBackground = Color3.fromRGB(50, 138, 220),
+    SliderProgress = Color3.fromRGB(50, 138, 220),
+    SliderStroke = Color3.fromRGB(58, 163, 255),
+
+    ToggleBackground = Color3.fromRGB(30, 30, 30),
+    ToggleEnabled = Color3.fromRGB(0, 146, 214),
+    ToggleDisabled = Color3.fromRGB(100, 100, 100),
+    ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
+    ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
+    ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
+    ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
+
+    DropdownSelected = Color3.fromRGB(102, 102, 102),
+    DropdownUnselected = Color3.fromRGB(30, 30, 30),
+
+    InputBackground = Color3.fromRGB(30, 30, 30),
+    InputStroke = Color3.fromRGB(65, 65, 65),
+    PlaceholderColor = Color3.fromRGB(178, 178, 178)
+}, -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   ToggleUIKeybind = "K", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "LixHub", -- Create a custom folder for your hub/game
+      FileName = "Lixhub_ARX"
+   },
+
+   Discord = {
+      Enabled = true, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "cYKnXE2Nf8", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+
+   KeySystem = true, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "LixHub - ARX - Free",
+      Subtitle = "LixHub - Key System",
+      Note = "Free key available in the discord https://discord.gg/cYKnXE2Nf8", -- Use this to tell the user how to get a key
+      FileName = "LixHub_Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"0xLIXHUB"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
+
+--//TABS\\--
+
+local LobbyTab = Window:CreateTab("Lobby", "tv")
+local ShopTab = Window:CreateTab("Shop", "shopping-cart")
+local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
+local GameTab = Window:CreateTab("Game", "gamepad-2")
+local AutoPlayTab = Window:CreateTab("AutoPlay", "joystick")
+local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
+
+--//SECTIONS\\--
+
+--//DIVIDERS\\--
+
+--//LABELS\\--
+
+--//FUNCTIONS\\--
+
+local function notify(title, content, duration)
+        Rayfield:Notify({
+            Title = title or "Notice",
+            Content = content or "No message.",
+            Duration = duration or 5,
+            Image = "info",
+        })
+    end
+
+local function isInLobby()
+    return workspace:FindFirstChild("Lobby") ~= nil
+end
+
+local function enableDeleteMap()
+    if isInLobby() then return end
+    if State.enableDeleteMap then
+
+    if Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map") then
+        Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map"):Destroy()
+         Services.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = true
+    end    
+    end
+end
+
+local function enableBlackScreen()
+    local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
+    
+    if State.enableBlackScreen then
+        if existingGui then return end
+        
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "BlackScreenGui"
+        screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+        screenGui.IgnoreGuiInset = true
+        screenGui.DisplayOrder = math.huge
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 36)
+        frame.Position = UDim2.new(0, 0, 0, -36)
+        frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        frame.BorderSizePixel = 0
+        frame.Parent = screenGui
+        frame.ZIndex = 999999
+
+        local toggleButtonFrame = Instance.new("Frame")
+        toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
+        toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
+        toggleButtonFrame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
+        toggleButtonFrame.BackgroundTransparency = 0.5
+        toggleButtonFrame.Parent = screenGui
+        toggleButtonFrame.ZIndex = 1000000
+
+        local toggleButtonFrameUICorner =  Instance.new("UICorner")
+        toggleButtonFrameUICorner.CornerRadius = UDim.new(1,0)
+        toggleButtonFrameUICorner.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitle = Instance.new("TextLabel")
+        toggleButtonFrameTitle.ZIndex = math.huge
+        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameTitle.BackgroundTransparency = 1
+        toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameTitle.Text = "Toggle Screen"
+        toggleButtonFrameTitle.TextSize = 15
+        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
+        toggleButtonFrameTitle.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitleStroke = Instance.new("UIStroke")
+        toggleButtonFrameTitleStroke.Parent = toggleButtonFrameTitle
+
+        local toggleButtonFrameButton = Instance.new("TextButton")
+        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameButton.BackgroundTransparency = 1
+        toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameButton.Text = ""
+        toggleButtonFrameButton.ZIndex = math.huge
+        toggleButtonFrameButton.Parent = toggleButtonFrame
+
+        toggleButtonFrameButton.MouseButton1Click:Connect(function()
+            frame.Visible = not frame.Visible
+        end)
+    else
+        if existingGui then
+            existingGui:Destroy()
+        end
+    end
+end
+
+local function enableLowPerformanceMode()
+    if State.enableLowPerformanceMode then
+        Services.Lighting.Brightness = 1
+        Services.Lighting.GlobalShadows = false
+        Services.Lighting.Technology = Enum.Technology.Compatibility
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 0
+        Services.Lighting.EnvironmentSpecularScale = 0
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                if obj.Transparency < 1 then
+                    obj.Transparency = 1
+                end
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = false
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = false
+            end
+        end
+Remotes.SettingEvent:FireServer(unpack({"Abilities VFX", false}))
+Remotes.SettingEvent:FireServer(unpack({"Hide Cosmetic", true}))
+Remotes.SettingEvent:FireServer(unpack({"Low Graphic Quality", true}))
+Remotes.SettingEvent:FireServer(unpack({"HeadBar", false}))
+Remotes.SettingEvent:FireServer(unpack({"Display Players Units", false}))
+Remotes.SettingEvent:FireServer(unpack({"DisibleGachaChat", true}))
+Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
+Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = false
+Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
+    else
+        Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = true
+        Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = true
+        Services.Lighting.Brightness = 1.51
+        Services.Lighting.GlobalShadows = true
+        Services.Lighting.Technology = Enum.Technology.Future
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 1
+        Services.Lighting.EnvironmentSpecularScale = 1
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = true
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 0
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = true
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = true
+            end
+        end
+    end
+end
+
+local function GetAllLevelModules()
+    local success, modules = pcall(function()
+        local levelsFolder = Services.ReplicatedStorage.Shared.Info.GameWorld.Levels
+        local levelModules = {}
+
+        for _, moduleScript in pairs(levelsFolder:GetChildren()) do
+            if moduleScript:IsA("ModuleScript") then
+                local success, moduleData = pcall(function()
+                    return require(moduleScript)
+                end)
+
+                if success and moduleData then
+                    levelModules[moduleScript.Name] = moduleData
+                else
+                    warn("Failed to require:", moduleScript.Name)
+                end
+            end
+        end
+
+        return levelModules
+    end)
+
+    return success and modules or {}
+end
+
+
+local function GetAllGearNames()
+    local gearNames = {}
+    for gearName, _ in pairs(GearData) do
+        table.insert(gearNames, gearName)
+    end
+    table.sort(gearNames)
+    return gearNames
+end
+
+local function GetPlayerInventory()
+    local success, inventory = pcall(function()
+        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+        local items = playerData:FindFirstChild("Items")
+        
+        if not items then
+            return {}
+        end
+        
+        local currentInventory = {}
+        for _, item in pairs(items:GetChildren()) do
+            if item:IsA("Folder") then
+                currentInventory[item.Name] = item.Amount.Value
+            end
+        end
+        return currentInventory
+    end)
+    return success and inventory or {}
+end
+
+local function CalculateTotalMaterialsNeeded()
+    local totalNeeded = {}
+    
+    for gearName, amount in pairs(State.craftAmounts) do
+        if amount > 0 and GearData[gearName] then
+            local requirements = GearData[gearName].Requirement
+            for materialName, requiredAmount in pairs(requirements) do
+                totalNeeded[materialName] = (totalNeeded[materialName] or 0) + (requiredAmount * amount)
+            end
+        end
+    end
+    
+    State.totalMaterialsNeeded = totalNeeded
+    return totalNeeded
+end
+
+local function normalizeName(name)
+    return string.lower((name or ""):gsub("^%s*(.-)%s*$", "%1"))
+end
+
+local function FindMaterialSource(materialName)
+    local allLevels = GetAllLevelModules()
+    local sources = {}
+    local searchName = normalizeName(materialName)
+
+    for moduleName, moduleData in pairs(allLevels) do
+        for worldName, worldData in pairs(moduleData) do
+            for chapterName, chapterData in pairs(worldData) do
+                if type(chapterData) == "table" and chapterData.Items then
+                    for _, itemDrop in pairs(chapterData.Items) do
+                        if normalizeName(itemDrop.Name) == searchName then
+                            table.insert(sources, {
+                                module = moduleName,
+                                world = worldName,
+                                chapter = chapterName,
+                                chapterName = chapterData.Name or chapterName or "UnknownChapter",
+                                readableName = chapterData.Name or chapterName,
+                                dropRate = itemDrop.DropRate,
+                                minDrop = itemDrop.MinDrop,
+                                maxDrop = itemDrop.MaxDrop,
+                                fullPath = string.format(
+                                    "%s -> %s",
+                                    moduleName,
+                                    chapterData.Name or chapterName
+                                )
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return sources
+end
+
+local function AnalyzeRequiredStages()
+    if #State.selectedGears == 0 then
+        notify("Stage Analysis", "No gears selected!")
+        return
+    end
+    
+    print("=== STAGE ANALYSIS FOR SELECTED GEARS ===")
+    
+    -- Calculate total materials needed
+    local totalNeeded = CalculateTotalMaterialsNeeded()
+    local inventory = GetPlayerInventory()
+    
+    -- Track all stages we need to play
+    local stagesToPlay = {}
+    local materialSources = {}
+    
+    print("\nMaterials needed:")
+    for materialName, needed in pairs(totalNeeded) do
+        local current = inventory[materialName] or 0
+        local deficit = math.max(0, needed - current)
+        
+        print(string.format("  %s: %d needed, %d current, %d deficit", 
+            materialName, needed, current, deficit))
+        
+        if deficit > 0 then
+            -- Find all sources for this material
+            local sources = FindMaterialSource(materialName)
+            
+            if #sources > 0 then
+                materialSources[materialName] = sources
+                print(string.format("    Sources found for %s:", materialName))
+                
+                for i, source in ipairs(sources) do
+                    local avgDrop = (source.minDrop + source.maxDrop) / 2
+                    local dropChance = source.dropRate / 100
+                    local expectedPerRun = avgDrop * dropChance
+                    local estimatedRuns = math.ceil(deficit / expectedPerRun)
+                    
+                    print(string.format("      %d. %s (%.1f%% drop, avg %.1f per drop, ~%d runs needed)", 
+                        i, source.fullPath, source.dropRate, avgDrop, estimatedRuns))
+                    
+                    -- Add to stages we need to play
+                    local stageKey = source.fullPath
+                    if not stagesToPlay[stageKey] then
+                        stagesToPlay[stageKey] = {
+                            module = source.module,
+                            world = source.world,
+                            chapter = source.chapter,
+                            materials = {},
+                            totalEstimatedRuns = 0
+                        }
+                    end
+                    
+                    stagesToPlay[stageKey].materials[materialName] = {
+                        needed = deficit,
+                        estimatedRuns = estimatedRuns,
+                        dropRate = source.dropRate,
+                        avgDrop = avgDrop
+                    }
+                    
+                    -- Use the highest estimated runs for this stage
+                    stagesToPlay[stageKey].totalEstimatedRuns = math.max(
+                        stagesToPlay[stageKey].totalEstimatedRuns, 
+                        estimatedRuns
+                    )
+                end
+            else
+                print(string.format("    ⚠️  No sources found for %s!", materialName))
+            end
+        else
+            print(string.format("    ✅ %s - Already have enough!", materialName))
+        end
+    end
+    
+    print("\n=== STAGES TO PLAY ===")
+    if next(stagesToPlay) == nil then
+        print("No stages need to be played! You have all required materials.")
+    else
+        local stageList = {}
+        for stageName, stageInfo in pairs(stagesToPlay) do
+            table.insert(stageList, {
+                name = stageName,
+                info = stageInfo
+            })
+        end
+        
+        -- Sort by estimated runs (most efficient first)
+        table.sort(stageList, function(a, b)
+            return a.info.totalEstimatedRuns < b.info.totalEstimatedRuns
+        end)
+        
+        for i, stage in ipairs(stageList) do
+            print(string.format("%d. %s (~%d runs)", 
+                i, stage.name, stage.info.totalEstimatedRuns))
+            
+            for materialName, matInfo in pairs(stage.info.materials) do
+                print(string.format("    - %s: need %d (%.1f%% drop, ~%d runs)", 
+                    materialName, matInfo.needed, matInfo.dropRate, matInfo.estimatedRuns))
+            end
+        end
+        
+        -- Summary
+        print(string.format("\nSUMMARY: Need to play %d different stages", #stageList))
+        
+        -- Show gear breakdown
+        print("\nGEAR BREAKDOWN:")
+        for _, gearName in ipairs(State.selectedGears) do
+            local amount = State.craftAmounts[gearName] or 1
+            if amount > 0 then
+                print(string.format("  %s x%d:", gearName, amount))
+                local requirements = GearData[gearName].Requirement
+                for materialName, requiredPerCraft in pairs(requirements) do
+                    local totalRequired = requiredPerCraft * amount
+                    print(string.format("    - %s: %d (%d per craft)", 
+                        materialName, totalRequired, requiredPerCraft))
+                end
+            end
+        end
+    end
+    
+    print("=== END STAGE ANALYSIS ===\n")
+    
+    -- Store the analysis for later use
+    State.stageAnalysis = {
+        stagesToPlay = stagesToPlay,
+        materialSources = materialSources,
+        totalMaterialsNeeded = totalNeeded
+    }
+    
+    -- Notify user
+    local stageCount = 0
+    for _ in pairs(stagesToPlay) do
+        stageCount = stageCount + 1
+    end
+    
+    notify("Stage Analysis", string.format("Analysis complete! Need to play %d stages. Check console for details.", stageCount))
+end
+
+local function HasEnoughMaterials(gearName, amount)
+    amount = amount or 1
+    local requirements = GearData[gearName].Requirement
+    local inventory = GetPlayerInventory()
+    
+    for materialName, requiredAmount in pairs(requirements) do
+        local needed = requiredAmount * amount
+        local current = inventory[materialName] or 0
+        if current < needed then
+            return false, materialName, needed - current
+        end
+    end
+    
+    return true
+end
+
+local function fetchStoryData()
+    Data.storyData = {}   
+
+        for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("World"):GetChildren()) do
+            if moduleScript:IsA("ModuleScript") then
+                local success, data = pcall(function()
+                    return require(moduleScript)
+                end)
+
+                if success and typeof(data) == "table" then
+                    for key, storyTable in pairs(data) do
+                        if typeof(storyTable) == "table" and storyTable.StoryAble == true then
+                            if storyTable.Name and storyTable.Ani_Names then
+                                table.insert(Data.storyData, {
+                                    SeriesName = storyTable.Name,
+                                    InternalName = storyTable.Ani_Names,
+                                    ModuleName = moduleScript.Name,
+                                    Key = key
+                                })
+
+                            end
+                        end
+                    end
+                else
+                    print("Error loading " .. moduleScript.Name)
+                end
+            end
+        end
+        
+        return Data.storyData
+    end
+
+local function fetchRaidData()
+    Data.raidData = {}
+
+    for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("World"):GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local success, data = pcall(function()
+                return require(moduleScript)
+            end)
+
+            if success and typeof(data) == "table" then
+                for key, raidTable in pairs(data) do
+                    if typeof(raidTable) == "table" and raidTable.IsRaid == true then
+                        if raidTable.Name and raidTable.Levels then
+
+                            -- Build both display names and ID map
+                            local displayStages = {}
+                            local internalMap = {} -- displayName -> real ID
+
+                            for index, stage in ipairs(raidTable.Levels) do
+                                if stage.id then
+                                    local displayName = string.format("%s - Chapter %d", raidTable.Name, index)
+                                    table.insert(displayStages, displayName)
+                                    internalMap[displayName] = stage.id
+                                end
+                            end
+
+                            table.insert(Data.raidData, {
+                                SeriesName = raidTable.Name,
+                                DisplayStages = displayStages, -- For dropdown
+                                InternalStages = internalMap,  -- For ID lookup
+                                ModuleName = moduleScript.Name,
+                                Key = key
+                            })
+                        end
+                    end
+                end
+            else
+                print("Error loading " .. moduleScript.Name)
+            end
+        end
+    end
+    return Data.raidData
+end
+
+local function fetchRangerStageData(storyData)
+
+    local worldPriority = {
+        ["OnePiece"] = 1,
+        ["Namek"] = 2,
+        ["DemonSlayer"] = 3,
+        ["Naruto"] = 4,
+        ["OPM"] = 5,
+        ["TokyoGhoul"] = 6,
+        ["JojoPart1"] = 7,
+        ["SoulSociety"] = 8,
+    }
+
+    local worldDisplayNames = {}
+    for _, story in ipairs(storyData) do
+        worldDisplayNames[story.ModuleName] = story.SeriesName
+    end
+
+    local worldStages = {}
+
+    for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("Levels"):GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local success, data = pcall(function()
+                return require(moduleScript)
+            end)
+
+            if success and typeof(data) == "table" then
+                for seriesName, chapters in pairs(data) do
+                    if typeof(chapters) == "table" then
+                        for chapterKey, chapterData in pairs(chapters) do
+                            if typeof(chapterData) == "table" and chapterData.Wave then
+                                if string.find(chapterData.Wave, "RangerStage") then
+                                    local worldName = chapterData.World or "UnknownWorld"
+                                    worldStages[worldName] = worldStages[worldName] or {}
+                                    local displayWorldName = worldDisplayNames[worldName] or worldName
+
+                                    table.insert(worldStages[worldName], {
+                                        Series = seriesName,
+                                        Chapter = chapterKey,
+                                        Wave = chapterData.Wave,
+                                        LayoutOrder = chapterData.LayoutOrder or math.huge,
+                                        DisplayName = displayWorldName .. " - " .. (chapterData.Wave:match("RangerStage(%d+)") or chapterData.Wave)
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end
+            else
+                warn("Error loading module: " .. moduleScript.Name)
+            end
+        end
+    end
+
+    local worldOrder = {}
+    local rangerStages = {}
+
+    for worldName, stages in pairs(worldStages) do
+        table.sort(stages, function(a, b)
+            return a.LayoutOrder < b.LayoutOrder
+        end)
+
+        local priority = worldPriority[worldName] or 1e6
+        table.insert(worldOrder, {World = worldName, Priority = priority, Stages = stages})
+    end
+
+    table.sort(worldOrder, function(a, b)
+        return a.Priority < b.Priority
+    end)
+
+    for _, worldInfo in ipairs(worldOrder) do
+        local worldName = worldInfo.World
+        for _, stage in ipairs(worldInfo.Stages) do
+            table.insert(rangerStages, {
+                RawName = stage.Wave,
+                DisplayName = stage.DisplayName,
+                World = worldName,
+                Series = stage.Series,
+                Chapter = stage.Chapter,
+                LayoutOrder = stage.LayoutOrder
+            })
+        end
+    end
+
+    return rangerStages
+end
+
+local function snapshotInventory()
+    local snapshot = {}
+    State.unitNameSet = {}
+
+    snapshot.Gold = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value
+    snapshot.Gem = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem.Value
+    snapshot["Beach Balls"] = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value
+
+    local itemInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Scrolling")
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = true
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = false
+    task.wait(1)
+     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = false
+     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = true
+    local unitInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Unit")
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = true
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Main.Visible = false
+    task.wait(1)
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = false
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Main.Visible = true
+
+    for _, item in pairs(itemInventory:GetChildren()) do
+        if item:IsA("TextButton") or item:IsA("ImageButton") then
+            local text = item:WaitForChild("Frame"):WaitForChild("ItemFrame"):WaitForChild("Info"):WaitForChild("Amonut").Text
+            local formattedtext = text:gsub("%D", "")
+            snapshot[item.Name] = tonumber(formattedtext)
+        end
+    end
+
+    local unitCounts = {}
+    for _, unit in pairs(unitInventory:GetChildren()) do
+        if unit:IsA("TextButton") or unit:IsA("ImageButton") then
+            unitCounts[unit.Name] = (unitCounts[unit.Name] or 0) + 1
+            State.unitNameSet[unit.Name] = true
+        end
+    end
+
+    for unitName, count in pairs(unitCounts) do
+        snapshot[unitName] = count
+    end
+
+    return snapshot
+end
+
+local function compareInventories(startInv, endInv)
+    local gained = {}
+    for itemName, endValue in pairs(endInv) do
+        local startValue = startInv[itemName] or 0
+        if endValue > startValue then
+            local isUnit = State.unitNameSet[itemName] == true
+            table.insert(gained, { name = itemName, amount = endValue - startValue, isUnit = isUnit })
+        end
+    end
+    return gained
+end
+
+local function patchRewardsFromFolder(existingGained, detectedRewards, detectedUnits, lines)
+    local rewardFolder = Services.Players.LocalPlayer:FindFirstChild("RewardsShow")
+    if not rewardFolder then return end
+
+    for _, rewardEntry in pairs(rewardFolder:GetChildren()) do
+        if not detectedRewards[rewardEntry.Name] and rewardEntry:FindFirstChild("Amount") then
+            local amount = rewardEntry.Amount.Value
+
+            if amount > 0 then
+                detectedRewards[rewardEntry.Name] = amount
+                table.insert(existingGained, { name = rewardEntry.Name, amount = amount, isUnit = false })
+
+                local totalText = ""
+
+                if rewardEntry.Name == "Gem" or rewardEntry.Name == "Gold" or rewardEntry.Name == "Beach Balls" or rewardEntry.Name == "BossRushCurrency" or rewardEntry.Name == "Fall Currency" then
+                    local dataValue = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data:FindFirstChild(rewardEntry.Name)
+                    totalText = dataValue and string.format(" [%d total]", dataValue.Value) or ""
+                else
+                    local item = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(rewardEntry.Name)
+                    local itemAmount = item and item:FindFirstChild("Amount")
+                    totalText = itemAmount and string.format(" [%d total]", itemAmount.Value) or ""
+                end
+
+                table.insert(lines, string.format("+ %s %s%s", amount, rewardEntry.Name, totalText))
+            end
+        end
+    end
+end
+
+local function buildRewardsText()
+    local endingInventory = snapshotInventory()
+    local gainedItems = compareInventories(State.startingInventory, endingInventory)
+    local lines = {}
+    local detectedRewards = {}
+    local detectedUnits = {}
+
+    for _, reward in ipairs(gainedItems) do
+        local itemName = reward.name
+        local amount = reward.amount
+
+        detectedRewards[itemName] = amount
+
+        local totalText = ""
+        if reward.isUnit then
+            table.insert(detectedUnits, itemName)
+            totalText = ""
+            table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
+        elseif itemName == "Gem" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName.."(s)", totalText))
+        elseif itemName == "Gold" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Beach Balls" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        elseif itemName == "Fall Currency" then
+            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Fall Currency"].Value)
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        else
+            local itemObj = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(itemName)
+            local totalAmount = itemObj and itemObj:FindFirstChild("Amount") and itemObj.Amount.Value or nil
+            totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
+            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+        end
+    end
+
+    patchRewardsFromFolder(gainedItems, detectedRewards, detectedUnits, lines)
+
+    if #gainedItems == 0 then
+        return "_No rewards found after match_", {}, {}
+    end
+
+    local rewardsText = table.concat(lines, "\n")
+    notify("Gained rewards:", rewardsText, 2)
+    return rewardsText, detectedRewards, detectedUnits
+end
+
+local function getUnitNameFromSlot(slotNumber)
+    local success, unitInstance = pcall(function()
+        return Services.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
+end)
+
+    if success and unitInstance then
+        return typeof(unitInstance) == "Instance" and unitInstance.Name or tostring(unitInstance)
+    end
+
+    return nil
+end
+
+local function getOrderedUnits()
+    local units = {}
+    for i = 1, 6 do
+        local name = getUnitNameFromSlot(i)
+        if name then
+            table.insert(units, string.format("%d️⃣ - %s", i, name))
+        else
+            table.insert(units, string.format("%d️⃣ Empty", i))
+        end
+    end
+    return table.concat(units, "\n")
+end
+
+local function sendWebhook(messageType, rewards, clearTime, matchResult)
+    if not ValidWebhook then return end
+
+    local data
+    if messageType == "test" then
+        data = {
+            username = "LixHub Bot",
+            content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
+            embeds = {{
+                title = "📢 LixHub Notification",
+                description = "🧪 Test webhook sent successfully",
+                color = 0x5865F2,
+                footer = { text = "LixHub Auto Logger" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+    elseif messageType == "stage" then
+        local RewardsUI = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo")
+        local stageName = RewardsUI and RewardsUI:FindFirstChild("Stage") and RewardsUI.Stage.Label.Text or "Unknown Stage"
+        local gameMode = RewardsUI and RewardsUI:FindFirstChild("Gamemode") and RewardsUI.Gamemode.Label.Text or "Unknown Time"
+        local isWin = matchResult == "Victory"
+        local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
+
+        local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
+        local shouldPing = #detectedUnits > 0
+
+        if #detectedUnits > 1 then return end
+
+        local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
+
+        local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+
+        local orderedUnits = getOrderedUnits()
+
+        data = {
+            username = "LixHub Bot",
+            content = shouldPing and pingText or nil,
+            embeds = {{
+                title = shouldPing and "🌟 UNIT DROP! 🌟" or "🎯 Stage Finished!",
+                description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
+                color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
+                fields = {
+                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
+                    { name = "🏆 Rewards", value = rewardsText, inline = false },
+                    { name = "📦 Units Loadout", value = orderedUnits, inline = false },
+                    shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
+                    { name = "📈 Script Version", value = script_version, inline = true },
+                },
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = timestamp
+            }}
+        }
+
+        local filteredFields = {}
+        for _, field in ipairs(data.embeds[1].fields) do if field then table.insert(filteredFields, field) end end
+        data.embeds[1].fields = filteredFields
+    else
+        return
+    end
+
+    local payload = Services.HttpService:JSONEncode(data)
+    local requestFunc = (syn and syn.request) or (http and http.request) or request
+
+    if requestFunc then
+        local success, result = pcall(function()
+           -- notify("Webhook", "Sending webhook...")
+            return requestFunc({
+                Url = ValidWebhook,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = payload
+            })
+        end)
+
+        if success then
+            notify("Webhook", "Webhook sent successfully.", 2)
+        else
+            warn("Webhook failed to send: " .. tostring(result))
+            notify("Webhook Error", tostring(result))
+        end
+    else
+        warn("No compatible HTTP request method found.")
+        notify("Webhook Error", "No HTTP request method available.")
+    end
+end
+
+--boss rush
+
+local function getBossRushWaypoints(pathNum)
+    local pathFolder = Services.Workspace.WayPoint:FindFirstChild("P" .. pathNum)
+    return pathFolder and pathFolder:GetChildren() or {}
+end
+
+local function scanBossRushPaths()
+    local pathData = {
+        [1] = {enemies = 0, units = 0},
+        [2] = {enemies = 0, units = 0},
+        [3] = {enemies = 0, units = 0},
+        [4] = {enemies = 0, units = 0}
+    }
+    
+    -- Scan enemies
+    for _, enemy in pairs(Services.Workspace.Agent.EnemyT:GetChildren()) do
+        if enemy:IsA("Part") then
+            local closestPath = nil
+            local closestDist = math.huge
+            
+            for pathNum = 1, 4 do
+                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
+                    local dist = (enemy.Position - waypoint.Position).Magnitude
+                    if dist < closestDist and dist < 25 then
+                        closestDist = dist
+                        closestPath = pathNum
+                    end
+                end
+            end
+            
+            if closestPath then
+                pathData[closestPath].enemies = pathData[closestPath].enemies + 1
+            end
+        end
+    end
+    
+    -- Scan player units
+    for _, unit in pairs(Services.Workspace.Agent.UnitT:GetChildren()) do
+        if unit:IsA("Part") then
+            local closestPath = nil
+            local closestDist = math.huge
+            
+            for pathNum = 1, 4 do
+                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
+                    local dist = (unit.Position - waypoint.Position).Magnitude
+                    if dist < closestDist and dist < 25 then
+                        closestDist = dist
+                        closestPath = pathNum
+                    end
+                end
+            end
+            
+            if closestPath then
+                pathData[closestPath].units = pathData[closestPath].units + 1
+            end
+        end
+    end
+    
+    return pathData
+end
+
+local function getAvailablePaths()
+    local phase = Services.ReplicatedStorage:WaitForChild("Values"):WaitForChild("Game"):WaitForChild("BossRush"):WaitForChild("Fase").Value
+    
+    if phase == 1 then
+        return {1}
+    elseif phase == 2 or phase == 3 then
+        return {1, 2}
+    elseif phase == 4 or phase == 5 or phase == 6 then
+        return {1, 2, 3}
+    else -- phase 7+
+        return {1, 2, 3, 4}
+    end
+end
+
+local function getBestBossRushPath(pathData)
+    local availablePaths = getAvailablePaths()
+    local bestPath = State.currentBossPath or 1
+    local bestScore = -1
+    
+    -- Check if current path has too many units (force switch)
+    local currentPathData = pathData[State.currentBossPath or 1]
+    local unitCap = 4 -- Adjust this number based on your preference
+    
+    for _, pathNum in pairs(availablePaths) do
+        local data = pathData[pathNum]
+        local score = data.enemies * 10 - data.units * 3
+        
+        -- Bonus for having fewer units when current path is overcrowded
+        if currentPathData.units >= unitCap then
+            score = score + (unitCap - data.units) * 5 -- Bonus for paths with fewer units
+        end
+        
+        -- Only switch if significantly better (reduces path thrashing)
+        local threshold = (pathNum == State.currentBossPath) and 0 or 5
+        
+        -- Force switch if current path is overcrowded
+        if currentPathData.units >= unitCap and data.units < currentPathData.units then
+            threshold = -10 -- Make it easier to switch away from overcrowded paths
+        end
+        
+        if score > bestScore + threshold then
+            bestScore = score
+            bestPath = pathNum
+        end
+    end
+    
+    return bestPath, pathData[bestPath].enemies, pathData[bestPath].units
+end
+
+local function countPartsOnPath(folder, pathFolder)
+    local count = 0
+    for _, part in ipairs(folder:GetChildren()) do
+        if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
+            local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
+            local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
+            local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
+            if distToStart + distToEnd <= totalDist + 15 then
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+local function getBestPath()
+    local bestPath, lowestUnits = nil, math.huge
+    for i = 1, 3 do
+        local pathName = "P" .. i
+        local pathFolder = Services.Workspace:WaitForChild("WayPoint"):FindFirstChild(pathName)
+        if pathFolder then
+            local unitCount = countPartsOnPath(Services.Workspace.Agent.UnitT, pathFolder)
+            local enemyCount = countPartsOnPath(Services.Workspace.Agent.EnemyT, pathFolder)
+            if enemyCount > 0 and unitCount < lowestUnits then
+                lowestUnits = unitCount
+                bestPath = i
+            end
+        end
+    end
+    return bestPath
+end
+
+local function startInfinityCastleLogic()
+    if State.infinityCastleTask then task.cancel(State.infinityCastleTask) end
+    State.infinityCastleTask = task.spawn(function()
+        while State.autoInfinityCastleEnabled do
+            local success, error = pcall(function()
+                local bestPath = getBestPath()
+                if bestPath and bestPath ~= State.currentPath then
+                    notify("🚀 Switching to path: ", bestPath)
+                    State.currentPath = bestPath
+                    Remotes.SelectWay:FireServer(bestPath)
+                else
+
+                end
+            end)
+            if not success then warn("❌ Infinity Castle error:", error) end
+            task.wait(2.5)
+        end
+    end)
+end
+
+local function stopInfinityCastleLogic()
+    if State.infinityCastleTask then
+        task.cancel(State.infinityCastleTask)
+        State.infinityCastleTask = nil
+    end
+    State.currentPath = nil
+end
+
+local function isWantedChallengeRewardPresent()
+    for _, reward in ipairs(Data.wantedRewards) do
+        local value = GameObjects.itemsFolder:FindFirstChild(reward)
+        if value and value:IsA("BoolValue") then
+            return true, reward
+        end
+    end
+    return false, nil
+end
+
+local function startAutoSwarmEvent()
+    if isInLobby() then return end
+    task.spawn(function()
+        while State.AutoSwarmEventEnabled do
+            task.wait()
+            
+            if game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value == 2 then
+                game:GetService("ReplicatedStorage").Remote.Server.OnGame.RestartMatch:FireServer()
+                task.wait(2) -- Prevent spam
+            end
+        end
+    end)
+end
+
+local function openBorosCapsules(amount)
+    if amount <= 0 then return end
+    
+    local success, err = pcall(function()
+        local playerData = Services.ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(Services.Players.LocalPlayer.Name)
+        local borosCapsule = playerData:WaitForChild("Items"):WaitForChild("Borus Capsule")
+        
+        local args = {
+            borosCapsule,
+            {
+                SummonAmount = amount
+            }
+        }
+        
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("ItemUse"):FireServer(unpack(args))
+        
+        notify("Auto Boros", string.format("🎁 Opened %d Boros Capsule%s!", amount, amount == 1 and "" or "s"))
+    end)
+    
+    if not success then
+        warn("❌ [AUTO BOROS] Failed to open capsules:", err)
+    end
+end
+
+local function startAutoBorosCapsule()
+    task.spawn(function()
+        local success, err = pcall(function()
+            local playerData = Services.ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(Services.Players.LocalPlayer.Name)
+            local borosCapsule = playerData:WaitForChild("Items"):WaitForChild("Borus Capsule")
+            local amountValue = borosCapsule:WaitForChild("Amount")
+            
+            -- Monitor loop
+            while State.AutoOpenBorosEnabled do
+                task.wait(1) -- Check every second
+                
+                if not State.AutoOpenBorosEnabled then
+                    break
+                end
+                
+                if amountValue.Value > 0 then
+                    openBorosCapsules(amountValue.Value)
+                end
+            end
+        end)
+        
+        if not success then
+            notify("Auto Boros", "❌ Failed to start auto Boros capsule!")
+        end
+    end)
+end
+
+local function getPlayerCurrency()
+    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data
+    if not playerData then return {} end
+
+    local currencies = {}
+
+    local GoldValue = playerData:FindFirstChild("Gold")
+    if GoldValue then currencies["Gold"] = GoldValue.Value end
+
+    local gemsValue = playerData:FindFirstChild("Gem")
+    if gemsValue then currencies["Gem"] = gemsValue.Value end
+
+    local raidValue = playerData:FindFirstChild("Raid Currency")
+    if raidValue then currencies["Raid Currency"] = raidValue.Value end
+
+    local bossrushValue = playerData:FindFirstChild("BossRushCurrency")
+    if bossrushValue then currencies["BossRushCurrency"] = bossrushValue.Value end
+
+    local raidCSMValue = playerData:FindFirstChild("CSW Raid Currency")
+    if raidCSMValue then currencies["CSW Raid Currency"] = raidCSMValue.Value end
+
+    local riftStormValue = playerData:FindFirstChild("RiftStormCurrency")
+    if riftStormValue then currencies["RiftStormCurrency"] = riftStormValue.Value end
+
+    local SwarmEventValue = playerData:FindFirstChild("Fall Currency")
+    if SwarmEventValue then currencies["Fall Currency"] = SwarmEventValue.Value end
+
+    return currencies
+end
+
+local function canAffordItem(itemFolder)
+    local priceValue = itemFolder:FindFirstChild("CurrencyAmount")
+    local currencyTypeValue = itemFolder:FindFirstChild("CurrencyType")
+    if not priceValue or not currencyTypeValue then return false end
+
+    local playerCurrencies = getPlayerCurrency()
+
+    return playerCurrencies[currencyTypeValue.Value] and playerCurrencies[currencyTypeValue.Value] >= priceValue.Value
+end
+
+local function purchaseItem(itemName, quantity, folderName)
+    quantity = quantity or 1
+    pcall(function()
+        if folderName == "Merchant" then
+            Remotes.Merchant:FireServer(itemName, quantity)
+        end
+        if folderName == "Boss_Rush" then
+            Remotes.BossRushMerchant:FireServer(itemName, quantity)
+        end
+        if folderName == "Raid_Shop" then
+            Remotes.RaidMerchant:FireServer(itemName, quantity)
+        end
+        if folderName == "RaidCSW_Shop" then
+            Remotes.RaidMerchantCSW:FireServer(itemName, quantity)
+        end
+        if folderName == "Rift_Storm" then
+            Remotes.RiftMerchant:FireServer(itemName, quantity)
+        end
+        if folderName == "Fall_Shop" then
+            Remotes.SwarmMerchant:FireServer(itemName, quantity)
+        end
+    end)
+end
+
+local didNotify = false
+
+local function autoPurchaseItems(isEnabled, purchaseTable, folderName, shopDisplayName)
+    if not isEnabled then return end
+    if not purchaseTable or #purchaseTable == 0 then return end
+
+    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+    if not playerData then return end
+
+    local shopFolder = playerData:FindFirstChild(folderName)
+    if not shopFolder then return end
+
+    for _, selectedItem in pairs(purchaseTable) do
+        local itemFolder = shopFolder:FindFirstChild(selectedItem)
+        if itemFolder then
+            if canAffordItem(itemFolder) then
+                local availableQuantity = itemFolder:FindFirstChild("Quantity") and itemFolder:FindFirstChild("Quantity").Value or 1
+                local currentQuantity = itemFolder:FindFirstChild("BuyAmount") and itemFolder:FindFirstChild("BuyAmount").Value or 0
+
+                if currentQuantity <= 0 then
+                    purchaseItem(selectedItem, availableQuantity, folderName)
+                    notify("Auto Purchase " .. shopDisplayName, "Purchased: " ..selectedItem)
+                    task.wait(0.5)
+                end
+            else
+                if didNotify == false then
+                    didNotify = true
+                    notify("Auto Purchase " .. shopDisplayName, "Can't afford: " .. selectedItem)
+                    task.delay(20, function()
+                        didNotify = false
+                    end)
+                end
+            end
+        end
+    end
+end
+
+local function autoJoinRangerStage(stageName)
+    if not isInLobby() then 
+        print("❌ Not in lobby, cannot join ranger stage")
+        return 
+    end
+
+    print("🚀 Joining ranger stage:", stageName)
+
+    -- 1. Create
+    Remotes.PlayEvent:FireServer("Create")
+    task.wait(0.3)
+
+    -- 2. Change-Mode
+    Remotes.PlayEvent:FireServer("Change-Mode", { Mode = "Ranger Stage" })
+    task.wait(0.3)
+
+    -- 3. Extract world from stage name (e.g., "Naruto_RangerStage2" → "Naruto")
+    local world = stageName:match("^(.-)_RangerStage")
+    if not world then
+        warn("❌ Couldn't extract world from:", stageName)
+        return
+    end
+
+    -- 4. Change-World
+    Remotes.PlayEvent:FireServer("Change-World", { World = world })
+    task.wait(0.3)
+
+    -- 5. Change-Chapter
+    Remotes.PlayEvent:FireServer("Change-Chapter", { Chapter = stageName })
+    task.wait(0.3)
+
+    -- 6. Submit
+    Remotes.PlayEvent:FireServer("Submit")
+    task.wait(0.3)
+
+    -- 7. Start
+    Remotes.PlayEvent:FireServer("Start")
+
+    print("✅ Ranger stage join sequence completed for:", stageName)
+end
+
+local autoJoinState = {
+    isProcessing = false,
+    currentAction = nil,
+    lastActionTime = 0,
+    actionCooldown = 2 
+}
+
+local function canPerformAction()
+    return tick() - autoJoinState.lastActionTime >= autoJoinState.actionCooldown
+end
+
+local function setProcessingState(action)
+    autoJoinState.isProcessing = true
+    autoJoinState.currentAction = action
+    autoJoinState.lastActionTime = tick()
+
+    if action == "Ranger Stage Auto Join" then
+        notify("🔄 Processing: ", action)
+    elseif action == "Challenge Auto Join" then
+        notify("🔄 Processing: ", action)
+    elseif action == "Portal Auto Join" then
+        notify("🔄 Processing: ", action)
+    elseif action == "Story Auto Join" then
+        notify("🔄 Processing: ", string.format(
+            "Joining %s - %s [%s]",
+            State.selectedWorld or "?",
+            State.selectedChapter or "?",
+            State.selectedDifficulty or "?"
+        ))
+        elseif action == "Boss Event Auto Join" then
+           notify("🔄 Processing: ", action)
+        elseif action == "Infinite Mode Auto Join" then
+           notify("🔄 Processing: ", action)
+        elseif action == "Summer Event Auto Join" then
+           notify("🔄 Processing: ", action)
+
+           elseif action == "Boss Rush Auto Join" then
+            notify("🔄 Processing: ", action)
+            elseif action == "Infinity Castle Auto Join" then
+            notify("🔄 Processing: ", action)
+            elseif action == "Dungeon Auto Join" then
+            notify("🔄 Processing: ", action)
+            elseif action == "Rift Auto Join" then
+            notify("🔄 Processing: ", action)
+    end
+end
+
+local function clearProcessingState()
+    autoJoinState.isProcessing = false
+    autoJoinState.currentAction = nil
+end
+
+local function getBossAttackTickets()
+    local success, tickets = pcall(function()
+        return Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.BossAttackTicket.Value
+    end)
+    return success and tickets or 0
+end
+
+local function getBossTicketResetTime()
+    local success, resetTime = pcall(function()
+        return Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.BossAttackReset.Value
+    end)
+    return success and resetTime or 0
+end
+
+local function getInternalWorldName(displayName)
+    for _, story in ipairs(Data.availableStories) do
+        if story.SeriesName == displayName then
+            return story.ModuleName
+        end
+    end
+    return nil
+end
+
+local function equipTeamSlot(teamSlot)
+    if not teamSlot or teamSlot < 1 or teamSlot > 5 then
+        warn("Invalid team slot:", teamSlot)
+        return false
+    end
+    
+    local success = pcall(function()
+        local args = {
+            "Equip",
+            "Slot" .. teamSlot
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Teams"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
+    end)
+    
+    if success then
+        print("✅ Equipped team slot:", teamSlot)
+        return true
+    else
+        warn("❌ Failed to equip team slot:", teamSlot)
+        return false
+    end
+end
+
+local function getTeamSlotForMode(mode)
+    if not State.autoTeamSlotPicker then return nil end -- Feature disabled
+    
+    -- Check which team slot should be used for this mode
+    if State.modeTeamSelector1 and table.find(State.modeTeamSelector1, mode) then
+        return 1
+    elseif State.modeTeamSelector2 and table.find(State.modeTeamSelector2, mode) then
+        return 2
+    elseif State.modeTeamSelector3 and table.find(State.modeTeamSelector3, mode) then
+        return 3
+    elseif State.modeTeamSelector4 and table.find(State.modeTeamSelector4, mode) then
+        return 4
+    elseif State.modeTeamSelector5 and table.find(State.modeTeamSelector5, mode) then
+        return 5
+    end
+    
+    return nil
+end
+
+local function handleTeamEquipping(mode)
+    local teamSlot = getTeamSlotForMode(mode)
+    if teamSlot then
+        print("🔄 Equipping team slot", teamSlot, "for mode:", mode)
+        equipTeamSlot(teamSlot)
+        task.wait(0.5) -- Small delay to ensure team is equipped
+    end
+end
+
+local function StartAutoFarmGear()
+    if not isInLobby() then
+        notify("Auto Gear Farm", "Must be in lobby to use auto gear farm!")
+        return
+    end
+    
+    if #State.selectedGears == 0 then
+        notify("Auto Gear Farm", "Please select at least 1 gear to farm!")
+        return
+    end
+    
+    State.currentlyFarming = true
+    State.AutoFarmEnabled = true
+    
+    -- Run analysis once to know what we need
+    AnalyzeRequiredStages()
+    
+    notify("Auto Gear Farm", "🚀 Auto farming started! Check console for stage analysis.")
+end
+
+local function saveFarmingState(stageName)
+    local success, err = pcall(function()
+        writefile("farming_state.json", game:GetService("HttpService"):JSONEncode({
+            currentFarmingStage = stageName,
+            timestamp = tick()
+        }))
+    end)
+    if not success then
+        warn("Failed to save farming state:", err)
+    end
+end
+
+local function loadFarmingState()
+    local success, result = pcall(function()
+        if isfile("farming_state.json") then
+            local data = game:GetService("HttpService"):JSONDecode(readfile("farming_state.json"))
+            -- Optional: Check if state is recent (within last 10 minutes to avoid stale data)
+                return data.currentFarmingStage
+        end
+        return nil
+    end)
+    
+    if success then
+        return result
+    else
+        warn("Failed to load farming state:", result)
+        return nil
+    end
+end
+
+if not State.currentFarmingStage then
+    State.currentFarmingStage = loadFarmingState()
+end
+
+local function clearFarmingState()
+    local success, err = pcall(function()
+        if isfile("farming_state.json") then
+            delfile("farming_state.json")
+        end
+    end)
+    if not success then
+        warn("Failed to clear farming state:", err)
+    end
+end
+
+local function checkMaterialsInStage()
+    State.currentlyFarming = State.AutoFarmEnabled
+    
+    if not State.currentlyFarming or not State.AutoFarmEnabled then
+        return
+    end
+    
+    -- Only run this when we're NOT in lobby (i.e., in a stage)
+    if isInLobby() then
+        print("🏠 [DEBUG] In lobby, skipping material check")
+        return
+    end
+    
+    -- Load farming stage if not set (after teleport)
+    if not State.currentFarmingStage then
+        State.currentFarmingStage = loadFarmingState()
+        print("🔄 [DEBUG] Loaded farming stage from file:", State.currentFarmingStage)
+    end
+    
+    print("🎮 [DEBUG] In stage, checking materials...")
+    print("🎯 [DEBUG] Current farming stage:", State.currentFarmingStage)
+    
+    -- Calculate what materials we still need
+    local totalNeeded = CalculateTotalMaterialsNeeded()
+    local inventory = GetPlayerInventory()
+    
+    print("📊 [DEBUG] Total materials needed:", totalNeeded)
+    print("🎒 [DEBUG] Current inventory:", inventory)
+    
+    -- Check if we have enough of ALL materials from current stage
+    local materialsFromCurrentStage = {}
+    local stillNeedFromCurrentStage = false
+    
+    for materialName, needed in pairs(totalNeeded) do
+        local current = inventory[materialName] or 0
+        local deficit = needed - current
+        
+        print(string.format("📦 [DEBUG] %s: need %d, have %d, deficit %d", 
+            materialName, needed, current, deficit))
+        
+        if deficit > 0 then
+            print("🔍 [DEBUG] Still need", materialName, "- checking sources...")
+            
+            -- Still need this material, check if current stage drops it
+            local sources = FindMaterialSource(materialName)
+            print("📍 [DEBUG] Found", #sources, "sources for", materialName)
+            
+            for i, source in ipairs(sources) do
+                local rangerStageName = string.format("%s_RangerStage%s", 
+                    source.module, source.chapter:match("%d+") or "1")
+
+                print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
+                    i, source.fullPath, rangerStageName))
+                -- Track what materials current stage drops
+                print(source.fullPath)
+                if rangerStageName == State.currentFarmingStage then
+                    materialsFromCurrentStage[materialName] = true
+                    print("✅ [DEBUG] Current stage drops", materialName, "- still need", deficit)
+                    stillNeedFromCurrentStage = true
+                    return -- Stay in stage, still need materials
+                end
+            end
+        else
+            print("✅ [DEBUG] Have enough", materialName)
+        end
+    end
+    
+    print("🏁 [DEBUG] Materials from current stage:", materialsFromCurrentStage)
+    print("🚪 [DEBUG] Still need from current stage:", stillNeedFromCurrentStage)
+    
+    -- If we get here, we have enough materials from this stage
+    notify("Auto Gear Farm", "✅ Got enough materials from current stage! Returning to lobby...")
+    print("🚀 [DEBUG] Teleporting to lobby...")
+    clearFarmingState() -- Clear state when leaving stage
+    game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
+end
+
+local function checkMaterialFarming()
+    if not State.currentlyFarming or not State.AutoFarmEnabled then
+        return
+    end
+    
+    -- If we're not in lobby, wait (user is in a stage farming)
+    if not isInLobby() then
+        return
+    end
+    
+    if autoJoinState.isProcessing then
+        return
+    end
+    
+    -- Calculate what materials we still need
+    local totalNeeded = CalculateTotalMaterialsNeeded()
+    local inventory = GetPlayerInventory()
+    local materialToFarm = nil
+    local stagesToPlay = {}
+    
+    -- Find the first material we still need
+    for materialName, needed in pairs(totalNeeded) do
+        local current = inventory[materialName] or 0
+        local deficit = needed - current
+        
+        if deficit > 0 then
+            -- Find best stage for this material
+            local sources = FindMaterialSource(materialName)
+            if #sources > 0 then
+                -- Sort by efficiency (drop rate * avg drop)
+                table.sort(sources, function(a, b)
+                    local effA = (a.dropRate / 100) * ((a.minDrop + a.maxDrop) / 2)
+                    local effB = (b.dropRate / 100) * ((b.minDrop + b.maxDrop) / 2)
+                    return effA > effB
+                end)
+                
+                local bestSource = sources[1]
+                materialToFarm = {
+                    name = materialName,
+                    needed = deficit,
+                    source = bestSource
+                }
+                break
+            end
+        end
+    end
+    
+    -- If we found a material to farm, join its stage
+    if materialToFarm then
+        local rangerStageName = string.format("%s_RangerStage%s", 
+            materialToFarm.source.module, 
+            materialToFarm.source.chapter:match("%d+") or "1")
+        
+        notify("Auto Gear Farm", string.format("🎯 Farming %d %s from %s", 
+            materialToFarm.needed, materialToFarm.name, rangerStageName))
+
+        State.currentFarmingStage = rangerStageName
+        saveFarmingState(rangerStageName) -- Save to file
+
+        setProcessingState("Auto Material Farm")
+        handleTeamEquipping("Ranger")
+        task.wait(0.5)
+        autoJoinRangerStage(rangerStageName)
+        task.delay(5, clearProcessingState)
+    else
+        -- We have all materials needed!
+        notify("Auto Gear Farm", "✅ All materials farmed! Stopping auto farm.")
+        State.currentlyFarming = false
+        State.AutoFarmEnabled = false
+        clearFarmingState() -- Clear saved state when done
+        
+        -- Show final summary
+        print("=== MATERIAL FARMING COMPLETE ===")
+        local finalInventory = GetPlayerInventory()
+        for materialName, needed in pairs(totalNeeded) do
+            local current = finalInventory[materialName] or 0
+            print(string.format("%s: %d/%d %s", 
+                materialName, current, needed, 
+                current >= needed and "✅" or "❌"))
+        end
+        print("=== END ===")
+    end
+end
+
+local function StopAutoFarmGear()
+    State.AutoFarmEnabled = false
+    State.currentlyFarming = false
+    clearProcessingState()
+    notify("Auto Gear Farm", "🛑 Material farming stopped!")
+end
+
+local function getHighestNumberFromNames(parent)
+    local highestNumber = -math.huge -- Start with the smallest possible number
+
+    for _, obj in ipairs(parent:GetChildren()) do
+        if obj:IsA("StringValue") then
+            local num = tonumber(obj.Name)
+            if num and num > highestNumber then
+                highestNumber = num
+            end
+        end
+    end
+
+    if highestNumber == -math.huge then
+        return nil -- No numeric names found
+    end
+
+    return highestNumber
+end
+
+local function checkAndExecuteHighestPriority()
+    if not isInLobby() then
+         checkMaterialsInStage() 
+         return 
+         end
+    if autoJoinState.isProcessing then return end
+    if not canPerformAction() then return end
+
+    checkMaterialFarming()
+
+    -- Priority 1: Challenge Auto Join
+    if State.autoChallengeEnabled then
+        local skipChallenge = false
+        if #Data.selectedChallengeWorlds > 0 then
+             local ignoredInternalNames = {}
+    for _, displayName in pairs(Data.selectedChallengeWorlds) do
+        local internalName = getInternalWorldName(displayName)
+        if internalName then
+            table.insert(ignoredInternalNames, internalName)
+        end
+    end
+
+    -- Check if the current challenge world is in the ignored list
+    for _, ignoredInternal in pairs(ignoredInternalNames) do
+        if ignoredInternal == Services.ReplicatedStorage.Gameplay.Game.Challenge.World.Value then
+            skipChallenge = true
+            break
+        end
+    end
+        end
+        if not skipChallenge then
+        local foundRewardOK, foundReward = isWantedChallengeRewardPresent()
+        if foundRewardOK then
+            setProcessingState("Challenge Auto Join")
+            print("🎯 Found wanted reward '" .. foundReward .. "' → creating challenge room")
+
+            handleTeamEquipping("Challenge")
+
+            notify("Challenge Mode", string.format("Found %s, joining challenge...", foundReward))
+            Remotes.PlayEvent:FireServer("Create", { CreateChallengeRoom = true })
+            Remotes.PlayEvent:FireServer("Start")
+            task.delay(5, clearProcessingState)
+            return
+        end
+        end
+    end
+
+     -- Priority 2: Portal Auto Join
+    if State.autoPortalEnabled and not State.portalUsed and State.selectedPortals and #State.selectedPortals > 0 then
+        local success, result = pcall(function()
+            local inventoryFrame = Services.Players.LocalPlayer:FindFirstChild("PlayerGui").Items.Main.Base.Space:FindFirstChild("Scrolling")
+            if not inventoryFrame then return nil end
+            for _, item in ipairs(inventoryFrame:GetChildren()) do
+                if item.Name:lower():find("portal") and table.find(State.selectedPortals, item.Name) then
+                return item.Name
+                end
+            end
+    end)
+
+        if success and result then
+            setProcessingState("Portal Auto Join")
+
+            local portalInstance = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(result)
+            if portalInstance then
+
+                handleTeamEquipping("Portal")
+
+                Services.ReplicatedStorage.Remote.Server.Lobby.ItemUse:FireServer(portalInstance)
+                State.portalUsed = true
+                notify("Portal Joiner", "Using portal: " .. result)
+
+                task.wait(1)
+
+                print("▶️ Starting portal match...")
+                Services.ReplicatedStorage.Remote.Server.Lobby.PortalEvent:FireServer("Start")
+
+                task.delay(5, clearProcessingState)
+                return
+            else
+                 notify("Portal Joiner", "Portal not found: " .. result)
+                clearProcessingState()
+                State.portalUsed = false
+            end
+        end
+    end
+
+    if State.autoBossRushEnabled then
+        setProcessingState("Boss Rush Auto Join")
+
+        handleTeamEquipping("Boss Rush")
+
+        Remotes.PlayEvent:FireServer("BossRush")
+        task.wait(1)
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoJoinRaid then
+        if State.selectedRaidStages and #State.selectedRaidStages > 0 then
+            setProcessingState("Raid Auto Join")
+
+             handleTeamEquipping("Raid")
+
+             local fullName = tostring(State.selectedRaidStages[1])
+             local mapName = string.match(fullName, "^(.-)_")
+             print(mapName)  -- Output: TheGraveyard
+
+
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Create")
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Mode",{Mode = "Raids Stage"})
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-World",{World = mapName})
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter",{Chapter = State.selectedRaidStages[1]})
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Submit")
+            task.wait(0.2)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+            task.delay(5, clearProcessingState)
+            return
+        end
+    end
+
+    -- priority 3: boss event auto join
+    if State.autoSummerEventEnabled then
+    setProcessingState("Summer Event Auto Join")
+
+        handleTeamEquipping("Summer Event")
+
+    Remotes.PlayEvent:FireServer("Summer-Event")
+    task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoBossEventEnabled then
+    setProcessingState("Boss Event Auto Join")
+
+        handleTeamEquipping("Boss Event")
+
+    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Swarm Event")
+    task.delay(5, clearProcessingState)
+        return
+    end
+
+    -- Priority 4: Ranger Stage Auto Join
+    if State.isAutoJoining and Data.selectedRawStages and #Data.selectedRawStages > 0 then
+        local selectedStageSet = {}
+        for _, raw in ipairs(Data.selectedRawStages) do
+            selectedStageSet[raw] = true
+        end
+
+        local prioritizedStageList = {}
+        for _, stage in ipairs(Data.availableRangerStages) do
+            if selectedStageSet[stage.RawName] then
+                table.insert(prioritizedStageList, stage.RawName)
+            end
+        end
+
+        if #prioritizedStageList > 0 then
+            local stageName = prioritizedStageList[1]
+            setProcessingState("Ranger Stage Auto Join")
+
+            handleTeamEquipping("Ranger")
+
+            print("🌍 Attempting to join Ranger Stage:", stageName)
+            autoJoinRangerStage(stageName)
+            task.delay(5, clearProcessingState)
+            return
+        end
+    end
+
+    if State.autoJoinInfinityCastleEnabled then
+        setProcessingState("Infinity Castle Auto Join")
+
+        handleTeamEquipping("InfCastle")
+
+        local CastleFloor = getHighestNumberFromNames(Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].InfinityCastleRewards)
+
+        Remotes.PlayEvent:FireServer("Infinity-Castle",{Floor = CastleFloor + 1})
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoDungeonEnabled and State.AutoDungeonDifficultySelector and State.AutoDungeonDifficultySelector ~= "" then
+        setProcessingState("Dungeon Auto Join")
+
+        handleTeamEquipping("Dungeon")
+        print(State.AutoDungeonDifficultySelector)
+        local args = {"Dungeon",{Difficulty = State.AutoDungeonDifficultySelector[1]}}
+        print(State.AutoDungeonDifficultySelector[1])
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer(unpack(args))
+
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoRiftEnabled then
+        setProcessingState("Rift Auto Join")
+
+        handleTeamEquipping("RiftStorm")
+
+        Remotes.PlayEvent:FireServer("RiftStorm")
+        task.wait(1)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+
+
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+            if State.autoInfiniteEnabled then
+            setProcessingState("Infinite Mode Auto Join")
+
+            handleTeamEquipping("Infinite")
+
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Infinite Mode")
+
+            task.delay(5, clearProcessingState)
+        end
+
+    -- Priority 5: Story Auto Join
+    if State.autoJoinEnabled and State.selectedWorld and State.selectedChapter and State.selectedDifficulty then
+        setProcessingState("Story Auto Join")
+
+        local internalWorldName = getInternalWorldName(State.selectedWorld)
+        if internalWorldName then
+            print("📚 Joining Story:", State.selectedWorld, "/", State.selectedChapter, "/", State.selectedDifficulty)
+
+            handleTeamEquipping("Story")
+
+            local combinedWorld = internalWorldName .. "_" .. State.selectedChapter:gsub(" ", "")
+
+            local function sendPlayRoomEvent(action, data)
+                Remotes.PlayEvent:FireServer(action, data)
+                task.wait(0.25)
+            end
+
+            sendPlayRoomEvent("Create")
+            sendPlayRoomEvent("Change-World", { World = tostring(internalWorldName) })
+            sendPlayRoomEvent("Change-Chapter", { Chapter = tostring(combinedWorld) })
+            sendPlayRoomEvent("Change-Difficulty", { Difficulty = tostring(State.selectedDifficulty) })
+            sendPlayRoomEvent("Submit")
+            sendPlayRoomEvent("Start")
+
+            task.delay(5, clearProcessingState)
+            return
+        else
+            warn("[Story Auto Join] Invalid selection.")
+            notify("⚠️ Story Join", "Selected World/Chapter/Difficulty is invalid.")
+            clearProcessingState()
+        end
+    end
+end
+
+
+local function getCurrentChallengeSerial()
+    local success, serial = pcall(function()
+        return challengeFolder:FindFirstChild("serial_number") and challengeFolder.serial_number.Value
+    end)
+    return success and serial or nil
+end
+
+if not State.storedChallengeSerial then
+    State.storedChallengeSerial = getCurrentChallengeSerial()
+end
+
+local function getCurrentUpgradeLevel(unitName)
+    if not unitName then return 0 end
+
+    local success, upgradeLevel = pcall(function()
+        local upgradeText = Services.Players.LocalPlayer.PlayerGui.HUD.InGame.UnitsManager.Main.Main.ScrollingFrame[unitName].UpgradeText.Text
+
+        if string.find(upgradeText:upper(), "MAX") then
+            return "MAX"
+        end
+
+        local level = string.match(upgradeText, "Upgrade:</font>%s*(%d+)")
+        return tonumber(level) or 0
+    end)
+
+    if success then
+        return upgradeLevel
+    else
+        return 0
+    end
+end
+
+local function getUpgradeCost(unitName)
+    if not unitName then return 9999 end
+
+    local success, cost = pcall(function()
+        local costText = Services.Players.LocalPlayer.PlayerGui.HUD.InGame.UnitsManager.Main.Main.ScrollingFrame[unitName].CostText.Text
+        local costValue = string.match(costText, "Cost:</font>%s*([%d,]+)")
+        if costValue then
+            costValue = costValue:gsub(",", "")
+            return tonumber(costValue) or 9999
+        end
+    end)
+
+    return success and cost or 9999
+end
+
+local function getDeploymentCost(unitName)
+    if not unitName then return 5000 end
+
+    local success, costText = pcall(function()
+        return Services.Players.LocalPlayer.PlayerGui.HUD.InGame.UnitsManager.Main.Main.ScrollingFrame[unitName].Unit.Frame.UnitFrame.Info.Cost.Text
+    end)
+
+    if success and costText then
+        local numericCost = tonumber(costText:match("%d+"))
+        if numericCost then
+            return numericCost
+        else
+            return 9999 -- Extraction failed, fallback cost
+        end
+    else
+        return 9999 -- Retrieval failed, fallback cost
+    end
+end
+
+
+local function getCurrentMoney()
+    local success, money = pcall(function()
+        return Services.Players.LocalPlayer.Yen.Value
+    end)
+
+    return (success and money) or 0
+end
+
+local function upgradeUnit(unitName)
+    if not unitName then return false end
+
+    local unitNameStr = typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)
+
+    local success = pcall(function()
+        local args = { Services.Players.LocalPlayer.UnitsFolder:WaitForChild(unitNameStr) }
+        Remotes.UpgradeUnit:FireServer(unpack(args))
+    end)
+
+    if success then
+        return true
+    else
+        return false
+    end
+end
+
+local function hasEnoughMoney(slotNumber)
+    local currentMoney = getCurrentMoney()
+    local unitName = getUnitNameFromSlot(slotNumber)
+    local unitNameStr = typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)
+    local unitCost = getDeploymentCost(unitNameStr)
+
+    
+    --print("Slot " .. slotNumber .. " - Money: " .. currentMoney .. ", Cost: " .. unitCost)
+    
+    return currentMoney >= unitCost
+end
+
+local function leftToRightUpgrade()
+    while State.autoUpgradeEnabled and State.gameRunning do
+        local unitName = getUnitNameFromSlot(State.currentUpgradeSlot)
+        local unitNameStr = unitName and (typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)) or "nil"
+        local maxLevel = Config.unitLevelCaps[tonumber(State.currentUpgradeSlot)] or 9
+
+        if unitName and unitNameStr ~= "" and unitNameStr ~= "nil" then
+            local currentLevel = getCurrentUpgradeLevel(unitNameStr)
+
+            if currentLevel == "MAX" or tonumber(currentLevel) >= maxLevel then
+                State.currentUpgradeSlot = State.currentUpgradeSlot + 1
+                if State.currentUpgradeSlot > 6 then
+                    State.currentUpgradeSlot = 1
+                end
+            else
+                local currentMoney = getCurrentMoney()
+                local upgradeCost = getUpgradeCost(unitNameStr)
+
+                if currentMoney >= upgradeCost then
+                    if upgradeUnit(unitNameStr) then
+                        task.wait(UPGRADE_COOLDOWN)
+                    else
+                        warn("❌ Failed to upgrade, will retry")
+                        task.wait(1)
+                    end
+                end
+            end
+        else
+            State.currentUpgradeSlot = State.currentUpgradeSlot + 1
+            if State.currentUpgradeSlot > 6 then
+                State.currentUpgradeSlot = 1
+            end
+        end
+
+        task.wait(0.5)
+    end
+
+    print("🛑 Upgrade cycle ended")
+end
+
+local function startAutoUpgrade()
+    if isInLobby() then
+        print("⚠️ Cannot start auto-upgrade while in lobby.")
+        return
+    end
+
+    if State.upgradeTask then
+        task.cancel(State.upgradeTask)
+        State.upgradeTask = nil
+    end
+
+    State.upgradeTask = task.spawn(function()
+        while State.autoUpgradeEnabled do
+            if State.gameRunning then
+                local success, err = pcall(function()
+                    if State.upgradeMethod == "Left to right until max" then
+                        leftToRightUpgrade()
+                    elseif State.upgradeMethod == "randomize" then
+                        print("🔄 Randomize method not implemented yet")
+                    elseif State.upgradeMethod == "lowest level spread upgrade" then
+                        print("🔄 Lowest level spread method not implemented yet")
+                    end
+                end)
+
+                if not success then
+                    warn("❌ Auto upgrade error:", err)
+                end
+            else
+                --print("⏳ Waiting for game to start...")
+            end
+
+            task.wait(1)
+        end
+    end)
+end
+
+local function stopAutoUpgrade()
+    if State.upgradeTask then
+        task.cancel(State.upgradeTask)
+        State.upgradeTask = nil
+    end
+end
+
+local function resetUpgradeOrder()
+    State.currentUpgradeSlot = 1
+    print("🔄 Reset upgrade order to slot 1")
+end
+
+
+local function isTargetAlive(targetValue)
+    if not targetValue or not targetValue.Name then
+        return false
+    end
+    local success, result = pcall(function()
+        local agentFolder = Services.Workspace:WaitForChild("Agent", 5)
+        if not agentFolder then return false end
+        
+        local enemyFolder = agentFolder:FindFirstChild("EnemyT")
+        if not enemyFolder then return false end
+        
+        -- Check if enemy with same name exists in EnemyT
+        local enemy = enemyFolder:FindFirstChild(targetValue.Name)
+        return enemy ~= nil
+    end)
+    
+    return success and result
+end
+
+local function getUnitsWithUltimates()
+    local unitsWithUltimates = {}
+
+    local success, result = pcall(function()
+        local agentFolder = Services.Workspace:WaitForChild("Agent", 5)
+        if not agentFolder then return {} end
+
+        local unitFolder = agentFolder:WaitForChild("UnitT", 5)
+        if not unitFolder then return {} end
+
+        for _, part in pairs(unitFolder:GetChildren()) do
+            if part:IsA("BasePart") or part:IsA("Part") then
+                local infoFolder = part:FindFirstChild("Info")
+                if infoFolder then
+                    local activeAbility = infoFolder:FindFirstChild("ActiveAbility")
+                    local targetObject = infoFolder:FindFirstChild("TargetObject")
+                    local ownerValue = infoFolder:FindFirstChild("Owner")
+
+                    if activeAbility and activeAbility:IsA("StringValue") and targetObject and targetObject:IsA("ObjectValue") and ownerValue and ownerValue:IsA("StringValue") then
+                        if activeAbility.Value ~= "" and targetObject.Value ~= nil and ownerValue.Value == Services.Players.LocalPlayer.Name then
+                            if isTargetAlive(targetObject.Value) then
+                            table.insert(unitsWithUltimates, {
+                                part = part,
+                                abilityName = activeAbility.Value
+                            })
+                        end
+                        end
+                    end
+                end
+            end
+        end
+
+        return unitsWithUltimates
+    end)
+
+    if success then
+        return result
+    else
+        warn("❌ Error getting units with ultimates:", result)
+        return {}
+    end
+end
+
+local function fireUltimateForUnit(unitData)
+    local success = pcall(function()
+        Services.ReplicatedStorage.Remote.Server.Units.Ultimate:FireServer(unitData.part)
+    end)
+
+    if not success then
+        warn("❌ Failed to fire ultimate for unit:", unitData.part.Name)
+    end
+end
+
+local function autoUltimateLoop()
+    if isInLobby() then return end
+    while State.AutoUltimateEnabled do
+        local unitsWithUltimates = getUnitsWithUltimates()
+        if #unitsWithUltimates > 0 then
+            for _, unitData in pairs(unitsWithUltimates) do
+                if not State.AutoUltimateEnabled then break end
+                if State.DelayAutoUltimate > 0 then
+                    task.wait(State.DelayAutoUltimate)
+                end
+                fireUltimateForUnit(unitData)
+                task.wait(0.1)
+            end
+        end
+        task.wait(1)
+    end
+    print("🛑 Auto Ultimate loop stopped")
+end
+
+local function checkSlotExists(slotNumber)
+    local slotPath = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber]
+    if slotPath and slotPath.Frame.UnitFrame and slotPath.Frame.UnitFrame.Info.Folder.Value ~= nil then
+        State.slotExists[slotNumber] = true
+        return true
+    else
+        State.slotExists[slotNumber] = false
+        return false
+    end
+end
+
+local function isSlotOnCooldown(slotNumber)
+    local cooldownPath = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame:FindFirstChild("CD_FRAME")
+    return cooldownPath and cooldownPath.Visible or false
+end
+
+local function shouldSkipSlotTemporarily(slotNumber)
+    local lastAttempt = State.lastDeploymentTimes[slotNumber]
+    if lastAttempt and (tick() - lastAttempt) < 3 then
+        return true
+    end
+    return false
+end
+
+local function IsUnitLevelReached(slotNumber)
+    local unitName = getUnitNameFromSlot(slotNumber)
+    local unitNameStr = unitName and (typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)) or "nil"
+    local currentUnitLevel = getCurrentUpgradeLevel(unitNameStr)
+    if currentUnitLevel == "MAX" then
+        return false
+    end
+    if currentUnitLevel < Config.unitDeployLevelCaps[slotNumber] then
+        return true
+    end
+end
+
+local function getNextReadySlot()
+    local startSlot = State.currentSlot
+    local checkedSlots = 0
+    
+    while checkedSlots < 6 do
+    task.wait(0.05)
+    local slotToCheck = State.currentSlot
+
+    local shouldSkip = false
+
+    if not checkSlotExists(slotToCheck) then
+        shouldSkip = true
+    elseif isSlotOnCooldown(slotToCheck) then
+        shouldSkip = true
+    elseif not hasEnoughMoney(slotToCheck) then
+        shouldSkip = true
+    elseif shouldSkipSlotTemporarily(slotToCheck) then
+        shouldSkip = true
+    elseif IsUnitLevelReached(slotToCheck) then
+        shouldSkip = true
+    end
+
+    if shouldSkip then
+        State.currentSlot = (State.currentSlot % 6) + 1
+        checkedSlots = checkedSlots + 1
+    else
+        return slotToCheck
+    end
+end
+    return nil
+end
+
+local function deployUnit(slotNumber)
+    if not checkSlotExists(slotNumber) then
+        return false, "Slot doesn't exist"
+    end
+    
+    if isSlotOnCooldown(slotNumber) then
+        return false, "Unit is on cooldown"
+    end
+
+    if not hasEnoughMoney(slotNumber) then
+        return false, "Not enough money"
+    end
+
+    if IsUnitLevelReached(slotNumber) then
+        return false, "Unit can't be deployed yet because of level"
+    end
+    -- Get the unit folder for this slot
+    local unitFolder = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
+    
+    if not unitFolder then
+        return false, "Unit folder not found"
+    end
+    
+    -- Try to deploy the unit
+    local success, errorMessage = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Deployment"):FireServer(unitFolder)
+    end)
+    
+    if success then
+        --print("Successfully deployed unit from slot " .. slotNumber)
+        -- Clear any temporary skip for this slot since it worked
+        State.lastDeploymentTimes[slotNumber] = nil
+        return true, "Success"
+    else
+        print("Failed to deploy unit from slot " .. slotNumber .. ": " .. tostring(errorMessage))
+        -- Mark this slot as recently failed
+        State.lastDeploymentTimes[slotNumber] = tick()
+        return false, "Deployment failed"
+    end
+end
+
+local function autoPlayLoop()
+    task.spawn(function()
+        while State.autoPlayEnabled do
+            -- Check if we should apply delay at the start of each game
+            if State.gameRunning and State.AutoPlayDelayNumber > 0 and not State.autoPlayDelayActive then
+                State.autoPlayDelayActive = true
+                notify("Auto Play Delay", "Waiting " .. State.AutoPlayDelayNumber .. " seconds before starting deployment...", 5)
+                
+                -- Wait for the specified delay
+                task.wait(State.AutoPlayDelayNumber)
+                
+                notify("Auto Play Delay", "Delay finished, starting deployment..", 5)
+            end
+            
+            -- Only proceed with deployment if game is running and delay has passed (or no delay set)
+            if State.gameRunning and (State.AutoPlayDelayNumber == 0 or State.autoPlayDelayActive) then
+                -- Find next ready slot
+                local slotToDeploy = getNextReadySlot()
+                
+                if slotToDeploy then
+                    local success, message = deployUnit(slotToDeploy)
+                    
+                    if success then
+                        -- Successfully deployed, move to next slot for next deployment
+                        State.currentSlot = (slotToDeploy % 6) + 1
+                    elseif not success and message == "Not enough money" then
+                        State.currentSlot = (slotToDeploy % 6)
+                    else
+                        -- Failed deployment, slot will be temporarily skipped
+                        -- Move to next slot to continue the cycle
+                        State.currentSlot = (slotToDeploy % 6) + 1
+                        print("Failed to deploy from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
+                    end
+                else
+                    -- No ready slots found, continue cycling
+                    -- The getNextReadySlot function already moved currentSlot forward
+                    -- print("No ready slots found, continuing cycle...")
+                end
+            end
+            
+            -- Wait before next attempt
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function startAutoPlay()
+    if isInLobby() then 
+        print("Cannot start autoplay: Player is in lobby")
+        return 
+    end
+    
+    print("Starting autoplay system...")
+    
+    -- Reset state
+    if Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.AutoPlay.Value == true then
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
+    end
+    State.currentSlot = 1
+    State.lastDeploymentTimes = {}
+    State.slotExists = {}
+    State.autoPlayDelayActive = false  -- Reset delay flag
+    
+    -- Check which slots have units initially
+    for i = 1, 6 do
+        checkSlotExists(i)
+        print("Slot " .. i .. " exists: " .. tostring(State.slotExists[i]))
+    end
+    
+    autoPlayLoop()
+end
+
+local function shouldDeployOnCurrentPath(slotNumber)
+    local config = State.bossRushDeployConfig[slotNumber]
+    if not config or not config.enabled then
+        return false
+    end
+    
+    local currentPath = State.currentBossPath or 1
+    
+    -- Check if current path is in the allowed paths for this slot
+    for _, allowedPath in pairs(config.paths) do
+        if allowedPath == currentPath then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function bossRushShouldSkipSlotTemporarily(slotNumber)
+    local lastAttempt = State.bossRushLastDeploymentTimes[slotNumber]
+    if lastAttempt and (tick() - lastAttempt) < 3 then
+        return true
+    end
+    return false
+end
+
+local function getBossRushNextReadySlot()
+    local startSlot = State.bossRushCurrentSlot
+    local checkedSlots = 0
+    
+    while checkedSlots < 6 do
+        task.wait(0.05)
+        local slotToCheck = State.bossRushCurrentSlot
+
+        local shouldSkip = false
+
+        -- Check if slot is configured for boss rush and enabled
+        if not State.bossRushDeployConfig[slotToCheck] or not State.bossRushDeployConfig[slotToCheck].enabled then
+            shouldSkip = true
+        -- Check if unit should be deployed on current path
+        elseif not shouldDeployOnCurrentPath(slotToCheck) then
+            shouldSkip = true
+        -- Use existing checks
+        elseif not checkSlotExists(slotToCheck) then
+            shouldSkip = true
+        elseif isSlotOnCooldown(slotToCheck) then
+            shouldSkip = true
+        elseif not hasEnoughMoney(slotToCheck) then
+            shouldSkip = true
+        elseif bossRushShouldSkipSlotTemporarily(slotToCheck) then
+            shouldSkip = true
+        elseif IsUnitLevelReached(slotToCheck) then
+            shouldSkip = true
+        end
+
+        if shouldSkip then
+            State.bossRushCurrentSlot = (State.bossRushCurrentSlot % 6) + 1
+            checkedSlots = checkedSlots + 1
+        else
+            return slotToCheck
+        end
+    end
+    return nil
+end
+
+local function bossRushDeployUnit(slotNumber)
+    if not checkSlotExists(slotNumber) then
+        return false, "Slot doesn't exist"
+    end
+    
+    if isSlotOnCooldown(slotNumber) then
+        return false, "Unit is on cooldown"
+    end
+
+    if not hasEnoughMoney(slotNumber) then
+        return false, "Not enough money"
+    end
+
+    if IsUnitLevelReached(slotNumber) then
+        return false, "Unit can't be deployed yet because of level"
+    end
+
+    if not shouldDeployOnCurrentPath(slotNumber) then
+        return false, "Unit not configured for current path"
+    end
+    
+    -- Get the unit folder for this slot
+    local unitFolder = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
+    
+    if not unitFolder then
+        return false, "Unit folder not found"
+    end
+    
+    -- Try to deploy the unit
+    local success, errorMessage = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Deployment"):FireServer(unitFolder)
+    end)
+    
+    if success then
+        print("Successfully deployed boss rush unit from slot " .. slotNumber .. " on path " .. (State.currentBossPath or 1))
+        -- Clear any temporary skip for this slot since it worked
+        State.bossRushLastDeploymentTimes[slotNumber] = nil
+        return true, "Success"
+    else
+        print("Failed to deploy boss rush unit from slot " .. slotNumber .. ": " .. tostring(errorMessage))
+        -- Mark this slot as recently failed
+        State.bossRushLastDeploymentTimes[slotNumber] = tick()
+        return false, "Deployment failed"
+    end
+end
+
+local function bossRushAutoPlayLoop()
+    task.spawn(function()
+        while State.bossRushAutoDeployEnabled do
+            -- Only deploy if we're in a boss rush game
+            if State.gameRunning then
+                -- Find next ready slot for current path
+                local slotToDeploy = getBossRushNextReadySlot()
+                
+                if slotToDeploy then
+                    local success, message = bossRushDeployUnit(slotToDeploy)
+                    
+                    if success then
+                        -- Successfully deployed, move to next slot for next deployment
+                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
+                    elseif not success and message == "Not enough money" then
+                        State.bossRushCurrentSlot = (slotToDeploy % 6)
+                    else
+                        -- Failed deployment, slot will be temporarily skipped
+                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
+                        if message ~= "Unit not configured for current path" then
+                            print("Failed to deploy boss rush unit from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
+                        end
+                    end
+                else
+                    -- No ready slots found for current path, continue cycling
+                    -- print("No ready slots found for current path, continuing cycle...")
+                end
+            end
+            
+            -- Wait before next attempt
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function startBossRushAutoPlay()
+    if isInLobby() then 
+        print("Cannot start boss rush autoplay: Player is in lobby")
+        return 
+    end
+    
+    print("Starting boss rush auto deploy system...")
+    
+    -- Reset state
+    if Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.AutoPlay.Value == true then
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
+    end
+    State.bossRushCurrentSlot = 1
+    State.bossRushLastDeploymentTimes = {}
+    State.slotExists = {}
+    
+    -- Check which slots have units initially
+    for i = 1, 6 do
+        checkSlotExists(i)
+        if State.bossRushDeployConfig[i] and State.bossRushDeployConfig[i].enabled then
+            print("Boss Rush Slot " .. i .. " configured for paths: " .. table.concat(State.bossRushDeployConfig[i].paths, ", "))
+        end
+    end
+    
+    bossRushAutoPlayLoop()
+end
+
+local function stopBossRushAutoPlay()
+    State.bossRushAutoDeployEnabled = false
+    print("Boss rush auto deploy system stopped")
+end
+
+local function setBossRushSlotPaths(slotNumber, paths)
+    if slotNumber >= 1 and slotNumber <= 6 then
+        if not State.bossRushDeployConfig[slotNumber] then
+            State.bossRushDeployConfig[slotNumber] = {paths = {}, enabled = false}
+        end
+        State.bossRushDeployConfig[slotNumber].paths = paths
+        print("Set slot " .. slotNumber .. " to deploy on paths: " .. table.concat(paths, ", "))
+    end
+end
+
+local function setBossRushSlotEnabled(slotNumber, enabled)
+    if slotNumber >= 1 and slotNumber <= 6 then
+        if not State.bossRushDeployConfig[slotNumber] then
+            State.bossRushDeployConfig[slotNumber] = {paths = {1, 2, 3, 4}, enabled = false}
+        end
+        State.bossRushDeployConfig[slotNumber].enabled = enabled
+        print("Slot " .. slotNumber .. " boss rush deployment " .. (enabled and "enabled" or "disabled"))
+    end
+end
+
+local function toggleBossRushAutoPlay()
+    State.bossRushAutoDeployEnabled = not State.bossRushAutoDeployEnabled
+    
+    if State.bossRushAutoDeployEnabled then
+        startBossRushAutoPlay()
+    else
+        stopBossRushAutoPlay()
+    end
+end
+
+-- Helper function to convert path string to number
+local function pathStringToNumber(pathString)
+    local pathMap = {
+        ["Path 1"] = 1,
+        ["Path 2"] = 2,
+        ["Path 3"] = 3,
+        ["Path 4"] = 4
+    }
+    return pathMap[pathString]
+end
+
+local function StreamerMode()
+    local head = Services.Players.LocalPlayer.Character:WaitForChild("Head", 5)
+    if not head then return end
+
+    local billboard = head:FindFirstChild("PlayerHeadGui")
+    if not billboard then return end
+
+    local originalNumbers = Services.Players.LocalPlayer.PlayerGui:WaitForChild("HUD"):WaitForChild("ExpBar"):FindFirstChild("Numbers")
+    if not originalNumbers then return end
+
+    local streamerLabel = Services.Players.LocalPlayer.PlayerGui:WaitForChild("HUD"):WaitForChild("ExpBar"):FindFirstChild("Numbers_Streamer")
+    if not streamerLabel then
+        streamerLabel = originalNumbers:Clone()
+        streamerLabel.Name = "Numbers_Streamer"
+        streamerLabel.Text = "Level 999 - Protected by Lixhub"
+        streamerLabel.Visible = false
+        streamerLabel.Parent = originalNumbers.Parent
+    end
+
+    if State.streamerModeEnabled then
+        billboard:FindFirstChild("PlayerName").Text = "🔥 Protected By LixHub 🔥"
+        billboard:FindFirstChild("Level").Text = "Level 999"
+        billboard:FindFirstChild("Title").Text = "Lixhub User"
+
+        originalNumbers.Visible = false
+        streamerLabel.Visible = true
+    else
+        billboard:FindFirstChild("PlayerName").Text = tostring(Services.Players.LocalPlayer.Name)
+        billboard:FindFirstChild("Level").Text = "Level " .. Services.ReplicatedStorage:WaitForChild("Player_Data")[Services.Players.LocalPlayer.Name].Data.Level.Value
+        billboard:FindFirstChild("Title").Text = Services.ReplicatedStorage:WaitForChild("Player_Data")[Services.Players.LocalPlayer.Name].Data.Title.Value
+
+        originalNumbers.Visible = true
+        streamerLabel.Visible = false
+    end
+end
+
+local failsafeRunning = false
+
+local function startFailsafeAfterGameEnd()
+    if failsafeRunning then
+        warn("⚠️ Failsafe is already running. Skipping new start.")
+        return
+    end
+    failsafeRunning = true
+
+    task.spawn(function()
+        local waitTime = tonumber(State.AutoFailSafeNumber) or 300
+        notify("Failsafe", "Failsafe started, Waiting ".. waitTime .." seconds or until game starts...", 5)
+
+        local startTime = tick()
+        while tick() - startTime < waitTime do
+            if State.gameRunning then
+                notify("Failsafe", "New game started during wait. Cancelling failsafe.", 3)
+                failsafeRunning = false
+                return
+            end
+            task.wait(1)
+        end
+
+        if not State.gameRunning then
+            notify("Failsafe", "Teleporting to lobby...", 3)
+            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+        else
+            print("✅ Game started right at the end of wait. No recovery needed.")
+        end
+
+        failsafeRunning = false
+    end)
+end
+
+local function startRetryLoop()
+    State.retryAttempted = true
+    task.spawn(function()
+        while State.retryAttempted and State.autoRetryEnabled do
+            Remotes.RetryEvent:FireServer()
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function stopRetryLoop()
+    State.retryAttempted = false
+end
+
+local function startNextLoop()
+    State.NextAttempted = true
+
+    task.spawn(function()
+        while State.NextAttempted and State.autoNextEnabled do
+            Remotes.NextEvent:FireServer()
+            task.wait(0.5) -- Retry interval (can adjust)
+        end
+    end)
+end
+
+local function stopNextLoop()
+    State.NextAttempted = false
+end
+
+local function getunitRarity(unit)
+    local success, result = pcall(function()
+        local gui = Services.Players.LocalPlayer.PlayerGui.Collection.Main.Base.Space.Unit[unit.Name].Frame.UnitFrame
+        for _, rarity in ipairs({ "Ranger", "Secret", "Mythic", "Legendary", "Epic", "Rare" }) do
+            if gui:FindFirstChild(rarity) then return rarity end
+        end
+    end)
+    return success and result or nil
+end
+
+local function isUnitShiny(unit)
+    local success, result = pcall(function()
+        -- Check if "Shiny" is in the unit name
+        if string.find(unit.Name:lower(), "shiny") then
+            return true
+        end
+        local gui = Services.Players.LocalPlayer.PlayerGui.Collection.Main.Base.Space.Unit[unit.Name]
+        if gui and string.find(gui.Name:lower(), "shiny") then
+            return true
+        end
+        return false
+    end)
+    return success and result or false
+end
+
+local function shouldSellUnit(unit, selectedRarities)
+    local rarity = getunitRarity(unit)
+    local isShiny = isUnitShiny(unit)
+    
+    local hasShinySelected = table.find(selectedRarities, "Shiny")
+    local hasRaritySelected = table.find(selectedRarities, rarity)
+    
+    if not hasRaritySelected then
+        return false
+    end
+    if hasShinySelected then
+        return true
+    else
+        return not isShiny
+    end
+end
+
+local CurseImageIDs = {
+    ["Ability Damage"] = "rbxassetid://129472130637846",
+    ["Ability Cooldown"] = "rbxassetid://94734246361320",
+    ["Health"] = "rbxassetid://132403000977312",
+    ["Damage"] = "rbxassetid://128960075980851",
+    ["Attack Cooldown"] = "rbxassetid://102308191455123",
+    ["Range"] = "rbxassetid://105399018590765",
+    ["Speed"] = "rbxassetid://131770445081586",
+}
+
+local function GetAppliedCurses()
+    local main = Services.Players.LocalPlayer.PlayerGui:WaitForChild("ApplyCurse").Main.Base.Stats.Main
+    local results = {}
+
+    for _, statFrame in pairs(main:GetChildren()) do
+        if statFrame.Name == "StatTemp" then
+            local icon = statFrame:FindFirstChild("StatsIconic")
+            local buffIcon = statFrame:FindFirstChild("BuffIconic")
+            local percentageLabel = statFrame:FindFirstChild("Value") -- You might need to adjust this name
+            
+            if icon and buffIcon then
+                local isGreen = buffIcon.Image == "rbxassetid://73853750530888"
+                local percentage = 0
+                
+                -- Extract percentage value from the label
+                if percentageLabel and percentageLabel.Text then
+                    local percentText = percentageLabel.Text
+                    -- Extract number from text like "+15%" or "-7%"
+                    local sign, number = percentText:match("([+-]?)(%d+)")
+                    if number then
+                        percentage = tonumber(number) or 0
+                        if sign == "-" then
+                            percentage = -percentage
+                        end
+                    end
+                end
+                
+                table.insert(results, {
+                    image = icon.Image,
+                    isGreen = isGreen,
+                    percentage = percentage,
+                    slot = #results + 1
+                })
+            end
+        end
+    end
+    return results
+end
+
+local function CursesMatch(applied, selected)
+    if not applied or #applied == 0 then
+        return false
+    end
+    
+    -- If only 1 curse selected, find it anywhere with its requirement
+    if #selected == 1 then
+        local targetCurse = selected[1]
+        local minRequired = State.curseMinimums[targetCurse] or 1
+        
+        for _, curse in ipairs(applied) do
+            if curse.image == CurseImageIDs[targetCurse] and curse.isGreen then
+                -- Check if this curse meets its minimum requirement
+                local isReverseStat = targetCurse == "Attack Cooldown" or targetCurse == "Ability Cooldown"
+                
+                if isReverseStat then
+                    -- For reverse stats, we want curse.percentage <= -minRequired
+                    if curse.percentage <= -minRequired then
+                        return true
+                    end
+                else
+                    -- For normal stats, we want curse.percentage >= minRequired
+                    if curse.percentage >= minRequired then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+    
+    -- For multiple curses, find ANY of them that meet their individual requirements
+    local foundCurses = {}
+    for _, curse in ipairs(applied) do
+        if curse.isGreen then
+            for _, selectedName in ipairs(selected) do
+                if curse.image == CurseImageIDs[selectedName] then
+                    local minRequired = State.curseMinimums[selectedName] or 1
+                    local meetsRequirement = true
+                    
+                    -- Check if this specific curse meets its requirement
+                    local isReverseStat = selectedName == "Attack Cooldown" or selectedName == "Ability Cooldown"
+                    
+                    if isReverseStat then
+                        -- For reverse stats, we want curse.percentage <= -minRequired
+                        if curse.percentage > -minRequired then
+                            meetsRequirement = false
+                        end
+                    else
+                        -- For normal stats, we want curse.percentage >= minRequired
+                        if curse.percentage < minRequired then
+                            meetsRequirement = false
+                        end
+                    end
+                    
+                    if meetsRequirement then
+                        foundCurses[selectedName] = true
+                    end
+                    break
+                end
+            end
+        end
+    end
+    
+    -- Count how many different selected curses we found that meet their requirements
+    local foundCount = 0
+    for _ in pairs(foundCurses) do
+        foundCount = foundCount + 1
+    end
+    
+    -- Success if we found at least 2 of our selected curses with proper percentages
+    return foundCount >= 2
+end
+
+local function GetSelectedUnit()
+    local success, unit = pcall(function()
+        local playerGui = Services.Players.LocalPlayer.PlayerGui
+        local applyCurseGui = playerGui:FindFirstChild("ApplyCurse")
+        
+        if not applyCurseGui then
+            return nil
+        end
+
+        local unitFolder = applyCurseGui:FindFirstChild("Main")
+            and applyCurseGui.Main:FindFirstChild("Base")
+            and applyCurseGui.Main.Base:FindFirstChild("UnitFolder")
+
+        return unitFolder and unitFolder.Value or nil
+    end)
+
+    return success and unit or nil
+end
+
+local function GetSelectedUnitTraits()
+    local success, result = pcall(function()
+        local objVal = Services.Players.LocalPlayer.PlayerGui
+            :WaitForChild("Traits")
+            :WaitForChild("Main")
+            :WaitForChild("Base")
+            :WaitForChild("UnitFolder")
+
+        local folder = objVal.Value
+        
+        if not folder then
+            return nil
+        end
+
+        local primary = folder:FindFirstChild("PrimaryTrait")
+        local secondary = folder:FindFirstChild("SecondaryTrait")
+
+        if primary and secondary then
+            return {
+                primary = primary.Value,
+                secondary = secondary.Value,
+                unit = folder
+            }
+        end
+        return nil
+    end)
+
+    return success and result or nil
+end
+
+local function TraitsMatch(currentTraits, selectedTraits, requireDouble)
+    if not currentTraits then
+        return false
+    end
+    
+    local primary = currentTraits.primary
+    local secondary = currentTraits.secondary
+    
+    -- Convert selected traits to a lookup table for faster checking
+    local selectedLookup = {}
+    for _, trait in ipairs(selectedTraits) do
+        selectedLookup[trait] = true
+    end
+    
+    if requireDouble then
+        -- For double traits: need one selected trait in primary AND one in secondary
+        local primaryMatch = selectedLookup[primary]
+        local secondaryMatch = selectedLookup[secondary]
+        
+        return primaryMatch and secondaryMatch and primary ~= secondary
+    else
+        -- For single trait: need at least one selected trait in either slot
+        return selectedLookup[primary] or selectedLookup[secondary]
+    end
+end
+
+local function RerollTraits(unit)
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("RerollTrait"):FireServer(game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild(tostring(Services.Players.LocalPlayer.Name)):WaitForChild("Collection"):WaitForChild(unit.Name),"Reroll","Main","Shards")
+    end)
+    return success
+end
+
+local function StartAutoReroll(selectedTraits)
+    if not isInLobby() then -- Assuming you have this function from your curse system
+        notify("Auto Reroll", "Must be in lobby to use auto reroll!")
+        return
+    end
+    
+    if #selectedTraits < 1 then
+        notify("Auto Reroll", "Please select at least 1 trait!")
+        return
+    end
+    
+    if State.rollOnlyDoubleTraits and #selectedTraits < 2 then
+        notify("Auto Reroll", "Need at least 2 traits selected for double trait mode!")
+        return
+    end
+    
+    task.spawn(function()
+        local attempts = 0
+        local maxAttempts = 999999999999999 -- Adjust as needed
+        
+        -- Dynamic success message based on mode
+        local targetMessage
+        if State.rollOnlyDoubleTraits then
+            targetMessage = string.format("Looking for 2 traits from: %s", table.concat(selectedTraits, ", "))
+        else
+            targetMessage = string.format("Looking for any of: %s", table.concat(selectedTraits, ", "))
+        end
+        
+        notify("Auto Reroll", targetMessage)
+        
+        while State.AutoRerollEnabled and attempts < maxAttempts do
+            attempts = attempts + 1
+            
+            -- Get current unit and traits
+            local currentTraits = GetSelectedUnitTraits()
+            if not currentTraits then
+                notify("Auto Reroll", "No unit selected! Please select a unit in the trait UI.")
+                task.wait(3)
+                continue
+            end
+            
+            -- Check if current traits match our requirements
+            if TraitsMatch(currentTraits, selectedTraits, State.rollOnlyDoubleTraits) then
+                local successMessage
+                if State.rollOnlyDoubleTraits then
+                    successMessage = string.format("Found double traits: %s + %s! (Attempt %d)", 
+                        currentTraits.primary, currentTraits.secondary, attempts)
+                else
+                    successMessage = string.format("Found matching trait! Primary: %s, Secondary: %s (Attempt %d)", 
+                        currentTraits.primary, currentTraits.secondary, attempts)
+                end
+                
+                notify("Auto Reroll", successMessage)
+                State.AutoRerollEnabled = false
+                break
+            end
+            
+            -- Log current attempt
+            print(string.format("Attempt %d: Primary: %s, Secondary: %s", 
+                attempts, currentTraits.primary, currentTraits.secondary))
+            
+            -- Reroll traits
+            local rollSuccess = RerollTraits(currentTraits.unit)
+            if not rollSuccess then
+                notify("Auto Reroll", "Failed to reroll traits! Retrying...")
+                task.wait(1)
+                continue
+            end
+            
+            -- Wait a bit before checking results
+            task.wait(0.5)
+            
+            -- Progress notification every 20 attempts
+            if attempts % 20 == 0 then
+                notify("Auto Reroll", string.format("Attempt %d/%d - Still searching...", attempts, maxAttempts))
+            end
+        end
+        
+        -- Handle failure case
+        if State.AutoRerollEnabled and attempts >= maxAttempts then
+            notify("Auto Reroll", string.format("Failed after %d attempts. Consider different trait selection.", maxAttempts))
+            State.AutoRerollEnabled = false
+        end
+    end)
+end
+
+local function StartAutoCurse(selectedCurses)
+    if not isInLobby() then
+        notify("Auto Curse", "Must be in lobby to use auto curse!")
+        return
+    end
+    
+    if #selectedCurses < 1 then
+        notify("Auto Curse", "Please select at least 1 curse!")
+        return
+    end
+    
+    task.spawn(function()
+        local attempts = 0
+        local maxAttempts = 50
+        
+        -- Dynamic success message based on selection
+        local targetMessage = #selectedCurses == 1 and 
+            string.format("Looking for: %s", selectedCurses[1]) or
+            string.format("Looking for any 2 of: %s", table.concat(selectedCurses, ", "))
+        
+        notify("Auto Curse", targetMessage)
+        
+        while State.AutoCurseEnabled and attempts < maxAttempts do
+            attempts = attempts + 1
+            
+            -- Enhanced unit validation
+            local unit = GetSelectedUnit()
+            if not unit then
+                notify("Auto Curse", "No unit selected! Please select a unit in the curse UI.")
+                task.wait(3)
+                continue
+            end
+            
+            -- Apply curse with error handling
+            local success = pcall(function()
+                Remotes.ApplyCurseRemote:FireServer("ApplyCurse - Normal", unit)
+            end)
+            
+            if not success then
+                notify("Auto Curse", "Failed to apply curse! Retrying...")
+                task.wait(1)
+                continue
+            end
+            
+            task.wait(1)
+
+            local applied = GetAppliedCurses()
+
+            if CursesMatch(applied, selectedCurses) then
+                local successMessage = #selectedCurses == 1 and
+                    string.format("Found %s! (Attempt %d)", selectedCurses[1], attempts) or
+                    string.format("Found matching curses! (Attempt %d)", attempts)
+                
+                notify("Auto Curse", successMessage)
+                State.AutoCurseEnabled = false
+                break
+            end
+            
+            -- Enhanced logging with percentage info
+            if applied then
+                local currentCurses = {}
+                for i, curse in ipairs(applied) do
+                    if curse.isGreen then
+                        for curseName, imageId in pairs(CurseImageIDs) do
+                            if curse.image == imageId then
+                                local slotInfo = string.format("%s %+d%% (Slot %d)", curseName, curse.percentage, i)
+                                table.insert(currentCurses, slotInfo)
+                                break
+                            end
+                        end
+                    end
+                end
+                if #currentCurses > 0 then
+                    print(string.format("Attempt %d got: %s", attempts, table.concat(currentCurses, ", ")))
+                end
+            end
+            
+            -- Progress notification every 10 attempts
+            if attempts % 10 == 0 then
+                notify("Auto Curse", string.format("Attempt %d/%d - Still searching...", attempts, maxAttempts))
+            end
+        end
+        
+        -- Handle failure case
+        if State.AutoCurseEnabled and attempts >= maxAttempts then
+            notify("Auto Curse", string.format("Failed after %d attempts. Try different requirements.", maxAttempts))
+            State.AutoCurseEnabled = false
+        end
+    end)
+end
+
+local function deleteUnit(unitName)
+    if not unitName then return false end
+    
+    local success, result = pcall(function()
+        -- Loop through all parts in UnitT folder
+        for _, part in pairs(Services.Workspace.Agent.UnitT:GetChildren()) do
+            if part:IsA("Part") then
+                local info = part:FindFirstChild("Info")
+                if info then
+                    local unitNameValue = info:FindFirstChild("UnitName")
+                    if unitNameValue and unitNameValue.Value == unitName then
+                        local args = {part, nil}
+                        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("DeleteUnit"):FireServer(unpack(args))
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end)
+    
+    if success and result then
+        print("Successfully deleted unit: " .. unitName)
+        return true
+    else
+        return false
+    end
+end
+
+local lastCheckedLevels = {}
+local processedUnits = {}
+
+local function checkAndRefreshUnits()
+    for slot = 1, 6 do
+        local unitName = getUnitNameFromSlot(slot)
+
+        if unitName then
+            local currentLevel = getCurrentUpgradeLevel(unitName)
+            local targetLevel = Config.unitReDeployLevel[slot]
+
+            if targetLevel ~= 0 then
+                local slotKey = "slot_" .. slot
+
+                if not processedUnits[slotKey] and lastCheckedLevels[slotKey] ~= currentLevel then
+                    lastCheckedLevels[slotKey] = currentLevel
+
+                    if currentLevel == "MAX" and targetLevel <= 9 then
+                        print("Slot " .. slot .. " (" .. unitName .. ") reached MAX level, deleting...")
+                        deleteUnit(unitName)
+                        processedUnits[slotKey] = true
+                    elseif type(currentLevel) == "number" and currentLevel >= targetLevel then
+                        print("Slot " .. slot .. " (" .. unitName .. ") reached level " .. currentLevel .. ", deleting...")
+                        deleteUnit(unitName)
+                        processedUnits[slotKey] = true
+                    end
+                end
+            end
+        else
+            lastCheckedLevels["slot_" .. slot] = nil
+        end
+    end
+end
+
+local function autoSellUnitLoop()
+        if State.AutoSellUnitChoice[1] and State.AutoSellUnitChoice[1] ~= "No Unit" then
+        local slotNumber = tonumber(State.AutoSellUnitChoice[1]:match("Unit(%d)"))
+        if slotNumber then
+            local unitName = getUnitNameFromSlot(slotNumber)
+            if unitName then
+                if not isSlotOnCooldown(slotNumber) then
+                    deleteUnit(unitName)
+                end
+            end
+        end
+        end
+end
+
+task.spawn(function()
+    while true do
+        if State.AutoSellUnitChoice[1] ~= "No Unit" and not isInLobby() then
+            autoSellUnitLoop()
+        end
+        task.wait(1)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if State.AutoReDeployEnabled and not isInLobby() then
+            checkAndRefreshUnits()
+        end
+        task.wait(1)
+    end
+end)
+
+--//\\--
+
+task.spawn(function()
+    while true do
+        task.wait(0.5) -- check every 0.5 seconds
+
+        if State.AutoSellRarities and typeof(State.SelectedRaritiesToSell) == "table" then
+            local data = GameObjects.GetData.GetData(Services.Players.LocalPlayer)
+            local collection = data.Collection:GetChildren()
+
+            for _, unit in ipairs(collection) do
+                if shouldSellUnit(unit, State.SelectedRaritiesToSell) then
+                    local realUnitFolder = GameObjects.getUnitFolder(Services.Players.LocalPlayer, unit)
+                    if realUnitFolder then
+                        local lockedFlag = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection[unit.Name].Lock
+                        if lockedFlag.Value == false then
+                            local args = {{ realUnitFolder, nil }}
+                            Remotes.SellRemote:FireServer(unpack(args))
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+    task.spawn(function()
+        print("🔄 Fetching story data...")
+        Data.availableStories = fetchStoryData()
+        
+        print("🔄 Fetching ranger stage data...")
+        Data.availableRangerStages = fetchRangerStageData(Data.availableStories)
+
+        print("🔄 Fetching raid data...")
+        Data.availableRaids = fetchRaidData()
+        
+        print("✅ Data fetching complete!")
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(0.5) -- Check every 0.5 seconds
+            checkAndExecuteHighestPriority()
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(0.1)
+            StreamerMode()
+        end
+    end)
+
+task.spawn(function()
+    while true do
+        wait(0.1)
+             if State.autoDisableEndUI and not isInLobby() then
+     for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
+    if child.Name == "GameEndedAnimationUI" then
+        child.Enabled = false
+    end
+end
+for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
+    if child.Name == "RewardsUI" then
+        child.Enabled = false
+    end
+end
+for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
+    if child.Name == "Visual" then
+        child.Enabled = false
+    end
+end
+end
+    end
+end)
+        task.spawn(function()
+        while true do
+            task.wait(2)
+            if State.autoAfkTeleportEnabled and isInLobby() and GameObjects.AFKChamberUI.Enabled == false then
+                print("🚀 Teleporting to AFK world...")
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("AFKWorldTeleport"):FireServer()
+            end
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            if State.AutoPurchaseMerchant and #Data.MerchantPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseMerchant, Data.MerchantPurchaseTable, "Merchant", "Merchant")
+            end
+            if State.AutoPurchaseBossRush and #Data.BossRushPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseBossRush, Data.BossRushPurchaseTable, "Boss_Rush", "Boss Rush")
+            end
+            if State.AutoPurchaseRaid and #Data.RaidPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseRaid, Data.RaidPurchaseTable, "Raid_Shop", "Raid Shop")
+            end
+            if State.AutoPurchaseRaidCSW and #Data.RaidPurchaseTableCSW > 0 then
+                autoPurchaseItems(State.AutoPurchaseRaidCSW, Data.RaidPurchaseTableCSW, "RaidCSW_Shop", "Graveyard Raid Shop")
+            end
+            if State.AutoPurchaseRiftStorm and #Data.RiftStormPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseRiftStorm, Data.RiftStormPurchaseTable, "Rift_Storm", "Rift Storm Shop")
+            end
+            if State.AutoPurchaseSwarmEvent and #Data.SwarmEventPurchaseTable > 0 then
+                autoPurchaseItems(State.AutoPurchaseSwarmEvent, Data.SwarmEventPurchaseTable, "Fall_Shop", "Swarm Event Shop")
+            end
+            task.wait(1)
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(3)
+           -- if isInLobby() then
+            if State.autoClaimBP then
+            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Events"):WaitForChild("ClaimBp"):FireServer("Claim All")
+            end
+            if State.AutoClaimQuests then
+            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("QuestEvent"):FireServer("ClaimAll")
+            end
+            if State.AutoClaimMilestones then
+            local playerlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value
+            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("LevelMilestone"):FireServer(tonumber(playerlevel))
+               -- end
+            end
+        end
+    end)
+
+     task.spawn(function()
+        while true do
+            task.wait(1)
+
+            if State.autoStartEnabled then
+                local voteVisible = false
+
+                pcall(function()
+                    voteVisible = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
+                        :WaitForChild("HUD")
+                        :WaitForChild("InGame")
+                        :WaitForChild("VotePlaying").Visible
+                end)
+
+                if voteVisible then
+                    print("✅ Vote screen is visible — sending start signal...")
+                    Remotes.StartGame:FireServer()
+                    task.wait(3) -- optional cooldown between fires
+                end
+            end
+        end
+    end)
+
+--//BUTTONS\\--
+
+local function redeemallcodes()
+    notify("Code Redemption", "Starting code redemption...", 3)
+    
+    local success, error = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/Codes_ARX.lua"))()
+    end)
+    
+    if not success then
+        notify("Error", "Failed to load code script", 5)
+        warn("❌ Failed to load script: " .. tostring(error))
+    end
+end
+
+local function updateFPSLimit()
+    if State.enableLimitFPS and State.SelectedFPS > 0 then
+        setfpscap(State.SelectedFPS)
+    else
+        setfpscap(0) -- 0 = unlimited
+    end
+end
+
+local function getCurrentGems()
+    local leaderstats = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data
+    if leaderstats then
+        local gems = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem
+        if gems then
+            return gems.Value
+        end
+    end
+    return 0
+end
+
+local function showUnitInventory()
+    local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        local unitInventory = playerGui:FindFirstChild("Collection")
+        if unitInventory then
+            unitInventory.Enabled = true
+            unitInventory.Main.Visible = true
+            task.wait(0.5)
+            return true
+        end
+    end
+    return false
+end
+
+local function takeUnitSnapshot()
+    local units = {}
+    local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
+    
+    if playerGui then
+        local unitInventory =playerGui:FindFirstChild("Collection").Main.Base.Space.Unit
+        if unitInventory then
+            for _, unitFrame in pairs(unitInventory:GetDescendants()) do
+                if unitFrame:IsA("TextButton") then
+                    local unitName = unitFrame.Name
+                    if unitName then
+                        local name = unitName
+                        units[name] = (units[name] or 0) + 1
+                    end
+                end
+            end
+        end
+    end
+    return units
+end
+
+local function compareUnits(before, after)
+    local newUnits = {}
+    
+    for unitName, afterCount in pairs(after) do
+        local beforeCount = before[unitName] or 0
+        local difference = afterCount - beforeCount
+        
+        if difference > 0 then
+            newUnits[unitName] = difference
+        end
+    end
+    
+    return newUnits
+end
+
+local function sendSummaryWebhook(newUnits, totalGems)
+    -- Replace with your webhook URL
+    local webhookUrl = ValidWebhook
+    
+    if not webhookUrl or webhookUrl == "YOUR_WEBHOOK_URL_HERE" then
+        print("No webhook URL configured")
+        return
+    end
+    
+    local embed = {
+        title = "🎲 Auto Summon Results",
+        color = 3447003, -- Blue color
+        fields = {
+            -- Gems spent at the top
+            {
+                name = "💎 Gems Spent",
+                value = totalGems,
+                inline = false
+            }
+        },
+        footer = {
+            text = "discord.gg/cYKnXE2Nf8"
+        },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+    
+    -- Add new units to embed (after gems spent)
+    for unitName, count in pairs(newUnits) do
+        table.insert(embed.fields, {
+            name = unitName,
+            value = "x" .. count,
+            inline = true
+        })
+    end
+    
+    if #embed.fields == 1 then -- Only gems field exists
+        embed.description = "No new units obtained this session."
+    end
+    
+    local data = {
+        embeds = {embed}
+    }
+    
+    -- Use executor webhook function
+    local success, result = pcall(function()
+        if syn and syn.request then
+            -- Synapse X
+            return syn.request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = Services.HttpService:JSONEncode(data)
+            })
+        elseif request then
+            -- Script-Ware, Krnl, etc.
+            return request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = Services.HttpService:JSONEncode(data)
+            })
+        elseif http_request then
+            -- Some other executors
+            return http_request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = Services.HttpService:JSONEncode(data)
+            })
+        else
+            error("No HTTP request function available")
+        end
+    end)
+    
+    if success then
+        print("📤 Webhook sent successfully!")
+    else
+        print("❌ Failed to send webhook:", result)
+    end
+end
+
+local function doSummon()
+    local args = {
+        "10x",
+        State.AutoSummonBannerSelected,
+        {
+            Epic = true,
+            Legendary = true,
+            Rare = true
+        }
+    }
+    
+    pcall(function()
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("UnitsGacha"):FireServer(unpack(args))
+    end)
+end
+
+local function startAutoSummon()
+    if not isInLobby() then return end
+    if autoSummonActive then return end
+    if not State.enableAutoSummon then return end
+    if not State.AutoSummonBannerSelected then return end
+    
+    autoSummonActive = true
+    print("🎰 Starting Auto Summon...")
+    notify("Auto Summon","Starting Auto Summon...")
+    
+    if not showUnitInventory() then
+        print("❌ Failed to show unit inventory")
+        autoSummonActive = false
+        return
+    end
+    
+    initialUnits = takeUnitSnapshot()
+    print("📸 Initial units snapshot taken")
+    
+    local initialGems = getCurrentGems()
+    Services.Players.LocalPlayer:SetAttribute("InitialGems", initialGems)
+    
+    -- UI keeping task - runs independently
+    local uiTask = task.spawn(function()
+        while autoSummonActive do
+            local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                local collection = playerGui:FindFirstChild("Collection")
+                if collection and collection.Main then
+                    collection.Main.Visible = true
+                    collection.Enabled = true
+                end
+            end
+            task.wait(0.1) -- Keep UI enabled every 0.1 seconds
+        end
+    end)
+    
+    -- Main summoning task
+    summonTask = task.spawn(function()
+        while autoSummonActive do
+            local currentGems = getCurrentGems()
+            
+            if currentGems < 500 then
+                print("💎 Not enough gems! Stopping auto summon...")
+                notify("Auto Summon","Not enough gems! Stopping auto summon...")
+                Services.Players.LocalPlayer.PlayerGui.HUD.Enabled = true
+                break
+            end
+            
+            doSummon()
+            print("🎲 Summoned! Gems remaining:", currentGems)
+            
+            task.wait(3) -- Normal 3 second delay between summons
+        end
+        
+        -- Auto summon stopped - generate summary
+        local finalGems = getCurrentGems()
+        gemsSpent = initialGems - finalGems
+        
+        task.wait(1) -- Wait for inventory to update
+        local finalUnits = takeUnitSnapshot()
+        local newUnits = compareUnits(initialUnits, finalUnits)
+        
+        -- Send webhook if any units were obtained
+        local hasNewUnits = false
+        for _, count in pairs(newUnits) do
+            if count > 0 then
+                hasNewUnits = true
+                break
+            end
+        end
+        
+        if hasNewUnits then
+            sendSummaryWebhook(newUnits, gemsSpent)
+            print("📊 Summary sent to webhook!")
+        else
+            print("📊 No new units obtained")
+        end
+        
+        autoSummonActive = false
+        print("🛑 Auto Summon stopped")
+    end)
+end
+
+-- Function to stop auto summon
+local function stopAutoSummon()
+    if not autoSummonActive then return end
+    
+    autoSummonActive = false
+    if summonTask then
+        task.cancel(summonTask)
+        summonTask = nil
+        Services.Players.LocalPlayer.PlayerGui.HUD.Enabled = true
+    end
+    
+    -- Generate summary even when manually stopped
+    task.spawn(function()
+        local finalGems = getCurrentGems()
+        local gemsSpent = (Services.Players.LocalPlayer:GetAttribute("InitialGems") or getCurrentGems()) - finalGems
+        
+        task.wait(1) -- Wait for inventory to update
+        local finalUnits = takeUnitSnapshot()
+        local newUnits = compareUnits(initialUnits, finalUnits)
+        
+        -- Send webhook if any units were obtained
+        local hasNewUnits = false
+        for _, count in pairs(newUnits) do
+            if count > 0 then
+                hasNewUnits = true
+                break
+            end
+        end
+        
+        if hasNewUnits then
+            sendSummaryWebhook(newUnits, gemsSpent)
+            print("📊 Summary sent to webhook!")
+        else
+            print("📊 No new units obtained")
+        end
+    end)
+    
+    print("🛑 Auto Summon manually stopped")
+end
+
+local GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
+
+CodeButton = LobbyTab:CreateButton({
+    Name = "Redeem All Codes",
+    Callback = function()
+        redeemallcodes()
+    end,
+})
+
+local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Summon",
+    CurrentValue = false,
+    Flag = "enableAutoSummon",
+    Info = "Will start summoning on selected banner, to send obtained units webhook make sure you set your webhook id and then turn off the toggle. If your UI bugs after using this simply rejoin.",
+    TextScaled = true,
+    Callback = function(Value)
+        State.enableAutoSummon = Value
+        if Value then
+            startAutoSummon()
+        else
+            stopAutoSummon()
+        end
+    end,
+})
+
+local Dropdown = LobbyTab:CreateDropdown({
+   Name = "Auto Summon Bannter",
+   Options = {"Standard","Rateup"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "AutoSummonBannerSelection",
+   Callback = function(Options)
+        State.AutoSummonBannerSelected = Options[1]
+   end,
+})
+
+local Button = LobbyTab:CreateButton({
+        Name = "Load Item Tracker",
+        Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/item.lua"))()
+        end,
+    })
+
+ GameSection = LobbyTab:CreateSection("🔮 Auto Curse 🔮")
+
+local AutoCurseToggle = LobbyTab:CreateToggle({
+    Name = "Auto Curse",
+    CurrentValue = false,
+    Flag = "AutoCurseToggle",
+    Info = "Open curse UI and select unit manually before enabling.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoCurseEnabled = Value
+        if #State.selectedCurses >= 1 and State.AutoCurseEnabled then
+            StartAutoCurse(State.selectedCurses)
+        elseif Value and #State.selectedCurses < 1 then
+            notify("Auto Curse", "Please select at least 1 curse first!")
+        end
+    end,
+})
+
+local CurseSelectorDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Curses",
+    Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
+    CurrentOption = "Ability Damage",
+    MultipleOptions = true,
+    Flag = "CurseSelector",
+    Callback = function(Options)
+        State.selectedCurses = Options
+        if State.AutoCurseEnabled and #Options < 1 then
+            State.AutoCurseEnabled = false
+            AutoCurseToggle:Set(false)
+            notify("Auto Curse", "Auto curse disabled - need at least 1 curse selected!")
+        end
+    end,
+})
+
+local CurseRequirementsDropdown = LobbyTab:CreateDropdown({
+    Name = "Set Requirements For",
+    Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
+    CurrentOption = "",
+    MultipleOptions = false,
+    Flag = "CurseRequirementsSelector",
+    Info = "Select which curse to set minimum percentage for",
+    Callback = function(Option)
+        State.selectedCurseForRequirement = Option[1]
+    end,
+})
+
+local CurseMinimumSlider = LobbyTab:CreateSlider({
+    Name = "Minimum Percentage",
+    Range = {1, 15},
+    Increment = 1,
+    CurrentValue = 1,
+    Flag = "CurseMinimumPercentage",
+    Info = "Minimum percentage for the selected curse",
+    Callback = function(Value)
+        if State.selectedCurseForRequirement then
+            State.curseMinimums[State.selectedCurseForRequirement] = Value
+            notify("Auto Curse", string.format("Set %s minimum to %d%%", State.selectedCurseForRequirement, Value))
+        end
+    end,
+})
+
+local ShowRequirementsButton = LobbyTab:CreateButton({
+    Name = "Show Current Requirements",
+    Callback = function()
+        local requirements = {}
+        for curse, minPercent in pairs(State.curseMinimums) do
+            table.insert(requirements, string.format("%s: %d%%", curse, minPercent))
+        end
+        if #requirements > 0 then
+            notify("Requirements", table.concat(requirements, ", "))
+        else
+            notify("Requirements", "No requirements set")
+        end
+    end,
+})
+
+local ResetButton = LobbyTab:CreateButton({
+    Name = "Reset All Settings",
+    Callback = function()
+        State.selectedCurses = {}
+        State.curseMinimums = {}
+        CurseSelectorDropdown:Set({})
+        notify("Auto Curse", "All settings cleared")
+    end,
+})
+
+GameSection = LobbyTab:CreateSection("💎 Auto Trait 💎")
+
+local AutoTraitToggle = LobbyTab:CreateToggle({
+    Name = "Auto Reroll Traits",
+    CurrentValue = false,
+    Flag = "AutoTraitToggle",
+    Info = "Open trait UI and select unit manually before enabling.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoRerollEnabled = Value
+        if #State.selectedTraits >= 1 and State.AutoRerollEnabled then
+            StartAutoReroll(State.selectedTraits)
+        elseif Value and #State.selectedTraits < 1 then
+            notify("Auto Reroll", "Please select at least 1 trait first!")
+        end
+    end,
+})
+
+local TraitSelectorDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Traits",
+    Options = {"Endure I","Endure II","Endure III","Horizon I","Horizon II","Horizon III","Superior I","Superior II","Superior III","Brute","Sniper","Colossal","Investor","Jokester","Blitz","Juggernaut","Millionaire","Violent","Seraph","Capitalist","Duplicator","Sovereign"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "TraitSelector",
+    Callback = function(Options)
+        State.selectedTraits = Options
+        if State.AutoRerollEnabled and #Options < 1 then
+            State.AutoRerollEnabled = false
+            AutoTraitToggle:Set(false)
+            notify("Auto Reroll", "Auto reroll disabled - need at least 1 trait selected!")
+        end
+    end,
+})
+
+local DoubleTraitToggle = LobbyTab:CreateToggle({
+    Name = "Roll Only Double Traits",
+    CurrentValue = false,
+    Flag = "DoubleTraitToggle",
+    Info = "When enabled, will only stop when 2 selected traits are found (1 in main trait, 1 in sub-trait).",
+    TextScaled = false,
+    Callback = function(Value)
+        State.rollOnlyDoubleTraits = Value
+    end,
+})
+
+GameSection = LobbyTab:CreateSection("⚙️ Auto Gear ⚙️")
+
+
+AutoFarmToggle = LobbyTab:CreateToggle({
+    Name = "Auto Gear Farm",
+    CurrentValue = State.AutoFarmEnabled,
+    Flag = "AutoGearFarmEnabled",
+    Info = "Joins the required ranger stages and farms. You have to manually craft the gears this just collects the materials!",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoFarmEnabled = Value
+        State.currentlyFarming = Value
+    end,
+})
+
+local GearSelectorDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Gears",
+    Options = GetAllGearNames(),
+    CurrentOption = GetAllGearNames()[1],
+    MultipleOptions = true,
+    Flag = "GearSelector",
+    Callback = function(Options)
+        State.selectedGears = Options
+        
+        -- Reset craft amounts for unselected gears
+        local newCraftAmounts = {}
+        for _, gearName in ipairs(Options) do
+            newCraftAmounts[gearName] = State.craftAmounts[gearName] or 1
+        end
+        State.craftAmounts = newCraftAmounts
+        
+        if State.AutoFarmEnabled and #Options == 0 then
+            State.AutoFarmEnabled = false
+            AutoFarmToggle:Set(false)
+            notify("Auto Gear Farm", "Auto farm disabled - need at least 1 gear selected!")
+        end
+    end,
+})
+
+local GearAmountSelector = LobbyTab:CreateDropdown({
+    Name = "Set Amount For",
+    Options = GetAllGearNames(),
+    CurrentOption = "",
+    MultipleOptions = false,
+    Flag = "GearAmountSelector",
+    Info = "Select which gear to set craft amount for",
+    Callback = function(Option)
+        State.selectedGearForAmount = Option[1]
+    end,
+})
+
+local CraftAmountSlider = LobbyTab:CreateSlider({
+    Name = "Craft Amount",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = 1,
+    Flag = "CraftAmount",
+    Info = "Amount to craft for the selected gear",
+    Callback = function(Value)
+        if State.selectedGearForAmount then
+            State.craftAmounts[State.selectedGearForAmount] = Value
+            notify("Auto Gear Farm", string.format("Set %s amount to %d", State.selectedGearForAmount, Value))
+        end
+    end,
+})
+
+local ShowRequiredMaterialsButton = LobbyTab:CreateButton({
+    Name = "Show Required Materials",
+    Callback = function()
+        if #State.selectedGears == 0 then
+            notify("Required Materials", "No gears selected!")
+            return
+        end
+        
+        local totalNeeded = CalculateTotalMaterialsNeeded()
+        local inventory = GetPlayerInventory()
+        
+        local materialsList = {}
+        for materialName, needed in pairs(totalNeeded) do
+            local current = inventory[materialName] or 0
+            local status = current >= needed and "✓" or "✗"
+            table.insert(materialsList, string.format("%s %s: %d/%d", status, materialName, current, needed))
+        end
+        
+        if #materialsList > 0 then
+            notify("Required Materials", table.concat(materialsList, "\n"))
+        else
+            notify("Required Materials", "No materials needed!")
+        end
+    end,
+})
+
+local ShowCraftAmountsButton = LobbyTab:CreateButton({
+    Name = "Show Craft Amounts",
+    Callback = function()
+        local amounts = {}
+        for gearName, amount in pairs(State.craftAmounts) do
+            if amount > 0 then
+                table.insert(amounts, string.format("%s: %dx", gearName, amount))
+            end
+        end
+        
+        if #amounts > 0 then
+            notify("Craft Amounts", table.concat(amounts, "\n"))
+        else
+            notify("Craft Amounts", "No craft amounts set!")
+        end
+    end,
+})
+
+local ResetGearSettingsButton = LobbyTab:CreateButton({
+    Name = "Reset All Gear Settings",
+    Callback = function()
+        State.selectedGears = {}
+        State.craftAmounts = {}
+        State.totalMaterialsNeeded = {}
+        GearSelectorDropdown:Set({})
+        notify("Auto Gear Farm", "All gear settings cleared!")
+    end,
+})
+
+GameSection = LobbyTab:CreateSection("⚙️ Misc ⚙️")
+
+local Button = LobbyTab:CreateButton({
+        Name = "Return to lobby",
+        Callback = function()
+            notify("Return to lobby", "Returning to lobby!")
+            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+        end,
+    })
+
+    local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
+
+    local GameSection = GameTab:CreateSection("👥 Player 👥")
+
+    local Slider = GameTab:CreateSlider({
+   Name = "Max Camera Zoom Distance",
+   Range = {5, 100},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 35,
+   Flag = "CameraZoomDistanceSelector",
+   Callback = function(Value)
+        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+   end,
+})
+
+    local Toggle = GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Info = "Prevents roblox kick message.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
+
+    local Toggle = GameTab:CreateToggle({
+    Name = "Low Performance Mode",
+    CurrentValue = false,
+    Flag = "enableLowPerformanceMode",
+    Callback = function(Value)
+        State.enableLowPerformanceMode = Value
+        enableLowPerformanceMode()
+    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Black Screen",
+    CurrentValue = false,
+    Flag = "enableBlackScreen",
+    Callback = function(Value)
+        State.enableBlackScreen = Value
+        enableBlackScreen()
+    end,
+})
+
+local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Execute Script",
+    CurrentValue = false,
+    Flag = "enableAutoExecute",
+    Info = "This auto executes and persists through teleports until you disable it or leave the game.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.enableAutoExecute = Value
+        if State.enableAutoExecute then
+            if queue_on_teleport then
+                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+            else
+                warn("queue_on_teleport not supported by this executor")
+            end
+        else
+            if queue_on_teleport then
+                queue_on_teleport("") -- Empty string clears queue in most executors
+            end
+        end
+    end,
+})
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Delete Map",
+    CurrentValue = false,
+    Flag = "enableDeleteMap",
+    Info = "Rejoin to disable.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.enableDeleteMap = Value
+        enableDeleteMap()
+    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Delete Enemies/Units",
+    CurrentValue = false,
+    Flag = "enableDeleteEnemies",
+    Info = "Removes Unit/Enemy Models.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.deleteEntities = Value
+        
+        if Value then
+            -- Approach 1: Event-based instant deletion (most efficient)
+            task.spawn(function()
+                local agentFolder = workspace:FindFirstChild("Agent")
+                if agentFolder then
+                    local agentSubFolder = agentFolder:FindFirstChild("Agent")
+                    if agentSubFolder then
+                        -- Delete existing models first
+                        for _, model in pairs(agentSubFolder:GetChildren()) do
+                            if model and model.Parent then
+                                model:Destroy()
+                            end
+                        end
+                        
+                        -- Set up instant deletion for new spawns
+                        State.childAddedConnection = agentSubFolder.ChildAdded:Connect(function(child)
+                            if State.deleteEntities and child then
+                                child:Destroy() -- Delete immediately when spawned
+                            end
+                        end)
+                    end
+                end
+            end)
+        else
+            -- Clean up connection when disabled
+            if State.childAddedConnection then
+                State.childAddedConnection:Disconnect()
+                State.childAddedConnection = nil
+            end
+        end
+    end,
+})
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Limit FPS",
+    CurrentValue = false,
+    Flag = "enableLimitFPS",
+    Callback = function(Value)
+        State.enableLimitFPS = Value
+        updateFPSLimit()
+    end,
+})
+
+ Slider = GameTab:CreateSlider({
+   Name = "Limit FPS To",
+   Range = {0, 240},
+   Increment = 1,
+   Suffix = " FPS",
+   CurrentValue = 60,
+   Flag = "FPSSelector",
+   Callback = function(Value)
+        State.SelectedFPS = Value
+        updateFPSLimit()
+   end,
+})
+
+if State.enableLowPerformanceMode then
+    enableLowPerformanceMode()
+end
+
+if State.enableDeleteMap then
+    enableDeleteMap()
+end
+
+local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Sell Rarities",
+    CurrentValue = false,
+    Flag = "AutoSellRarities",
+    Info = "",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoSellRarities = Value
+    end,
+})
+
+local RaritySellerDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Rarities To Sell",
+    Options = {"Rare", "Epic", "Legendary", "Shiny"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RaritySellerSelector",
+    Info = "This won't touch locked units of any type.",
+    TextScaled = false,
+    Callback = function(Options)
+        State.SelectedRaritiesToSell = Options
+    end,
+})
+
+ GameSection = ShopTab:CreateSection("💰 Merchant 💰")
+
+ Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Merchant Items",
+    CurrentValue = false,
+    Flag = "AutoPurchaseMerchant",
+    Callback = function(Value)
+        State.AutoPurchaseMerchant = Value
+    end,
+    })
+
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Merchant)",
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "MerchantPurchaseSelector",
+    Callback = function(Options)
+        Data.MerchantPurchaseTable = Options
+    end,
+    })
+
+ GameSection = ShopTab:CreateSection("🔪 Raid Shop 🔪")
+
+     Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Raid Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRaid",
+    Callback = function(Value)
+        State.AutoPurchaseRaid = Value
+    end,
+    })
+
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Raid)",
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RaidPurchaseSelector",
+    Callback = function(Options)
+        Data.RaidPurchaseTable = Options
+    end,
+    })
+
+ GameSection = ShopTab:CreateSection("👹 Boss Rush Shop 👹")
+
+     Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Boss Rush Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseBossRush",
+    Callback = function(Value)
+        State.AutoPurchaseBossRush = Value
+    end,
+    })
+
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Boss Rush)",
+    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Soul Fragments"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "BossRushPurchaseSelector",
+    Callback = function(Options)
+        Data.BossRushPurchaseTable = Options
+    end,
+    })
+
+ GameSection = ShopTab:CreateSection("⚰️ Graveyard Raid Shop ⚰️")
+
+     Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Graveyard Raid Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRaidCSW",
+    Callback = function(Value)
+        State.AutoPurchaseRaidCSW = Value
+    end,
+    })
+
+     MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Graveyard Raid Shop)",
+    Options = {"Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RaidPurchaseSelectorCSW",
+    Callback = function(Options)
+        Data.RaidPurchaseTableCSW = Options
+    end,
+    })
+
+local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
+
+    local Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Rift Storm Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRiftStorm",
+    Callback = function(Value)
+        State.AutoPurchaseRiftStorm = Value
+    end,
+    })
+
+     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Rift Storm Shop)",
+    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Ranger Crystal"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "RiftStormPurchaseSelector",
+    Callback = function(Options)
+        Data.RiftStormPurchaseTable = Options
+    end,
+    })
+
+ GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
+
+     Toggle = ShopTab:CreateToggle({
+    Name = "Auto Purchase Swarm Event Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseSwarmEvent",
+    Callback = function(Value)
+        State.AutoPurchaseSwarmEvent = Value
+    end,
+    })
+
+      MerchantSelectorDropdown = ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Swarm Event Shop)",
+    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Stat Boosters","Soul Fragments","Borus Capsule"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "SwarmEventPurchaseSelector",
+    Callback = function(Options)
+        Data.SwarmEventPurchaseTable = Options
+    end,
+    })
+
+    local BorosPityCounterLabel = ShopTab:CreateLabel("Boros Pity: ")
+
+local function setupBorosPityCounter()
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+    local player = Players.LocalPlayer
+    local playerData = ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(player.Name)
+    local profile = playerData:WaitForChild("Profile")
+    local borusPity = profile:WaitForChild("BorusCapsulePity")
+
+    local function updateText()
+        BorosPityCounterLabel:Set("Boros Pity: " .. tostring(borusPity.Value) .. "/25000")
+    end
+
+    updateText()
+    borusPity:GetPropertyChangedSignal("Value"):Connect(updateText)
+end
+
+    setupBorosPityCounter()
+
+    local BorosToggle = ShopTab:CreateToggle({
+   Name = "Auto Open Boros Capsule",
+   CurrentValue = false,
+   Flag = "AutoOpenBoros", 
+   Callback = function(Value)
+       State.AutoOpenBorosEnabled = Value
+       if Value then
+           startAutoBorosCapsule()
+       end
+   end,
+})
+
+local SwarmToggle = ShopTab:CreateToggle({
+   Name = "Auto Swarm Event Bug",
+   CurrentValue = false,
+   Flag = "AutoSwarmBug", 
+   Callback = function(Value)
+       State.AutoSwarmEventEnabled = Value
+       if Value then
+           startAutoSwarmEvent()
+       end
+   end,
+})
+
+     GameSection = LobbyTab:CreateSection("🎁 Claimers 🎁")
+
+     Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Claim Battlepass",
+    CurrentValue = false,
+    Flag = "AutoClaimBattlepass",
+    Callback = function(Value)
+        State.autoClaimBP = Value
+    end,
+    })
+
+     Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Claim Quests",
+    CurrentValue = false,
+    Flag = "AutoClaimQuests",
+    Callback = function(Value)
+        State.AutoClaimQuests = Value
+    end,
+    })
+
+     Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Claim Level Milestones",
+    CurrentValue = false,
+    Flag = "AutoClaimMilestones",
+    Callback = function(Value)
+        State.AutoClaimMilestones = Value
+    end,
+    })
+
+     GameSection = LobbyTab:CreateSection("💤 AFK Chamber 💤")
+
+    Toggle = LobbyTab:CreateToggle({
+        Name = "Auto Teleport to AFK Chamber",
+        CurrentValue = false,
+        Flag = "AutoAfkTeleportToggle",
+        Callback = function(Value)
+            State.autoAfkTeleportEnabled = Value
+        end,
+    })
+
+         Toggle = LobbyTab:CreateToggle({
+    Name = "Anti Teleport to AFK Chamber",
+    CurrentValue = false,
+    Flag = "AntiAfkToggle",
+    Info = "This also disables arx auto rejoin",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if State.AntiAfkEnabled then
+            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = true
+        else
+            Services.Workspace:WaitForChild(Services.Players.LocalPlayer.Name):FindFirstChild("AFK").Disabled = false
+        end
+        task.wait(5)
+    end
+end)
+
+      Toggle = GameTab:CreateToggle({
+    Name = "Streamer Mode (hide name/level/title)",
+    CurrentValue = false,
+    Flag = "streamerModeEnabled",
+    Callback = function(Value)
+        State.streamerModeEnabled = Value
+    end,
+})
+
+     JoinerSection0 = JoinerTab:CreateSection("🤖 Boss Rush Joiner 🤖")
+
+     Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Boss Rush",
+    CurrentValue = false,
+    Flag = "AutoBossRushToggle",
+    Callback = function(Value)
+        State.autoBossRushEnabled = Value
+    end,
+    })
+
+     JoinerSection98285728 = JoinerTab:CreateSection("🎮 Advanced AutoPlay 🎮")
+
+     Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Select Path For Boss Rush/Rift Storm",
+    CurrentValue = false,
+    Flag = "AutoPlayBossRush",
+    Callback = function(Value)
+        State.autoPlayBossRushEnabled = Value  
+    end,
+    })
+
+task.spawn(function()
+    while true do
+        if State.autoPlayBossRushEnabled and State.gameRunning then
+            local pathData = scanBossRushPaths()
+            local bestPath, enemyCount, unitCount = getBestBossRushPath(pathData)
+            
+            if bestPath ~= State.currentBossPath and enemyCount > 0 then
+                Remotes.SelectWay:FireServer(bestPath)
+                State.currentBossPath = bestPath
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+ Toggle = JoinerTab:CreateToggle({
+    Name = "Advanced Auto Play (pair with select path(s) to deploy unit x on)",
+    CurrentValue = false,
+    Flag = "AutoBossRushDeployToggle",
+    Callback = function(Value)
+        State.bossRushAutoDeployEnabled = Value
+        
+        if Value then
+            startBossRushAutoPlay()
+        else
+            stopBossRushAutoPlay()
+        end
+    end,
+})
+
+ DeployBossRushSelector1 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 1 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true, -- Changed to true for multiple path selection
+    Flag = "DeployBossRushSelector1",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            -- Single option selected
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(1, paths)
+        setBossRushSlotEnabled(1, #paths > 0) -- Enable if paths are selected
+    end,
+})
+
+ DeployBossRushSelector2 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 2 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector2",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(2, paths)
+        setBossRushSlotEnabled(2, #paths > 0)
+    end,
+})
+
+ DeployBossRushSelector3 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 3 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector3",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(3, paths)
+        setBossRushSlotEnabled(3, #paths > 0)
+    end,
+})
+
+ DeployBossRushSelector4 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 4 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector4",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(4, paths)
+        setBossRushSlotEnabled(4, #paths > 0)
+    end,
+})
+
+ DeployBossRushSelector5 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 5 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector5",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(5, paths)
+        setBossRushSlotEnabled(5, #paths > 0)
+    end,
+})
+
+ DeployBossRushSelector6 = JoinerTab:CreateDropdown({
+    Name = "Select path(s) to deploy unit 6 on",
+    Options = {"Path 1","Path 2","Path 3","Path 4"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "DeployBossRushSelector6",
+    Callback = function(Options)
+        local paths = {}
+        if type(Options) == "table" then
+            for _, pathString in pairs(Options) do
+                local pathNum = pathStringToNumber(pathString)
+                if pathNum then
+                    table.insert(paths, pathNum)
+                end
+            end
+        else
+            local pathNum = pathStringToNumber(Options)
+            if pathNum then
+                paths = {pathNum}
+            end
+        end
+        
+        setBossRushSlotPaths(6, paths)
+        setBossRushSlotEnabled(6, #paths > 0)
+    end,
+})
+
+     JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
+
+    --[[local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Summer Event",
+    CurrentValue = false,
+    Flag = "AutoSummerEventToggle",
+    Callback = function(Value)
+        State.autoSummerEventEnabled = Value
+    end,
+    })--]]
+
+     AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Boss Event (Swarm Event)",
+    CurrentValue = false,
+    Flag = "AutoBossEventToggle",
+    Callback = function(Value)
+        State.autoBossEventEnabled = Value
+    end,
+    })
+
+     JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
+
+     AutoJoinInfiniteMode = JoinerTab:CreateToggle({
+    Name = "Auto Join Infinite Mode",
+    CurrentValue = false,
+    Flag = "AutoInfiniteToggle",
+    Callback = function(Value)
+        State.autoInfiniteEnabled = Value
+    end,
+    })
+
+     JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
+
+      AutoJoinBossEventToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Raid",
+    CurrentValue = false,
+    Flag = "AutoRaidToggle",
+    Callback = function(Value)
+        State.autoJoinRaid = Value
+    end,
+    })
+
+local RaidSelectorDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Stage(s) To Join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RaidSelector",
+    Callback = function(Option)
+        State.selectedRaidStages = {}
+        
+        -- Handle both table and string cases
+        local selectedOption
+        if type(Option) == "table" then
+            selectedOption = Option[1] -- Get first element if it's a table
+        else
+            selectedOption = Option
+        end
+        
+        print("Processing option:", selectedOption, "Type:", type(Option))
+        
+        -- Find which raid contains this display name
+        for _, raid in ipairs(Data.raidData) do
+            if raid.InternalStages[selectedOption] then
+                table.insert(State.selectedRaidStages, raid.InternalStages[selectedOption])
+                print("Found raid stage:", selectedOption, "-> ID:", raid.InternalStages[selectedOption])
+                break
+            end
+        end
+        
+        if #State.selectedRaidStages == 0 then
+            print("❌ No internal ID found for:", selectedOption)
+        else
+            print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
+        end
+    end,
+})
+
+task.spawn(function()
+    while #Data.raidData == 0 do
+        task.wait(0.5)
+    end
+
+    local raidStageDisplayNames = {}
+    for _, raid in ipairs(Data.raidData) do
+        for _, displayName in ipairs(raid.DisplayStages) do
+            table.insert(raidStageDisplayNames, displayName)
+        end
+    end
+
+    RaidSelectorDropdown:Refresh(raidStageDisplayNames)
+
+    print("✅ Raid dropdown updated with", #raidStageDisplayNames, "options")
+end)
+
+     JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
+
+       AutoJoinStoryToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Story",
+    CurrentValue = false,
+    Flag = "AutoStoryToggle",
+    Callback = function(Value)
+        State.autoJoinEnabled = Value
+    end,
+    })
+
+      local StageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Story Stage",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryStageSelector",
+    Callback = function(Option)
+        State.selectedWorld = Option[1]
+    end,
+    })
+
+     ChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Stage Chapter",
+    Options = Config.chapters,
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryChapterSelector", 
+    Callback = function(Option)
+        State.selectedChapter = Option[1]
+    end,
+    })
+     DifficultyDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Stage Difficulty",
+    Options = Config.difficulties,
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryDifficultySelector", 
+    Callback = function(Option)
+        State.selectedDifficulty = Option[1]
+    end,
+    })
+
+    local rewardNames = {}
+
+    for _, reward in ipairs(GameObjects.itemsFolder:GetChildren()) do
+        if reward:IsA("BoolValue") then
+            table.insert(rewardNames, reward.Name)
+        end
+    end
+
+
+     JoinerSection2 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
+    local rewardText = #rewardNames > 0 and table.concat(rewardNames, ", ") or "None"
+    local Label3 = JoinerTab:CreateLabel("Current Challenge Rewards: " .. rewardText, "gift")
+
+         Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Challenge",
+    CurrentValue = false,
+    Flag = "AutoChallengeToggle",
+    Callback = function(Value)
+        State.autoChallengeEnabled = Value
+    end,
+    })
+
+    local IgnoreChallengeDropdown = JoinerTab:CreateDropdown({
+    Name = "Ignore Challenge Worlds",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "IgnoreChallengeWorld",
+    Callback = function(Options)
+        Data.selectedChallengeWorlds = Options
+    end,
+})
+
+    task.spawn(function()
+        while #Data.availableStories == 0 do
+            task.wait(0.5)
+        end
+        
+        local storyNames = {}
+        for _, story in ipairs(Data.availableStories) do
+            table.insert(storyNames, story.SeriesName)
+        end
+        
+        StageDropdown:Refresh(storyNames)
+        IgnoreChallengeDropdown:Refresh(storyNames)
+        print("✅ Story dropdown(s) updated with", #storyNames, "options")
+    end)
+
+  ChallengeDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Challenge Rewards",
+    Options = {"Dr. Megga Punk","Ranger Crystal","Stats Key","Perfect Stats Key","Trait Reroll","Cursed Finger"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ChallengeRewardSelector",
+    Callback = function(options)
+        Data.wantedRewards = options
+    end,
+    })
+
+     Toggle = JoinerTab:CreateToggle({
+        Name = "Return to Lobby on New Challenge",
+        CurrentValue = false,
+        Flag = "AutoReturnChallengeToggle",
+        Callback = function(Value)
+            State.challengeAutoReturnEnabled = Value
+        end,
+    })
+
+     JoinerSection3 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
+
+      Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Portal(s)",
+    CurrentValue = false,
+    Flag = "AutoPortalToggle",
+    Callback = function(Value)
+        State.autoPortalEnabled = Value
+         if State.autoPortalEnabled then
+            State.portalUsed = false
+         end
+    end,
+    })
+
+     local PortalSelectorDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Portal(s) to join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "PortalSelector",
+    Callback = function(Options)
+        State.selectedPortals = Options
+    end,
+})
+
+task.spawn(function()
+        local portalNames = {}
+
+        local inventory = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items
+        if inventory then
+            for _, item in ipairs(inventory:GetChildren()) do
+                if item:IsA("Folder") and item.Name:lower():find("portal") and item:FindFirstChild("Amount").Value > 0 then
+                    table.insert(portalNames, item.Name)
+                end
+            end
+        end
+        PortalSelectorDropdown:Refresh(portalNames)
+end)
+
+     JoinerSection4 = JoinerTab:CreateSection("🏹 Ranger Stage Joiner 🏹")
+
+         Toggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Ranger Stage",
+        CurrentValue = false,
+        Flag = "AutoRangerStageToggle",
+        Callback = function(Value)
+            State.isAutoJoining = Value
+        end,
+    })
+
+     RangerStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Ranger Stage(s) To Join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RangerStageSelector",
+    Callback = function(Options)
+        Data.selectedRawStages = {}
+        
+        for _, selectedDisplay in ipairs(Options) do
+            for _, stage in ipairs(Data.availableRangerStages) do
+                if stage.DisplayName == selectedDisplay then
+                table.insert(Data.selectedRawStages, stage.RawName)
+                break
+                end
+            end
+        end
+    end,
+})
+
+task.spawn(function()
+        while #Data.availableRangerStages == 0 do
+            task.wait(0.5)
+        end
+        
+        local rangerDisplayNames = {}
+        for _, stage in ipairs(Data.availableRangerStages) do
+            table.insert(rangerDisplayNames, stage.DisplayName)
+        end
+        
+        RangerStageDropdown:Refresh(rangerDisplayNames)
+        print("✅ Ranger stage dropdown updated with", #rangerDisplayNames, "options")
+    end)
+
+     JoinerSectionDungeons = JoinerTab:CreateSection("🌀 Rifts 🌀")
+
+     Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Rift Storm",
+    CurrentValue = false,
+    Flag = "AutoRiftToggle",
+    Callback = function(Value)
+        State.autoRiftEnabled = Value
+    end,
+    })
+
+     JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Dungeons ⛓️")
+
+     Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Dungeon",
+    CurrentValue = false,
+    Flag = "AutoDungeonToggle",
+    Callback = function(Value)
+        State.autoDungeonEnabled = Value
+    end,
+    })
+
+    Dropdown = JoinerTab:CreateDropdown({
+   Name = "Select Dungeon Difficulty",
+   Options = {"Easy","Normal","Hell"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "AutoDungeonDifficultySelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Option)
+        State.AutoDungeonDifficultySelector = Option
+   end,
+})
+
+     JoinerSection6 = JoinerTab:CreateSection("🏰 Infinity Castle 🏰")
+
+     Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Infinity Castle",
+    CurrentValue = false,
+    Flag = "AutoJoinInfinityCastle",
+    Callback = function(Value)
+        State.autoJoinInfinityCastleEnabled = Value
+    end,
+    })
+
+     Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Select Path For Infinity Castle",
+    CurrentValue = false,
+    Flag = "AutoInfinityCastle",
+    Callback = function(Value)
+        State.autoInfinityCastleEnabled = Value
+        if State.autoInfinityCastleEnabled then
+            startInfinityCastleLogic()
+        else
+            stopInfinityCastleLogic()
+        end
+    end,
+    })
+
+     GameSection = GameTab:CreateSection("🎮 Game 🎮")
+    --local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
+
+ Dropdown = GameTab:CreateDropdown({
+   Name = "AutoSell Unit",
+   Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
+   CurrentOption = {"No Unit"},
+   MultipleOptions = false,
+   Info = "Will remove the unit as soon as cd is over.",
+   TextScaled = false,
+   Flag = "AutoSellUnitDropdown", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Option)
+        State.AutoSellUnitChoice = Option
+   end,
+})
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Auto 1x/2x/3x Speed",
+    CurrentValue = false,
+    Flag = "AutoSpeedToggle",
+    Callback = function(Value)
+        State.AutoSelectSpeed = Value
+       
+    end,
+})
+
+     AutoSpeedDropdown = GameTab:CreateDropdown({
+    Name = "Select Auto Speed Value",
+    Options = {"1x","2x","3x"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoSpeedSelector",
+    Callback = function(Options)
+       State.SelectedSpeedValue = Options
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if State.AutoSelectSpeed and State.SelectedSpeedValue then
+            local raw = State.SelectedSpeedValue
+            local value = type(raw) == "table" and raw[1] or raw
+            local clean = tostring(value):gsub("[^%d]", "")
+            local speedNum = tonumber(clean)
+            if speedNum then
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("SpeedGamepass"):FireServer(speedNum)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+      Toggle = GameTab:CreateToggle({
+    Name = "Auto Start Game",
+    CurrentValue = false,
+    Flag = "AutoStartToggle",
+    Callback = function(Value)
+        State.autoStartEnabled = Value
+    end,
+    })
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Auto Vote Next",
+    CurrentValue = false,
+    Flag = "AutoNextToggle",
+    Callback = function(Value)
+        State.autoNextEnabled = Value
+        if State.autoNextEnabled then
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote")
+                :WaitForChild("Server")
+                :WaitForChild("OnGame")
+                :WaitForChild("Voting")
+                :WaitForChild("VoteNext"):FireServer()
+        end
+    end,
+    })
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Auto Vote Retry",
+    CurrentValue = false,
+    Flag = "AutoRetryToggle",
+    Callback = function(Value)
+        State.autoRetryEnabled = Value
+        if State.autoRetryEnabled then
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote")
+                :WaitForChild("Server")
+                :WaitForChild("OnGame")
+                :WaitForChild("Voting")
+                :WaitForChild("VoteRetry"):FireServer()
+        end
+    end,
+    })
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Auto Teleport to Lobby",
+    CurrentValue = false,
+    Flag = "AutoLobbyToggle", 
+    Callback = function(Value)
+        State.autoReturnEnabled = Value
+        if State.hasGameEnded and State.autoReturnEnabled then
+            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+        end
+    end,
+    })
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Disable Reward Screen UI",
+    CurrentValue = false,
+    Flag = "AutoDisableEndUI",
+    Callback = function(Value)
+        State.autoDisableEndUI = Value
+    end,
+    })
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Enable Game Failsafe",
+    CurrentValue = false,
+    Flag = "AutoFailSafeEnabled",
+    Info = "Will teleport to lobby after x amount of seconds of game inactivity.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoFailSafeEnabled = Value
+    end,
+    })
+
+     Slider = GameTab:CreateSlider({
+   Name = "Start Failsafe after",
+   Range = {1, 3600},
+   Increment = 1,
+   Suffix = "seconds",
+   CurrentValue = 300,
+   Flag = "FailsafeSlider",
+   Callback = function(Value)
+        State.AutoFailSafeNumber = Value
+   end,
+})
+
+ GameSection = AutoPlayTab:CreateSection("👥 Auto Team Selector 👥")
+
+     Toggle = AutoPlayTab:CreateToggle({
+    Name = "Enable x team for x mode",
+    CurrentValue = false,
+    Flag = "AutoTeamModeSlotEnabler",
+    Callback = function(Value)
+        State.autoTeamSlotPicker = Value
+    end,
+    })
+
+     TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
+    Name = "Select mode for team 1",
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ModeTeamSelector1",
+    Callback = function(Options)
+        State.modeTeamSelector1 = Options
+    end,
+    })
+
+      TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
+    Name = "Select mode for team 2",
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ModeTeamSelector2",
+    Callback = function(Options)
+        State.modeTeamSelector2 = Options
+    end,
+    })
+
+      TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
+    Name = "Select mode for team 3",
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ModeTeamSelector3",
+    Callback = function(Options)
+        State.modeTeamSelector3 = Options
+    end,
+    })
+
+    TeamSelectorDropdown4 = AutoPlayTab:CreateDropdown({
+    Name = "Select mode for team 4",
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ModeTeamSelector4",
+    Callback = function(Options)
+        State.modeTeamSelector4 = Options
+    end,
+    })
+
+    TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
+    Name = "Select mode for team 5",
+    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ModeTeamSelector5",
+    Callback = function(Options)
+        State.modeTeamSelector5 = Options
+    end,
+    })
+
+ GameSection = AutoPlayTab:CreateSection("🎮 Auto Play 🎮")
+
+     Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Play",
+    CurrentValue = false,
+    Flag = "AutoPlayToggle",
+    Callback = function(Value)
+    State.autoPlayEnabled = Value
+    if State.autoPlayEnabled then
+        startAutoPlay()
+    end
+    end,
+    })
+
+   Slider = AutoPlayTab:CreateSlider({
+   Name = "Delay Auto Play by",
+   Range = {0, 300},
+   Increment = 1,
+   Suffix = "seconds",
+   CurrentValue = 0,
+   Flag = "AutoPlayDelaySlider",
+   Callback = function(Value)
+        State.AutoPlayDelayNumber = Value
+   end,
+})
+
+ GameSection = AutoPlayTab:CreateSection("💥 Auto Ultimate 💥")
+
+    Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Use Ultimate(s)",
+    CurrentValue = false,
+    Flag = "AutoUltimate",
+    Callback = function(Value)
+        State.AutoUltimateEnabled = Value
+        if Value then
+            task.spawn(autoUltimateLoop)
+        end
+    end,
+    })
+
+   Slider = AutoPlayTab:CreateSlider({
+   Name = "Delay Ultimate Usage by",
+   Range = {0, 100},
+   Increment = 1,
+   Suffix = "seconds",
+   CurrentValue = 0,
+   Flag = "DelayAutoUltimateSlider",
+   Callback = function(Value)
+        State.DelayAutoUltimate = Value
+   end,
+})
+
+ GameSection = AutoPlayTab:CreateSection("🆙 Auto Upgrade 🆙")
+
+     Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Upgrade Units",
+    CurrentValue = false,
+    Flag = "AutoUpgradeToggle",
+    Callback = function(Value)
+        State.autoUpgradeEnabled = Value
+        if State.autoUpgradeEnabled then
+            --State.gameRunning = true
+            resetUpgradeOrder()
+            startAutoUpgrade()
+        else
+            stopAutoUpgrade()
+        end
+    end,
+    })
+
+    AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
+    Name = "Select Upgrade Method",
+    Options = {"Left to right until max"},
+    CurrentOption = {"Left to right until max"},
+    MultipleOptions = false,
+    Flag = "UpgradeMethodSelector",
+    Callback = function(Options)
+        State.upgradeMethod = Options[1] or "Left to right until max"
+        if State.autoUpgradeEnabled then
+            stopAutoUpgrade()
+            resetUpgradeOrder()
+           -- State.gameRunning = true
+            task.wait(0.5)
+            startAutoUpgrade()
+        end
+    end,
+    })
+
+    Slider1 = AutoPlayTab:CreateSlider({
+    Name = "Unit 1 Level Cap",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 9,
+    Flag = "Unit1LevelCap",
+    Callback = function(Value)
+        Config.unitLevelCaps[1] = Value
+    end,
+    })
+
+    Slider1_5 = AutoPlayTab:CreateSlider({
+    Name = "Dont deploy unit 1 until level",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit1DeployCap",
+    Callback = function(Value)
+        Config.unitDeployLevelCaps[1] = Value
+    end,
+    })
+
+    Slider2 = AutoPlayTab:CreateSlider({
+    Name = "Unit 2 Level Cap",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 9,
+    Flag = "Unit2LevelCap",
+    Callback = function(Value)
+        Config.unitLevelCaps[2] = Value
+    end,
+    })
+
+      Slider2_5 = AutoPlayTab:CreateSlider({
+    Name = "Dont deploy unit 2 until level",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit2DeployCap",
+    Callback = function(Value)
+        Config.unitDeployLevelCaps[2] = Value
+    end,
+    })
+
+    Slider3 = AutoPlayTab:CreateSlider({
+    Name = "Unit 3 Level Cap",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 9,
+    Flag = "Unit3LevelCap",
+    Callback = function(Value)
+        Config.unitLevelCaps[3] = Value
+    end,
+    })
+
+      Slider3_5 = AutoPlayTab:CreateSlider({
+    Name = "Dont deploy unit 3 until level",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit3DeployCap",
+    Callback = function(Value)
+        Config.unitDeployLevelCaps[3] = Value
+    end,
+    })
+
+    Slider4 = AutoPlayTab:CreateSlider({
+    Name = "Unit 4 Level Cap",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 9,
+    Flag = "Unit4LevelCap",
+    Callback = function(Value)
+        Config.unitLevelCaps[4] = Value
+    end,
+    })
+
+      Slider4_5 = AutoPlayTab:CreateSlider({
+    Name = "Dont deploy unit 4 until level",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit4DeployCap",
+    Callback = function(Value)
+        Config.unitDeployLevelCaps[4] = Value
+    end,
+    })
+
+    Slider5 = AutoPlayTab:CreateSlider({
+    Name = "Unit 5 Level Cap",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 9,
+    Flag = "Unit5LevelCap",
+    Callback = function(Value)
+        Config.unitLevelCaps[5] = Value
+    end,
+    })
+
+      Slider5_5 = AutoPlayTab:CreateSlider({
+    Name = "Dont deploy unit 5 until level",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit5DeployCap",
+    Callback = function(Value)
+        Config.unitDeployLevelCaps[5] = Value
+    end,
+    })
+
+    Slider6 = AutoPlayTab:CreateSlider({
+    Name = "Unit 6 Level Cap",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 9,
+    Flag = "Unit6LevelCap",
+    Callback = function(Value)
+        Config.unitLevelCaps[6] = Value
+    end,
+    })
+
+    Slider6_5 = AutoPlayTab:CreateSlider({
+    Name = "Dont deploy unit 6 until level",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit6DeployCap",
+    Callback = function(Value)
+        Config.unitDeployLevelCaps[6] = Value
+    end,
+    })
+
+ GameSection = AutoPlayTab:CreateSection("🗑️ Auto Delete Unit(s) 🗑️")
+
+      Toggle = AutoPlayTab:CreateToggle({
+    Name = "Auto Delete Unit(s) on level",
+    CurrentValue = false,
+    Flag = "AutoReDeployToggle",
+    Info = "Level 0 = disable",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AutoReDeployEnabled = Value
+    end,
+    })
+
+    Slider1_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 1 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit1ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[1] = Value
+    end,
+    })
+
+     Slider2_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 2 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit2ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[2] = Value
+    end,
+    })
+
+     Slider3_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 3 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit3ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[3] = Value
+    end,
+    })
+
+     Slider4_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 4 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit4ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[4] = Value
+    end,
+    })
+
+     Slider5_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 5 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit5ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[5] = Value
+    end,
+    })
+
+     Slider6_6 = AutoPlayTab:CreateSlider({
+    Name = "Sell Unit 6 After It Reaches",
+    Range = {0, 9},
+    Increment = 1,
+    Suffix = " Level",
+    CurrentValue = 0,
+    Flag = "Unit6ReDeployLevel",
+    Callback = function(Value)
+        Config.unitReDeployLevel[6] = Value
+    end,
+    })
+
+ Input = WebhookTab:CreateInput({
+    Name = "Input Webhook",
+    CurrentValue = "",
+    PlaceholderText = "Input Webhook...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "WebhookInput",
+    Callback = function(Text)
+        local trimmed = Text:match("^%s*(.-)%s*$")
+
+        if trimmed == "" then
+            ValidWebhook = nil
+            Label5:Set("Awaiting Webhook Input...")
+            return
+        end
+
+        local valid = trimmed:match("^https://discord%.com/api/webhooks/%d+/.+$")
+
+        if valid then
+            ValidWebhook = trimmed
+            Label5:Set("✅ Webhook URL set!")
+        else
+            ValidWebhook = nil
+            Label5:Set("❌ Invalid Webhook URL. Ensure it's complete and starts with 'https://discord.com/api/webhooks/'")
+        end
+    end,
+})
+
+ Input = WebhookTab:CreateInput({
+    Name = "Input Discord ID (mention rares)",
+    CurrentValue = "",
+    PlaceholderText = "Input Discord ID...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "WebhookInputUserID",
+    Callback = function(Text)
+        Config.DISCORD_USER_ID = tostring(Text):match("^%s*(.-)%s*$")
+    end,
+})
+
+      TestWebhookButton = WebhookTab:CreateButton({
+    Name = "Test webhook",
+    Callback = function()
+        if ValidWebhook then
+            sendWebhook("test")
+        end
+    end,
+    })
+
+     Toggle = WebhookTab:CreateToggle({
+    Name = "Send On Stage Finished",
+    CurrentValue = false,
+    Flag = "sendWebhookWhenStageCompleted",
+    Callback = function(Value)
+        State.SendStageCompletedWebhook = Value
+    end,
+    })
+
+game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
+        local args = {...}
+        if table.find(args, "Game_Start") then
+            State.gameRunning = true
+            State.startingInventory = snapshotInventory()
+        resetUpgradeOrder()
+        stopRetryLoop()
+        stopNextLoop()
+        
+        
+
+        lastCheckedLevels = {}
+        processedUnits = {}
+
+            State.retryAttempted = false
+            State.NextAttempted = false
+            State.hasGameEnded = false
+            State.hasSentWebhook = false
+            State.stageStartTime = tick()
+            print("🟢 Stage started at", State.stageStartTime)
+        end
+    end)
+
+Remotes.GameEndedUI.OnClientEvent:Connect(function(_, outcome)
+        if typeof(outcome) == "string" then
+            local l = outcome:lower()
+            if l:find("defeat") then
+                State.matchResult = "Defeat"
+            elseif l:find("won") or l:find("win") then
+                State.matchResult = "Victory"
+            else
+                State.matchResult = "Unknown"
+            end
+            print("🎯 Match result detected:", State.matchResult)
+        end
+    end)
+
+Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Connect(function()
+        if State.challengeAutoReturnEnabled and not isInLobby() then
+           -- notify("Challenge Update", "New challenge detected - will return to lobby when game ends")
+             State.pendingChallengeReturn = true
+        end
+    end)
+
+Remotes.GameEnd.OnClientEvent:Connect(function()
+    if State.hasSentWebhook then
+            return
+        end
+        State.hasGameEnded = true
+        if State.SendStageCompletedWebhook then
+        State.hasSentWebhook = true
+        end
+        State.gameRunning = false
+                if State.AutoFailSafeEnabled == true then
+            startFailsafeAfterGameEnd()
+        end
+        resetUpgradeOrder()
+
+        task.wait(0.5)
+        local clearTimeStr = "Unknown"
+        if State.stageStartTime then
+            local dt = math.floor(tick() - State.stageStartTime)
+            clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
+        end
+
+        if State.SendStageCompletedWebhook then
+        sendWebhook("stage", nil, clearTimeStr, State.matchResult)
+        end
+
+        State.autoPlayDelayActive = false
+        State.actionTaken = false
+
+        if State.pendingChallengeReturn and not State.actionTaken then
+            notify("Challenge Return", "New challenge detected - returning to lobby")
+            State.pendingChallengeReturn = false
+            State.actionTaken = true
+            task.delay(2, function()
+                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            end)
+            return
+        end
+
+        local TIMEOUT = 10
+
+    local function waitForGameRunning(timeout)
+        local elapsed = 0
+        while elapsed < timeout do
+            if State.gameRunning then
+                return true
+            end
+            task.wait(1)
+            elapsed = elapsed + 1
+        end
+        return false
+    end
+
+    local actions = {
+        {
+            enabled = State.autoRetryEnabled,
+            func = function()
+                print("Starting Auto Retry...")
+                startRetryLoop()
+            end
+        },
+        {
+            enabled = State.autoNextEnabled,
+            func = function()
+                print("Starting Auto Next...")
+                startNextLoop()
+            end
+        },
+        {
+            enabled = State.autoReturnEnabled,
+            func = function()
+                print("Teleporting to Lobby...")
+                task.delay(2, function()
+                    Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+                end)
+            end,
+            skipCheck = true
+        }
+    }
+    task.spawn(function()
+        for _, action in ipairs(actions) do
+            if action.enabled then
+                action.func()
+                if not action.skipCheck then
+                    local success = waitForGameRunning(TIMEOUT)
+                    if success then
+                        print("Game restarted successfully. Stopping sequence.")
+                        return
+                    else
+                        print("Action failed to restart game, moving to next...")
+                    end
+                end
+            end
+        end
+        print("All actions tried. Returning to lobby if enabled.")
+    end)
+end)
+
+Rayfield:LoadConfiguration()
+Rayfield:SetVisibility(false)
+
+Rayfield:TopNotify({
+    Title = "UI is hidden",
+    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+    Image = "eye-off", -- Lucide icon name
+    IconColor = Color3.fromRGB(100, 150, 255),
+    Duration = 5
+})
