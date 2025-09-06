@@ -1,4 +1,4 @@
---18.2
+--18.3
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1732,6 +1732,7 @@ end
 
 -- Add this new function to your script:
 local function checkMaterialsInStage()
+    State.currentlyFarming = State.AutoFarmEnabled
     print("🔍 [DEBUG] checkMaterialsInStage called")
     
     if not State.currentlyFarming or not State.AutoFarmEnabled then
@@ -4101,15 +4102,19 @@ local DoubleTraitToggle = LobbyTab:CreateToggle({
 GameSection = LobbyTab:CreateSection("⚙️ Auto Gear ⚙️")
 
 
-local Toggle = LobbyTab:CreateToggle({
-   Name = "start auto gear",
-   CurrentValue = false,
-   Flag = "Toggle1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Value)
+AutoFarmToggle = LobbyTab:CreateToggle({
+    Name = "Auto Gear Farm",
+    CurrentValue = State.AutoFarmEnabled,
+    Flag = "AutoGearFarmEnabled",
+    Callback = function(Value)
+        State.AutoFarmEnabled = Value
+        
         if Value then
             StartAutoFarmGear()
+        else
+            StopAutoFarmGear()
         end
-   end,
+    end,
 })
 
 local GearSelectorDropdown = LobbyTab:CreateDropdown({
@@ -4130,7 +4135,7 @@ local GearSelectorDropdown = LobbyTab:CreateDropdown({
         
         if State.AutoFarmEnabled and #Options == 0 then
             State.AutoFarmEnabled = false
-            AutoGearFarmToggle:Set(false)
+            AutoFarmToggle:Set(false)
             notify("Auto Gear Farm", "Auto farm disabled - need at least 1 gear selected!")
         end
     end,
