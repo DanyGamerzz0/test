@@ -1,4 +1,4 @@
---21.2
+--22
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -561,12 +561,12 @@ local function FindMaterialSource(materialName)
             for chapterName, chapterData in pairs(worldData) do
                 if type(chapterData) == "table" and chapterData.Items then
                     for _, itemDrop in pairs(chapterData.Items) do
-                        print("Checking:", itemDrop.Name, "vs", materialName)
                         if normalizeName(itemDrop.Name) == searchName then
                             table.insert(sources, {
                                 module = moduleName,
                                 world = worldName,
                                 chapter = chapterName,
+                                chaptername = chapterData.Name,
                                 readableName = chapterData.Name or chapterName,
                                 dropRate = itemDrop.DropRate,
                                 minDrop = itemDrop.MinDrop,
@@ -1775,14 +1775,15 @@ local function checkMaterialsInStage()
             print("📍 [DEBUG] Found", #sources, "sources for", materialName)
             
             for i, source in ipairs(sources) do
-                local rangerStageName = string.format("%s_RangerStage%s", 
-                    source.module, source.chapter:match("%d+") or "1")
+                local stageDisplayName = source.chapterName
+                local stageLabelText = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo").RewardsUI.Stage.Label.Text
+                local extractedName = stageLabelText:match("%- (.+)$") or stageLabelText
                 
                 print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
-                    i, source.fullPath, rangerStageName))
+                    i, source.fullPath, stageDisplayName))
                 -- Track what materials current stage drops
-                print("BEEP BOOOOOOOP: "..rangerStageName.." BEEP BUP: "..State.currentFarmingStage)
-                if rangerStageName == State.currentFarmingStage then
+                print("BEEP BOOOOOOOP: "..stageDisplayName.." BEEP BUP: "..State.currentFarmingStage)
+                if stageDisplayName == extractedName then
                     materialsFromCurrentStage[materialName] = true
                     print("✅ [DEBUG] Current stage drops", materialName, "- still need", deficit)
                     stillNeedFromCurrentStage = true
