@@ -1,4 +1,4 @@
---2
+--3
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -4049,12 +4049,7 @@ AutoFarmToggle = LobbyTab:CreateToggle({
     Flag = "AutoGearFarmEnabled",
     Callback = function(Value)
         State.AutoFarmEnabled = Value
-        
-        if Value then
-            StartAutoFarmGear()
-        else
-            StopAutoFarmGear()
-        end
+        State.currentlyFarming = Value
     end,
 })
 
