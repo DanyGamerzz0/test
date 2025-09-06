@@ -1,4 +1,4 @@
---20
+--21.2
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1870,7 +1870,7 @@ local function checkMaterialFarming()
             materialToFarm.needed, materialToFarm.name, rangerStageName))
         
         State.currentFarmingStage = rangerStageName
-        RayfieldLibrary.Flags.HiddenCurrentFarmingStage.CurrentValue = rangerStageName
+        Rayfield.Flags.HiddenCurrentFarmingStage.CurrentValue = rangerStageName
 
         setProcessingState("Auto Material Farm")
         handleTeamEquipping("Ranger")
