@@ -1778,10 +1778,10 @@ local function checkMaterialsInStage()
                 local extractedName = stageLabelText:match("%- (.+)$") or stageLabelText
                 
                 print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
-                    i, source.fullPath, stageDisplayName))
+                    i, source.fullPath, source.fullPath))
                 -- Track what materials current stage drops
                 print(source.fullPath)
-                print(stageDisplayName)
+                print(tostring(stageDisplayName))
                 if stageDisplayName == extractedName then
                     materialsFromCurrentStage[materialName] = true
                     print("✅ [DEBUG] Current stage drops", materialName, "- still need", deficit)
