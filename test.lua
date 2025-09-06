@@ -1,3 +1,4 @@
+--262
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -565,7 +566,7 @@ local function FindMaterialSource(materialName)
                                 module = moduleName,
                                 world = worldName,
                                 chapter = chapterName,
-                                chaptername = chapterData.Name,
+                                chaptername = chapterData.Name or chapterName,
                                 readableName = chapterData.Name or chapterName,
                                 dropRate = itemDrop.DropRate,
                                 minDrop = itemDrop.MinDrop,
