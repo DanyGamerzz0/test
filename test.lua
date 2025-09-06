@@ -1,4 +1,3 @@
---22
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1776,7 +1775,7 @@ local function checkMaterialsInStage()
             
             for i, source in ipairs(sources) do
                 local stageDisplayName = source.chapterName
-                local stageLabelText = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo").RewardsUI.Stage.Label.Text
+                local stageLabelText = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo").Stage.Label.Text
                 local extractedName = stageLabelText:match("%- (.+)$") or stageLabelText
                 
                 print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
@@ -4654,6 +4653,8 @@ local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
     Name = "Anti Teleport to AFK Chamber",
     CurrentValue = false,
     Flag = "AntiAfkToggle",
+    Info = "This also disables arx auto rejoin",
+    TextScaled = false,
     Callback = function(Value)
         State.AntiAfkEnabled = Value
     end,
