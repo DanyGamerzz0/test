@@ -1,4 +1,4 @@
---13
+--14
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1721,111 +1721,99 @@ local function StartAutoFarmGear()
     end
     
     State.currentlyFarming = true
+    State.AutoFarmEnabled = true
     
-    task.spawn(function()
-        notify("Auto Gear Farm", "🚀 Starting gear farming process...")
+    -- Run analysis once to know what we need
+    AnalyzeRequiredStages()
+    
+    notify("Auto Gear Farm", "🚀 Auto farming started! Check console for stage analysis.")
+end
+
+local function checkMaterialFarming()
+    if not State.currentlyFarming or not State.AutoFarmEnabled then
+        return
+    end
+    
+    -- If we're not in lobby, wait (user is in a stage farming)
+    if not isInLobby() then
+        return
+    end
+    
+    if autoJoinState.isProcessing then
+        return
+    end
+    
+    -- Calculate what materials we still need
+    local totalNeeded = CalculateTotalMaterialsNeeded()
+    local inventory = GetPlayerInventory()
+    local materialToFarm = nil
+    local stagesToPlay = {}
+    
+    -- Find the first material we still need
+    for materialName, needed in pairs(totalNeeded) do
+        local current = inventory[materialName] or 0
+        local deficit = needed - current
         
-        -- Calculate total materials needed
-        local totalNeeded = CalculateTotalMaterialsNeeded()
-        local inventory = GetPlayerInventory()
-        
-        -- Run stage analysis
-        AnalyzeRequiredStages()
-        
-        if not State.stageAnalysis or not State.stageAnalysis.materialSources then
-            notify("Auto Gear Farm", "❌ Stage analysis failed!")
-            State.currentlyFarming = false
-            return
-        end
-        
-        -- Farm each material we need
-        notify("Auto Gear Farm", "🌾 Starting material farming phase...")
-        
-        local materialsToFarm = {}
-        for materialName, needed in pairs(totalNeeded) do
-            local current = inventory[materialName] or 0
-            local deficit = math.max(0, needed - current)
-            
-            if deficit > 0 and State.stageAnalysis.materialSources[materialName] then
-                materialsToFarm[materialName] = {
-                    needed = deficit,
-                    sources = State.stageAnalysis.materialSources[materialName]
-                }
-            end
-        end
-        
-        -- Farm materials in order of priority
-        local farmingSuccessful = true
-        for materialName, farmInfo in pairs(materialsToFarm) do
-            if not State.AutoFarmEnabled then 
-                break 
-            end
-            
-            notify("Auto Gear Farm", string.format("🎯 Now farming: %s", materialName))
-            local success = FarmMaterial(materialName, farmInfo.needed, farmInfo.sources)
-            
-            if not success then
-                farmingSuccessful = false
-                notify("Auto Gear Farm", string.format("⚠️ Failed to farm enough %s", materialName))
-                -- Continue with other materials anyway
-            end
-            
-            -- Small delay between different materials
-            task.wait(1)
-        end
-        
-        -- Craft the gears if farming was successful or if we have enough materials
-        if State.AutoFarmEnabled then
-            notify("Auto Gear Farm", "🔨 Starting crafting phase...")
-            
-            -- Refresh inventory after farming
-            inventory = GetPlayerInventory()
-            
-            for gearName, amount in pairs(State.craftAmounts) do
-                if not State.AutoFarmEnabled then break end
+        if deficit > 0 then
+            -- Find best stage for this material
+            local sources = FindMaterialSource(materialName)
+            if #sources > 0 then
+                -- Sort by efficiency (drop rate * avg drop)
+                table.sort(sources, function(a, b)
+                    local effA = (a.dropRate / 100) * ((a.minDrop + a.maxDrop) / 2)
+                    local effB = (b.dropRate / 100) * ((b.minDrop + b.maxDrop) / 2)
+                    return effA > effB
+                end)
                 
-                if amount > 0 then
-                    local hasEnough, missingMaterial, missingAmount = HasEnoughMaterials(gearName, amount)
-                    
-                    if hasEnough then
-                        notify("Auto Gear Farm", string.format("✅ Crafting %dx %s...", amount, gearName))
-                        CraftGear(gearName, amount)
-                        task.wait(1) -- Delay between crafts
-                    else
-                        notify("Auto Gear Farm", string.format("❌ Still missing %d %s for %s", 
-                            missingAmount, missingMaterial, gearName))
-                    end
-                end
+                local bestSource = sources[1]
+                materialToFarm = {
+                    name = materialName,
+                    needed = deficit,
+                    source = bestSource
+                }
+                break
             end
         end
+    end
+    
+    -- If we found a material to farm, join its stage
+    if materialToFarm then
+        local rangerStageName = string.format("%s_RangerStage%s", 
+            materialToFarm.source.module, 
+            materialToFarm.source.chapter:match("%d+") or "1")
         
+        notify("Auto Gear Farm", string.format("🎯 Farming %d %s from %s", 
+            materialToFarm.needed, materialToFarm.name, rangerStageName))
+        
+        setProcessingState("Auto Material Farm")
+        handleTeamEquipping("Ranger")
+        task.wait(0.5)
+        autoJoinRangerStage(rangerStageName)
+        task.delay(5, clearProcessingState)
+    else
+        -- We have all materials needed!
+        notify("Auto Gear Farm", "✅ All materials farmed! Stopping auto farm.")
         State.currentlyFarming = false
+        State.AutoFarmEnabled = false
         
-        if farmingSuccessful then
-            notify("Auto Gear Farm", "🎉 Gear farming completed successfully!")
-        else
-            notify("Auto Gear Farm", "⚠️ Gear farming completed with some issues - check console")
-        end
-        
-        -- Final summary
-        print("=== FINAL FARMING SUMMARY ===")
+        -- Show final summary
+        print("=== MATERIAL FARMING COMPLETE ===")
         local finalInventory = GetPlayerInventory()
-        for materialName, _ in pairs(totalNeeded) do
+        for materialName, needed in pairs(totalNeeded) do
             local current = finalInventory[materialName] or 0
-            local needed = totalNeeded[materialName] or 0
             print(string.format("%s: %d/%d %s", 
                 materialName, current, needed, 
                 current >= needed and "✅" or "❌"))
         end
-        print("=== END SUMMARY ===")
-    end)
+        print("=== END ===")
+    end
 end
 
 local function StopAutoFarmGear()
     State.AutoFarmEnabled = false
     State.currentlyFarming = false
     clearProcessingState()
-    notify("Auto Gear Farm", "🛑 Farming stopped!")
+    notify("Auto Gear Farm", "🛑 Material farming stopped!")
 end
 
 local function getHighestNumberFromNames(parent)
@@ -1851,6 +1839,8 @@ local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if autoJoinState.isProcessing then return end
     if not canPerformAction() then return end
+
+    checkMaterialFarming()
 
     -- Priority 1: Challenge Auto Join
     if State.autoChallengeEnabled then
