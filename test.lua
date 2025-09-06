@@ -1,4 +1,4 @@
---17
+--18.2
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1732,43 +1732,73 @@ end
 
 -- Add this new function to your script:
 local function checkMaterialsInStage()
+    print("🔍 [DEBUG] checkMaterialsInStage called")
+    
     if not State.currentlyFarming or not State.AutoFarmEnabled then
+        print("❌ [DEBUG] Farming not enabled - currentlyFarming:", State.currentlyFarming, "AutoFarmEnabled:", State.AutoFarmEnabled)
         return
     end
     
     -- Only run this when we're NOT in lobby (i.e., in a stage)
     if isInLobby() then
+        print("🏠 [DEBUG] In lobby, skipping material check")
         return
     end
+    
+    print("🎮 [DEBUG] In stage, checking materials...")
+    print("📍 [DEBUG] Current farming stage:", State.currentFarmingStage)
     
     -- Calculate what materials we still need
     local totalNeeded = CalculateTotalMaterialsNeeded()
     local inventory = GetPlayerInventory()
     
+    print("📊 [DEBUG] Total materials needed:", totalNeeded)
+    print("🎒 [DEBUG] Current inventory:", inventory)
+    
     -- Check if we have enough of ALL materials from current stage
-    local haveEnoughFromCurrentStage = false
+    local materialsFromCurrentStage = {}
+    local stillNeedFromCurrentStage = false
     
     for materialName, needed in pairs(totalNeeded) do
         local current = inventory[materialName] or 0
         local deficit = needed - current
         
+        print(string.format("📦 [DEBUG] %s: need %d, have %d, deficit %d", 
+            materialName, needed, current, deficit))
+        
         if deficit > 0 then
+            print("🔍 [DEBUG] Still need", materialName, "- checking sources...")
+            
             -- Still need this material, check if current stage drops it
             local sources = FindMaterialSource(materialName)
-            for _, source in ipairs(sources) do
+            print("📍 [DEBUG] Found", #sources, "sources for", materialName)
+            
+            for i, source in ipairs(sources) do
                 local rangerStageName = string.format("%s_RangerStage%s", 
                     source.module, source.chapter:match("%d+") or "1")
                 
-                -- If this is the stage we're currently in and we still need materials from it
+                print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
+                    i, source.fullPath, rangerStageName))
+                
+                -- Track what materials current stage drops
                 if rangerStageName == State.currentFarmingStage then
+                    materialsFromCurrentStage[materialName] = true
+                    print("✅ [DEBUG] Current stage drops", materialName, "- still need", deficit)
+                    stillNeedFromCurrentStage = true
                     return -- Stay in stage, still need materials
                 end
             end
+        else
+            print("✅ [DEBUG] Have enough", materialName)
         end
     end
     
+    print("🏁 [DEBUG] Materials from current stage:", materialsFromCurrentStage)
+    print("🚪 [DEBUG] Still need from current stage:", stillNeedFromCurrentStage)
+    
     -- If we get here, we have enough materials from this stage
     notify("Auto Gear Farm", "✅ Got enough materials from current stage! Returning to lobby...")
+    print("🚀 [DEBUG] Teleporting to lobby...")
     game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
     State.currentFarmingStage = nil
 end
@@ -1881,7 +1911,10 @@ local function getHighestNumberFromNames(parent)
 end
 
 local function checkAndExecuteHighestPriority()
-    if not isInLobby() then checkMaterialsInStage() return end
+    if not isInLobby() then
+         checkMaterialsInStage() 
+         return 
+         end
     if autoJoinState.isProcessing then return end
     if not canPerformAction() then return end
 
