@@ -1,4 +1,4 @@
---18.4
+--18.5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1810,18 +1810,9 @@ end
 local function initializeFarmingState()
     task.wait(2)
     
-    if Rayfield.Flags.AutoGearFarmEnabled and Rayfield.Flags.AutoGearFarmEnabled.Value then
-        State.AutoFarmEnabled = true
-        State.currentlyFarming = true
-        
-        -- Restore current farming stage
-        if Rayfield.Flags.CurrentFarmingStage and Rayfield.Flags.CurrentFarmingStage.Value then
-            State.currentFarmingStage = Rayfield.Flags.CurrentFarmingStage.Value
-            print("Restored farming stage:", State.currentFarmingStage)
-        end
-        
-        notify("Auto Gear Farm", "Resuming farming after script restart...")
-    end
+    if Rayfield.Flags.CurrentFarmingStage and Rayfield.Flags.CurrentFarmingStage.Value then
+    State.currentFarmingStage = Rayfield.Flags.CurrentFarmingStage.Value
+end
 end
 
 local function checkMaterialFarming()
@@ -1881,12 +1872,9 @@ local function checkMaterialFarming()
             materialToFarm.needed, materialToFarm.name, rangerStageName))
         
         State.currentFarmingStage = rangerStageName
-        if not Rayfield.Flags.CurrentFarmingStage then
-    -- Create a hidden flag to store this
-    Rayfield.Flags.CurrentFarmingStage = {Value = rangerStageName}
-else
-    Rayfield.Flags.CurrentFarmingStage.Value = rangerStageName
-end
+        Rayfield.Flags.CurrentFarmingStage = Rayfield.Flags.CurrentFarmingStage or {}
+        Rayfield.Flags.CurrentFarmingStage.Value = rangerStageName
+
         setProcessingState("Auto Material Farm")
         handleTeamEquipping("Ranger")
         task.wait(0.5)
