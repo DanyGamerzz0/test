@@ -1,4 +1,4 @@
---4
+--5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -63,6 +63,7 @@ local State = {
     AutoFarmEnabled = false,
     currentFarmingStage = false,
     AutoOpenBorosEnabled = false,
+    AutoSwarmEventEnabled = false,
     selectedGears = {},
     craftAmounts = {},
     currentlyFarming = false,
@@ -1331,6 +1332,20 @@ local function isWantedChallengeRewardPresent()
         end
     end
     return false, nil
+end
+
+local function startAutoSwarmEvent()
+    if isInLobby() then return end
+    task.spawn(function()
+        while State.AutoSwarmEventEnabled do
+            task.wait()
+            
+            if game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value == 2 then
+                game:GetService("ReplicatedStorage").Remote.Server.OnGame.RestartMatch:FireServer()
+                task.wait(2) -- Prevent spam
+            end
+        end
+    end)
 end
 
 local function openBorosCapsules(amount)
@@ -4551,6 +4566,18 @@ local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
        State.AutoOpenBorosEnabled = Value
        if Value then
            startAutoBorosCapsule()
+       end
+   end,
+})
+
+local SwarmToggle = ShopTab:CreateToggle({
+   Name = "Auto Swarm Event Bug",
+   CurrentValue = false,
+   Flag = "AutoSwarmBug", 
+   Callback = function(Value)
+       State.AutoSwarmEventEnabled = Value
+       if Value then
+           startAutoSwarmEvent()
        end
    end,
 })
