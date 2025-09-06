@@ -1,4 +1,3 @@
---5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -4558,6 +4557,27 @@ local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
     end,
     })
 
+    local BorosPityCounterLabel = ShopTab:CreateLabel("Boros Pity: ")
+
+local function setupBorosPityCounter()
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+    local player = Players.LocalPlayer
+    local playerData = ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(player.Name)
+    local profile = playerData:WaitForChild("Profile")
+    local borusPity = profile:WaitForChild("BorusCapsulePity")
+
+    local function updateText()
+        BorosPityCounterLabel:Set("Boros Pity: " .. tostring(borusPity.Value) .. "/25000")
+    end
+
+    updateText()
+    borusPity:GetPropertyChangedSignal("Value"):Connect(updateText)
+end
+
+    setupBorosPityCounter()
+
     local BorosToggle = ShopTab:CreateToggle({
    Name = "Auto Open Boros Capsule",
    CurrentValue = false,
@@ -5943,28 +5963,3 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
-
---[[local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-
-local objVal = Players.LocalPlayer.PlayerGui
-    :WaitForChild("Traits")
-    :WaitForChild("Main")
-    :WaitForChild("Base")
-    :WaitForChild("UnitFolder")
-
-local folder = objVal.Value
-
-if folder then
-    local primary = folder:FindFirstChild("PrimaryTrait")
-    local secondary = folder:FindFirstChild("SecondaryTrait")
-
-    if primary and secondary then
-        print("PrimaryTrait:", primary.Value)
-        print("SecondaryTrait:", secondary.Value)
-    else
-        warn("Traits not found inside folder:", folder:GetFullName())
-    end
-else
-    warn("ObjectValue is not pointing to any folder!")
-end--]]
