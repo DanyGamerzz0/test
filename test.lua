@@ -1,4 +1,4 @@
---19
+--20
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1802,28 +1802,15 @@ local function checkMaterialsInStage()
     print("🚀 [DEBUG] Teleporting to lobby...")
     --game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
     State.currentFarmingStage = nil
-    if Rayfield.Flags.CurrentFarmingStage then
-    Rayfield.Flags.CurrentFarmingStage.Value = nil
-end
+    Rayfield.Flags.HiddenCurrentFarmingStage.CurrentValue = ""
 end
 
 local function initializeFarmingState()
-    task.wait(2)
-    
-    if Rayfield.Flags.AutoGearFarmEnabled and Rayfield.Flags.AutoGearFarmEnabled.Value then
-        State.AutoFarmEnabled = true
-        State.currentlyFarming = true
-        
-        -- Restore current farming stage
-        if Rayfield.Flags.CurrentFarmingStage and Rayfield.Flags.CurrentFarmingStage.Value then
-            State.currentFarmingStage = Rayfield.Flags.CurrentFarmingStage.Value
-            print("Restored farming stage:", State.currentFarmingStage)
-        else
-            print("No farming stage to restore")
-        end
-        
-        notify("Auto Gear Farm", "Resuming farming after script restart...")
-    end
+    local savedStage = Rayfield.Flags.HiddenCurrentFarmingStage.CurrentValue
+if savedStage and savedStage ~= "" then
+    State.currentFarmingStage = savedStage
+    print("Restored farming stage:", savedStage)
+end
 end
 
 local function checkMaterialFarming()
@@ -1883,11 +1870,8 @@ local function checkMaterialFarming()
             materialToFarm.needed, materialToFarm.name, rangerStageName))
         
         State.currentFarmingStage = rangerStageName
-        if not Rayfield.Flags.CurrentFarmingStage then
-        Rayfield.Flags.CurrentFarmingStage = {Value = rangerStageName}
-        else
-        Rayfield.Flags.CurrentFarmingStage.Value = rangerStageName
-        end
+        RayfieldLibrary.Flags.HiddenCurrentFarmingStage.CurrentValue = rangerStageName
+
         setProcessingState("Auto Material Farm")
         handleTeamEquipping("Ranger")
         task.wait(0.5)
@@ -5973,6 +5957,13 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
         print("All actions tried. Returning to lobby if enabled.")
     end)
 end)
+
+local hiddenCurrentStageFlag = {
+    Type = "Text",
+    CurrentValue = "",
+    Flag = "HiddenCurrentFarmingStage"
+}
+Rayfield.Flags.HiddenCurrentFarmingStage = hiddenCurrentStageFlag
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
