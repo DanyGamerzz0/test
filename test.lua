@@ -1,4 +1,4 @@
---262
+--22222222
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1775,7 +1775,7 @@ local function checkMaterialsInStage()
             print("📍 [DEBUG] Found", #sources, "sources for", materialName)
             
             for i, source in ipairs(sources) do
-                local stageDisplayName = source.chapterName
+                local stageDisplayName = sources.chaptername
                 local stageLabelText = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo").Stage.Label.Text
                 local extractedName = stageLabelText:match("%- (.+)$") or stageLabelText
                 
