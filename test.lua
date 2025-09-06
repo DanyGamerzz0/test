@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -5958,7 +5959,7 @@ Rayfield:SetVisibility(false)
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "RayfieldToggle"
-screenGui.Parent = playerGui
+screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
 screenGui.ResetOnSpawn = false
 
 -- Create the circular image button
