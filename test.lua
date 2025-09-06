@@ -1,4 +1,4 @@
---10
+--11
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -546,17 +546,22 @@ local function CalculateTotalMaterialsNeeded()
     return totalNeeded
 end
 
+local function normalizeName(name)
+    return string.lower((name or ""):gsub("^%s*(.-)%s*$", "%1"))
+end
+
 local function FindMaterialSource(materialName)
     local allLevels = GetAllLevelModules()
     local sources = {}
+    local searchName = normalizeName(materialName)
 
     for moduleName, moduleData in pairs(allLevels) do
         for worldName, worldData in pairs(moduleData) do
-            -- worldName = "SAO", worldData = { SAO_Chapter1 = {...}, SAO_RangerStage3 = {...}, ... }
             for chapterName, chapterData in pairs(worldData) do
                 if type(chapterData) == "table" and chapterData.Items then
                     for _, itemDrop in pairs(chapterData.Items) do
-                        if itemDrop.Name == materialName then
+                        print("Checking:", itemDrop.Name, "vs", materialName)
+                        if normalizeName(itemDrop.Name) == searchName then
                             table.insert(sources, {
                                 module = moduleName,
                                 world = worldName,
@@ -580,8 +585,6 @@ local function FindMaterialSource(materialName)
 
     return sources
 end
-
-
 
 local function AnalyzeRequiredStages()
     if #State.selectedGears == 0 then
