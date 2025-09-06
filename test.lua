@@ -1,4 +1,4 @@
---15
+--16
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1879,7 +1879,7 @@ local function getHighestNumberFromNames(parent)
 end
 
 local function checkAndExecuteHighestPriority()
-    if not isInLobby() then return checkMaterialsInStage() end
+    if not isInLobby() then checkMaterialsInStage() return end
     if autoJoinState.isProcessing then return end
     if not canPerformAction() then return end
 
