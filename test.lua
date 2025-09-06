@@ -3932,7 +3932,7 @@ local function stopAutoSummon()
     print("🛑 Auto Summon manually stopped")
 end
 
-local GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
+ GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
 
 CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
@@ -3941,7 +3941,7 @@ CodeButton = LobbyTab:CreateButton({
     end,
 })
 
-local Toggle = LobbyTab:CreateToggle({
+ Toggle = LobbyTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "enableAutoSummon",
@@ -3957,7 +3957,7 @@ local Toggle = LobbyTab:CreateToggle({
     end,
 })
 
-local Dropdown = LobbyTab:CreateDropdown({
+ Dropdown = LobbyTab:CreateDropdown({
    Name = "Auto Summon Bannter",
    Options = {"Standard","Rateup"},
    CurrentOption = {},
@@ -3968,7 +3968,7 @@ local Dropdown = LobbyTab:CreateDropdown({
    end,
 })
 
-local Button = LobbyTab:CreateButton({
+ Button = LobbyTab:CreateButton({
         Name = "Load Item Tracker",
         Callback = function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/item.lua"))()
@@ -4009,7 +4009,7 @@ local CurseSelectorDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local CurseRequirementsDropdown = LobbyTab:CreateDropdown({
+ CurseRequirementsDropdown = LobbyTab:CreateDropdown({
     Name = "Set Requirements For",
     Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
     CurrentOption = "",
@@ -4021,7 +4021,7 @@ local CurseRequirementsDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local CurseMinimumSlider = LobbyTab:CreateSlider({
+ CurseMinimumSlider = LobbyTab:CreateSlider({
     Name = "Minimum Percentage",
     Range = {1, 15},
     Increment = 1,
@@ -4036,7 +4036,7 @@ local CurseMinimumSlider = LobbyTab:CreateSlider({
     end,
 })
 
-local ShowRequirementsButton = LobbyTab:CreateButton({
+ ShowRequirementsButton = LobbyTab:CreateButton({
     Name = "Show Current Requirements",
     Callback = function()
         local requirements = {}
@@ -4051,7 +4051,7 @@ local ShowRequirementsButton = LobbyTab:CreateButton({
     end,
 })
 
-local ResetButton = LobbyTab:CreateButton({
+ ResetButton = LobbyTab:CreateButton({
     Name = "Reset All Settings",
     Callback = function()
         State.selectedCurses = {}
@@ -4079,7 +4079,7 @@ local AutoTraitToggle = LobbyTab:CreateToggle({
     end,
 })
 
-local TraitSelectorDropdown = LobbyTab:CreateDropdown({
+ TraitSelectorDropdown = LobbyTab:CreateDropdown({
     Name = "Select Traits",
     Options = {"Endure I","Endure II","Endure III","Horizon I","Horizon II","Horizon III","Superior I","Superior II","Superior III","Brute","Sniper","Colossal","Investor","Jokester","Blitz","Juggernaut","Millionaire","Violent","Seraph","Capitalist","Duplicator","Sovereign"},
     CurrentOption = {},
@@ -4095,7 +4095,7 @@ local TraitSelectorDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local DoubleTraitToggle = LobbyTab:CreateToggle({
+ DoubleTraitToggle = LobbyTab:CreateToggle({
     Name = "Roll Only Double Traits",
     CurrentValue = false,
     Flag = "DoubleTraitToggle",
@@ -4145,7 +4145,7 @@ local GearSelectorDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-local GearAmountSelector = LobbyTab:CreateDropdown({
+ GearAmountSelector = LobbyTab:CreateDropdown({
     Name = "Set Amount For",
     Options = GetAllGearNames(),
     CurrentOption = "",
@@ -4157,7 +4157,7 @@ local GearAmountSelector = LobbyTab:CreateDropdown({
     end,
 })
 
-local CraftAmountSlider = LobbyTab:CreateSlider({
+ CraftAmountSlider = LobbyTab:CreateSlider({
     Name = "Craft Amount",
     Range = {1, 50},
     Increment = 1,
@@ -4172,7 +4172,7 @@ local CraftAmountSlider = LobbyTab:CreateSlider({
     end,
 })
 
-local ShowRequiredMaterialsButton = LobbyTab:CreateButton({
+ ShowRequiredMaterialsButton = LobbyTab:CreateButton({
     Name = "Show Required Materials",
     Callback = function()
         if #State.selectedGears == 0 then
@@ -4198,7 +4198,7 @@ local ShowRequiredMaterialsButton = LobbyTab:CreateButton({
     end,
 })
 
-local ShowCraftAmountsButton = LobbyTab:CreateButton({
+ ShowCraftAmountsButton = LobbyTab:CreateButton({
     Name = "Show Craft Amounts",
     Callback = function()
         local amounts = {}
@@ -4216,7 +4216,7 @@ local ShowCraftAmountsButton = LobbyTab:CreateButton({
     end,
 })
 
-local ResetGearSettingsButton = LobbyTab:CreateButton({
+ ResetGearSettingsButton = LobbyTab:CreateButton({
     Name = "Reset All Gear Settings",
     Callback = function()
         State.selectedGears = {}
@@ -4229,7 +4229,7 @@ local ResetGearSettingsButton = LobbyTab:CreateButton({
 
 GameSection = LobbyTab:CreateSection("⚙️ Misc ⚙️")
 
-local Button = LobbyTab:CreateButton({
+ Button = LobbyTab:CreateButton({
         Name = "Return to lobby",
         Callback = function()
             notify("Return to lobby", "Returning to lobby!")
@@ -4239,9 +4239,9 @@ local Button = LobbyTab:CreateButton({
 
     local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
-    local GameSection = GameTab:CreateSection("👥 Player 👥")
+     GameSection = GameTab:CreateSection("👥 Player 👥")
 
-    local Slider = GameTab:CreateSlider({
+     Slider = GameTab:CreateSlider({
    Name = "Max Camera Zoom Distance",
    Range = {5, 100},
    Increment = 1,
@@ -4253,7 +4253,7 @@ local Button = LobbyTab:CreateButton({
    end,
 })
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Anti AFK (No kick message)",
     CurrentValue = false,
     Flag = "AntiAfkKickToggle",
@@ -4274,7 +4274,7 @@ task.spawn(function()
     end)
 end)
 
-    local Toggle = GameTab:CreateToggle({
+     Toggle = GameTab:CreateToggle({
     Name = "Low Performance Mode",
     CurrentValue = false,
     Flag = "enableLowPerformanceMode",
@@ -4284,7 +4284,7 @@ end)
     end,
 })
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
     Name = "Black Screen",
     CurrentValue = false,
     Flag = "enableBlackScreen",
@@ -4294,7 +4294,7 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
-local Toggle = LobbyTab:CreateToggle({
+ Toggle = LobbyTab:CreateToggle({
     Name = "Auto Execute Script",
     CurrentValue = false,
     Flag = "enableAutoExecute",
@@ -4328,7 +4328,7 @@ local Toggle = LobbyTab:CreateToggle({
     end,
 })
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
     Name = "Delete Enemies/Units",
     CurrentValue = false,
     Flag = "enableDeleteEnemies",
@@ -5955,6 +5955,89 @@ end)
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RayfieldToggle"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+-- Create the circular image button
+local toggleButton = Instance.new("ImageButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Parent = screenGui
+toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+toggleButton.BorderSizePixel = 0
+toggleButton.Position = UDim2.new(0, 50, 0, 50)
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Image = "rbxassetid://137573785316412" -- Put your logo image ID here like "rbxassetid://123456789"
+toggleButton.ScaleType = Enum.ScaleType.Fit
+
+-- Make it circular
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1, 0)
+corner.Parent = toggleButton
+
+-- Rayfield visibility state
+local rayfieldVisible = true
+
+-- Toggle function
+local function toggleRayfield()
+    rayfieldVisible = not rayfieldVisible
+    
+    if Rayfield then
+        Rayfield:SetVisibility(rayfieldVisible)
+    end
+end
+
+-- Dragging variables
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+-- Mouse input handling
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = toggleButton.Position
+        
+        local connection
+        connection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                connection:Disconnect()
+            end
+        end)
+    end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Click to toggle
+local clickStartPos = nil
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        clickStartPos = input.Position
+    end
+end)
+
+toggleButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if clickStartPos then
+            local deltaMove = input.Position - clickStartPos
+            local moveDistance = math.sqrt(deltaMove.X^2 + deltaMove.Y^2)
+            
+            if moveDistance < 10 then
+                toggleRayfield()
+            end
+        end
+    end
+end)
 
 Rayfield:TopNotify({
     Title = "UI is hidden",
