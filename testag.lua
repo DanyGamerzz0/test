@@ -1,4 +1,4 @@
---pipi1
+--pipi67
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -2858,22 +2858,41 @@ local ImportInput = MacroTab:CreateInput({
             return
         end
         
-        if not pendingMacroName or pendingMacroName == "" then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Please enter a macro name first.",
-                Duration = 3
-            })
-            return
-        end
+        local macroName = nil
         
         -- Detect if it's a URL or JSON content
         if text:match("^https?://") then
-            -- It's a URL
-            importMacroFromURL(text, pendingMacroName)
+            -- Extract filename from URL for macro name
+            macroName = text:match("/([^/]+)%.json") or text:match("/([^/]+)$") or "ImportedMacro_" .. os.time()
+            if macroName:match("%.json$") then
+                macroName = macroName:gsub("%.json$", "")
+            end
         else
-            -- It's JSON content
-            importMacroFromContent(text, pendingMacroName)
+            -- For JSON content, try to extract macro name or use default
+            local jsonData = nil
+            pcall(function()
+                jsonData = Services.HttpService:JSONDecode(text)
+            end)
+            
+            macroName = ((jsonData and jsonData.macroName) or "ImportedMacro_") .. os.time()
+        end
+        
+        -- Clean macro name
+        macroName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        
+        -- Make sure name is unique
+        local originalName = macroName
+        local counter = 1
+        while macroManager[macroName] do
+            macroName = originalName .. "_" .. counter
+            counter = counter + 1
+        end
+        
+        -- Import the macro
+        if text:match("^https?://") then
+            importMacroFromURL(text, macroName)
+        else
+            importMacroFromContent(text, macroName)
         end
     end,
 })
@@ -2955,16 +2974,10 @@ local SendWebhookButton = MacroTab:CreateButton({
         
         local jsonData = Services.HttpService:JSONEncode(exportData)
         
-        -- Send via webhook
+        -- Send as raw JSON content (like first image)
         local webhookData = {
             username = "LixHub Macro Share",
-            embeds = {{
-                title = "Macro: " .. currentMacroName,
-                description = "```json\n" .. jsonData .. "\n```",
-                color = 0x5865F2,
-                footer = { text = "LixHub - " .. script_version },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            }}
+            content = "**Macro:** " .. currentMacroName .. ".json\n```json\n" .. jsonData .. "\n```"
         }
         
         local payload = Services.HttpService:JSONEncode(webhookData)
@@ -3037,7 +3050,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
         -- Create display text
         local unitList = {}
         for unitName, count in pairs(unitCounts) do
-            table.insert(unitList, unitName .. " x" .. count)
+            table.insert(unitList, unitName .. " (Placed x" .. count .. " times)")
         end
         
         if #unitList > 0 then
@@ -4209,4 +4222,3 @@ end)
         
         refreshMacroDropdown()
     end)
-
