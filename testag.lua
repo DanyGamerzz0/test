@@ -1,4 +1,4 @@
---pipi2
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -1936,17 +1936,6 @@ end
     end,
     })
 
-    local MacroInput = MacroTab:CreateInput({
-    Name = "Input Macro Name",
-    CurrentValue = "",
-    PlaceholderText = "Enter macro name...",
-    RemoveTextAfterFocusLost = false,
-    Flag = "MacroInput",
-    Callback = function(text)
-        pendingMacroName = text
-    end,
-    })
-
 local function serializeVector3(v)
     return { x = v.X, y = v.Y, z = v.Z }
 end
@@ -2539,38 +2528,45 @@ local function waitForGameStart()
     return Services.Workspace.GameSettings.GameStarted.Value
 end
 
-local CreateMacroButton = MacroTab:CreateButton({
-    Name = "Create Empty Macro",
-    Callback = function()
-        local name = pendingMacroName
-        if not name or name == "" then
+local MacroInput = MacroTab:CreateInput({
+    Name = "Input Macro Name",
+    CurrentValue = "",
+    PlaceholderText = "Enter macro name...",
+    RemoveTextAfterFocusLost = true,
+    Flag = "MacroInput",
+    Callback = function(text)
+        local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        
+        pendingMacroName = cleanedName
+        
+        if cleanedName ~= "" then
+            if macroManager[cleanedName] then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "Macro '" .. cleanedName .. "' already exists.",
+                    Duration = 3
+                })
+                return
+            end
+
+            macroManager[cleanedName] = {}
+            saveMacroToFile(cleanedName)
+            refreshMacroDropdown()
+            
             Rayfield:Notify({
-                Title = "Error",
-                Content = "Please enter a valid macro name.",
+                Title = "Success",
+                Content = "Created macro '" .. cleanedName .. "'.",
                 Duration = 3
             })
-            return
-        end
-        if macroManager[name] then
+        elseif text ~= "" then
             Rayfield:Notify({
                 Title = "Error",
-                Content = "Macro '" .. name .. "' already exists.",
+                Content = "Invalid macro name. Avoid special characters.",
                 Duration = 3
             })
-            return
         end
-
-        macroManager[name] = {}
-
-        saveMacroToFile(name)
-        refreshMacroDropdown()
-        Rayfield:Notify({
-            Title = "Success",
-            Content = "Created macro '" .. name .. "'.",
-            Duration = 3
-        })
     end,
-    })
+})
 
     local RefreshMacroListButton = MacroTab:CreateButton({
     Name = "Refresh Macro List",
@@ -2851,8 +2847,39 @@ PlayToggle = MacroTab:CreateToggle({
     end,
 })
 
-local ExportMacroButton = MacroTab:CreateButton({
-    Name = "Export Selected Macro (Compact JSON)",
+local ImportInput = MacroTab:CreateInput({
+    Name = "Import Macro (URL or JSON)",
+    CurrentValue = "",
+    PlaceholderText = "Paste URL or JSON content here...",
+    RemoveTextAfterFocusLost = true,
+    Flag = "ImportInput",
+    Callback = function(text)
+        if not text or text:match("^%s*$") then
+            return
+        end
+        
+        if not pendingMacroName or pendingMacroName == "" then
+            Rayfield:Notify({
+                Title = "Import Error",
+                Content = "Please enter a macro name first.",
+                Duration = 3
+            })
+            return
+        end
+        
+        -- Detect if it's a URL or JSON content
+        if text:match("^https?://") then
+            -- It's a URL
+            importMacroFromURL(text, pendingMacroName)
+        else
+            -- It's JSON content
+            importMacroFromContent(text, pendingMacroName)
+        end
+    end,
+})
+
+local ExportButton = MacroTab:CreateButton({
+    Name = "Copy Macro JSON",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
             Rayfield:Notify({
@@ -2866,90 +2893,169 @@ local ExportMacroButton = MacroTab:CreateButton({
     end,
 })
 
-    local ImportURLInput = MacroTab:CreateInput({
-        Name = "Import URL",
-        CurrentValue = "",
-        PlaceholderText = "Paste download URL here...",
-        RemoveTextAfterFocusLost = false,
-        Flag = "ImportURLInput",
-        Callback = function(text)
-            pendingImportURL = text
-        end,
-    })
-
-    local ExportMacroFullButton = MacroTab:CreateButton({
-    Name = "Export Selected Macro (Full JSON)",
+local SendWebhookButton = MacroTab:CreateButton({
+    Name = "Send Macro via Webhook",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
             Rayfield:Notify({
-                Title = "Export Error",
-                Content = "No macro selected for export.",
+                Title = "Webhook Error",
+                Content = "No macro selected.",
                 Duration = 3
             })
             return
         end
-        exportMacroToClipboard(currentMacroName, "full")
+        
+        if not ValidWebhook then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "No webhook URL configured.",
+                Duration = 3
+            })
+            return
+        end
+        
+        local macroData = macroManager[currentMacroName]
+        if not macroData or #macroData == 0 then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "Selected macro is empty.",
+                Duration = 3
+            })
+            return
+        end
+        
+        -- Create export data
+        local exportData = {
+            version = script_version,
+            actions = {}
+        }
+        
+        for _, action in ipairs(macroData) do
+            local serializedAction = {
+                action = action.action,
+                time = action.time,
+                wave = action.wave
+            }
+            
+            if action.action == "PlaceUnit" then
+                serializedAction.unitName = action.unitName
+                serializedAction.cframe = serializeCFrame(action.cframe)
+                serializedAction.rotation = action.rotation or 0
+                serializedAction.unitId = action.unitId
+                serializedAction.placementOrder = action.placementOrder
+            elseif action.action == "UpgradeUnit" or action.action == "SellUnit" then
+                serializedAction.targetPlacementOrder = action.targetPlacementOrder
+            elseif action.action == "UltUnit" then
+                serializedAction.targetPlacementOrder = action.targetPlacementOrder
+                serializedAction.unitString = action.unitString
+            end
+            
+            table.insert(exportData.actions, serializedAction)
+        end
+        
+        local jsonData = Services.HttpService:JSONEncode(exportData)
+        
+        -- Send via webhook
+        local webhookData = {
+            username = "LixHub Macro Share",
+            embeds = {{
+                title = "Macro: " .. currentMacroName,
+                description = "```json\n" .. jsonData .. "\n```",
+                color = 0x5865F2,
+                footer = { text = "LixHub - " .. script_version },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+        
+        local payload = Services.HttpService:JSONEncode(webhookData)
+        local requestFunc = (syn and syn.request) or (http and http.request) or request
+        
+        if requestFunc then
+            local success, result = pcall(function()
+                return requestFunc({
+                    Url = ValidWebhook,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = payload
+                })
+            end)
+            
+            if success then
+                Rayfield:Notify({
+                    Title = "Webhook Success",
+                    Content = "Macro sent to Discord successfully.",
+                    Duration = 3
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Webhook Error",
+                    Content = "Failed to send macro.",
+                    Duration = 3
+                })
+            end
+        end
     end,
 })
 
-    local ImportFromURLButton = MacroTab:CreateButton({
-        Name = "Import from URL",
-        Callback = function()
-            if not pendingImportURL or pendingImportURL == "" then
-                Rayfield:Notify({
-                    Title = "Import Error",
-                    Content = "Please enter a URL first.",
-                    Duration = 3
-                })
-                return
-            end
-            
-            if not pendingMacroName or pendingMacroName == "" then
-                Rayfield:Notify({
-                    Title = "Import Error",
-                    Content = "Please enter a macro name first.",
-                    Duration = 3
-                })
-                return
-            end
-            
-            importMacroFromURL(pendingImportURL, pendingMacroName)
-        end,
-    })
-
-    local ImportContentInput = MacroTab:CreateInput({
-    Name = "Paste Macro JSON Content",
-    CurrentValue = "",
-    PlaceholderText = "Paste your macro JSON here...",
-    RemoveTextAfterFocusLost = false,
-    Flag = "ImportContentInput",
-    Callback = function(text)
-        pendingImportContent = text
-    end,
-})
-
-    local ImportFromContentButton = MacroTab:CreateButton({
-    Name = "Import from Pasted Content",
+local CheckUnitsButton = MacroTab:CreateButton({
+    Name = "Check Macro Units",
     Callback = function()
-        if not pendingImportContent or pendingImportContent:match("^%s*$") then
+        if not currentMacroName or currentMacroName == "" then
             Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Please paste macro JSON content first.",
+                Title = "Error",
+                Content = "No macro selected.",
                 Duration = 3
             })
             return
         end
         
-        if not pendingMacroName or pendingMacroName == "" then
+        local macroData = macroManager[currentMacroName]
+        if not macroData or #macroData == 0 then
             Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Please enter a macro name first.",
+                Title = "Error",
+                Content = "Selected macro is empty.",
                 Duration = 3
             })
             return
         end
         
-        importMacroFromContent(pendingImportContent, pendingMacroName)
+        -- Extract unique units from macro
+        local units = {}
+        local unitCounts = {}
+        
+        for _, action in ipairs(macroData) do
+            if action.action == "PlaceUnit" then
+                local unitName = action.unitName
+                if not units[unitName] then
+                    units[unitName] = true
+                    unitCounts[unitName] = 0
+                end
+                unitCounts[unitName] = unitCounts[unitName] + 1
+            end
+        end
+        
+        -- Create display text
+        local unitList = {}
+        for unitName, count in pairs(unitCounts) do
+            table.insert(unitList, unitName .. " x" .. count)
+        end
+        
+        if #unitList > 0 then
+            table.sort(unitList)
+            local displayText = table.concat(unitList, "\n")
+            
+            Rayfield:Notify({
+                Title = "Macro Units (" .. #unitList .. " types)",
+                Content = displayText,
+                Duration = 8
+            })
+        else
+            Rayfield:Notify({
+                Title = "No Units Found",
+                Content = "This macro contains no unit placements.",
+                Duration = 3
+            })
+        end
     end,
 })
 
