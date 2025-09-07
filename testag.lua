@@ -1,5 +1,5 @@
---pipi5
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+--pipi1
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
 
@@ -117,7 +117,16 @@ local State = {
    RaidStageSelected = nil,
    RaidActSelected = nil,
 
+   enableLimitFPS = false,
+   SelectedFPS = 60,
+
+   AntiAfkKickEnabled = false,
+
+   enableBlackScreen = false,
+
    AutoJoinGate = nil,
+
+   enableAutoExecute = false,
 
    AutoJoinWorldlines = nil,
    AutoJoinWorldlinesSelected = nil,
@@ -200,18 +209,11 @@ local playbackPlacementIndex = 0
 
 local ValidWebhook = nil
 
-local UpdateLogTab = Window:CreateTab("Update Log", "scroll")
 local LobbyTab = Window:CreateTab("Lobby", "tv")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "tv")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
-
-local UpdateLogSection = UpdateLogTab:CreateSection(script_version)
-
-local Label1 = UpdateLogTab:CreateLabel("+ Release")
-local Labelo2 = UpdateLogTab:CreateLabel("If you like my work feel free to donate at: https://ko-fi.com/lixhub")
-local Labelo3 = UpdateLogTab:CreateLabel("Also please join the discord: https://discord.gg/cYKnXE2Nf8")
 
 local MacroStatusLabel = MacroTab:CreateLabel("Status: Idle", "info")
 
@@ -221,8 +223,30 @@ CodeButton = LobbyTab:CreateButton({
         for _, stringValue in ipairs(Services.Players.LocalPlayer.Code:GetChildren()) do
 	    if stringValue:IsA("Folder") and stringValue.Name ~= "Rewards" then
 	            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Codes"):InvokeServer(stringValue.Name)
-                print("redeemed "..stringValue.Name)
+                Rayfield:Notify({Title = "Redeem All Codes",Content = "Redeeming: "..stringValue.Name,Duration = 0.5,Image = "Info",})
                 task.wait(0.1)
+            end
+        end
+    end,
+})
+
+local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Execute Script",
+    CurrentValue = false,
+    Flag = "enableAutoExecute",
+    Info = "This auto executes and persists through teleports until you disable it or leave the game. ONLY USE 1 AUTOEXECUTE!",
+    TextScaled = false,
+    Callback = function(Value)
+        State.enableAutoExecute = Value
+        if State.enableAutoExecute then
+            if queue_on_teleport then
+                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+            else
+                warn("queue_on_teleport not supported by this executor")
+            end
+        else
+            if queue_on_teleport then
+                queue_on_teleport("") -- Empty string clears queue in most executors
             end
         end
     end,
@@ -362,6 +386,79 @@ local function checkBlackMarket()
             purchaseFromBlackMarket(child.Name)
             break -- Exit after finding and purchasing
         end
+    end
+end
+
+local function enableBlackScreen()
+    local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
+    
+    if State.enableBlackScreen then
+        if existingGui then return end
+        
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "BlackScreenGui"
+        screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+        screenGui.IgnoreGuiInset = true
+        screenGui.DisplayOrder = math.huge
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 36)
+        frame.Position = UDim2.new(0, 0, 0, -36)
+        frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        frame.BorderSizePixel = 0
+        frame.Parent = screenGui
+        frame.ZIndex = 999999
+
+        local toggleButtonFrame = Instance.new("Frame")
+        toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
+        toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
+        toggleButtonFrame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
+        toggleButtonFrame.BackgroundTransparency = 0.5
+        toggleButtonFrame.Parent = screenGui
+        toggleButtonFrame.ZIndex = 1000000
+
+        local toggleButtonFrameUICorner =  Instance.new("UICorner")
+        toggleButtonFrameUICorner.CornerRadius = UDim.new(1,0)
+        toggleButtonFrameUICorner.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitle = Instance.new("TextLabel")
+        toggleButtonFrameTitle.ZIndex = math.huge
+        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameTitle.BackgroundTransparency = 1
+        toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameTitle.Text = "Toggle Screen"
+        toggleButtonFrameTitle.TextSize = 15
+        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
+        toggleButtonFrameTitle.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitleStroke = Instance.new("UIStroke")
+        toggleButtonFrameTitleStroke.Parent = toggleButtonFrameTitle
+
+        local toggleButtonFrameButton = Instance.new("TextButton")
+        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameButton.BackgroundTransparency = 1
+        toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameButton.Text = ""
+        toggleButtonFrameButton.ZIndex = math.huge
+        toggleButtonFrameButton.Parent = toggleButtonFrame
+
+        toggleButtonFrameButton.MouseButton1Click:Connect(function()
+            frame.Visible = not frame.Visible
+        end)
+    else
+        if existingGui then
+            existingGui:Destroy()
+        end
+    end
+end
+
+local function updateFPSLimit()
+    if State.enableLimitFPS and State.SelectedFPS > 0 then
+        setfpscap(State.SelectedFPS)
+    else
+        setfpscap(0) -- 0 = unlimited
     end
 end
 
@@ -672,6 +769,49 @@ end
 local GameSection = GameTab:CreateSection("👥 Player 👥")
 
 local Toggle = GameTab:CreateToggle({
+    Name = "Black Screen",
+    CurrentValue = false,
+    Flag = "enableBlackScreen",
+    Callback = function(Value)
+        State.enableBlackScreen = Value
+        enableBlackScreen()
+    end,
+})
+
+    local Slider = GameTab:CreateSlider({
+   Name = "Max Camera Zoom Distance",
+   Range = {5, 100},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 35,
+   Flag = "CameraZoomDistanceSelector",
+   Callback = function(Value)
+        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+   end,
+})
+
+    local Toggle = GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Info = "Prevents roblox kick message.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
+
+local Toggle = GameTab:CreateToggle({
     Name = "Streamer Mode (hide name/level/title)",
     CurrentValue = false,
     Flag = "StreamerMode",
@@ -693,6 +833,29 @@ local Toggle = GameTab:CreateToggle({
 if State.enableLowPerformanceMode then
     enableLowPerformanceMode()
 end
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Limit FPS",
+    CurrentValue = false,
+    Flag = "enableLimitFPS",
+    Callback = function(Value)
+        State.enableLimitFPS = Value
+        updateFPSLimit()
+    end,
+})
+
+ Slider = GameTab:CreateSlider({
+   Name = "Limit FPS To",
+   Range = {0, 240},
+   Increment = 1,
+   Suffix = " FPS",
+   CurrentValue = 60,
+   Flag = "FPSSelector",
+   Callback = function(Value)
+        State.SelectedFPS = Value
+        updateFPSLimit()
+   end,
+})
 
 local GameSection = GameTab:CreateSection("🎮 Game 🎮")
 
@@ -2496,7 +2659,7 @@ local function playMacroLoop()
         local actionIndex = 1
         currentWave = getCurrentWave()
         waveStartTime = tick()
-        placedUnitsTracking = {}
+        --placedUnitsTracking = {}
         
         print(string.format("Macro has %d total actions to execute", #macro))
         
