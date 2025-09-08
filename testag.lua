@@ -1,4 +1,4 @@
---pipi3.4
+--pipi4
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -2863,32 +2863,42 @@ local ImportInput = MacroTab:CreateInput({
         -- Detect if it's a URL or JSON content
         if text:match("^https?://") then
             -- Extract filename from URL for macro name
-            macroName = text:match("/([^/]+)%.json") or text:match("/([^/]+)$") or "ImportedMacro_" .. os.time()
-            if macroName:match("%.json$") then
-                macroName = macroName:gsub("%.json$", "")
+            local fileName = text:match("/([^/]+)%.json$") or text:match("/([^/]+)$")
+            if fileName then
+                macroName = fileName:gsub("%.json$", "") -- Remove .json extension if present
+            else
+                macroName = "ImportedMacro_" .. os.time()
             end
         else
-            -- For JSON content, try to extract macro name or use default
+            -- For JSON content, try to extract macro name from content or use default
             local jsonData = nil
             pcall(function()
                 jsonData = Services.HttpService:JSONDecode(text)
             end)
             
-            macroName = ((jsonData and jsonData.macroName) or "ImportedMacro_") .. os.time()
+            -- Try to get name from JSON data, otherwise use default
+            macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
         end
         
-        -- Clean macro name
+        -- Clean macro name (remove invalid characters)
         macroName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
         
-        -- Make sure name is unique
-        local originalName = macroName
-        local counter = 1
-        while macroManager[macroName] do
-            macroName = originalName .. "_" .. counter
-            counter = counter + 1
+        -- Ensure name isn't empty
+        if macroName == "" then
+            macroName = "ImportedMacro_" .. os.time()
         end
         
-        -- Import the macro
+        -- Check if macro already exists
+        if macroManager[macroName] then
+            Rayfield:Notify({
+                Title = "Import Cancelled",
+                Content = "Macro '" .. macroName .. "' already exists.",
+                Duration = 4
+            })
+            return
+        end
+        
+        -- Import the macro with the exact filename
         if text:match("^https?://") then
             importMacroFromURL(text, macroName)
         else
@@ -2985,8 +2995,7 @@ local SendWebhookButton = MacroTab:CreateButton({
         body = body .. "Content-Type: application/json\r\n\r\n"
         body = body .. Services.HttpService:JSONEncode({
             username = "LixHub Macro Share",
-            content = "**Macro shared:** `" .. fileName .. "`\n📁 **Actions:** " .. tostring(#exportData.actions) .. "\n🔧 **Version:** " .. tostring(script_version)
-        }) .. "\r\n"
+            content = "**Macro shared:** `" .. fileName .. "`\n📁 **Actions:** " .. tostring(#exportData.actions)}) .. "\r\n"
         
         -- Add file field
         body = body .. "--" .. boundary .. "\r\n"
@@ -3134,9 +3143,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
     end,
 })
 
-local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
-
- Input = WebhookTab:CreateInput({
+Input = WebhookTab:CreateInput({
     Name = "Input Webhook",
     CurrentValue = "",
     PlaceholderText = "Input Webhook...",
@@ -3147,18 +3154,15 @@ local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
 
         if trimmed == "" then
             ValidWebhook = nil
-            Label5:Set("Awaiting Webhook Input...")
             return
         end
 
-        local valid = trimmed:match("^https://discord%.com/api/webhooks/%d+/.+$")
+        local valid = trimmed:match("^https://")
 
         if valid then
             ValidWebhook = trimmed
-            Label5:Set("✅ Webhook URL set!")
         else
             ValidWebhook = nil
-            Label5:Set("❌ Invalid Webhook URL. Ensure it's complete and starts with 'https://discord.com/api/webhooks/'")
         end
     end,
 })
