@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -64,6 +65,12 @@ local State = {
     AutoOpenBorosEnabled = false,
     AutoSwarmEventEnabled = false,
     SendFinishedFarmingGearWebhook = false,
+    autoAdventureModeEnabled = false,
+    autoEndureEnabled = false,
+    autoEndureSlider = 0,
+    currentWave = 0,
+    lastProcessedWave = 0,
+    isMonitoring = false,
     selectedGears = {},
     craftAmounts = {},
     currentlyFarming = false,
@@ -3748,6 +3755,92 @@ local function compareUnits(before, after)
     return newUnits
 end
 
+local function getCurrentWave()
+    local success, wave = pcall(function()
+        return Services.ReplicatedStorage:WaitForChild("Values"):WaitForChild("Waves"):WaitForChild("CurrentWave").Value
+    end)
+    return success and wave or 0
+end
+
+local function fireAdventureModeEnd(endure)
+    local success = pcall(function()
+        local args = { endure }
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("AdventureModeEnd"):FireServer(unpack(args))
+    end)
+    if success then
+        print("Fired AdventureModeEnd with value:", endure)
+    else
+        warn("Failed to fire AdventureModeEnd remote")
+    end
+end
+
+local function monitorWaves()
+    if not State.autoEndureEnabled then
+        return
+    end
+    
+    local currentWave = getCurrentWave()
+    State.currentWave = currentWave
+    
+    -- Check if we're at a wave that's a multiple of 10 (when popup appears)
+    if currentWave > 0 and currentWave % 10 == 0 and currentWave ~= State.lastProcessedWave then
+        State.lastProcessedWave = currentWave
+        
+        if currentWave <= State.autoEndureSlider then
+            -- Endure (true) until we reach the target wave
+            fireAdventureModeEnd(true)
+            print("Auto Enduring at wave", currentWave, "- Target wave:", State.autoEndureSlider)
+        else
+            -- Evade (false) after reaching the target wave
+            fireAdventureModeEnd(false)
+            print("Auto Evading at wave", currentWave, "- Exceeded target wave:", State.autoEndureSlider)
+        end
+    end
+end
+
+local function startMonitoring()
+    if State.isMonitoring then
+        return
+    end
+    
+    State.isMonitoring = true
+    State.lastProcessedWave = 0
+    print("Auto Endure monitoring started")
+    
+    -- Spawn the monitoring loop
+    spawn(function()
+        while State.isMonitoring do
+            if State.autoEndureEnabled then
+                local currentWave = getCurrentWave()
+                State.currentWave = currentWave
+                
+                -- Check if we're at a wave that's a multiple of 10 (when popup appears)
+                if currentWave > 0 and currentWave % 10 == 0 and currentWave ~= State.lastProcessedWave then
+                    State.lastProcessedWave = currentWave
+                    
+                    if currentWave <= State.autoEndureSlider then
+                        -- Endure (true) until we reach the target wave
+                        fireAdventureModeEnd(true)
+                        print("Auto Enduring at wave", currentWave, "- Target wave:", State.autoEndureSlider)
+                    else
+                        -- Evade (false) after reaching the target wave
+                        fireAdventureModeEnd(false)
+                        print("Auto Evading at wave", currentWave, "- Exceeded target wave:", State.autoEndureSlider)
+                    end
+                end
+            end
+            wait(0.1) -- Small delay to prevent excessive CPU usage
+        end
+        print("Auto Endure monitoring loop ended")
+    end)
+end
+
+-- Function to stop monitoring
+local function stopMonitoring()
+    State.isMonitoring = false
+    print("Auto Endure monitoring stopped")
+end
+
 local function sendSummaryWebhook(newUnits, totalGems)
     -- Replace with your webhook URL
     local webhookUrl = ValidWebhook
@@ -4940,6 +5033,15 @@ end)
     end,
     })
 
+     AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Adventure Mode",
+    CurrentValue = false,
+    Flag = "AutoAdventureModeToggle",
+    Callback = function(Value)
+        State.autoAdventureModeEnabled = Value
+    end,
+    })
+
      JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
 
      AutoJoinInfiniteMode = JoinerTab:CreateToggle({
@@ -5302,6 +5404,55 @@ task.spawn(function()
     Flag = "AutoSpeedSelector",
     Callback = function(Options)
        State.SelectedSpeedValue = Options
+    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Auto Endure",
+    CurrentValue = false,
+    Flag = "AutoEndure",
+    Info = "Will keep enduring until the selected wave below. When you hit the selected wave it will Evade.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.autoEndureEnabled = Value
+        
+        if Value then
+            startMonitoring()
+        else
+            stopMonitoring()
+        end
+    end,
+})
+
+local Slider = GameTab:CreateSlider({
+    Name = "Auto Endure until wave",
+    Range = {0, 50},
+    Increment = 10,
+    Suffix = "Wave",
+    CurrentValue = 30,
+    Flag = "AutoEndureSlider",
+    Callback = function(Value)
+        State.autoEndureSlider = Value
+        print("Auto Endure target set to wave:", Value)
+    end,
+})
+
+local function getStatus()
+    return string.format(
+        "Auto Endure Status:\nEnabled: %s\nCurrent Wave: %d\nTarget Wave: %d\nLast Processed: %d",
+        tostring(State.autoEndureEnabled),
+        State.currentWave,
+        State.autoEndureSlider,
+        State.lastProcessedWave
+    )
+end
+
+-- Optional: Create a status button to check current state
+local StatusButton = GameTab:CreateButton({
+    Name = "Check Status",
+    Info = "Shows current auto endure status",
+    Callback = function()
+        print(getStatus())
     end,
 })
 
