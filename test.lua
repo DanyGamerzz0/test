@@ -1,4 +1,4 @@
---4
+--5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -67,7 +67,7 @@ local State = {
     SendFinishedFarmingGearWebhook = false,
     autoAdventureModeEnabled = false,
     autoEndureEnabled = false,
-    autoEndureSlider = 0,
+    autoEndureSlider = 30,
     currentWave = 0,
     lastProcessedWave = 0,
     isMonitoring = false,
@@ -1633,6 +1633,8 @@ local function setProcessingState(action)
             notify("🔄 Processing: ", action)
             elseif action == "Rift Auto Join" then
             notify("🔄 Processing: ", action)
+            elseif action == "Adventure Mode Auto Join" then
+            notify("🔄 Processing: ", action)
     end
 end
 
@@ -2060,6 +2062,16 @@ local function checkAndExecuteHighestPriority()
                 State.portalUsed = false
             end
         end
+    end
+
+    if State.autoAdventureModeEnabled then
+        setProcessingState("Adventure Mode Auto Join")
+        
+        Remotes.PlayEvent:FireServer("AdventureMode")
+        task.wait(1)
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+        task.delay(5, clearProcessingState)
+        return
     end
 
     if State.autoBossRushEnabled then
@@ -3774,30 +3786,6 @@ local function fireAdventureModeEnd(endure)
     end
 end
 
-local function monitorWaves()
-    if not State.autoEndureEnabled then
-        return
-    end
-    
-    local currentWave = getCurrentWave()
-    State.currentWave = currentWave
-    
-    -- Check if we're at a wave that's a multiple of 10 (when popup appears)
-    if currentWave > 0 and currentWave % 10 == 0 and currentWave ~= State.lastProcessedWave then
-        State.lastProcessedWave = currentWave
-        
-        if currentWave <= State.autoEndureSlider then
-            -- Endure (true) until we reach the target wave
-            fireAdventureModeEnd(true)
-            print("Auto Enduring at wave", currentWave, "- Target wave:", State.autoEndureSlider)
-        else
-            -- Evade (false) after reaching the target wave
-            fireAdventureModeEnd(false)
-            print("Auto Evading at wave", currentWave, "- Exceeded target wave:", State.autoEndureSlider)
-        end
-    end
-end
-
 local function startMonitoring()
     if State.isMonitoring then
         return
@@ -3816,11 +3804,6 @@ local function startMonitoring()
                 
                 -- Fire remote while on milestone waves (10, 20, 30, etc.)
                 if currentWave > 0 and currentWave % 10 == 0 then
-                    -- Debug print to see what's happening
-                    if currentWave ~= State.lastProcessedWave then
-                        print("DEBUG: Current Wave:", currentWave, "| Target Wave:", State.autoEndureSlider, "| Should Endure:", currentWave <= State.autoEndureSlider)
-                    end
-                    
                     if currentWave <= State.autoEndureSlider then
                         -- Endure (true) until we reach the target wave
                         fireAdventureModeEnd(true)
@@ -6013,7 +5996,7 @@ end)
     Toggle = WebhookTab:CreateToggle({
     Name = "Send On Auto Gear Farming Finished",
     CurrentValue = false,
-    Flag = "sendWebhookWhenStageCompleted",
+    Flag = "sendWebhookWhenFinishedFarmingGear",
     Callback = function(Value)
         State.SendFinishedFarmingGearWebhook = Value
     end,
