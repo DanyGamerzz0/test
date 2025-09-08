@@ -1,4 +1,4 @@
---pipi4
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -2864,11 +2864,14 @@ local ImportInput = MacroTab:CreateInput({
         if text:match("^https?://") then
             -- Extract filename from URL for macro name
             local fileName = text:match("/([^/]+)%.json$") or text:match("/([^/]+)$")
+            print("DEBUG: URL detected:", text)
+            print("DEBUG: Extracted fileName:", fileName)
             if fileName then
                 macroName = fileName:gsub("%.json$", "") -- Remove .json extension if present
             else
                 macroName = "ImportedMacro_" .. os.time()
             end
+            print("DEBUG: Final macroName from URL:", macroName)
         else
             -- For JSON content, try to extract macro name from content or use default
             local jsonData = nil
@@ -2876,24 +2879,30 @@ local ImportInput = MacroTab:CreateInput({
                 jsonData = Services.HttpService:JSONDecode(text)
             end)
             
+            print("DEBUG: JSON content detected, length:", #text)
+            print("DEBUG: JSON macroName field:", jsonData and jsonData.macroName)
             -- Try to get name from JSON data, otherwise use default
             macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
+            print("DEBUG: Final macroName from JSON:", macroName)
         end
         
         -- Clean macro name (remove invalid characters)
+        local originalName = macroName
         macroName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        print("DEBUG: Cleaned macroName:", originalName, "->", macroName)
         
         -- Ensure name isn't empty
         if macroName == "" then
             macroName = "ImportedMacro_" .. os.time()
+            print("DEBUG: Empty name fallback:", macroName)
         end
         
         -- Check if macro already exists
         if macroManager[macroName] then
             Rayfield:Notify({
                 Title = "Import Cancelled",
-                Content = "Macro '" .. macroName .. "' already exists.",
-                Duration = 4
+                Content = "'" .. macroName .. "' already exists.",
+                Duration = 3
             })
             return
         end
@@ -4288,3 +4297,4 @@ end)
         
         refreshMacroDropdown()
     end)
+
