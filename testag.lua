@@ -1,4 +1,4 @@
---pipi5
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -2533,7 +2533,7 @@ local MacroInput = MacroTab:CreateInput({
     CurrentValue = "",
     PlaceholderText = "Enter macro name...",
     RemoveTextAfterFocusLost = true,
-    Flag = "MacroInput",
+    --Flag = "MacroInput",
     Callback = function(text)
         local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
         
@@ -2852,7 +2852,7 @@ local ImportInput = MacroTab:CreateInput({
     CurrentValue = "",
     PlaceholderText = "Paste URL or JSON content here...",
     RemoveTextAfterFocusLost = true,
-    Flag = "ImportInput",
+    --Flag = "ImportInput",
     Callback = function(text)
         if not text or text:match("^%s*$") then
             return
@@ -4297,3 +4297,4 @@ end)
         
         refreshMacroDropdown()
     end)
+
