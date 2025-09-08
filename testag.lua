@@ -1,4 +1,4 @@
---pipi1
+--pipi2
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -1324,102 +1324,166 @@ mt.__namecall = newcclosure(function(self, ...)
                 local unitName = unitData[1]
                 local unitCFrame = unitData[2]
                 local unitRotation = unitData[3]
+                local unitId = args[2]
                 local timestamp = tick()
-                local currentTime = timestamp - recordingStartTime
+                local currentWaveNum = getCurrentWave()
                 
-                -- Take snapshot before placement (keep validation)
+                -- Take snapshot before placement (keeping your original validation)
                 local beforeSnapshot = takeUnitSnapshot()
                 
                 print(string.format("Recording placement attempt for %s", unitName))
                 
-                -- Wait for placement to complete
+                -- Wait for placement to complete (keeping your original timing)
                 task.wait(1.5)
                 
                 -- Take snapshot after placement
                 local afterSnapshot = takeUnitSnapshot()
                 
-                -- Find the newly placed unit (using existing validation)
+                -- Find the newly placed unit (using your original validation)
                 local actualUnitName = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot, unitCFrame.Position, unitName)
                 
                 if actualUnitName then
-                    -- Only record if placement succeeded
-                    actionCounter = actionCounter + 1
-                    local pos = unitCFrame.Position
+                    -- Only NOW increment the counter since placement succeeded
+                    recordingPlacementCounter = recordingPlacementCounter + 1
+                    local thisPlacementOrder = recordingPlacementCounter
+                    local unitType = getBaseUnitName(unitName)
                     
-                    macro[tostring(actionCounter)] = {
-                        Type = "Render",
-                        Unit = unitName,
-                        Time = string.format("%.1f", currentTime),
-                        Pos = string.format("%.6f, %.6f, %.6f", pos.X, pos.Y, pos.Z)
+                    local placementData = {
+                        action = "PlaceUnit",
+                        unitName = unitName,
+                        unitType = unitType,
+                        actualUnitName = actualUnitName,
+                        cframe = unitCFrame,
+                        rotation = unitRotation,
+                        unitId = unitId,
+                        time = timestamp - recordingStartTime,
+                        wave = currentWaveNum,
+                        timestamp = timestamp,
+                        placementOrder = thisPlacementOrder
                     }
                     
-                    print(string.format("✅ Recorded action #%d: %s at %.1f,%.1f,%.1f", 
-                        actionCounter, unitName, pos.X, pos.Y, pos.Z))
+                    table.insert(macro, placementData)
+                    
+                    print(string.format("✅ Recorded placement #%d: %s -> %s", 
+                        thisPlacementOrder, unitName, actualUnitName))
                 else
+                    -- Placement failed, don't increment counter
                     print(string.format("❌ Placement failed, not recording: %s", unitName))
                 end
                 
             -- Detection for ManageUnits remote (Upgrade/Sell)
             elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
                 local action = args[1]
-                local unitName = args[2]
+                local unitName = args[2] -- Actual server unit name
                 local timestamp = tick()
-                local currentTime = timestamp - recordingStartTime
+                local currentWaveNum = getCurrentWave()
                 
-                task.wait(0.5)
+                -- Find which placement order this unit corresponds to
+                local targetPlacementOrder = nil
+                local unitType = getBaseUnitName(unitName)
                 
-                -- Find the unit's position
-                local clientUnit = Services.Workspace.Ground.unitClient:FindFirstChild(unitName)
-                if clientUnit then
-                    actionCounter = actionCounter + 1
-                    local pos = clientUnit.WorldPivot.Position
-                    
-                    if action == "Upgrade" then
-                        macro[tostring(actionCounter)] = {
-                            Type = "Upgrade",
-                            Unit = getBaseUnitName(unitName),
-                            Time = string.format("%.1f", currentTime),
-                            Pos = string.format("%.6f, %.6f, %.6f", pos.X, pos.Y, pos.Z)
-                        }
-                        print(string.format("📈 Recorded upgrade #%d: %s", actionCounter, unitName))
+                -- Search through recorded placements to find the matching one
+                local unitsOfTypeCount = 0
+                for _, recordedAction in ipairs(macro) do
+                    if recordedAction.action == "PlaceUnit" and 
+                       getBaseUnitName(recordedAction.unitName) == unitType then
+                        unitsOfTypeCount = unitsOfTypeCount + 1
                         
-                    elseif action == "Selling" then
-                        macro[tostring(actionCounter)] = {
-                            Type = "Sell",
-                            Unit = getBaseUnitName(unitName),
-                            Time = string.format("%.1f", currentTime),
-                            Pos = string.format("%.6f, %.6f, %.6f", pos.X, pos.Y, pos.Z)
-                        }
-                        print(string.format("💰 Recorded sell #%d: %s", actionCounter, unitName))
+                        -- Get current units of this type and see which one this is
+                        local currentUnitsOfType = getUnitsOfType(unitType)
+                        
+                        -- Find position of this unit in the sorted list
+                        local unitPosition = nil
+                        for i, currentUnitName in ipairs(currentUnitsOfType) do
+                            if currentUnitName == unitName then
+                                unitPosition = i
+                                break
+                            end
+                        end
+                        
+                        -- If this is the Nth unit of its type, it corresponds to the Nth placement
+                        if unitPosition == unitsOfTypeCount then
+                            targetPlacementOrder = recordedAction.placementOrder
+                            break
+                        end
                     end
-                else
-                    warn("Could not find client unit for upgrade/sell:", unitName)
+                end
+                
+                if not targetPlacementOrder then
+                    warn(string.format("Could not determine placement order for unit '%s'", unitName))
+                    return
+                end
+                
+                if action == "Upgrade" then
+                    table.insert(macro, {
+                        action = "UpgradeUnit", 
+                        unitName = unitName,
+                        unitType = unitType,
+                        time = timestamp - recordingStartTime,
+                        wave = currentWaveNum,
+                        targetPlacementOrder = targetPlacementOrder
+                    })
+                    print(string.format("📈 Recorded upgrade for placement #%d (%s)", 
+                        targetPlacementOrder, unitName))
+                    
+                elseif action == "Selling" then
+                    table.insert(macro, {
+                        action = "SellUnit", 
+                        unitName = unitName,
+                        unitType = unitType,
+                        time = timestamp - recordingStartTime,
+                        wave = currentWaveNum,
+                        targetPlacementOrder = targetPlacementOrder
+                    })
+                    print(string.format("💰 Recorded sell for placement #%d (%s)", 
+                        targetPlacementOrder, unitName))
                 end
                 
             elseif isRecording and method == "InvokeServer" and self.Name == "Skills" then
                 local timestamp = tick()
-                local currentTime = timestamp - recordingStartTime
+                local currentWaveNum = getCurrentWave()
                 
                 local buttonType = args[1]
                 local unitString = args[2]
                 
                 if buttonType == "SkillsButton" and unitString then
-                    -- Find the unit's position
-                    local clientUnit = Services.Workspace.Ground.unitClient:FindFirstChild(unitString)
-                    if clientUnit then
-                        actionCounter = actionCounter + 1
-                        local pos = clientUnit.WorldPivot.Position
-                        
-                        macro[tostring(actionCounter)] = {
-                            Type = "Activate",
-                            Abi = "Ultimate",
-                            Unit = getBaseUnitName(unitString),
-                            Time = string.format("%.1f", currentTime),
-                            Pos = string.format("%.6f, %.6f, %.6f", pos.X, pos.Y, pos.Z)
-                        }
-                        
-                        print(string.format("⚡ Recorded ult #%d: %s", actionCounter, unitString))
+                    -- Extract unit name and find corresponding placement order
+                    local targetPlacementOrder = nil
+                    local unitType = getBaseUnitName(unitString)
+                    
+                    -- Similar logic to upgrade/sell for finding placement order
+                    local unitsOfTypeCount = 0
+                    for _, recordedAction in ipairs(macro) do
+                        if recordedAction.action == "PlaceUnit" and 
+                           getBaseUnitName(recordedAction.unitName) == unitType then
+                            unitsOfTypeCount = unitsOfTypeCount + 1
+                            
+                            local currentUnitsOfType = getUnitsOfType(unitType)
+                            
+                            for i, currentUnitName in ipairs(currentUnitsOfType) do
+                                if unitString:find(currentUnitName, 1, true) then
+                                    if i == unitsOfTypeCount then
+                                        targetPlacementOrder = recordedAction.placementOrder
+                                        break
+                                    end
+                                end
+                            end
+                            
+                            if targetPlacementOrder then break end
+                        end
                     end
+                    
+                    table.insert(macro, {
+                        action = "UltUnit",
+                        unitString = unitString,
+                        unitType = unitType,
+                        time = timestamp - recordingStartTime,
+                        wave = currentWaveNum,
+                        targetPlacementOrder = targetPlacementOrder or 0
+                    })
+                    
+                    print(string.format("⚡ Recorded ult for placement #%d", 
+                        targetPlacementOrder or 0))
                 end
             end
         end)
@@ -2088,165 +2152,6 @@ local function exportMacroToClipboard(macroName, format)
     end
 end
 
-local function parsePosition(posString)
-    local x, y, z = posString:match("([^,]+),([^,]+),([^,]+)")
-    return Vector3.new(tonumber(x), tonumber(y), tonumber(z))
-end
-
-local function findUnitByPosition(targetPos, unitType, tolerance)
-    tolerance = tolerance or 1.0
-    local closestUnit = nil
-    local closestDistance = math.huge
-    
-    local unitClient = Services.Workspace:FindFirstChild("Ground")
-    if not unitClient then return nil end
-    
-    unitClient = unitClient:FindFirstChild("unitClient")
-    if not unitClient then return nil end
-    
-    local baseTargetType = getBaseUnitName(unitType)
-    
-    for _, unit in pairs(unitClient:GetChildren()) do
-        if unit:IsA("Model") then
-            local unitBaseType = getBaseUnitName(unit.Name)
-            if unitBaseType == baseTargetType then
-                local distance = (unit.WorldPivot.Position - targetPos).Magnitude
-                if distance < closestDistance and distance <= tolerance then
-                    closestDistance = distance
-                    closestUnit = unit.Name
-                end
-            end
-        end
-    end
-    
-    print(string.format("Looking for %s near %.2f,%.2f,%.2f - Found: %s (distance: %.3f)", 
-        unitType, targetPos.X, targetPos.Y, targetPos.Z, 
-        closestUnit or "none", closestDistance))
-    
-    return closestUnit
-end
-
-local function findServerUnitByPosition(targetPos, unitType, tolerance)
-    tolerance = tolerance or 1.0
-    local playerUnitsFolder = getPlayerUnitsFolder()
-    if not playerUnitsFolder then return nil end
-    
-    local closestUnit = nil
-    local closestDistance = math.huge
-    local baseTargetType = getBaseUnitName(unitType)
-    
-    for _, serverUnit in pairs(playerUnitsFolder:GetChildren()) do
-        local unitBaseType = getBaseUnitName(serverUnit.Name)
-        if unitBaseType == baseTargetType then
-            -- Find corresponding client unit to get position
-            local clientUnit = Services.Workspace.Ground.unitClient:FindFirstChild(serverUnit.Name)
-            if clientUnit then
-                local distance = (clientUnit.WorldPivot.Position - targetPos).Magnitude
-                if distance < closestDistance and distance <= tolerance then
-                    closestDistance = distance
-                    closestUnit = serverUnit.Name
-                end
-            end
-        end
-    end
-    
-    return closestUnit
-end
-
-local function executeAction(actionData, startTime)
-    local targetTime = tonumber(actionData.Time)
-    local currentTime = tick() - startTime
-    
-    if currentTime < targetTime then
-        return false -- Not time yet
-    end
-    
-    local targetPos = parsePosition(actionData.Pos)
-    
-    if actionData.Type == "Render" then
-        -- Place unit at recorded position
-        local success, err = pcall(function()
-            local cframe = CFrame.new(targetPos)
-            local args = {
-                {
-                    actionData.Unit,
-                    cframe,
-                    0 -- rotation
-                },
-                "temp-uuid" -- Generate or use stored UUID
-            }
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                :WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
-        end)
-        
-        if success then
-            print(string.format("✅ Placed %s at %.1f,%.1f,%.1f", 
-                actionData.Unit, targetPos.X, targetPos.Y, targetPos.Z))
-            return true
-        else
-            warn(string.format("❌ Failed to place %s: %s", actionData.Unit, err))
-            return true -- Don't retry, move to next action
-        end
-        
-    elseif actionData.Type == "Upgrade" then
-        local unitName = findServerUnitByPosition(targetPos, actionData.Unit)
-        if unitName then
-            local success, err = pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", unitName)
-            end)
-            
-            if success then
-                print(string.format("📈 Upgraded %s", unitName))
-            else
-                warn(string.format("Failed to upgrade %s: %s", unitName, err))
-            end
-        else
-            warn(string.format("Could not find unit to upgrade near %.1f,%.1f,%.1f", targetPos.X, targetPos.Y, targetPos.Z))
-        end
-        return true
-        
-    elseif actionData.Type == "Sell" then
-        local unitName = findServerUnitByPosition(targetPos, actionData.Unit)
-        if unitName then
-            local success, err = pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", unitName)
-            end)
-            
-            if success then
-                print(string.format("💰 Sold %s", unitName))
-            else
-                warn(string.format("Failed to sell %s: %s", unitName, err))
-            end
-        else
-            warn(string.format("Could not find unit to sell near %.1f,%.1f,%.1f", targetPos.X, targetPos.Y, targetPos.Z))
-        end
-        return true
-        
-    elseif actionData.Type == "Activate" then
-        local unitName = findUnitByPosition(targetPos, actionData.Unit)
-        if unitName then
-            local success, err = pcall(function()
-                local args = {"SkillsButton", unitName}
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
-            end)
-            
-            if success then
-                print(string.format("⚡ Activated ability for %s", unitName))
-            else
-                warn(string.format("Failed to activate ability for %s: %s", unitName, err))
-            end
-        else
-            warn(string.format("Could not find unit for ability near %.1f,%.1f,%.1f", targetPos.X, targetPos.Y, targetPos.Z))
-        end
-        return true
-    end
-    
-    return true
-end
-
 local function importMacroFromURL(url, targetMacroName)
     if not url or url == "" then
         Rayfield:Notify({
@@ -2623,131 +2528,6 @@ local function waitForGameStart()
     return Services.Workspace.GameSettings.GameStarted.Value
 end
 
-local function playSimpleMacroLoop()
-    if not macro or not next(macro) then
-        MacroStatusLabel:Set("Status: Error - No macro data!")
-        Rayfield:Notify({
-            Title = "Playback Error",
-            Content = "No macro data to play back.",
-            Duration = 3
-        })
-        return
-    end
-
-    isPlayingLoopRunning = true
-    MacroStatusLabel:Set("Status: Macro playback active")
-    
-    while isPlaybacking do
-        local gameStartTime = tick()
-        print("Starting simplified macro playback...")
-        MacroStatusLabel:Set("Status: Executing macro actions...")
-        
-        -- Convert macro to sorted array by time
-        local sortedActions = {}
-        for actionId, actionData in pairs(macro) do
-            actionData.id = actionId
-            table.insert(sortedActions, actionData)
-        end
-        
-        table.sort(sortedActions, function(a, b) 
-            return tonumber(a.Time) < tonumber(b.Time) 
-        end)
-        
-        print(string.format("Macro has %d actions to execute", #sortedActions))
-        
-        local actionIndex = 1
-        while isPlaybacking and actionIndex <= #sortedActions do
-            local action = sortedActions[actionIndex]
-            
-            if executeAction(action, gameStartTime) then
-                actionIndex = actionIndex + 1
-            end
-            
-            task.wait(0.1)
-        end
-        
-        if actionIndex > #sortedActions then
-            print("Macro completed, waiting for next game...")
-            MacroStatusLabel:Set("Status: Macro completed, waiting for next game...")
-        else
-            print("Macro interrupted")
-            MacroStatusLabel:Set("Status: Macro interrupted")
-        end
-        
-        if actionIndex > #sortedActions and isPlaybacking then
-            print("Waiting for next game to start...")
-            MacroStatusLabel:Set("Status: Waiting for next game...")
-            waitForGameStart()
-        end
-    end
-    
-    isPlayingLoopRunning = false
-    MacroStatusLabel:Set("Status: Playback stopped")
-end
-
-local function startSimpleRecording()
-    recordingHasStarted = true
-    isRecordingLoopRunning = true
-    actionCounter = 0
-    macro = {} -- Clear macro
-    recordingStartTime = tick()
-    MacroStatusLabel:Set("Status: Recording active!")
-    
-    Rayfield:Notify({
-        Title = "Recording Started",
-        Content = "Simplified macro recording is now active.",
-        Duration = 4
-    })
-end
-
-local function exportSimpleMacro(macroName)
-    if not macroName or macroName == "" then
-        Rayfield:Notify({
-            Title = "Export Error",
-            Content = "No macro selected for export.",
-            Duration = 3
-        })
-        return false
-    end
-    
-    local macroData = macroManager[macroName]
-    if not macroData or not next(macroData) then
-        Rayfield:Notify({
-            Title = "Export Error", 
-            Content = "Macro '" .. macroName .. "' is empty or doesn't exist.",
-            Duration = 3
-        })
-        return false
-    end
-    
-    local jsonData = Services.HttpService:JSONEncode(macroData)
-    
-    local success, err = pcall(function()
-        setclipboard(jsonData)
-    end)
-    
-    if success then
-        local actionCount = 0
-        for _ in pairs(macroData) do actionCount = actionCount + 1 end
-        
-        local sizeKB = math.floor(#jsonData / 1024 * 100) / 100
-        Rayfield:Notify({
-            Title = "Export Success",
-            Content = string.format("Macro '%s' exported (%d actions, %.2f KB)", 
-                macroName, actionCount, sizeKB),
-            Duration = 4
-        })
-        return true
-    else
-        Rayfield:Notify({
-            Title = "Export Error",
-            Content = "Failed to copy to clipboard: " .. tostring(err),
-            Duration = 4
-        })
-        return false
-    end
-end
-
 local MacroInput = MacroTab:CreateInput({
     Name = "Create Macro",
     CurrentValue = "",
@@ -2850,9 +2630,19 @@ RecordToggle = MacroTab:CreateToggle({
             local recordingThread = task.spawn(function()
                 waitForGameStart()
                 if isRecording then
-    recordingHasStarted = true
-    startSimpleRecording()
-end
+                    recordingHasStarted = true -- Set flag when recording actually starts
+                    isRecordingLoopRunning = true
+                    clearRecordingMapping()
+                    table.clear(macro)
+                    recordingStartTime = tick()
+                    MacroStatusLabel:Set("Status: Recording active!")
+
+                    Rayfield:Notify({
+                        Title = "Recording Started",
+                        Content = "Macro recording is now active.",
+                        Duration = 4
+                    })
+                end
             end)
 
         elseif not Value then
@@ -3041,7 +2831,7 @@ PlayToggle = MacroTab:CreateToggle({
                         Duration = 4
                     })
 
-                    playSimpleMacroLoop()
+                    playMacroLoop()
 
                     isPlayingLoopRunning = false
                 end
@@ -3118,7 +2908,7 @@ local ExportButton = MacroTab:CreateButton({
             })
             return
         end
-        exportSimpleMacro(currentMacroName)
+        exportMacroToClipboard(currentMacroName, "compact")
     end,
 })
 
@@ -3184,38 +2974,85 @@ local SendWebhookButton = MacroTab:CreateButton({
         
         local jsonData = Services.HttpService:JSONEncode(exportData)
         
-        -- Send as raw JSON content (like first image)
+        -- Send as raw JSON content
         local webhookData = {
             username = "LixHub Macro Share",
             content = "**Macro:** " .. currentMacroName .. ".json\n```json\n" .. jsonData .. "\n```"
         }
         
         local payload = Services.HttpService:JSONEncode(webhookData)
-        local requestFunc = (syn and syn.request) or (http and http.request) or request
         
-        if requestFunc then
-            local success, result = pcall(function()
-                return requestFunc({
-                    Url = ValidWebhook,
-                    Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body = payload
-                })
-            end)
-            
-            if success then
+        -- Try multiple request functions
+        local requestFunc = (syn and syn.request) or 
+                           (http and http.request) or 
+                           (http_request) or 
+                           request
+        
+        if not requestFunc then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "No HTTP request function available.",
+                Duration = 3
+            })
+            return
+        end
+        
+        local success, result = pcall(function()
+            return requestFunc({
+                Url = ValidWebhook,
+                Method = "POST",
+                Headers = { 
+                    ["Content-Type"] = "application/json",
+                    ["User-Agent"] = "LixHub-Webhook/1.0"
+                },
+                Body = payload
+            })
+        end)
+        
+        if success and result then
+            -- Check if the HTTP request was actually successful
+            if result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
                 Rayfield:Notify({
                     Title = "Webhook Success",
                     Content = "Macro sent to Discord successfully.",
                     Duration = 3
                 })
             else
+                -- Log the actual error for debugging
+                local errorMsg = "HTTP Error"
+                if result.StatusCode then
+                    errorMsg = errorMsg .. " " .. tostring(result.StatusCode)
+                end
+                if result.Body then
+                    errorMsg = errorMsg .. ": " .. tostring(result.Body)
+                end
+                
                 Rayfield:Notify({
                     Title = "Webhook Error",
-                    Content = "Failed to send macro.",
-                    Duration = 3
+                    Content = errorMsg,
+                    Duration = 5
                 })
+                
+                -- Debug print (remove in production)
+                print("Webhook Debug Info:")
+                print("Success:", result.Success)
+                print("StatusCode:", result.StatusCode)
+                print("Body:", result.Body)
             end
+        else
+            local errorMsg = "Failed to send request"
+            if result then
+                errorMsg = errorMsg .. ": " .. tostring(result)
+            end
+            
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = errorMsg,
+                Duration = 3
+            })
+            
+            -- Debug print (remove in production)
+            print("Request failed:", result)
         end
     end,
 })
