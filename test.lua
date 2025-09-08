@@ -1,4 +1,4 @@
---2
+--4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3816,6 +3816,11 @@ local function startMonitoring()
                 
                 -- Fire remote while on milestone waves (10, 20, 30, etc.)
                 if currentWave > 0 and currentWave % 10 == 0 then
+                    -- Debug print to see what's happening
+                    if currentWave ~= State.lastProcessedWave then
+                        print("DEBUG: Current Wave:", currentWave, "| Target Wave:", State.autoEndureSlider, "| Should Endure:", currentWave <= State.autoEndureSlider)
+                    end
+                    
                     if currentWave <= State.autoEndureSlider then
                         -- Endure (true) until we reach the target wave
                         fireAdventureModeEnd(true)
