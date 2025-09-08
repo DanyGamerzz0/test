@@ -1,4 +1,4 @@
---5
+--6
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -217,7 +217,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local ValidWebhook
 
@@ -1120,12 +1120,11 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
                 color = 0x00FF00, -- Green color for success
                 fields = {
                     { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                    { name = "⏰ Completed At", value = os.date("%H:%M:%S UTC"), inline = true },
                     { name = "⚙️ Gears Ready to Craft", value = table.concat(gearList, "\n"), inline = false },
                     { name = "📦 Materials Collected", value = table.concat(materialsSummary, "\n"), inline = false },
                     { name = "📈 Script Version", value = script_version, inline = true },
                 },
-                footer = { text = "discord.gg/cYKnXE2Nf8 • Now go craft your gears!" },
+                footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
                 timestamp = timestamp
             }}
         }
@@ -5031,6 +5030,8 @@ end)
     end,
     })
 
+    JoinerSection0 = JoinerTab:CreateSection("🗺️ Adventure Mode Joiner 🗺️")
+
      AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Adventure Mode",
     CurrentValue = false,
@@ -5409,7 +5410,7 @@ local Toggle = GameTab:CreateToggle({
     Name = "Auto Endure",
     CurrentValue = false,
     Flag = "AutoEndure",
-    Info = "Will keep enduring until the selected wave below. When you hit the selected wave it will Evade.",
+    Info = "Will keep enduring until the selected wave below. When you hit the selected wave it will Evade. (If u set this to wave 30 it will also endure wave 30)",
     TextScaled = false,
     Callback = function(Value)
         State.autoEndureEnabled = Value
@@ -5429,28 +5430,11 @@ local Slider = GameTab:CreateSlider({
     Suffix = "Wave",
     CurrentValue = 30,
     Flag = "AutoEndureSlider",
+    Info = "Will stop enduring after enduring selected wave.",
+    TextScaled = false,
     Callback = function(Value)
         State.autoEndureSlider = Value
         print("Auto Endure target set to wave:", Value)
-    end,
-})
-
-local function getStatus()
-    return string.format(
-        "Auto Endure Status:\nEnabled: %s\nCurrent Wave: %d\nTarget Wave: %d\nLast Processed: %d",
-        tostring(State.autoEndureEnabled),
-        State.currentWave,
-        State.autoEndureSlider,
-        State.lastProcessedWave
-    )
-end
-
--- Optional: Create a status button to check current state
-local StatusButton = GameTab:CreateButton({
-    Name = "Check Status",
-    Info = "Shows current auto endure status",
-    Callback = function()
-        print(getStatus())
     end,
 })
 
