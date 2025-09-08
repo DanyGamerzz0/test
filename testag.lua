@@ -1,4 +1,4 @@
---pipi2
+--pipi3.4
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -2973,14 +2973,29 @@ local SendWebhookButton = MacroTab:CreateButton({
         end
         
         local jsonData = Services.HttpService:JSONEncode(exportData)
+        local fileName = currentMacroName .. ".json"
         
-        -- Send as raw JSON content
-        local webhookData = {
+        -- Create multipart form data for file upload
+        local boundary = "----WebKitFormBoundary" .. tostring(tick())
+        local body = ""
+        
+        -- Add payload_json field
+        body = body .. "--" .. boundary .. "\r\n"
+        body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+        body = body .. "Content-Type: application/json\r\n\r\n"
+        body = body .. Services.HttpService:JSONEncode({
             username = "LixHub Macro Share",
-            content = "**Macro:** " .. currentMacroName .. ".json\n```json\n" .. jsonData .. "\n```"
-        }
+            content = "**Macro shared:** `" .. fileName .. "`\n📁 **Actions:** " .. tostring(#exportData.actions) .. "\n🔧 **Version:** " .. tostring(script_version)
+        }) .. "\r\n"
         
-        local payload = Services.HttpService:JSONEncode(webhookData)
+        -- Add file field
+        body = body .. "--" .. boundary .. "\r\n"
+        body = body .. "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" .. fileName .. "\"\r\n"
+        body = body .. "Content-Type: application/json\r\n\r\n"
+        body = body .. jsonData .. "\r\n"
+        
+        -- End boundary
+        body = body .. "--" .. boundary .. "--\r\n"
         
         -- Try multiple request functions
         local requestFunc = (syn and syn.request) or 
@@ -3002,10 +3017,10 @@ local SendWebhookButton = MacroTab:CreateButton({
                 Url = ValidWebhook,
                 Method = "POST",
                 Headers = { 
-                    ["Content-Type"] = "application/json",
+                    ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
                     ["User-Agent"] = "LixHub-Webhook/1.0"
                 },
-                Body = payload
+                Body = body
             })
         end)
         
@@ -3013,8 +3028,8 @@ local SendWebhookButton = MacroTab:CreateButton({
             -- Check if the HTTP request was actually successful
             if result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
                 Rayfield:Notify({
-                    Title = "Webhook Success",
-                    Content = "Macro sent to Discord successfully.",
+                    Title = "Webhook Success", 
+                    Content = "Macro file sent to Discord successfully.",
                     Duration = 3
                 })
             else
@@ -3036,7 +3051,7 @@ local SendWebhookButton = MacroTab:CreateButton({
                 -- Debug print (remove in production)
                 print("Webhook Debug Info:")
                 print("Success:", result.Success)
-                print("StatusCode:", result.StatusCode)
+                print("StatusCode:", result.StatusCode) 
                 print("Body:", result.Body)
             end
         else
