@@ -1,4 +1,4 @@
---pipi1
+--pipi5
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.01"
@@ -2862,12 +2862,12 @@ local ImportInput = MacroTab:CreateInput({
         
         -- Detect if it's a URL or JSON content
         if text:match("^https?://") then
-            -- Extract filename from URL for macro name
-            local fileName = text:match("/([^/]+)%.json$") or text:match("/([^/]+)$")
+            -- Extract filename from URL for macro name (handle query parameters)
+            local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)$")
             print("DEBUG: URL detected:", text)
             print("DEBUG: Extracted fileName:", fileName)
             if fileName then
-                macroName = fileName:gsub("%.json$", "") -- Remove .json extension if present
+                macroName = fileName:gsub("%.json.*$", "") -- Remove .json and anything after it
             else
                 macroName = "ImportedMacro_" .. os.time()
             end
@@ -4297,4 +4297,3 @@ end)
         
         refreshMacroDropdown()
     end)
-
