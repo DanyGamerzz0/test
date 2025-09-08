@@ -1,4 +1,4 @@
---1
+--2
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -3814,21 +3814,31 @@ local function startMonitoring()
                 local currentWave = getCurrentWave()
                 State.currentWave = currentWave
                 
-                -- Check if we're at a wave that's a multiple of 10 (when popup appears)
-                if currentWave > 0 and currentWave % 10 == 0 and currentWave ~= State.lastProcessedWave then
-                    State.lastProcessedWave = currentWave
-                    
+                -- Fire remote while on milestone waves (10, 20, 30, etc.)
+                if currentWave > 0 and currentWave % 10 == 0 then
                     if currentWave <= State.autoEndureSlider then
                         -- Endure (true) until we reach the target wave
                         fireAdventureModeEnd(true)
-                        print("Auto Enduring at wave", currentWave, "- Target wave:", State.autoEndureSlider)
+                        if currentWave ~= State.lastProcessedWave then
+                            print("Auto Enduring at wave", currentWave, "- Target wave:", State.autoEndureSlider)
+                            State.lastProcessedWave = currentWave
+                        end
                     else
                         -- Evade (false) after reaching the target wave
                         fireAdventureModeEnd(false)
-                        print("Auto Evading at wave", currentWave, "- Exceeded target wave:", State.autoEndureSlider)
+                        if currentWave ~= State.lastProcessedWave then
+                            print("Auto Evading at wave", currentWave, "- Exceeded target wave:", State.autoEndureSlider)
+                            State.lastProcessedWave = currentWave
+                        end
+                    end
+                else
+                    -- Reset when wave changes from milestone (e.g., 10->11, 20->21)
+                    if State.lastProcessedWave > 0 and State.lastProcessedWave % 10 == 0 then
+                        print("Wave changed from", State.lastProcessedWave, "to", currentWave, "- Stopped firing remote")
                     end
                 end
             end
+            
             wait(0.1) -- Small delay to prevent excessive CPU usage
         end
         print("Auto Endure monitoring loop ended")
