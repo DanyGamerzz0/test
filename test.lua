@@ -5427,10 +5427,10 @@ local Toggle = GameTab:CreateToggle({
 
 local Slider = GameTab:CreateSlider({
     Name = "Auto Endure until wave",
-    Range = {0, 50},
-    Increment = 10,
+    Range = {0, 25},
+    Increment = 1,
     Suffix = "Wave",
-    CurrentValue = 30,
+    CurrentValue = 25,
     Flag = "AutoEndureSlider",
     Info = "Will stop enduring after enduring selected wave.",
     TextScaled = false,
