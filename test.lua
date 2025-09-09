@@ -3794,43 +3794,33 @@ local function startMonitoring()
     
     State.isMonitoring = true
     State.lastProcessedWave = 0
-    print("Auto Endure monitoring started")
     
-    -- Spawn the monitoring loop
     spawn(function()
         while State.isMonitoring do
             if State.autoEndureEnabled then
                 local currentWave = getCurrentWave()
                 State.currentWave = currentWave
                 
-                -- Fire remote while on milestone waves (10, 20, 30, etc.)
-                if currentWave > 0 and currentWave % 10 == 0 then
+                if currentWave > 0 and currentWave % 5 == 0 then
                     if currentWave <= State.autoEndureSlider then
-                        -- Endure (true) until we reach the target wave
                         fireAdventureModeEnd(true)
                         if currentWave ~= State.lastProcessedWave then
-                            print("Auto Enduring at wave", currentWave, "- Target wave:", State.autoEndureSlider)
                             State.lastProcessedWave = currentWave
                         end
                     else
-                        -- Evade (false) after reaching the target wave
                         fireAdventureModeEnd(false)
                         if currentWave ~= State.lastProcessedWave then
-                            print("Auto Evading at wave", currentWave, "- Exceeded target wave:", State.autoEndureSlider)
                             State.lastProcessedWave = currentWave
                         end
                     end
                 else
-                    -- Reset when wave changes from milestone (e.g., 10->11, 20->21)
-                    if State.lastProcessedWave > 0 and State.lastProcessedWave % 10 == 0 then
-                        print("Wave changed from", State.lastProcessedWave, "to", currentWave, "- Stopped firing remote")
+                    if State.lastProcessedWave > 0 and State.lastProcessedWave % 5 == 0 then
                     end
                 end
             end
             
-            wait(0.1) -- Small delay to prevent excessive CPU usage
+            wait(0.1)
         end
-        print("Auto Endure monitoring loop ended")
     end)
 end
 
