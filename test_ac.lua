@@ -1,3 +1,4 @@
+-- 1
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -752,16 +753,17 @@ local function executeAction(action, playbackMapping)
             end
             if action.raycast.Direction then
                 raycastParam.Direction = action.raycast.Direction
-                -- Add Unit if it exists
-                if action.raycast.Unit then
-                    raycastParam.Direction.Unit = action.raycast.Unit
-                end
+            end
+            -- Unit should be at the top level, not under Direction
+            if action.raycast.Unit then
+                raycastParam.Unit = action.raycast.Unit
             end
         end
 
         print("Raycast data:", raycastParam)
         print("Origin:", raycastParam.Origin)
         print("Direction:", raycastParam.Direction)
+        print("Unit:", raycastParam.Unit)
 
         endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
             action.unitId,
