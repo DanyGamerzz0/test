@@ -1,4 +1,4 @@
--- 3
+-- 4
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -165,9 +165,6 @@ local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "joystick")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
-
-local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
-local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
 
 -- ========== MACRO SYSTEM FUNCTIONS ==========
 
@@ -367,6 +364,8 @@ local function saveMacroToFile(name)
             newAction.unitPosition = serializeVector3(newAction.unitPosition)
         end
         
+        -- Raycast data is already serialized in handleUnitPlacement, no need to process again
+        
         table.insert(serializedData, newAction)
     end
 
@@ -428,26 +427,97 @@ local function stopRecording()
     return macro
 end
 
-local function notifyMacro(title, content, duration, notificationType)
-    local icon = "info"
-    if notificationType == "success" then
-        icon = "check"
-    elseif notificationType == "warning" then
-        icon = "alert-triangle"
-    elseif notificationType == "error" then
-        icon = "x"
-    elseif notificationType == "recording" then
-        icon = "circle"
-    elseif notificationType == "playback" then
-        icon = "play"
+local function debugRaycastData(raycastData, actionName)
+    print("=== RAYCAST DEBUG for " .. actionName .. " ===")
+    print("Type:", type(raycastData))
+    
+    if raycastData == nil then
+        print("Raycast data is NIL")
+        return
     end
     
-    Rayfield:Notify({
-        Title = title or "Macro System",
-        Content = content or "",
-        Duration = duration or 4,
-        Image = icon,
-    })
+    if type(raycastData) == "table" then
+        print("Raycast table contents:")
+        for key, value in pairs(raycastData) do
+            print("  " .. tostring(key) .. ":", type(value), tostring(value))
+            
+            -- If value is a table (like Vector3), show its contents
+            if type(value) == "table" or type(value) == "userdata" then
+                pcall(function()
+                    if value.X and value.Y and value.Z then
+                        print("    Vector3(" .. value.X .. ", " .. value.Y .. ", " .. value.Z .. ")")
+                    end
+                end)
+            end
+        end
+    else
+        print("Raycast data is not a table:", tostring(raycastData))
+    end
+    print("=== END RAYCAST DEBUG ===")
+end
+
+local function serializeRaycastData(raycastData)
+    if not raycastData or type(raycastData) ~= "table" then
+        print("Warning: Invalid raycast data for serialization")
+        return {
+            Origin = {x = 0, y = 0, z = 0},
+            Direction = {x = 0, y = 0, z = 0},
+            Unit = {x = 0, y = 0, z = 0}
+        }
+    end
+    
+    local serialized = {}
+    
+    -- Handle Origin
+    if raycastData.Origin and type(raycastData.Origin) == "userdata" then
+        local success, result = pcall(function()
+            return {
+                x = raycastData.Origin.X,
+                y = raycastData.Origin.Y,
+                z = raycastData.Origin.Z
+            }
+        end)
+        serialized.Origin = success and result or {x = 0, y = 0, z = 0}
+    else
+        serialized.Origin = {x = 0, y = 0, z = 0}
+    end
+    
+    -- Handle Direction
+    if raycastData.Direction and type(raycastData.Direction) == "userdata" then
+        local success, result = pcall(function()
+            return {
+                x = raycastData.Direction.X,
+                y = raycastData.Direction.Y,
+                z = raycastData.Direction.Z
+            }
+        end)
+        serialized.Direction = success and result or {x = 0, y = 0, z = 0}
+    else
+        serialized.Direction = {x = 0, y = 0, z = 0}
+    end
+    
+    -- Handle Unit (might be nested under Direction)
+    local unitVector = nil
+    if raycastData.Unit then
+        unitVector = raycastData.Unit
+    elseif raycastData.Direction and raycastData.Direction.Unit then
+        unitVector = raycastData.Direction.Unit
+    end
+    
+    if unitVector and type(unitVector) == "userdata" then
+        local success, result = pcall(function()
+            return {
+                x = unitVector.X,
+                y = unitVector.Y,
+                z = unitVector.Z
+            }
+        end)
+        serialized.Unit = success and result or {x = 0, y = 0, z = 0}
+    else
+        serialized.Unit = {x = 0, y = 0, z = 0}
+    end
+    
+    return serialized
 end
 
 local function handleUnitPlacement(args)
@@ -456,6 +526,9 @@ local function handleUnitPlacement(args)
     local unitId = args[1]
     local raycastData = args[2]
     local rotationIndex = args[3] or 0
+    
+    -- Debug the incoming raycast data
+    debugRaycastData(raycastData, "PLACEMENT")
     
     local timestamp = tick()
     local currentWaveNum = getCurrentWave()
@@ -492,37 +565,8 @@ local function handleUnitPlacement(args)
         
         local unitType = getUnitType(placedUnit)
         
-        -- Serialize raycast data
-        local serializedRaycast = {}
-        if raycastData then
-            if raycastData.Origin then
-                serializedRaycast.Origin = {
-                    x = raycastData.Origin.X,
-                    y = raycastData.Origin.Y,
-                    z = raycastData.Origin.Z
-                }
-            end
-            if raycastData.Direction then
-                serializedRaycast.Direction = {
-                    x = raycastData.Direction.X,
-                    y = raycastData.Direction.Y,
-                    z = raycastData.Direction.Z
-                }
-            end
-            if raycastData.Unit then
-                serializedRaycast.Unit = {
-                    x = raycastData.Unit.X,
-                    y = raycastData.Unit.Y,
-                    z = raycastData.Unit.Z
-                }
-            elseif raycastData.Direction and raycastData.Direction.Unit then
-                serializedRaycast.Unit = {
-                    x = raycastData.Direction.Unit.X,
-                    y = raycastData.Direction.Unit.Y,
-                    z = raycastData.Direction.Unit.Z
-                }
-            end
-        end
+        -- Use the improved serialization
+        local serializedRaycast = serializeRaycastData(raycastData)
         
         local placementData = {
             action = "PlaceUnit",
@@ -615,10 +659,8 @@ local function handleUnitUpgrade(args)
         wave = currentWaveNum,
         waveRelativeTime = waveRelativeTime,
         targetPlacementOrder = targetPlacementOrder
+        -- Removed playerOwner field
     })
-    
-    -- Notify user about recorded upgrade
-    notifyMacro("Recording", string.format("Upgraded unit #%d", targetPlacementOrder), 2, "recording")
     
     print(string.format("Recorded upgrade for placement #%d (Wave %d, %.2fs)", 
         targetPlacementOrder, currentWaveNum, waveRelativeTime))
@@ -691,10 +733,8 @@ local function handleUnitSell(args)
         wave = currentWaveNum,
         waveRelativeTime = waveRelativeTime,
         targetPlacementOrder = targetPlacementOrder
+        -- Removed playerOwner field
     })
-    
-    -- Notify user about recorded sell
-    notifyMacro("Recording", string.format("Sold unit #%d", targetPlacementOrder), 2, "recording")
     
     print(string.format("Recorded sell for placement #%d (Wave %d, %.2fs)", 
         targetPlacementOrder, currentWaveNum, waveRelativeTime))
@@ -723,10 +763,8 @@ local function handleWaveSkip(args)
         wave = currentWaveNum,
         waveRelativeTime = waveRelativeTime,
         timestamp = timestamp
+        -- Removed playerOwner field
     })
-    
-    -- Notify user about recorded wave skip
-    notifyMacro("Recording", string.format("Wave skip at wave %d", currentWaveNum), 2, "recording")
     
     print(string.format("Recorded wave skip at wave %d (%.2fs into wave)", 
         currentWaveNum, waveRelativeTime))
@@ -812,31 +850,67 @@ local function executeAction(action, playbackMapping)
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Build the raycast parameter for the remote call
+        -- Build the raycast parameter with better error handling
         local raycastParam = {}
-        if action.raycast then
-            if action.raycast.Origin then
-                raycastParam.Origin = action.raycast.Origin
+        
+        if action.raycast and type(action.raycast) == "table" then
+            -- Convert back to Vector3 objects, with fallbacks
+            if action.raycast.Origin and type(action.raycast.Origin) == "table" then
+                raycastParam.Origin = Vector3.new(
+                    action.raycast.Origin.x or 0,
+                    action.raycast.Origin.y or 0,
+                    action.raycast.Origin.z or 0
+                )
             end
-            if action.raycast.Direction then
-                raycastParam.Direction = action.raycast.Direction
+            
+            if action.raycast.Direction and type(action.raycast.Direction) == "table" then
+                raycastParam.Direction = Vector3.new(
+                    action.raycast.Direction.x or 0,
+                    action.raycast.Direction.y or 0,
+                    action.raycast.Direction.z or 0
+                )
             end
-            -- Unit should be at the top level, not under Direction
-            if action.raycast.Unit then
-                raycastParam.Unit = action.raycast.Unit
+            
+            if action.raycast.Unit and type(action.raycast.Unit) == "table" then
+                raycastParam.Unit = Vector3.new(
+                    action.raycast.Unit.x or 0,
+                    action.raycast.Unit.y or 0,
+                    action.raycast.Unit.z or 0
+                )
             end
+        else
+            -- Fallback: create default raycast data
+            print("Warning: No valid raycast data found, using defaults")
+            raycastParam.Origin = Vector3.new(0, 0, 0)
+            raycastParam.Direction = Vector3.new(0, 0, 0)
+            raycastParam.Unit = Vector3.new(0, 0, 0)
         end
 
-        print("Raycast data:", raycastParam)
+        print("Raycast data for placement:")
         print("Origin:", raycastParam.Origin)
         print("Direction:", raycastParam.Direction)
         print("Unit:", raycastParam.Unit)
 
-        endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-            action.unitId,
-            raycastParam,
-            action.rotation
-        )
+        -- Attempt placement with error handling
+        local success, error = pcall(function()
+            endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
+                action.unitId,
+                raycastParam,
+                action.rotation or 0
+            )
+        end)
+        
+        if not success then
+            print("Placement failed:", error)
+            -- Try with minimal raycast data
+            pcall(function()
+                endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
+                    action.unitId,
+                    { Origin = Vector3.new(0, 0, 0), Direction = Vector3.new(0, 1, 0), Unit = Vector3.new(0, 1, 0) },
+                    0
+                )
+            end)
+        end
         
         task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME + MACRO_CONFIG.SNAPSHOT_WAIT_TIME)
         local afterSnapshot = takeUnitsSnapshot()
@@ -902,36 +976,28 @@ end
 
 local playbackWaveStartTimes = {}
 
-local function isInLobby()
-    return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
-end
-
 local function playMacroLoop()
     if not macro or #macro == 0 then
-        notifyMacro("Playback Error", "No macro data to play back", 5, "error")
+        print("No macro data to play back")
         return
     end
     
-    playbackLoopCount = playbackLoopCount + 1
-    print(string.format("Starting playback loop #%d with %d actions", playbackLoopCount, #macro))
-    
-    notifyMacro("Infinite Playback", string.format("Starting loop #%d", playbackLoopCount), 4, "playback")
+    print(string.format("Starting wave-synchronized macro playback with %d actions", #macro))
     
     local playbackMapping = {}
     playbackWaveStartTimes = {}
     
     -- Monitor wave changes during playback
-    local waveConnection
-    local gameEndConnection
-    
     if Services.Workspace:FindFirstChild("_wave_num") then
         local waveNum = Services.Workspace._wave_num
+        local connection
         
-        waveConnection = waveNum.Changed:Connect(function(newWave)
+        connection = waveNum.Changed:Connect(function(newWave)
             if isPlaybacking then
                 playbackWaveStartTimes[newWave] = tick()
                 print(string.format("Wave %d started during playback", newWave))
-                notifyMacro("Playback", string.format("Wave %d started (Loop #%d)", newWave, playbackLoopCount), 2, "playback")
+            else
+                connection:Disconnect()
             end
         end)
         
@@ -940,38 +1006,19 @@ local function playMacroLoop()
         playbackWaveStartTimes[currentWave] = tick()
     end
     
-    -- Monitor for unexpected game end
-    if gameFinishedRemote then
-        gameEndConnection = gameFinishedRemote.OnClientEvent:Connect(function(...)
-            if isPlaybacking then
-                print("Game ended during macro playback - will restart from beginning")
-            end
-        end)
-    end
-    
-    -- Execute macro actions
     for i, action in ipairs(macro) do
-        if not isPlaybacking then 
-            print("Playback stopped by user")
-            break 
-        end
-        
-        -- Check if we're still in a game
-        if isInLobby() then
-            print("Detected return to lobby during playback")
-            break
-        end
+        if not isPlaybacking then break end
         
         -- Wait for the correct wave
         local targetWave = action.wave
         local currentWave = getCurrentWave()
         
-        while currentWave < targetWave and isPlaybacking and not isInLobby() do
+        while currentWave < targetWave and isPlaybacking do
             task.wait(0.5)
             currentWave = getCurrentWave()
         end
         
-        if not isPlaybacking or isInLobby() then break end
+        if not isPlaybacking then break end
         
         -- Wait for the correct time within the wave
         local targetWaveTime = action.waveRelativeTime or 0
@@ -987,52 +1034,12 @@ local function playMacroLoop()
             end
         end
         
-        if isPlaybacking and not isInLobby() then
+        if isPlaybacking then
             executeAction(action, playbackMapping)
         end
     end
     
-    -- Clean up connections
-    if waveConnection then waveConnection:Disconnect() end
-    if gameEndConnection then gameEndConnection:Disconnect() end
-    
-    print(string.format("Loop #%d completed", playbackLoopCount))
-    
-    -- ALWAYS restart if still playing (infinite mode is always on)
-    if isPlaybacking then
-        notifyMacro("Infinite Playback", "Waiting for next game...", 4, "info")
-        
-        task.spawn(function()
-            -- Wait for lobby if not already there
-            while not isInLobby() and isPlaybacking do
-                task.wait(2)
-            end
-            
-            if isPlaybacking then
-                print("Waiting for next game to restart macro...")
-                task.wait(3) -- Brief lobby delay
-                
-                -- Wait for next game
-                while isInLobby() and isPlaybacking do
-                    task.wait(1)
-                end
-                
-                if isPlaybacking then
-                    task.wait(2) -- Game load delay
-                    waitForGameStart()
-                    if isPlaybacking then
-                        print("Starting fresh macro loop...")
-                        playMacroLoop() -- This starts from action 1 again
-                    end
-                end
-            end
-        end)
-    else
-        -- Only stops when user manually disables
-        isPlayingLoopRunning = false
-        MacroStatusLabel:Set("Status: Playback stopped")
-        notifyMacro("Playback", string.format("Stopped after %d loops", playbackLoopCount), 3, "warning")
-    end
+    print("Wave-synchronized macro playback completed")
 end
 
 local function waitForGameStart()
@@ -1055,6 +1062,28 @@ local function notify(title, content, duration)
         Content = content or "No message.",
         Duration = duration or 5,
         Image = "info",
+    })
+end
+
+local function notifyMacro(title, content, duration, notificationType)
+    local icon = "info"
+    if notificationType == "success" then
+        icon = "check"
+    elseif notificationType == "warning" then
+        icon = "alert-triangle"
+    elseif notificationType == "error" then
+        icon = "x"
+    elseif notificationType == "recording" then
+        icon = "circle"
+    elseif notificationType == "playback" then
+        icon = "play"
+    end
+    
+    Rayfield:Notify({
+        Title = title or "Macro System",
+        Content = content or "",
+        Duration = duration or 4,
+        Image = icon,
     })
 end
 
@@ -1452,6 +1481,10 @@ local function getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
     end
     
     return nil
+end
+
+local function isInLobby()
+    return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
 end
 
 local function canPerformAction()
@@ -1952,16 +1985,15 @@ local RecordToggle = MacroTab:CreateToggle({
         end})
 
 local PlayToggle = MacroTab:CreateToggle({
-    Name = "Playback Macro",
+    Name = "Playback",
     CurrentValue = false,
     Flag = "PlayBackMacro",
     Callback = function(Value)
         isPlaybacking = Value
 
         if Value and not isPlayingLoopRunning then
-            playbackLoopCount = 0
-            MacroStatusLabel:Set("Status: Preparing infinite playback...")
-            notifyMacro("Infinite Playback", "Starting infinite macro farming...", 5, "success")
+            MacroStatusLabel:Set("Status: Preparing playback...")
+            notify(nil,"Macro Playback: Waiting for game to start...")
 
             task.spawn(function()
                 waitForGameStart()
@@ -1972,28 +2004,32 @@ local PlayToggle = MacroTab:CreateToggle({
                             macro = loadedMacro
                         else
                             MacroStatusLabel:Set("Status: Error - Failed to load macro!")
-                            notifyMacro("Playback Error", "Failed to load macro: " .. tostring(currentMacroName), 5, "error")
+                            notify(nil,"Playback Error: Failed to load macro: " .. tostring(currentMacroName))
                             isPlaybacking = false
-                            PlayToggle:Set(false)
+                            --PlayToggle:Set(false)
                             return
                         end
                     else
                         MacroStatusLabel:Set("Status: Error - No macro selected!")
-                        notifyMacro("Playback Error", "No macro selected for playback", 5, "error")
+                        notify(nil,"Playback Error: No macro selected for playback.")
                         isPlaybacking = false
-                        PlayToggle:Set(false)
+                        --PlayToggle:Set(false)
                         return
                     end
 
                     isPlayingLoopRunning = true
-                    MacroStatusLabel:Set("Status: Infinite playback active...")
+                    notify(nil,"Playback Started: Macro is now executing...")
+                    MacroStatusLabel:Set("Status: Playing macro...")
                     playMacroLoop()
+                    isPlayingLoopRunning = false
+                    MacroStatusLabel:Set("Status: Playback completed")
+                    --PlayToggle:Set(false)
+                    isPlaybacking = false
                 end
             end)
         elseif not Value then
-            MacroStatusLabel:Set("Status: Infinite playback disabled")
-            notifyMacro("Infinite Playback", string.format("Stopped after %d loops", playbackLoopCount), 4, "warning")
-            print("Infinite Macro Playback: Disabled.")
+            MacroStatusLabel:Set("Status: Playback disabled")
+            print("Macro Playback: Playback disabled.")
         end
     end,
 })
@@ -2104,6 +2140,8 @@ local TestWebhookButton = WebhookTab:CreateButton({
 })
 
 -- ========== REMOTE EVENT CONNECTIONS ==========
+local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
+local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
 
 -- Connect item tracking
 if itemAddedRemote then
