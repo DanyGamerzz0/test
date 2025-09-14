@@ -1,4 +1,4 @@
--- 1
+-- 2
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -125,6 +125,8 @@ local endStats = {}
 local currentMapName = "Unknown Map"
 local gameResult = "Unknown"
 local itemNameCache = {}
+local waveStartTimes = {} -- Track when each wave started
+local recordingStartWave = 0
 
 local Config = {
     DISCORD_USER_ID = nil,
@@ -315,9 +317,15 @@ local function startRecording()
     table.clear(macro)
     isRecording = true
     recordingStartTime = tick()
+    recordingStartWave = getCurrentWave()
+    waveStartTimes = {}
     clearRecordingMapping()
-    print("Started recording macro with enhanced snapshot tracking")
-    print(string.format("Recording for player: %s", getLocalPlayer().Name))
+    
+    -- Record the start time of the initial wave
+    waveStartTimes[recordingStartWave] = tick()
+    
+    print("Started recording macro with wave-synchronized timing")
+    print(string.format("Recording started at wave %d", recordingStartWave))
 end
 
 local function getMacroFilename(name)
@@ -425,7 +433,12 @@ local function handleUnitPlacement(args)
     local timestamp = tick()
     local currentWaveNum = getCurrentWave()
     
-    print(string.format("Recording placement attempt for unit ID: %s", unitId))
+    -- Calculate wave-relative time
+    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
+    local waveRelativeTime = timestamp - waveStartTime
+    
+    print(string.format("Recording placement attempt for unit ID: %s at wave %d (%.2fs into wave)", 
+        unitId, currentWaveNum, waveRelativeTime))
     
     local beforeSnapshot = takeUnitsSnapshot()
     
@@ -451,9 +464,8 @@ local function handleUnitPlacement(args)
         end
         
         local unitType = getUnitType(placedUnit)
-        local unitOwner = getUnitOwner(placedUnit)
         
-        -- Fix: Properly store raycast data with Vector3 serialization
+        -- Serialize raycast data
         local serializedRaycast = {}
         if raycastData then
             if raycastData.Origin then
@@ -469,14 +481,19 @@ local function handleUnitPlacement(args)
                     y = raycastData.Direction.Y,
                     z = raycastData.Direction.Z
                 }
-                -- Store Unit if it exists in Direction
-                if raycastData.Direction.Unit then
-                    serializedRaycast.Unit = {
-                        x = raycastData.Direction.Unit.X,
-                        y = raycastData.Direction.Unit.Y,
-                        z = raycastData.Direction.Unit.Z
-                    }
-                end
+            end
+            if raycastData.Unit then
+                serializedRaycast.Unit = {
+                    x = raycastData.Unit.X,
+                    y = raycastData.Unit.Y,
+                    z = raycastData.Unit.Z
+                }
+            elseif raycastData.Direction and raycastData.Direction.Unit then
+                serializedRaycast.Unit = {
+                    x = raycastData.Direction.Unit.X,
+                    y = raycastData.Direction.Unit.Y,
+                    z = raycastData.Direction.Unit.Z
+                }
             end
         end
         
@@ -486,19 +503,19 @@ local function handleUnitPlacement(args)
             unitType = unitType,
             spawnUUID = spawnUUID,
             actualPosition = actualPosition,
-            raycast = serializedRaycast, -- Use serialized raycast data
+            raycast = serializedRaycast,
             rotation = rotationIndex,
-            time = timestamp - recordingStartTime,
             wave = currentWaveNum,
+            waveRelativeTime = waveRelativeTime, -- Time since wave started
             timestamp = timestamp,
-            placementOrder = thisPlacementOrder,
-            playerOwner = unitOwner and unitOwner.Name or "Unknown"
+            placementOrder = thisPlacementOrder
+            -- Removed playerOwner field
         }
         
         table.insert(macro, placementData)
         
-        print(string.format("Recorded placement #%d: %s (Type: %s, UUID: %s)", 
-            thisPlacementOrder, unitId, unitType, tostring(spawnUUID)))
+        print(string.format("Recorded placement #%d: %s (Wave %d, %.2fs)", 
+            thisPlacementOrder, unitId, currentWaveNum, waveRelativeTime))
     end
 end
 
@@ -508,6 +525,10 @@ local function handleUnitUpgrade(args)
     local spawnUUIDFromRemote = args[1]
     local timestamp = tick()
     local currentWaveNum = getCurrentWave()
+    
+    -- Calculate wave-relative time
+    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
+    local waveRelativeTime = timestamp - waveStartTime
     
     -- Extract placement UUID candidates
     local placementUUIDCandidates = {}
@@ -562,13 +583,14 @@ local function handleUnitUpgrade(args)
         spawnUUID = matchedUUID,
         upgradeRemoteParam = spawnUUIDFromRemote,
         unitPosition = expectedPosition,
-        time = timestamp - recordingStartTime,
         wave = currentWaveNum,
-        targetPlacementOrder = targetPlacementOrder,
-        playerOwner = getLocalPlayer().Name
+        waveRelativeTime = waveRelativeTime,
+        targetPlacementOrder = targetPlacementOrder
+        -- Removed playerOwner field
     })
     
-    print(string.format("Recorded upgrade for placement #%d", targetPlacementOrder))
+    print(string.format("Recorded upgrade for placement #%d (Wave %d, %.2fs)", 
+        targetPlacementOrder, currentWaveNum, waveRelativeTime))
 end
 
 local function handleUnitSell(args)
@@ -577,6 +599,10 @@ local function handleUnitSell(args)
     local spawnUUIDFromRemote = args[1]
     local timestamp = tick()
     local currentWaveNum = getCurrentWave()
+    
+    -- Calculate wave-relative time
+    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
+    local waveRelativeTime = timestamp - waveStartTime
     
     -- Similar UUID extraction logic as upgrade
     local placementUUIDCandidates = {}
@@ -631,13 +657,14 @@ local function handleUnitSell(args)
         spawnUUID = matchedUUID,
         sellRemoteParam = spawnUUIDFromRemote,
         unitPosition = expectedPosition,
-        time = timestamp - recordingStartTime,
         wave = currentWaveNum,
-        targetPlacementOrder = targetPlacementOrder,
-        playerOwner = getLocalPlayer().Name
+        waveRelativeTime = waveRelativeTime,
+        targetPlacementOrder = targetPlacementOrder
+        -- Removed playerOwner field
     })
     
-    print(string.format("Recorded sell for placement #%d", targetPlacementOrder))
+    print(string.format("Recorded sell for placement #%d (Wave %d, %.2fs)", 
+        targetPlacementOrder, currentWaveNum, waveRelativeTime))
     
     -- Clean up mappings
     placementOrderToSpawnUUID[targetPlacementOrder] = nil
@@ -654,15 +681,20 @@ local function handleWaveSkip(args)
     local timestamp = tick()
     local currentWaveNum = getCurrentWave()
     
+    -- Calculate wave-relative time
+    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
+    local waveRelativeTime = timestamp - waveStartTime
+    
     table.insert(macro, {
         action = "SkipWave",
-        time = timestamp - recordingStartTime,
         wave = currentWaveNum,
-        timestamp = timestamp,
-        playerOwner = getLocalPlayer().Name
+        waveRelativeTime = waveRelativeTime,
+        timestamp = timestamp
+        -- Removed playerOwner field
     })
     
-    print(string.format("Recorded wave skip at wave %d", currentWaveNum))
+    print(string.format("Recorded wave skip at wave %d (%.2fs into wave)", 
+        currentWaveNum, waveRelativeTime))
 end
 
 -- Hook Setup
@@ -833,26 +865,64 @@ local function executeAction(action, playbackMapping)
     end
 end
 
+local playbackWaveStartTimes = {}
+
 local function playMacroLoop()
     if not macro or #macro == 0 then
         print("No macro data to play back")
         return
     end
     
-    print(string.format("Starting macro playback with %d actions", #macro))
+    print(string.format("Starting wave-synchronized macro playback with %d actions", #macro))
     
     local playbackMapping = {}
-    local startTime = tick()
+    playbackWaveStartTimes = {}
+    
+    -- Monitor wave changes during playback
+    if Services.Workspace:FindFirstChild("_wave_num") then
+        local waveNum = Services.Workspace._wave_num
+        local connection
+        
+        connection = waveNum.Changed:Connect(function(newWave)
+            if isPlaybacking then
+                playbackWaveStartTimes[newWave] = tick()
+                print(string.format("Wave %d started during playback", newWave))
+            else
+                connection:Disconnect()
+            end
+        end)
+        
+        -- Record current wave start time
+        local currentWave = waveNum.Value
+        playbackWaveStartTimes[currentWave] = tick()
+    end
     
     for i, action in ipairs(macro) do
         if not isPlaybacking then break end
         
-        local targetTime = action.time
-        local currentTime = tick() - startTime
-        local waitTime = targetTime - currentTime
+        -- Wait for the correct wave
+        local targetWave = action.wave
+        local currentWave = getCurrentWave()
         
-        if waitTime > 0 then
-            task.wait(waitTime)
+        while currentWave < targetWave and isPlaybacking do
+            task.wait(0.5)
+            currentWave = getCurrentWave()
+        end
+        
+        if not isPlaybacking then break end
+        
+        -- Wait for the correct time within the wave
+        local targetWaveTime = action.waveRelativeTime or 0
+        local waveStartTime = playbackWaveStartTimes[currentWave]
+        
+        if waveStartTime then
+            local currentWaveTime = tick() - waveStartTime
+            local waitTime = targetWaveTime - currentWaveTime
+            
+            if waitTime > 0 then
+                print(string.format("Waiting %.2fs for wave %d timing", waitTime, currentWave))
+                task.wait(waitTime)
+            end
         end
         
         if isPlaybacking then
@@ -860,7 +930,7 @@ local function playMacroLoop()
         end
     end
     
-    print("Macro playback completed")
+    print("Wave-synchronized macro playback completed")
 end
 
 local function waitForGameStart()
@@ -1201,6 +1271,19 @@ local function monitorWaves()
     end
     
     print("Monitoring wave changes for game start detection...")
+end
+
+local function monitorWavesForRecording()
+    if Services.Workspace:FindFirstChild("_wave_num") then
+        local waveNum = Services.Workspace._wave_num
+        
+        waveNum.Changed:Connect(function(newWave)
+            if isRecording and recordingHasStarted then
+                waveStartTimes[newWave] = tick()
+                print(string.format("Wave %d started during recording", newWave))
+            end
+        end)
+    end
 end
 
 local function getBackendWorldKeyFromDisplayName(selectedDisplayName)
@@ -2075,6 +2158,7 @@ end
 
 -- Setup macro hooks
 setupMacroHooks()
+monitorWavesForRecording()
 
 -- Auto joiner loop
 task.spawn(function()
