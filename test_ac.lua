@@ -1,4 +1,4 @@
--- 3
+-- 4
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -906,6 +906,21 @@ local function isInLobby()
     return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
 end
 
+local function waitForGameStart()
+    while true do
+        if Services.Workspace:FindFirstChild("_wave_num") then
+            local wave = Services.Workspace._wave_num.Value
+            if wave >= 1 then
+                print("Game detected - wave " .. wave)
+                break
+            end
+        end
+        task.wait(1)
+    end
+end
+
+local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
+
 local function playMacroLoop()
     if not macro or #macro == 0 then
         notifyMacro("Playback Error", "No macro data to play back", 5, "error")
@@ -1032,19 +1047,6 @@ local function playMacroLoop()
         isPlayingLoopRunning = false
         MacroStatusLabel:Set("Status: Playback stopped")
         notifyMacro("Playback", string.format("Stopped after %d loops", playbackLoopCount), 3, "warning")
-    end
-end
-
-local function waitForGameStart()
-    while true do
-        if Services.Workspace:FindFirstChild("_wave_num") then
-            local wave = Services.Workspace._wave_num.Value
-            if wave >= 1 then
-                print("Game detected - wave " .. wave)
-                break
-            end
-        end
-        task.wait(1)
     end
 end
 
@@ -1815,7 +1817,6 @@ local LobbyToggle = GameTab:CreateToggle({
 })
 
 -- Macro Tab
-local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
 
 local MacroDropdown = MacroTab:CreateDropdown({
     Name = "Select Macro",
@@ -1960,8 +1961,8 @@ local PlayToggle = MacroTab:CreateToggle({
 
         if Value and not isPlayingLoopRunning then
             playbackLoopCount = 0
-            MacroStatusLabel:Set("Status: Preparing infinite playback...")
-            notifyMacro("Infinite Playback", "Starting infinite macro farming...", 5, "success")
+            MacroStatusLabel:Set("Status: Preparing macro playback...")
+            notifyMacro("Macro Playback", "Starting macro playback...", 5, "success")
 
             task.spawn(function()
                 waitForGameStart()
