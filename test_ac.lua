@@ -1,4 +1,3 @@
--- Load Rayfield with error handling
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -343,12 +342,17 @@ local function saveMacroToFile(name)
     local serializedData = {}
     for _, action in ipairs(data) do
         local newAction = table.clone(action)
+        
+        -- Handle Vector3 positions
         if newAction.actualPosition then
             newAction.actualPosition = serializeVector3(newAction.actualPosition)
         end
         if newAction.unitPosition then
             newAction.unitPosition = serializeVector3(newAction.unitPosition)
         end
+        
+        -- Raycast data is already serialized in handleUnitPlacement, no need to process again
+        
         table.insert(serializedData, newAction)
     end
 
@@ -367,11 +371,30 @@ local function loadMacroFromFile(name)
     local data = Services.HttpService:JSONDecode(json)
 
     for _, action in ipairs(data) do
+        -- Handle Vector3 positions
         if action.actualPosition then
             action.actualPosition = deserializeVector3(action.actualPosition)
         end
         if action.unitPosition then
             action.unitPosition = deserializeVector3(action.unitPosition)
+        end
+        
+        -- Deserialize raycast data
+        if action.raycast then
+            local raycast = action.raycast
+            local deserializedRaycast = {}
+            
+            if raycast.Origin then
+                deserializedRaycast.Origin = Vector3.new(raycast.Origin.x, raycast.Origin.y, raycast.Origin.z)
+            end
+            if raycast.Direction then
+                deserializedRaycast.Direction = Vector3.new(raycast.Direction.x, raycast.Direction.y, raycast.Direction.z)
+            end
+            if raycast.Unit then
+                deserializedRaycast.Unit = Vector3.new(raycast.Unit.x, raycast.Unit.y, raycast.Unit.z)
+            end
+            
+            action.raycast = deserializedRaycast
         end
     end
     
@@ -391,7 +414,6 @@ local function stopRecording()
     return macro
 end
 
--- Action Handlers
 local function handleUnitPlacement(args)
     if not isRecording or not recordingHasStarted then return end
     
@@ -430,17 +452,40 @@ local function handleUnitPlacement(args)
         local unitType = getUnitType(placedUnit)
         local unitOwner = getUnitOwner(placedUnit)
         
+        -- Fix: Properly store raycast data with Vector3 serialization
+        local serializedRaycast = {}
+        if raycastData then
+            if raycastData.Origin then
+                serializedRaycast.Origin = {
+                    x = raycastData.Origin.X,
+                    y = raycastData.Origin.Y,
+                    z = raycastData.Origin.Z
+                }
+            end
+            if raycastData.Direction then
+                serializedRaycast.Direction = {
+                    x = raycastData.Direction.X,
+                    y = raycastData.Direction.Y,
+                    z = raycastData.Direction.Z
+                }
+                -- Store Unit if it exists in Direction
+                if raycastData.Direction.Unit then
+                    serializedRaycast.Unit = {
+                        x = raycastData.Direction.Unit.X,
+                        y = raycastData.Direction.Unit.Y,
+                        z = raycastData.Direction.Unit.Z
+                    }
+                end
+            end
+        end
+        
         local placementData = {
             action = "PlaceUnit",
             unitId = unitId,
             unitType = unitType,
             spawnUUID = spawnUUID,
             actualPosition = actualPosition,
-            raycast = {
-                Origin = raycastData.Origin,
-                Direction = raycastData.Direction,
-                Unit = raycastData.Direction and raycastData.Direction.Unit,
-            },
+            raycast = serializedRaycast, -- Use serialized raycast data
             rotation = rotationIndex,
             time = timestamp - recordingStartTime,
             wave = currentWaveNum,
@@ -691,7 +736,6 @@ local function deleteMacroFile(name)
     macroManager[name] = nil
 end
 
--- Playback Functions
 local function executeAction(action, playbackMapping)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
@@ -700,13 +744,28 @@ local function executeAction(action, playbackMapping)
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-print("Raycast data:", action.raycast)
-print("Origin:", action.raycast.Origin)
-print("Direction:", action.raycast.Direction)
+        -- Build the raycast parameter for the remote call
+        local raycastParam = {}
+        if action.raycast then
+            if action.raycast.Origin then
+                raycastParam.Origin = action.raycast.Origin
+            end
+            if action.raycast.Direction then
+                raycastParam.Direction = action.raycast.Direction
+                -- Add Unit if it exists
+                if action.raycast.Unit then
+                    raycastParam.Direction.Unit = action.raycast.Unit
+                end
+            end
+        end
+
+        print("Raycast data:", raycastParam)
+        print("Origin:", raycastParam.Origin)
+        print("Direction:", raycastParam.Direction)
 
         endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
             action.unitId,
-            action.raycast,
+            raycastParam,
             action.rotation
         )
         
