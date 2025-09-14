@@ -1,4 +1,4 @@
--- 7
+-- 8
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -495,36 +495,74 @@ local function handleUnitPlacement(args)
         
         local unitType = getUnitType(placedUnit)
         
-        -- Serialize raycast data
+        -- Validate and serialize raycast data
         local serializedRaycast = {}
-        if raycastData then
-            if raycastData.Origin then
+        local hasValidRaycast = false
+        
+        if raycastData and type(raycastData) == "table" then
+            -- Check if we have valid Origin
+            if raycastData.Origin and type(raycastData.Origin) == "userdata" and 
+               raycastData.Origin.X and raycastData.Origin.Y and raycastData.Origin.Z then
                 serializedRaycast.Origin = {
                     x = raycastData.Origin.X,
                     y = raycastData.Origin.Y,
                     z = raycastData.Origin.Z
                 }
+                hasValidRaycast = true
             end
-            if raycastData.Direction then
+            
+            -- Check if we have valid Direction
+            if raycastData.Direction and type(raycastData.Direction) == "userdata" and
+               raycastData.Direction.X and raycastData.Direction.Y and raycastData.Direction.Z then
                 serializedRaycast.Direction = {
                     x = raycastData.Direction.X,
                     y = raycastData.Direction.Y,
                     z = raycastData.Direction.Z
                 }
+                hasValidRaycast = true
             end
-            if raycastData.Unit then
+            
+            -- Check if we have valid Unit
+            if raycastData.Unit and type(raycastData.Unit) == "userdata" and
+               raycastData.Unit.X and raycastData.Unit.Y and raycastData.Unit.Z then
                 serializedRaycast.Unit = {
                     x = raycastData.Unit.X,
                     y = raycastData.Unit.Y,
                     z = raycastData.Unit.Z
                 }
-            elseif raycastData.Direction and raycastData.Direction.Unit then
+                hasValidRaycast = true
+            elseif raycastData.Direction and raycastData.Direction.Unit and 
+                   type(raycastData.Direction.Unit) == "userdata" and
+                   raycastData.Direction.Unit.X and raycastData.Direction.Unit.Y and raycastData.Direction.Unit.Z then
                 serializedRaycast.Unit = {
                     x = raycastData.Direction.Unit.X,
                     y = raycastData.Direction.Unit.Y,
                     z = raycastData.Direction.Unit.Z
                 }
+                hasValidRaycast = true
             end
+        end
+        
+        -- If we don't have valid raycast data, create a fallback using the actual position
+        if not hasValidRaycast then
+            print("Warning: No valid raycast data found, creating fallback from position")
+            serializedRaycast = {
+                Origin = {
+                    x = actualPosition.X,
+                    y = actualPosition.Y + 10,
+                    z = actualPosition.Z
+                },
+                Direction = {
+                    x = 0,
+                    y = -1,
+                    z = 0
+                },
+                Unit = {
+                    x = actualPosition.X,
+                    y = actualPosition.Y,
+                    z = actualPosition.Z
+                }
+            }
         end
         
         local placementData = {
@@ -536,16 +574,16 @@ local function handleUnitPlacement(args)
             raycast = serializedRaycast,
             rotation = rotationIndex,
             wave = currentWaveNum,
-            waveRelativeTime = waveRelativeTime, -- Time since wave started
+            waveRelativeTime = waveRelativeTime,
             timestamp = timestamp,
             placementOrder = thisPlacementOrder
-            -- Removed playerOwner field
         }
         
         table.insert(macro, placementData)
 
-        notify("Macro Recorder",string.format("Recorded placement #%d: %s (Wave %d, %.2fs)", 
-            thisPlacementOrder, unitId, currentWaveNum, waveRelativeTime))
+        notify("Macro Recorder",string.format("Recorded placement #%d: %s (Wave %d, %.2fs) - Raycast: %s", 
+            thisPlacementOrder, unitId, currentWaveNum, waveRelativeTime, 
+            hasValidRaycast and "Valid" or "Fallback"))
     end
 end
 
