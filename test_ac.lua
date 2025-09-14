@@ -1,4 +1,4 @@
--- 8
+-- 9
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -165,7 +165,6 @@ local State = {
 
 -- ========== CREATE TABS ==========
 local LobbyTab = Window:CreateTab("Lobby", "tv")
-local ShopTab = Window:CreateTab("Shop", "shopping-cart")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "joystick")
@@ -2067,31 +2066,41 @@ if State.enableLowPerformanceMode then
     enableLowPerformanceMode()
 end
 
--- Game Tab
-local RetryToggle = GameTab:CreateToggle({
+GameSection = GameTab:CreateSection("🎮 Game 🎮")
+
+local Toggle = GameTab:CreateToggle({
    Name = "Auto Retry",
    CurrentValue = false,
    Flag = "AutoRetry",
    Callback = function(Value)
         State.AutoVoteRetry = Value
+        if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay")
+        end
    end,
 })
 
-local NextToggle = GameTab:CreateToggle({
+local Toggle = GameTab:CreateToggle({
    Name = "Auto Next",
    CurrentValue = false,
    Flag = "AutoNext",
    Callback = function(Value)
         State.AutoVoteNext = Value
+        if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
+        end
    end,
 })
 
-local LobbyToggle = GameTab:CreateToggle({
+local Toggle = GameTab:CreateToggle({
    Name = "Auto Lobby",
    CurrentValue = false,
    Flag = "AutoLobby",
    Callback = function(Value)
         State.AutoVoteLobby = Value
+        if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
+        end
    end,
 })
 
