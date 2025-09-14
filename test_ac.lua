@@ -1,4 +1,4 @@
--- 4
+-- 5
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -780,31 +780,54 @@ local function executeAction(action, playbackMapping)
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Build the raycast parameter for the remote call
+        -- Build the raycast parameter for the remote call with proper Vector3 conversion
         local raycastParam = {}
         if action.raycast then
             if action.raycast.Origin then
-                raycastParam.Origin = action.raycast.Origin
+                -- Handle both Vector3 and table formats
+                if type(action.raycast.Origin) == "table" then
+                    raycastParam.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
+                else
+                    raycastParam.Origin = action.raycast.Origin
+                end
             end
+            
             if action.raycast.Direction then
-                raycastParam.Direction = action.raycast.Direction
+                -- Handle both Vector3 and table formats
+                if type(action.raycast.Direction) == "table" then
+                    raycastParam.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
+                else
+                    raycastParam.Direction = action.raycast.Direction
+                end
             end
-            -- Unit should be at the top level, not under Direction
+            
             if action.raycast.Unit then
-                raycastParam.Unit = action.raycast.Unit
+                -- Handle both Vector3 and table formats
+                if type(action.raycast.Unit) == "table" then
+                    raycastParam.Unit = Vector3.new(action.raycast.Unit.x, action.raycast.Unit.y, action.raycast.Unit.z)
+                else
+                    raycastParam.Unit = action.raycast.Unit
+                end
             end
         end
 
-        print("Raycast data:", raycastParam)
+        print("Raycast data being sent:")
         print("Origin:", raycastParam.Origin)
         print("Direction:", raycastParam.Direction)
         print("Unit:", raycastParam.Unit)
 
-        endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-            action.unitId,
-            raycastParam,
-            action.rotation
-        )
+        local success, error = pcall(function()
+            endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
+                action.unitId,
+                raycastParam,
+                action.rotation
+            )
+        end)
+        
+        if not success then
+            warn("Failed to place unit:", error)
+            return
+        end
         
         task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME + MACRO_CONFIG.SNAPSHOT_WAIT_TIME)
         local afterSnapshot = takeUnitsSnapshot()
@@ -816,6 +839,8 @@ local function executeAction(action, playbackMapping)
                 playbackMapping[action.placementOrder] = newSpawnUUID
                 print(string.format("Mapped placement #%d to spawn UUID %s", action.placementOrder, tostring(newSpawnUUID)))
             end
+        else
+            warn("Failed to find placed unit after placement attempt")
         end
         
     elseif action.action == "UpgradeUnit" then
@@ -838,7 +863,11 @@ local function executeAction(action, playbackMapping)
                         endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentSpawnUUID)
                     end)
                 end
+            else
+                warn(string.format("Could not find unit for upgrade - placement #%d", action.targetPlacementOrder))
             end
+        else
+            warn(string.format("No spawn UUID mapped for placement #%d", action.targetPlacementOrder))
         end
         
     elseif action.action == "SellUnit" then
@@ -858,13 +887,21 @@ local function executeAction(action, playbackMapping)
                 
                 if success then
                     playbackMapping[action.targetPlacementOrder] = nil
+                else
+                    warn("Failed to sell unit")
                 end
+            else
+                warn(string.format("Could not find unit for sell - placement #%d", action.targetPlacementOrder))
             end
+        else
+            warn(string.format("No spawn UUID mapped for placement #%d", action.targetPlacementOrder))
         end
         
     elseif action.action == "SkipWave" then
         print("Executing: Skip wave")
-        endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
+        pcall(function()
+            endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
+        end)
     end
 end
 
