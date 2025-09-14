@@ -1,4 +1,4 @@
--- 5
+-- 6
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -166,6 +166,15 @@ local MacroTab = Window:CreateTab("Macro", "joystick")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 -- ========== MACRO SYSTEM FUNCTIONS ==========
+
+local function notify(title, content, duration)
+    Rayfield:Notify({
+        Title = title or "Notice",
+        Content = content or "No message.",
+        Duration = duration or 5,
+        Image = "info",
+    })
+end
 
 -- Utility Functions
 local function getLocalPlayer()
@@ -516,8 +525,8 @@ local function handleUnitPlacement(args)
         }
         
         table.insert(macro, placementData)
-        
-        print(string.format("Recorded placement #%d: %s (Wave %d, %.2fs)", 
+
+        notify("Macro Recorder",string.format("Recorded placement #%d: %s (Wave %d, %.2fs)", 
             thisPlacementOrder, unitId, currentWaveNum, waveRelativeTime))
     end
 end
@@ -591,8 +600,8 @@ local function handleUnitUpgrade(args)
         targetPlacementOrder = targetPlacementOrder
         -- Removed playerOwner field
     })
-    
-    print(string.format("Recorded upgrade for placement #%d (Wave %d, %.2fs)", 
+
+    notify("Macro Recorder",string.format("Recorded upgrade for placement #%d (Wave %d, %.2fs)", 
         targetPlacementOrder, currentWaveNum, waveRelativeTime))
 end
 
@@ -665,8 +674,8 @@ local function handleUnitSell(args)
         targetPlacementOrder = targetPlacementOrder
         -- Removed playerOwner field
     })
-    
-    print(string.format("Recorded sell for placement #%d (Wave %d, %.2fs)", 
+
+    notify("Macro Recorder",string.format("Recorded sell for placement #%d (Wave %d, %.2fs)", 
         targetPlacementOrder, currentWaveNum, waveRelativeTime))
     
     -- Clean up mappings
@@ -695,8 +704,8 @@ local function handleWaveSkip(args)
         timestamp = timestamp
         -- Removed playerOwner field
     })
-    
-    print(string.format("Recorded wave skip at wave %d (%.2fs into wave)", 
+
+    notify("Macro Recorder",string.format("Recorded wave skip at wave %d (%.2fs into wave)", 
         currentWaveNum, waveRelativeTime))
 end
 
@@ -838,9 +847,10 @@ local function executeAction(action, playbackMapping)
             if newSpawnUUID then
                 playbackMapping[action.placementOrder] = newSpawnUUID
                 print(string.format("Mapped placement #%d to spawn UUID %s", action.placementOrder, tostring(newSpawnUUID)))
+                notify("Macro playback",string.format("Mapped placement #%d to spawn UUID %s", action.placementOrder, tostring(newSpawnUUID)))
             end
         else
-            warn("Failed to find placed unit after placement attempt")
+            notify("Macro playback","Failed to find placed unit after placement attempt")
         end
         
     elseif action.action == "UpgradeUnit" then
@@ -848,7 +858,7 @@ local function executeAction(action, playbackMapping)
         if currentSpawnUUID then
             local unit = findUnitBySpawnUUID(currentSpawnUUID)
             if unit and isOwnedByLocalPlayer(unit) then
-                print(string.format("Executing: Upgrade placement #%d", action.targetPlacementOrder))
+                notify("Macro Playback",string.format("Executing: Upgrade placement #%d", action.targetPlacementOrder))
                 
                 local success = false
                 
@@ -864,10 +874,10 @@ local function executeAction(action, playbackMapping)
                     end)
                 end
             else
-                warn(string.format("Could not find unit for upgrade - placement #%d", action.targetPlacementOrder))
+                notify("Macro Playback",string.format("Could not find unit for upgrade - placement #%d", action.targetPlacementOrder))
             end
         else
-            warn(string.format("No spawn UUID mapped for placement #%d", action.targetPlacementOrder))
+            notify("Macro Playback",string.format("No spawn UUID mapped for placement #%d", action.targetPlacementOrder))
         end
         
     elseif action.action == "SellUnit" then
@@ -888,17 +898,17 @@ local function executeAction(action, playbackMapping)
                 if success then
                     playbackMapping[action.targetPlacementOrder] = nil
                 else
-                    warn("Failed to sell unit")
+                    notify("Macro Playback","Failed to sell unit")
                 end
             else
-                warn(string.format("Could not find unit for sell - placement #%d", action.targetPlacementOrder))
+                notify("Macro Playback",string.format("Could not find unit for sell - placement #%d", action.targetPlacementOrder))
             end
         else
-            warn(string.format("No spawn UUID mapped for placement #%d", action.targetPlacementOrder))
+            notify("Macro Playback",string.format("No spawn UUID mapped for placement #%d", action.targetPlacementOrder))
         end
         
     elseif action.action == "SkipWave" then
-        print("Executing: Skip wave")
+        notify("Macro Playback","Executing: Skip wave")
         pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
         end)
@@ -1001,14 +1011,6 @@ local function waitForGameStart_Playback()
 end
 
 -- ========== EXISTING FUNCTIONS (keep all your existing functions) ==========
-local function notify(title, content, duration)
-    Rayfield:Notify({
-        Title = title or "Notice",
-        Content = content or "No message.",
-        Duration = duration or 5,
-        Image = "info",
-    })
-end
 
 local function getItemDisplayName(itemName)
     -- Check cache first
