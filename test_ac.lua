@@ -1,4 +1,4 @@
--- 2
+-- 3
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -934,16 +934,20 @@ local function playMacroLoop()
 end
 
 local function waitForGameStart()
-    while true do
-        if Services.Workspace:FindFirstChild("_wave_num") then
-            local wave = Services.Workspace._wave_num.Value
-            if wave >= 1 then
-                print("Game detected - wave " .. wave)
-                break
-            end
-        end
+    local waveNum = Services.Workspace:WaitForChild("_wave_num") -- make sure it exists
+    local lastWave = waveNum.Value
+
+    -- wait until wave resets back to 0 or less (end of game)
+    while waveNum.Value > 0 do
         task.wait(1)
     end
+
+    -- now wait for a new game to start (wave becomes >= 1 again)
+    while waveNum.Value < 1 do
+        task.wait(1)
+    end
+
+    print("New game detected - wave " .. waveNum.Value)
 end
 
 -- ========== EXISTING FUNCTIONS (keep all your existing functions) ==========
