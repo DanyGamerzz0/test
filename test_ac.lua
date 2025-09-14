@@ -1,3 +1,4 @@
+-- Load Rayfield with error handling
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -437,7 +438,8 @@ local function handleUnitPlacement(args)
             actualPosition = actualPosition,
             raycast = {
                 Origin = raycastData.Origin,
-                Direction = raycastData.Direction
+                Direction = raycastData.Direction,
+                Unit = raycastData.Direction and raycastData.Direction.Unit,
             },
             rotation = rotationIndex,
             time = timestamp - recordingStartTime,
@@ -698,6 +700,10 @@ local function executeAction(action, playbackMapping)
         
         local beforeSnapshot = takeUnitsSnapshot()
         
+print("Raycast data:", action.raycast)
+print("Origin:", action.raycast.Origin)
+print("Direction:", action.raycast.Direction)
+
         endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
             action.unitId,
             action.raycast,
