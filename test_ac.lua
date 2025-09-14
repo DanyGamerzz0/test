@@ -157,6 +157,15 @@ local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 section = JoinerTab:CreateSection("📖 Story Joiner 📖")
 
+local function notify(title, content, duration)
+        Rayfield:Notify({
+            Title = title or "Notice",
+            Content = content or "No message.",
+            Duration = duration or 5,
+            Image = "info",
+        })
+end
+
 local function getItemDisplayName(itemName)
     -- Check cache first
     if itemNameCache[itemName] then
@@ -291,7 +300,7 @@ end
 -- Enhanced webhook function based on yours
 local function sendWebhook(messageType)
     if ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
-        print("⚠️ Please set your Discord webhook URL first!")
+        notify("⚠️ Please set your Discord webhook URL first!")
         return
     end
 
@@ -412,7 +421,7 @@ end
     end)
     
     if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-        print("✅ Game summary webhook sent!")
+        notify(nil,"✅ Game summary webhook sent!")
     else
         print("❌ Webhook failed:", response and response.StatusCode or "No response")
         print("Response:", response)
@@ -677,13 +686,13 @@ local function exportMacroToClipboard(macroName, format)
     format = format or "json" -- default to json
     
     if not macroName or macroName == "" then
-        print("Export Error: No macro selected for export.")
+        notify(nil,"Export Error: No macro selected for export.")
         return false
     end
     
     local macroData = macroManager[macroName]
     if not macroData or #macroData == 0 then
-        print("Export Error: Macro '" .. macroName .. "' is empty or doesn't exist.")
+        notify(nil,"Export Error: Macro '" .. macroName .. "' is empty or doesn't exist.")
         return false
     end
     
@@ -738,11 +747,11 @@ local function exportMacroToClipboard(macroName, format)
     
     if success then
         local sizeKB = math.floor(#fileContent / 1024 * 100) / 100
-        print(string.format("Export Success: Macro '%s' exported as JSON (%d actions, %.2f KB)", 
+        notify(nil,string.format("Export Success: Macro '%s' exported as JSON (%d actions, %.2f KB)", 
             macroName, #macroData, sizeKB))
         return true
     else
-        print("Export Error: Failed to copy to clipboard: " .. tostring(err))
+        notify(nil,"Export Error: Failed to copy to clipboard: " .. tostring(err))
         return false
     end
 end
@@ -803,28 +812,28 @@ local function refreshMacroDropdown()
             print("Option " .. i .. " = " .. tostring(opt) .. " (" .. typeof(opt) .. ")")
         end
 
-        print("Refreshed dropdown with:", table.concat(options, ", "))
+        notify(nil,"Refreshed dropdown with:", table.concat(options, ", "))
         print("Current macro is:", currentMacroName, "Type:", type(currentMacroName))
 end
 
 local function importMacroFromURL(url, targetMacroName)
     if not url or url == "" then
-        print("Import Error: No URL provided for import.")
+        notify(nil,"Import Error: No URL provided for import.")
         return false
     end
     
     if not targetMacroName or targetMacroName == "" then
-        print("Import Error: No target macro name specified.")
+        notify(nil,"Import Error: No target macro name specified.")
         return false
     end
     
     -- Check if target macro already exists and has data
     if macroManager[targetMacroName] and #macroManager[targetMacroName] > 0 then
-        print("Import Error: Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro.")
+        notify(nil,"Import Error: Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro.")
         return false
     end
     
-    print("Importing... Downloading macro from URL...")
+    notify(nil,"Importing... Downloading macro from URL...")
     
     -- Try to fetch the URL content
     local success, result = pcall(function()
@@ -832,7 +841,7 @@ local function importMacroFromURL(url, targetMacroName)
     end)
     
     if not success then
-        print("Import Error: Failed to download from URL: " .. tostring(result))
+        notify(nil,"Import Error: Failed to download from URL: " .. tostring(result))
         return false
     end
     
@@ -843,13 +852,13 @@ local function importMacroFromURL(url, targetMacroName)
     end)
     
     if not success then
-        print("Import Error: Invalid JSON data in downloaded file.")
+        notify(nil,"Import Error: Invalid JSON data in downloaded file.")
         return false
     end
     
     -- Validate import data structure
     if not importData.actions or type(importData.actions) ~= "table" then
-        print("Import Error: Invalid macro format - missing actions.")
+        notify(nil,"Import Error: Invalid macro format - missing actions.")
         return false
     end
     
@@ -892,29 +901,29 @@ local function importMacroFromURL(url, targetMacroName)
     end)
     
     if not success then
-        warn("Failed to save imported macro to file:", err)
+        notify(nil,"Failed to save imported macro to file:", err)
     end
 
     refreshMacroDropdown()
     
-    print("Import Success: Imported '" .. (importData.macroName or "Unknown") .. "' to '" .. targetMacroName .. "' (" .. #deserializedActions .. " actions)")
+    notify(nil,"Import Success: Imported '" .. (importData.macroName or "Unknown") .. "' to '" .. targetMacroName .. "' (" .. #deserializedActions .. " actions)")
     return true
 end
 
 local function importMacroFromContent(jsonContent, targetMacroName)
     if not jsonContent or jsonContent:match("^%s*$") then
-        print("Import Error: No JSON content provided.")
+        notify(nil,"Import Error: No JSON content provided.")
         return false
     end
     
     if not targetMacroName or targetMacroName == "" then
-        print("Import Error: No target macro name specified.")
+        notify(nil,"Import Error: No target macro name specified.")
         return false
     end
     
     -- Check if target macro already exists and has data
     if macroManager[targetMacroName] and #macroManager[targetMacroName] > 0 then
-        print("Import Error: Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro name.")
+        notify(nil,"Import Error: Target macro '" .. targetMacroName .. "' already contains data. Use an empty macro name.")
         return false
     end
     
@@ -925,7 +934,7 @@ local function importMacroFromContent(jsonContent, targetMacroName)
     end)
     
     if not success then
-        print("Import Error: Invalid JSON format. Please check your pasted content.")
+        notify(nil,"Import Error: Invalid JSON format. Please check your pasted content.")
         print("JSON Parse Error:", result)
         return false
     end
@@ -934,12 +943,12 @@ local function importMacroFromContent(jsonContent, targetMacroName)
     
     -- Validate import data structure
     if not importData.actions or type(importData.actions) ~= "table" then
-        print("Import Error: Invalid macro format - missing or invalid actions array.")
+        notify(nil,"Import Error: Invalid macro format - missing or invalid actions array.")
         return false
     end
     
     if #importData.actions == 0 then
-        print("Import Error: Macro contains no actions.")
+        notify(nil,"Import Error: Macro contains no actions.")
         return false
     end
     
@@ -990,7 +999,7 @@ local function importMacroFromContent(jsonContent, targetMacroName)
     end
     
     if actionCount == 0 then
-        print("Import Error: No valid actions found in the macro data.")
+        notify(nil,"Import Error: No valid actions found in the macro data.")
         return false
     end
     
@@ -1004,7 +1013,7 @@ local function importMacroFromContent(jsonContent, targetMacroName)
     end)
     
     if not saveSuccess then
-        warn("Failed to save imported macro to file:", saveErr)
+        notify(nil,"Failed to save imported macro to file:", saveErr)
     end
 
     refreshMacroDropdown()
@@ -1027,7 +1036,7 @@ local function importMacroFromContent(jsonContent, targetMacroName)
         end
     end
     
-    print(string.format("Import Success! Imported '%s' with %d actions: %d Place | %d Upgrade | %d Ult | %d Sell", 
+    notify(nil,string.format("Import Success! Imported '%s' with %d actions: %d Place | %d Upgrade | %d Ult | %d Sell", 
         targetMacroName, actionCount, placeActions, upgradeActions, ultActions, sellActions))
     return true
 end
@@ -1191,7 +1200,7 @@ local MacroInput = MacroTab:CreateInput({
         
         if cleanedName ~= "" then
             if macroManager[cleanedName] then
-                print("Error: Macro '" .. cleanedName .. "' already exists.")
+                notify(nil,"Error: Macro '" .. cleanedName .. "' already exists.")
                 return
             end
 
@@ -1199,9 +1208,9 @@ local MacroInput = MacroTab:CreateInput({
             saveMacroToFile(cleanedName)
             refreshMacroDropdown()
             
-            print("Success: Created macro '" .. cleanedName .. "'.")
+            notify(nil,"Success: Created macro '" .. cleanedName .. "'.")
         elseif text ~= "" then
-            print("Error: Invalid macro name. Avoid special characters.")
+            notify(nil,"Error: Invalid macro name. Avoid special characters.")
         end
     end,
 })
@@ -1211,7 +1220,7 @@ local RefreshMacroListButton = MacroTab:CreateButton({
     Callback = function()
         loadAllMacros()
         refreshMacroDropdown()
-        print("Success: Macro list refreshed.")
+        notify(nil,"Success: Macro list refreshed.")
     end,
 })
 
@@ -1219,12 +1228,12 @@ local DeleteSelectedMacroButton = MacroTab:CreateButton({
     Name = "Delete Selected Macro",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            print("Error: No macro selected.")
+            notify(nil,"Error: No macro selected.")
             return
         end
 
         deleteMacroFile(currentMacroName)
-        print("Deleted: Deleted macro '" .. currentMacroName .. "'.")
+        notify(nil,"Deleted: Deleted macro '" .. currentMacroName .. "'.")
 
         macroManager[currentMacroName] = nil
         macro = {}
@@ -1242,7 +1251,7 @@ local RecordToggle = MacroTab:CreateToggle({
         if Value and not isRecordingLoopRunning then
             recordingHasStarted = false
             MacroStatusLabel:Set("Status: Preparing to record...")
-            print("Macro Recording: Waiting for game to start...")
+            notify(nil,"Macro Recording: Waiting for game to start...")
 
             local recordingThread = task.spawn(function()
                 waitForGameStart()
@@ -1254,13 +1263,13 @@ local RecordToggle = MacroTab:CreateToggle({
                     recordingStartTime = tick()
                     MacroStatusLabel:Set("Status: Recording active!")
 
-                    print("Recording Started: Macro recording is now active.")
+                    notify(nil,"Recording Started: Macro recording is now active.")
                 end
             end)
 
         elseif not Value then
             if isRecordingLoopRunning then
-                print("Recording Stopped: Recording manually stopped.")
+                notify(nil,"Recording Stopped: Recording manually stopped.")
             end
             isRecordingLoopRunning = false
             recordingHasStarted = false
@@ -1284,7 +1293,7 @@ local PlayToggle = MacroTab:CreateToggle({
 
         if Value and not isPlayingLoopRunning then
             MacroStatusLabel:Set("Status: Preparing playback...")
-            print("Macro Playback: Waiting for game to start...")
+            notify(nil,"Macro Playback: Waiting for game to start...")
 
             local playbackThread = task.spawn(function()
                 waitForGameStart()
@@ -1296,21 +1305,21 @@ local PlayToggle = MacroTab:CreateToggle({
                             macro = loadedMacro
                         else
                             MacroStatusLabel:Set("Status: Error - Failed to load macro!")
-                            print("Playback Error: Failed to load macro: " .. tostring(currentMacroName))
+                            notify(nil,"Playback Error: Failed to load macro: " .. tostring(currentMacroName))
                             isPlaybacking = false
                             PlayToggle:Set(false)
                             return
                         end
                     else
                         MacroStatusLabel:Set("Status: Error - No macro selected!")
-                        print("Playback Error: No macro selected for playback.")
+                        notify(nil,"Playback Error: No macro selected for playback.")
                         isPlaybacking = false
                         PlayToggle:Set(false)
                         return
                     end
 
                     isPlayingLoopRunning = true
-                    print("Playback Started: Macro is now executing...")
+                    notify(nil,"Playback Started: Macro is now executing...")
                     playMacroLoop()
                     isPlayingLoopRunning = false
                 end
@@ -1362,7 +1371,7 @@ local ImportInput = MacroTab:CreateInput({
         
         -- Check if macro already exists
         if macroManager[macroName] then
-            print("Import Cancelled: '" .. macroName .. "' already exists.")
+            notify(nil,"Import Cancelled: '" .. macroName .. "' already exists.")
             return
         end
         
@@ -1379,7 +1388,7 @@ local ExportButton = MacroTab:CreateButton({
     Name = "Copy Macro JSON",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            print("Export Error: No macro selected for export.")
+            notify(nil,"Export Error: No macro selected for export.")
             return
         end
         exportMacroToClipboard(currentMacroName, "compact")
@@ -1390,13 +1399,13 @@ local CheckUnitsButton = MacroTab:CreateButton({
     Name = "Check Macro Units",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            print("Error: No macro selected.")
+            notify(nil,"Error: No macro selected.")
             return
         end
         
         local macroData = macroManager[currentMacroName]
         if not macroData or #macroData == 0 then
-            print("Error: Selected macro is empty.")
+            notify(nil,"Error: Selected macro is empty.")
             return
         end
         
@@ -1424,10 +1433,10 @@ local CheckUnitsButton = MacroTab:CreateButton({
         if #unitList > 0 then
             table.sort(unitList)
             local displayText = table.concat(unitList, "\n")
-            print("Macro Units (" .. #unitList .. " types):")
-            print(displayText)
+            notify(nil,"Macro Units (" .. #unitList .. " types):")
+            notify(nil,displayText)
         else
-            print("No Units Found: This macro contains no unit placements.")
+            notify(nil,"No Units Found: This macro contains no unit placements.")
         end
     end,
 })
