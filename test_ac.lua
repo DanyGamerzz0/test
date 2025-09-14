@@ -320,6 +320,64 @@ local function startRecording()
     print(string.format("Recording for player: %s", getLocalPlayer().Name))
 end
 
+local function getMacroFilename(name)
+    if type(name) == "table" then name = name[1] or "" end
+    if type(name) ~= "string" or name == "" then return nil end
+    return "LixHub/Macros/AC/" .. name .. ".json"
+end
+
+local function serializeVector3(v)
+    return { x = v.X, y = v.Y, z = v.Z }
+end
+
+local function deserializeVector3(t)
+    return Vector3.new(t.x, t.y, t.z)
+end
+
+local function saveMacroToFile(name)
+    if not name or name == "" then return end
+    
+    local data = macroManager[name]
+    if not data then return end
+
+    local serializedData = {}
+    for _, action in ipairs(data) do
+        local newAction = table.clone(action)
+        if newAction.actualPosition then
+            newAction.actualPosition = serializeVector3(newAction.actualPosition)
+        end
+        if newAction.unitPosition then
+            newAction.unitPosition = serializeVector3(newAction.unitPosition)
+        end
+        table.insert(serializedData, newAction)
+    end
+
+    local json = Services.HttpService:JSONEncode(serializedData)
+    local filePath = getMacroFilename(name)
+    if filePath then
+        writefile(filePath, json)
+    end
+end
+
+local function loadMacroFromFile(name)
+    local filePath = getMacroFilename(name)
+    if not filePath or not isfile(filePath) then return nil end
+
+    local json = readfile(filePath)
+    local data = Services.HttpService:JSONDecode(json)
+
+    for _, action in ipairs(data) do
+        if action.actualPosition then
+            action.actualPosition = deserializeVector3(action.actualPosition)
+        end
+        if action.unitPosition then
+            action.unitPosition = deserializeVector3(action.unitPosition)
+        end
+    end
+    
+    return data
+end
+
 local function stopRecording()
     isRecording = false
     recordingHasStarted = false
@@ -599,64 +657,6 @@ local function ensureMacroFolders()
     if not isfolder("LixHub") then makefolder("LixHub") end
     if not isfolder("LixHub/Macros") then makefolder("LixHub/Macros") end
     if not isfolder("LixHub/Macros/AC") then makefolder("LixHub/Macros/AC") end
-end
-
-local function getMacroFilename(name)
-    if type(name) == "table" then name = name[1] or "" end
-    if type(name) ~= "string" or name == "" then return nil end
-    return "LixHub/Macros/AC/" .. name .. ".json"
-end
-
-local function serializeVector3(v)
-    return { x = v.X, y = v.Y, z = v.Z }
-end
-
-local function deserializeVector3(t)
-    return Vector3.new(t.x, t.y, t.z)
-end
-
-local function saveMacroToFile(name)
-    if not name or name == "" then return end
-    
-    local data = macroManager[name]
-    if not data then return end
-
-    local serializedData = {}
-    for _, action in ipairs(data) do
-        local newAction = table.clone(action)
-        if newAction.actualPosition then
-            newAction.actualPosition = serializeVector3(newAction.actualPosition)
-        end
-        if newAction.unitPosition then
-            newAction.unitPosition = serializeVector3(newAction.unitPosition)
-        end
-        table.insert(serializedData, newAction)
-    end
-
-    local json = Services.HttpService:JSONEncode(serializedData)
-    local filePath = getMacroFilename(name)
-    if filePath then
-        writefile(filePath, json)
-    end
-end
-
-local function loadMacroFromFile(name)
-    local filePath = getMacroFilename(name)
-    if not filePath or not isfile(filePath) then return nil end
-
-    local json = readfile(filePath)
-    local data = Services.HttpService:JSONDecode(json)
-
-    for _, action in ipairs(data) do
-        if action.actualPosition then
-            action.actualPosition = deserializeVector3(action.actualPosition)
-        end
-        if action.unitPosition then
-            action.unitPosition = deserializeVector3(action.unitPosition)
-        end
-    end
-    
-    return data
 end
 
 local function loadAllMacros()
@@ -1315,6 +1315,44 @@ local function checkAndExecuteHighestPriority()
     end
 end
 
+local StoryStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Stage",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StageStorySelector",
+    Callback = function(Option)
+        local selectedDisplayName = type(Option) == "table" and Option[1] or Option
+        local backendWorldKey = getBackendWorldKeyFromDisplayName(selectedDisplayName)
+        
+        if backendWorldKey then
+            State.StoryStageSelected = backendWorldKey
+            print("Selected: " .. selectedDisplayName .. " -> Backend: " .. backendWorldKey)
+        else
+            warn("Could not find backend world key for: " .. tostring(selectedDisplayName))
+        end
+    end,
+})
+
+local LegendStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Legend Stage",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "LegendWorldSelector",
+    Callback = function(Option)
+        local selectedDisplayName = type(Option) == "table" and Option[1] or Option
+        local backendWorldKey = getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
+        
+        if backendWorldKey then
+            State.LegendStageSelected = backendWorldKey
+            print("Selected Legend World: " .. selectedDisplayName .. " -> Backend: " .. backendWorldKey)
+        else
+            warn("Could not find backend legend world key for: " .. tostring(selectedDisplayName))
+        end
+    end,
+})
+
 local function loadLegendStages()
     print("=== LEGEND STAGE LOADER ===")
     print("Loading legend world names into dropdown...")
@@ -1423,30 +1461,6 @@ local function loadStoryStages()
 end
 
 -- Macro UI Functions
-local function refreshMacroDropdown()
-    local options = {}
-
-    for name in pairs(macroManager) do
-        table.insert(options, name)
-    end
-
-    table.sort(options)
-
-    if type(currentMacroName) == "table" then
-        currentMacroName = currentMacroName[1] or ""
-    end
-
-    if not currentMacroName or currentMacroName == "" then
-        currentMacroName = options[1]
-    end
-
-    if currentMacroName and macroManager[currentMacroName] then
-        macro = macroManager[currentMacroName]
-    end
-
-    MacroDropdown:Refresh(options, currentMacroName)
-    print("Refreshed dropdown with " .. #options .. " macros")
-end
 
 -- ========== CREATE UI SECTIONS ==========
 
@@ -1458,25 +1472,6 @@ local AutoJoinStoryToggle = JoinerTab:CreateToggle({
     Flag = "AutoJoinStory",
     Callback = function(Value)
         State.AutoJoinStory = Value
-    end,
-})
-
-local StoryStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Stage",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "StageStorySelector",
-    Callback = function(Option)
-        local selectedDisplayName = type(Option) == "table" and Option[1] or Option
-        local backendWorldKey = getBackendWorldKeyFromDisplayName(selectedDisplayName)
-        
-        if backendWorldKey then
-            State.StoryStageSelected = backendWorldKey
-            print("Selected: " .. selectedDisplayName .. " -> Backend: " .. backendWorldKey)
-        else
-            warn("Could not find backend world key for: " .. tostring(selectedDisplayName))
-        end
     end,
 })
 
@@ -1524,25 +1519,6 @@ local AutoJoinLegendToggle = JoinerTab:CreateToggle({
     Flag = "AutoJoinLegend",
     Callback = function(Value)
         State.AutoJoinLegendStage = Value
-    end,
-})
-
-local LegendStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Legend Stage",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "LegendWorldSelector",
-    Callback = function(Option)
-        local selectedDisplayName = type(Option) == "table" and Option[1] or Option
-        local backendWorldKey = getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
-        
-        if backendWorldKey then
-            State.LegendStageSelected = backendWorldKey
-            print("Selected Legend World: " .. selectedDisplayName .. " -> Backend: " .. backendWorldKey)
-        else
-            warn("Could not find backend legend world key for: " .. tostring(selectedDisplayName))
-        end
     end,
 })
 
@@ -1618,6 +1594,31 @@ local MacroDropdown = MacroTab:CreateDropdown({
         end
     end,
 })
+
+local function refreshMacroDropdown()
+    local options = {}
+
+    for name in pairs(macroManager) do
+        table.insert(options, name)
+    end
+
+    table.sort(options)
+
+    if type(currentMacroName) == "table" then
+        currentMacroName = currentMacroName[1] or ""
+    end
+
+    if not currentMacroName or currentMacroName == "" then
+        currentMacroName = options[1]
+    end
+
+    if currentMacroName and macroManager[currentMacroName] then
+        macro = macroManager[currentMacroName]
+    end
+
+    MacroDropdown:Refresh(options, currentMacroName)
+    print("Refreshed dropdown with " .. #options .. " macros")
+end
 
 local MacroInput = MacroTab:CreateInput({
     Name = "Create Macro",
