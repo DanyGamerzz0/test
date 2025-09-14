@@ -1,4 +1,4 @@
--- 6
+-- 7
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -155,6 +155,12 @@ local State = {
     AutoVoteRetry = false,
     AutoVoteNext = false,
     AutoVoteLobby = false,
+    AntiAfkKickEnabled = false,
+    enableLowPerformanceMode = false,
+    enableBlackScreen = false,
+    enableAutoExecute = false,
+    enableLimitFPS = false,
+    SelectedFPS = 0,
 }
 
 -- ========== CREATE TABS ==========
@@ -401,22 +407,34 @@ local function loadMacroFromFile(name)
         end
         
         -- Deserialize raycast data
-        if action.raycast then
-            local raycast = action.raycast
-            local deserializedRaycast = {}
-            
-            if raycast.Origin then
-                deserializedRaycast.Origin = Vector3.new(raycast.Origin.x, raycast.Origin.y, raycast.Origin.z)
-            end
-            if raycast.Direction then
-                deserializedRaycast.Direction = Vector3.new(raycast.Direction.x, raycast.Direction.y, raycast.Direction.z)
-            end
-            if raycast.Unit then
-                deserializedRaycast.Unit = Vector3.new(raycast.Unit.x, raycast.Unit.y, raycast.Unit.z)
-            end
-            
-            action.raycast = deserializedRaycast
-        end
+if action.raycast then
+    print("Raw raycast from JSON:", action.raycast)
+    local raycast = action.raycast
+    local deserializedRaycast = {}
+    
+    if raycast.Origin and raycast.Origin.x and raycast.Origin.y and raycast.Origin.z then
+        deserializedRaycast.Origin = Vector3.new(raycast.Origin.x, raycast.Origin.y, raycast.Origin.z)
+        print("Deserialized Origin:", deserializedRaycast.Origin)
+    else
+        print("ERROR: Origin data is incomplete:", raycast.Origin)
+    end
+    
+    if raycast.Direction and raycast.Direction.x and raycast.Direction.y and raycast.Direction.z then
+        deserializedRaycast.Direction = Vector3.new(raycast.Direction.x, raycast.Direction.y, raycast.Direction.z)
+        print("Deserialized Direction:", deserializedRaycast.Direction)
+    else
+        print("ERROR: Direction data is incomplete:", raycast.Direction)
+    end
+    
+    if raycast.Unit and raycast.Unit.x and raycast.Unit.y and raycast.Unit.z then
+        deserializedRaycast.Unit = Vector3.new(raycast.Unit.x, raycast.Unit.y, raycast.Unit.z)
+        print("Deserialized Unit:", deserializedRaycast.Unit)
+    else
+        print("ERROR: Unit data is incomplete:", raycast.Unit)
+    end
+    
+    action.raycast = deserializedRaycast
+end
     end
     
     return data
@@ -1520,6 +1538,161 @@ local function checkAndExecuteHighestPriority()
     end
 end
 
+local function enableBlackScreen()
+    local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
+    
+    if State.enableBlackScreen then
+        if existingGui then return end
+        
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "BlackScreenGui"
+        screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+        screenGui.IgnoreGuiInset = true
+        screenGui.DisplayOrder = math.huge
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 36)
+        frame.Position = UDim2.new(0, 0, 0, -36)
+        frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        frame.BorderSizePixel = 0
+        frame.Parent = screenGui
+        frame.ZIndex = 999999
+
+        local toggleButtonFrame = Instance.new("Frame")
+        toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
+        toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
+        toggleButtonFrame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
+        toggleButtonFrame.BackgroundTransparency = 0.5
+        toggleButtonFrame.Parent = screenGui
+        toggleButtonFrame.ZIndex = 1000000
+
+        local toggleButtonFrameUICorner =  Instance.new("UICorner")
+        toggleButtonFrameUICorner.CornerRadius = UDim.new(1,0)
+        toggleButtonFrameUICorner.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitle = Instance.new("TextLabel")
+        toggleButtonFrameTitle.ZIndex = math.huge
+        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameTitle.BackgroundTransparency = 1
+        toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameTitle.Text = "Toggle Screen"
+        toggleButtonFrameTitle.TextSize = 15
+        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
+        toggleButtonFrameTitle.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitleStroke = Instance.new("UIStroke")
+        toggleButtonFrameTitleStroke.Parent = toggleButtonFrameTitle
+
+        local toggleButtonFrameButton = Instance.new("TextButton")
+        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameButton.BackgroundTransparency = 1
+        toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameButton.Text = ""
+        toggleButtonFrameButton.ZIndex = math.huge
+        toggleButtonFrameButton.Parent = toggleButtonFrame
+
+        toggleButtonFrameButton.MouseButton1Click:Connect(function()
+            frame.Visible = not frame.Visible
+        end)
+    else
+        if existingGui then
+            existingGui:Destroy()
+        end
+    end
+end
+
+local function enableLowPerformanceMode()
+    if State.enableLowPerformanceMode then
+        Services.Lighting.Brightness = 1
+        Services.Lighting.GlobalShadows = false
+        Services.Lighting.Technology = Enum.Technology.Compatibility
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 0
+        Services.Lighting.EnvironmentSpecularScale = 0
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                if obj.Transparency < 1 then
+                    obj.Transparency = 1
+                end
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = false
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = false
+            end
+        end
+--Remotes.SettingEvent:FireServer(unpack({"Abilities VFX", false}))
+--Remotes.SettingEvent:FireServer(unpack({"Hide Cosmetic", true}))
+--Remotes.SettingEvent:FireServer(unpack({"Low Graphic Quality", true}))
+--Remotes.SettingEvent:FireServer(unpack({"HeadBar", false}))
+--Remotes.SettingEvent:FireServer(unpack({"Display Players Units", false}))
+--Remotes.SettingEvent:FireServer(unpack({"DisibleGachaChat", true}))
+--Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
+--Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = false
+--Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
+    else
+        --Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = true
+        --Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = true
+        Services.Lighting.Brightness = 1.51
+        Services.Lighting.GlobalShadows = true
+        Services.Lighting.Technology = Enum.Technology.Future
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 1
+        Services.Lighting.EnvironmentSpecularScale = 1
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = true
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 0
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = true
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = true
+            end
+        end
+    end
+end
+
+GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
+
+ Button = LobbyTab:CreateButton({
+        Name = "Return to lobby",
+        Callback = function()
+            notify("Return to lobby", "Returning to lobby!")
+            Services.TeleportService:Teleport(107573139811370, Services.Players.LocalPlayer)
+    end,
+})
+
+
 local StoryStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Stage",
     Options = {},
@@ -1744,6 +1917,118 @@ local LegendChapterDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
+GameSection = GameTab:CreateSection("👥 Player 👥")
+
+     Slider = GameTab:CreateSlider({
+   Name = "Max Camera Zoom Distance",
+   Range = {5, 100},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 35,
+   Flag = "CameraZoomDistanceSelector",
+   Callback = function(Value)
+        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+   end,
+})
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Info = "Prevents roblox kick message.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Low Performance Mode",
+    CurrentValue = false,
+    Flag = "enableLowPerformanceMode",
+    Callback = function(Value)
+        State.enableLowPerformanceMode = Value
+        enableLowPerformanceMode()
+    end,
+})
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Black Screen",
+    CurrentValue = false,
+    Flag = "enableBlackScreen",
+    Callback = function(Value)
+        State.enableBlackScreen = Value
+        enableBlackScreen()
+    end,
+})
+
+ Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Execute Script",
+    CurrentValue = false,
+    Flag = "enableAutoExecute",
+    Info = "This auto executes and persists through teleports until you disable it or leave the game.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.enableAutoExecute = Value
+        if State.enableAutoExecute then
+            if queue_on_teleport then
+                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+            else
+                warn("queue_on_teleport not supported by this executor")
+            end
+        else
+            if queue_on_teleport then
+                queue_on_teleport("") -- Empty string clears queue in most executors
+            end
+        end
+    end,
+})
+
+local function updateFPSLimit()
+    if State.enableLimitFPS and State.SelectedFPS > 0 then
+        setfpscap(State.SelectedFPS)
+    else
+        setfpscap(0) -- 0 = unlimited
+    end
+end
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Limit FPS",
+    CurrentValue = false,
+    Flag = "enableLimitFPS",
+    Callback = function(Value)
+        State.enableLimitFPS = Value
+        updateFPSLimit()
+    end,
+})
+
+ Slider = GameTab:CreateSlider({
+   Name = "Limit FPS To",
+   Range = {0, 240},
+   Increment = 1,
+   Suffix = " FPS",
+   CurrentValue = 60,
+   Flag = "FPSSelector",
+   Callback = function(Value)
+        State.SelectedFPS = Value
+        updateFPSLimit()
+   end,
+})
+
+if State.enableLowPerformanceMode then
+    enableLowPerformanceMode()
+end
+
 -- Game Tab
 local RetryToggle = GameTab:CreateToggle({
    Name = "Auto Retry",
@@ -1883,7 +2168,7 @@ local RecordToggle = MacroTab:CreateToggle({
     Callback = function(Value)
         isRecording = Value
 
-        if Value and not isRecordingLoopRunning then
+        if Value and not isRecordingLoopRunning and not isInLobby() then
             recordingHasStarted = false
             MacroStatusLabel:Set("Status: Preparing to record...")
             notify(nil,"Macro Recording: Waiting for game to start...")
@@ -2056,7 +2341,7 @@ local PlayToggle = MacroTab:CreateToggle({
     Callback = function(Value)
         isAutoLoopEnabled = Value
         
-        if Value then
+        if Value and not isInLobby() then
             MacroStatusLabel:Set("Status: Auto-loop enabled - waiting for game...")
             notify(nil, "Auto-Loop Enabled: Macro will play automatically each game.")
             
