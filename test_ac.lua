@@ -1,4 +1,4 @@
--- 4
+-- 2
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -114,10 +114,6 @@ local recordingPlacementCounter = 0
 local unitPositionToPlacementOrder = {}
 local placementOrderToPosition = {}
 local placementOrderToSpawnUUID = {}
-
-local infinitePlaybackEnabled = false
-local playbackLoopCount = 0
-local isWaitingForGameStart = false
 
 -- ========== EXISTING VARIABLES (keep all your existing variables) ==========
 local gameInProgress = false
@@ -427,108 +423,12 @@ local function stopRecording()
     return macro
 end
 
-local function debugRaycastData(raycastData, actionName)
-    print("=== RAYCAST DEBUG for " .. actionName .. " ===")
-    print("Type:", type(raycastData))
-    
-    if raycastData == nil then
-        print("Raycast data is NIL")
-        return
-    end
-    
-    if type(raycastData) == "table" then
-        print("Raycast table contents:")
-        for key, value in pairs(raycastData) do
-            print("  " .. tostring(key) .. ":", type(value), tostring(value))
-            
-            -- If value is a table (like Vector3), show its contents
-            if type(value) == "table" or type(value) == "userdata" then
-                pcall(function()
-                    if value.X and value.Y and value.Z then
-                        print("    Vector3(" .. value.X .. ", " .. value.Y .. ", " .. value.Z .. ")")
-                    end
-                end)
-            end
-        end
-    else
-        print("Raycast data is not a table:", tostring(raycastData))
-    end
-    print("=== END RAYCAST DEBUG ===")
-end
-
-local function serializeRaycastData(raycastData)
-    if not raycastData or type(raycastData) ~= "table" then
-        print("Warning: Invalid raycast data for serialization")
-        return {
-            Origin = {x = 0, y = 0, z = 0},
-            Direction = {x = 0, y = 0, z = 0},
-            Unit = {x = 0, y = 0, z = 0}
-        }
-    end
-    
-    local serialized = {}
-    
-    -- Handle Origin
-    if raycastData.Origin and type(raycastData.Origin) == "userdata" then
-        local success, result = pcall(function()
-            return {
-                x = raycastData.Origin.X,
-                y = raycastData.Origin.Y,
-                z = raycastData.Origin.Z
-            }
-        end)
-        serialized.Origin = success and result or {x = 0, y = 0, z = 0}
-    else
-        serialized.Origin = {x = 0, y = 0, z = 0}
-    end
-    
-    -- Handle Direction
-    if raycastData.Direction and type(raycastData.Direction) == "userdata" then
-        local success, result = pcall(function()
-            return {
-                x = raycastData.Direction.X,
-                y = raycastData.Direction.Y,
-                z = raycastData.Direction.Z
-            }
-        end)
-        serialized.Direction = success and result or {x = 0, y = 0, z = 0}
-    else
-        serialized.Direction = {x = 0, y = 0, z = 0}
-    end
-    
-    -- Handle Unit (might be nested under Direction)
-    local unitVector = nil
-    if raycastData.Unit then
-        unitVector = raycastData.Unit
-    elseif raycastData.Direction and raycastData.Direction.Unit then
-        unitVector = raycastData.Direction.Unit
-    end
-    
-    if unitVector and type(unitVector) == "userdata" then
-        local success, result = pcall(function()
-            return {
-                x = unitVector.X,
-                y = unitVector.Y,
-                z = unitVector.Z
-            }
-        end)
-        serialized.Unit = success and result or {x = 0, y = 0, z = 0}
-    else
-        serialized.Unit = {x = 0, y = 0, z = 0}
-    end
-    
-    return serialized
-end
-
 local function handleUnitPlacement(args)
     if not isRecording or not recordingHasStarted then return end
     
     local unitId = args[1]
     local raycastData = args[2]
     local rotationIndex = args[3] or 0
-    
-    -- Debug the incoming raycast data
-    debugRaycastData(raycastData, "PLACEMENT")
     
     local timestamp = tick()
     local currentWaveNum = getCurrentWave()
@@ -565,8 +465,37 @@ local function handleUnitPlacement(args)
         
         local unitType = getUnitType(placedUnit)
         
-        -- Use the improved serialization
-        local serializedRaycast = serializeRaycastData(raycastData)
+        -- Serialize raycast data
+        local serializedRaycast = {}
+        if raycastData then
+            if raycastData.Origin then
+                serializedRaycast.Origin = {
+                    x = raycastData.Origin.X,
+                    y = raycastData.Origin.Y,
+                    z = raycastData.Origin.Z
+                }
+            end
+            if raycastData.Direction then
+                serializedRaycast.Direction = {
+                    x = raycastData.Direction.X,
+                    y = raycastData.Direction.Y,
+                    z = raycastData.Direction.Z
+                }
+            end
+            if raycastData.Unit then
+                serializedRaycast.Unit = {
+                    x = raycastData.Unit.X,
+                    y = raycastData.Unit.Y,
+                    z = raycastData.Unit.Z
+                }
+            elseif raycastData.Direction and raycastData.Direction.Unit then
+                serializedRaycast.Unit = {
+                    x = raycastData.Direction.Unit.X,
+                    y = raycastData.Direction.Unit.Y,
+                    z = raycastData.Direction.Unit.Z
+                }
+            end
+        end
         
         local placementData = {
             action = "PlaceUnit",
@@ -577,15 +506,13 @@ local function handleUnitPlacement(args)
             raycast = serializedRaycast,
             rotation = rotationIndex,
             wave = currentWaveNum,
-            waveRelativeTime = waveRelativeTime,
+            waveRelativeTime = waveRelativeTime, -- Time since wave started
             timestamp = timestamp,
             placementOrder = thisPlacementOrder
+            -- Removed playerOwner field
         }
         
         table.insert(macro, placementData)
-        
-        -- Notify user about recorded placement
-        notifyMacro("Recording", string.format("Placed %s (#%d)", unitType, thisPlacementOrder), 2, "recording")
         
         print(string.format("Recorded placement #%d: %s (Wave %d, %.2fs)", 
             thisPlacementOrder, unitId, currentWaveNum, waveRelativeTime))
@@ -850,67 +777,31 @@ local function executeAction(action, playbackMapping)
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Build the raycast parameter with better error handling
+        -- Build the raycast parameter for the remote call
         local raycastParam = {}
-        
-        if action.raycast and type(action.raycast) == "table" then
-            -- Convert back to Vector3 objects, with fallbacks
-            if action.raycast.Origin and type(action.raycast.Origin) == "table" then
-                raycastParam.Origin = Vector3.new(
-                    action.raycast.Origin.x or 0,
-                    action.raycast.Origin.y or 0,
-                    action.raycast.Origin.z or 0
-                )
+        if action.raycast then
+            if action.raycast.Origin then
+                raycastParam.Origin = action.raycast.Origin
             end
-            
-            if action.raycast.Direction and type(action.raycast.Direction) == "table" then
-                raycastParam.Direction = Vector3.new(
-                    action.raycast.Direction.x or 0,
-                    action.raycast.Direction.y or 0,
-                    action.raycast.Direction.z or 0
-                )
+            if action.raycast.Direction then
+                raycastParam.Direction = action.raycast.Direction
             end
-            
-            if action.raycast.Unit and type(action.raycast.Unit) == "table" then
-                raycastParam.Unit = Vector3.new(
-                    action.raycast.Unit.x or 0,
-                    action.raycast.Unit.y or 0,
-                    action.raycast.Unit.z or 0
-                )
+            -- Unit should be at the top level, not under Direction
+            if action.raycast.Unit then
+                raycastParam.Unit = action.raycast.Unit
             end
-        else
-            -- Fallback: create default raycast data
-            print("Warning: No valid raycast data found, using defaults")
-            raycastParam.Origin = Vector3.new(0, 0, 0)
-            raycastParam.Direction = Vector3.new(0, 0, 0)
-            raycastParam.Unit = Vector3.new(0, 0, 0)
         end
 
-        print("Raycast data for placement:")
+        print("Raycast data:", raycastParam)
         print("Origin:", raycastParam.Origin)
         print("Direction:", raycastParam.Direction)
         print("Unit:", raycastParam.Unit)
 
-        -- Attempt placement with error handling
-        local success, error = pcall(function()
-            endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-                action.unitId,
-                raycastParam,
-                action.rotation or 0
-            )
-        end)
-        
-        if not success then
-            print("Placement failed:", error)
-            -- Try with minimal raycast data
-            pcall(function()
-                endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-                    action.unitId,
-                    { Origin = Vector3.new(0, 0, 0), Direction = Vector3.new(0, 1, 0), Unit = Vector3.new(0, 1, 0) },
-                    0
-                )
-            end)
-        end
+        endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
+            action.unitId,
+            raycastParam,
+            action.rotation
+        )
         
         task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME + MACRO_CONFIG.SNAPSHOT_WAIT_TIME)
         local afterSnapshot = takeUnitsSnapshot()
@@ -1062,28 +953,6 @@ local function notify(title, content, duration)
         Content = content or "No message.",
         Duration = duration or 5,
         Image = "info",
-    })
-end
-
-local function notifyMacro(title, content, duration, notificationType)
-    local icon = "info"
-    if notificationType == "success" then
-        icon = "check"
-    elseif notificationType == "warning" then
-        icon = "alert-triangle"
-    elseif notificationType == "error" then
-        icon = "x"
-    elseif notificationType == "recording" then
-        icon = "circle"
-    elseif notificationType == "playback" then
-        icon = "play"
-    end
-    
-    Rayfield:Notify({
-        Title = title or "Macro System",
-        Content = content or "",
-        Duration = duration or 4,
-        Image = icon,
     })
 end
 
