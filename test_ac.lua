@@ -1,4 +1,3 @@
--- Load Rayfield with error handling
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1726,14 +1725,14 @@ local PlayToggle = MacroTab:CreateToggle({
                             MacroStatusLabel:Set("Status: Error - Failed to load macro!")
                             notify(nil,"Playback Error: Failed to load macro: " .. tostring(currentMacroName))
                             isPlaybacking = false
-                            PlayToggle:Set(false)
+                            --PlayToggle:Set(false)
                             return
                         end
                     else
                         MacroStatusLabel:Set("Status: Error - No macro selected!")
                         notify(nil,"Playback Error: No macro selected for playback.")
                         isPlaybacking = false
-                        PlayToggle:Set(false)
+                        --PlayToggle:Set(false)
                         return
                     end
 
@@ -1743,7 +1742,7 @@ local PlayToggle = MacroTab:CreateToggle({
                     playMacroLoop()
                     isPlayingLoopRunning = false
                     MacroStatusLabel:Set("Status: Playback completed")
-                    PlayToggle:Set(false)
+                    --PlayToggle:Set(false)
                     isPlaybacking = false
                 end
             end)
@@ -1885,6 +1884,23 @@ if gameFinishedRemote then
         print("game_finished RemoteEvent fired!")
         print("Number of arguments:", #args)
         
+                if isRecording then
+            isRecording = false
+            isRecordingLoopRunning = false
+            Rayfield:Notify({
+                Title = "Recording Stopped",
+                Content = "Game ended, recording has been automatically stopped and saved.",
+                Duration = 3,
+                Image = 0,
+            })
+            RecordToggle:Set(false)
+
+            if currentMacroName then
+                macroManager[currentMacroName] = macro
+                saveMacroToFile(currentMacroName)
+            end
+        end 
+
         -- Print detailed argument contents for debugging
         for i, arg in ipairs(args) do
             print("Arg[" .. i .. "] (" .. type(arg) .. "):")
