@@ -1,4 +1,4 @@
--- 14
+-- 13
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -2849,11 +2849,6 @@ task.spawn(function()
     end
 end)
 
--- Load stages and macros
-loadStoryStages()
-loadLegendStages()
-loadRaidStages()
-
 -- Only monitor waves if not in lobby
 if not isInLobby() then 
     monitorWaves() 
@@ -2865,6 +2860,9 @@ loadAllMacros()
 
 -- Restore saved macro from config after a delay
 task.delay(1, function()
+loadStoryStages()
+loadLegendStages()
+loadRaidStages()
     local savedMacroName = Rayfield.Flags["MacroDropdown"]
     
     if type(savedMacroName) == "table" then
