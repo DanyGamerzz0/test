@@ -1,4 +1,4 @@
--- 18
+-- 20
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1543,10 +1543,219 @@ local function clearProcessingState()
     AutoJoinState.currentAction = nil
 end
 
+local function getChallengeData()
+    local success, challengeData = pcall(function()
+        local getNormalChallenge = Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("get_normal_challenge")
+        
+        return getNormalChallenge:InvokeServer()
+    end)
+    
+    if success and challengeData then
+        print("Challenge data retrieved:", challengeData.current_challenge, "Level:", challengeData.current_level_id)
+        return challengeData
+    else
+        print("Failed to get challenge data or no challenge available")
+        return nil
+    end
+end
+
+local function getItemIdFromDisplayName(displayName)
+    local success, itemId = pcall(function()
+        local ItemsModule = Services.ReplicatedStorage.Framework.Data.Items.Items_Release
+        local itemsData = require(ItemsModule)
+        
+        -- Search through all items to find matching display name
+        for itemKey, itemData in pairs(itemsData) do
+            if type(itemData) == "table" and itemData.name == displayName then
+                return itemData.id
+            end
+        end
+        
+        return nil
+    end)
+    
+    return success and itemId or nil
+end
+
+local rewardMappingsCache = {}
+local function buildRewardMappingsCache()
+    if next(rewardMappingsCache) then
+        return -- Already built
+    end
+    
+    -- Static mappings for non-item rewards
+    rewardMappingsCache = {
+        ["gems"] = {"gems"},
+        ["xp"] = {"exp"},
+        ["gold"] = {"gold"},
+        ["trait crystals"] = {"traitcrystal"},
+        ["evolution crystals"] = {"evolutioncrystal"}, 
+        ["summon tickets"] = {"summonticket"},
+        ["legendary summon tickets"] = {"legendaryticket"},
+        ["star remnants"] = {"starfruit"},
+        ["capsules"] = {"capsule"},
+        ["units"] = {"unit"},
+        ["crates"] = {"crate"},
+        ["boosters"] = {"booster"}
+    }
+    
+    -- Add stone mappings from Items module
+    local stoneDisplayNames = {
+        "Air Stone", "Earth Stone", "Fire Stone", "Fear Stone", 
+        "Water Stone", "Divine Stone"
+    }
+    
+    for _, stoneName in ipairs(stoneDisplayNames) do
+        local itemId = getItemIdFromDisplayName(stoneName)
+        if itemId then
+            rewardMappingsCache[string.lower(stoneName)] = {itemId}
+            print("Mapped stone:", stoneName, "->", itemId)
+        else
+            warn("Could not find item ID for stone:", stoneName)
+        end
+    end
+end
+
+local function checkChallengeRewards(challengeData)
+    if not challengeData or not challengeData._show_rewards or #State.ChallengeRewardsFilter == 0 then
+        return true -- If no filter set or no rewards data, accept all challenges
+    end
+    
+    -- Build mappings cache if not already built
+    buildRewardMappingsCache()
+    
+    -- Check if challenge contains any of the desired rewards
+    for rewardName, rewardData in pairs(challengeData._show_rewards) do
+        if rewardData.type == "item" and rewardData.params then
+            local itemId = rewardData.params.item_id
+            
+            -- Check against our filter
+            for _, desiredReward in ipairs(State.ChallengeRewardsFilter) do
+                local desiredLower = string.lower(desiredReward)
+                local itemIdLower = string.lower(itemId)
+                
+                -- First check direct matches
+                if itemIdLower == desiredLower or 
+                   string.find(itemIdLower, desiredLower) or
+                   string.find(desiredLower, itemIdLower) then
+                    print("Found direct matching reward:", itemId, "matches filter:", desiredReward)
+                    return true
+                end
+                
+                -- Check against cached mappings
+                local mappedRewards = rewardMappingsCache[desiredLower]
+                if mappedRewards then
+                    for _, mappedReward in ipairs(mappedRewards) do
+                        if itemIdLower == string.lower(mappedReward) or 
+                           string.find(itemIdLower, string.lower(mappedReward)) then
+                            print("Found mapped reward:", itemId, "matches mapped filter:", mappedReward, "for:", desiredReward)
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    print("No matching rewards found in challenge")
+    return false
+end
+
+local function checkIgnoreWorlds(challengeData)
+    if not challengeData or #State.IgnoreWorlds == 0 then
+        return false -- Don't ignore if no worlds specified
+    end
+    
+    local challengeLevel = challengeData.current_level_id or ""
+    
+    for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
+        -- Convert world name to level ID format for comparison
+        -- Most world names in level IDs are lowercase with underscores
+        local worldForComparison = string.lower(ignoredWorld):gsub(" ", "_")
+        
+        if string.find(string.lower(challengeLevel), worldForComparison) then
+            print("Ignoring challenge based on world filter:", ignoredWorld, "found in:", challengeLevel)
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function joinChallenge()
+    local challengeData = getChallengeData()
+    
+    if not challengeData then
+        print("No challenge data available")
+        return false
+    end
+    
+    -- Check if we should ignore this challenge based on world
+    if checkIgnoreWorlds(challengeData) then
+        print("Skipping challenge due to ignored world")
+        return false
+    end
+    
+    -- Check if challenge has desired rewards
+    if not checkChallengeRewards(challengeData) then
+        print("Challenge doesn't contain desired rewards, skipping")
+        return false
+    end
+    
+    -- Attempt to join the challenge
+    print("Challenge passed all filters, attempting to join...")
+    print("Challenge type:", challengeData.current_challenge)
+    print("Challenge level:", challengeData.current_level_id)
+    
+    local success = pcall(function()
+        -- First try to join lobby for challenge
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("Challenge")
+        
+        task.wait(0.5)
+        
+local args = {
+	"ChallengePod1"
+}
+--game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer(unpack(args))
+
+        
+        task.wait(0.5)
+        
+        -- Finally start the game
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
+    end)
+    
+    if success then
+        notify("Challenge Joiner", string.format("Joining challenge: %s", challengeData.current_challenge or "Unknown"))
+        return true
+    else
+        notify("Challenge Joiner", "Failed to join challenge")
+        return false
+    end
+end
+
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     if not canPerformAction() then return end
+
+    if State.AutoJoinChallenge then
+        local challengeData = getChallengeData()
+        if challengeData then
+            setProcessingState("Challenge Auto Join")
+            
+            if joinChallenge() then
+                print("Successfully initiated challenge join!")
+            else
+                print("Challenge join failed or skipped!")
+            end
+            
+            task.delay(5, clearProcessingState)
+            return -- Exit early since challenge has highest priority
+        end
+    end
 
     -- STORY
     if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
