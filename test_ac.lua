@@ -1,4 +1,4 @@
--- 20
+-- 21
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1671,8 +1671,6 @@ local function checkIgnoreWorlds(challengeData)
     local challengeLevel = challengeData.current_level_id or ""
     
     for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
-        -- Convert world name to level ID format for comparison
-        -- Most world names in level IDs are lowercase with underscores
         local worldForComparison = string.lower(ignoredWorld):gsub(" ", "_")
         
         if string.find(string.lower(challengeLevel), worldForComparison) then
@@ -1691,42 +1689,33 @@ local function joinChallenge()
         print("No challenge data available")
         return false
     end
-    
+
     -- Check if we should ignore this challenge based on world
     if checkIgnoreWorlds(challengeData) then
         print("Skipping challenge due to ignored world")
         return false
     end
-    
+
     -- Check if challenge has desired rewards
     if not checkChallengeRewards(challengeData) then
         print("Challenge doesn't contain desired rewards, skipping")
         return false
     end
-    
+
     -- Attempt to join the challenge
     print("Challenge passed all filters, attempting to join...")
     print("Challenge type:", challengeData.current_challenge)
     print("Challenge level:", challengeData.current_level_id)
-    
-    local success = pcall(function()
-        -- First try to join lobby for challenge
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("Challenge")
-        
-        task.wait(0.5)
-        
-local args = {
-	"ChallengePod1"
-}
---game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer(unpack(args))
 
-        
+    local success = pcall(function()
+
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
+
         task.wait(0.5)
-        
-        -- Finally start the game
+
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
     end)
-    
+
     if success then
         notify("Challenge Joiner", string.format("Joining challenge: %s", challengeData.current_challenge or "Unknown"))
         return true
