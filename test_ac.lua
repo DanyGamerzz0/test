@@ -1,4 +1,4 @@
--- 11
+-- 12
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1467,40 +1467,29 @@ local function getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
     return nil
 end
 
-local function getBackendRaidLevelKeyFromDisplayName(selectedDisplayName)
+
+local function getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
     local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
     local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
     
-    if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.RAID_LEVEL_ORDER then
+    if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
         return nil
     end
     
-    -- Only search through raid levels that are in RAID_LEVEL_ORDER
-    for _, orderedLevelKey in ipairs(WorldLevelOrder.RAID_LEVEL_ORDER) do
-        -- Get all world modules to find the one containing raid worlds
+    for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
         local worldModules = WorldsFolder:GetChildren()
         
         for _, worldModule in ipairs(worldModules) do
             if worldModule:IsA("ModuleScript") then
                 local success, worldData = pcall(require, worldModule)
                 
-                if success and worldData then
-                    -- Check each world in this module for raid worlds
-                    for worldKey, worldInfo in pairs(worldData) do
-                        if type(worldInfo) == "table" and worldInfo.raid_world and worldInfo.levels then
-                            -- Look through the levels to find matching raid level
-                            for levelNum, levelInfo in pairs(worldInfo.levels) do
-                                if levelInfo.id == orderedLevelKey then
-                                    -- Create display name using world name and level number
-                                    local displayName = worldInfo.name .. " - Stage " .. levelNum
-                                    if displayName == selectedDisplayName then
-                                        return orderedLevelKey -- Return the backend level key like "Sakamato_Raid_1"
-                                    end
-                                    break
-                                end
-                            end
-                        end
+                if success and worldData and worldData[orderedWorldKey] then
+                    local worldInfo = worldData[orderedWorldKey]
+                    
+                    if type(worldInfo) == "table" and worldInfo.raid_world and worldInfo.name == selectedDisplayName then
+                        return orderedWorldKey .. "_Raid"
                     end
+                    break
                 end
             end
         end
@@ -1922,29 +1911,37 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
     Flag = "RaidWorldSelector",
     Callback = function(Option)
         local selectedDisplayName = type(Option) == "table" and Option[1] or Option
-        local backendWorldKey = getBackendRaidLevelKeyFromDisplayName(selectedDisplayName)
+        State.RaidWorldSelected = selectedDisplayName
+        print("---------------------------------SELECTED WORLD: "..selectedDisplayName.."---------------------------------")
+        
+        -- Update the raid stage when both world and act are selected
+        if State.RaidActSelected then
+            local actNum = State.RaidActSelected:match("_(%d+)")
+            if actNum then
+                local backendLevelKey = getBackendRaidLevelKeyFromDisplayName(selectedDisplayName, tonumber(actNum))
+                if backendLevelKey then
+                    State.RaidStageSelected = backendLevelKey
+                    print("---------------------------------FINAL SELECTION: "..State.RaidStageSelected.."---------------------------------")
+                end
+            end
+        end
+    end,
+})
+
+local RaidStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Stage",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RaidWorldSelector",
+    Callback = function(Option)
+        local selectedDisplayName = type(Option) == "table" and Option[1] or Option
+        local backendWorldKey = getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
         
         if backendWorldKey then
             State.RaidStageSelected = backendWorldKey
             print("---------------------------------SELECTED: "..State.RaidStageSelected.."---------------------------------")
         else
-        end
-    end,
-})
-
-local RaidChapterDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Stage Act",
-    Options = {"Act 1", "Act 2", "Act 3"},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "RaidActSelector",
-    Callback = function(Option)
-        local selectedOption = type(Option) == "table" and Option[1] or Option
-        
-        local num = selectedOption:match("%d+")
-        if num then
-            State.RaidActSelected = "_" .. num
-            print("---------------------------------SELECTED: "..State.RaidActSelected.."---------------------------------")
         end
     end,
 })
@@ -2044,7 +2041,6 @@ end
 
 local function loadRaidStages()
     
-    -- Get the world ordering data
     local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
     local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
     
@@ -2054,39 +2050,33 @@ local function loadRaidStages()
         return
     end
     
-    if not WorldLevelOrder or not WorldLevelOrder.RAID_LEVEL_ORDER then
-        print("WorldLevelOrder or RAID_LEVEL_ORDER not found!")
+    if not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
+        print("WorldLevelOrder or RAID_WORLD_ORDER not found!")
         RaidStageDropdown:Refresh({})
         return
     end
 
     local displayNames = {}
+    local addedWorlds = {}
     
-    -- Process raid levels in the specified order from RAID_LEVEL_ORDER
-    for _, orderedLevelKey in ipairs(WorldLevelOrder.RAID_LEVEL_ORDER) do
+    for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
         
-        -- Get all world modules to find the one containing raid worlds
         local worldModules = WorldsFolder:GetChildren()
         
         for _, worldModule in ipairs(worldModules) do
             if worldModule:IsA("ModuleScript") then
                 local success, worldData = pcall(require, worldModule)
                 
-                if success and worldData then
-                    -- Check each world in this module for raid worlds
-                    for worldKey, worldInfo in pairs(worldData) do
-                        if type(worldInfo) == "table" and worldInfo.raid_world and worldInfo.levels then
-                            -- Look through the levels to find matching raid level
-                            for levelNum, levelInfo in pairs(worldInfo.levels) do
-                                if levelInfo.id == orderedLevelKey then
-                                    -- Create display name using world name and level number
-                                    local displayName = worldInfo.name .. " - Stage " .. levelNum
-                                    table.insert(displayNames, displayName)
-                                    break
-                                end
-                            end
+                if success and worldData and worldData[orderedWorldKey] then
+                    local worldInfo = worldData[orderedWorldKey]
+                    
+                    if type(worldInfo) == "table" and worldInfo.name and worldInfo.raid_world then
+                        if not addedWorlds[orderedWorldKey] then
+                            table.insert(displayNames, worldInfo.name)
+                            addedWorlds[orderedWorldKey] = true
                         end
                     end
+                    break
                 end
             end
         end
