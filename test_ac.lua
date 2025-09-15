@@ -1,4 +1,4 @@
--- 30
+-- 31
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -3573,6 +3573,185 @@ local ImportInput = MacroTab:CreateInput({
             importMacroFromURL(text, macroName)
         else
             importMacroFromContent(text, macroName)
+        end
+    end,
+})
+
+local ExportButton = MacroTab:CreateButton({
+    Name = "Copy Macro JSON",
+    Callback = function()
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Export Error",
+                Content = "No macro selected for export.",
+                Duration = 3
+            })
+            return
+        end
+        exportMacroToClipboard(currentMacroName, "compact")
+    end,
+})
+
+local SendWebhookButton = MacroTab:CreateButton({
+    Name = "Send Macro via Webhook",
+    Callback = function()
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "No macro selected.",
+                Duration = 3
+            })
+            return
+        end
+        
+        if not ValidWebhook then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "No webhook URL configured.",
+                Duration = 3
+            })
+            return
+        end
+        
+        local macroData = macroManager[currentMacroName]
+        if not macroData or #macroData == 0 then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "Selected macro is empty.",
+                Duration = 3
+            })
+            return
+        end
+        
+        -- Create export data
+        local exportData = {
+            version = script_version,
+            macroName = currentMacroName,
+            actions = {}
+        }
+        
+        for _, action in ipairs(macroData) do
+            local serializedAction = {
+                action = action.action,
+                time = action.waveRelativeTime or 0,
+                wave = action.wave or 1
+            }
+            
+            if action.action == "PlaceUnit" then
+                serializedAction.unitName = action.unitId or action.unitType
+                serializedAction.unitId = action.spawnUUID or action.unitId
+                serializedAction.rotation = action.rotation or 0
+                serializedAction.placementOrder = action.placementOrder
+                
+                -- Create a CFrame from position for compatibility
+                if action.actualPosition then
+                    local cframe = CFrame.new(action.actualPosition)
+                    serializedAction.cframe = serializeCFrame(cframe)
+                end
+                
+            elseif action.action == "UpgradeUnit" or action.action == "SellUnit" then
+                serializedAction.targetPlacementOrder = action.targetPlacementOrder
+                serializedAction.unitString = action.unitId
+            end
+            
+            table.insert(exportData.actions, serializedAction)
+        end
+        
+        local jsonData = Services.HttpService:JSONEncode(exportData)
+        local fileName = currentMacroName .. ".json"
+        
+        -- Create multipart form data for file upload
+        local boundary = "----WebKitFormBoundary" .. tostring(tick())
+        local body = ""
+        
+        -- Add payload_json field
+        body = body .. "--" .. boundary .. "\r\n"
+        body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+        body = body .. "Content-Type: application/json\r\n\r\n"
+        body = body .. Services.HttpService:JSONEncode({
+            username = "LixHub Macro Share",
+            content = "**Macro shared:** `" .. fileName .. "`\n📁 **Actions:** " .. tostring(#exportData.actions)}) .. "\r\n"
+        
+        -- Add file field
+        body = body .. "--" .. boundary .. "\r\n"
+        body = body .. "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" .. fileName .. "\"\r\n"
+        body = body .. "Content-Type: application/json\r\n\r\n"
+        body = body .. jsonData .. "\r\n"
+        
+        -- End boundary
+        body = body .. "--" .. boundary .. "--\r\n"
+        
+        -- Try multiple request functions
+        local requestFunc = (syn and syn.request) or 
+                           (http and http.request) or 
+                           (http_request) or 
+                           request
+        
+        if not requestFunc then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "No HTTP request function available.",
+                Duration = 3
+            })
+            return
+        end
+        
+        local success, result = pcall(function()
+            return requestFunc({
+                Url = ValidWebhook,
+                Method = "POST",
+                Headers = { 
+                    ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
+                    ["User-Agent"] = "LixHub-Webhook/1.0"
+                },
+                Body = body
+            })
+        end)
+        
+        if success and result then
+            -- Check if the HTTP request was actually successful
+            if result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
+                Rayfield:Notify({
+                    Title = "Webhook Success", 
+                    Content = "Macro file sent to Discord successfully.",
+                    Duration = 3
+                })
+            else
+                -- Log the actual error for debugging
+                local errorMsg = "HTTP Error"
+                if result.StatusCode then
+                    errorMsg = errorMsg .. " " .. tostring(result.StatusCode)
+                end
+                if result.Body then
+                    errorMsg = errorMsg .. ": " .. tostring(result.Body)
+                end
+                
+                Rayfield:Notify({
+                    Title = "Webhook Error",
+                    Content = errorMsg,
+                    Duration = 5
+                })
+                
+                -- Debug print (remove in production)
+                print("Webhook Debug Info:")
+                print("Success:", result.Success)
+                print("StatusCode:", result.StatusCode) 
+                print("Body:", result.Body)
+            end
+        else
+            local errorMsg = "Failed to send request"
+            if result then
+                errorMsg = errorMsg .. ": " .. tostring(result)
+            end
+            
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = errorMsg,
+                Duration = 3
+            })
+            
+            -- Debug print (remove in production)
+            print("Request failed:", result)
         end
     end,
 })
