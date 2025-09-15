@@ -1,4 +1,4 @@
--- 9
+-- 10
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -2061,6 +2061,56 @@ end
         updateFPSLimit()
    end,
 })
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Streamer Mode (hide name/level/title)",
+    CurrentValue = false,
+    Flag = "StreamerMode",
+    Callback = function(Value)
+        State.streamerModeEnabled = Value
+    end,
+})
+
+local function StreamerMode()
+    local head = Services.Players.LocalPlayer.Character:WaitForChild("Head", 5)
+    if not head then return end
+
+    local billboard = head:WaitForChild("overhead_player"):WaitForChild("Frame")
+    if not billboard then print("no billboard") return end
+
+    local originalNumbers = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Main"):WaitForChild("LevelFrame"):WaitForChild("Frame").texts
+    if not originalNumbers then print("no originalnumbers") return end
+
+    local streamerLabel = Services.Players.LocalPlayer.PlayerGui:WaitForChild("spawn_units"):WaitForChild("Lives"):WaitForChild("Main"):FindFirstChild("Desc"):FindFirstChild("Level")
+    if not streamerLabel then
+        streamerLabel = originalNumbers:Clone()
+        streamerLabel.Name = "Level"
+        streamerLabel.Text = "Level 999 - Protected by Lixhub"
+        streamerLabel.Visible = false
+        streamerLabel.Parent = originalNumbers.Parent
+    end
+
+    if State.streamerModeEnabled then
+        billboard:FindFirstChild("Name_Frame"):FindFirstChild("Name_Text").Text = "🔥 PROTECTED BY LIXHUB 🔥"
+        billboard:FindFirstChild("Level_Frame"):FindFirstChild("Level").Text = "999"
+
+        originalNumbers.Visible = false
+        streamerLabel.Visible = true
+    else
+        billboard:FindFirstChild("Name_Frame"):FindFirstChild("Name_Text").Text = Services.Players.LocalPlayer.Name
+        billboard:FindFirstChild("Level_Frame"):FindFirstChild("Level").Text = "Lvl "..Services.Players.LocalPlayer.leaderstats:FindFirstChild("Level").Value
+
+        originalNumbers.Visible = true
+        streamerLabel.Visible = false
+    end
+end
+
+    task.spawn(function()
+        while true do
+            task.wait(0.1)
+            StreamerMode()
+        end
+    end)
 
 if State.enableLowPerformanceMode then
     enableLowPerformanceMode()
