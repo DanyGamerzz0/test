@@ -1,4 +1,4 @@
--- 17
+-- 18
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -165,6 +165,11 @@ local State = {
     RaidStageSelected = nil,
     RaidActSelected = nil,
     AutoJoinRaid = false,
+    AutoJoinChallenge = false,
+    ChallengeRewardsFilter = false,
+    IgnoreWorlds = false,
+    ReturnToLobbyOnNewChallenge = false,
+
 }
 
 -- ========== CREATE TABS ==========
@@ -2022,6 +2027,116 @@ local RaidChapterDropdown = JoinerTab:CreateDropdown({
 
 section = JoinerTab:CreateSection("Challenge Joiner")
 
+local AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Challenge",
+    CurrentValue = false,
+    Flag = "AutoJoinChallenge",
+    Callback = function(Value)
+        State.AutoJoinChallenge = Value
+    end,
+})
+
+local ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Challenge Rewards",
+    Options = {"Air Stone","Earth Stone","Fire Stone","Fear Stone","Water Stone","Divine Stone"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ChallengeRewardsSelector",
+    Info = "Only join challenges that contain one or more of these rewards",
+    Callback = function(Options)
+        State.ChallengeRewardsFilter = Options or {}
+        print("Challenge rewards filter updated:", table.concat(State.ChallengeRewardsFilter, ", "))
+    end,
+})
+
+local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
+    Name = "Ignore Worlds",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "IgnoreWorldsSelector",
+    Info = "Skip challenges based on these worlds",
+    Callback = function(Options)
+        State.IgnoreWorlds = Options or {}
+        print("Ignore worlds updated:", table.concat(State.IgnoreWorlds, ", "))
+    end,
+})
+
+local ReturnToLobbyToggle = JoinerTab:CreateToggle({
+    Name = "Return to Lobby on New Challenge",
+    CurrentValue = false,
+    Flag = "ReturnToLobbyOnNewChallenge",
+    Info = "Return to lobby when new challenge appears instead of using retry/next",
+    Callback = function(Value)
+        State.ReturnToLobbyOnNewChallenge = Value
+    end,
+})
+
+local function loadIgnoreWorldsOptions()
+    if not isGameDataLoaded() then
+        warn("Cannot load ignore worlds options - game data not ready")
+        return
+    end
+    
+    local success, result = pcall(function()
+        local allWorlds = {}
+        
+        -- Get story worlds
+        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        
+        if WorldLevelOrder and WorldLevelOrder.WORLD_ORDER then
+            for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
+                local worldModules = WorldsFolder:GetChildren()
+                
+                for _, worldModule in ipairs(worldModules) do
+                    if worldModule:IsA("ModuleScript") then
+                        local moduleSuccess, worldData = pcall(require, worldModule)
+                        
+                        if moduleSuccess and worldData and worldData[orderedWorldKey] then
+                            local worldInfo = worldData[orderedWorldKey]
+                            
+                            if type(worldInfo) == "table" and worldInfo.name then
+                                table.insert(allWorlds, worldInfo.name)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Add legend worlds
+        if WorldLevelOrder and WorldLevelOrder.LEGEND_WORLD_ORDER then
+            for _, orderedWorldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
+                -- Similar logic to above for legend worlds
+                -- ... (implementation similar to loadLegendStages)
+            end
+        end
+        
+        -- Remove duplicates and sort
+        local uniqueWorlds = {}
+        local seen = {}
+        for _, world in ipairs(allWorlds) do
+            if not seen[world] then
+                table.insert(uniqueWorlds, world)
+                seen[world] = true
+            end
+        end
+        table.sort(uniqueWorlds)
+        
+        return uniqueWorlds
+    end)
+    
+    if success and result then
+        IgnoreWorldsDropdown:Refresh(result)
+        print("Successfully loaded", #result, "worlds for ignore list")
+    else
+        warn("Failed to load ignore worlds options:", result)
+        IgnoreWorldsDropdown:Refresh({})
+    end
+end
+
 local function loadLegendStages()
     if not isGameDataLoaded() then
         warn("Cannot load legend stages - game data not ready")
@@ -2291,13 +2406,13 @@ local function StreamerMode()
     local billboard = head:WaitForChild("overhead_player"):WaitForChild("Frame")
     if not billboard then print("no billboard") return end
 
-    local originalNumbers = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Main"):WaitForChild("LevelFrame"):WaitForChild("Frame").texts
+    local originalNumbers = Services.Players.LocalPlayer.PlayerGui:WaitForChild("spawn_units"):WaitForChild("Lives"):WaitForChild("Main"):FindFirstChild("Desc"):FindFirstChild("Level")
     if not originalNumbers then print("no originalnumbers") return end
 
-    local streamerLabel = Services.Players.LocalPlayer.PlayerGui:WaitForChild("spawn_units"):WaitForChild("Lives"):WaitForChild("Main"):FindFirstChild("Desc"):FindFirstChild("Level")
+    local streamerLabel = Services.Players.LocalPlayer.PlayerGui:WaitForChild("spawn_units"):WaitForChild("Lives"):WaitForChild("Main"):FindFirstChild("Desc"):FindFirstChild("streamerlabel")
     if not streamerLabel then
         streamerLabel = originalNumbers:Clone()
-        streamerLabel.Name = "Level"
+        streamerLabel.Name = "streamerlabel"
         streamerLabel.Text = "Level 999 - Protected by Lixhub"
         streamerLabel.Visible = false
         streamerLabel.Parent = originalNumbers.Parent
@@ -2966,6 +3081,7 @@ task.delay(1, function()
         loadStoryStages()
         loadLegendStages()
         loadRaidStages()
+        loadIgnoreWorldsOptions()
     end
 end)
 
@@ -2996,15 +3112,3 @@ task.delay(1, function()
     
     refreshMacroDropdown()
 end)
-
--- Load Rayfield configuration
-
-
-print("LixHub - Anime Crusaders with Enhanced Macro System loaded!")
-print("Macro system features:")
-print("- Enhanced unit tracking with snapshots")
-print("- Player ownership validation")
-print("- Automatic placement order tracking")
-print("- Smart upgrade/sell target matching")
-print("- File-based macro persistence")
-print("Ready for recording and playback!")
