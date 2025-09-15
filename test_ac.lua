@@ -1,4 +1,4 @@
--- 29
+-- 30
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -367,8 +367,19 @@ local function serializeVector3(v)
     return { x = v.X, y = v.Y, z = v.Z }
 end
 
+local function serializeCFrame(cframe)
+    if not cframe then return nil end
+    local components = {cframe:GetComponents()}
+    return components
+end
+
 local function deserializeVector3(t)
     return Vector3.new(t.x, t.y, t.z)
+end
+
+local function deserializeCFrame(components)
+    if not components or #components ~= 12 then return nil end
+    return CFrame.new(unpack(components))
 end
 
 local function saveMacroToFile(name)
@@ -3025,6 +3036,216 @@ local MacroInput = MacroTab:CreateInput({
     end,
 })
 
+local function importMacroFromContent(jsonContent, macroName)
+    local success, data = pcall(function()
+        return Services.HttpService:JSONDecode(jsonContent)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid JSON format",
+            Duration = 3
+        })
+        return
+    end
+    
+    -- Validate the data structure
+    if not data.actions or type(data.actions) ~= "table" then
+        Rayfield:Notify({
+            Title = "Import Error", 
+            Content = "Invalid macro format - missing actions",
+            Duration = 3
+        })
+        return
+    end
+    
+    -- Convert the imported data to your macro format
+    local convertedMacro = {}
+    local placementCounter = 0
+    
+    for _, action in ipairs(data.actions) do
+        if action.action == "PlaceUnit" then
+            placementCounter = placementCounter + 1
+            
+            -- Convert serialized data back to your format
+            local convertedAction = {
+                action = "PlaceUnit",
+                unitId = action.unitName or action.unitId,
+                unitType = action.unitName or action.unitId,
+                spawnUUID = action.unitId,
+                actualPosition = action.cframe and deserializeCFrame(action.cframe) and 
+                                deserializeCFrame(action.cframe).Position or Vector3.new(0, 0, 0),
+                raycast = {
+                    Origin = { x = 0, y = 10, z = 0 },
+                    Direction = { x = 0, y = -1, z = 0 },
+                    Unit = { x = 0, y = 0, z = 0 }
+                },
+                rotation = action.rotation or 0,
+                wave = action.wave or 1,
+                waveRelativeTime = action.time or 0,
+                timestamp = tick(),
+                placementOrder = action.placementOrder or placementCounter
+            }
+            
+            -- Try to extract position from cframe for raycast
+            if action.cframe then
+                local cframe = deserializeCFrame(action.cframe)
+                if cframe then
+                    convertedAction.actualPosition = cframe.Position
+                    convertedAction.raycast = {
+                        Origin = {
+                            x = cframe.Position.X,
+                            y = cframe.Position.Y + 10,
+                            z = cframe.Position.Z
+                        },
+                        Direction = { x = 0, y = -1, z = 0 },
+                        Unit = {
+                            x = cframe.Position.X,
+                            y = cframe.Position.Y,
+                            z = cframe.Position.Z
+                        }
+                    }
+                end
+            end
+            
+            table.insert(convertedMacro, convertedAction)
+            
+        elseif action.action == "UpgradeUnit" then
+            table.insert(convertedMacro, {
+                action = "UpgradeUnit",
+                unitId = action.unitString,
+                targetPlacementOrder = action.targetPlacementOrder,
+                wave = action.wave or 1,
+                waveRelativeTime = action.time or 0,
+                timestamp = tick()
+            })
+            
+        elseif action.action == "SellUnit" then
+            table.insert(convertedMacro, {
+                action = "SellUnit",
+                unitId = action.unitString,
+                targetPlacementOrder = action.targetPlacementOrder,
+                wave = action.wave or 1,
+                waveRelativeTime = action.time or 0,
+                timestamp = tick()
+            })
+        end
+    end
+    
+    -- Save the converted macro
+    macroManager[macroName] = convertedMacro
+    saveMacroToFile(macroName)
+    refreshMacroDropdown()
+    
+    Rayfield:Notify({
+        Title = "Import Success",
+        Content = string.format("Imported '%s' with %d actions", macroName, #convertedMacro),
+        Duration = 3
+    })
+end
+
+local function importMacroFromURL(url, macroName)
+    local requestFunc = syn and syn.request or 
+                       http and http.request or 
+                       http_request or 
+                       request
+    
+    if not requestFunc then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "HTTP requests not supported by your executor",
+            Duration = 3
+        })
+        return
+    end
+    
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = url,
+            Method = "GET"
+        })
+    end)
+    
+    if success and response and response.StatusCode == 200 then
+        importMacroFromContent(response.Body, macroName)
+    else
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Failed to download from URL",
+            Duration = 3
+        })
+    end
+end
+
+local function exportMacroToClipboard(macroName, format)
+    if not macroManager[macroName] or #macroManager[macroName] == 0 then
+        Rayfield:Notify({
+            Title = "Export Error",
+            Content = "No macro data to export",
+            Duration = 3
+        })
+        return
+    end
+    
+    local macroData = macroManager[macroName]
+    
+    -- Create export data compatible with the import format
+    local exportData = {
+        version = script_version,
+        macroName = macroName,
+        actions = {}
+    }
+    
+    for _, action in ipairs(macroData) do
+        local serializedAction = {
+            action = action.action,
+            time = action.waveRelativeTime or 0,
+            wave = action.wave or 1
+        }
+        
+        if action.action == "PlaceUnit" then
+            serializedAction.unitName = action.unitId or action.unitType
+            serializedAction.unitId = action.spawnUUID or action.unitId
+            serializedAction.rotation = action.rotation or 0
+            serializedAction.placementOrder = action.placementOrder
+            
+            -- Create a CFrame from position for compatibility
+            if action.actualPosition then
+                local cframe = CFrame.new(action.actualPosition)
+                serializedAction.cframe = serializeCFrame(cframe)
+            end
+            
+        elseif action.action == "UpgradeUnit" or action.action == "SellUnit" then
+            serializedAction.targetPlacementOrder = action.targetPlacementOrder
+            serializedAction.unitString = action.unitId
+        end
+        
+        table.insert(exportData.actions, serializedAction)
+    end
+    
+    local jsonData = Services.HttpService:JSONEncode(exportData)
+    
+    -- Copy to clipboard (if supported)
+    if setclipboard then
+        setclipboard(jsonData)
+        Rayfield:Notify({
+            Title = "Export Success",
+            Content = "Macro JSON copied to clipboard",
+            Duration = 3
+        })
+    else
+        Rayfield:Notify({
+            Title = "Export Info",
+            Content = "Clipboard not supported. JSON printed to console.",
+            Duration = 3
+        })
+        print("=== MACRO EXPORT ===")
+        print(jsonData)
+        print("=== END EXPORT ===")
+    end
+end
+
 local RefreshMacroListButton = MacroTab:CreateButton({
     Name = "Refresh Macro List",
     Callback = function()
@@ -3296,6 +3517,65 @@ local PlayToggle = MacroTab:CreateToggle({
         end
     end,
 })--]]
+
+local ImportInput = MacroTab:CreateInput({
+    Name = "Import Macro (URL or JSON)",
+    CurrentValue = "",
+    PlaceholderText = "Paste URL or JSON content here...",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(text)
+        if not text or text:match("^%s*$") then
+            return
+        end
+        
+        local macroName = nil
+        
+        -- Detect if it's a URL or JSON content
+        if text:match("^https?://") then
+            -- Extract filename from URL for macro name (handle query parameters)
+            local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)$")
+            if fileName then
+                macroName = fileName:gsub("%.json.*$", "")
+            else
+                macroName = "ImportedMacro_" .. os.time()
+            end
+        else
+            -- For JSON content, try to extract macro name from content or use default
+            local jsonData = nil
+            pcall(function()
+                jsonData = Services.HttpService:JSONDecode(text)
+            end)
+            
+            -- Try to get name from JSON data, otherwise use default
+            macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
+        end
+        
+        -- Clean macro name (remove invalid characters)
+        macroName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        
+        -- Ensure name isn't empty
+        if macroName == "" then
+            macroName = "ImportedMacro_" .. os.time()
+        end
+        
+        -- Check if macro already exists
+        if macroManager[macroName] then
+            Rayfield:Notify({
+                Title = "Import Cancelled",
+                Content = "'" .. macroName .. "' already exists.",
+                Duration = 3
+            })
+            return
+        end
+        
+        -- Import the macro with the exact filename
+        if text:match("^https?://") then
+            importMacroFromURL(text, macroName)
+        else
+            importMacroFromContent(text, macroName)
+        end
+    end,
+})
 
 -- Webhook Tab
 local WebhookInput = WebhookTab:CreateInput({
