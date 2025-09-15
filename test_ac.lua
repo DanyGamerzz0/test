@@ -1,4 +1,4 @@
--- 25
+-- 27
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -170,6 +170,9 @@ local State = {
     IgnoreWorlds = {},
     ReturnToLobbyOnNewChallenge = false,
     NewChallengeDetected = false,
+    AutoJoinGate = false,
+    AvoidGateTypes = {},
+    AvoidModifiers = {},
 }
 
 -- ========== CREATE TABS ==========
@@ -1790,10 +1793,142 @@ local function joinChallenge()
     end
 end
 
+local function getAvailableGates()
+    local gates = {}
+    local gatesFolder = Services.Workspace:FindFirstChild("_GATES")
+    
+    if not gatesFolder or not gatesFolder:FindFirstChild("gates") then
+        return gates
+    end
+    
+    for i = 1, 6 do
+        local gateFolder = gatesFolder.gates:FindFirstChild(tostring(i))
+        if gateFolder then
+            local gateType = gateFolder:FindFirstChild("GateType")
+            local currentChallenge = gateFolder:FindFirstChild("current_challenge")
+            
+            if gateType and currentChallenge then
+                table.insert(gates, {
+                    id = i,
+                    type = gateType.Value,
+                    modifier = currentChallenge.Value
+                })
+            end
+        end
+    end
+    
+    return gates
+end
+
+local function isGateTypeAllowed(gateType)
+    for _, avoidType in ipairs(State.AvoidGateTypes) do
+        if gateType == avoidType then
+            return false
+        end
+    end
+    return true
+end
+
+local function isModifierAllowed(modifier)
+    for _, avoidModifier in ipairs(State.AvoidModifiers) do
+        if modifier == avoidModifier then
+            return false
+        end
+    end
+    return true
+end
+
+local function findBestGate()
+    local availableGates = getAvailableGates()
+    
+    if #availableGates == 0 then
+        return nil
+    end
+    
+    -- Filter out avoided gates and modifiers
+    local acceptableGates = {}
+    for _, gate in ipairs(availableGates) do
+        if isGateTypeAllowed(gate.type) and isModifierAllowed(gate.modifier) then
+            table.insert(acceptableGates, gate)
+        end
+    end
+    
+    if #acceptableGates == 0 then
+        print("No acceptable gates found after filtering")
+        return nil
+    end
+    
+    -- Priority order for gates (S is best, D is worst)
+    local gatePriorityOrder = {"S", "A", "B", "C", "D"}
+    
+    -- Sort acceptable gates by priority (best first)
+    table.sort(acceptableGates, function(a, b)
+        local aPriority = 999
+        local bPriority = 999
+        
+        for i, priority in ipairs(gatePriorityOrder) do
+            if a.type == priority then aPriority = i end
+            if b.type == priority then bPriority = i end
+        end
+        
+        return aPriority < bPriority
+    end)
+    
+    -- Return the best acceptable gate
+    return acceptableGates[1]
+end
+
+local function joinGate(gateInfo)
+    if not gateInfo then return false end
+    
+    local success = pcall(function()
+        -- Replace with actual gate join remote call
+        -- This is a placeholder - you'll need to find the correct remote
+        -- Common possibilities:
+        -- Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("join_gate"):InvokeServer(gateInfo.id)
+        -- Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_to_gate"):InvokeServer(gateInfo.id)
+        -- Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_gate"):InvokeServer(gateInfo.id)
+        print("Would join gate", gateInfo.id, "with type", gateInfo.type, "and modifier", gateInfo.modifier)
+    end)
+    
+    if success then
+        notify("Gate Joiner", string.format("Joining %s Gate with %s modifier", gateInfo.type, gateInfo.modifier))
+        return true
+    else
+        notify("Gate Joiner", "Failed to join gate")
+        return false
+    end
+end
+
+local function checkGateJoin()
+    if not State.AutoJoinGate then return false end
+    if not isInLobby() then return false end
+    if AutoJoinState.isProcessing then return false end
+    if not canPerformAction() then return false end
+    
+    local bestGate = findBestGate()
+    if bestGate then
+        setProcessingState("Gate Auto Join")
+        
+        if joinGate(bestGate) then
+            print("Successfully initiated gate join!")
+        else
+            print("Gate join failed!")
+        end
+        
+        task.delay(5, clearProcessingState)
+        return true
+    end
+    
+    return false
+end
+
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     if not canPerformAction() then return end
+
+    if checkGateJoin() then return end
 
     if State.AutoJoinChallenge then
         local challengeData = getChallengeData()
@@ -2334,6 +2469,73 @@ local ReturnToLobbyToggle = JoinerTab:CreateToggle({
         State.ReturnToLobbyOnNewChallenge = Value
     end,
 })
+
+section = JoinerTab:CreateSection("Gate Joiner")
+
+local AutoJoinGateToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Gate",
+    CurrentValue = false,
+    Flag = "AutoJoinGate",
+    Callback = function(Value)
+        State.AutoJoinGate = Value
+    end,
+})
+
+local AvoidGatesDropdown = JoinerTab:CreateDropdown({
+    Name = "Avoid Gate Types",
+    Options = {"S", "A", "B", "C", "D"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "AvoidGatesSelector",
+    Info = "Select gate types to avoid. Will join best available from remaining types.",
+    Callback = function(Options)
+        State.AvoidGateTypes = Options or {}
+        print("Avoiding gate types:", table.concat(State.AvoidGateTypes, ", "))
+    end,
+})
+
+local AvoidModifiersDropdown = JoinerTab:CreateDropdown({
+    Name = "Avoid Modifiers",
+    Options = {"fast_enemies", "tank_enemies", "regen_enemies", "shield_enemies", "double_cost"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "AvoidModifiersSelector",
+    Info = "Select modifiers to avoid. Will join best available gate with acceptable modifier.",
+    Callback = function(Options)
+        State.AvoidModifiers = Options or {}
+        print("Avoiding modifiers:", table.concat(State.AvoidModifiers, ", "))
+    end,
+})
+
+local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
+
+task.spawn(function()
+    while true do
+        task.wait(2)
+        
+        if State.AutoJoinGate then
+            local availableGates = getAvailableGates()
+            local acceptableGates = {}
+            
+            -- Count acceptable gates
+            for _, gate in ipairs(availableGates) do
+                if isGateTypeAllowed(gate.type) and isModifierAllowed(gate.modifier) then
+                    table.insert(acceptableGates, gate.type)
+                end
+            end
+            
+            local statusText = string.format("Gates: %d total, %d acceptable", #availableGates, #acceptableGates)
+            
+            if #acceptableGates > 0 then
+                statusText = statusText .. " (" .. table.concat(acceptableGates, ", ") .. ")"
+            end
+            
+            GateStatusLabel:Set(statusText)
+        else
+            GateStatusLabel:Set("Gate Status: Auto-join disabled")
+        end
+    end
+end)
 
 local function loadIgnoreWorldsOptions()
     if not isGameDataLoaded() then
