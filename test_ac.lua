@@ -1,4 +1,4 @@
--- 27
+-- 28
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1882,12 +1882,12 @@ local function joinGate(gateInfo)
     if not gateInfo then return false end
     
     local success = pcall(function()
-        -- Replace with actual gate join remote call
-        -- This is a placeholder - you'll need to find the correct remote
-        -- Common possibilities:
-        -- Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("join_gate"):InvokeServer(gateInfo.id)
-        -- Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_to_gate"):InvokeServer(gateInfo.id)
-        -- Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_gate"):InvokeServer(gateInfo.id)
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_GATE"..gateInfo.id)
+
+        task.wait(0.5)
+
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_GATE"..gateInfo.id)
+
         print("Would join gate", gateInfo.id, "with type", gateInfo.type, "and modifier", gateInfo.modifier)
     end)
     
@@ -2891,7 +2891,7 @@ local function StreamerMode()
         streamerLabel.Visible = true
     else
         billboard:FindFirstChild("Name_Frame"):FindFirstChild("Name_Text").Text = Services.Players.LocalPlayer.Name
-        billboard:FindFirstChild("Level_Frame"):FindFirstChild("Level").Text = "Lvl "..Services.Players.LocalPlayer.leaderstats:FindFirstChild("Level").Value
+        billboard:FindFirstChild("Level_Frame"):FindFirstChild("Level").Text = Services.Players.LocalPlayer.leaderstats:FindFirstChild("Level").Value
 
         originalNumbers.Visible = true
         streamerLabel.Visible = false
@@ -3052,7 +3052,7 @@ local DeleteSelectedMacroButton = MacroTab:CreateButton({
 })
 
 local RecordToggle = MacroTab:CreateToggle({
-    Name = "Record",
+    Name = "Record Macro",
     CurrentValue = false,
     Flag = "RecordMacro",
     Callback = function(Value)
@@ -3219,37 +3219,36 @@ local function autoLoopPlayback()
     end
     
     -- Clean up when loop ends
-    MacroStatusLabel:Set("Status: Auto-loop stopped")
+    MacroStatusLabel:Set("Status: Autoplay stopped")
     isPlaybacking = false
     isPlayingLoopRunning = false
 end
 
 local PlayToggle = MacroTab:CreateToggle({
-    Name = "Auto-Loop Playback",
+    Name = "Playback Macro",
     CurrentValue = false,
     Flag = "PlayBackMacro",
     Callback = function(Value)
         isAutoLoopEnabled = Value
         
         if Value and not isInLobby() then
-            MacroStatusLabel:Set("Status: Auto-loop enabled - waiting for game...")
-            notify(nil, "Auto-Loop Enabled: Macro will play automatically each game.")
+            MacroStatusLabel:Set("Status: Autoplay enabled - waiting for game...")
+            notify(nil, "Autoplay Enabled: Macro will play automatically each game.")
             
-            -- Start the auto-loop process
             task.spawn(function()
                 autoLoopPlayback()
             end)
         else
-            MacroStatusLabel:Set("Status: Auto-loop disabled")
+            MacroStatusLabel:Set("Status: Autoplay disabled")
             isPlaybacking = false
             isPlayingLoopRunning = false
             gameHasEnded = false
-            notify(nil, "Auto-Loop Disabled: Macro playback stopped.")
+            notify(nil, "Autoplay Disabled: Macro playback stopped.")
         end
     end,
 })
 
-local CheckUnitsButton = MacroTab:CreateButton({
+--[[local CheckUnitsButton = MacroTab:CreateButton({
     Name = "Check Macro Units",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
@@ -3296,7 +3295,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
             notify(nil,"No Units Found: This macro contains no unit placements.")
         end
     end,
-})
+})--]]
 
 -- Webhook Tab
 local WebhookInput = WebhookTab:CreateInput({
