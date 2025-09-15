@@ -1,4 +1,4 @@
--- 13
+-- 14
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1601,13 +1601,12 @@ local function checkAndExecuteHighestPriority()
         setProcessingState("Raid Auto Join")
 
         local completeRaidStageId = State.RaidStageSelected .. State.RaidActSelected
-        print(completeRaidStageId)
 
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
 
         local args = {
             "R1",
-            string.lower(completeRaidStageId),
+            completeRaidStageId,
             false,
             "Hard"
         }
@@ -1915,7 +1914,6 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         
         if backendWorldKey then
             State.RaidStageSelected = backendWorldKey
-            print("---------------------------------SELECTED: "..State.RaidStageSelected.."---------------------------------")
         else
         end
     end,
@@ -1933,10 +1931,11 @@ local RaidChapterDropdown = JoinerTab:CreateDropdown({
         local num = selectedOption:match("%d+")
         if num then
             State.RaidActSelected = "_" .. num
-            print("---------------------------------SELECTED ACT: "..State.RaidActSelected.."---------------------------------")
         end
     end,
 })
+
+section = JoinerTab:CreateSection("Challenge Joiner")
 
 local function loadLegendStages()
     
