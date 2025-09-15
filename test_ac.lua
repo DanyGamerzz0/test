@@ -1,4 +1,4 @@
--- 22
+-- 25
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -166,10 +166,10 @@ local State = {
     RaidActSelected = nil,
     AutoJoinRaid = false,
     AutoJoinChallenge = false,
-    ChallengeRewardsFilter = false,
-    IgnoreWorlds = false,
+    ChallengeRewardsFilter = {},
+    IgnoreWorlds = {},
     ReturnToLobbyOnNewChallenge = false,
-
+    NewChallengeDetected = false,
 }
 
 -- ========== CREATE TABS ==========
@@ -3155,6 +3155,8 @@ local TestWebhookButton = WebhookTab:CreateButton({
 -- ========== REMOTE EVENT CONNECTIONS ==========
 local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
 local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
+local challengeChangedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_challenge_changed")
+
 
 -- Connect item tracking
 if itemAddedRemote then
@@ -3169,6 +3171,41 @@ if itemAddedRemote then
             print("Item collected: " .. itemName .. " x" .. quantity .. " (Total: " .. sessionItems[itemName] .. ")")
         end
     end)
+end
+
+if challengeChangedRemote then
+    challengeChangedRemote.OnClientEvent:Connect(function(...)
+        local args = {...}
+        print("normal_challenge_changed RemoteEvent fired!")
+        print("New challenge detected - arguments:", #args)
+        
+        -- Print challenge change data for debugging
+        for i, arg in ipairs(args) do
+            print("Challenge Change Arg[" .. i .. "] (" .. type(arg) .. "):")
+            if type(arg) == "table" then
+                printTableContents(arg, 1)
+            else
+                print("  " .. tostring(arg))
+            end
+        end
+        
+        -- Set flag that new challenge was detected
+        State.NewChallengeDetected = true
+        
+        -- Get the new challenge data for logging
+        task.spawn(function()
+            task.wait(0.5) -- Small delay to ensure challenge data is updated
+            local newChallenge = getChallengeData()
+            if newChallenge then
+                notify("Challenge System", string.format("New challenge available: %s", newChallenge.current_challenge or "Unknown"))
+                print("New challenge details:")
+                print("  Type:", newChallenge.current_challenge)
+                print("  Level:", newChallenge.current_level_id)
+            end
+        end)
+    end)
+else
+    warn("normal_challenge_changed RemoteEvent not found!")
 end
 
 -- Connect game finish tracking
@@ -3239,6 +3276,29 @@ if gameFinishedRemote then
         task.spawn(function()
             task.wait(1) -- Small delay to ensure game state is stable
             
+
+if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected then
+    notify("Auto Challenge", "New challenge detected - returning to lobby instead of using auto vote settings")
+    
+    task.spawn(function()
+        task.wait(2) -- Delay to ensure game state is stable
+        
+        local success, err = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
+        end)
+        
+        if success then
+            print("Successfully returned to lobby for new challenge!")
+            notify("Challenge Handler", "Returned to lobby - new challenge detected!", 3)
+            -- Reset the flag after successfully handling it
+            State.NewChallengeDetected = false
+        else
+            warn("Failed to return to lobby for new challenge:", err)
+        end
+    end)
+    
+    return
+end
             -- Priority 1: Auto Retry (highest priority)
             if State.AutoVoteRetry then
                 print("Auto Retry enabled - Voting to replay...")
