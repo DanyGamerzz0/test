@@ -1,4 +1,4 @@
--- 12
+-- 13
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1911,37 +1911,29 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
     Flag = "RaidWorldSelector",
     Callback = function(Option)
         local selectedDisplayName = type(Option) == "table" and Option[1] or Option
-        State.RaidWorldSelected = selectedDisplayName
-        print("---------------------------------SELECTED WORLD: "..selectedDisplayName.."---------------------------------")
-        
-        -- Update the raid stage when both world and act are selected
-        if State.RaidActSelected then
-            local actNum = State.RaidActSelected:match("_(%d+)")
-            if actNum then
-                local backendLevelKey = getBackendRaidLevelKeyFromDisplayName(selectedDisplayName, tonumber(actNum))
-                if backendLevelKey then
-                    State.RaidStageSelected = backendLevelKey
-                    print("---------------------------------FINAL SELECTION: "..State.RaidStageSelected.."---------------------------------")
-                end
-            end
-        end
-    end,
-})
-
-local RaidStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Stage",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "RaidWorldSelector",
-    Callback = function(Option)
-        local selectedDisplayName = type(Option) == "table" and Option[1] or Option
         local backendWorldKey = getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
         
         if backendWorldKey then
             State.RaidStageSelected = backendWorldKey
             print("---------------------------------SELECTED: "..State.RaidStageSelected.."---------------------------------")
         else
+        end
+    end,
+})
+
+local RaidChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Stage Act",
+    Options = {"Act 1", "Act 2", "Act 3","Act 4","Act 5"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RaidActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        
+        local num = selectedOption:match("%d+")
+        if num then
+            State.RaidActSelected = "_" .. num
+            print("---------------------------------SELECTED ACT: "..State.RaidActSelected.."---------------------------------")
         end
     end,
 })
