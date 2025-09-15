@@ -1,4 +1,4 @@
--- 21
+-- 22
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1663,18 +1663,83 @@ local function checkChallengeRewards(challengeData)
     return false
 end
 
+local function getWorldNameFromLevelId(levelId)
+    local success, worldName = pcall(function()
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        
+        -- Search through all world modules
+        for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+            if worldModule:IsA("ModuleScript") then
+                local moduleSuccess, worldData = pcall(require, worldModule)
+                
+                if moduleSuccess and worldData then
+                    -- Search through each world in this module
+                    for worldKey, worldInfo in pairs(worldData) do
+                        if type(worldInfo) == "table" and worldInfo.name then
+                            -- Check regular levels
+                            if worldInfo.levels then
+                                for levelNum, levelData in pairs(worldInfo.levels) do
+                                    if levelData.id == levelId then
+                                        return worldInfo.name
+                                    end
+                                end
+                            end
+                            
+                            -- Check infinite mode
+                            if worldInfo.infinite and worldInfo.infinite.id == levelId then
+                                return worldInfo.name
+                            end
+                            
+                            -- Check legend stages
+                            if worldInfo.legend_stage and worldInfo.legend_stage.levels then
+                                for levelNum, levelData in pairs(worldInfo.legend_stage.levels) do
+                                    if levelData.id == levelId then
+                                        return worldInfo.name
+                                    end
+                                end
+                            end
+                            
+                            -- Check raid levels (if they exist in similar structure)
+                            if worldInfo.raid_world and worldInfo.raid_levels then
+                                for levelNum, levelData in pairs(worldInfo.raid_levels) do
+                                    if levelData.id == levelId then
+                                        return worldInfo.name
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        return nil
+    end)
+    
+    return success and worldName or nil
+end
+
 local function checkIgnoreWorlds(challengeData)
     if not challengeData or #State.IgnoreWorlds == 0 then
         return false -- Don't ignore if no worlds specified
     end
     
-    local challengeLevel = challengeData.current_level_id or ""
+    local challengeLevelId = challengeData.current_level_id or ""
     
+    -- Get the actual world name from the level ID
+    local worldName = getWorldNameFromLevelId(challengeLevelId)
+    
+    if not worldName then
+        print("Could not determine world name for level ID:", challengeLevelId)
+        return false
+    end
+    
+    print("Challenge is from world:", worldName, "(Level ID:", challengeLevelId .. ")")
+    
+    -- Check if this world should be ignored
     for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
-        local worldForComparison = string.lower(ignoredWorld):gsub(" ", "_")
-        
-        if string.find(string.lower(challengeLevel), worldForComparison) then
-            print("Ignoring challenge based on world filter:", ignoredWorld, "found in:", challengeLevel)
+        if string.lower(worldName) == string.lower(ignoredWorld) then
+            print("Ignoring challenge based on world filter:", ignoredWorld)
             return true
         end
     end
