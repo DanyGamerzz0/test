@@ -1,4 +1,4 @@
--- 35
+-- 36
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -445,21 +445,42 @@ local function loadMacroFromFile(name)
             action.unitPosition = deserializeVector3(action.unitPosition)
         end
         
-        -- Deserialize raycast data
-        if action.raycast then
-            local raycast = action.raycast
+        -- Deserialize raycast data - FIXED VERSION
+        if action.raycast and type(action.raycast) == "table" then
             local deserializedRaycast = {}
             
-            if raycast.Origin and raycast.Origin.x and raycast.Origin.y and raycast.Origin.z then
-                deserializedRaycast.Origin = Vector3.new(raycast.Origin.x, raycast.Origin.y, raycast.Origin.z)
+            -- Deserialize Origin
+            if action.raycast.Origin and type(action.raycast.Origin) == "table" and
+               action.raycast.Origin.x and action.raycast.Origin.y and action.raycast.Origin.z then
+                deserializedRaycast.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
             end
             
-            if raycast.Direction and raycast.Direction.x and raycast.Direction.y and raycast.Direction.z then
-                deserializedRaycast.Direction = Vector3.new(raycast.Direction.x, raycast.Direction.y, raycast.Direction.z)
+            -- Deserialize Direction
+            if action.raycast.Direction and type(action.raycast.Direction) == "table" and
+               action.raycast.Direction.x and action.raycast.Direction.y and action.raycast.Direction.z then
+                deserializedRaycast.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
             end
             
-            if raycast.Unit and raycast.Unit.x and raycast.Unit.y and raycast.Unit.z then
-                deserializedRaycast.Unit = Vector3.new(raycast.Unit.x, raycast.Unit.y, raycast.Unit.z)
+            -- Deserialize Unit
+            if action.raycast.Unit and type(action.raycast.Unit) == "table" and
+               action.raycast.Unit.x and action.raycast.Unit.y and action.raycast.Unit.z then
+                deserializedRaycast.Unit = Vector3.new(action.raycast.Unit.x, action.raycast.Unit.y, action.raycast.Unit.z)
+            end
+            
+            -- Create fallback if any components are missing
+            if not deserializedRaycast.Origin or not deserializedRaycast.Direction or not deserializedRaycast.Unit then
+                print("Warning: Incomplete raycast in saved file, creating fallback")
+                local fallbackPos = action.actualPosition or Vector3.new(0, 0, 0)
+                
+                if not deserializedRaycast.Origin then
+                    deserializedRaycast.Origin = Vector3.new(fallbackPos.X, fallbackPos.Y + 10, fallbackPos.Z)
+                end
+                if not deserializedRaycast.Direction then
+                    deserializedRaycast.Direction = Vector3.new(0, -1, 0)
+                end
+                if not deserializedRaycast.Unit then
+                    deserializedRaycast.Unit = fallbackPos
+                end
             end
             
             action.raycast = deserializedRaycast
@@ -3215,41 +3236,53 @@ local function importMacroFromContent(jsonContent, macroName)
                 processedAction[key] = deserializeVector3(value)
                 print("Deserialized unitPosition for action", i)
             elseif key == "raycast" and type(value) == "table" then
-                -- Handle raycast deserialization - THIS IS THE FIX
+                -- Handle raycast deserialization - FIXED VERSION
                 local deserializedRaycast = {}
+                local hasOrigin, hasDirection, hasUnit = false, false, false
                 
-                -- Check if raycast data exists and deserialize it
+                -- Check and deserialize Origin
                 if value.Origin and type(value.Origin) == "table" and 
                    value.Origin.x and value.Origin.y and value.Origin.z then
                     deserializedRaycast.Origin = Vector3.new(value.Origin.x, value.Origin.y, value.Origin.z)
+                    hasOrigin = true
                     print("Deserialized raycast Origin:", deserializedRaycast.Origin)
                 end
                 
+                -- Check and deserialize Direction
                 if value.Direction and type(value.Direction) == "table" and
                    value.Direction.x and value.Direction.y and value.Direction.z then
                     deserializedRaycast.Direction = Vector3.new(value.Direction.x, value.Direction.y, value.Direction.z)
+                    hasDirection = true
                     print("Deserialized raycast Direction:", deserializedRaycast.Direction)
                 end
                 
+                -- Check and deserialize Unit
                 if value.Unit and type(value.Unit) == "table" and
                    value.Unit.x and value.Unit.y and value.Unit.z then
                     deserializedRaycast.Unit = Vector3.new(value.Unit.x, value.Unit.y, value.Unit.z)
+                    hasUnit = true
                     print("Deserialized raycast Unit:", deserializedRaycast.Unit)
                 end
                 
-                -- FALLBACK: If raycast data is missing or incomplete, create from position
-                if not deserializedRaycast.Origin or not deserializedRaycast.Direction or not deserializedRaycast.Unit then
-                    print("Warning: Incomplete raycast data for action", i, "creating fallback")
+                -- Only create fallback for missing components
+                if not hasOrigin or not hasDirection or not hasUnit then
+                    print("Warning: Incomplete raycast data for action", i, "filling in missing components")
                     local fallbackPos = processedAction.actualPosition or 
                                       (action.actualPosition and deserializeVector3(action.actualPosition)) or
                                       Vector3.new(0, 0, 0)
                     
-                    deserializedRaycast = {
-                        Origin = Vector3.new(fallbackPos.X, fallbackPos.Y + 10, fallbackPos.Z),
-                        Direction = Vector3.new(0, -1, 0),
-                        Unit = fallbackPos
-                    }
-                    print("Created fallback raycast from position:", fallbackPos)
+                    if not hasOrigin then
+                        deserializedRaycast.Origin = Vector3.new(fallbackPos.X, fallbackPos.Y + 10, fallbackPos.Z)
+                        print("Created fallback Origin:", deserializedRaycast.Origin)
+                    end
+                    if not hasDirection then
+                        deserializedRaycast.Direction = Vector3.new(0, -1, 0)
+                        print("Created fallback Direction:", deserializedRaycast.Direction)
+                    end
+                    if not hasUnit then
+                        deserializedRaycast.Unit = fallbackPos
+                        print("Created fallback Unit:", deserializedRaycast.Unit)
+                    end
                 end
                 
                 processedAction[key] = deserializedRaycast
@@ -3379,6 +3412,35 @@ local function exportMacroToClipboard(macroName, format)
                 serializedAction[key] = serializeVector3(value)
             elseif key == "unitPosition" and value then
                 serializedAction[key] = serializeVector3(value)
+            elseif key == "raycast" and value then
+                -- Properly serialize raycast data
+                local serializedRaycast = {}
+                
+                if value.Origin then
+                    serializedRaycast.Origin = {
+                        x = value.Origin.X,
+                        y = value.Origin.Y,
+                        z = value.Origin.Z
+                    }
+                end
+                
+                if value.Direction then
+                    serializedRaycast.Direction = {
+                        x = value.Direction.X,
+                        y = value.Direction.Y,
+                        z = value.Direction.Z
+                    }
+                end
+                
+                if value.Unit then
+                    serializedRaycast.Unit = {
+                        x = value.Unit.X,
+                        y = value.Unit.Y,
+                        z = value.Unit.Z
+                    }
+                end
+                
+                serializedAction[key] = serializedRaycast
             else
                 serializedAction[key] = value
             end
