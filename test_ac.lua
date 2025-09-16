@@ -1,4 +1,4 @@
--- 38
+-- 39
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -13,7 +13,7 @@ if not Rayfield then
     return
 end
 
-local script_version = "V0.02"
+local script_version = "V0.01"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Crusaders",
@@ -2944,6 +2944,8 @@ local function StreamerMode()
     if not originalNumbers then print("no originalnumbers") return end
 
     local streamerLabel = Services.Players.LocalPlayer.PlayerGui:WaitForChild("spawn_units"):WaitForChild("Lives"):WaitForChild("Main"):FindFirstChild("Desc"):FindFirstChild("streamerlabel")
+    local leaderstats = Services.Players.LocalPlayer:FindFirstChild("leaderstats")
+    local levelStat = leaderstats and leaderstats:FindFirstChild("Level")
     if not streamerLabel then
         streamerLabel = originalNumbers:Clone()
         streamerLabel.Name = "streamerlabel"
@@ -2960,7 +2962,9 @@ local function StreamerMode()
         streamerLabel.Visible = true
     else
         billboard:FindFirstChild("Name_Frame"):FindFirstChild("Name_Text").Text = Services.Players.LocalPlayer.Name
+        if levelStat then
         billboard:FindFirstChild("Level_Frame"):FindFirstChild("Level").Text = Services.Players.LocalPlayer.leaderstats:FindFirstChild("Level").Value
+        end
 
         originalNumbers.Visible = true
         streamerLabel.Visible = false
@@ -3775,75 +3779,9 @@ local PlayToggle = MacroTab:CreateToggle({
 })--]]
 
 local ImportInput = MacroTab:CreateInput({
-    Name = "Import Macro (URL, JSON, or TXT)",
+    Name = "Import Macro",
     CurrentValue = "",
-    PlaceholderText = "Paste URL, JSON content, or TXT file content here...",
-    RemoveTextAfterFocusLost = true,
-    Callback = function(text)
-        if not text or text:match("^%s*$") then
-            return
-        end
-        
-        local macroName = nil
-        
-        -- Detect if it's a URL, JSON content, or TXT content
-        if text:match("^https?://") then
-            -- Extract filename from URL for macro name (handle query parameters)
-            local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)%.txt") or text:match("/([^/?]+)$")
-            if fileName then
-                macroName = fileName:gsub("%.json.*$", ""):gsub("%.txt.*$", "")
-            else
-                macroName = "ImportedMacro_" .. os.time()
-            end
-            
-            -- Import from URL (will handle both JSON and TXT)
-            importMacroFromURL(text, macroName)
-        else
-            -- Check if it's JSON format
-            local isJSON = false
-            pcall(function()
-                local testDecode = Services.HttpService:JSONDecode(text)
-                isJSON = true
-            end)
-            
-            if isJSON then
-                -- Handle JSON import
-                local jsonData = nil
-                pcall(function()
-                    jsonData = Services.HttpService:JSONDecode(text)
-                end)
-                
-                macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
-                importMacroFromContent(text, macroName)
-            else
-                -- Handle TXT format - assume it's line-by-line action format
-                macroName = "ImportedTXT_" .. os.time()
-                importMacroFromTXT(text, macroName)
-            end
-        end
-        
-        -- Clean macro name
-        macroName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if macroName == "" then
-            macroName = "ImportedMacro_" .. os.time()
-        end
-        
-        -- Check if macro already exists
-        if macroManager[macroName] then
-            Rayfield:Notify({
-                Title = "Import Cancelled",
-                Content = "'" .. macroName .. "' already exists.",
-                Duration = 3
-            })
-            return
-        end
-    end,
-})
-
-local ImportInput = MacroTab:CreateInput({
-    Name = "Import Macro (URL, JSON, or TXT)",
-    CurrentValue = "",
-    PlaceholderText = "Paste URL, JSON content, or TXT file content here...",
+    PlaceholderText = "Paste content here...",
     RemoveTextAfterFocusLost = true,
     Callback = function(text)
         if not text or text:match("^%s*$") then
@@ -3907,7 +3845,7 @@ local ImportInput = MacroTab:CreateInput({
 })
 
 local ExportButton = MacroTab:CreateButton({
-    Name = "Copy Macro JSON",
+    Name = "Export Macro To Clipboard",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
             Rayfield:Notify({
@@ -3921,7 +3859,7 @@ local ExportButton = MacroTab:CreateButton({
     end,
 })
 
-local SendWebhookButton = MacroTab:CreateButton({
+--[[local SendWebhookButton = MacroTab:CreateButton({
     Name = "Send Macro via Webhook",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
@@ -4090,7 +4028,7 @@ local SendWebhookButton = MacroTab:CreateButton({
             print("Request failed:", result)
         end
     end,
-})
+})--]]
 
 -- Webhook Tab
 local WebhookInput = WebhookTab:CreateInput({
