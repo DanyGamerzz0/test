@@ -1,4 +1,4 @@
--- 32
+-- 34
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -389,6 +389,7 @@ local function saveMacroToFile(name)
     if not data then return end
 
     local serializedData = {}
+    
     for _, action in ipairs(data) do
         local newAction = table.clone(action)
         
@@ -400,15 +401,15 @@ local function saveMacroToFile(name)
             newAction.unitPosition = serializeVector3(newAction.unitPosition)
         end
         
-        -- Raycast data is already serialized in handleUnitPlacement, no need to process again
-        
         table.insert(serializedData, newAction)
     end
 
+    -- Save as direct array (no wrapper object)
     local json = Services.HttpService:JSONEncode(serializedData)
     local filePath = getMacroFilename(name)
     if filePath then
         writefile(filePath, json)
+        print("Saved macro to file:", name, "with", #serializedData, "actions")
     end
 end
 
@@ -418,8 +419,24 @@ local function loadMacroFromFile(name)
 
     local json = readfile(filePath)
     local data = Services.HttpService:JSONDecode(json)
+    
+    local actionsArray
+    
+    -- Handle both formats when loading
+    if data.actions and type(data.actions) == "table" then
+        -- Wrapped format
+        actionsArray = data.actions
+        print("Loading wrapped format file:", name)
+    elseif data[1] and data[1].action then
+        -- Direct array format
+        actionsArray = data
+        print("Loading direct array format file:", name)
+    else
+        warn("Unrecognized file format for macro:", name)
+        return nil
+    end
 
-    for _, action in ipairs(data) do
+    for _, action in ipairs(actionsArray) do
         -- Handle Vector3 positions
         if action.actualPosition then
             action.actualPosition = deserializeVector3(action.actualPosition)
@@ -429,37 +446,27 @@ local function loadMacroFromFile(name)
         end
         
         -- Deserialize raycast data
-if action.raycast then
-    print("Raw raycast from JSON:", action.raycast)
-    local raycast = action.raycast
-    local deserializedRaycast = {}
-    
-    if raycast.Origin and raycast.Origin.x and raycast.Origin.y and raycast.Origin.z then
-        deserializedRaycast.Origin = Vector3.new(raycast.Origin.x, raycast.Origin.y, raycast.Origin.z)
-        print("Deserialized Origin:", deserializedRaycast.Origin)
-    else
-        print("ERROR: Origin data is incomplete:", raycast.Origin)
+        if action.raycast then
+            local raycast = action.raycast
+            local deserializedRaycast = {}
+            
+            if raycast.Origin and raycast.Origin.x and raycast.Origin.y and raycast.Origin.z then
+                deserializedRaycast.Origin = Vector3.new(raycast.Origin.x, raycast.Origin.y, raycast.Origin.z)
+            end
+            
+            if raycast.Direction and raycast.Direction.x and raycast.Direction.y and raycast.Direction.z then
+                deserializedRaycast.Direction = Vector3.new(raycast.Direction.x, raycast.Direction.y, raycast.Direction.z)
+            end
+            
+            if raycast.Unit and raycast.Unit.x and raycast.Unit.y and raycast.Unit.z then
+                deserializedRaycast.Unit = Vector3.new(raycast.Unit.x, raycast.Unit.y, raycast.Unit.z)
+            end
+            
+            action.raycast = deserializedRaycast
+        end
     end
     
-    if raycast.Direction and raycast.Direction.x and raycast.Direction.y and raycast.Direction.z then
-        deserializedRaycast.Direction = Vector3.new(raycast.Direction.x, raycast.Direction.y, raycast.Direction.z)
-        print("Deserialized Direction:", deserializedRaycast.Direction)
-    else
-        print("ERROR: Direction data is incomplete:", raycast.Direction)
-    end
-    
-    if raycast.Unit and raycast.Unit.x and raycast.Unit.y and raycast.Unit.z then
-        deserializedRaycast.Unit = Vector3.new(raycast.Unit.x, raycast.Unit.y, raycast.Unit.z)
-        print("Deserialized Unit:", deserializedRaycast.Unit)
-    else
-        print("ERROR: Unit data is incomplete:", raycast.Unit)
-    end
-    
-    action.raycast = deserializedRaycast
-end
-    end
-    
-    return data
+    return actionsArray
 end
 
 local function stopRecording()
@@ -3050,16 +3057,30 @@ local function importMacroFromContent(jsonContent, macroName)
         return
     end
     
-    -- Check if it's the new format (direct actions array)
     local importedActions
-    if data.actions and type(data.actions) == "table" then
-        importedActions = data.actions
-        print("Importing new format macro with", #importedActions, "actions")
+    
+    -- Handle both formats: direct array and wrapped in actions field
+    if type(data) == "table" then
+        if data.actions and type(data.actions) == "table" then
+            -- New export format with metadata
+            importedActions = data.actions
+            print("Importing wrapped format macro with", #importedActions, "actions")
+        elseif data[1] and data[1].action then
+            -- Direct array format (old recorded format)
+            importedActions = data
+            print("Importing direct array format macro with", #importedActions, "actions")
+        else
+            Rayfield:Notify({
+                Title = "Import Error", 
+                Content = "Unrecognized macro format",
+                Duration = 3
+            })
+            return
+        end
     else
-        -- Try to handle old format with conversion (fallback)
         Rayfield:Notify({
             Title = "Import Error", 
-            Content = "Unsupported macro format - please use a macro exported from this version",
+            Content = "Invalid macro data structure",
             Duration = 3
         })
         return
@@ -3074,7 +3095,7 @@ local function importMacroFromContent(jsonContent, macroName)
         return
     end
     
-    -- Process the imported actions
+    -- Process the imported actions (deserialize Vector3 and raycast data)
     local processedMacro = {}
     
     for i, action in ipairs(importedActions) do
@@ -3091,19 +3112,22 @@ local function importMacroFromContent(jsonContent, macroName)
                 processedAction[key] = deserializeVector3(value)
                 print("Deserialized unitPosition for action", i)
             elseif key == "raycast" and type(value) == "table" then
-                -- Handle raycast deserialization (already handled in your existing code)
+                -- Handle raycast deserialization
                 local deserializedRaycast = {}
                 
                 if value.Origin and value.Origin.x and value.Origin.y and value.Origin.z then
                     deserializedRaycast.Origin = Vector3.new(value.Origin.x, value.Origin.y, value.Origin.z)
+                    print("Deserialized Origin:", deserializedRaycast.Origin)
                 end
                 
                 if value.Direction and value.Direction.x and value.Direction.y and value.Direction.z then
                     deserializedRaycast.Direction = Vector3.new(value.Direction.x, value.Direction.y, value.Direction.z)
+                    print("Deserialized Direction:", deserializedRaycast.Direction)
                 end
                 
                 if value.Unit and value.Unit.x and value.Unit.y and value.Unit.z then
                     deserializedRaycast.Unit = Vector3.new(value.Unit.x, value.Unit.y, value.Unit.z)
+                    print("Deserialized Unit:", deserializedRaycast.Unit)
                 end
                 
                 processedAction[key] = deserializedRaycast
@@ -3116,7 +3140,7 @@ local function importMacroFromContent(jsonContent, macroName)
         table.insert(processedMacro, processedAction)
     end
     
-    -- Validate the processed macro has required structure
+    -- Validate the processed macro
     local placementCount = 0
     local upgradeCount = 0
     local sellCount = 0
@@ -3133,7 +3157,7 @@ local function importMacroFromContent(jsonContent, macroName)
     
     print(string.format("Macro validation: %d placements, %d upgrades, %d sells", placementCount, upgradeCount, sellCount))
     
-    -- Save the processed macro
+    -- Save the processed macro in the SAME format as recorded macros (direct array)
     macroManager[macroName] = processedMacro
     saveMacroToFile(macroName)
     refreshMacroDropdown()
@@ -3192,19 +3216,13 @@ local function exportMacroToClipboard(macroName, format)
     
     local macroData = macroManager[macroName]
     
-    -- Create export data in the SAME format as recording (just serialized for JSON)
-    local exportData = {
-        version = script_version,
-        macroName = macroName,
-        totalActions = #macroData,
-        actions = {}
-    }
+    -- Export in DIRECT ARRAY format to match recorded macros
+    local serializedData = {}
     
-    -- Copy actions and serialize Vector3 positions for JSON compatibility
     for _, action in ipairs(macroData) do
         local serializedAction = {}
         
-        -- Copy all fields directly
+        -- Copy all fields and serialize Vector3 positions for JSON compatibility
         for key, value in pairs(action) do
             if key == "actualPosition" and value then
                 serializedAction[key] = serializeVector3(value)
@@ -3215,10 +3233,11 @@ local function exportMacroToClipboard(macroName, format)
             end
         end
         
-        table.insert(exportData.actions, serializedAction)
+        table.insert(serializedData, serializedAction)
     end
     
-    local jsonData = Services.HttpService:JSONEncode(exportData)
+    -- Export as direct array (same format as recorded macros save to file)
+    local jsonData = Services.HttpService:JSONEncode(serializedData)
     
     -- Copy to clipboard (if supported)
     if setclipboard then
