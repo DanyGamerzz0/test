@@ -1,4 +1,4 @@
--- 34
+-- 35
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -3043,6 +3043,109 @@ local MacroInput = MacroTab:CreateInput({
     end,
 })
 
+local function importMacroFromTXT(txtContent, macroName)
+    -- This is a simple TXT parser - you can customize the format as needed
+    -- Example TXT format:
+    -- PlaceUnit,unit_id,wave,time,x,y,z
+    -- UpgradeUnit,placement_order,wave,time
+    -- etc.
+    
+    local lines = {}
+    for line in txtContent:gmatch("[^\r\n]+") do
+        table.insert(lines, line:match("^%s*(.-)%s*$")) -- trim whitespace
+    end
+    
+    local actions = {}
+    
+    for i, line in ipairs(lines) do
+        if line and line ~= "" and not line:match("^#") then -- skip empty lines and comments
+            local parts = {}
+            for part in line:gmatch("[^,]+") do
+                table.insert(parts, part:match("^%s*(.-)%s*$"))
+            end
+            
+            if #parts >= 1 then
+                local actionType = parts[1]
+                
+                if actionType == "PlaceUnit" and #parts >= 7 then
+                    -- Format: PlaceUnit,unit_id,wave,time,x,y,z[,rotation]
+                    local action = {
+                        action = "PlaceUnit",
+                        unitId = parts[2],
+                        wave = tonumber(parts[3]) or 1,
+                        waveRelativeTime = tonumber(parts[4]) or 0,
+                        actualPosition = Vector3.new(
+                            tonumber(parts[5]) or 0,
+                            tonumber(parts[6]) or 0,
+                            tonumber(parts[7]) or 0
+                        ),
+                        rotation = tonumber(parts[8]) or 0,
+                        placementOrder = #actions + 1,
+                        -- Create basic raycast from position
+                        raycast = {
+                            Origin = Vector3.new(tonumber(parts[5]) or 0, (tonumber(parts[6]) or 0) + 10, tonumber(parts[7]) or 0),
+                            Direction = Vector3.new(0, -1, 0),
+                            Unit = Vector3.new(tonumber(parts[5]) or 0, tonumber(parts[6]) or 0, tonumber(parts[7]) or 0)
+                        }
+                    }
+                    table.insert(actions, action)
+                    
+                elseif actionType == "UpgradeUnit" and #parts >= 4 then
+                    -- Format: UpgradeUnit,placement_order,wave,time
+                    local action = {
+                        action = "UpgradeUnit",
+                        targetPlacementOrder = tonumber(parts[2]) or 1,
+                        wave = tonumber(parts[3]) or 1,
+                        waveRelativeTime = tonumber(parts[4]) or 0
+                    }
+                    table.insert(actions, action)
+                    
+                elseif actionType == "SellUnit" and #parts >= 4 then
+                    -- Format: SellUnit,placement_order,wave,time
+                    local action = {
+                        action = "SellUnit",
+                        targetPlacementOrder = tonumber(parts[2]) or 1,
+                        wave = tonumber(parts[3]) or 1,
+                        waveRelativeTime = tonumber(parts[4]) or 0
+                    }
+                    table.insert(actions, action)
+                    
+                elseif actionType == "SkipWave" and #parts >= 3 then
+                    -- Format: SkipWave,wave,time
+                    local action = {
+                        action = "SkipWave",
+                        wave = tonumber(parts[2]) or 1,
+                        waveRelativeTime = tonumber(parts[3]) or 0
+                    }
+                    table.insert(actions, action)
+                end
+            end
+        end
+    end
+    
+    if #actions == 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "No valid actions found in TXT file",
+            Duration = 3
+        })
+        return
+    end
+    
+    -- Save the macro
+    macroManager[macroName] = actions
+    saveMacroToFile(macroName)
+    refreshMacroDropdown()
+    
+    Rayfield:Notify({
+        Title = "TXT Import Success",
+        Content = string.format("Imported '%s' with %d actions", macroName, #actions),
+        Duration = 5
+    })
+    
+    print("Successfully imported TXT macro:", macroName, "with", #actions, "actions")
+end
+
 local function importMacroFromContent(jsonContent, macroName)
     local success, data = pcall(function()
         return Services.HttpService:JSONDecode(jsonContent)
@@ -3112,22 +3215,41 @@ local function importMacroFromContent(jsonContent, macroName)
                 processedAction[key] = deserializeVector3(value)
                 print("Deserialized unitPosition for action", i)
             elseif key == "raycast" and type(value) == "table" then
-                -- Handle raycast deserialization
+                -- Handle raycast deserialization - THIS IS THE FIX
                 local deserializedRaycast = {}
                 
-                if value.Origin and value.Origin.x and value.Origin.y and value.Origin.z then
+                -- Check if raycast data exists and deserialize it
+                if value.Origin and type(value.Origin) == "table" and 
+                   value.Origin.x and value.Origin.y and value.Origin.z then
                     deserializedRaycast.Origin = Vector3.new(value.Origin.x, value.Origin.y, value.Origin.z)
-                    print("Deserialized Origin:", deserializedRaycast.Origin)
+                    print("Deserialized raycast Origin:", deserializedRaycast.Origin)
                 end
                 
-                if value.Direction and value.Direction.x and value.Direction.y and value.Direction.z then
+                if value.Direction and type(value.Direction) == "table" and
+                   value.Direction.x and value.Direction.y and value.Direction.z then
                     deserializedRaycast.Direction = Vector3.new(value.Direction.x, value.Direction.y, value.Direction.z)
-                    print("Deserialized Direction:", deserializedRaycast.Direction)
+                    print("Deserialized raycast Direction:", deserializedRaycast.Direction)
                 end
                 
-                if value.Unit and value.Unit.x and value.Unit.y and value.Unit.z then
+                if value.Unit and type(value.Unit) == "table" and
+                   value.Unit.x and value.Unit.y and value.Unit.z then
                     deserializedRaycast.Unit = Vector3.new(value.Unit.x, value.Unit.y, value.Unit.z)
-                    print("Deserialized Unit:", deserializedRaycast.Unit)
+                    print("Deserialized raycast Unit:", deserializedRaycast.Unit)
+                end
+                
+                -- FALLBACK: If raycast data is missing or incomplete, create from position
+                if not deserializedRaycast.Origin or not deserializedRaycast.Direction or not deserializedRaycast.Unit then
+                    print("Warning: Incomplete raycast data for action", i, "creating fallback")
+                    local fallbackPos = processedAction.actualPosition or 
+                                      (action.actualPosition and deserializeVector3(action.actualPosition)) or
+                                      Vector3.new(0, 0, 0)
+                    
+                    deserializedRaycast = {
+                        Origin = Vector3.new(fallbackPos.X, fallbackPos.Y + 10, fallbackPos.Z),
+                        Direction = Vector3.new(0, -1, 0),
+                        Unit = fallbackPos
+                    }
+                    print("Created fallback raycast from position:", fallbackPos)
                 end
                 
                 processedAction[key] = deserializedRaycast
@@ -3137,6 +3259,16 @@ local function importMacroFromContent(jsonContent, macroName)
             end
         end
         
+        -- Additional check: If this is a PlaceUnit action and still has no raycast, create one
+        if processedAction.action == "PlaceUnit" and not processedAction.raycast and processedAction.actualPosition then
+            print("Creating missing raycast for PlaceUnit action", i)
+            processedAction.raycast = {
+                Origin = Vector3.new(processedAction.actualPosition.X, processedAction.actualPosition.Y + 10, processedAction.actualPosition.Z),
+                Direction = Vector3.new(0, -1, 0),
+                Unit = processedAction.actualPosition
+            }
+        end
+        
         table.insert(processedMacro, processedAction)
     end
     
@@ -3144,10 +3276,16 @@ local function importMacroFromContent(jsonContent, macroName)
     local placementCount = 0
     local upgradeCount = 0
     local sellCount = 0
+    local raycastIssues = 0
     
-    for _, action in ipairs(processedMacro) do
+    for i, action in ipairs(processedMacro) do
         if action.action == "PlaceUnit" then
             placementCount = placementCount + 1
+            -- Check if raycast is valid
+            if not action.raycast or not action.raycast.Origin or not action.raycast.Direction or not action.raycast.Unit then
+                raycastIssues = raycastIssues + 1
+                print("Warning: PlaceUnit action", i, "has invalid raycast data")
+            end
         elseif action.action == "UpgradeUnit" then
             upgradeCount = upgradeCount + 1
         elseif action.action == "SellUnit" then
@@ -3155,16 +3293,22 @@ local function importMacroFromContent(jsonContent, macroName)
         end
     end
     
-    print(string.format("Macro validation: %d placements, %d upgrades, %d sells", placementCount, upgradeCount, sellCount))
+    print(string.format("Macro validation: %d placements, %d upgrades, %d sells, %d raycast issues", 
+          placementCount, upgradeCount, sellCount, raycastIssues))
     
-    -- Save the processed macro in the SAME format as recorded macros (direct array)
+    -- Save the processed macro
     macroManager[macroName] = processedMacro
     saveMacroToFile(macroName)
     refreshMacroDropdown()
     
+    local statusMsg = string.format("Imported '%s' with %d actions (%d placements)", macroName, #processedMacro, placementCount)
+    if raycastIssues > 0 then
+        statusMsg = statusMsg .. string.format(", %d raycast issues fixed", raycastIssues)
+    end
+    
     Rayfield:Notify({
         Title = "Import Success",
-        Content = string.format("Imported '%s' with %d actions (%d placements)", macroName, #processedMacro, placementCount),
+        Content = statusMsg,
         Duration = 5
     })
     
@@ -3194,7 +3338,14 @@ local function importMacroFromURL(url, macroName)
     end)
     
     if success and response and response.StatusCode == 200 then
-        importMacroFromContent(response.Body, macroName)
+        -- Check if it's a TXT or JSON file based on URL or content
+        if url:match("%.txt") then
+            -- Handle as TXT file
+            importMacroFromTXT(response.Body, macroName)
+        else
+            -- Handle as JSON file (default)
+            importMacroFromContent(response.Body, macroName)
+        end
     else
         Rayfield:Notify({
             Title = "Import Error",
@@ -3532,9 +3683,9 @@ local PlayToggle = MacroTab:CreateToggle({
 })--]]
 
 local ImportInput = MacroTab:CreateInput({
-    Name = "Import Macro (URL or JSON)",
+    Name = "Import Macro (URL, JSON, or TXT)",
     CurrentValue = "",
-    PlaceholderText = "Paste URL or JSON content here...",
+    PlaceholderText = "Paste URL, JSON content, or TXT file content here...",
     RemoveTextAfterFocusLost = true,
     Callback = function(text)
         if not text or text:match("^%s*$") then
@@ -3543,30 +3694,44 @@ local ImportInput = MacroTab:CreateInput({
         
         local macroName = nil
         
-        -- Detect if it's a URL or JSON content
+        -- Detect if it's a URL, JSON content, or TXT content
         if text:match("^https?://") then
             -- Extract filename from URL for macro name (handle query parameters)
-            local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)$")
+            local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)%.txt") or text:match("/([^/?]+)$")
             if fileName then
-                macroName = fileName:gsub("%.json.*$", "")
+                macroName = fileName:gsub("%.json.*$", ""):gsub("%.txt.*$", "")
             else
                 macroName = "ImportedMacro_" .. os.time()
             end
+            
+            -- Import from URL (will handle both JSON and TXT)
+            importMacroFromURL(text, macroName)
         else
-            -- For JSON content, try to extract macro name from content or use default
-            local jsonData = nil
+            -- Check if it's JSON format
+            local isJSON = false
             pcall(function()
-                jsonData = Services.HttpService:JSONDecode(text)
+                local testDecode = Services.HttpService:JSONDecode(text)
+                isJSON = true
             end)
             
-            -- Try to get name from JSON data, otherwise use default
-            macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
+            if isJSON then
+                -- Handle JSON import
+                local jsonData = nil
+                pcall(function()
+                    jsonData = Services.HttpService:JSONDecode(text)
+                end)
+                
+                macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
+                importMacroFromContent(text, macroName)
+            else
+                -- Handle TXT format - assume it's line-by-line action format
+                macroName = "ImportedTXT_" .. os.time()
+                importMacroFromTXT(text, macroName)
+            end
         end
         
-        -- Clean macro name (remove invalid characters)
+        -- Clean macro name
         macroName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        
-        -- Ensure name isn't empty
         if macroName == "" then
             macroName = "ImportedMacro_" .. os.time()
         end
@@ -3580,12 +3745,71 @@ local ImportInput = MacroTab:CreateInput({
             })
             return
         end
+    end,
+})
+
+local ImportInput = MacroTab:CreateInput({
+    Name = "Import Macro (URL, JSON, or TXT)",
+    CurrentValue = "",
+    PlaceholderText = "Paste URL, JSON content, or TXT file content here...",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(text)
+        if not text or text:match("^%s*$") then
+            return
+        end
         
-        -- Import the macro with the exact filename
+        local macroName = nil
+        
+        -- Detect if it's a URL, JSON content, or TXT content
         if text:match("^https?://") then
+            -- Extract filename from URL for macro name (handle query parameters)
+            local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)%.txt") or text:match("/([^/?]+)$")
+            if fileName then
+                macroName = fileName:gsub("%.json.*$", ""):gsub("%.txt.*$", "")
+            else
+                macroName = "ImportedMacro_" .. os.time()
+            end
+            
+            -- Import from URL (will handle both JSON and TXT)
             importMacroFromURL(text, macroName)
         else
-            importMacroFromContent(text, macroName)
+            -- Check if it's JSON format
+            local isJSON = false
+            pcall(function()
+                local testDecode = Services.HttpService:JSONDecode(text)
+                isJSON = true
+            end)
+            
+            if isJSON then
+                -- Handle JSON import
+                local jsonData = nil
+                pcall(function()
+                    jsonData = Services.HttpService:JSONDecode(text)
+                end)
+                
+                macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
+                importMacroFromContent(text, macroName)
+            else
+                -- Handle TXT format - assume it's line-by-line action format
+                macroName = "ImportedTXT_" .. os.time()
+                importMacroFromTXT(text, macroName)
+            end
+        end
+        
+        -- Clean macro name
+        macroName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if macroName == "" then
+            macroName = "ImportedMacro_" .. os.time()
+        end
+        
+        -- Check if macro already exists
+        if macroManager[macroName] then
+            Rayfield:Notify({
+                Title = "Import Cancelled",
+                Content = "'" .. macroName .. "' already exists.",
+                Duration = 3
+            })
+            return
         end
     end,
 })
