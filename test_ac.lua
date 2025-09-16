@@ -1,4 +1,4 @@
--- 36
+-- 38
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -401,10 +401,40 @@ local function saveMacroToFile(name)
             newAction.unitPosition = serializeVector3(newAction.unitPosition)
         end
         
+        -- Handle raycast serialization
+        if newAction.raycast and type(newAction.raycast) == "table" then
+            local serializedRaycast = {}
+            
+            if newAction.raycast.Origin then
+                serializedRaycast.Origin = {
+                    x = newAction.raycast.Origin.X,
+                    y = newAction.raycast.Origin.Y,
+                    z = newAction.raycast.Origin.Z
+                }
+            end
+            
+            if newAction.raycast.Direction then
+                serializedRaycast.Direction = {
+                    x = newAction.raycast.Direction.X,
+                    y = newAction.raycast.Direction.Y,
+                    z = newAction.raycast.Direction.Z
+                }
+            end
+            
+            if newAction.raycast.Unit then
+                serializedRaycast.Unit = {
+                    x = newAction.raycast.Unit.X,
+                    y = newAction.raycast.Unit.Y,
+                    z = newAction.raycast.Unit.Z
+                }
+            end
+            
+            newAction.raycast = serializedRaycast
+        end
+        
         table.insert(serializedData, newAction)
     end
 
-    -- Save as direct array (no wrapper object)
     local json = Services.HttpService:JSONEncode(serializedData)
     local filePath = getMacroFilename(name)
     if filePath then
@@ -3236,7 +3266,7 @@ local function importMacroFromContent(jsonContent, macroName)
                 processedAction[key] = deserializeVector3(value)
                 print("Deserialized unitPosition for action", i)
             elseif key == "raycast" and type(value) == "table" then
-                -- Handle raycast deserialization - FIXED VERSION
+                -- Handle raycast deserialization
                 local deserializedRaycast = {}
                 local hasOrigin, hasDirection, hasUnit = false, false, false
                 
@@ -3264,7 +3294,7 @@ local function importMacroFromContent(jsonContent, macroName)
                     print("Deserialized raycast Unit:", deserializedRaycast.Unit)
                 end
                 
-                -- Only create fallback for missing components
+                -- Create fallback if any components are missing
                 if not hasOrigin or not hasDirection or not hasUnit then
                     print("Warning: Incomplete raycast data for action", i, "filling in missing components")
                     local fallbackPos = processedAction.actualPosition or 
