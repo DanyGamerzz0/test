@@ -1,4 +1,4 @@
--- 31
+-- 32
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -3050,99 +3050,101 @@ local function importMacroFromContent(jsonContent, macroName)
         return
     end
     
-    -- Validate the data structure
-    if not data.actions or type(data.actions) ~= "table" then
+    -- Check if it's the new format (direct actions array)
+    local importedActions
+    if data.actions and type(data.actions) == "table" then
+        importedActions = data.actions
+        print("Importing new format macro with", #importedActions, "actions")
+    else
+        -- Try to handle old format with conversion (fallback)
         Rayfield:Notify({
             Title = "Import Error", 
-            Content = "Invalid macro format - missing actions",
+            Content = "Unsupported macro format - please use a macro exported from this version",
             Duration = 3
         })
         return
     end
     
-    -- Convert the imported data to your macro format
-    local convertedMacro = {}
-    local placementCounter = 0
+    if #importedActions == 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Macro contains no actions",
+            Duration = 3
+        })
+        return
+    end
     
-    for _, action in ipairs(data.actions) do
-        if action.action == "PlaceUnit" then
-            placementCounter = placementCounter + 1
-            
-            -- Convert serialized data back to your format
-            local convertedAction = {
-                action = "PlaceUnit",
-                unitId = action.unitName or action.unitId,
-                unitType = action.unitName or action.unitId,
-                spawnUUID = action.unitId,
-                actualPosition = action.cframe and deserializeCFrame(action.cframe) and 
-                                deserializeCFrame(action.cframe).Position or Vector3.new(0, 0, 0),
-                raycast = {
-                    Origin = { x = 0, y = 10, z = 0 },
-                    Direction = { x = 0, y = -1, z = 0 },
-                    Unit = { x = 0, y = 0, z = 0 }
-                },
-                rotation = action.rotation or 0,
-                wave = action.wave or 1,
-                waveRelativeTime = action.time or 0,
-                timestamp = tick(),
-                placementOrder = action.placementOrder or placementCounter
-            }
-            
-            -- Try to extract position from cframe for raycast
-            if action.cframe then
-                local cframe = deserializeCFrame(action.cframe)
-                if cframe then
-                    convertedAction.actualPosition = cframe.Position
-                    convertedAction.raycast = {
-                        Origin = {
-                            x = cframe.Position.X,
-                            y = cframe.Position.Y + 10,
-                            z = cframe.Position.Z
-                        },
-                        Direction = { x = 0, y = -1, z = 0 },
-                        Unit = {
-                            x = cframe.Position.X,
-                            y = cframe.Position.Y,
-                            z = cframe.Position.Z
-                        }
-                    }
+    -- Process the imported actions
+    local processedMacro = {}
+    
+    for i, action in ipairs(importedActions) do
+        local processedAction = {}
+        
+        -- Copy all fields
+        for key, value in pairs(action) do
+            if key == "actualPosition" and type(value) == "table" then
+                -- Deserialize Vector3 position
+                processedAction[key] = deserializeVector3(value)
+                print("Deserialized actualPosition for action", i)
+            elseif key == "unitPosition" and type(value) == "table" then
+                -- Deserialize Vector3 position
+                processedAction[key] = deserializeVector3(value)
+                print("Deserialized unitPosition for action", i)
+            elseif key == "raycast" and type(value) == "table" then
+                -- Handle raycast deserialization (already handled in your existing code)
+                local deserializedRaycast = {}
+                
+                if value.Origin and value.Origin.x and value.Origin.y and value.Origin.z then
+                    deserializedRaycast.Origin = Vector3.new(value.Origin.x, value.Origin.y, value.Origin.z)
                 end
+                
+                if value.Direction and value.Direction.x and value.Direction.y and value.Direction.z then
+                    deserializedRaycast.Direction = Vector3.new(value.Direction.x, value.Direction.y, value.Direction.z)
+                end
+                
+                if value.Unit and value.Unit.x and value.Unit.y and value.Unit.z then
+                    deserializedRaycast.Unit = Vector3.new(value.Unit.x, value.Unit.y, value.Unit.z)
+                end
+                
+                processedAction[key] = deserializedRaycast
+            else
+                -- Copy value as-is
+                processedAction[key] = value
             end
-            
-            table.insert(convertedMacro, convertedAction)
-            
+        end
+        
+        table.insert(processedMacro, processedAction)
+    end
+    
+    -- Validate the processed macro has required structure
+    local placementCount = 0
+    local upgradeCount = 0
+    local sellCount = 0
+    
+    for _, action in ipairs(processedMacro) do
+        if action.action == "PlaceUnit" then
+            placementCount = placementCount + 1
         elseif action.action == "UpgradeUnit" then
-            table.insert(convertedMacro, {
-                action = "UpgradeUnit",
-                unitId = action.unitString,
-                targetPlacementOrder = action.targetPlacementOrder,
-                wave = action.wave or 1,
-                waveRelativeTime = action.time or 0,
-                timestamp = tick()
-            })
-            
+            upgradeCount = upgradeCount + 1
         elseif action.action == "SellUnit" then
-            table.insert(convertedMacro, {
-                action = "SellUnit",
-                unitId = action.unitString,
-                targetPlacementOrder = action.targetPlacementOrder,
-                wave = action.wave or 1,
-                waveRelativeTime = action.time or 0,
-                timestamp = tick()
-            })
+            sellCount = sellCount + 1
         end
     end
     
-    -- Save the converted macro
-    macroManager[macroName] = convertedMacro
+    print(string.format("Macro validation: %d placements, %d upgrades, %d sells", placementCount, upgradeCount, sellCount))
+    
+    -- Save the processed macro
+    macroManager[macroName] = processedMacro
     saveMacroToFile(macroName)
     refreshMacroDropdown()
     
     Rayfield:Notify({
         Title = "Import Success",
-        Content = string.format("Imported '%s' with %d actions", macroName, #convertedMacro),
-        Duration = 3
+        Content = string.format("Imported '%s' with %d actions (%d placements)", macroName, #processedMacro, placementCount),
+        Duration = 5
     })
+    
+    print("Successfully imported macro:", macroName)
 end
 
 local function importMacroFromURL(url, macroName)
@@ -3190,35 +3192,27 @@ local function exportMacroToClipboard(macroName, format)
     
     local macroData = macroManager[macroName]
     
-    -- Create export data compatible with the import format
+    -- Create export data in the SAME format as recording (just serialized for JSON)
     local exportData = {
         version = script_version,
         macroName = macroName,
+        totalActions = #macroData,
         actions = {}
     }
     
+    -- Copy actions and serialize Vector3 positions for JSON compatibility
     for _, action in ipairs(macroData) do
-        local serializedAction = {
-            action = action.action,
-            time = action.waveRelativeTime or 0,
-            wave = action.wave or 1
-        }
+        local serializedAction = {}
         
-        if action.action == "PlaceUnit" then
-            serializedAction.unitName = action.unitId or action.unitType
-            serializedAction.unitId = action.spawnUUID or action.unitId
-            serializedAction.rotation = action.rotation or 0
-            serializedAction.placementOrder = action.placementOrder
-            
-            -- Create a CFrame from position for compatibility
-            if action.actualPosition then
-                local cframe = CFrame.new(action.actualPosition)
-                serializedAction.cframe = serializeCFrame(cframe)
+        -- Copy all fields directly
+        for key, value in pairs(action) do
+            if key == "actualPosition" and value then
+                serializedAction[key] = serializeVector3(value)
+            elseif key == "unitPosition" and value then
+                serializedAction[key] = serializeVector3(value)
+            else
+                serializedAction[key] = value
             end
-            
-        elseif action.action == "UpgradeUnit" or action.action == "SellUnit" then
-            serializedAction.targetPlacementOrder = action.targetPlacementOrder
-            serializedAction.unitString = action.unitId
         end
         
         table.insert(exportData.actions, serializedAction)
@@ -3231,7 +3225,7 @@ local function exportMacroToClipboard(macroName, format)
         setclipboard(jsonData)
         Rayfield:Notify({
             Title = "Export Success",
-            Content = "Macro JSON copied to clipboard",
+            Content = "Macro JSON copied to clipboard (" .. #macroData .. " actions)",
             Duration = 3
         })
     else
@@ -3623,35 +3617,27 @@ local SendWebhookButton = MacroTab:CreateButton({
             return
         end
         
-        -- Create export data
+        -- Create export data using the SAME format as the fixed export function
         local exportData = {
             version = script_version,
             macroName = currentMacroName,
+            totalActions = #macroData,
             actions = {}
         }
         
+        -- Copy actions and serialize Vector3 positions for JSON compatibility
         for _, action in ipairs(macroData) do
-            local serializedAction = {
-                action = action.action,
-                time = action.waveRelativeTime or 0,
-                wave = action.wave or 1
-            }
+            local serializedAction = {}
             
-            if action.action == "PlaceUnit" then
-                serializedAction.unitName = action.unitId or action.unitType
-                serializedAction.unitId = action.spawnUUID or action.unitId
-                serializedAction.rotation = action.rotation or 0
-                serializedAction.placementOrder = action.placementOrder
-                
-                -- Create a CFrame from position for compatibility
-                if action.actualPosition then
-                    local cframe = CFrame.new(action.actualPosition)
-                    serializedAction.cframe = serializeCFrame(cframe)
+            -- Copy all fields directly
+            for key, value in pairs(action) do
+                if key == "actualPosition" and value then
+                    serializedAction[key] = serializeVector3(value)
+                elseif key == "unitPosition" and value then
+                    serializedAction[key] = serializeVector3(value)
+                else
+                    serializedAction[key] = value
                 end
-                
-            elseif action.action == "UpgradeUnit" or action.action == "SellUnit" then
-                serializedAction.targetPlacementOrder = action.targetPlacementOrder
-                serializedAction.unitString = action.unitId
             end
             
             table.insert(exportData.actions, serializedAction)
@@ -3659,6 +3645,21 @@ local SendWebhookButton = MacroTab:CreateButton({
         
         local jsonData = Services.HttpService:JSONEncode(exportData)
         local fileName = currentMacroName .. ".json"
+        
+        -- Count different action types for summary
+        local placementCount = 0
+        local upgradeCount = 0
+        local sellCount = 0
+        
+        for _, action in ipairs(macroData) do
+            if action.action == "PlaceUnit" then
+                placementCount = placementCount + 1
+            elseif action.action == "UpgradeUnit" then
+                upgradeCount = upgradeCount + 1
+            elseif action.action == "SellUnit" then
+                sellCount = sellCount + 1
+            end
+        end
         
         -- Create multipart form data for file upload
         local boundary = "----WebKitFormBoundary" .. tostring(tick())
@@ -3670,7 +3671,12 @@ local SendWebhookButton = MacroTab:CreateButton({
         body = body .. "Content-Type: application/json\r\n\r\n"
         body = body .. Services.HttpService:JSONEncode({
             username = "LixHub Macro Share",
-            content = "**Macro shared:** `" .. fileName .. "`\n📁 **Actions:** " .. tostring(#exportData.actions)}) .. "\r\n"
+            content = "**Macro shared:** `" .. fileName .. "`\n" ..
+                     "📁 **Total Actions:** " .. tostring(#exportData.actions) .. "\n" ..
+                     "🏗️ **Placements:** " .. tostring(placementCount) .. "\n" ..
+                     "⬆️ **Upgrades:** " .. tostring(upgradeCount) .. "\n" ..
+                     "💸 **Sells:** " .. tostring(sellCount)
+        }) .. "\r\n"
         
         -- Add file field
         body = body .. "--" .. boundary .. "\r\n"
@@ -3722,9 +3728,6 @@ local SendWebhookButton = MacroTab:CreateButton({
                 if result.StatusCode then
                     errorMsg = errorMsg .. " " .. tostring(result.StatusCode)
                 end
-                if result.Body then
-                    errorMsg = errorMsg .. ": " .. tostring(result.Body)
-                end
                 
                 Rayfield:Notify({
                     Title = "Webhook Error",
@@ -3732,11 +3735,10 @@ local SendWebhookButton = MacroTab:CreateButton({
                     Duration = 5
                 })
                 
-                -- Debug print (remove in production)
-                print("Webhook Debug Info:")
-                print("Success:", result.Success)
-                print("StatusCode:", result.StatusCode) 
-                print("Body:", result.Body)
+                print("Webhook failed - StatusCode:", result.StatusCode)
+                if result.Body then
+                    print("Response body:", result.Body)
+                end
             end
         else
             local errorMsg = "Failed to send request"
@@ -3750,7 +3752,6 @@ local SendWebhookButton = MacroTab:CreateButton({
                 Duration = 3
             })
             
-            -- Debug print (remove in production)
             print("Request failed:", result)
         end
     end,
