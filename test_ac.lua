@@ -1,4 +1,4 @@
--- 40
+-- 41
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -13,7 +13,7 @@ if not Rayfield then
     return
 end
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Crusaders",
@@ -99,6 +99,16 @@ local MACRO_CONFIG = {
     PLACEMENT_WAIT_TIME = 1.5,
     SNAPSHOT_WAIT_TIME = 0.5,
 }
+
+local loadingRetries = {
+    story = 0,
+    legend = 0,
+    raid = 0,
+    ignoreWorlds = 0
+}
+
+local maxRetries = 20 -- Maximum number of retry attempts
+local retryDelay = 2 -- Seconds between retries
 
 -- ========== MACRO SYSTEM CORE ==========
 local macro = {}
@@ -2606,9 +2616,18 @@ task.spawn(function()
     end
 end)
 
-local function loadIgnoreWorldsOptions()
+local function loadIgnoreWorldsWithRetry()
+    loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds + 1
+    
     if not isGameDataLoaded() then
-        warn("Cannot load ignore worlds options - game data not ready")
+        if loadingRetries.ignoreWorlds <= maxRetries then
+            print(string.format("Ignore worlds loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.ignoreWorlds, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadIgnoreWorldsWithRetry)
+        else
+            warn("Failed to load ignore worlds after", maxRetries, "attempts - giving up")
+            IgnoreWorldsDropdown:Refresh({"Failed to load - check console"})
+        end
         return
     end
     
@@ -2619,7 +2638,11 @@ local function loadIgnoreWorldsOptions()
         local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
-        if WorldLevelOrder and WorldLevelOrder.WORLD_ORDER then
+        if not WorldLevelOrder then
+            error("WorldLevelOrder not found")
+        end
+        
+        if WorldLevelOrder.WORLD_ORDER then
             for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
                 local worldModules = WorldsFolder:GetChildren()
                 
@@ -2641,10 +2664,24 @@ local function loadIgnoreWorldsOptions()
         end
         
         -- Add legend worlds
-        if WorldLevelOrder and WorldLevelOrder.LEGEND_WORLD_ORDER then
+        if WorldLevelOrder.LEGEND_WORLD_ORDER then
             for _, orderedWorldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
-                -- Similar logic to above for legend worlds
-                -- ... (implementation similar to loadLegendStages)
+                local worldModules = WorldsFolder:GetChildren()
+                
+                for _, worldModule in ipairs(worldModules) do
+                    if worldModule:IsA("ModuleScript") then
+                        local moduleSuccess, worldData = pcall(require, worldModule)
+                        
+                        if moduleSuccess and worldData and worldData[orderedWorldKey] then
+                            local worldInfo = worldData[orderedWorldKey]
+                            
+                            if type(worldInfo) == "table" and worldInfo.name and worldInfo.legend_stage then
+                                table.insert(allWorlds, worldInfo.name .. " (Legend)")
+                            end
+                            break
+                        end
+                    end
+                end
             end
         end
         
@@ -2659,21 +2696,40 @@ local function loadIgnoreWorldsOptions()
         end
         table.sort(uniqueWorlds)
         
+        if #uniqueWorlds == 0 then
+            error("No worlds found for ignore list")
+        end
+        
         return uniqueWorlds
     end)
     
-    if success and result then
+    if success and result and #result > 0 then
         IgnoreWorldsDropdown:Refresh(result)
-        print("Successfully loaded", #result, "worlds for ignore list")
+        print(string.format("Successfully loaded %d worlds for ignore list (attempt %d)", #result, loadingRetries.ignoreWorlds))
     else
-        warn("Failed to load ignore worlds options:", result)
-        IgnoreWorldsDropdown:Refresh({})
+        if loadingRetries.ignoreWorlds <= maxRetries then
+            print(string.format("Ignore worlds loading failed (attempt %d/%d): %s - retrying...", loadingRetries.ignoreWorlds, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadIgnoreWorldsWithRetry)
+        else
+            warn("Failed to load ignore worlds after", maxRetries, "attempts:", result)
+            IgnoreWorldsDropdown:Refresh({"Failed to load - check console"})
+        end
     end
 end
 
-local function loadLegendStages()
+local function loadLegendStagesWithRetry()
+    loadingRetries.legend = loadingRetries.legend + 1
+    
     if not isGameDataLoaded() then
-        warn("Cannot load legend stages - game data not ready")
+        if loadingRetries.legend <= maxRetries then
+            print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadLegendStagesWithRetry)
+        else
+            warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
+            LegendStageDropdown:Refresh({"Failed to load - check console"})
+        end
         return
     end
     
@@ -2682,7 +2738,7 @@ local function loadLegendStages()
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
         if not WorldLevelOrder or not WorldLevelOrder.LEGEND_WORLD_ORDER then
-            return {}
+            error("WorldLevelOrder or LEGEND_WORLD_ORDER not found")
         end
 
         local displayNames = {}
@@ -2706,21 +2762,40 @@ local function loadLegendStages()
             end
         end
         
+        if #displayNames == 0 then
+            error("No legend stages found")
+        end
+        
         return displayNames
     end)
     
-    if success and result then
+    if success and result and #result > 0 then
         LegendStageDropdown:Refresh(result)
-        print("Successfully loaded", #result, "legend stages")
+        print(string.format("Successfully loaded %d legend stages (attempt %d)", #result, loadingRetries.legend))
     else
-        warn("Failed to load legend stages:", result)
-        LegendStageDropdown:Refresh({})
+        if loadingRetries.legend <= maxRetries then
+            print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadLegendStagesWithRetry)
+        else
+            warn("Failed to load legend stages after", maxRetries, "attempts:", result)
+            LegendStageDropdown:Refresh({"Failed to load - check console"})
+        end
     end
 end
 
-local function loadStoryStages()
+local function loadStoryStagesWithRetry()
+    loadingRetries.story = loadingRetries.story + 1
+    
     if not isGameDataLoaded() then
-        warn("Cannot load story stages - game data not ready")
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadStoryStagesWithRetry)
+        else
+            warn("Failed to load story stages after", maxRetries, "attempts - giving up")
+            StoryStageDropdown:Refresh({"Failed to load - check console"})
+        end
         return
     end
     
@@ -2729,7 +2804,7 @@ local function loadStoryStages()
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
         if not WorldLevelOrder or not WorldLevelOrder.WORLD_ORDER then
-            return {}
+            error("WorldLevelOrder or WORLD_ORDER not found")
         end
 
         local displayNames = {}
@@ -2753,21 +2828,40 @@ local function loadStoryStages()
             end
         end
         
+        if #displayNames == 0 then
+            error("No story stages found")
+        end
+        
         return displayNames
     end)
     
-    if success and result then
+    if success and result and #result > 0 then
         StoryStageDropdown:Refresh(result)
-        print("Successfully loaded", #result, "story stages")
+        print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
     else
-        warn("Failed to load story stages:", result)
-        StoryStageDropdown:Refresh({})
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadStoryStagesWithRetry)
+        else
+            warn("Failed to load story stages after", maxRetries, "attempts:", result)
+            StoryStageDropdown:Refresh({"Failed to load - check console"})
+        end
     end
 end
 
-local function loadRaidStages()
+local function loadRaidStagesWithRetry()
+    loadingRetries.raid = loadingRetries.raid + 1
+    
     if not isGameDataLoaded() then
-        warn("Cannot load raid stages - game data not ready")
+        if loadingRetries.raid <= maxRetries then
+            print(string.format("Raid stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.raid, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadRaidStagesWithRetry)
+        else
+            warn("Failed to load raid stages after", maxRetries, "attempts - giving up")
+            RaidStageDropdown:Refresh({"Failed to load - check console"})
+        end
         return
     end
     
@@ -2776,7 +2870,7 @@ local function loadRaidStages()
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
         if not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
-            return {}
+            error("WorldLevelOrder or RAID_WORLD_ORDER not found")
         end
 
         local displayNames = {}
@@ -2804,15 +2898,25 @@ local function loadRaidStages()
             end
         end
         
+        if #displayNames == 0 then
+            error("No raid stages found")
+        end
+        
         return displayNames
     end)
     
-    if success and result then
+    if success and result and #result > 0 then
         RaidStageDropdown:Refresh(result)
-        print("Successfully loaded", #result, "raid stages")
+        print(string.format("Successfully loaded %d raid stages (attempt %d)", #result, loadingRetries.raid))
     else
-        warn("Failed to load raid stages:", result)
-        RaidStageDropdown:Refresh({})
+        if loadingRetries.raid <= maxRetries then
+            print(string.format("Raid stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.raid, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadRaidStagesWithRetry)
+        else
+            warn("Failed to load raid stages after", maxRetries, "attempts:", result)
+            RaidStageDropdown:Refresh({"Failed to load - check console"})
+        end
     end
 end
 
@@ -4317,30 +4421,17 @@ end
 ensureMacroFolders()
 loadAllMacros()
 
-Rayfield:LoadConfiguration()
-
 task.delay(1, function()
-    -- Wait for game data to be available
-    local maxWait = 10
-    local waited = 0
-    while not isGameDataLoaded() and waited < maxWait do
-        task.wait(0.5)
-        waited = waited + 0.5
-        print("Waiting for game data... (" .. waited .. "/" .. maxWait .. "s)")
-    end
+    print("Starting dropdown loading with retry logic...")
     
-    if waited >= maxWait then
-        warn("Game data not loaded after", maxWait, "seconds - stage dropdowns will remain empty")
-    else
-        print("Game data loaded successfully after", waited, "seconds")
-        
-        -- Now safely load all the stage data
-        loadStoryStages()
-        loadLegendStages()
-        loadRaidStages()
-        loadIgnoreWorldsOptions()
-    end
+    -- Start all loading processes concurrently
+    task.spawn(loadStoryStagesWithRetry)
+    task.spawn(loadLegendStagesWithRetry)
+    task.spawn(loadRaidStagesWithRetry)
+    task.spawn(loadIgnoreWorldsWithRetry)
 end)
+
+Rayfield:LoadConfiguration()
 
 -- Restore saved macro from config after a delay
 task.delay(1, function()
