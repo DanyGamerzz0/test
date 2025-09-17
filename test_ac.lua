@@ -1,4 +1,4 @@
--- 44
+-- 45
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1037,6 +1037,27 @@ local function getUnitNameFromSpawnId(spawnId)
         return getUnitDisplayName(unitId)
     end
     return "Unknown Unit"
+end
+
+local function getUnitSpawnId(unit)
+    if not unit then return nil end
+    
+    -- Try to get spawn_id from the unit's _stats
+    local stats = unit:FindFirstChild("_stats")
+    if stats then
+        local spawnIdValue = stats:FindFirstChild("spawn_id")
+        if spawnIdValue then
+            return spawnIdValue.Value
+        end
+    end
+    
+    -- Fallback: try to get from _SPAWN_UNIT_UUID attribute
+    local spawnUUID = unit:GetAttribute("_SPAWN_UNIT_UUID")
+    if spawnUUID then
+        return spawnUUID
+    end
+    
+    return nil
 end
 
 local function executeActionWithStatusClean(action, playbackMapping, actionIndex, totalActionCount)
