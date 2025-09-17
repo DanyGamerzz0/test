@@ -1,4 +1,4 @@
--- 43
+-- 44
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -314,20 +314,47 @@ local function getCurrentWave()
     return success and wave or 1
 end
 
-local function findUnitBySpawnUUID(spawnUUID)
+local function findUnitBySpawnId(targetSpawnId)
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     if not unitsFolder then return nil end
     
     for _, unit in pairs(unitsFolder:GetChildren()) do
         if isOwnedByLocalPlayer(unit) then
-            local uuid = unit:GetAttribute("_SPAWN_UNIT_UUID")
-            if uuid == spawnUUID or tostring(uuid) == tostring(spawnUUID) then
-                return unit
+            local unitStats = unit:FindFirstChild("_stats")
+            if unitStats and unitStats:FindFirstChild("spawn_id") then
+                local unitSpawnId = unitStats.spawn_id.Value
+                -- Direct comparison, no string parsing
+                if unitSpawnId == targetSpawnId or tostring(unitSpawnId) == tostring(targetSpawnId) then
+                    return unit
+                end
             end
         end
     end
     
     return nil
+end
+
+local function findUnitFromRemoteParam(remoteParam)
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    if not unitsFolder then return nil, nil end
+    
+    for _, unit in pairs(unitsFolder:GetChildren()) do
+        if isOwnedByLocalPlayer(unit) then
+            local unitStats = unit:FindFirstChild("_stats")
+            if unitStats and unitStats:FindFirstChild("spawn_id") then
+                local spawnId = unitStats.spawn_id.Value
+                
+                -- Check if this spawn_id matches the remote parameter in any way
+                if tostring(spawnId) == tostring(remoteParam) or 
+                   spawnId == remoteParam or
+                   string.find(tostring(remoteParam), tostring(spawnId)) then
+                    return unit, spawnId
+                end
+            end
+        end
+    end
+    
+    return nil, nil
 end
 
 local function positionToKey(position)
@@ -762,7 +789,7 @@ local function handleUnitPlacement(args)
     end
 end
 
-local function handleUnitUpgrade(args)
+local function handleUnitUpgradeClean(args)
     if not isRecording or not recordingHasStarted then return end
     
     local spawnUUIDFromRemote = args[1]
@@ -773,64 +800,42 @@ local function handleUnitUpgrade(args)
     local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
     local waveRelativeTime = timestamp - waveStartTime
     
-    -- Extract placement UUID candidates
-    local placementUUIDCandidates = {}
+    -- Find the unit directly by checking all spawn_ids
+    local targetUnit, targetSpawnId = findUnitFromRemoteParam(spawnUUIDFromRemote)
     
-    if type(spawnUUIDFromRemote) == "string" then
-        for i = 1, 3 do
-            local substr = spawnUUIDFromRemote:sub(-i)
-            if tonumber(substr) then
-                table.insert(placementUUIDCandidates, tonumber(substr))
-            end
-        end
-        
-        local endDigits = spawnUUIDFromRemote:match("([%d]+)$")
-        if endDigits then
-            table.insert(placementUUIDCandidates, tonumber(endDigits))
-        end
+    if not targetUnit or not targetSpawnId then
+        print("Could not find unit for upgrade with remote parameter:", spawnUUIDFromRemote)
+        return
     end
     
-    if #placementUUIDCandidates == 0 then return end
-    
+    -- Find the placement order by checking our stored spawn_ids
     local targetPlacementOrder = nil
-    local matchedUUID = nil
-    local targetUnit = nil
-    
-    for _, candidateUUID in ipairs(placementUUIDCandidates) do
-        for placementOrder, storedUUID in pairs(placementOrderToSpawnUUID) do
-            if storedUUID == candidateUUID or 
-               tostring(storedUUID) == tostring(candidateUUID) or
-               tonumber(storedUUID) == tonumber(candidateUUID) then
-                targetPlacementOrder = placementOrder
-                matchedUUID = candidateUUID
-                
-                -- Find the actual unit for cost tracking
-                targetUnit = findUnitBySpawnUUID(candidateUUID)
-                break
-            end
+    for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
+        if storedSpawnId == targetSpawnId then
+            targetPlacementOrder = placementOrder
+            break
         end
-        if targetPlacementOrder then break end
     end
     
-    if not targetPlacementOrder or not targetUnit then return end
+    if not targetPlacementOrder then
+        print("Could not find placement order for spawn_id:", targetSpawnId)
+        return
+    end
     
     -- Get unit's total spent BEFORE upgrade
     local totalSpentBefore = getUnitTotalSpent(targetUnit)
-    
-    -- Record money before upgrade
     local moneyBefore = getPlayerMoney()
     
-    print(string.format("Recording upgrade attempt - Unit total spent before: %d, Player money: %d", 
-        totalSpentBefore, moneyBefore))
+    print(string.format("Recording upgrade attempt - Spawn ID: %s, Total spent before: %d, Player money: %d", 
+        tostring(targetSpawnId), totalSpentBefore, moneyBefore))
     
-    -- Wait a moment for the upgrade to process
+    -- Wait for the upgrade to process
     task.wait(0.5)
     
     -- Get unit's total spent AFTER upgrade
     local totalSpentAfter = getUnitTotalSpent(targetUnit)
     local upgradeCost = totalSpentAfter - totalSpentBefore
     
-    -- Record money after upgrade for verification
     local moneyAfter = getPlayerMoney()
     local moneySpent = moneyBefore - moneyAfter
     
@@ -840,6 +845,7 @@ local function handleUnitUpgrade(args)
     local expectedPosition = placementOrderToPosition[targetPlacementOrder]
     local originalUnitId = nil
     
+    -- Find the original unit ID from placement action
     for _, action in ipairs(macro) do
         if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
             originalUnitId = action.unitId
@@ -850,20 +856,20 @@ local function handleUnitUpgrade(args)
     table.insert(macro, {
         action = "UpgradeUnit",
         unitId = originalUnitId,
-        spawnUUID = matchedUUID,
+        spawnId = targetSpawnId,
         upgradeRemoteParam = spawnUUIDFromRemote,
         unitPosition = expectedPosition,
         wave = currentWaveNum,
         waveRelativeTime = waveRelativeTime,
         targetPlacementOrder = targetPlacementOrder,
-        upgradeCost = upgradeCost  -- NEW: Store upgrade cost
+        upgradeCost = upgradeCost
     })
 
-    notify("Macro Recorder", string.format("Recorded upgrade for placement #%d (Wave %d, %.2fs) - Cost: %d", 
-        targetPlacementOrder, currentWaveNum, waveRelativeTime, upgradeCost))
+    notify("Macro Recorder", string.format("Recorded upgrade for placement #%d (Spawn ID: %s, Wave %d, %.2fs) - Cost: %d", 
+        targetPlacementOrder, tostring(targetSpawnId), currentWaveNum, waveRelativeTime, upgradeCost))
 end
 
-local function handleUnitSell(args)
+local function handleUnitSellClean(args)
     if not isRecording or not recordingHasStarted then return end
     
     local spawnUUIDFromRemote = args[1]
@@ -874,46 +880,32 @@ local function handleUnitSell(args)
     local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
     local waveRelativeTime = timestamp - waveStartTime
     
-    -- Similar UUID extraction logic as upgrade
-    local placementUUIDCandidates = {}
+    -- Find the unit directly by checking all spawn_ids
+    local targetUnit, targetSpawnId = findUnitFromRemoteParam(spawnUUIDFromRemote)
     
-    if type(spawnUUIDFromRemote) == "string" then
-        for i = 1, 3 do
-            local substr = spawnUUIDFromRemote:sub(-i)
-            if tonumber(substr) then
-                table.insert(placementUUIDCandidates, tonumber(substr))
-            end
-        end
-        
-        local endDigits = spawnUUIDFromRemote:match("([%d]+)$")
-        if endDigits then
-            table.insert(placementUUIDCandidates, tonumber(endDigits))
-        end
+    if not targetUnit or not targetSpawnId then
+        print("Could not find unit for sell with remote parameter:", spawnUUIDFromRemote)
+        return
     end
     
-    if #placementUUIDCandidates == 0 then return end
-    
+    -- Find the placement order by checking our stored spawn_ids
     local targetPlacementOrder = nil
-    local matchedUUID = nil
-    
-    for _, candidateUUID in ipairs(placementUUIDCandidates) do
-        for placementOrder, storedUUID in pairs(placementOrderToSpawnUUID) do
-            if storedUUID == candidateUUID or 
-               tostring(storedUUID) == tostring(candidateUUID) or
-               tonumber(storedUUID) == tonumber(candidateUUID) then
-                targetPlacementOrder = placementOrder
-                matchedUUID = candidateUUID
-                break
-            end
+    for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
+        if storedSpawnId == targetSpawnId then
+            targetPlacementOrder = placementOrder
+            break
         end
-        if targetPlacementOrder then break end
     end
     
-    if not targetPlacementOrder then return end
+    if not targetPlacementOrder then
+        print("Could not find placement order for spawn_id:", targetSpawnId)
+        return
+    end
     
     local expectedPosition = placementOrderToPosition[targetPlacementOrder]
     local originalUnitId = nil
     
+    -- Find the original unit ID from placement action
     for _, action in ipairs(macro) do
         if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
             originalUnitId = action.unitId
@@ -924,17 +916,16 @@ local function handleUnitSell(args)
     table.insert(macro, {
         action = "SellUnit",
         unitId = originalUnitId,
-        spawnUUID = matchedUUID,
+        spawnId = targetSpawnId,
         sellRemoteParam = spawnUUIDFromRemote,
         unitPosition = expectedPosition,
         wave = currentWaveNum,
         waveRelativeTime = waveRelativeTime,
         targetPlacementOrder = targetPlacementOrder
-        -- Removed playerOwner field
     })
 
-    notify("Macro Recorder",string.format("Recorded sell for placement #%d (Wave %d, %.2fs)", 
-        targetPlacementOrder, currentWaveNum, waveRelativeTime))
+    notify("Macro Recorder", string.format("Recorded sell for placement #%d (Spawn ID: %s, Wave %d, %.2fs)", 
+        targetPlacementOrder, tostring(targetSpawnId), currentWaveNum, waveRelativeTime))
     
     -- Clean up mappings
     placementOrderToSpawnUUID[targetPlacementOrder] = nil
@@ -984,9 +975,9 @@ local function setupMacroHooks()
                     if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
                         handleUnitPlacement(args)
                     elseif self.Name == MACRO_CONFIG.UPGRADE_REMOTE then
-                        handleUnitUpgrade(args)
+                        handleUnitUpgradeClean(args)
                     elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
-                        handleUnitSell(args)
+                        handleUnitSellClean(args)
                     elseif self.Name == MACRO_CONFIG.WAVE_SKIP_REMOTE then
                         handleWaveSkip(args)
                     end
@@ -1039,7 +1030,16 @@ local function deleteMacroFile(name)
     macroManager[name] = nil
 end
 
-local function executeActionWithStatus(action, playbackMapping, actionIndex, totalActionCount)
+local function getUnitNameFromSpawnId(spawnId)
+    local unit = findUnitBySpawnId(spawnId)
+    if unit and unit:FindFirstChild("_stats") and unit._stats:FindFirstChild("id") then
+        local unitId = unit._stats.id.Value
+        return getUnitDisplayName(unitId)
+    end
+    return "Unknown Unit"
+end
+
+local function executeActionWithStatusClean(action, playbackMapping, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
     currentActionIndex = actionIndex
@@ -1054,20 +1054,15 @@ local function executeActionWithStatus(action, playbackMapping, actionIndex, tot
             local missingMoney = requiredCost - currentMoney
             updateDetailedStatus(string.format("(%d/%d) Missing %d yen to place %s", 
                 actionIndex, totalActionCount, missingMoney, unitDisplayName))
-            
-            print(string.format("Insufficient money for placement: Need %d, Have %d", requiredCost, currentMoney))
-            notify("Macro Playback", string.format("Skipping placement - Need %d money, have %d", requiredCost, currentMoney))
             return
         end
         
         updateDetailedStatus(string.format("(%d/%d) Placing %s (Cost: %d)", 
             actionIndex, totalActionCount, unitDisplayName, requiredCost))
         
-        print(string.format("Executing: Place unit %s (Cost: %d, Money: %d)", action.unitId, requiredCost, currentMoney))
-        
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Build the raycast parameter for the remote call with proper Vector3 conversion
+        -- Build raycast parameter
         local raycastParam = {}
         if action.raycast then
             if action.raycast.Origin then
@@ -1106,7 +1101,6 @@ local function executeActionWithStatus(action, playbackMapping, actionIndex, tot
         if not success then
             updateDetailedStatus(string.format("(%d/%d) Failed to place %s", 
                 actionIndex, totalActionCount, unitDisplayName))
-            warn("Failed to place unit:", error)
             return
         end
         
@@ -1115,12 +1109,11 @@ local function executeActionWithStatus(action, playbackMapping, actionIndex, tot
         
         local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
         if placedUnit and isOwnedByLocalPlayer(placedUnit) then
-            local newSpawnUUID = placedUnit:GetAttribute("_SPAWN_UNIT_UUID")
-            if newSpawnUUID then
-                playbackMapping[action.placementOrder] = newSpawnUUID
+            local newSpawnId = getUnitSpawnId(placedUnit)
+            if newSpawnId then
+                playbackMapping[action.placementOrder] = newSpawnId
                 updateDetailedStatus(string.format("(%d/%d) Placed %s", 
                     actionIndex, totalActionCount, unitDisplayName))
-                print(string.format("Mapped placement #%d to spawn UUID %s", action.placementOrder, tostring(newSpawnUUID)))
             end
         else
             updateDetailedStatus(string.format("(%d/%d) Failed to find placed %s", 
@@ -1128,11 +1121,11 @@ local function executeActionWithStatus(action, playbackMapping, actionIndex, tot
         end
         
     elseif action.action == "UpgradeUnit" then
-        local currentSpawnUUID = playbackMapping[action.targetPlacementOrder]
-        if currentSpawnUUID then
-            local unit = findUnitBySpawnUUID(currentSpawnUUID)
+        local currentSpawnId = playbackMapping[action.targetPlacementOrder]
+        if currentSpawnId then
+            local unit = findUnitBySpawnId(currentSpawnId)
             if unit and isOwnedByLocalPlayer(unit) then
-                local unitDisplayName = getUnitNameFromInstance(currentSpawnUUID)
+                local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
                 local currentMoney = getPlayerMoney()
                 local requiredCost = action.upgradeCost or 0
                 
@@ -1140,30 +1133,16 @@ local function executeActionWithStatus(action, playbackMapping, actionIndex, tot
                     local missingMoney = requiredCost - currentMoney
                     updateDetailedStatus(string.format("(%d/%d) Missing %d yen to upgrade %s", 
                         actionIndex, totalActionCount, missingMoney, unitDisplayName))
-                    
-                    print(string.format("Insufficient money for upgrade: Need %d, Have %d", requiredCost, currentMoney))
-                    notify("Macro Playback", string.format("Skipping upgrade - Need %d money, have %d", requiredCost, currentMoney))
                     return
                 end
                 
                 updateDetailedStatus(string.format("(%d/%d) Upgrading %s (Cost: %d)", 
                     actionIndex, totalActionCount, unitDisplayName, requiredCost))
                 
-                print(string.format("Executing: Upgrade placement #%d (Cost: %d, Money: %d)", action.targetPlacementOrder, requiredCost, currentMoney))
-                
-                local success = false
-                
-                if action.unitId then
-                    success = pcall(function()
-                        endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(tostring(action.unitId) .. tostring(currentSpawnUUID))
-                    end)
-                end
-                
-                if not success then
-                    success = pcall(function()
-                        endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentSpawnUUID)
-                    end)
-                end
+                -- Use the original remote parameter for the upgrade call
+                local success = pcall(function()
+                    endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(action.upgradeRemoteParam)
+                end)
                 
                 if success then
                     updateDetailedStatus(string.format("(%d/%d) Upgraded %s", 
@@ -1182,23 +1161,18 @@ local function executeActionWithStatus(action, playbackMapping, actionIndex, tot
         end
         
     elseif action.action == "SellUnit" then
-        local currentSpawnUUID = playbackMapping[action.targetPlacementOrder]
-        if currentSpawnUUID then
-            local unit = findUnitBySpawnUUID(currentSpawnUUID)
+        local currentSpawnId = playbackMapping[action.targetPlacementOrder]
+        if currentSpawnId then
+            local unit = findUnitBySpawnId(currentSpawnId)
             if unit and isOwnedByLocalPlayer(unit) then
-                local unitDisplayName = getUnitNameFromInstance(currentSpawnUUID)
+                local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
                 
                 updateDetailedStatus(string.format("(%d/%d) Selling %s", 
                     actionIndex, totalActionCount, unitDisplayName))
                 
-                print(string.format("Executing: Sell placement #%d", action.targetPlacementOrder))
-                
+                -- Use the original remote parameter for the sell call
                 local success = pcall(function()
-                    if action.unitId then
-                        endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(tostring(action.unitId) .. tostring(currentSpawnUUID))
-                    else
-                        endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(currentSpawnUUID)
-                    end
+                    endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(action.sellRemoteParam)
                 end)
                 
                 if success then
@@ -3958,7 +3932,7 @@ local function playMacroLoopWithInterruptsIgnoreTiming()
         end
         
         -- Execute the action
-        executeActionWithStatus(action, playbackMapping, i, totalActions)
+        executeActionWithStatusClean(action, playbackMapping, i, totalActions)
     end
     
     if State.IgnoreTiming then
