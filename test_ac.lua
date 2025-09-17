@@ -1,4 +1,4 @@
--- 45
+-- 46
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -188,6 +188,7 @@ local State = {
     AvoidGateTypes = {},
     AvoidModifiers = {},
     IgnoreTiming = false,
+    AutoNextGate = false,
 }
 
 -- ========== CREATE TABS ==========
@@ -2714,6 +2715,8 @@ local ReturnToLobbyToggle = JoinerTab:CreateToggle({
 
 section = JoinerTab:CreateSection("Gate Joiner")
 
+local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
+
 local AutoJoinGateToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Gate",
     CurrentValue = false,
@@ -2749,7 +2752,15 @@ local AvoidModifiersDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
+local Toggle = GameTab:CreateToggle({
+   Name = "Auto Next Gate",
+   CurrentValue = false,
+   Flag = "AutoNextGate",
+   Info = "Automatically pick and join next gate after game ends (requires Auto Join Gate enabled)",
+   Callback = function(Value)
+        State.AutoNextGate = Value
+   end,
+})
 
 task.spawn(function()
     while true do
@@ -4553,84 +4564,113 @@ if gameFinishedRemote then
         print("Final game result:", gameResult)
         
         -- Handle auto voting logic with priority system
-        task.spawn(function()
-            task.wait(1) -- Small delay to ensure game state is stable
-            
-
-if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected then
-    notify("Auto Challenge", "New challenge detected - returning to lobby instead of using auto vote settings")
+task.spawn(function()
+    task.wait(1) -- Small delay to ensure game state is stable
     
-    task.spawn(function()
-        task.wait(2) -- Delay to ensure game state is stable
+    if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected then
+        notify("Auto Challenge", "New challenge detected - returning to lobby instead of using auto vote settings")
+        
+        task.spawn(function()
+            task.wait(2) -- Delay to ensure game state is stable
+            
+            local success, err = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
+            end)
+            
+            if success then
+                print("Successfully returned to lobby for new challenge!")
+                notify("Challenge Handler", "Returned to lobby - new challenge detected!", 3)
+                State.NewChallengeDetected = false
+            else
+                warn("Failed to return to lobby for new challenge:", err)
+            end
+        end)
+        
+        return
+    end
+    
+    -- NEW: Priority 1: Auto Next Gate (highest priority when both Auto Join Gate and Auto Next Gate are enabled)
+    if State.AutoNextGate and State.AutoJoinGate then
+        print("Auto Next Gate enabled - Finding and joining next gate...")
+        
+        local bestGate = findBestGate()
+        if bestGate then
+            local success, err = pcall(function()
+                local args = {
+                    "play_gate_next",
+                    {
+                        GateUuid = bestGate.id
+                    }
+                }
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer(unpack(args))
+            end)
+            
+            if success then
+                print("Successfully voted for next gate:", bestGate.id, "Type:", bestGate.type, "Modifier:", bestGate.modifier)
+                notify("Auto Next Gate", string.format("Joining next %s Gate with %s modifier", bestGate.type, bestGate.modifier), 5)
+            else
+                warn("Failed to vote for next gate:", err)
+                notify("Auto Next Gate", "Failed to join next gate - falling back to other auto vote options", 3)
+                -- Don't return here, let it fall through to other options
+            end
+            return -- Exit early if successful
+        else
+            print("No acceptable gates available for Auto Next Gate")
+            notify("Auto Next Gate", "No acceptable gates available - falling back to other auto vote options", 3)
+            -- Don't return here, let it fall through to other options
+        end
+    end
+    
+    -- Priority 2: Auto Retry (high priority)
+    if State.AutoVoteRetry then
+        print("Auto Retry enabled - Voting to replay...")
+        local success, err = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay")
+        end)
+        
+        if success then
+            print("Successfully voted for retry!")
+            notify("Auto Vote", "Voted to retry the stage", 3)
+        else
+            warn("Failed to vote for retry:", err)
+        end
+        return -- Exit early since retry has high priority
+    end
+    
+    -- Priority 3: Auto Next (medium priority) - only for victories
+    if State.AutoVoteNext and gameResult == "Victory" then
+        print("Auto Next enabled and game won - Voting for next stage...")
+        local success, err = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
+        end)
+        
+        if success then
+            print("Successfully voted for next stage!")
+            notify("Auto Vote", "Voted for next stage", 3)
+        else
+            warn("Failed to vote for next stage:", err)
+        end
+        return -- Exit early
+    end
+    
+    -- Priority 4: Auto Lobby (lowest priority)
+    if State.AutoVoteLobby then
+        print("Auto Lobby enabled - Returning to lobby...")
+        -- Small additional delay for lobby return
+        task.wait(1)
         
         local success, err = pcall(function()
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
         end)
         
         if success then
-            print("Successfully returned to lobby for new challenge!")
-            notify("Challenge Handler", "Returned to lobby - new challenge detected!", 3)
-            -- Reset the flag after successfully handling it
-            State.NewChallengeDetected = false
+            print("Successfully returned to lobby!")
+            notify("Auto Vote", "Returned to lobby", 3)
         else
-            warn("Failed to return to lobby for new challenge:", err)
+            warn("Failed to return to lobby:", err)
         end
-    end)
-    
-    return
-end
-            -- Priority 1: Auto Retry (highest priority)
-            if State.AutoVoteRetry then
-                print("Auto Retry enabled - Voting to replay...")
-                local success, err = pcall(function()
-                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay")
-                end)
-                
-                if success then
-                    print("Successfully voted for retry!")
-                    notify("Auto Vote", "Voted to retry the stage", 3)
-                else
-                    warn("Failed to vote for retry:", err)
-                end
-                return -- Exit early since retry has highest priority
-            end
-            
-            -- Priority 2: Auto Next (medium priority) - only for victories
-            if State.AutoVoteNext and gameResult == "Victory" then
-                print("Auto Next enabled and game won - Voting for next stage...")
-                local success, err = pcall(function()
-                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
-                end)
-                
-                if success then
-                    print("Successfully voted for next stage!")
-                    notify("Auto Vote", "Voted for next stage", 3)
-                else
-                    warn("Failed to vote for next stage:", err)
-                end
-                return -- Exit early
-            end
-            
-            -- Priority 3: Auto Lobby (lowest priority)
-            if State.AutoVoteLobby then
-                print("Auto Lobby enabled - Returning to lobby...")
-                -- Small additional delay for lobby return
-                task.wait(1)
-                
-                local success, err = pcall(function()
-                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
-                end)
-                
-                if success then
-                    print("Successfully returned to lobby!")
-                    notify("Auto Vote", "Returned to lobby", 3)
-                else
-                    warn("Failed to return to lobby:", err)
-                end
-            end
-        end)
-        
-        -- Handle webhook and tracking (existing code)
+    end
+end)
         task.spawn(function()
             task.wait(0.1)
             if gameInProgress then
