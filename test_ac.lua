@@ -1,4 +1,4 @@
--- 42
+-- 43
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -187,6 +187,7 @@ local State = {
     AutoJoinGate = false,
     AvoidGateTypes = {},
     AvoidModifiers = {},
+    IgnoreTiming = false,
 }
 
 -- ========== CREATE TABS ==========
@@ -3836,7 +3837,7 @@ local RecordToggle = MacroTab:CreateToggle({
         end
         end})
 
-local function playMacroLoopWithInterruptsEnhanced()
+local function playMacroLoopWithInterruptsIgnoreTiming()
     if not macro or #macro == 0 then
         print("No macro data to play back")
         updateDetailedStatus("No macro data to play back")
@@ -3846,14 +3847,20 @@ local function playMacroLoopWithInterruptsEnhanced()
     totalActions = #macro
     currentActionIndex = 0
     
-    updateDetailedStatus(string.format("Starting playback with %d actions", totalActions))
-    print(string.format("Starting macro playback with %d actions", #macro))
+    if State.IgnoreTiming then
+        updateDetailedStatus(string.format("Starting immediate playback with %d actions", totalActions))
+        print("Starting immediate macro playback (ignoring timing)")
+    else
+        updateDetailedStatus(string.format("Starting wave based playback with %d actions", totalActions))
+        print("Starting wave based macro playback")
+    end
+    
     gameHasEnded = false
     
     local playbackMapping = {}
     playbackWaveStartTimes = {}
     
-    -- Monitor wave changes during playback
+    -- Monitor wave changes during playback (still useful for status updates)
     if Services.Workspace:FindFirstChild("_wave_num") then
         local waveNum = Services.Workspace._wave_num
         local connection
@@ -3878,60 +3885,95 @@ local function playMacroLoopWithInterruptsEnhanced()
             return false
         end
         
-        -- Wait for the correct wave
-        local targetWave = action.wave
-        local currentWave = getCurrentWave()
-        
-        while currentWave < targetWave and isPlaybacking and not gameHasEnded do
-            updateDetailedStatus(string.format("(%d/%d) Waiting for wave %d", 
-                i, totalActions, targetWave))
-            task.wait(0.5)
-            currentWave = getCurrentWave()
-        end
-        
-        if not isPlaybacking or gameHasEnded then
-            updateDetailedStatus("Game ended during wave wait - stopping macro")
-            print("Game ended during wave wait - stopping macro")
-            return false
-        end
-        
-        -- Wait for the correct time within the wave
-        local targetWaveTime = action.waveRelativeTime or 0
-        local waveStartTime = playbackWaveStartTimes[currentWave]
-        
-        if waveStartTime then
-            local currentWaveTime = tick() - waveStartTime
-            local waitTime = targetWaveTime - currentWaveTime
+        -- Only do timing checks if ignore timing is disabled
+        if not State.IgnoreTiming then
+            -- Wait for the correct wave
+            local targetWave = action.wave
+            local currentWave = getCurrentWave()
             
-            if waitTime > 0 then
-                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for timing", 
-                    i, totalActions, waitTime))
-                print(string.format("Waiting %.2fs for wave %d timing", waitTime, currentWave))
+            while currentWave < targetWave and isPlaybacking and not gameHasEnded do
+                updateDetailedStatus(string.format("(%d/%d) Waiting for wave %d", 
+                    i, totalActions, targetWave))
+                task.wait(0.5)
+                currentWave = getCurrentWave()
+            end
+            
+            if not isPlaybacking or gameHasEnded then
+                updateDetailedStatus("Game ended during wave wait - stopping macro")
+                print("Game ended during wave wait - stopping macro")
+                return false
+            end
+            
+            -- Wait for the correct time within the wave
+            local targetWaveTime = action.waveRelativeTime or 0
+            local waveStartTime = playbackWaveStartTimes[currentWave]
+            
+            if waveStartTime then
+                local currentWaveTime = tick() - waveStartTime
+                local waitTime = targetWaveTime - currentWaveTime
                 
+                if waitTime > 0 then
+                    updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for timing", 
+                        i, totalActions, waitTime))
+                    print(string.format("Waiting %.2fs for wave %d timing", waitTime, currentWave))
+                    
+                    local waitStart = tick()
+                    while tick() - waitStart < waitTime and isPlaybacking and not gameHasEnded do
+                        task.wait(0.1)
+                    end
+                end
+            end
+        else
+            -- When ignoring timing, add a small delay between actions for stability
+            if i > 1 then
+                task.wait(0.2) -- Small delay to prevent overwhelming the server
+            end
+            
+            -- For placement actions, we might still want to check if we have enough money and wait if needed
+            if action.action == "PlaceUnit" or action.action == "UpgradeUnit" then
+                local requiredCost = action.placementCost or action.upgradeCost or 0
+                local maxWaitTime = 180 -- Maximum time to wait for money (30 seconds)
                 local waitStart = tick()
-                while tick() - waitStart < waitTime and isPlaybacking and not gameHasEnded do
-                    task.wait(0.1)
+                
+                while requiredCost > 0 and getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
+                    if tick() - waitStart > maxWaitTime then
+                        updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money", i, totalActions))
+                        print("Timeout waiting for sufficient money")
+                        break
+                    end
+                    
+                    local missingMoney = requiredCost - getPlayerMoney()
+                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen", 
+                        i, totalActions, missingMoney))
+                    task.wait(1)
                 end
             end
         end
         
-        if isPlaybacking and not gameHasEnded then
-            executeActionWithStatus(action, playbackMapping, i, totalActions)
-        else
+        -- Check if we should still continue
+        if not isPlaybacking or gameHasEnded then
             updateDetailedStatus("Macro stopped before action execution")
             print("Macro stopped before action execution")
             return false
         end
+        
+        -- Execute the action
+        executeActionWithStatus(action, playbackMapping, i, totalActions)
     end
     
-    updateDetailedStatus("Macro playback completed successfully")
-    print("Wave-synchronized macro playback completed")
+    if State.IgnoreTiming then
+        updateDetailedStatus("Immediate macro playback completed")
+        print("Immediate macro playback completed")
+    else
+        updateDetailedStatus("Wave bsed macro playback completed")
+        print("Wave based macro playback completed")
+    end
     return true
 end
 
 createDetailedStatusLabel()
 
-local function autoLoopPlaybackEnhanced()
+local function autoLoopPlaybackWithTiming()
     while isAutoLoopEnabled do
         updateDetailedStatus("Waiting for game to start...")
         waitForGameStart_Playback()
@@ -3957,11 +3999,18 @@ local function autoLoopPlaybackEnhanced()
         isPlaybacking = true
         isPlayingLoopRunning = true
         
-        MacroStatusLabel:Set("Status: Playing macro...")
-        updateDetailedStatus("Loading macro: " .. currentMacroName)
-        notify(nil, "Playback Started: Playing " .. currentMacroName .. " (" .. #macro .. " actions)")
+        -- Update status based on timing mode
+        if State.IgnoreTiming then
+            MacroStatusLabel:Set("Status: Playing macro (immediate mode)...")
+            updateDetailedStatus("Loading macro: " .. currentMacroName .. " (immediate mode)")
+            notify(nil, "Playback Started: " .. currentMacroName .. " - Immediate Mode (" .. #macro .. " actions)")
+        else
+            MacroStatusLabel:Set("Status: Playing macro (wave-sync mode)...")
+            updateDetailedStatus("Loading macro: " .. currentMacroName .. " (wave-synchronized)")
+            notify(nil, "Playback Started: " .. currentMacroName .. " - Wave Synchronized (" .. #macro .. " actions)")
+        end
         
-        local completed = playMacroLoopWithInterruptsEnhanced()
+        local completed = playMacroLoopWithInterruptsIgnoreTiming()
         
         isPlaybacking = false
         isPlayingLoopRunning = false
@@ -3987,7 +4036,7 @@ local function autoLoopPlaybackEnhanced()
     isPlayingLoopRunning = false
 end
 
-local PlayToggle = MacroTab:CreateToggle({
+local PlayToggleEnhanced = MacroTab:CreateToggle({
     Name = "Playback Macro",
     CurrentValue = false,
     Flag = "PlayBackMacro",
@@ -3995,11 +4044,16 @@ local PlayToggle = MacroTab:CreateToggle({
         isAutoLoopEnabled = Value
         
         if Value and not isInLobby() then
-            MacroStatusLabel:Set("Status: Autoplay enabled - waiting for game...")
-            notify(nil, "Autoplay Enabled: Macro will play automatically each game.")
+            if State.IgnoreTiming then
+                MacroStatusLabel:Set("Status: Autoplay enabled (immediate mode) - waiting for game...")
+                notify(nil, "Autoplay Enabled: Macro will play immediately each game (ignoring timing).")
+            else
+                MacroStatusLabel:Set("Status: Autoplay enabled (wave-sync mode) - waiting for game...")
+                notify(nil, "Autoplay Enabled: Macro will play with wave synchronization each game.")
+            end
             
             task.spawn(function()
-                autoLoopPlaybackEnhanced()
+                autoLoopPlaybackWithTiming()
             end)
         else
             MacroStatusLabel:Set("Status: Autoplay disabled")
@@ -4007,6 +4061,21 @@ local PlayToggle = MacroTab:CreateToggle({
             isPlayingLoopRunning = false
             gameHasEnded = false
             notify(nil, "Autoplay Disabled: Macro playback stopped.")
+        end
+    end,
+})
+
+local IgnoreTimingToggle = MacroTab:CreateToggle({
+    Name = "Ignore Timing",
+    CurrentValue = false,
+    Flag = "IgnoreTiming",
+    Info = "Skip wave/timing waits and execute actions immediately.",
+    Callback = function(Value)
+        State.IgnoreTiming = Value
+        if Value then
+            updateDetailedStatus("Timing mode: Immediate execution")
+        else
+            updateDetailedStatus("Timing mode: Wave execution")
         end
     end,
 })
