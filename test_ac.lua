@@ -1,4 +1,4 @@
--- 7
+-- 8
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -195,6 +195,7 @@ local State = {
     IgnoreTiming = false,
     AutoNextGate = false,
     AutoSelectMacro = false,
+    AutoVoteStart = false,
 }
 
 -- ========== CREATE TABS ==========
@@ -3279,6 +3280,30 @@ if State.enableLowPerformanceMode then
 end
 
 GameSection = GameTab:CreateSection("🎮 Game 🎮")
+
+local Toggle = GameTab:CreateToggle({
+   Name = "Auto Start Game",
+   CurrentValue = false,
+   Flag = "AutoStartGame",
+   Callback = function(Value)
+        State.AutoVoteStart = Value
+        if Value then
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_start"):InvokeServer()
+        end
+   end,
+})
+
+spawn(function()
+    while true do
+        wait(1)
+        if State.AutoVoteStart then
+            local waveNum = Services.Workspace:WaitForChild("_wave_num")
+            if waveNum.Value == 0 then
+                game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_start"):InvokeServer()
+            end
+        end
+    end
+end)
 
 local Toggle = GameTab:CreateToggle({
    Name = "Auto Retry",
