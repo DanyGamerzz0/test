@@ -1,4 +1,4 @@
--- 3
+-- 4
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4084,9 +4084,13 @@ local function createAutoSelectDropdowns()
                         -- Iterate through all maps in this module
                         for mapKey, mapInfo in pairs(mapData) do
                             if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                -- Use the map ID as the key (e.g., "DoubleDungeon")
-                                allWorldNames[mapInfo.id] = mapInfo.name
-                                print("Added map:", mapInfo.name, "with key:", mapInfo.id)
+                                -- Only add if we don't already have this world
+                                if not allWorldNames[mapInfo.id] then
+                                    allWorldNames[mapInfo.id] = mapInfo.name
+                                    print("Added map:", mapInfo.name, "with key:", mapInfo.id)
+                                else
+                                    print("Skipped duplicate map:", mapInfo.name, "with key:", mapInfo.id)
+                                end
                             end
                         end
                     end
