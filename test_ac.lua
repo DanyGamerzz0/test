@@ -1,4 +1,4 @@
--- 6.78
+-- 6.8
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -3369,6 +3369,19 @@ local function refreshMacroDropdown()
     print("Refreshed dropdown with " .. #options .. " macros")
 end
 
+local function saveWorldMappings()
+    local mappingsData = {
+        version = script_version,
+        mappings = worldMacroMappings
+    }
+    
+    local json = Services.HttpService:JSONEncode(mappingsData)
+    local filePath = "LixHub/world_macro_mappings.json"
+    
+    if not isfolder("LixHub") then makefolder("LixHub") end
+    writefile(filePath, json)
+end
+
 local function refreshAutoSelectDropdowns()
     local macroOptions = {"None"}
     
@@ -3379,10 +3392,31 @@ local function refreshAutoSelectDropdowns()
     
     table.sort(macroOptions)
     
-    -- Refresh each dropdown
+    -- Refresh each dropdown with proper current selection
     for worldKey, dropdown in pairs(worldDropdowns) do
-        local currentMapping = worldMacroMappings[worldKey] or "None"
-        dropdown:Refresh(macroOptions, currentMapping)
+        if dropdown and dropdown.Refresh then
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            
+            -- Ensure the current mapping exists in the options
+            local mappingExists = false
+            for _, option in ipairs(macroOptions) do
+                if option == currentMapping then
+                    mappingExists = true
+                    break
+                end
+            end
+            
+            -- If the saved mapping doesn't exist anymore, reset to None
+            if not mappingExists and currentMapping ~= "None" then
+                print("Saved mapping", currentMapping, "for", worldKey, "no longer exists, resetting to None")
+                worldMacroMappings[worldKey] = nil
+                currentMapping = "None"
+                saveWorldMappings()
+            end
+            
+            dropdown:Refresh(macroOptions, currentMapping)
+            print("Refreshed auto-select dropdown for", worldKey, "with current selection:", currentMapping)
+        end
     end
 end
 
@@ -4040,19 +4074,6 @@ local function getCurrentWorld()
     end
     
     return nil
-end
-
-local function saveWorldMappings()
-    local mappingsData = {
-        version = script_version,
-        mappings = worldMacroMappings
-    }
-    
-    local json = Services.HttpService:JSONEncode(mappingsData)
-    local filePath = "LixHub/world_macro_mappings.json"
-    
-    if not isfolder("LixHub") then makefolder("LixHub") end
-    writefile(filePath, json)
 end
 
 local function createAutoSelectDropdowns()
@@ -4897,18 +4918,30 @@ end
 
 -- Initialize macro system
 ensureMacroFolders()
-loadAllMacros()
 
 task.delay(1, function()
     print("Starting dropdown loading with retry logic...")
     
-    -- Start all loading processes concurrently
+    -- Load world mappings FIRST
+    loadWorldMappings()
+    
+    -- Then load all macros
+    loadAllMacros()
+    
+    -- Start all dropdown loading processes concurrently
     task.spawn(loadStoryStagesWithRetry)
     task.spawn(loadLegendStagesWithRetry)
     task.spawn(loadRaidStagesWithRetry)
     task.spawn(loadIgnoreWorldsWithRetry)
-    task.spawn(loadWorldMappings)
-    task.spawn(createAutoSelectDropdowns)
+    
+    -- Create auto-select dropdowns after a small delay to ensure game data is loaded
+    task.spawn(function()
+        task.wait(2) -- Give game data time to load
+        createAutoSelectDropdowns()
+        -- Refresh the auto-select dropdowns with the loaded mappings
+        task.wait(0.5)
+        refreshAutoSelectDropdowns()
+    end)
 end)
 
 Rayfield:LoadConfiguration()
