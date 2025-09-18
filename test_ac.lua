@@ -1,4 +1,4 @@
--- 6
+-- 6.7
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4056,9 +4056,29 @@ local function createAutoSelectDropdowns()
     end
     
     local success, allWorldData = pcall(function()
-        local allWorldNames = {}
+        local worldKeyToDisplayName = {}
         
-        -- Get all worlds/maps from Maps folder only
+        -- First, get all story/legend/raid worlds from Worlds folder
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        if WorldsFolder then
+            for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+                if worldModule:IsA("ModuleScript") then
+                    local moduleSuccess, worldData = pcall(require, worldModule)
+                    
+                    if moduleSuccess and worldData then
+                        for worldKey, worldInfo in pairs(worldData) do
+                            if type(worldInfo) == "table" and worldInfo.name then
+                                -- Use the backend world key directly (like "namek", "shibuya")
+                                worldKeyToDisplayName[worldKey] = worldInfo.name
+                                print("Added world from Worlds folder:", worldInfo.name, "with key:", worldKey)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Then, get maps that don't have corresponding worlds (like DoubleDungeon, etc.)
         local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
         if MapsFolder then
             for _, mapModule in ipairs(MapsFolder:GetChildren()) do
@@ -4066,15 +4086,15 @@ local function createAutoSelectDropdowns()
                     local moduleSuccess, mapData = pcall(require, mapModule)
                     
                     if moduleSuccess and mapData then
-                        -- Iterate through all maps in this module
                         for mapKey, mapInfo in pairs(mapData) do
                             if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                -- Skip legend stages (they're copies of story stages)
-                                if not mapInfo.id:lower():find("legend") then
-                                    allWorldNames[mapInfo.id] = mapInfo.name
-                                    print("Added world/map:", mapInfo.name, "with key:", mapInfo.id)
-                                else
-                                    print("Skipped legend stage:", mapInfo.name, "with key:", mapInfo.id)
+                                -- Only add if we don't already have this from Worlds folder
+                                if not worldKeyToDisplayName[mapInfo.id] and not worldKeyToDisplayName[mapKey] then
+                                    -- Check if this is a legend variant by looking for "legend" in the ID
+                                    if not mapInfo.id:lower():find("legend") then
+                                        worldKeyToDisplayName[mapInfo.id] = mapInfo.name
+                                        print("Added map from Maps folder:", mapInfo.name, "with key:", mapInfo.id)
+                                    end
                                 end
                             end
                         end
@@ -4083,32 +4103,32 @@ local function createAutoSelectDropdowns()
             end
         end
         
-        return allWorldNames
+        return worldKeyToDisplayName
     end)
     
-    if not success or not allWorldData then
-        warn("Failed to load worlds from Maps folder for auto-select dropdowns")
+    if not success or not allWorldData or not next(allWorldData) then
+        warn("Failed to load worlds/maps for auto-select dropdowns")
         return
     end
     
     -- Create dropdowns for each world/map
-    for worldKey, worldDisplayName in pairs(allWorldData) do
+    for worldKey, displayName in pairs(allWorldData) do
         local dropdown = MacroTab:CreateDropdown({
-            Name = string.format("Auto: %s", worldDisplayName),
+            Name = string.format("Auto: %s", displayName),
             Options = {"None"},
             CurrentOption = {"None"},
             MultipleOptions = false,
             Flag = "AutoSelect_" .. worldKey,
-            Info = string.format("Auto-select macro for %s", worldDisplayName),
+            Info = string.format("Auto-select macro for %s", displayName),
             Callback = function(Option)
                 local selectedMacro = type(Option) == "table" and Option[1] or Option
                 
                 if selectedMacro == "None" or selectedMacro == "" then
                     worldMacroMappings[worldKey] = nil
-                    print("Cleared auto-select for", worldDisplayName)
+                    print("Cleared auto-select for", displayName, "(key:", worldKey .. ")")
                 else
                     worldMacroMappings[worldKey] = selectedMacro
-                    print("Set auto-select:", worldDisplayName, "->", selectedMacro)
+                    print("Set auto-select:", displayName, "(key:", worldKey .. ") ->", selectedMacro)
                 end
                 
                 -- Save mappings
@@ -4121,7 +4141,7 @@ local function createAutoSelectDropdowns()
     
     -- Initial refresh with current macros
     refreshAutoSelectDropdowns()
-    print("Created auto-select dropdowns for", table.getn(allWorldData), "worlds from Maps folder")
+    print("Created auto-select dropdowns for", table.getn(allWorldData), "worlds/maps")
 end
 
 local function getMacroForCurrentWorld()
@@ -4180,7 +4200,7 @@ local function autoLoopPlaybackWithTiming()
         if not loadedMacro or #loadedMacro == 0 then
             MacroStatusLabel:Set("Status: Error - Failed to load macro!")
             updateDetailedStatus("Error - Failed to load macro!")
-            notify(nil, "Playback Error: Failed to load macro: " .. tostring(macroToUse))
+            notify(nil, "Playback Error: Failed to load macro: " .. tostring(macroToUse) .. " - Macro might be empty.")
             break
         end
         
