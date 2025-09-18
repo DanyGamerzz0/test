@@ -1,4 +1,4 @@
--- 6.8
+-- 6.9
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4918,33 +4918,45 @@ end
 
 -- Initialize macro system
 ensureMacroFolders()
+loadAllMacros()
+
+Rayfield:LoadConfiguration()
 
 task.delay(1, function()
     print("Starting dropdown loading with retry logic...")
     
-    -- Load world mappings FIRST
+    -- Load world mappings and macros
     loadWorldMappings()
-    
-    -- Then load all macros
     loadAllMacros()
     
     -- Start all dropdown loading processes concurrently
     task.spawn(loadStoryStagesWithRetry)
-    task.spawn(loadLegendStagesWithRetry)
+    task.spawn(loadLegendStagesWithRetry) 
     task.spawn(loadRaidStagesWithRetry)
     task.spawn(loadIgnoreWorldsWithRetry)
     
-    -- Create auto-select dropdowns after a small delay to ensure game data is loaded
+    -- Create auto-select dropdowns after game data loads
     task.spawn(function()
         task.wait(2) -- Give game data time to load
         createAutoSelectDropdowns()
-        -- Refresh the auto-select dropdowns with the loaded mappings
+        
+        -- Wait a bit then refresh with loaded mappings
         task.wait(0.5)
         refreshAutoSelectDropdowns()
+        
+        -- Force set the dropdown values based on saved mappings
+        task.wait(0.5)
+        for worldKey, macroName in pairs(worldMacroMappings) do
+            if worldDropdowns[worldKey] and macroManager[macroName] then
+                -- Force the dropdown to show the correct value
+                worldDropdowns[worldKey]:Set(macroName)
+                print("Restored auto-select mapping:", worldKey, "->", macroName)
+            end
+        end
     end)
 end)
 
-Rayfield:LoadConfiguration()
+
 
 -- Restore saved macro from config after a delay
 task.delay(1, function()
@@ -4973,6 +4985,13 @@ task.delay(1, function()
     
     refreshMacroDropdown()
 end)
+
+for worldKey, macroName in pairs(worldMacroMappings) do
+    if worldDropdowns[worldKey] and macroManager[macroName] then
+        worldDropdowns[worldKey]:Set(macroName)
+        print("Restored auto-select mapping:", worldKey, "->", macroName)
+    end
+end
 
 Rayfield:SetVisibility(false)
 
