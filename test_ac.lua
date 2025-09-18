@@ -1,4 +1,4 @@
--- 6.77
+-- 6.78
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4138,11 +4138,24 @@ local function getMacroForCurrentWorld()
         return nil
     end
     
+    -- First try exact match
     local mappedMacro = worldMacroMappings[currentWorld]
     if mappedMacro and macroManager[mappedMacro] then
+        print("Found exact match for world:", currentWorld, "->", mappedMacro)
         return mappedMacro
     end
     
+    -- If no exact match, try case-insensitive comparison
+    local currentWorldLower = string.lower(currentWorld)
+    
+    for worldKey, macroName in pairs(worldMacroMappings) do
+        if string.lower(worldKey) == currentWorldLower and macroManager[macroName] then
+            print("Found case-insensitive match:", currentWorld, "matched with", worldKey, "->", macroName)
+            return macroName
+        end
+    end
+    
+    print("No macro mapping found for world:", currentWorld)
     return nil
 end
 
