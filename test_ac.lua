@@ -1,4 +1,4 @@
--- 6.9
+-- 7
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4085,7 +4085,7 @@ local function createAutoSelectDropdowns()
     local success, allMapsData = pcall(function()
         local mapIdToDisplayName = {}
         
-        -- Get all maps from Maps folder only
+        -- Get all maps from Maps folder
         local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
         if MapsFolder then
             for _, mapModule in ipairs(MapsFolder:GetChildren()) do
@@ -4096,10 +4096,16 @@ local function createAutoSelectDropdowns()
                         -- Iterate through all maps in this module
                         for mapKey, mapInfo in pairs(mapData) do
                             if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                -- Skip legend stages (they're copies of story stages)
-                                if not mapInfo.id:lower():find("legend") then
-                                    mapIdToDisplayName[mapInfo.id] = mapInfo.name
-                                    print("Added map for auto-select:", mapInfo.name, "with ID:", mapInfo.id)
+                                -- Create separate entries for regular and legend stages
+                                if mapInfo.id:lower():find("legend") then
+                                    -- Legend stage - use full ID as key
+                                    mapIdToDisplayName[mapInfo.id] = mapInfo.name .. " (Legend)"
+                                    print("Added legend stage for auto-select:", mapInfo.name .. " (Legend)", "with ID:", mapInfo.id)
+                                else
+                                    -- Regular stage - extract base name from ID for matching
+                                    local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
+                                    mapIdToDisplayName[baseName] = mapInfo.name
+                                    print("Added regular stage for auto-select:", mapInfo.name, "with base ID:", baseName, "(from", mapInfo.id .. ")")
                                 end
                             end
                         end
@@ -4159,7 +4165,38 @@ local function getMacroForCurrentWorld()
         return nil
     end
     
-    -- First try exact match
+    -- Check if we're in a legend stage by examining the level data
+    local isLegendStage = false
+    local success, levelData = pcall(function()
+        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
+    end)
+    
+    if success and levelData then
+        -- Check for legend indicators in the level data
+        if levelData.legend or 
+           (levelData.level_id and levelData.level_id:lower():find("legend")) or
+           (levelData.map and levelData.map:lower():find("legend")) then
+            isLegendStage = true
+        end
+    end
+    
+    print("Current world:", currentWorld, "- Legend stage:", isLegendStage)
+    
+    -- First try exact match for legend stages
+    if isLegendStage then
+        -- Try to find legend-specific mapping first
+        for worldKey, macroName in pairs(worldMacroMappings) do
+            if worldKey:lower():find("legend") and 
+               (worldKey:lower():find(currentWorld:lower()) or currentWorld:lower():find(worldKey:lower():gsub("_legend", ""))) then
+                if macroManager[macroName] then
+                    print("Found legend-specific mapping:", worldKey, "->", macroName)
+                    return macroName
+                end
+            end
+        end
+    end
+    
+    -- Try exact match for regular stages
     local mappedMacro = worldMacroMappings[currentWorld]
     if mappedMacro and macroManager[mappedMacro] then
         print("Found exact match for world:", currentWorld, "->", mappedMacro)
@@ -4172,6 +4209,17 @@ local function getMacroForCurrentWorld()
     for worldKey, macroName in pairs(worldMacroMappings) do
         if string.lower(worldKey) == currentWorldLower and macroManager[macroName] then
             print("Found case-insensitive match:", currentWorld, "matched with", worldKey, "->", macroName)
+            return macroName
+        end
+    end
+    
+    -- Try base name matching (for cases like "namek_cartoon" -> "namek")
+    for worldKey, macroName in pairs(worldMacroMappings) do
+        local baseWorldKey = worldKey:match("^([^_]+)") or worldKey
+        local baseCurrentWorld = currentWorld:match("^([^_]+)") or currentWorld
+        
+        if string.lower(baseWorldKey) == string.lower(baseCurrentWorld) and macroManager[macroName] then
+            print("Found base name match:", currentWorld, "matched with", worldKey, "via base names:", baseCurrentWorld, "->", macroName)
             return macroName
         end
     end
