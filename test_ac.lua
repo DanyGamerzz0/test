@@ -1,4 +1,4 @@
--- 4
+-- 5
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4044,36 +4044,7 @@ local function createAutoSelectDropdowns()
     local success, allWorldData = pcall(function()
         local allWorldNames = {}
         
-        -- Get regular story worlds (existing logic)
-        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-        
-        if WorldLevelOrder.WORLD_ORDER then
-            for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
-                local worldModules = WorldsFolder:GetChildren()
-                
-                for _, worldModule in ipairs(worldModules) do
-                    if worldModule:IsA("ModuleScript") then
-                        local moduleSuccess, worldData = pcall(require, worldModule)
-                        
-                        if moduleSuccess and worldData and worldData[orderedWorldKey] then
-                            local worldInfo = worldData[orderedWorldKey]
-                            
-                            if type(worldInfo) == "table" and worldInfo.name then
-                                -- Extract the base world name (e.g., "namek" from "Namek_level_1")
-                                local baseWorldKey = orderedWorldKey:match("^([^_]+)")
-                                if baseWorldKey and not allWorldNames[baseWorldKey] then
-                                    allWorldNames[baseWorldKey] = worldInfo.name
-                                end
-                            end
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        
-        -- NEW: Get maps/portals from Maps folder
+        -- Get all worlds/maps from Maps folder only
         local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
         if MapsFolder then
             for _, mapModule in ipairs(MapsFolder:GetChildren()) do
@@ -4084,12 +4055,12 @@ local function createAutoSelectDropdowns()
                         -- Iterate through all maps in this module
                         for mapKey, mapInfo in pairs(mapData) do
                             if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                -- Only add if we don't already have this world
-                                if not allWorldNames[mapInfo.id] then
+                                -- Skip legend stages (they're copies of story stages)
+                                if not mapInfo.id:lower():find("legend") then
                                     allWorldNames[mapInfo.id] = mapInfo.name
-                                    print("Added map:", mapInfo.name, "with key:", mapInfo.id)
+                                    print("Added world/map:", mapInfo.name, "with key:", mapInfo.id)
                                 else
-                                    print("Skipped duplicate map:", mapInfo.name, "with key:", mapInfo.id)
+                                    print("Skipped legend stage:", mapInfo.name, "with key:", mapInfo.id)
                                 end
                             end
                         end
@@ -4102,11 +4073,11 @@ local function createAutoSelectDropdowns()
     end)
     
     if not success or not allWorldData then
-        warn("Failed to load worlds for auto-select dropdowns")
+        warn("Failed to load worlds from Maps folder for auto-select dropdowns")
         return
     end
     
-    -- Create dropdowns for each world (including maps)
+    -- Create dropdowns for each world/map
     for worldKey, worldDisplayName in pairs(allWorldData) do
         local dropdown = MacroTab:CreateDropdown({
             Name = string.format("Auto: %s", worldDisplayName),
@@ -4136,7 +4107,7 @@ local function createAutoSelectDropdowns()
     
     -- Initial refresh with current macros
     refreshAutoSelectDropdowns()
-    print("Created auto-select dropdowns for", table.getn(allWorldData), "worlds including maps")
+    print("Created auto-select dropdowns for", table.getn(allWorldData), "worlds from Maps folder")
 end
 
 local function getMacroForCurrentWorld()
