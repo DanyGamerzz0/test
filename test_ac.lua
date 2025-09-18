@@ -1,4 +1,4 @@
--- 2
+-- 3
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4007,8 +4007,16 @@ local function getCurrentWorld()
         return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
     end)
     
-    if success and levelData and levelData.world then
-        return levelData.world -- Returns something like "namek", "marineford", etc.
+    if success and levelData then
+        -- Check for regular world field first (story stages)
+        if levelData.world then
+            return levelData.world -- Returns "namek", "marineford", etc.
+        end
+        
+        -- Check for map field (portals/dungeons like DoubleDungeon)
+        if levelData.map then
+            return levelData.map -- Returns "DoubleDungeon"
+        end
     end
     
     return nil
@@ -4033,12 +4041,13 @@ local function createAutoSelectDropdowns()
         return
     end
     
-    local success, worldNames = pcall(function()
+    local success, allWorldData = pcall(function()
         local allWorldNames = {}
+        
+        -- Get regular story worlds (existing logic)
         local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
-        -- Get all story worlds
         if WorldLevelOrder.WORLD_ORDER then
             for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
                 local worldModules = WorldsFolder:GetChildren()
@@ -4064,16 +4073,37 @@ local function createAutoSelectDropdowns()
             end
         end
         
+        -- NEW: Get maps/portals from Maps folder
+        local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
+        if MapsFolder then
+            for _, mapModule in ipairs(MapsFolder:GetChildren()) do
+                if mapModule:IsA("ModuleScript") then
+                    local moduleSuccess, mapData = pcall(require, mapModule)
+                    
+                    if moduleSuccess and mapData then
+                        -- Iterate through all maps in this module
+                        for mapKey, mapInfo in pairs(mapData) do
+                            if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
+                                -- Use the map ID as the key (e.g., "DoubleDungeon")
+                                allWorldNames[mapInfo.id] = mapInfo.name
+                                print("Added map:", mapInfo.name, "with key:", mapInfo.id)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
         return allWorldNames
     end)
     
-    if not success or not worldNames then
+    if not success or not allWorldData then
         warn("Failed to load worlds for auto-select dropdowns")
         return
     end
     
-    -- Create dropdowns for each world
-    for worldKey, worldDisplayName in pairs(worldNames) do
+    -- Create dropdowns for each world (including maps)
+    for worldKey, worldDisplayName in pairs(allWorldData) do
         local dropdown = MacroTab:CreateDropdown({
             Name = string.format("Auto: %s", worldDisplayName),
             Options = {"None"},
@@ -4102,7 +4132,7 @@ local function createAutoSelectDropdowns()
     
     -- Initial refresh with current macros
     refreshAutoSelectDropdowns()
-    print("Created auto-select dropdowns for", table.getn(worldNames), "worlds")
+    print("Created auto-select dropdowns for", table.getn(allWorldData), "worlds including maps")
 end
 
 local function getMacroForCurrentWorld()
