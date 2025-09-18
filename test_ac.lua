@@ -1,4 +1,4 @@
--- 5
+-- 6
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -553,20 +553,32 @@ local function loadMacroFromFile(name)
     
     local actionsArray
     
+    -- Handle empty array case first
+    if type(data) == "table" and #data == 0 then
+        -- Empty macro file - return empty array
+        print("Loading empty macro file:", name)
+        return {}
+    end
+    
     -- Handle both formats when loading
     if data.actions and type(data.actions) == "table" then
         -- Wrapped format
         actionsArray = data.actions
         print("Loading wrapped format file:", name)
     elseif data[1] and data[1].action then
-        -- Direct array format
+        -- Direct array format with actions
         actionsArray = data
         print("Loading direct array format file:", name)
+    elseif type(data) == "table" and #data >= 0 then
+        -- Handle edge case: array exists but is empty or has non-action items
+        actionsArray = data
+        print("Loading array format file (possibly empty):", name)
     else
         warn("Unrecognized file format for macro:", name)
         return nil
     end
 
+    -- Process the actions (deserialize Vector3 and raycast data)
     for _, action in ipairs(actionsArray) do
         -- Handle Vector3 positions
         if action.actualPosition then
@@ -576,7 +588,7 @@ local function loadMacroFromFile(name)
             action.unitPosition = deserializeVector3(action.unitPosition)
         end
         
-        -- Deserialize raycast data - FIXED VERSION
+        -- Deserialize raycast data
         if action.raycast and type(action.raycast) == "table" then
             local deserializedRaycast = {}
             
@@ -3357,6 +3369,23 @@ local function refreshMacroDropdown()
     print("Refreshed dropdown with " .. #options .. " macros")
 end
 
+local function refreshAutoSelectDropdowns()
+    local macroOptions = {"None"}
+    
+    -- Add all available macros
+    for macroName in pairs(macroManager) do
+        table.insert(macroOptions, macroName)
+    end
+    
+    table.sort(macroOptions)
+    
+    -- Refresh each dropdown
+    for worldKey, dropdown in pairs(worldDropdowns) do
+        local currentMapping = worldMacroMappings[worldKey] or "None"
+        dropdown:Refresh(macroOptions, currentMapping)
+    end
+end
+
 local MacroInput = MacroTab:CreateInput({
     Name = "Create Macro",
     CurrentValue = "",
@@ -3374,6 +3403,7 @@ local MacroInput = MacroTab:CreateInput({
             macroManager[cleanedName] = {}
             saveMacroToFile(cleanedName)
             refreshMacroDropdown()
+            refreshAutoSelectDropdowns()
             
             notify(nil,"Success: Created macro '" .. cleanedName .. "'.")
         elseif text ~= "" then
@@ -3795,6 +3825,7 @@ local RefreshMacroListButton = MacroTab:CreateButton({
     Callback = function()
         loadAllMacros()
         refreshMacroDropdown()
+        refreshAutoSelectDropdowns()
         notify(nil,"Success: Macro list refreshed.")
     end,
 })
@@ -3984,23 +4015,6 @@ local function playMacroLoopWithInterruptsIgnoreTiming()
 end
 
 createDetailedStatusLabel()
-
-local function refreshAutoSelectDropdowns()
-    local macroOptions = {"None"}
-    
-    -- Add all available macros
-    for macroName in pairs(macroManager) do
-        table.insert(macroOptions, macroName)
-    end
-    
-    table.sort(macroOptions)
-    
-    -- Refresh each dropdown
-    for worldKey, dropdown in pairs(worldDropdowns) do
-        local currentMapping = worldMacroMappings[worldKey] or "None"
-        dropdown:Refresh(macroOptions, currentMapping)
-    end
-end
 
 local function getCurrentWorld()
     local success, levelData = pcall(function()
