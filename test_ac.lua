@@ -1,4 +1,4 @@
--- 6.7
+-- 6.77
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4022,15 +4022,21 @@ local function getCurrentWorld()
     end)
     
     if success and levelData then
-        -- Check for regular world field first (story stages)
+        -- Prioritize world field first (story/legend/raid stages like "namek", "shibuya")
         if levelData.world then
-            return levelData.world -- Returns "namek", "marineford", etc.
+            print("getCurrentWorld: Using world field:", levelData.world)
+            return levelData.world -- Returns "namek", "shibuya", etc.
         end
         
-        -- Check for map field (portals/dungeons like DoubleDungeon)
+        -- Fallback to map field (special maps like "DoubleDungeon")
         if levelData.map then
-            return levelData.map -- Returns "DoubleDungeon"
+            print("getCurrentWorld: Using map field:", levelData.map)
+            return levelData.map -- Returns "DoubleDungeon", etc.
         end
+        
+        print("getCurrentWorld: No world or map field found in levelData")
+    else
+        print("getCurrentWorld: Failed to get level data:", levelData)
     end
     
     return nil
@@ -4055,30 +4061,10 @@ local function createAutoSelectDropdowns()
         return
     end
     
-    local success, allWorldData = pcall(function()
-        local worldKeyToDisplayName = {}
+    local success, allMapsData = pcall(function()
+        local mapIdToDisplayName = {}
         
-        -- First, get all story/legend/raid worlds from Worlds folder
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-        if WorldsFolder then
-            for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
-                if worldModule:IsA("ModuleScript") then
-                    local moduleSuccess, worldData = pcall(require, worldModule)
-                    
-                    if moduleSuccess and worldData then
-                        for worldKey, worldInfo in pairs(worldData) do
-                            if type(worldInfo) == "table" and worldInfo.name then
-                                -- Use the backend world key directly (like "namek", "shibuya")
-                                worldKeyToDisplayName[worldKey] = worldInfo.name
-                                print("Added world from Worlds folder:", worldInfo.name, "with key:", worldKey)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        
-        -- Then, get maps that don't have corresponding worlds (like DoubleDungeon, etc.)
+        -- Get all maps from Maps folder only
         local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
         if MapsFolder then
             for _, mapModule in ipairs(MapsFolder:GetChildren()) do
@@ -4086,15 +4072,13 @@ local function createAutoSelectDropdowns()
                     local moduleSuccess, mapData = pcall(require, mapModule)
                     
                     if moduleSuccess and mapData then
+                        -- Iterate through all maps in this module
                         for mapKey, mapInfo in pairs(mapData) do
                             if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                -- Only add if we don't already have this from Worlds folder
-                                if not worldKeyToDisplayName[mapInfo.id] and not worldKeyToDisplayName[mapKey] then
-                                    -- Check if this is a legend variant by looking for "legend" in the ID
-                                    if not mapInfo.id:lower():find("legend") then
-                                        worldKeyToDisplayName[mapInfo.id] = mapInfo.name
-                                        print("Added map from Maps folder:", mapInfo.name, "with key:", mapInfo.id)
-                                    end
+                                -- Skip legend stages (they're copies of story stages)
+                                if not mapInfo.id:lower():find("legend") then
+                                    mapIdToDisplayName[mapInfo.id] = mapInfo.name
+                                    print("Added map for auto-select:", mapInfo.name, "with ID:", mapInfo.id)
                                 end
                             end
                         end
@@ -4103,32 +4087,32 @@ local function createAutoSelectDropdowns()
             end
         end
         
-        return worldKeyToDisplayName
+        return mapIdToDisplayName
     end)
     
-    if not success or not allWorldData or not next(allWorldData) then
-        warn("Failed to load worlds/maps for auto-select dropdowns")
+    if not success or not allMapsData then
+        warn("Failed to load maps from Maps folder for auto-select dropdowns")
         return
     end
     
-    -- Create dropdowns for each world/map
-    for worldKey, displayName in pairs(allWorldData) do
+    -- Create dropdowns for each map
+    for mapId, displayName in pairs(allMapsData) do
         local dropdown = MacroTab:CreateDropdown({
             Name = string.format("Auto: %s", displayName),
             Options = {"None"},
             CurrentOption = {"None"},
             MultipleOptions = false,
-            Flag = "AutoSelect_" .. worldKey,
+            Flag = "AutoSelect_" .. mapId,
             Info = string.format("Auto-select macro for %s", displayName),
             Callback = function(Option)
                 local selectedMacro = type(Option) == "table" and Option[1] or Option
                 
                 if selectedMacro == "None" or selectedMacro == "" then
-                    worldMacroMappings[worldKey] = nil
-                    print("Cleared auto-select for", displayName, "(key:", worldKey .. ")")
+                    worldMacroMappings[mapId] = nil
+                    print("Cleared auto-select for", displayName)
                 else
-                    worldMacroMappings[worldKey] = selectedMacro
-                    print("Set auto-select:", displayName, "(key:", worldKey .. ") ->", selectedMacro)
+                    worldMacroMappings[mapId] = selectedMacro
+                    print("Set auto-select:", displayName, "->", selectedMacro)
                 end
                 
                 -- Save mappings
@@ -4136,12 +4120,12 @@ local function createAutoSelectDropdowns()
             end,
         })
         
-        worldDropdowns[worldKey] = dropdown
+        worldDropdowns[mapId] = dropdown
     end
     
     -- Initial refresh with current macros
     refreshAutoSelectDropdowns()
-    print("Created auto-select dropdowns for", table.getn(allWorldData), "worlds/maps")
+    print("Created auto-select dropdowns for", table.getn(allMapsData), "maps from Maps folder")
 end
 
 local function getMacroForCurrentWorld()
