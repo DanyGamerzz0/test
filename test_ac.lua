@@ -1,4 +1,4 @@
--- 8
+-- 9
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -196,6 +196,7 @@ local State = {
     AutoNextGate = false,
     AutoSelectMacro = false,
     AutoVoteStart = false,
+    deleteEntities = false,
 }
 
 -- ========== CREATE TABS ==========
@@ -679,8 +680,10 @@ local function handleUnitPlacement(args)
     local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
     local waveRelativeTime = timestamp - waveStartTime
     
-    print(string.format("Recording placement attempt for unit ID: %s at wave %d (%.2fs into wave) - Money: %d", 
+    notify("Macro Recorder",string.format("Recording placement attempt for unit ID: %s at wave %d (%.2fs into wave) - Money: %d", 
         unitId, currentWaveNum, waveRelativeTime, moneyBefore))
+
+    
     
     local beforeSnapshot = takeUnitsSnapshot()
     
@@ -809,6 +812,27 @@ local function handleUnitPlacement(args)
     end
 end
 
+local function getUnitUpgradeLevel(unit)
+    if unit and unit:FindFirstChild("_stats") and unit._stats:FindFirstChild("upgrade") then
+        return unit._stats.upgrade.Value
+    end
+    return 0
+end
+
+local function waitForUpgradeLevel(targetUnit, originalLevel, maxWaitTime)
+    local startTime = tick()
+    
+    while tick() - startTime < maxWaitTime do
+        local currentLevel = getUnitUpgradeLevel(targetUnit)
+        if currentLevel > originalLevel then
+            return true
+        end
+        task.wait(0.1) -- Check every 0.1 seconds
+    end
+    
+    return false -- Timeout or upgrade failed
+end
+
 local function handleUnitUpgradeClean(args)
     if not isRecording or not recordingHasStarted then return end
     
@@ -842,25 +866,56 @@ local function handleUnitUpgradeClean(args)
         return
     end
     
-    -- Get unit's total spent BEFORE upgrade
+    -- Get upgrade level and costs BEFORE upgrade
+    local upgradeLevelBefore = getUnitUpgradeLevel(targetUnit)
     local totalSpentBefore = getUnitTotalSpent(targetUnit)
     local moneyBefore = getPlayerMoney()
     
-    print(string.format("Recording upgrade attempt - Spawn ID: %s, Total spent before: %d, Player money: %d", 
-        tostring(targetSpawnId), totalSpentBefore, moneyBefore))
+    notify("Macro Recorder", string.format("Recording upgrade attempt - Level %d, Total spent: %d, Player money: %d", 
+        upgradeLevelBefore, totalSpentBefore, moneyBefore))
     
-    -- Wait for the upgrade to process
-    task.wait(0.5)
+    -- Wait for upgrade level to increase (up to 3 seconds)
+    local upgradeSuccess = waitForUpgradeLevel(targetUnit, upgradeLevelBefore, 3.0)
     
-    -- Get unit's total spent AFTER upgrade
-    local totalSpentAfter = getUnitTotalSpent(targetUnit)
-    local upgradeCost = totalSpentAfter - totalSpentBefore
-    
-    local moneyAfter = getPlayerMoney()
-    local moneySpent = moneyBefore - moneyAfter
-    
-    print(string.format("Upgrade cost analysis - Total spent difference: %d, Money difference: %d", 
-        upgradeCost, moneySpent))
+    local upgradeCost = 0
+    if upgradeSuccess then
+        -- Upgrade was successful - calculate cost
+        local totalSpentAfter = getUnitTotalSpent(targetUnit)
+        local newLevel = getUnitUpgradeLevel(targetUnit)
+        upgradeCost = totalSpentAfter - totalSpentBefore
+        
+        print(string.format("Upgrade successful: Level %d -> %d, Cost: %d", 
+            upgradeLevelBefore, newLevel, upgradeCost))
+        
+        -- Validation check
+        if upgradeCost <= 0 then
+            local moneyAfter = getPlayerMoney()
+            local moneySpent = moneyBefore - moneyAfter
+            
+            if moneySpent > 0 then
+                upgradeCost = moneySpent
+                print("Used money difference as upgrade cost:", upgradeCost)
+            else
+                warn("Upgrade level increased but no cost detected - this shouldn't happen")
+                upgradeCost = 1 -- Default minimal cost to indicate upgrade happened
+            end
+        end
+    else
+        -- Upgrade failed or timed out
+        local moneyAfter = getPlayerMoney()
+        local moneySpent = moneyBefore - moneyAfter
+        local finalLevel = getUnitUpgradeLevel(targetUnit)
+        
+        if moneySpent > 0 then
+            -- Money was spent but level didn't change - might be max level or failed upgrade
+            upgradeCost = moneySpent
+            warn(string.format("Upgrade level didn't increase (stayed at %d) but money was spent: %d", 
+                finalLevel, moneySpent))
+        else
+            warn("Upgrade failed completely - no money spent and no level increase")
+            upgradeCost = 0
+        end
+    end
     
     local expectedPosition = placementOrderToPosition[targetPlacementOrder]
     local originalUnitId = nil
@@ -882,11 +937,13 @@ local function handleUnitUpgradeClean(args)
         wave = currentWaveNum,
         waveRelativeTime = waveRelativeTime,
         targetPlacementOrder = targetPlacementOrder,
-        upgradeCost = upgradeCost
+        upgradeCost = upgradeCost,
+        upgradeLevelBefore = upgradeLevelBefore,
+        upgradeLevelAfter = getUnitUpgradeLevel(targetUnit) -- Store final level for debugging
     })
 
-    notify("Macro Recorder", string.format("Recorded upgrade for placement #%d (Spawn ID: %s, Wave %d, %.2fs) - Cost: %d", 
-        targetPlacementOrder, tostring(targetSpawnId), currentWaveNum, waveRelativeTime, upgradeCost))
+    notify("Macro Recorder", string.format("Recorded upgrade for placement #%d (Level %d->%d, Wave %d, %.2fs) - Cost: %d", 
+        targetPlacementOrder, upgradeLevelBefore, getUnitUpgradeLevel(targetUnit), currentWaveNum, waveRelativeTime, upgradeCost))
 end
 
 local function handleUnitSellClean(args)
@@ -3280,6 +3337,63 @@ if State.enableLowPerformanceMode then
 end
 
 GameSection = GameTab:CreateSection("🎮 Game 🎮")
+
+
+Toggle = GameTab:CreateToggle({
+    Name = "Delete Enemies",
+    CurrentValue = false,
+    Flag = "enableDeleteEnemies",
+    Info = "Removes Enemy Models",
+    TextScaled = false,
+    Callback = function(Value)
+        State.deleteEntities = Value
+        
+        if Value then
+            -- Function to check if a unit is an enemy (no player ObjectValue in _stats)
+            local function isEnemy(unit)
+                local statsFolder = unit:FindFirstChild("_stats")
+                if not statsFolder then
+                    return true -- No _stats folder = likely enemy
+                end
+                
+                local playerValue = statsFolder:FindFirstChild("player")
+                return not (playerValue and playerValue:IsA("ObjectValue"))
+            end
+            
+            -- Function to safely delete enemy units
+            local function deleteEnemyUnit(unit)
+                if unit and unit.Parent and isEnemy(unit) then
+                    unit:Destroy()
+                end
+            end
+            
+            task.spawn(function()
+                local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                if unitsFolder then
+                    -- Delete existing enemy units first
+                    for _, unit in pairs(unitsFolder:GetChildren()) do
+                        deleteEnemyUnit(unit)
+                    end
+                    
+                    -- Set up instant deletion for new enemy spawns
+                    State.childAddedConnection = unitsFolder.ChildAdded:Connect(function(child)
+                        if State.deleteEntities then
+                            -- Small delay to ensure the unit is fully loaded before checking
+                            task.wait(0.1)
+                            deleteEnemyUnit(child)
+                        end
+                    end)
+                end
+            end)
+        else
+            -- Clean up connection when disabled
+            if State.childAddedConnection then
+                State.childAddedConnection:Disconnect()
+                State.childAddedConnection = nil
+            end
+        end
+    end,
+})
 
 local Toggle = GameTab:CreateToggle({
    Name = "Auto Start Game",
