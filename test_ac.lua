@@ -1,4 +1,4 @@
--- 9
+-- 10
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -197,6 +197,10 @@ local State = {
     AutoSelectMacro = false,
     AutoVoteStart = false,
     deleteEntities = false,
+    AutoSkipWaves = false,
+    AutoSkipUntilWave = 0,
+    RandomOffsetEnabled = false,
+    RandomOffsetAmount = 0.5,
 }
 
 -- ========== CREATE TABS ==========
@@ -291,6 +295,28 @@ local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
         warn(string.format("Multiple new units detected (%d), returning first one", #newUnits))
         return newUnits[1].instance
     end
+end
+
+local function applyRandomOffset(originalPosition, offsetAmount)
+    if not State.RandomOffsetEnabled or not offsetAmount or offsetAmount <= 0 then
+        return originalPosition
+    end
+    
+    -- Generate random offsets for X and Z axes (keep Y the same for proper ground placement)
+    local randomX = (math.random() - 0.5) * 2 * offsetAmount -- Range: -offsetAmount to +offsetAmount
+    local randomZ = (math.random() - 0.5) * 2 * offsetAmount -- Range: -offsetAmount to +offsetAmount
+    
+    local newPosition = Vector3.new(
+        originalPosition.X + randomX,
+        originalPosition.Y, -- Keep original Y position
+        originalPosition.Z + randomZ
+    )
+    
+    print(string.format("Applied random offset: (%.2f, %.2f, %.2f) -> (%.2f, %.2f, %.2f)", 
+          originalPosition.X, originalPosition.Y, originalPosition.Z,
+          newPosition.X, newPosition.Y, newPosition.Z))
+    
+    return newPosition
 end
 
 local function getCurrentWave()
@@ -1143,80 +1169,91 @@ local function executeActionWithStatusClean(action, playbackMapping, actionIndex
     currentActionIndex = actionIndex
     totalActions = totalActionCount
     
-    if action.action == "PlaceUnit" then
-        local unitDisplayName = getUnitDisplayName(action.unitId)
-        local currentMoney = getPlayerMoney()
-        local requiredCost = action.placementCost or 0
+if action.action == "PlaceUnit" then
+    local unitDisplayName = getUnitDisplayName(action.unitId)
+    local currentMoney = getPlayerMoney()
+    local requiredCost = action.placementCost or 0
+    
+    if requiredCost > 0 and currentMoney < requiredCost then
+        local missingMoney = requiredCost - currentMoney
+        updateDetailedStatus(string.format("(%d/%d) Missing %d yen to place %s", 
+            actionIndex, totalActionCount, missingMoney, unitDisplayName))
+        return
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Placing %s (Cost: %d)", 
+        actionIndex, totalActionCount, unitDisplayName, requiredCost))
+    
+    local beforeSnapshot = takeUnitsSnapshot()
+    
+    -- Build raycast parameter with random offset applied
+    local raycastParam = {}
+    if action.raycast then
+        local originalUnit = action.raycast.Unit
+        local offsetUnit = originalUnit
         
-        if requiredCost > 0 and currentMoney < requiredCost then
-            local missingMoney = requiredCost - currentMoney
-            updateDetailedStatus(string.format("(%d/%d) Missing %d yen to place %s", 
-                actionIndex, totalActionCount, missingMoney, unitDisplayName))
-            return
+        -- Apply random offset to Unit position if enabled
+        if type(originalUnit) == "table" then
+            local originalPos = Vector3.new(originalUnit.x, originalUnit.y, originalUnit.z)
+            local offsetPos = applyRandomOffset(originalPos, State.RandomOffsetAmount)
+            offsetUnit = {x = offsetPos.X, y = offsetPos.Y, z = offsetPos.Z}
+        elseif type(originalUnit) == "userdata" then
+            offsetUnit = applyRandomOffset(originalUnit, State.RandomOffsetAmount)
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Placing %s (Cost: %d)", 
-            actionIndex, totalActionCount, unitDisplayName, requiredCost))
-        
-        local beforeSnapshot = takeUnitsSnapshot()
-        
-        -- Build raycast parameter
-        local raycastParam = {}
-        if action.raycast then
-            if action.raycast.Origin then
-                if type(action.raycast.Origin) == "table" then
-                    raycastParam.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
-                else
-                    raycastParam.Origin = action.raycast.Origin
-                end
-            end
-            
-            if action.raycast.Direction then
-                if type(action.raycast.Direction) == "table" then
-                    raycastParam.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
-                else
-                    raycastParam.Direction = action.raycast.Direction
-                end
-            end
-            
-            if action.raycast.Unit then
-                if type(action.raycast.Unit) == "table" then
-                    raycastParam.Unit = Vector3.new(action.raycast.Unit.x, action.raycast.Unit.y, action.raycast.Unit.z)
-                else
-                    raycastParam.Unit = action.raycast.Unit
-                end
+        if action.raycast.Origin then
+            if type(action.raycast.Origin) == "table" then
+                raycastParam.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
+            else
+                raycastParam.Origin = action.raycast.Origin
             end
         end
-
-        local success, error = pcall(function()
-            endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-                action.unitId,
-                raycastParam,
-                action.rotation
-            )
-        end)
         
-        if not success then
-            updateDetailedStatus(string.format("(%d/%d) Failed to place %s", 
-                actionIndex, totalActionCount, unitDisplayName))
-            return
+        if action.raycast.Direction then
+            if type(action.raycast.Direction) == "table" then
+                raycastParam.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
+            else
+                raycastParam.Direction = action.raycast.Direction
+            end
         end
         
-        task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME + MACRO_CONFIG.SNAPSHOT_WAIT_TIME)
-        local afterSnapshot = takeUnitsSnapshot()
-        
-        local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
-        if placedUnit and isOwnedByLocalPlayer(placedUnit) then
-            local newSpawnId = getUnitSpawnId(placedUnit)
-            if newSpawnId then
-                playbackMapping[action.placementOrder] = newSpawnId
-                updateDetailedStatus(string.format("(%d/%d) Placed %s", 
-                    actionIndex, totalActionCount, unitDisplayName))
-            end
+        -- Use the offset Unit position
+        if type(offsetUnit) == "table" then
+            raycastParam.Unit = Vector3.new(offsetUnit.x, offsetUnit.y, offsetUnit.z)
         else
-            updateDetailedStatus(string.format("(%d/%d) Failed to find placed %s", 
+            raycastParam.Unit = offsetUnit
+        end
+    end
+
+    local success, error = pcall(function()
+        endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
+            action.unitId,
+            raycastParam,
+            action.rotation
+        )
+    end)
+    
+    if not success then
+        updateDetailedStatus(string.format("(%d/%d) Failed to place %s", 
+            actionIndex, totalActionCount, unitDisplayName))
+        return
+    end
+    
+    task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME + MACRO_CONFIG.SNAPSHOT_WAIT_TIME)
+    local afterSnapshot = takeUnitsSnapshot()
+    
+    local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    if placedUnit and isOwnedByLocalPlayer(placedUnit) then
+        local newSpawnId = getUnitSpawnId(placedUnit)
+        if newSpawnId then
+            playbackMapping[action.placementOrder] = newSpawnId
+            updateDetailedStatus(string.format("(%d/%d) Placed %s", 
                 actionIndex, totalActionCount, unitDisplayName))
         end
+    else
+        updateDetailedStatus(string.format("(%d/%d) Failed to find placed %s", 
+            actionIndex, totalActionCount, unitDisplayName))
+    end
         
     elseif action.action == "UpgradeUnit" then
         local currentSpawnId = playbackMapping[action.targetPlacementOrder]
@@ -3420,6 +3457,61 @@ spawn(function()
 end)
 
 local Toggle = GameTab:CreateToggle({
+   Name = "Auto Skip Waves",
+   CurrentValue = false,
+   Flag = "AutoSkipWaves",
+   Callback = function(Value)
+        State.AutoSkipWaves = Value
+        if Services.Players.LocalPlayer.PlayerGui.VoteSkip.Enabled == true then
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_wave_skip"):InvokeServer()
+        end
+   end,
+})
+
+local Slider = GameTab:CreateSlider({
+   Name = "Auto Skip Until Wave",
+   Range = {0, 30},
+   Increment = 1,
+   Suffix = "wave",
+   CurrentValue = 0,
+   Flag = "Slider1",
+   Info = "0 = disable",
+   Callback = function(Value)
+        State.AutoSkipUntilWave = Value
+   end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoSkipWaves then
+            local waveNum = Services.Workspace:WaitForChild("_wave_num").Value
+            local skipLimit = State.AutoSkipUntilWave
+            if skipLimit == 0 then
+                local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
+                if voteSkip and voteSkip.Enabled then
+                    game:GetService("ReplicatedStorage")
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("vote_wave_skip")
+                        :InvokeServer()
+                end
+            elseif waveNum <= skipLimit then
+                local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
+                if voteSkip and voteSkip.Enabled then
+                    game:GetService("ReplicatedStorage")
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("vote_wave_skip")
+                        :InvokeServer()
+                end
+            end
+        end
+    end
+end)
+
+
+local Toggle = GameTab:CreateToggle({
    Name = "Auto Retry",
    CurrentValue = false,
    Flag = "AutoRetry",
@@ -4472,6 +4564,35 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             gameHasEnded = false
             notify(nil, "Autoplay Disabled: Macro playback stopped.")
         end
+    end,
+})
+
+local RandomOffsetToggle = MacroTab:CreateToggle({
+    Name = "Random Offset",
+    CurrentValue = false,
+    Flag = "RandomOffsetEnabled",
+    Info = "Slightly randomize placement positions to make macros less detectable",
+    Callback = function(Value)
+        State.RandomOffsetEnabled = Value
+        if Value then
+            print("Random offset enabled with amount:", State.RandomOffsetAmount)
+        else
+            print("Random offset disabled")
+        end
+    end,
+})
+
+local RandomOffsetSlider = MacroTab:CreateSlider({
+    Name = "Offset Amount",
+    Range = {0.1, 5.0},
+    Increment = 0.1,
+    Suffix = " studs",
+    CurrentValue = 0.5,
+    Flag = "RandomOffsetAmount",
+    Info = "Maximum random offset distance in studs (recommended value is around 0.5)",
+    Callback = function(Value)
+        State.RandomOffsetAmount = Value
+        print("Random offset amount set to:", Value)
     end,
 })
 
