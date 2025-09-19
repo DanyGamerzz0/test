@@ -1,4 +1,4 @@
--- 25
+-- 26
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1082,26 +1082,37 @@ local function waitForPlacementSuccess(expectedSpawnId, timeout)
     return false, nil
 end
 
-local function waitForUpgradeSuccess(targetUnit, originalLevel, timeout)
+local function waitForUpgradeSuccess(spawnId, originalLevel, timeout)
     local startTime = tick()
     
+    print(string.format("Starting upgrade validation for spawn ID %s, original level: %d", tostring(spawnId), originalLevel))
+    
     while tick() - startTime < timeout do
-        if not isPlaybacking then return false end
+        if not isPlaybacking then 
+            print("Playback stopped, canceling upgrade validation")
+            return false 
+        end
         
-        -- Check if unit still exists and level increased
-        if targetUnit and targetUnit.Parent then
+        -- Re-find the unit by spawn ID instead of using cached reference
+        local targetUnit = findUnitBySpawnId(spawnId)
+        if targetUnit and isOwnedByLocalPlayer(targetUnit) then
             local currentLevel = getUnitUpgradeLevel(targetUnit)
+            print(string.format("Checking upgrade progress: Level %d (target: >%d)", currentLevel, originalLevel))
+            
             if currentLevel > originalLevel then
+                print(string.format("Upgrade success detected: Level %d -> %d", originalLevel, currentLevel))
                 return true
             end
         else
             -- Unit was destroyed/sold, consider as failure
+            print("Unit not found or not owned during upgrade validation")
             return false
         end
         
         task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
     end
     
+    print(string.format("Upgrade validation timeout after %.1f seconds", timeout))
     return false
 end
 
@@ -1269,8 +1280,8 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             continue
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s", 
-            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s (Level %d)", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, originalLevel))
         
         -- Execute upgrade
         local success = pcall(function()
@@ -1289,8 +1300,11 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             end
         end
         
-        -- Wait and validate upgrade
-        local upgradeSuccess = waitForUpgradeSuccess(unit, originalLevel, VALIDATION_CONFIG.UPGRADE_TIMEOUT)
+        -- FIXED: Wait longer before starting validation to give server time to process
+        task.wait(1.0)
+        
+        -- FIXED: Wait and validate upgrade using spawn ID instead of unit reference
+        local upgradeSuccess = waitForUpgradeSuccess(currentSpawnId, originalLevel, VALIDATION_CONFIG.UPGRADE_TIMEOUT)
         
         if upgradeSuccess then
             updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s (attempt %d/%d)", 
@@ -1298,8 +1312,12 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             return true
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate upgrade of %s", 
-            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        -- Get current level for better error reporting
+        local currentUnit = findUnitBySpawnId(currentSpawnId)
+        local currentLevel = currentUnit and getUnitUpgradeLevel(currentUnit) or originalLevel
+        
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate upgrade of %s (Level still %d)", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, currentLevel))
         
         if attempt < maxRetries then
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
