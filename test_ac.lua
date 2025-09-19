@@ -1,4 +1,4 @@
--- 11
+-- 21
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -4433,7 +4433,7 @@ local function autoLoopPlaybackWithTiming()
     isPlayingLoopRunning = false
 end
 
-local PlayToggleEnhanced = MacroTab:CreateToggle({
+ PlayToggleEnhanced = MacroTab:CreateToggle({
     Name = "Playback Macro",
     CurrentValue = false,
     Flag = "PlayBackMacro",
@@ -4462,7 +4462,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     end,
 })
 
-local RandomOffsetToggle = MacroTab:CreateToggle({
+ RandomOffsetToggle = MacroTab:CreateToggle({
     Name = "Random Offset",
     CurrentValue = false,
     Flag = "RandomOffsetEnabled",
@@ -4477,7 +4477,7 @@ local RandomOffsetToggle = MacroTab:CreateToggle({
     end,
 })
 
-local RandomOffsetSlider = MacroTab:CreateSlider({
+ RandomOffsetSlider = MacroTab:CreateSlider({
     Name = "Offset Amount",
     Range = {0.1, 5.0},
     Increment = 0.1,
@@ -4491,7 +4491,7 @@ local RandomOffsetSlider = MacroTab:CreateSlider({
     end,
 })
 
-local IgnoreTimingToggle = MacroTab:CreateToggle({
+ IgnoreTimingToggle = MacroTab:CreateToggle({
     Name = "Ignore Timing",
     CurrentValue = false,
     Flag = "IgnoreTiming",
@@ -4555,7 +4555,7 @@ local IgnoreTimingToggle = MacroTab:CreateToggle({
     end,
 })--]]
 
-local ImportInput = MacroTab:CreateInput({
+ ImportInput = MacroTab:CreateInput({
     Name = "Import Macro",
     CurrentValue = "",
     PlaceholderText = "Paste content here...",
@@ -4621,7 +4621,7 @@ local ImportInput = MacroTab:CreateInput({
     end,
 })
 
-local ExportButton = MacroTab:CreateButton({
+ ExportButton = MacroTab:CreateButton({
     Name = "Export Macro To Clipboard",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
@@ -4808,7 +4808,7 @@ local ExportButton = MacroTab:CreateButton({
 })--]]
 
 -- Webhook Tab
-local WebhookInput = WebhookTab:CreateInput({
+ WebhookInput = WebhookTab:CreateInput({
     Name = "Input Webhook",
     CurrentValue = "",
     PlaceholderText = "Input Webhook...",
@@ -4832,7 +4832,7 @@ local WebhookInput = WebhookTab:CreateInput({
     end,
 })
 
-local UserIDInput = WebhookTab:CreateInput({
+ UserIDInput = WebhookTab:CreateInput({
     Name = "Input Discord ID (mention rares)",
     CurrentValue = "",
     PlaceholderText = "Input Discord ID...",
@@ -4843,7 +4843,7 @@ local UserIDInput = WebhookTab:CreateInput({
     end,
 })
 
-local WebhookToggle = WebhookTab:CreateToggle({
+ WebhookToggle = WebhookTab:CreateToggle({
     Name = "Send On Stage Finished",
     CurrentValue = false,
     Flag = "SendWebhookOnStageFinished",
