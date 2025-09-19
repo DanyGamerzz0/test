@@ -1,4 +1,4 @@
--- 10
+-- 11
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -689,160 +689,116 @@ local function getUnitTotalSpent(unit)
     return 0
 end
 
-local function handleUnitPlacement(args)
-    if not isRecording or not recordingHasStarted then return end
-    
-    local unitId = args[1]
-    local raycastData = args[2]
-    local rotationIndex = args[3] or 0
-    
-    local timestamp = tick()
-    local currentWaveNum = getCurrentWave()
-    
-    -- Record money before placement
-    local moneyBefore = getPlayerMoney()
-    
-    -- Calculate wave-relative time
-    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
-    local waveRelativeTime = timestamp - waveStartTime
-    
-    notify("Macro Recorder",string.format("Recording placement attempt for unit ID: %s at wave %d (%.2fs into wave) - Money: %d", 
-        unitId, currentWaveNum, waveRelativeTime, moneyBefore))
-
-    
-    
-    local beforeSnapshot = takeUnitsSnapshot()
-    
-    task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME + MACRO_CONFIG.SNAPSHOT_WAIT_TIME)
-    
-    local afterSnapshot = takeUnitsSnapshot()
-    local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
-    
-    if placedUnit and isOwnedByLocalPlayer(placedUnit) then
-        recordingPlacementCounter = recordingPlacementCounter + 1
-        local thisPlacementOrder = recordingPlacementCounter
-        
-        local actualPosition = placedUnit.PrimaryPart and placedUnit.PrimaryPart.Position or 
-                              placedUnit:FindFirstChildWhichIsA("BasePart").Position
-        
-        local positionKey = positionToKey(actualPosition)
-        unitPositionToPlacementOrder[positionKey] = thisPlacementOrder
-        placementOrderToPosition[thisPlacementOrder] = actualPosition
-        
-        local spawnUUID = placedUnit:GetAttribute("_SPAWN_UNIT_UUID")
-        if spawnUUID then
-            placementOrderToSpawnUUID[thisPlacementOrder] = spawnUUID
-        end
-        
-        local unitType = getUnitType(placedUnit)
-        
-        -- Get placement cost by checking unit's total_spent (should be the placement cost)
-        local placementCost = getUnitTotalSpent(placedUnit)
-        
-        -- Record money after placement for verification
-        local moneyAfter = getPlayerMoney()
-        local moneySpent = moneyBefore - moneyAfter
-        
-        print(string.format("Placement cost analysis - Total spent on unit: %d, Money difference: %d", 
-            placementCost, moneySpent))
-        
-        -- Validate and serialize raycast data
-        local serializedRaycast = {}
-        local hasValidRaycast = false
-        
-        if raycastData and type(raycastData) == "table" then
-            -- Check if we have valid Origin
-            if raycastData.Origin and type(raycastData.Origin) == "userdata" and 
-               raycastData.Origin.X and raycastData.Origin.Y and raycastData.Origin.Z then
-                serializedRaycast.Origin = {
-                    x = raycastData.Origin.X,
-                    y = raycastData.Origin.Y,
-                    z = raycastData.Origin.Z
-                }
-                hasValidRaycast = true
-            end
-            
-            -- Check if we have valid Direction
-            if raycastData.Direction and type(raycastData.Direction) == "userdata" and
-               raycastData.Direction.X and raycastData.Direction.Y and raycastData.Direction.Z then
-                serializedRaycast.Direction = {
-                    x = raycastData.Direction.X,
-                    y = raycastData.Direction.Y,
-                    z = raycastData.Direction.Z
-                }
-                hasValidRaycast = true
-            end
-            
-            -- Check if we have valid Unit
-            if raycastData.Unit and type(raycastData.Unit) == "userdata" and
-               raycastData.Unit.X and raycastData.Unit.Y and raycastData.Unit.Z then
-                serializedRaycast.Unit = {
-                    x = raycastData.Unit.X,
-                    y = raycastData.Unit.Y,
-                    z = raycastData.Unit.Z
-                }
-                hasValidRaycast = true
-            elseif raycastData.Direction and raycastData.Direction.Unit and 
-                   type(raycastData.Direction.Unit) == "userdata" and
-                   raycastData.Direction.Unit.X and raycastData.Direction.Unit.Y and raycastData.Direction.Unit.Z then
-                serializedRaycast.Unit = {
-                    x = raycastData.Direction.Unit.X,
-                    y = raycastData.Direction.Unit.Y,
-                    z = raycastData.Direction.Unit.Z
-                }
-                hasValidRaycast = true
-            end
-        end
-        
-        -- If we don't have valid raycast data, create a fallback using the actual position
-        if not hasValidRaycast then
-            print("Warning: No valid raycast data found, creating fallback from position")
-            serializedRaycast = {
-                Origin = {
-                    x = actualPosition.X,
-                    y = actualPosition.Y + 10,
-                    z = actualPosition.Z
-                },
-                Direction = {
-                    x = 0,
-                    y = -1,
-                    z = 0
-                },
-                Unit = {
-                    x = actualPosition.X,
-                    y = actualPosition.Y,
-                    z = actualPosition.Z
-                }
-            }
-        end
-        
-        local placementData = {
-            action = "PlaceUnit",
-            unitId = unitId,
-            unitType = unitType,
-            spawnUUID = spawnUUID,
-            actualPosition = actualPosition,
-            raycast = serializedRaycast,
-            rotation = rotationIndex,
-            wave = currentWaveNum,
-            waveRelativeTime = waveRelativeTime,
-            timestamp = timestamp,
-            placementOrder = thisPlacementOrder,
-            placementCost = placementCost  -- NEW: Store placement cost
-        }
-        
-        table.insert(macro, placementData)
-
-        notify("Macro Recorder", string.format("Recorded placement #%d: %s (Wave %d, %.2fs) - Cost: %d", 
-            thisPlacementOrder, unitId, currentWaveNum, waveRelativeTime, placementCost))
-    end
-end
-
 local function getUnitUpgradeLevel(unit)
     if unit and unit:FindFirstChild("_stats") and unit._stats:FindFirstChild("upgrade") then
         return unit._stats.upgrade.Value
     end
     return 0
+end
+
+local function getUnitSpawnId(unit)
+    if not unit then return nil end
+    
+    -- Try to get spawn_id from the unit's _stats
+    local stats = unit:FindFirstChild("_stats")
+    if stats then
+        local spawnIdValue = stats:FindFirstChild("spawn_id")
+        if spawnIdValue then
+            return spawnIdValue.Value
+        end
+    end
+    
+    -- Fallback: try to get from _SPAWN_UNIT_UUID attribute
+    local spawnUUID = unit:GetAttribute("_SPAWN_UNIT_UUID")
+    if spawnUUID then
+        return spawnUUID
+    end
+    
+    return nil
+end
+
+local function captureUnitSnapshot()
+    local snapshot = {}
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local spawnId = getUnitSpawnId(unit)
+                if spawnId then
+                    snapshot[tostring(spawnId)] = {
+                        level = getUnitUpgradeLevel(unit),
+                        totalSpent = getUnitTotalSpent(unit),
+                        exists = true,
+                        position = unit.PrimaryPart and unit.PrimaryPart.Position or nil
+                    }
+                end
+            end
+        end
+    end
+    return snapshot
+end
+
+local function processPlacementAction(actionInfo)
+    local currentMoney = getPlayerMoney()
+    local currentUnits = captureUnitSnapshot()
+    
+    -- Find new units
+    local newUnits = {}
+    for spawnId, unitData in pairs(currentUnits) do
+        if not actionInfo.preActionUnits[spawnId] then
+            table.insert(newUnits, {spawnId = spawnId, data = unitData})
+        end
+    end
+    
+    if #newUnits >= 1 then
+        local newUnit = newUnits[1]
+        local placementCost = actionInfo.preActionMoney - currentMoney
+        
+        recordingPlacementCounter = recordingPlacementCounter + 1
+        local placementOrder = recordingPlacementCounter
+        
+        if newUnit.data.position then
+            local positionKey = positionToKey(newUnit.data.position)
+            unitPositionToPlacementOrder[positionKey] = placementOrder
+            placementOrderToPosition[placementOrder] = newUnit.data.position
+            placementOrderToSpawnUUID[placementOrder] = newUnit.spawnId
+        end
+        
+        local unitId = actionInfo.args[1]
+        local raycastData = actionInfo.args[2] or {}
+        local rotation = actionInfo.args[3] or 0
+        
+        -- Serialize raycast
+        local serializedRaycast = {}
+        if raycastData.Origin then
+            serializedRaycast.Origin = {x = raycastData.Origin.X, y = raycastData.Origin.Y, z = raycastData.Origin.Z}
+        end
+        if raycastData.Direction then
+            serializedRaycast.Direction = {x = raycastData.Direction.X, y = raycastData.Direction.Y, z = raycastData.Direction.Z}
+        end
+        if raycastData.Unit then
+            serializedRaycast.Unit = {x = raycastData.Unit.X, y = raycastData.Unit.Y, z = raycastData.Unit.Z}
+        end
+        
+        local placementRecord = {
+            action = "PlaceUnit",
+            unitId = unitId,
+            unitType = getUnitType(Services.Workspace._UNITS:FindFirstChild(newUnit.spawnId)),
+            spawnUUID = newUnit.spawnId,
+            actualPosition = newUnit.data.position,
+            raycast = serializedRaycast,
+            rotation = rotation,
+            wave = actionInfo.wave,
+            waveRelativeTime = actionInfo.waveRelativeTime,
+            timestamp = actionInfo.timestamp,
+            placementOrder = placementOrder,
+            placementCost = math.max(placementCost, 0)
+        }
+        
+        table.insert(macro, placementRecord)
+        notify("Macro Recorder", string.format("Recorded placement #%d: %s", placementOrder, unitId))
+    end
 end
 
 local function waitForUpgradeLevel(targetUnit, originalLevel, maxWaitTime)
@@ -859,206 +815,146 @@ local function waitForUpgradeLevel(targetUnit, originalLevel, maxWaitTime)
     return false -- Timeout or upgrade failed
 end
 
-local function handleUnitUpgradeClean(args)
-    if not isRecording or not recordingHasStarted then return end
+local function processUpgradeAction(actionInfo)
+    local remoteParam = actionInfo.args[1]
+    local targetUnit, targetSpawnId = findUnitFromRemoteParam(remoteParam)
     
-    local spawnUUIDFromRemote = args[1]
-    local timestamp = tick()
-    local currentWaveNum = getCurrentWave()
+    if not targetUnit or not targetSpawnId then return end
     
-    -- Calculate wave-relative time
-    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
-    local waveRelativeTime = timestamp - waveStartTime
+    local spawnIdStr = tostring(targetSpawnId)
+    local oldUnitData = actionInfo.preActionUnits[spawnIdStr]
     
-    -- Find the unit directly by checking all spawn_ids
-    local targetUnit, targetSpawnId = findUnitFromRemoteParam(spawnUUIDFromRemote)
+    if not oldUnitData then return end
     
-    if not targetUnit or not targetSpawnId then
-        print("Could not find unit for upgrade with remote parameter:", spawnUUIDFromRemote)
-        return
-    end
+    local currentLevel = getUnitUpgradeLevel(targetUnit)
+    local currentTotalSpent = getUnitTotalSpent(targetUnit)
+    local currentMoney = getPlayerMoney()
     
-    -- Find the placement order by checking our stored spawn_ids
+    local costByTotalSpent = currentTotalSpent - oldUnitData.totalSpent
+    local costByMoney = actionInfo.preActionMoney - currentMoney
+    local upgradeCost = costByTotalSpent > 0 and costByTotalSpent or costByMoney
+    
     local targetPlacementOrder = nil
+    local originalUnitId = nil
+    
     for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
-        if storedSpawnId == targetSpawnId then
+        if tostring(storedSpawnId) == spawnIdStr then
             targetPlacementOrder = placementOrder
             break
         end
     end
     
-    if not targetPlacementOrder then
-        print("Could not find placement order for spawn_id:", targetSpawnId)
-        return
-    end
-    
-    -- Get upgrade level and costs BEFORE upgrade
-    local upgradeLevelBefore = getUnitUpgradeLevel(targetUnit)
-    local totalSpentBefore = getUnitTotalSpent(targetUnit)
-    local moneyBefore = getPlayerMoney()
-    
-    notify("Macro Recorder", string.format("Recording upgrade attempt - Level %d, Total spent: %d, Player money: %d", 
-        upgradeLevelBefore, totalSpentBefore, moneyBefore))
-    
-    -- Wait for upgrade level to increase (up to 3 seconds)
-    local upgradeSuccess = waitForUpgradeLevel(targetUnit, upgradeLevelBefore, 3.0)
-    
-    local upgradeCost = 0
-    if upgradeSuccess then
-        -- Upgrade was successful - calculate cost
-        local totalSpentAfter = getUnitTotalSpent(targetUnit)
-        local newLevel = getUnitUpgradeLevel(targetUnit)
-        upgradeCost = totalSpentAfter - totalSpentBefore
-        
-        print(string.format("Upgrade successful: Level %d -> %d, Cost: %d", 
-            upgradeLevelBefore, newLevel, upgradeCost))
-        
-        -- Validation check
-        if upgradeCost <= 0 then
-            local moneyAfter = getPlayerMoney()
-            local moneySpent = moneyBefore - moneyAfter
-            
-            if moneySpent > 0 then
-                upgradeCost = moneySpent
-                print("Used money difference as upgrade cost:", upgradeCost)
-            else
-                warn("Upgrade level increased but no cost detected - this shouldn't happen")
-                upgradeCost = 1 -- Default minimal cost to indicate upgrade happened
+    if targetPlacementOrder then
+        for _, action in ipairs(macro) do
+            if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
+                originalUnitId = action.unitId
+                break
             end
         end
-    else
-        -- Upgrade failed or timed out
-        local moneyAfter = getPlayerMoney()
-        local moneySpent = moneyBefore - moneyAfter
-        local finalLevel = getUnitUpgradeLevel(targetUnit)
-        
-        if moneySpent > 0 then
-            -- Money was spent but level didn't change - might be max level or failed upgrade
-            upgradeCost = moneySpent
-            warn(string.format("Upgrade level didn't increase (stayed at %d) but money was spent: %d", 
-                finalLevel, moneySpent))
-        else
-            warn("Upgrade failed completely - no money spent and no level increase")
-            upgradeCost = 0
-        end
     end
     
-    local expectedPosition = placementOrderToPosition[targetPlacementOrder]
-    local originalUnitId = nil
-    
-    -- Find the original unit ID from placement action
-    for _, action in ipairs(macro) do
-        if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
-            originalUnitId = action.unitId
-            break
-        end
-    end
-    
-    table.insert(macro, {
+    local upgradeRecord = {
         action = "UpgradeUnit",
         unitId = originalUnitId,
         spawnId = targetSpawnId,
-        upgradeRemoteParam = spawnUUIDFromRemote,
-        unitPosition = expectedPosition,
-        wave = currentWaveNum,
-        waveRelativeTime = waveRelativeTime,
-        targetPlacementOrder = targetPlacementOrder,
-        upgradeCost = upgradeCost,
-        upgradeLevelBefore = upgradeLevelBefore,
-        upgradeLevelAfter = getUnitUpgradeLevel(targetUnit) -- Store final level for debugging
-    })
-
-    notify("Macro Recorder", string.format("Recorded upgrade for placement #%d (Level %d->%d, Wave %d, %.2fs) - Cost: %d", 
-        targetPlacementOrder, upgradeLevelBefore, getUnitUpgradeLevel(targetUnit), currentWaveNum, waveRelativeTime, upgradeCost))
+        upgradeRemoteParam = remoteParam,
+        unitPosition = placementOrderToPosition[targetPlacementOrder],
+        wave = actionInfo.wave,
+        waveRelativeTime = actionInfo.waveRelativeTime,
+        targetPlacementOrder = targetPlacementOrder or -1,
+        upgradeCost = math.max(upgradeCost, 0),
+        upgradeLevelBefore = oldUnitData.level,
+        upgradeLevelAfter = currentLevel,
+        timestamp = actionInfo.timestamp
+    }
+    
+    table.insert(macro, upgradeRecord)
+    notify("Macro Recorder", string.format("Recorded upgrade #%d: Level %d->%d", 
+        targetPlacementOrder or -1, oldUnitData.level, currentLevel))
 end
 
-local function handleUnitSellClean(args)
-    if not isRecording or not recordingHasStarted then return end
+local function processSellAction(actionInfo)
+    local currentUnits = captureUnitSnapshot()
+    local soldSpawnId = nil
     
-    local spawnUUIDFromRemote = args[1]
-    local timestamp = tick()
-    local currentWaveNum = getCurrentWave()
-    
-    -- Calculate wave-relative time
-    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
-    local waveRelativeTime = timestamp - waveStartTime
-    
-    -- Find the unit directly by checking all spawn_ids
-    local targetUnit, targetSpawnId = findUnitFromRemoteParam(spawnUUIDFromRemote)
-    
-    if not targetUnit or not targetSpawnId then
-        print("Could not find unit for sell with remote parameter:", spawnUUIDFromRemote)
-        return
+    -- Find which unit disappeared
+    for spawnId, oldData in pairs(actionInfo.preActionUnits) do
+        if not currentUnits[spawnId] then
+            soldSpawnId = spawnId
+            break
+        end
     end
     
-    -- Find the placement order by checking our stored spawn_ids
+    if not soldSpawnId then return end
+    
     local targetPlacementOrder = nil
+    local originalUnitId = nil
+    
     for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
-        if storedSpawnId == targetSpawnId then
+        if tostring(storedSpawnId) == soldSpawnId then
             targetPlacementOrder = placementOrder
             break
         end
     end
     
-    if not targetPlacementOrder then
-        print("Could not find placement order for spawn_id:", targetSpawnId)
-        return
-    end
-    
-    local expectedPosition = placementOrderToPosition[targetPlacementOrder]
-    local originalUnitId = nil
-    
-    -- Find the original unit ID from placement action
-    for _, action in ipairs(macro) do
-        if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
-            originalUnitId = action.unitId
-            break
+    if targetPlacementOrder then
+        for _, action in ipairs(macro) do
+            if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
+                originalUnitId = action.unitId
+                break
+            end
         end
     end
     
-    table.insert(macro, {
+    local sellRecord = {
         action = "SellUnit",
         unitId = originalUnitId,
-        spawnId = targetSpawnId,
-        sellRemoteParam = spawnUUIDFromRemote,
-        unitPosition = expectedPosition,
-        wave = currentWaveNum,
-        waveRelativeTime = waveRelativeTime,
-        targetPlacementOrder = targetPlacementOrder
-    })
-
-    notify("Macro Recorder", string.format("Recorded sell for placement #%d (Spawn ID: %s, Wave %d, %.2fs)", 
-        targetPlacementOrder, tostring(targetSpawnId), currentWaveNum, waveRelativeTime))
+        spawnId = soldSpawnId,
+        sellRemoteParam = actionInfo.args[1],
+        unitPosition = placementOrderToPosition[targetPlacementOrder],
+        wave = actionInfo.wave,
+        waveRelativeTime = actionInfo.waveRelativeTime,
+        targetPlacementOrder = targetPlacementOrder or -1,
+        timestamp = actionInfo.timestamp
+    }
+    
+    table.insert(macro, sellRecord)
     
     -- Clean up mappings
-    placementOrderToSpawnUUID[targetPlacementOrder] = nil
-    if expectedPosition then
-        local positionKey = positionToKey(expectedPosition)
-        unitPositionToPlacementOrder[positionKey] = nil
+    if targetPlacementOrder then
+        placementOrderToSpawnUUID[targetPlacementOrder] = nil
+        local expectedPosition = placementOrderToPosition[targetPlacementOrder]
+        if expectedPosition then
+            local positionKey = positionToKey(expectedPosition)
+            unitPositionToPlacementOrder[positionKey] = nil
+        end
+        placementOrderToPosition[targetPlacementOrder] = nil
     end
-    placementOrderToPosition[targetPlacementOrder] = nil
+    
+    notify("Macro Recorder", string.format("Recorded sell #%d", targetPlacementOrder or -1))
 end
 
-local function handleWaveSkip(args)
-    if not isRecording or not recordingHasStarted then return end
-    
-    local timestamp = tick()
-    local currentWaveNum = getCurrentWave()
-    
-    -- Calculate wave-relative time
-    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
-    local waveRelativeTime = timestamp - waveStartTime
-    
+local function processWaveSkipAction(actionInfo)
     table.insert(macro, {
         action = "SkipWave",
-        wave = currentWaveNum,
-        waveRelativeTime = waveRelativeTime,
-        timestamp = timestamp
-        -- Removed playerOwner field
+        wave = actionInfo.wave,
+        waveRelativeTime = actionInfo.waveRelativeTime,
+        timestamp = actionInfo.timestamp
     })
+    
+    notify("Macro Recorder", string.format("Recorded wave skip at wave %d", actionInfo.wave))
+end
 
-    notify("Macro Recorder",string.format("Recorded wave skip at wave %d (%.2fs into wave)", 
-        currentWaveNum, waveRelativeTime))
+local function processActionResponse(actionInfo)
+    if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
+        processPlacementAction(actionInfo)
+    elseif actionInfo.remoteName == MACRO_CONFIG.UPGRADE_REMOTE then
+        processUpgradeAction(actionInfo)
+    elseif actionInfo.remoteName == MACRO_CONFIG.SELL_REMOTE then
+        processSellAction(actionInfo)
+    elseif actionInfo.remoteName == MACRO_CONFIG.WAVE_SKIP_REMOTE then
+        processWaveSkipAction(actionInfo)
+    end
 end
 
 -- Hook Setup
@@ -1071,21 +967,41 @@ local function setupMacroHooks()
         local args = { ... }
         local method = getnamecallmethod()
         
-        if not checkcaller() then
-            task.spawn(function()
-                if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
-                    
-                    if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
-                        handleUnitPlacement(args)
-                    elseif self.Name == MACRO_CONFIG.UPGRADE_REMOTE then
-                        handleUnitUpgradeClean(args)
-                    elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
-                        handleUnitSellClean(args)
-                    elseif self.Name == MACRO_CONFIG.WAVE_SKIP_REMOTE then
-                        handleWaveSkip(args)
-                    end
+        if not checkcaller() and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
+            if isRecording and recordingHasStarted then
+                local timestamp = tick()
+                local currentWaveNum = getCurrentWave()
+                local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
+                local waveRelativeTime = timestamp - waveStartTime
+                
+                -- Capture state before action
+                local preActionMoney = getPlayerMoney()
+                local preActionUnits = captureUnitSnapshot()
+                
+                -- Call original function
+                local success, result = pcall(oldNamecall, self, ...)
+                
+                if success then
+                    -- Process the action after server confirms it
+                    task.spawn(function()
+                        task.wait(0.3) -- Small delay for server state sync
+                        
+                        local actionInfo = {
+                            remoteName = self.Name,
+                            args = args,
+                            timestamp = timestamp,
+                            wave = currentWaveNum,
+                            waveRelativeTime = waveRelativeTime,
+                            preActionMoney = preActionMoney,
+                            preActionUnits = preActionUnits
+                        }
+                        
+                        processActionResponse(actionInfo)
+                    end)
                 end
-            end)
+                
+                return result
+            end
         end
         
         return oldNamecall(self, ...)
@@ -1140,27 +1056,6 @@ local function getUnitNameFromSpawnId(spawnId)
         return getUnitDisplayName(unitId)
     end
     return "Unknown Unit"
-end
-
-local function getUnitSpawnId(unit)
-    if not unit then return nil end
-    
-    -- Try to get spawn_id from the unit's _stats
-    local stats = unit:FindFirstChild("_stats")
-    if stats then
-        local spawnIdValue = stats:FindFirstChild("spawn_id")
-        if spawnIdValue then
-            return spawnIdValue.Value
-        end
-    end
-    
-    -- Fallback: try to get from _SPAWN_UNIT_UUID attribute
-    local spawnUUID = unit:GetAttribute("_SPAWN_UNIT_UUID")
-    if spawnUUID then
-        return spawnUUID
-    end
-    
-    return nil
 end
 
 local function executeActionWithStatusClean(action, playbackMapping, actionIndex, totalActionCount)
