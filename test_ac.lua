@@ -1,4 +1,4 @@
--- 26
+-- 27
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -376,6 +376,27 @@ local function findUnitBySpawnId(targetSpawnId)
     end
     
     return nil
+end
+
+local function findUnitByPlacementOrder(playbackMapping, targetPlacementOrder)
+    local spawnId = playbackMapping[targetPlacementOrder]
+    if not spawnId then
+        print("No spawn ID found for placement order:", targetPlacementOrder)
+        return nil, nil
+    end
+    
+    local unit = findUnitBySpawnId(spawnId)
+    if not unit then
+        print("No unit found for spawn ID:", spawnId, "placement order:", targetPlacementOrder)
+        return nil, spawnId
+    end
+    
+    if not isOwnedByLocalPlayer(unit) then
+        print("Unit not owned by local player for spawn ID:", spawnId)
+        return nil, spawnId
+    end
+    
+    return unit, spawnId
 end
 
 local function findUnitFromRemoteParam(remoteParam)
@@ -1130,8 +1151,8 @@ local function validatePlacementAction(action, playbackMapping, actionIndex, tot
         
         if requiredCost > 0 and currentMoney < requiredCost then
             local missingMoney = requiredCost - currentMoney
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to place %s", 
-                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, unitDisplayName))
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to place %s #%d", 
+                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, unitDisplayName, action.placementOrder))
             
             if attempt == maxRetries then
                 updateDetailedStatus(string.format("(%d/%d) FAILED: Not enough money after %d attempts", 
@@ -1143,8 +1164,8 @@ local function validatePlacementAction(action, playbackMapping, actionIndex, tot
             continue
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", 
-            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s #%d", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.placementOrder))
         
         local beforeSnapshot = takeUnitsSnapshot()
         
@@ -1197,8 +1218,8 @@ local function validatePlacementAction(action, playbackMapping, actionIndex, tot
         end)
         
         if not success then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s", 
-                actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s #%d", 
+                actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.placementOrder))
             
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
@@ -1216,24 +1237,27 @@ local function validatePlacementAction(action, playbackMapping, actionIndex, tot
         if placedUnit and isOwnedByLocalPlayer(placedUnit) then
             local newSpawnId = getUnitSpawnId(placedUnit)
             if newSpawnId then
+                -- IMPORTANT: Store the mapping with placement order as key
                 playbackMapping[action.placementOrder] = newSpawnId
-                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s (attempt %d/%d)", 
-                    actionIndex, totalActionCount, unitDisplayName, attempt, maxRetries))
+                print(string.format("Mapped placement order %d to spawn ID %s", action.placementOrder, tostring(newSpawnId)))
+                
+                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s #%d (SpawnID: %s, attempt %d/%d)", 
+                    actionIndex, totalActionCount, unitDisplayName, action.placementOrder, tostring(newSpawnId), attempt, maxRetries))
                 return true
             end
         end
         
         -- Placement failed, log and potentially retry
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate placement of %s", 
-            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate placement of %s #%d", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.placementOrder))
         
         if attempt < maxRetries then
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s after %d attempts", 
-        actionIndex, totalActionCount, unitDisplayName, maxRetries))
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s #%d after %d attempts", 
+        actionIndex, totalActionCount, unitDisplayName, action.placementOrder, maxRetries))
     return false
 end
 
@@ -1241,24 +1265,39 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
     
-    local currentSpawnId = playbackMapping[action.targetPlacementOrder]
-    if not currentSpawnId then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No unit mapped for upgrade", 
-            actionIndex, totalActionCount))
+    -- FIXED: Better unit finding with placement order verification
+    local targetUnit, currentSpawnId = findUnitByPlacementOrder(playbackMapping, action.targetPlacementOrder)
+    
+    if not targetUnit or not currentSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No unit mapped for placement order %d", 
+            actionIndex, totalActionCount, action.targetPlacementOrder or -1))
+        
+        -- Debug: Show current mapping state
+        print("Current playback mapping:")
+        for order, spawnId in pairs(playbackMapping) do
+            local unit = findUnitBySpawnId(spawnId)
+            local unitName = unit and getUnitDisplayName(getUnitSpawnId(unit)) or "Not found"
+            print(string.format("  Order %d -> SpawnID %s (%s)", order, tostring(spawnId), unitName))
+        end
+        
         return false
     end
+    
+    local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
     
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        local unit = findUnitBySpawnId(currentSpawnId)
-        if not unit or not isOwnedByLocalPlayer(unit) then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for upgrade", 
-                actionIndex, totalActionCount))
+        -- Re-verify the unit still exists and is the right one
+        local unit, spawnId = findUnitByPlacementOrder(playbackMapping, action.targetPlacementOrder)
+        if not unit or not spawnId then
+            updateDetailedStatus(string.format("(%d/%d) FAILED: Unit disappeared for placement order %d", 
+                actionIndex, totalActionCount, action.targetPlacementOrder))
             return false
         end
         
-        local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
+        -- IMPORTANT: Verify we're upgrading the right unit by checking its position/type
+        local currentUnitName = getUnitNameFromSpawnId(spawnId)
         local originalLevel = getUnitUpgradeLevel(unit)
         
         -- Check money requirement
@@ -1267,8 +1306,8 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
         
         if requiredCost > 0 and currentMoney < requiredCost then
             local missingMoney = requiredCost - currentMoney
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to upgrade %s", 
-                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, unitDisplayName))
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to upgrade %s #%d", 
+                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, currentUnitName, action.targetPlacementOrder))
             
             if attempt == maxRetries then
                 updateDetailedStatus(string.format("(%d/%d) FAILED: Not enough money after %d attempts", 
@@ -1280,17 +1319,17 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             continue
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s (Level %d)", 
-            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, originalLevel))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s #%d (Level %d, SpawnID: %s)", 
+            actionIndex, totalActionCount, attempt, maxRetries, currentUnitName, action.targetPlacementOrder, originalLevel, tostring(spawnId)))
         
-        -- Execute upgrade
+        -- Execute upgrade with the ORIGINAL remote parameter from recording
         local success = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(action.upgradeRemoteParam)
         end)
         
         if not success then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for upgrade %s", 
-                actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s #%d", 
+                actionIndex, totalActionCount, attempt, maxRetries, currentUnitName, action.targetPlacementOrder))
             
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
@@ -1300,33 +1339,54 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             end
         end
         
-        -- FIXED: Wait longer before starting validation to give server time to process
+        -- Wait for server processing
         task.wait(1.0)
         
-        -- FIXED: Wait and validate upgrade using spawn ID instead of unit reference
-        local upgradeSuccess = waitForUpgradeSuccess(currentSpawnId, originalLevel, VALIDATION_CONFIG.UPGRADE_TIMEOUT)
+        -- Validate upgrade success by re-checking the SPECIFIC unit
+        local upgradeSuccess = false
+        local validationStartTime = tick()
+        
+        while tick() - validationStartTime < VALIDATION_CONFIG.UPGRADE_TIMEOUT do
+            if not isPlaybacking then return false end
+            
+            -- Re-find the unit to ensure we're checking the right one
+            local currentUnit = findUnitBySpawnId(spawnId)
+            if currentUnit and isOwnedByLocalPlayer(currentUnit) then
+                local currentLevel = getUnitUpgradeLevel(currentUnit)
+                print(string.format("Validation check - SpawnID %s: Level %d (was %d)", tostring(spawnId), currentLevel, originalLevel))
+                
+                if currentLevel > originalLevel then
+                    upgradeSuccess = true
+                    updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s #%d from Level %d to %d (attempt %d/%d)", 
+                        actionIndex, totalActionCount, currentUnitName, action.targetPlacementOrder, originalLevel, currentLevel, attempt, maxRetries))
+                    break
+                end
+            else
+                print("Unit lost during validation - spawn ID:", tostring(spawnId))
+                break
+            end
+            
+            task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
+        end
         
         if upgradeSuccess then
-            updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s (attempt %d/%d)", 
-                actionIndex, totalActionCount, unitDisplayName, attempt, maxRetries))
             return true
         end
         
-        -- Get current level for better error reporting
-        local currentUnit = findUnitBySpawnId(currentSpawnId)
-        local currentLevel = currentUnit and getUnitUpgradeLevel(currentUnit) or originalLevel
+        -- Get final level for error reporting
+        local finalUnit = findUnitBySpawnId(spawnId)
+        local finalLevel = finalUnit and getUnitUpgradeLevel(finalUnit) or originalLevel
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate upgrade of %s (Level still %d)", 
-            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, currentLevel))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate upgrade of %s #%d (Level still %d after %.1fs)", 
+            actionIndex, totalActionCount, attempt, maxRetries, currentUnitName, action.targetPlacementOrder, finalLevel, VALIDATION_CONFIG.UPGRADE_TIMEOUT))
         
         if attempt < maxRetries then
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
         end
     end
     
-    local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not upgrade %s after %d attempts", 
-        actionIndex, totalActionCount, unitDisplayName, maxRetries))
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not upgrade %s #%d after %d attempts", 
+        actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder, maxRetries))
     return false
 end
 
