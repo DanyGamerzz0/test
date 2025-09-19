@@ -1,4 +1,4 @@
--- 21
+-- 23
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -967,43 +967,40 @@ local function setupMacroHooks()
         local args = { ... }
         local method = getnamecallmethod()
         
-        if not checkcaller() and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
-            if isRecording and recordingHasStarted then
-                local timestamp = tick()
-                local currentWaveNum = getCurrentWave()
-                local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
-                local waveRelativeTime = timestamp - waveStartTime
+        if not checkcaller() then
+            -- Only hook recording logic, don't interfere with the actual call
+            if isRecording and recordingHasStarted and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
                 
-                -- Capture state before action
-                local preActionMoney = getPlayerMoney()
-                local preActionUnits = captureUnitSnapshot()
-                
-                -- Call original function
-                local success, result = pcall(oldNamecall, self, ...)
-                
-                if success then
-                    -- Process the action after server confirms it
-                    task.spawn(function()
-                        task.wait(0.3) -- Small delay for server state sync
-                        
-                        local actionInfo = {
-                            remoteName = self.Name,
-                            args = args,
-                            timestamp = timestamp,
-                            wave = currentWaveNum,
-                            waveRelativeTime = waveRelativeTime,
-                            preActionMoney = preActionMoney,
-                            preActionUnits = preActionUnits
-                        }
-                        
-                        processActionResponse(actionInfo)
-                    end)
-                end
-                
-                return result
+                -- Just spawn the recording logic without blocking the original call
+                task.spawn(function()
+                    local timestamp = tick()
+                    local currentWaveNum = getCurrentWave()
+                    local waveStartTime = waveStartTimes[currentWaveNum] or timestamp
+                    local waveRelativeTime = timestamp - waveStartTime
+                    
+                    -- Capture state before
+                    local preActionMoney = getPlayerMoney()
+                    local preActionUnits = captureUnitSnapshot()
+                    
+                    -- Wait for action to complete
+                    task.wait(0.5)
+                    
+                    local actionInfo = {
+                        remoteName = self.Name,
+                        args = args,
+                        timestamp = timestamp,
+                        wave = currentWaveNum,
+                        waveRelativeTime = waveRelativeTime,
+                        preActionMoney = preActionMoney,
+                        preActionUnits = preActionUnits
+                    }
+                    
+                    processActionResponse(actionInfo)
+                end)
             end
         end
         
+        -- Always call the original function normally
         return oldNamecall(self, ...)
     end)
 
