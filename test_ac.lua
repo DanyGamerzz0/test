@@ -1,4 +1,4 @@
--- 23
+-- 25
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -128,6 +128,15 @@ local recordingPlacementCounter = 0
 local unitPositionToPlacementOrder = {}
 local placementOrderToPosition = {}
 local placementOrderToSpawnUUID = {}
+
+local VALIDATION_CONFIG = {
+    PLACEMENT_MAX_RETRIES = 3,
+    UPGRADE_MAX_RETRIES = 3,
+    PLACEMENT_TIMEOUT = 10.0, -- seconds to wait for placement to complete
+    UPGRADE_TIMEOUT = 8.0,    -- seconds to wait for upgrade to complete
+    VALIDATION_CHECK_INTERVAL = 0.2, -- how often to check for success
+    RETRY_DELAY = 0.5, -- delay between retry attempts
+}
 
 local isAutoLoopEnabled = false
 local gameHasEnded = false
@@ -1055,137 +1064,266 @@ local function getUnitNameFromSpawnId(spawnId)
     return "Unknown Unit"
 end
 
-local function executeActionWithStatusClean(action, playbackMapping, actionIndex, totalActionCount)
+local function waitForPlacementSuccess(expectedSpawnId, timeout)
+    local startTime = tick()
+    
+    while tick() - startTime < timeout do
+        if not isPlaybacking then return false end
+        
+        -- Check if unit with expected spawn ID exists and is owned by player
+        local unit = findUnitBySpawnId(expectedSpawnId)
+        if unit and isOwnedByLocalPlayer(unit) then
+            return true, unit
+        end
+        
+        task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
+    end
+    
+    return false, nil
+end
+
+local function waitForUpgradeSuccess(targetUnit, originalLevel, timeout)
+    local startTime = tick()
+    
+    while tick() - startTime < timeout do
+        if not isPlaybacking then return false end
+        
+        -- Check if unit still exists and level increased
+        if targetUnit and targetUnit.Parent then
+            local currentLevel = getUnitUpgradeLevel(targetUnit)
+            if currentLevel > originalLevel then
+                return true
+            end
+        else
+            -- Unit was destroyed/sold, consider as failure
+            return false
+        end
+        
+        task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
+    end
+    
+    return false
+end
+
+local function validatePlacementAction(action, playbackMapping, actionIndex, totalActionCount)
+    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    local unitDisplayName = getUnitDisplayName(action.unitId)
+    local maxRetries = VALIDATION_CONFIG.PLACEMENT_MAX_RETRIES
+    
+    for attempt = 1, maxRetries do
+        if not isPlaybacking then return false end
+        
+        -- Check money requirement
+        local currentMoney = getPlayerMoney()
+        local requiredCost = action.placementCost or 0
+        
+        if requiredCost > 0 and currentMoney < requiredCost then
+            local missingMoney = requiredCost - currentMoney
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to place %s", 
+                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, unitDisplayName))
+            
+            if attempt == maxRetries then
+                updateDetailedStatus(string.format("(%d/%d) FAILED: Not enough money after %d attempts", 
+                    actionIndex, totalActionCount, maxRetries))
+                return false
+            end
+            
+            task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+            continue
+        end
+        
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        
+        local beforeSnapshot = takeUnitsSnapshot()
+        
+        -- Build raycast parameter with random offset
+        local raycastParam = {}
+        if action.raycast then
+            local originalUnit = action.raycast.Unit
+            local offsetUnit = originalUnit
+            
+            if State.RandomOffsetEnabled then
+                if type(originalUnit) == "table" then
+                    local originalPos = Vector3.new(originalUnit.x, originalUnit.y, originalUnit.z)
+                    local offsetPos = applyRandomOffset(originalPos, State.RandomOffsetAmount)
+                    offsetUnit = {x = offsetPos.X, y = offsetPos.Y, z = offsetPos.Z}
+                elseif type(originalUnit) == "userdata" then
+                    offsetUnit = applyRandomOffset(originalUnit, State.RandomOffsetAmount)
+                end
+            end
+            
+            if action.raycast.Origin then
+                if type(action.raycast.Origin) == "table" then
+                    raycastParam.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
+                else
+                    raycastParam.Origin = action.raycast.Origin
+                end
+            end
+            
+            if action.raycast.Direction then
+                if type(action.raycast.Direction) == "table" then
+                    raycastParam.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
+                else
+                    raycastParam.Direction = action.raycast.Direction
+                end
+            end
+            
+            if type(offsetUnit) == "table" then
+                raycastParam.Unit = Vector3.new(offsetUnit.x, offsetUnit.y, offsetUnit.z)
+            else
+                raycastParam.Unit = offsetUnit
+            end
+        end
+
+        -- Execute placement
+        local success, error = pcall(function()
+            endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
+                action.unitId,
+                raycastParam,
+                action.rotation
+            )
+        end)
+        
+        if not success then
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s", 
+                actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+            
+            if attempt < maxRetries then
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                continue
+            else
+                return false
+            end
+        end
+        
+        -- Wait for placement validation
+        task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME)
+        local afterSnapshot = takeUnitsSnapshot()
+        local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+        
+        if placedUnit and isOwnedByLocalPlayer(placedUnit) then
+            local newSpawnId = getUnitSpawnId(placedUnit)
+            if newSpawnId then
+                playbackMapping[action.placementOrder] = newSpawnId
+                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s (attempt %d/%d)", 
+                    actionIndex, totalActionCount, unitDisplayName, attempt, maxRetries))
+                return true
+            end
+        end
+        
+        -- Placement failed, log and potentially retry
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate placement of %s", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        
+        if attempt < maxRetries then
+            task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+        end
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s after %d attempts", 
+        actionIndex, totalActionCount, unitDisplayName, maxRetries))
+    return false
+end
+
+local function validateUpgradeAction(action, playbackMapping, actionIndex, totalActionCount)
+    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
+    
+    local currentSpawnId = playbackMapping[action.targetPlacementOrder]
+    if not currentSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No unit mapped for upgrade", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    for attempt = 1, maxRetries do
+        if not isPlaybacking then return false end
+        
+        local unit = findUnitBySpawnId(currentSpawnId)
+        if not unit or not isOwnedByLocalPlayer(unit) then
+            updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for upgrade", 
+                actionIndex, totalActionCount))
+            return false
+        end
+        
+        local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
+        local originalLevel = getUnitUpgradeLevel(unit)
+        
+        -- Check money requirement
+        local currentMoney = getPlayerMoney()
+        local requiredCost = action.upgradeCost or 0
+        
+        if requiredCost > 0 and currentMoney < requiredCost then
+            local missingMoney = requiredCost - currentMoney
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to upgrade %s", 
+                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, unitDisplayName))
+            
+            if attempt == maxRetries then
+                updateDetailedStatus(string.format("(%d/%d) FAILED: Not enough money after %d attempts", 
+                    actionIndex, totalActionCount, maxRetries))
+                return false
+            end
+            
+            task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+            continue
+        end
+        
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        
+        -- Execute upgrade
+        local success = pcall(function()
+            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(action.upgradeRemoteParam)
+        end)
+        
+        if not success then
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for upgrade %s", 
+                actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+            
+            if attempt < maxRetries then
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                continue
+            else
+                return false
+            end
+        end
+        
+        -- Wait and validate upgrade
+        local upgradeSuccess = waitForUpgradeSuccess(unit, originalLevel, VALIDATION_CONFIG.UPGRADE_TIMEOUT)
+        
+        if upgradeSuccess then
+            updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s (attempt %d/%d)", 
+                actionIndex, totalActionCount, unitDisplayName, attempt, maxRetries))
+            return true
+        end
+        
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate upgrade of %s", 
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName))
+        
+        if attempt < maxRetries then
+            task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+        end
+    end
+    
+    local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not upgrade %s after %d attempts", 
+        actionIndex, totalActionCount, unitDisplayName, maxRetries))
+    return false
+end
+
+
+local function executeActionWithValidation(action, playbackMapping, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
     currentActionIndex = actionIndex
     totalActions = totalActionCount
     
-if action.action == "PlaceUnit" then
-    local unitDisplayName = getUnitDisplayName(action.unitId)
-    local currentMoney = getPlayerMoney()
-    local requiredCost = action.placementCost or 0
-    
-    if requiredCost > 0 and currentMoney < requiredCost then
-        local missingMoney = requiredCost - currentMoney
-        updateDetailedStatus(string.format("(%d/%d) Missing %d yen to place %s", 
-            actionIndex, totalActionCount, missingMoney, unitDisplayName))
-        return
-    end
-    
-    updateDetailedStatus(string.format("(%d/%d) Placing %s (Cost: %d)", 
-        actionIndex, totalActionCount, unitDisplayName, requiredCost))
-    
-    local beforeSnapshot = takeUnitsSnapshot()
-    
-    -- Build raycast parameter with random offset applied
-    local raycastParam = {}
-    if action.raycast then
-        local originalUnit = action.raycast.Unit
-        local offsetUnit = originalUnit
-        
-        -- Apply random offset to Unit position if enabled
-        if type(originalUnit) == "table" then
-            local originalPos = Vector3.new(originalUnit.x, originalUnit.y, originalUnit.z)
-            local offsetPos = applyRandomOffset(originalPos, State.RandomOffsetAmount)
-            offsetUnit = {x = offsetPos.X, y = offsetPos.Y, z = offsetPos.Z}
-        elseif type(originalUnit) == "userdata" then
-            offsetUnit = applyRandomOffset(originalUnit, State.RandomOffsetAmount)
-        end
-        
-        if action.raycast.Origin then
-            if type(action.raycast.Origin) == "table" then
-                raycastParam.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
-            else
-                raycastParam.Origin = action.raycast.Origin
-            end
-        end
-        
-        if action.raycast.Direction then
-            if type(action.raycast.Direction) == "table" then
-                raycastParam.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
-            else
-                raycastParam.Direction = action.raycast.Direction
-            end
-        end
-        
-        -- Use the offset Unit position
-        if type(offsetUnit) == "table" then
-            raycastParam.Unit = Vector3.new(offsetUnit.x, offsetUnit.y, offsetUnit.z)
-        else
-            raycastParam.Unit = offsetUnit
-        end
-    end
-
-    local success, error = pcall(function()
-        endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-            action.unitId,
-            raycastParam,
-            action.rotation
-        )
-    end)
-    
-    if not success then
-        updateDetailedStatus(string.format("(%d/%d) Failed to place %s", 
-            actionIndex, totalActionCount, unitDisplayName))
-        return
-    end
-    
-    task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME + MACRO_CONFIG.SNAPSHOT_WAIT_TIME)
-    local afterSnapshot = takeUnitsSnapshot()
-    
-    local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
-    if placedUnit and isOwnedByLocalPlayer(placedUnit) then
-        local newSpawnId = getUnitSpawnId(placedUnit)
-        if newSpawnId then
-            playbackMapping[action.placementOrder] = newSpawnId
-            updateDetailedStatus(string.format("(%d/%d) Placed %s", 
-                actionIndex, totalActionCount, unitDisplayName))
-        end
-    else
-        updateDetailedStatus(string.format("(%d/%d) Failed to find placed %s", 
-            actionIndex, totalActionCount, unitDisplayName))
-    end
+    if action.action == "PlaceUnit" then
+        return validatePlacementAction(action, playbackMapping, actionIndex, totalActionCount)
         
     elseif action.action == "UpgradeUnit" then
-        local currentSpawnId = playbackMapping[action.targetPlacementOrder]
-        if currentSpawnId then
-            local unit = findUnitBySpawnId(currentSpawnId)
-            if unit and isOwnedByLocalPlayer(unit) then
-                local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
-                local currentMoney = getPlayerMoney()
-                local requiredCost = action.upgradeCost or 0
-                
-                if requiredCost > 0 and currentMoney < requiredCost then
-                    local missingMoney = requiredCost - currentMoney
-                    updateDetailedStatus(string.format("(%d/%d) Missing %d yen to upgrade %s", 
-                        actionIndex, totalActionCount, missingMoney, unitDisplayName))
-                    return
-                end
-                
-                updateDetailedStatus(string.format("(%d/%d) Upgrading %s (Cost: %d)", 
-                    actionIndex, totalActionCount, unitDisplayName, requiredCost))
-                
-                -- Use the original remote parameter for the upgrade call
-                local success = pcall(function()
-                    endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(action.upgradeRemoteParam)
-                end)
-                
-                if success then
-                    updateDetailedStatus(string.format("(%d/%d) Upgraded %s", 
-                        actionIndex, totalActionCount, unitDisplayName))
-                else
-                    updateDetailedStatus(string.format("(%d/%d) Failed to upgrade %s", 
-                        actionIndex, totalActionCount, unitDisplayName))
-                end
-            else
-                updateDetailedStatus(string.format("(%d/%d) Could not find unit for upgrade", 
-                    actionIndex, totalActionCount))
-            end
-        else
-            updateDetailedStatus(string.format("(%d/%d) No unit mapped for upgrade", 
-                actionIndex, totalActionCount))
-        end
+        return validateUpgradeAction(action, playbackMapping, actionIndex, totalActionCount)
         
     elseif action.action == "SellUnit" then
         local currentSpawnId = playbackMapping[action.targetPlacementOrder]
@@ -1197,7 +1335,6 @@ if action.action == "PlaceUnit" then
                 updateDetailedStatus(string.format("(%d/%d) Selling %s", 
                     actionIndex, totalActionCount, unitDisplayName))
                 
-                -- Use the original remote parameter for the sell call
                 local success = pcall(function()
                     endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(action.sellRemoteParam)
                 end)
@@ -1206,30 +1343,43 @@ if action.action == "PlaceUnit" then
                     playbackMapping[action.targetPlacementOrder] = nil
                     updateDetailedStatus(string.format("(%d/%d) Sold %s", 
                         actionIndex, totalActionCount, unitDisplayName))
+                    return true
                 else
                     updateDetailedStatus(string.format("(%d/%d) Failed to sell %s", 
                         actionIndex, totalActionCount, unitDisplayName))
+                    return false
                 end
             else
                 updateDetailedStatus(string.format("(%d/%d) Could not find unit for sell", 
                     actionIndex, totalActionCount))
+                return false
             end
         else
             updateDetailedStatus(string.format("(%d/%d) No unit mapped for sell", 
                 actionIndex, totalActionCount))
+            return false
         end
         
     elseif action.action == "SkipWave" then
         updateDetailedStatus(string.format("(%d/%d) Skipping wave", 
             actionIndex, totalActionCount))
         
-        pcall(function()
+        local success = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
         end)
         
-        updateDetailedStatus(string.format("(%d/%d) Wave skipped", 
-            actionIndex, totalActionCount))
+        if success then
+            updateDetailedStatus(string.format("(%d/%d) Wave skipped", 
+                actionIndex, totalActionCount))
+        else
+            updateDetailedStatus(string.format("(%d/%d) Failed to skip wave", 
+                actionIndex, totalActionCount))
+        end
+        
+        return success
     end
+    
+    return false
 end
 
 local playbackWaveStartTimes = {}
@@ -4158,7 +4308,11 @@ local function playMacroLoopWithInterruptsIgnoreTiming()
         end
         
         -- Execute the action
-        executeActionWithStatusClean(action, playbackMapping, i, totalActions)
+        local actionSuccess = executeActionWithValidation(action, playbackMapping, i, totalActions)
+
+        if not actionSuccess then
+    notify("Macro Playback",string.format("Action %d failed completely, continuing with next action", i))
+end
     end
     
     if State.IgnoreTiming then
