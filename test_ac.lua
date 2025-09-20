@@ -1,4 +1,4 @@
--- 35
+-- 36
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1209,24 +1209,54 @@ local function validatePlacementAction(action, playbackMapping, actionIndex, tot
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        -- Check money requirement
+        -- Check money requirement and wait for sufficient funds
         local currentMoney = getPlayerMoney()
         local requiredCost = action.placementCost or 0
         
         if requiredCost > 0 and currentMoney < requiredCost then
             local missingMoney = requiredCost - currentMoney
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to place %s #%d", 
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to place %s #%d - waiting for money...", 
                 actionIndex, totalActionCount, attempt, maxRetries, missingMoney, unitDisplayName, action.placementOrder))
             
-            if attempt == maxRetries then
-                updateDetailedStatus(string.format("(%d/%d) FAILED: Not enough money after %d attempts", 
-                    actionIndex, totalActionCount, maxRetries))
+            -- Wait for sufficient money with timeout
+            local moneyWaitStart = tick()
+            local maxMoneyWaitTime = 300 -- 5 minutes max wait for money
+            
+            while currentMoney < requiredCost and isPlaybacking and not gameHasEnded do
+                if tick() - moneyWaitStart > maxMoneyWaitTime then
+                    updateDetailedStatus(string.format("(%d/%d) TIMEOUT: Waited %d seconds for money, still need %d more yen", 
+                        actionIndex, totalActionCount, maxMoneyWaitTime, requiredCost - currentMoney))
+                    break
+                end
+                
+                task.wait(1) -- Check money every second
+                currentMoney = getPlayerMoney()
+                local stillMissing = requiredCost - currentMoney
+                
+                if stillMissing > 0 then
+                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen to place %s #%d...", 
+                        actionIndex, totalActionCount, stillMissing, unitDisplayName, action.placementOrder))
+                end
+            end
+            
+            -- Check if we got interrupted or timed out
+            if not isPlaybacking or gameHasEnded then
                 return false
             end
             
-            -- Only delay on retries when there's an actual problem
-            task.wait(VALIDATION_CONFIG.RETRY_DELAY)
-            continue
+            -- Final money check after waiting
+            currentMoney = getPlayerMoney()
+            if currentMoney < requiredCost then
+                if attempt == maxRetries then
+                    updateDetailedStatus(string.format("(%d/%d) FAILED: Still not enough money after waiting and %d attempts", 
+                        actionIndex, totalActionCount, maxRetries))
+                    return false
+                end
+                
+                -- If still not enough money and we have retries left, delay and try again
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                continue
+            end
         end
         
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s #%d", 
@@ -1355,23 +1385,54 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
         local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
         local originalLevel = getUnitUpgradeLevel(unit)
         
-        -- Check money requirement
+        -- Check money requirement and wait for sufficient funds
         local currentMoney = getPlayerMoney()
         local requiredCost = action.upgradeCost or 0
         
         if requiredCost > 0 and currentMoney < requiredCost then
             local missingMoney = requiredCost - currentMoney
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to upgrade %s #%d", 
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to upgrade %s #%d - waiting for money...", 
                 actionIndex, totalActionCount, attempt, maxRetries, missingMoney, unitDisplayName, action.targetPlacementOrder))
             
-            if attempt == maxRetries then
-                updateDetailedStatus(string.format("(%d/%d) FAILED: Not enough money after %d attempts", 
-                    actionIndex, totalActionCount, maxRetries))
+            -- Wait for sufficient money with timeout
+            local moneyWaitStart = tick()
+            local maxMoneyWaitTime = 300 -- 5 minutes max wait for money
+            
+            while currentMoney < requiredCost and isPlaybacking and not gameHasEnded do
+                if tick() - moneyWaitStart > maxMoneyWaitTime then
+                    updateDetailedStatus(string.format("(%d/%d) TIMEOUT: Waited %d seconds for money, still need %d more yen", 
+                        actionIndex, totalActionCount, maxMoneyWaitTime, requiredCost - currentMoney))
+                    break
+                end
+                
+                task.wait(1) -- Check money every second
+                currentMoney = getPlayerMoney()
+                local stillMissing = requiredCost - currentMoney
+                
+                if stillMissing > 0 then
+                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen to upgrade %s #%d...", 
+                        actionIndex, totalActionCount, stillMissing, unitDisplayName, action.targetPlacementOrder))
+                end
+            end
+            
+            -- Check if we got interrupted or timed out
+            if not isPlaybacking or gameHasEnded then
                 return false
             end
             
-            task.wait(VALIDATION_CONFIG.RETRY_DELAY) -- Only delay on retries
-            continue
+            -- Final money check after waiting
+            currentMoney = getPlayerMoney()
+            if currentMoney < requiredCost then
+                if attempt == maxRetries then
+                    updateDetailedStatus(string.format("(%d/%d) FAILED: Still not enough money after waiting and %d attempts", 
+                        actionIndex, totalActionCount, maxRetries))
+                    return false
+                end
+                
+                -- If still not enough money and we have retries left, delay and try again
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                continue
+            end
         end
         
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s #%d (Level %d, SpawnID: %s)", 
