@@ -1,4 +1,4 @@
--- 36
+-- 37
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1541,41 +1541,104 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
     return false
 end
 
+
 local function validateSellAction(action, playbackMapping, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
     local currentSpawnId = playbackMapping[action.targetPlacementOrder]
-    if currentSpawnId then
-        local unit = findUnitBySpawnId(currentSpawnId)
-        if unit and isOwnedByLocalPlayer(unit) then
-            local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
+    if not currentSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) No spawn ID mapped for sell (placement order %d)", 
+            actionIndex, totalActionCount, action.targetPlacementOrder))
+        return false
+    end
+    
+    local unit = findUnitBySpawnId(currentSpawnId)
+    if not unit or not isOwnedByLocalPlayer(unit) then
+        updateDetailedStatus(string.format("(%d/%d) Could not find unit for sell (placement order %d)", 
+            actionIndex, totalActionCount, action.targetPlacementOrder))
+        return false
+    end
+    
+    local unitDisplayName = getUnitNameFromSpawnId(currentSpawnId)
+    
+    updateDetailedStatus(string.format("(%d/%d) Selling %s #%d (SpawnID: %s)", 
+        actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder, tostring(currentSpawnId)))
+    
+    -- Find the exact model name for this spawn ID (same logic as upgrade)
+    local remoteParameter = ""
+    for _, model in ipairs(Services.Workspace:WaitForChild("_UNITS"):GetChildren()) do
+        if model:IsA("Model") then
+            local stats = model:FindFirstChild("_stats")
+            if stats and stats:FindFirstChild("spawn_id") and stats.spawn_id:IsA("StringValue") then
+                local modelSpawnId = stats.spawn_id.Value
+                local targetSpawnId = tostring(currentSpawnId)
+                
+                if tostring(modelSpawnId) == targetSpawnId then
+                    -- Verify this is owned by local player
+                    local playerOwner = stats:FindFirstChild("player")
+                    if playerOwner and playerOwner.Value == getLocalPlayer() then
+                        remoteParameter = model.Name
+                        print(string.format("Found sell target: %s (SpawnID: %s)", model.Name, tostring(modelSpawnId)))
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if remoteParameter == "" then
+        updateDetailedStatus(string.format("(%d/%d) Could not find model name for spawn ID %s", 
+            actionIndex, totalActionCount, tostring(currentSpawnId)))
+        return false
+    end
+    
+    print(string.format("About to sell with parameter: '%s' for placement #%d (spawn ID: %s)", 
+        remoteParameter, action.targetPlacementOrder, tostring(currentSpawnId)))
+    
+    -- Execute sell using model name as parameter (like upgrade does)
+    local success = pcall(function()
+        endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(remoteParameter)
+    end)
+    
+    if success then
+        -- Wait a moment to confirm the unit was actually sold
+        task.wait(0.5)
+        
+        -- Check if unit still exists
+        local soldUnit = findUnitBySpawnId(currentSpawnId)
+        if not soldUnit then
+            -- Unit successfully sold
+            playbackMapping[action.targetPlacementOrder] = nil
+            updateDetailedStatus(string.format("(%d/%d) Successfully sold %s #%d", 
+                actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder))
+            return true
+        else
+            -- Unit still exists, sell might have failed
+            updateDetailedStatus(string.format("(%d/%d) Sell command sent but unit still exists for %s #%d", 
+                actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder))
             
-            updateDetailedStatus(string.format("(%d/%d) Selling %s #%d (SpawnID: %s)", 
-                actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder, tostring(currentSpawnId)))
-            
-            -- CRITICAL FIX: Use the CURRENT spawn ID, not the recorded one
-            local success = pcall(function()
+            -- Try alternative approach - maybe the remote expects spawn ID after all
+            print("Trying alternative sell method with spawn ID directly...")
+            local altSuccess = pcall(function()
                 endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(currentSpawnId)
             end)
             
-            if success then
-                playbackMapping[action.targetPlacementOrder] = nil
-                updateDetailedStatus(string.format("(%d/%d) Sold %s #%d", 
-                    actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder))
-                return true
-            else
-                updateDetailedStatus(string.format("(%d/%d) Failed to sell %s #%d", 
-                    actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder))
-                return false
+            if altSuccess then
+                task.wait(0.5)
+                local altSoldUnit = findUnitBySpawnId(currentSpawnId)
+                if not altSoldUnit then
+                    playbackMapping[action.targetPlacementOrder] = nil
+                    updateDetailedStatus(string.format("(%d/%d) Successfully sold %s #%d (using spawn ID)", 
+                        actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder))
+                    return true
+                end
             end
-        else
-            updateDetailedStatus(string.format("(%d/%d) Could not find unit for sell (placement order %d)", 
-                actionIndex, totalActionCount, action.targetPlacementOrder))
+            
             return false
         end
     else
-        updateDetailedStatus(string.format("(%d/%d) No spawn ID mapped for sell (placement order %d)", 
-            actionIndex, totalActionCount, action.targetPlacementOrder))
+        updateDetailedStatus(string.format("(%d/%d) Remote call failed for selling %s #%d", 
+            actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder))
         return false
     end
 end
