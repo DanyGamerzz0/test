@@ -1,4 +1,4 @@
--- 38
+-- 39
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1867,55 +1867,51 @@ local function sendWebhook(messageType, unitData)
     elseif messageType == "unit_drop" then
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        
-        -- Format remote parameters data for webhook
-        local remoteParamsText = ""
         local unitName = "Unknown Unit"
+        local unitId = "Unknown ID"
         
+        -- Extract unit information based on the observed remote structure
         if unitData and type(unitData) == "table" then
-            -- Build remote params display
-            remoteParamsText = "**Remote Parameters:**\n"
-            
+            -- Based on your remote data, Arg[5] contains the unit name (Vegeta)
+            -- and Arg[6] contains what appears to be the unit ID
             for _, argInfo in ipairs(unitData) do
-                local truncatedValue = argInfo.value
-                
-                -- Truncate very long values to keep webhook readable
-                if string.len(truncatedValue) > 200 then
-                    truncatedValue = string.sub(truncatedValue, 1, 200) .. "..."
-                end
-                
-                remoteParamsText = remoteParamsText .. string.format("**Arg[%d]** (%s):\n```\n%s\n```\n", 
-                    argInfo.index, argInfo.type, truncatedValue)
-            end
-            
-            -- Try to extract unit name from the first string argument
-            for _, argInfo in ipairs(unitData) do
-                if argInfo.type == "string" and argInfo.value and argInfo.value ~= "" then
+                if argInfo.index == 5 and argInfo.type == "string" then
                     unitName = argInfo.value
                     -- Try to get display name
                     local displayName = getUnitDisplayName(unitName)
                     if displayName and displayName ~= unitName then
-                        unitName = displayName
+                        unitName = displayName .. " (" .. argInfo.value .. ")"
                     end
-                    break
+                elseif argInfo.index == 6 and argInfo.type == "string" then
+                    unitId = argInfo.value
                 end
             end
-        else
-            remoteParamsText = "No remote parameters received or invalid data format"
         end
         
-        -- Keep embed simple since remote params might be long
+        -- Determine embed color based on unit name (you can customize this)
+        local embedColor = 0xFFD700 -- Default gold
+        local unitNameLower = string.lower(unitName)
+        
+        -- Color coding based on known character rarities (customize as needed)
+        if unitNameLower:find("vegeta") or unitNameLower:find("goku") or unitNameLower:find("frieza") then
+            embedColor = 0xFF6B35 -- Orange for legendary characters
+        elseif unitNameLower:find("unknown") then
+            embedColor = 0x808080 -- Gray for unknown
+        end
+        
         data = {
             username = "LixHub Unit Drops",
-            content = string.format("<@%s>\n%s", Config.DISCORD_USER_ID or "000000000000000000", remoteParamsText),
+            content = string.format("<@%s> **UNIT DROP!** 🎁", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
-                title = "🎁 Unit Drop Detected!",
-                description = string.format("**%s** got a unit drop", playerName),
-                color = 0xFFD700, -- Gold color
+                title = "🎁 New Unit Obtained!",
+                description = string.format("**%s** got a new unit!", playerName),
+                color = embedColor,
                 fields = {
-                    { name = "Detected Unit", value = unitName, inline = false }
+                    { name = "🎯 Unit Name", value = unitName, inline = true },
+                    { name = "🆔 Unit ID", value = unitId, inline = true },
+                    { name = "👤 Player", value = playerName, inline = true }
                 },
-                footer = { text = "LixHub Unit Tracker - Debug Mode" },
+                footer = { text = "LixHub Unit Tracker" },
                 timestamp = timestamp
             }}
         }
@@ -5318,6 +5314,7 @@ local unitAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):F
 
 if unitAddedRemote then
     unitAddedRemote.OnClientEvent:Connect(function(...)
+        if isInLobby() then return end
         local args = {...}
         print("unit_added RemoteEvent fired!")
         print("Number of arguments:", #args)
