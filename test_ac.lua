@@ -1,4 +1,4 @@
--- 30
+-- 31
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1273,6 +1273,33 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
         return false
     end
     
+    -- DEBUG: Show all current units and their mapping
+    print("=== DEBUG: Current playback mapping ===")
+    for order, spawnId in pairs(playbackMapping) do
+        print(string.format("Placement #%d -> Spawn ID: %s", order, tostring(spawnId)))
+    end
+    
+    print("=== DEBUG: All current units ===")
+    local unitsFolder = Services.Workspace:WaitForChild("_UNITS")
+    for _, model in ipairs(unitsFolder:GetChildren()) do
+        if model:IsA("Model") then
+            local stats = model:FindFirstChild("_stats")
+            if stats then
+                local spawnId = stats:FindFirstChild("spawn_id")
+                local playerOwner = stats:FindFirstChild("player")
+                local isOwned = playerOwner and playerOwner.Value == getLocalPlayer()
+                
+                if isOwned then
+                    print(string.format("Unit: %s, SpawnID: %s, Owned: %s", 
+                        model.Name, 
+                        spawnId and tostring(spawnId.Value) or "nil", 
+                        tostring(isOwned)))
+                end
+            end
+        end
+    end
+    print("=== END DEBUG ===")
+    
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
@@ -1308,21 +1335,54 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
         
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s #%d (Level %d, SpawnID: %s)", 
             actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.targetPlacementOrder, originalLevel, tostring(currentSpawnId)))
-        local remoteparamater = ""
+        
+        -- Find the exact model name for this spawn ID
+        local remoteParameter = ""
         for _, model in ipairs(Services.Workspace:WaitForChild("_UNITS"):GetChildren()) do
-    if model:IsA("Model") then
-        local stats = model:FindFirstChild("_stats")
-        if stats and stats:FindFirstChild("spawn_id") and stats.spawn_id:IsA("StringValue") then
-            if stats.spawn_id.Value == tostring(currentSpawnId) then
-                remoteparamater = model.Name
+            if model:IsA("Model") then
+                local stats = model:FindFirstChild("_stats")
+                if stats and stats:FindFirstChild("spawn_id") and stats.spawn_id:IsA("StringValue") then
+                    -- CRITICAL: Make sure we're comparing the right types and values
+                    local modelSpawnId = stats.spawn_id.Value
+                    local targetSpawnId = tostring(currentSpawnId)
+                    
+                    print(string.format("Comparing: '%s' (type: %s) vs '%s' (type: %s)", 
+                        tostring(modelSpawnId), type(modelSpawnId), 
+                        targetSpawnId, type(targetSpawnId)))
+                    
+                    if tostring(modelSpawnId) == targetSpawnId then
+                        -- Also verify this is owned by local player
+                        local playerOwner = stats:FindFirstChild("player")
+                        if playerOwner and playerOwner.Value == getLocalPlayer() then
+                            remoteParameter = model.Name
+                            print(string.format("Found matching unit: %s (SpawnID: %s)", model.Name, tostring(modelSpawnId)))
+                            break
+                        else
+                            print("Unit spawn ID matches but not owned by local player")
+                        end
+                    end
+                end
             end
         end
-    end
-end
         
-        -- CRITICAL FIX: Use the CURRENT spawn ID, not the recorded one
+        if remoteParameter == "" then
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Could not find unit with spawn ID %s", 
+                actionIndex, totalActionCount, attempt, maxRetries, tostring(currentSpawnId)))
+            
+            if attempt < maxRetries then
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                continue
+            else
+                return false
+            end
+        end
+        
+        print(string.format("About to upgrade with parameter: '%s' for placement #%d (spawn ID: %s)", 
+            remoteParameter, action.targetPlacementOrder, tostring(currentSpawnId)))
+        
+        -- Execute upgrade
         local success = pcall(function()
-            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(remoteparamater)
+            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(remoteParameter)
         end)
         
         if not success then
