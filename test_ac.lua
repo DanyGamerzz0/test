@@ -1,4 +1,4 @@
--- 42
+-- 43
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -217,6 +217,8 @@ local State = {
     RandomOffsetAmount = 0.5,
     AutoSellEnabled = false,
     AutoSellWave = 10,
+    AutoSellFarmEnabled = false,
+    AutoSellFarmWave = 15,
 }
 
 -- ========== CREATE TABS ==========
@@ -2128,6 +2130,62 @@ local function sellAllPlayerUnits()
     end
 end
 
+local function sellAllFarmUnits()
+    if not State.AutoSellFarmEnabled then return end
+    
+    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if not unitsFolder then
+        print("No units folder found")
+        return
+    end
+    
+    local soldCount = 0
+    local farmUnitsToSell = {}
+    
+    -- Collect all farm units first
+    for _, unit in pairs(unitsFolder:GetChildren()) do
+        if isOwnedByLocalPlayer(unit) then
+            local stats = unit:FindFirstChild("_stats")
+            if stats then
+                local farmAmount = stats:FindFirstChild("farm_amount")
+                if farmAmount and farmAmount.Value and farmAmount.Value > 0 then
+                    table.insert(farmUnitsToSell, {
+                        unit = unit,
+                        farmAmount = farmAmount.Value
+                    })
+                    print("Found farm unit:", unit.Name, "with farm_amount:", farmAmount.Value)
+                end
+            end
+        end
+    end
+    
+    -- Sell each farm unit
+    for _, unitData in pairs(farmUnitsToSell) do
+        local unit = unitData.unit
+        local success = pcall(function()
+            endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(unit.Name)
+        end)
+        
+        if success then
+            soldCount = soldCount + 1
+            print("Sold farm unit:", unit.Name, "with farm_amount:", unitData.farmAmount)
+        else
+            warn("Failed to sell farm unit:", unit.Name)
+        end
+        
+        task.wait(0.1) -- Small delay to prevent overwhelming the server
+    end
+    
+    if soldCount > 0 then
+        notify("Auto Sell Farm", string.format("Sold %d farm units on wave %d", soldCount, State.AutoSellFarmWave))
+        print(string.format("Auto-sold %d farm units on wave %d", soldCount, State.AutoSellFarmWave))
+    else
+        print("No farm units found to sell on wave", State.AutoSellFarmWave)
+    end
+end
+
 local function monitorWavesForAutoSell()
     if not Services.Workspace:FindFirstChild("_wave_num") then
         Services.Workspace:WaitForChild("_wave_num")
@@ -2153,6 +2211,34 @@ local function monitorWavesForAutoSell()
         lastProcessedWave = currentWave
         task.wait(0.5)
         sellAllPlayerUnits()
+    end
+end
+
+local function monitorWavesForAutoSellFarm()
+    if not Services.Workspace:FindFirstChild("_wave_num") then
+        Services.Workspace:WaitForChild("_wave_num")
+    end
+    
+    local waveNum = Services.Workspace._wave_num
+    local lastProcessedFarmWave = 0
+    
+    waveNum.Changed:Connect(function(newWave)
+        if State.AutoSellFarmEnabled and newWave == State.AutoSellFarmWave and newWave ~= lastProcessedFarmWave then
+            lastProcessedFarmWave = newWave
+            print("Auto-sell farm units triggered on wave", newWave)
+            
+            -- Small delay to ensure wave has properly started
+            task.wait(0.5)
+            sellAllFarmUnits()
+        end
+    end)
+    
+    -- Check initial wave value
+    local currentWave = waveNum.Value
+    if State.AutoSellFarmEnabled and currentWave == State.AutoSellFarmWave and currentWave ~= lastProcessedFarmWave then
+        lastProcessedFarmWave = currentWave
+        task.wait(0.5)
+        sellAllFarmUnits()
     end
 end
 
@@ -3794,6 +3880,14 @@ Toggle = GameTab:CreateToggle({
                 if not statsFolder then
                     return true -- No _stats folder = likely enemy
                 end
+
+                local maxupgradeValue = statsFolder:FindFirstChild("max_upgrade")
+                if not maxupgradeValue then 
+                    return true
+                end
+                if maxupgradeValue and maxupgradeValue.Value == 0 then
+                    return true
+                end
                 
                 local playerValue = statsFolder:FindFirstChild("player")
                 return not (playerValue and playerValue:IsA("ObjectValue"))
@@ -3941,6 +4035,37 @@ local AutoSellSlider = GameTab:CreateSlider({
         State.AutoSellWave = Value
         if State.AutoSellEnabled then
             notify("Auto Sell", string.format("Updated - will sell all units on wave %d", Value))
+        end
+    end,
+})
+
+local AutoSellFarmToggle = GameTab:CreateToggle({
+    Name = "Auto Sell Farm Units",
+    CurrentValue = false,
+    Flag = "AutoSellFarmEnabled",
+    Info = "Automatically sell all farm units (that are sellable) when the specified wave is reached",
+    Callback = function(Value)
+        State.AutoSellFarmEnabled = Value
+        if Value then
+            notify("Auto Sell Farm", string.format("Enabled - will sell farm units on wave %d", State.AutoSellFarmWave))
+        else
+            notify("Auto Sell Farm", "Disabled")
+        end
+    end,
+})
+
+local AutoSellFarmSlider = GameTab:CreateSlider({
+    Name = "Sell Farm Units on Wave",
+    Range = {1, 50},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 15,
+    Flag = "AutoSellFarmWave",
+    Info = "Wave number to automatically sell all farm units",
+    Callback = function(Value)
+        State.AutoSellFarmWave = Value
+        if State.AutoSellFarmEnabled then
+            notify("Auto Sell Farm", string.format("Updated - will sell farm units on wave %d", Value))
         end
     end,
 })
@@ -5717,6 +5842,7 @@ end)
 if not isInLobby() then 
     monitorWaves() 
     task.spawn(monitorWavesForAutoSell)
+    task.spawn(monitorWavesForAutoSellFarm)
 end
 
 -- Initialize macro system
