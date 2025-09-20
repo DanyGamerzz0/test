@@ -1,4 +1,4 @@
--- 34
+-- 35
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -96,8 +96,8 @@ local MACRO_CONFIG = {
     UPGRADE_REMOTE = "upgrade_unit_ingame", 
     SELL_REMOTE = "sell_unit_ingame",
     WAVE_SKIP_REMOTE = "vote_wave_skip",
-    PLACEMENT_WAIT_TIME = 1.5,
-    SNAPSHOT_WAIT_TIME = 0.5,
+    PLACEMENT_WAIT_TIME = 0.3, -- Reduced from 1.5s to 0.3s for normal operations
+    SNAPSHOT_WAIT_TIME = 0.1,  -- Reduced from 0.5s to 0.1s
 }
 
 local loadingRetries = {
@@ -135,10 +135,12 @@ local upgradeStateSnapshots = {} -- Store unit states before upgrades
 local VALIDATION_CONFIG = {
     PLACEMENT_MAX_RETRIES = 3,
     UPGRADE_MAX_RETRIES = 3,
-    PLACEMENT_TIMEOUT = 10.0, -- seconds to wait for placement to complete
-    UPGRADE_TIMEOUT = 8.0,    -- seconds to wait for upgrade to complete
-    VALIDATION_CHECK_INTERVAL = 0.2, -- how often to check for success
-    RETRY_DELAY = 0.5, -- delay between retry attempts
+    PLACEMENT_TIMEOUT = 5.0,    -- Reduced from 10.0s to 5.0s
+    UPGRADE_TIMEOUT = 4.0,      -- Reduced from 8.0s to 4.0s
+    VALIDATION_CHECK_INTERVAL = 0.1, -- Reduced from 0.2s to 0.1s
+    RETRY_DELAY = 0.5,         -- Keep retry delay as is - this is when something went wrong
+    NORMAL_VALIDATION_TIME = 0.3, -- New: Quick validation time for normal operations
+    EXTENDED_VALIDATION_TIME = 1.0, -- New: Longer validation for retries
 }
 
 local isAutoLoopEnabled = false
@@ -1222,6 +1224,7 @@ local function validatePlacementAction(action, playbackMapping, actionIndex, tot
                 return false
             end
             
+            -- Only delay on retries when there's an actual problem
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
             continue
         end
@@ -1284,35 +1287,38 @@ local function validatePlacementAction(action, playbackMapping, actionIndex, tot
                 actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.placementOrder))
             
             if attempt < maxRetries then
-                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY) -- Only delay on retries
                 continue
             else
                 return false
             end
         end
         
-        -- Wait for placement validation
-        task.wait(MACRO_CONFIG.PLACEMENT_WAIT_TIME)
+        -- Use different wait times based on whether this is first attempt or retry
+        local validationWaitTime = (attempt == 1) and VALIDATION_CONFIG.NORMAL_VALIDATION_TIME or VALIDATION_CONFIG.EXTENDED_VALIDATION_TIME
+        task.wait(validationWaitTime)
+        
         local afterSnapshot = takeUnitsSnapshot()
         local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
         
         if placedUnit and isOwnedByLocalPlayer(placedUnit) then
             local newSpawnId = getUnitSpawnId(placedUnit)
             if newSpawnId then
-                -- IMPORTANT: Store the mapping with placement order as key
+                -- Store the mapping with placement order as key
                 playbackMapping[action.placementOrder] = newSpawnId
                 print(string.format("Mapped placement order %d to spawn ID %s", action.placementOrder, tostring(newSpawnId)))
                 
-                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s #%d (SpawnID: %s, attempt %d/%d)", 
-                    actionIndex, totalActionCount, unitDisplayName, action.placementOrder, tostring(newSpawnId), attempt, maxRetries))
+                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s #%d (SpawnID: %s, attempt %d/%d, %.1fs)", 
+                    actionIndex, totalActionCount, unitDisplayName, action.placementOrder, tostring(newSpawnId), attempt, maxRetries, validationWaitTime))
                 return true
             end
         end
         
-        -- Placement failed, log and potentially retry
+        -- Placement failed
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate placement of %s #%d", 
             actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.placementOrder))
         
+        -- Only delay between retries, not on first failure
         if attempt < maxRetries then
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
         end
@@ -1335,37 +1341,10 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
         return false
     end
     
-    -- DEBUG: Show all current units and their mapping
-    print("=== DEBUG: Current playback mapping ===")
-    for order, spawnId in pairs(playbackMapping) do
-        print(string.format("Placement #%d -> Spawn ID: %s", order, tostring(spawnId)))
-    end
-    
-    print("=== DEBUG: All current units ===")
-    local unitsFolder = Services.Workspace:WaitForChild("_UNITS")
-    for _, model in ipairs(unitsFolder:GetChildren()) do
-        if model:IsA("Model") then
-            local stats = model:FindFirstChild("_stats")
-            if stats then
-                local spawnId = stats:FindFirstChild("spawn_id")
-                local playerOwner = stats:FindFirstChild("player")
-                local isOwned = playerOwner and playerOwner.Value == getLocalPlayer()
-                
-                if isOwned then
-                    print(string.format("Unit: %s, SpawnID: %s, Owned: %s", 
-                        model.Name, 
-                        spawnId and tostring(spawnId.Value) or "nil", 
-                        tostring(isOwned)))
-                end
-            end
-        end
-    end
-    print("=== END DEBUG ===")
-    
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        -- Find the unit using the CURRENT spawn ID (not the recorded one)
+        -- Find the unit using the CURRENT spawn ID
         local unit = findUnitBySpawnId(currentSpawnId)
         if not unit or not isOwnedByLocalPlayer(unit) then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for spawn ID %s (placement order %d)", 
@@ -1391,7 +1370,7 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
                 return false
             end
             
-            task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+            task.wait(VALIDATION_CONFIG.RETRY_DELAY) -- Only delay on retries
             continue
         end
         
@@ -1404,23 +1383,15 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             if model:IsA("Model") then
                 local stats = model:FindFirstChild("_stats")
                 if stats and stats:FindFirstChild("spawn_id") and stats.spawn_id:IsA("StringValue") then
-                    -- CRITICAL: Make sure we're comparing the right types and values
                     local modelSpawnId = stats.spawn_id.Value
                     local targetSpawnId = tostring(currentSpawnId)
-                    
-                    print(string.format("Comparing: '%s' (type: %s) vs '%s' (type: %s)", 
-                        tostring(modelSpawnId), type(modelSpawnId), 
-                        targetSpawnId, type(targetSpawnId)))
                     
                     if tostring(modelSpawnId) == targetSpawnId then
                         -- Also verify this is owned by local player
                         local playerOwner = stats:FindFirstChild("player")
                         if playerOwner and playerOwner.Value == getLocalPlayer() then
                             remoteParameter = model.Name
-                            print(string.format("Found matching unit: %s (SpawnID: %s)", model.Name, tostring(modelSpawnId)))
                             break
-                        else
-                            print("Unit spawn ID matches but not owned by local player")
                         end
                     end
                 end
@@ -1439,9 +1410,6 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             end
         end
         
-        print(string.format("About to upgrade with parameter: '%s' for placement #%d (spawn ID: %s)", 
-            remoteParameter, action.targetPlacementOrder, tostring(currentSpawnId)))
-        
         -- Execute upgrade
         local success = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(remoteParameter)
@@ -1459,32 +1427,33 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             end
         end
         
-        -- Wait for server processing
-        task.wait(1.0)
+        -- Use optimized validation timing - shorter for first attempt, longer for retries
+        local validationTimeout = (attempt == 1) and (VALIDATION_CONFIG.UPGRADE_TIMEOUT / 2) or VALIDATION_CONFIG.UPGRADE_TIMEOUT
+        local quickCheckTime = (attempt == 1) and 0.5 or 1.0
         
-        -- Validate upgrade success
+        -- Quick initial check
+        task.wait(quickCheckTime)
+        
+        -- Validate upgrade success with timeout
         local upgradeSuccess = false
         local validationStartTime = tick()
         
-        while tick() - validationStartTime < VALIDATION_CONFIG.UPGRADE_TIMEOUT do
+        while tick() - validationStartTime < validationTimeout do
             if not isPlaybacking then return false end
             
             -- Re-find the unit to check its level
             local currentUnit = findUnitBySpawnId(currentSpawnId)
             if currentUnit and isOwnedByLocalPlayer(currentUnit) then
                 local currentLevel = getUnitUpgradeLevel(currentUnit)
-                print(string.format("Validation check - Placement #%d SpawnID %s: Level %d (was %d)", 
-                    action.targetPlacementOrder, tostring(currentSpawnId), currentLevel, originalLevel))
                 
                 if currentLevel > originalLevel then
                     upgradeSuccess = true
-                    updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s #%d from Level %d to %d (attempt %d/%d)", 
-                        actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder, originalLevel, currentLevel, attempt, maxRetries))
+                    updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s #%d from Level %d to %d (attempt %d/%d, %.1fs)", 
+                        actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder, originalLevel, currentLevel, attempt, maxRetries, tick() - validationStartTime + quickCheckTime))
                     break
                 end
             else
-                print("Unit lost during validation - placement order:", action.targetPlacementOrder, "spawn ID:", tostring(currentSpawnId))
-                break
+                break -- Unit lost during validation
             end
             
             task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
@@ -1494,12 +1463,12 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
             return true
         end
         
-        -- Get final level for error reporting
+        -- Upgrade failed - log and potentially retry
         local finalUnit = findUnitBySpawnId(currentSpawnId)
         local finalLevel = finalUnit and getUnitUpgradeLevel(finalUnit) or originalLevel
         
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate upgrade of %s #%d (Level still %d after %.1fs)", 
-            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.targetPlacementOrder, finalLevel, VALIDATION_CONFIG.UPGRADE_TIMEOUT))
+            actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.targetPlacementOrder, finalLevel, validationTimeout))
         
         if attempt < maxRetries then
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
