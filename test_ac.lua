@@ -1,4 +1,4 @@
--- 40
+-- 41
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -215,6 +215,8 @@ local State = {
     AutoSkipUntilWave = 0,
     RandomOffsetEnabled = false,
     RandomOffsetAmount = 0.5,
+    AutoSellEnabled = false,
+    AutoSellWave = 10,
 }
 
 -- ========== CREATE TABS ==========
@@ -2087,6 +2089,77 @@ local function monitorWaves()
     print("Monitoring wave changes for game start detection...")
 end
 
+local function sellAllPlayerUnits()
+    if not State.AutoSellEnabled then return end
+    
+    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if not unitsFolder then
+        print("No units folder found")
+        return
+    end
+    
+    local soldCount = 0
+    local unitsToSell = {}
+    
+    -- Collect all player-owned units first to avoid issues with collection changing during iteration
+    for _, unit in pairs(unitsFolder:GetChildren()) do
+        if isOwnedByLocalPlayer(unit) then
+            table.insert(unitsToSell, unit)
+        end
+    end
+    
+    -- Sell each unit
+    for _, unit in pairs(unitsToSell) do
+        local success = pcall(function()
+            endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(unit.Name)
+        end)
+        
+        if success then
+            soldCount = soldCount + 1
+            print("Sold unit:", unit.Name)
+        else
+            warn("Failed to sell unit:", unit.Name)
+        end
+        
+        task.wait(0.1) -- Small delay to prevent overwhelming the server
+    end
+    
+    if soldCount > 0 then
+        notify("Auto Sell", string.format("Sold %d units on wave %d", soldCount, State.AutoSellWave))
+        print(string.format("Auto-sold %d units on wave %d", soldCount, State.AutoSellWave))
+    end
+end
+
+local function monitorWavesForAutoSell()
+    if not Services.Workspace:FindFirstChild("_wave_num") then
+        Services.Workspace:WaitForChild("_wave_num")
+    end
+    
+    local waveNum = Services.Workspace._wave_num
+    local lastProcessedWave = 0
+    
+    waveNum.Changed:Connect(function(newWave)
+        if State.AutoSellEnabled and newWave == State.AutoSellWave and newWave ~= lastProcessedWave then
+            lastProcessedWave = newWave
+            print("Auto-sell triggered on wave", newWave)
+            
+            -- Small delay to ensure wave has properly started
+            task.wait(0.5)
+            sellAllPlayerUnits()
+        end
+    end)
+    
+    -- Check initial wave value
+    local currentWave = waveNum.Value
+    if State.AutoSellEnabled and currentWave == State.AutoSellWave and currentWave ~= lastProcessedWave then
+        lastProcessedWave = currentWave
+        task.wait(0.5)
+        sellAllPlayerUnits()
+    end
+end
+
 local function monitorWavesForRecording()
     if Services.Workspace:FindFirstChild("_wave_num") then
         local waveNum = Services.Workspace._wave_num
@@ -3842,6 +3915,39 @@ task.spawn(function()
         end
     end
 end)
+
+GameTab:CreateSection("Auto Sell")
+
+local AutoSellToggle = GameTab:CreateToggle({
+    Name = "Auto Sell All Units",
+    CurrentValue = false,
+    Flag = "AutoSellEnabled",
+    Info = "Automatically sell all your units when the specified wave is reached",
+    Callback = function(Value)
+        State.AutoSellEnabled = Value
+        if Value then
+            notify("Auto Sell", string.format("Enabled - will sell all units on wave %d", State.AutoSellWave))
+        else
+            notify("Auto Sell", "Disabled")
+        end
+    end,
+})
+
+local AutoSellSlider = GameTab:CreateSlider({
+    Name = "Sell on Wave",
+    Range = {1, 50},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 10,
+    Flag = "AutoSellWave",
+    Info = "Wave number to automatically sell all units",
+    Callback = function(Value)
+        State.AutoSellWave = Value
+        if State.AutoSellEnabled then
+            notify("Auto Sell", string.format("Updated - will sell all units on wave %d", Value))
+        end
+    end,
+})
 
 
  Toggle = GameTab:CreateToggle({
@@ -5721,6 +5827,7 @@ end)
 -- Only monitor waves if not in lobby
 if not isInLobby() then 
     monitorWaves() 
+    task.spawn(monitorWavesForAutoSell)
 end
 
 -- Initialize macro system
