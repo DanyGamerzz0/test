@@ -1,4 +1,4 @@
--- 41
+-- 42
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1870,50 +1870,46 @@ local function sendWebhook(messageType, unitData)
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local unitName = "Unknown Unit"
-        local unitId = "Unknown ID"
         
         -- Extract unit information based on the observed remote structure
         if unitData and type(unitData) == "table" then
-            -- Based on your remote data, Arg[5] contains the unit name (Vegeta)
-            -- and Arg[6] contains what appears to be the unit ID
+            -- Based on the remote data, Arg[5] contains the unit name (like "Igris")
             for _, argInfo in ipairs(unitData) do
                 if argInfo.index == 5 and argInfo.type == "string" then
                     unitName = argInfo.value
-                    -- Try to get display name
+                    -- Try to get display name from game data
                     local displayName = getUnitDisplayName(unitName)
                     if displayName and displayName ~= unitName then
-                        unitName = displayName .. " (" .. argInfo.value .. ")"
+                        unitName = displayName
                     end
-                elseif argInfo.index == 6 and argInfo.type == "string" then
-                    unitId = argInfo.value
+                    break
                 end
             end
         end
         
-        -- Determine embed color based on unit name (you can customize this)
-        local embedColor = 0xFFD700 -- Default gold
+        -- Determine embed color based on unit name
+        local embedColor = 0x5865F2 -- Default Discord blue
         local unitNameLower = string.lower(unitName)
         
-        -- Color coding based on known character rarities (customize as needed)
-        if unitNameLower:find("vegeta") or unitNameLower:find("goku") or unitNameLower:find("frieza") then
-            embedColor = 0xFF6B35 -- Orange for legendary characters
+        -- Color coding for different units/rarities
+        if unitNameLower:find("igris") or unitNameLower:find("shadow") then
+            embedColor = 0x2C2F33 -- Dark gray/black for shadow units
+        elseif unitNameLower:find("vegeta") or unitNameLower:find("goku") or unitNameLower:find("frieza") then
+            embedColor = 0xFF6B35 -- Orange for main characters
+        elseif unitNameLower:find("legendary") or unitNameLower:find("mythic") then
+            embedColor = 0xFF6B35 -- Orange for legendary
         elseif unitNameLower:find("unknown") then
             embedColor = 0x808080 -- Gray for unknown
         end
         
         data = {
-            username = "LixHub Unit Drops",
-            content = string.format("<@%s> **UNIT DROP!** 🎁", Config.DISCORD_USER_ID or "000000000000000000"),
+            username = "LixHub",
+            content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
-                title = "🎁 New Unit Obtained!",
-                description = string.format("**%s** got a new unit!", playerName),
+                title = "Unit Drop!",
+                description = string.format("**%s** obtained **%s**!", playerName, unitName),
                 color = embedColor,
-                fields = {
-                    { name = "🎯 Unit Name", value = unitName, inline = true },
-                    { name = "🆔 Unit ID", value = unitId, inline = true },
-                    { name = "👤 Player", value = playerName, inline = true }
-                },
-                footer = { text = "LixHub Unit Tracker" },
+                footer = { text = "LixHub" },
                 timestamp = timestamp
             }}
         }
@@ -5424,7 +5420,7 @@ if unitAddedRemote then
         print("unit_added RemoteEvent fired!")
         print("Number of arguments:", #args)
         
-        -- Print all arguments for debugging
+        -- Print detailed argument contents for debugging
         for i, arg in ipairs(args) do
             print("Unit Drop Arg[" .. i .. "] (" .. type(arg) .. "):")
             if type(arg) == "table" then
@@ -5434,146 +5430,39 @@ if unitAddedRemote then
             end
         end
         
-        -- Try to extract unit information
-        local unitName = "Unknown Unit"
-        local unitId = "Unknown ID"
-        local unitRarity = "Unknown"
-        
-        -- Look for unit data in the arguments - more comprehensive search
-        for i, arg in ipairs(args) do
-            if type(arg) == "table" then
-                print("Analyzing table argument", i, ":")
-                
-                -- Print all keys in the table for debugging
-                for key, value in pairs(arg) do
-                    print("  " .. tostring(key) .. " = " .. tostring(value) .. " (" .. type(value) .. ")")
-                end
-                
-                -- Try many possible field names for unit identification
-                local possibleFields = {
-                    "unit_id", "unitId", "id", "unit", "name", "unit_name", "unitName",
-                    "character_id", "characterId", "char_id", "charId", "character",
-                    "drop_id", "dropId", "item_id", "itemId", "reward_id", "rewardId",
-                    "_id", "UUID", "uuid", "key", "identifier"
+        -- Send webhook notification if enabled
+        if State.SendStageCompletedWebhook then
+            -- Create detailed remote params info for webhook
+            local remoteParamsInfo = {}
+            
+            for i, arg in ipairs(args) do
+                local argInfo = {
+                    index = i,
+                    type = type(arg),
+                    value = nil
                 }
                 
-                for _, field in ipairs(possibleFields) do
-                    local value = arg[field]
-                    if value and tostring(value) ~= "" then
-                        unitId = tostring(value)
-                        unitName = getUnitDisplayName(value) or unitId
-                        print("Found unit using field '" .. field .. "': " .. unitId .. " -> " .. unitName)
-                        break
-                    end
-                end
-                
-                -- Look for rarity/tier information
-                local rarityFields = {"rarity", "tier", "rank", "grade", "star", "stars", "level", "quality"}
-                for _, field in ipairs(rarityFields) do
-                    local value = arg[field]
-                    if value then
-                        unitRarity = tostring(value)
-                        print("Found rarity using field '" .. field .. "': " .. unitRarity)
-                        break
-                    end
-                end
-                
-                -- If we found unit info, we can break
-                if unitName ~= "Unknown Unit" then
-                    break
-                end
-                
-            elseif type(arg) == "string" and arg ~= "" then
-                print("Found string argument:", arg)
-                -- If it's just a string, assume it's the unit ID
-                unitId = arg
-                unitName = getUnitDisplayName(arg) or arg
-                print("Using string as unit ID:", unitId, "->", unitName)
-                break
-            elseif type(arg) == "number" then
-                print("Found number argument:", arg)
-                -- Sometimes unit IDs are numbers
-                unitId = tostring(arg)
-                unitName = getUnitDisplayName(arg) or unitId
-                print("Using number as unit ID:", unitId, "->", unitName)
-                break
-            end
-        end
-        
-        print("Final unit info - Name:", unitName, "ID:", unitId, "Rarity:", unitRarity)
-        
-        -- Send webhook notification if configured
-        if ValidWebhook and Config.DISCORD_USER_ID then
-            -- Create a formatted string of all remote parameters for debugging
-            local paramsList = {}
-            for i, arg in ipairs(args) do
                 if type(arg) == "table" then
-                    local tableContents = {}
+                    -- Convert table to readable format
+                    local tableStr = "{\n"
                     for key, value in pairs(arg) do
-                        table.insert(tableContents, tostring(key) .. " = " .. tostring(value))
+                        tableStr = tableStr .. "  " .. tostring(key) .. " = " .. tostring(value) .. " (" .. type(value) .. ")\n"
                     end
-                    table.insert(paramsList, string.format("Arg[%d] (table): {%s}", i, table.concat(tableContents, ", ")))
+                    tableStr = tableStr .. "}"
+                    argInfo.value = tableStr
+                elseif type(arg) == "string" or type(arg) == "number" or type(arg) == "boolean" then
+                    argInfo.value = tostring(arg)
                 else
-                    table.insert(paramsList, string.format("Arg[%d] (%s): %s", i, type(arg), tostring(arg)))
+                    argInfo.value = tostring(arg) .. " (" .. type(arg) .. ")"
                 end
-            end
-            local paramsText = table.concat(paramsList, "\n")
-            
-            -- Truncate if too long for Discord (embed field limit is 1024 chars)
-            if #paramsText > 1000 then
-                paramsText = paramsText:sub(1, 997) .. "..."
+                
+                table.insert(remoteParamsInfo, argInfo)
             end
             
-            local data = {
-                username = "LixHub Unit Drop",
-                content = string.format("<@%s>", Config.DISCORD_USER_ID),
-                embeds = {{
-                    title = "Unit Drop!",
-                    description = string.format("You obtained: **%s**", unitName),
-                    color = 0x00FF00, -- Green color for unit drops
-                    fields = {
-                        { name = "Unit", value = unitName, inline = true },
-                        { name = "Unit ID", value = unitId, inline = true },
-                        { name = "Rarity", value = unitRarity, inline = true },
-                        { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. "||", inline = false },
-                        { name = "Raw Remote Data", value = "```\n" .. paramsText .. "\n```", inline = false }
-                    },
-                    footer = { text = "LixHub Unit Tracker" },
-                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                }}
-            }
-            
-            local payload = Services.HttpService:JSONEncode(data)
-            
-            -- Try different executor HTTP functions
-            local requestFunc = syn and syn.request or request or http_request or 
-                              (fluxus and fluxus.request) or getgenv().request
-            
-            if requestFunc then
-                task.spawn(function()
-                    local success, response = pcall(function()
-                        return requestFunc({
-                            Url = ValidWebhook,
-                            Method = "POST",
-                            Headers = { ["Content-Type"] = "application/json" },
-                            Body = payload
-                        })
-                    end)
-                    
-                    if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-                        notify("Unit Drop", "Unit drop webhook sent: " .. unitName)
-                        print("Unit drop webhook sent successfully")
-                    else
-                        print("Unit drop webhook failed:", response and response.StatusCode or "No response")
-                    end
-                end)
-            else
-                print("No HTTP function found for unit drop webhook")
-            end
+            sendWebhook("unit_drop", remoteParamsInfo)
         end
         
-        -- Local notification
-        notify("Unit Drop", "You obtained: " .. unitName, 5)
+        notify("Unit Drop", "You got a unit drop! Check webhook for details.")
     end)
 else
     warn("unit_added RemoteEvent not found!")
