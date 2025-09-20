@@ -1,4 +1,4 @@
--- 37
+-- 38
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1843,7 +1843,7 @@ local function getStatDisplayName(statName)
 end
 
 -- Enhanced webhook function
-local function sendWebhook(messageType)
+local function sendWebhook(messageType, unitData)
     if ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
         notify("Please set your Discord webhook URL first!")
         return
@@ -1864,7 +1864,64 @@ local function sendWebhook(messageType)
             }}
         }
 
+    elseif messageType == "unit_drop" then
+        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        
+        -- Format remote parameters data for webhook
+        local remoteParamsText = ""
+        local unitName = "Unknown Unit"
+        
+        if unitData and type(unitData) == "table" then
+            -- Build remote params display
+            remoteParamsText = "**Remote Parameters:**\n"
+            
+            for _, argInfo in ipairs(unitData) do
+                local truncatedValue = argInfo.value
+                
+                -- Truncate very long values to keep webhook readable
+                if string.len(truncatedValue) > 200 then
+                    truncatedValue = string.sub(truncatedValue, 1, 200) .. "..."
+                end
+                
+                remoteParamsText = remoteParamsText .. string.format("**Arg[%d]** (%s):\n```\n%s\n```\n", 
+                    argInfo.index, argInfo.type, truncatedValue)
+            end
+            
+            -- Try to extract unit name from the first string argument
+            for _, argInfo in ipairs(unitData) do
+                if argInfo.type == "string" and argInfo.value and argInfo.value ~= "" then
+                    unitName = argInfo.value
+                    -- Try to get display name
+                    local displayName = getUnitDisplayName(unitName)
+                    if displayName and displayName ~= unitName then
+                        unitName = displayName
+                    end
+                    break
+                end
+            end
+        else
+            remoteParamsText = "No remote parameters received or invalid data format"
+        end
+        
+        -- Keep embed simple since remote params might be long
+        data = {
+            username = "LixHub Unit Drops",
+            content = string.format("<@%s>\n%s", Config.DISCORD_USER_ID or "000000000000000000", remoteParamsText),
+            embeds = {{
+                title = "🎁 Unit Drop Detected!",
+                description = string.format("**%s** got a unit drop", playerName),
+                color = 0xFFD700, -- Gold color
+                fields = {
+                    { name = "Detected Unit", value = unitName, inline = false }
+                },
+                footer = { text = "LixHub Unit Tracker - Debug Mode" },
+                timestamp = timestamp
+            }}
+        }
+
     elseif messageType == "stage" then
+        -- Keep existing stage webhook code unchanged
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local gameDuration = tick() - gameStartTime
@@ -1953,7 +2010,13 @@ local function sendWebhook(messageType)
     end)
     
     if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-        notify(nil,"Game summary webhook sent!")
+        if messageType == "unit_drop" then
+            notify(nil, "Unit drop webhook sent!")
+        elseif messageType == "stage" then
+            notify(nil, "Game summary webhook sent!")
+        else
+            notify(nil, "Webhook sent successfully!")
+        end
     else
         print("Webhook failed:", response and response.StatusCode or "No response")
     end
@@ -2919,7 +2982,7 @@ local ChapterDropdown = JoinerTab:CreateDropdown({
 
 section = JoinerTab:CreateSection("Legend Stage Joiner")
 
-local AutoJoinLegendToggle = JoinerTab:CreateToggle({
+ AutoJoinLegendToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Legend",
     CurrentValue = false,
     Flag = "AutoJoinLegend",
@@ -2969,7 +3032,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-local LegendChapterDropdown = JoinerTab:CreateDropdown({
+ LegendChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Legend Stage Act",
     Options = {"Act 1", "Act 2", "Act 3"},
     CurrentOption = {},
@@ -2987,7 +3050,7 @@ local LegendChapterDropdown = JoinerTab:CreateDropdown({
 
 section = JoinerTab:CreateSection("Raid Joiner")
 
-local AutoJoinRaidToggle = JoinerTab:CreateToggle({
+ AutoJoinRaidToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
     CurrentValue = false,
     Flag = "AutoJoinRaid",
@@ -3037,7 +3100,7 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-local RaidChapterDropdown = JoinerTab:CreateDropdown({
+ RaidChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Raid Stage Act",
     Options = {"Act 1", "Act 2", "Act 3","Act 4","Act 5"},
     CurrentOption = {},
@@ -3055,7 +3118,7 @@ local RaidChapterDropdown = JoinerTab:CreateDropdown({
 
 section = JoinerTab:CreateSection("Challenge Joiner")
 
-local AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+ AutoJoinChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Challenge",
     CurrentValue = false,
     Flag = "AutoJoinChallenge",
@@ -3064,7 +3127,7 @@ local AutoJoinChallengeToggle = JoinerTab:CreateToggle({
     end,
 })
 
-local ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
+ ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
     Name = "Select Challenge Rewards",
     Options = {"Air Stone","Earth Stone","Fire Stone","Fear Stone","Water Stone","Divine Stone"},
     CurrentOption = {},
@@ -3090,7 +3153,7 @@ local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-local ReturnToLobbyToggle = JoinerTab:CreateToggle({
+ ReturnToLobbyToggle = JoinerTab:CreateToggle({
     Name = "Return to Lobby on New Challenge",
     CurrentValue = false,
     Flag = "ReturnToLobbyOnNewChallenge",
@@ -3104,7 +3167,7 @@ section = JoinerTab:CreateSection("Gate Joiner")
 
 local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
 
-local AutoJoinGateToggle = JoinerTab:CreateToggle({
+ AutoJoinGateToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Gate",
     CurrentValue = false,
     Flag = "AutoJoinGate",
@@ -3113,7 +3176,7 @@ local AutoJoinGateToggle = JoinerTab:CreateToggle({
     end,
 })
 
-local AvoidGatesDropdown = JoinerTab:CreateDropdown({
+ AvoidGatesDropdown = JoinerTab:CreateDropdown({
     Name = "Avoid Gate Types",
     Options = {"National","S", "A", "B", "C", "D"},
     CurrentOption = {},
@@ -3126,7 +3189,7 @@ local AvoidGatesDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-local AvoidModifiersDropdown = JoinerTab:CreateDropdown({
+ AvoidModifiersDropdown = JoinerTab:CreateDropdown({
     Name = "Avoid Modifiers",
     Options = {"fast_enemies", "tank_enemies", "regen_enemies", "shield_enemies", "double_cost"},
     CurrentOption = {},
@@ -3139,7 +3202,7 @@ local AvoidModifiersDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-local Toggle = JoinerTab:CreateToggle({
+ Toggle = JoinerTab:CreateToggle({
    Name = "Auto Next Gate",
    CurrentValue = false,
    Flag = "AutoNextGate",
@@ -5250,7 +5313,62 @@ local TestWebhookButton = WebhookTab:CreateButton({
 local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
 local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
 local challengeChangedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_challenge_changed")
+local unitAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("unit_added")
 
+
+if unitAddedRemote then
+    unitAddedRemote.OnClientEvent:Connect(function(...)
+        local args = {...}
+        print("unit_added RemoteEvent fired!")
+        print("Number of arguments:", #args)
+        
+        -- Print detailed argument contents for debugging
+        for i, arg in ipairs(args) do
+            print("Unit Drop Arg[" .. i .. "] (" .. type(arg) .. "):")
+            if type(arg) == "table" then
+                printTableContents(arg, 1)
+            else
+                print("  " .. tostring(arg))
+            end
+        end
+        
+        -- Send webhook notification if enabled
+        if State.SendStageCompletedWebhook then
+            -- Create detailed remote params info for webhook
+            local remoteParamsInfo = {}
+            
+            for i, arg in ipairs(args) do
+                local argInfo = {
+                    index = i,
+                    type = type(arg),
+                    value = nil
+                }
+                
+                if type(arg) == "table" then
+                    -- Convert table to readable format
+                    local tableStr = "{\n"
+                    for key, value in pairs(arg) do
+                        tableStr = tableStr .. "  " .. tostring(key) .. " = " .. tostring(value) .. " (" .. type(value) .. ")\n"
+                    end
+                    tableStr = tableStr .. "}"
+                    argInfo.value = tableStr
+                elseif type(arg) == "string" or type(arg) == "number" or type(arg) == "boolean" then
+                    argInfo.value = tostring(arg)
+                else
+                    argInfo.value = tostring(arg) .. " (" .. type(arg) .. ")"
+                end
+                
+                table.insert(remoteParamsInfo, argInfo)
+            end
+            
+            sendWebhook("unit_drop", remoteParamsInfo)
+        end
+        
+        notify("Unit Drop", "You got a unit drop! Check webhook for details.")
+    end)
+else
+    warn("unit_added RemoteEvent not found!")
+end
 
 -- Connect item tracking
 if itemAddedRemote then
