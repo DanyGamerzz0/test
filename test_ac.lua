@@ -1,4 +1,4 @@
--- 31
+-- 32
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -128,6 +128,9 @@ local recordingPlacementCounter = 0
 local unitPositionToPlacementOrder = {}
 local placementOrderToPosition = {}
 local placementOrderToSpawnUUID = {}
+
+local pendingUpgrades = {} -- Track ongoing upgrades
+local upgradeStateSnapshots = {} -- Store unit states before upgrades
 
 local VALIDATION_CONFIG = {
     PLACEMENT_MAX_RETRIES = 3,
@@ -375,6 +378,30 @@ local function findUnitBySpawnId(targetSpawnId)
         end
     end
     
+    return nil
+end
+
+local function findUpgradedUnitByRemoteParam(remoteParam, preActionUnits, postActionUnits)
+    -- Find which unit had its level increase
+    for spawnId, postData in pairs(postActionUnits) do
+        local preData = preActionUnits[spawnId]
+        if preData and postData.level > preData.level then
+            -- This unit was upgraded, check if its model name matches the remote param
+            local unit = findUnitBySpawnId(spawnId)
+            if unit and unit.Name == remoteParam then
+                return spawnId, preData.level, postData.level
+            end
+        end
+    end
+    return nil, nil, nil
+end
+
+local function findPlacementOrderBySpawnId(spawnId)
+    for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
+        if tostring(storedSpawnId) == tostring(spawnId) then
+            return placementOrder
+        end
+    end
     return nil
 end
 
@@ -845,94 +872,126 @@ local function waitForUpgradeLevel(targetUnit, originalLevel, maxWaitTime)
     return false -- Timeout or upgrade failed
 end
 
-local function processUpgradeAction(actionInfo)
-    local remoteParam = actionInfo.args[1]
-    local targetUnit, targetSpawnId = findUnitFromRemoteParam(remoteParam)
+local function processUpgradeActionFixed(actionInfo)
+    local remoteParam = actionInfo.args[1] -- This is the model.Name that was sent
     
-    if not targetUnit or not targetSpawnId then return end
+    -- Take snapshots before and after
+    local preActionMoney = actionInfo.preActionMoney
+    local postActionMoney = getPlayerMoney()
+    local preActionUnits = actionInfo.preActionUnits
+    local postActionUnits = captureUnitSnapshot()
     
-    local spawnIdStr = tostring(targetSpawnId)
-    local oldUnitData = actionInfo.preActionUnits[spawnIdStr]
+    -- Find which unit was actually upgraded based on level changes
+    local upgradedSpawnId, oldLevel, newLevel = findUpgradedUnitByRemoteParam(remoteParam, preActionUnits, postActionUnits)
     
-    if not oldUnitData then return end
+    if not upgradedSpawnId then
+        print("Could not determine which unit was upgraded for remote param:", remoteParam)
+        return
+    end
     
-    local currentLevel = getUnitUpgradeLevel(targetUnit)
-    local currentTotalSpent = getUnitTotalSpent(targetUnit)
-    local currentMoney = getPlayerMoney()
+    -- Find the placement order for this spawn ID
+    local targetPlacementOrder = findPlacementOrderBySpawnId(upgradedSpawnId)
     
-    local costByTotalSpent = currentTotalSpent - oldUnitData.totalSpent
-    local costByMoney = actionInfo.preActionMoney - currentMoney
-    local upgradeCost = costByTotalSpent > 0 and costByTotalSpent or costByMoney
+    if not targetPlacementOrder then
+        print("Could not find placement order for upgraded spawn ID:", upgradedSpawnId)
+        return
+    end
     
-    local targetPlacementOrder = nil
+    -- Calculate upgrade cost
+    local costByMoney = preActionMoney - postActionMoney
+    local unitPostData = postActionUnits[tostring(upgradedSpawnId)]
+    local unitPreData = preActionUnits[tostring(upgradedSpawnId)]
+    
+    local costByTotalSpent = 0
+    if unitPostData and unitPreData then
+        costByTotalSpent = unitPostData.totalSpent - unitPreData.totalSpent
+    end
+    
+    local upgradeCost = costByTotalSpent > 0 and costByTotalSpent or math.max(costByMoney, 0)
+    
+    -- Get the original unit ID from the placement record
     local originalUnitId = nil
-    
-    for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
-        if tostring(storedSpawnId) == spawnIdStr then
-            targetPlacementOrder = placementOrder
+    for _, action in ipairs(macro) do
+        if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
+            originalUnitId = action.unitId
             break
         end
     end
     
-    if targetPlacementOrder then
-        for _, action in ipairs(macro) do
-            if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
-                originalUnitId = action.unitId
-                break
-            end
-        end
-    end
-    
+    -- Create the upgrade record with CORRECT information
     local upgradeRecord = {
         action = "UpgradeUnit",
         unitId = originalUnitId,
-        spawnId = targetSpawnId,
-        upgradeRemoteParam = remoteParam,
+        spawnId = upgradedSpawnId,
+        upgradeRemoteParam = remoteParam, -- This is the actual param that was used
         unitPosition = placementOrderToPosition[targetPlacementOrder],
         wave = actionInfo.wave,
         waveRelativeTime = actionInfo.waveRelativeTime,
-        targetPlacementOrder = targetPlacementOrder or -1,
-        upgradeCost = math.max(upgradeCost, 0),
-        upgradeLevelBefore = oldUnitData.level,
-        upgradeLevelAfter = currentLevel,
+        targetPlacementOrder = targetPlacementOrder,
+        upgradeCost = upgradeCost,
+        upgradeLevelBefore = oldLevel or 0,
+        upgradeLevelAfter = newLevel or 0,
         timestamp = actionInfo.timestamp
     }
     
     table.insert(macro, upgradeRecord)
+    
+    print(string.format("Recorded upgrade: Placement #%d (SpawnID: %s) Level %d->%d, Remote: %s", 
+        targetPlacementOrder, tostring(upgradedSpawnId), oldLevel or 0, newLevel or 0, remoteParam))
+    
     notify("Macro Recorder", string.format("Recorded upgrade #%d: Level %d->%d", 
-        targetPlacementOrder or -1, oldUnitData.level, currentLevel))
+        targetPlacementOrder, oldLevel or 0, newLevel or 0))
 end
 
-local function processSellAction(actionInfo)
-    local currentUnits = captureUnitSnapshot()
-    local soldSpawnId = nil
+local function processSellActionFixed(actionInfo)
+    local remoteParam = actionInfo.args[1]
+    
+    local preActionUnits = actionInfo.preActionUnits
+    local postActionUnits = captureUnitSnapshot()
     
     -- Find which unit disappeared
-    for spawnId, oldData in pairs(actionInfo.preActionUnits) do
-        if not currentUnits[spawnId] then
-            soldSpawnId = spawnId
-            break
-        end
-    end
-    
-    if not soldSpawnId then return end
-    
-    local targetPlacementOrder = nil
-    local originalUnitId = nil
-    
-    for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
-        if tostring(storedSpawnId) == soldSpawnId then
-            targetPlacementOrder = placementOrder
-            break
-        end
-    end
-    
-    if targetPlacementOrder then
-        for _, action in ipairs(macro) do
-            if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
-                originalUnitId = action.unitId
+    local soldSpawnId = nil
+    for spawnId, oldData in pairs(preActionUnits) do
+        if not postActionUnits[spawnId] then
+            -- Check if the remote param matches this unit
+            local unit = findUnitBySpawnId(spawnId) -- This might be nil since it's sold
+            -- We need to check if the remote param format matches this spawn ID
+            if remoteParam and string.find(tostring(remoteParam), tostring(spawnId)) then
+                soldSpawnId = spawnId
                 break
             end
+        end
+    end
+    
+    -- Fallback: if we can't match by remote param, just take the first disappeared unit
+    if not soldSpawnId then
+        for spawnId, oldData in pairs(preActionUnits) do
+            if not postActionUnits[spawnId] then
+                soldSpawnId = spawnId
+                break
+            end
+        end
+    end
+    
+    if not soldSpawnId then
+        print("Could not determine which unit was sold")
+        return
+    end
+    
+    -- Find placement order for the sold unit
+    local targetPlacementOrder = findPlacementOrderBySpawnId(soldSpawnId)
+    
+    if not targetPlacementOrder then
+        print("Could not find placement order for sold spawn ID:", soldSpawnId)
+        return
+    end
+    
+    -- Get original unit ID
+    local originalUnitId = nil
+    for _, action in ipairs(macro) do
+        if action.action == "PlaceUnit" and action.placementOrder == targetPlacementOrder then
+            originalUnitId = action.unitId
+            break
         end
     end
     
@@ -940,11 +999,11 @@ local function processSellAction(actionInfo)
         action = "SellUnit",
         unitId = originalUnitId,
         spawnId = soldSpawnId,
-        sellRemoteParam = actionInfo.args[1],
+        sellRemoteParam = remoteParam,
         unitPosition = placementOrderToPosition[targetPlacementOrder],
         wave = actionInfo.wave,
         waveRelativeTime = actionInfo.waveRelativeTime,
-        targetPlacementOrder = targetPlacementOrder or -1,
+        targetPlacementOrder = targetPlacementOrder,
         timestamp = actionInfo.timestamp
     }
     
@@ -961,7 +1020,10 @@ local function processSellAction(actionInfo)
         placementOrderToPosition[targetPlacementOrder] = nil
     end
     
-    notify("Macro Recorder", string.format("Recorded sell #%d", targetPlacementOrder or -1))
+    print(string.format("Recorded sell: Placement #%d (SpawnID: %s), Remote: %s", 
+        targetPlacementOrder, tostring(soldSpawnId), tostring(remoteParam)))
+    
+    notify("Macro Recorder", string.format("Recorded sell #%d", targetPlacementOrder))
 end
 
 local function processWaveSkipAction(actionInfo)
@@ -975,13 +1037,13 @@ local function processWaveSkipAction(actionInfo)
     notify("Macro Recorder", string.format("Recorded wave skip at wave %d", actionInfo.wave))
 end
 
-local function processActionResponse(actionInfo)
+local function processActionResponseFixed(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
         processPlacementAction(actionInfo)
     elseif actionInfo.remoteName == MACRO_CONFIG.UPGRADE_REMOTE then
-        processUpgradeAction(actionInfo)
+        processUpgradeActionFixed(actionInfo) -- Use the fixed version
     elseif actionInfo.remoteName == MACRO_CONFIG.SELL_REMOTE then
-        processSellAction(actionInfo)
+        processSellActionFixed(actionInfo) -- Use the fixed version
     elseif actionInfo.remoteName == MACRO_CONFIG.WAVE_SKIP_REMOTE then
         processWaveSkipAction(actionInfo)
     end
