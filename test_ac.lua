@@ -1,4 +1,4 @@
--- 28
+-- 29
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1374,7 +1374,7 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
     end
     
     updateDetailedStatus(string.format("(%d/%d) FAILED: Could not upgrade %s #%d after %d attempts", 
-        actionIndex, totalActionCount, unitDisplayName, action.targetPlacementOrder, maxRetries))
+        actionIndex, totalActionCount, getUnitNameFromSpawnId(currentSpawnId) or "Unknown Unit", action.targetPlacementOrder, maxRetries))
     return false
 end
 
