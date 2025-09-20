@@ -1,4 +1,4 @@
--- 29
+-- 30
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1308,10 +1308,21 @@ local function validateUpgradeAction(action, playbackMapping, actionIndex, total
         
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s #%d (Level %d, SpawnID: %s)", 
             actionIndex, totalActionCount, attempt, maxRetries, unitDisplayName, action.targetPlacementOrder, originalLevel, tostring(currentSpawnId)))
+        local remoteparamater = ""
+        for _, model in ipairs(Services.Workspace:WaitForChild("_UNITS"):GetChildren()) do
+    if model:IsA("Model") then
+        local stats = model:FindFirstChild("_stats")
+        if stats and stats:FindFirstChild("spawn_id") and stats.spawn_id:IsA("StringValue") then
+            if stats.spawn_id.Value == tostring(currentSpawnId) then
+                remoteparamater = model.Name
+            end
+        end
+    end
+end
         
         -- CRITICAL FIX: Use the CURRENT spawn ID, not the recorded one
         local success = pcall(function()
-            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentSpawnId)
+            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(remoteparamater)
         end)
         
         if not success then
