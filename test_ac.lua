@@ -1,4 +1,4 @@
--- 39
+-- 40
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -5314,12 +5314,11 @@ local unitAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):F
 
 if unitAddedRemote then
     unitAddedRemote.OnClientEvent:Connect(function(...)
-        if isInLobby() then return end
         local args = {...}
         print("unit_added RemoteEvent fired!")
         print("Number of arguments:", #args)
         
-        -- Print detailed argument contents for debugging
+        -- Print all arguments for debugging
         for i, arg in ipairs(args) do
             print("Unit Drop Arg[" .. i .. "] (" .. type(arg) .. "):")
             if type(arg) == "table" then
@@ -5329,39 +5328,146 @@ if unitAddedRemote then
             end
         end
         
-        -- Send webhook notification if enabled
-        if State.SendStageCompletedWebhook then
-            -- Create detailed remote params info for webhook
-            local remoteParamsInfo = {}
-            
-            for i, arg in ipairs(args) do
-                local argInfo = {
-                    index = i,
-                    type = type(arg),
-                    value = nil
-                }
+        -- Try to extract unit information
+        local unitName = "Unknown Unit"
+        local unitId = "Unknown ID"
+        local unitRarity = "Unknown"
+        
+        -- Look for unit data in the arguments - more comprehensive search
+        for i, arg in ipairs(args) do
+            if type(arg) == "table" then
+                print("Analyzing table argument", i, ":")
                 
-                if type(arg) == "table" then
-                    -- Convert table to readable format
-                    local tableStr = "{\n"
-                    for key, value in pairs(arg) do
-                        tableStr = tableStr .. "  " .. tostring(key) .. " = " .. tostring(value) .. " (" .. type(value) .. ")\n"
-                    end
-                    tableStr = tableStr .. "}"
-                    argInfo.value = tableStr
-                elseif type(arg) == "string" or type(arg) == "number" or type(arg) == "boolean" then
-                    argInfo.value = tostring(arg)
-                else
-                    argInfo.value = tostring(arg) .. " (" .. type(arg) .. ")"
+                -- Print all keys in the table for debugging
+                for key, value in pairs(arg) do
+                    print("  " .. tostring(key) .. " = " .. tostring(value) .. " (" .. type(value) .. ")")
                 end
                 
-                table.insert(remoteParamsInfo, argInfo)
+                -- Try many possible field names for unit identification
+                local possibleFields = {
+                    "unit_id", "unitId", "id", "unit", "name", "unit_name", "unitName",
+                    "character_id", "characterId", "char_id", "charId", "character",
+                    "drop_id", "dropId", "item_id", "itemId", "reward_id", "rewardId",
+                    "_id", "UUID", "uuid", "key", "identifier"
+                }
+                
+                for _, field in ipairs(possibleFields) do
+                    local value = arg[field]
+                    if value and tostring(value) ~= "" then
+                        unitId = tostring(value)
+                        unitName = getUnitDisplayName(value) or unitId
+                        print("Found unit using field '" .. field .. "': " .. unitId .. " -> " .. unitName)
+                        break
+                    end
+                end
+                
+                -- Look for rarity/tier information
+                local rarityFields = {"rarity", "tier", "rank", "grade", "star", "stars", "level", "quality"}
+                for _, field in ipairs(rarityFields) do
+                    local value = arg[field]
+                    if value then
+                        unitRarity = tostring(value)
+                        print("Found rarity using field '" .. field .. "': " .. unitRarity)
+                        break
+                    end
+                end
+                
+                -- If we found unit info, we can break
+                if unitName ~= "Unknown Unit" then
+                    break
+                end
+                
+            elseif type(arg) == "string" and arg ~= "" then
+                print("Found string argument:", arg)
+                -- If it's just a string, assume it's the unit ID
+                unitId = arg
+                unitName = getUnitDisplayName(arg) or arg
+                print("Using string as unit ID:", unitId, "->", unitName)
+                break
+            elseif type(arg) == "number" then
+                print("Found number argument:", arg)
+                -- Sometimes unit IDs are numbers
+                unitId = tostring(arg)
+                unitName = getUnitDisplayName(arg) or unitId
+                print("Using number as unit ID:", unitId, "->", unitName)
+                break
             end
-            
-            sendWebhook("unit_drop", remoteParamsInfo)
         end
         
-        notify("Unit Drop", "You got a unit drop! Check webhook for details.")
+        print("Final unit info - Name:", unitName, "ID:", unitId, "Rarity:", unitRarity)
+        
+        -- Send webhook notification if configured
+        if ValidWebhook and Config.DISCORD_USER_ID then
+            -- Create a formatted string of all remote parameters for debugging
+            local paramsList = {}
+            for i, arg in ipairs(args) do
+                if type(arg) == "table" then
+                    local tableContents = {}
+                    for key, value in pairs(arg) do
+                        table.insert(tableContents, tostring(key) .. " = " .. tostring(value))
+                    end
+                    table.insert(paramsList, string.format("Arg[%d] (table): {%s}", i, table.concat(tableContents, ", ")))
+                else
+                    table.insert(paramsList, string.format("Arg[%d] (%s): %s", i, type(arg), tostring(arg)))
+                end
+            end
+            local paramsText = table.concat(paramsList, "\n")
+            
+            -- Truncate if too long for Discord (embed field limit is 1024 chars)
+            if #paramsText > 1000 then
+                paramsText = paramsText:sub(1, 997) .. "..."
+            end
+            
+            local data = {
+                username = "LixHub Unit Drop",
+                content = string.format("<@%s>", Config.DISCORD_USER_ID),
+                embeds = {{
+                    title = "Unit Drop!",
+                    description = string.format("You obtained: **%s**", unitName),
+                    color = 0x00FF00, -- Green color for unit drops
+                    fields = {
+                        { name = "Unit", value = unitName, inline = true },
+                        { name = "Unit ID", value = unitId, inline = true },
+                        { name = "Rarity", value = unitRarity, inline = true },
+                        { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. "||", inline = false },
+                        { name = "Raw Remote Data", value = "```\n" .. paramsText .. "\n```", inline = false }
+                    },
+                    footer = { text = "LixHub Unit Tracker" },
+                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                }}
+            }
+            
+            local payload = Services.HttpService:JSONEncode(data)
+            
+            -- Try different executor HTTP functions
+            local requestFunc = syn and syn.request or request or http_request or 
+                              (fluxus and fluxus.request) or getgenv().request
+            
+            if requestFunc then
+                task.spawn(function()
+                    local success, response = pcall(function()
+                        return requestFunc({
+                            Url = ValidWebhook,
+                            Method = "POST",
+                            Headers = { ["Content-Type"] = "application/json" },
+                            Body = payload
+                        })
+                    end)
+                    
+                    if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
+                        notify("Unit Drop", "Unit drop webhook sent: " .. unitName)
+                        print("Unit drop webhook sent successfully")
+                    else
+                        print("Unit drop webhook failed:", response and response.StatusCode or "No response")
+                    end
+                end)
+            else
+                print("No HTTP function found for unit drop webhook")
+            end
+        end
+        
+        -- Local notification
+        notify("Unit Drop", "You obtained: " .. unitName, 5)
     end)
 else
     warn("unit_added RemoteEvent not found!")
