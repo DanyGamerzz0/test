@@ -1,4 +1,4 @@
--- 33
+-- 34
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1588,72 +1588,6 @@ local function executeActionWithValidation(action, playbackMapping, actionIndex,
 end
 
 local playbackWaveStartTimes = {}
-
-local function playMacroLoop()
-    if not macro or #macro == 0 then
-        print("No macro data to play back")
-        return
-    end
-    
-    print(string.format("Starting wave-synchronized macro playback with %d actions", #macro))
-    
-    local playbackMapping = {}
-    playbackWaveStartTimes = {}
-    
-    -- Monitor wave changes during playback
-    if Services.Workspace:FindFirstChild("_wave_num") then
-        local waveNum = Services.Workspace._wave_num
-        local connection
-        
-        connection = waveNum.Changed:Connect(function(newWave)
-            if isPlaybacking then
-                playbackWaveStartTimes[newWave] = tick()
-                print(string.format("Wave %d started during playback", newWave))
-            else
-                connection:Disconnect()
-            end
-        end)
-        
-        -- Record current wave start time
-        local currentWave = waveNum.Value
-        playbackWaveStartTimes[currentWave] = tick()
-    end
-    
-    for i, action in ipairs(macro) do
-        if not isPlaybacking then break end
-        
-        -- Wait for the correct wave
-        local targetWave = action.wave
-        local currentWave = getCurrentWave()
-        
-        while currentWave < targetWave and isPlaybacking do
-            task.wait(0.5)
-            currentWave = getCurrentWave()
-        end
-        
-        if not isPlaybacking then break end
-        
-        -- Wait for the correct time within the wave
-        local targetWaveTime = action.waveRelativeTime or 0
-        local waveStartTime = playbackWaveStartTimes[currentWave]
-        
-        if waveStartTime then
-            local currentWaveTime = tick() - waveStartTime
-            local waitTime = targetWaveTime - currentWaveTime
-            
-            if waitTime > 0 then
-                print(string.format("Waiting %.2fs for wave %d timing", waitTime, currentWave))
-                task.wait(waitTime)
-            end
-        end
-        
-        if isPlaybacking then
-            executeAction(action, playbackMapping)
-        end
-    end
-    
-    print("Wave-synchronized macro playback completed")
-end
 
 local function waitForGameStart_Record()
     local waveNum = Services.Workspace:WaitForChild("_wave_num")
@@ -3679,7 +3613,7 @@ Toggle = GameTab:CreateToggle({
     end,
 })
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
    Name = "Auto Start Game",
    CurrentValue = false,
    Flag = "AutoStartGame",
@@ -3703,7 +3637,7 @@ spawn(function()
     end
 end)
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
    Name = "Auto Skip Waves",
    CurrentValue = false,
    Flag = "AutoSkipWaves",
@@ -3715,7 +3649,7 @@ local Toggle = GameTab:CreateToggle({
    end,
 })
 
-local Slider = GameTab:CreateSlider({
+ Slider = GameTab:CreateSlider({
    Name = "Auto Skip Until Wave",
    Range = {0, 30},
    Increment = 1,
@@ -3758,7 +3692,7 @@ task.spawn(function()
 end)
 
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
    Name = "Auto Retry",
    CurrentValue = false,
    Flag = "AutoRetry",
@@ -3770,7 +3704,7 @@ local Toggle = GameTab:CreateToggle({
    end,
 })
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
    Name = "Auto Next",
    CurrentValue = false,
    Flag = "AutoNext",
@@ -3782,7 +3716,7 @@ local Toggle = GameTab:CreateToggle({
    end,
 })
 
-local Toggle = GameTab:CreateToggle({
+ Toggle = GameTab:CreateToggle({
    Name = "Auto Lobby",
    CurrentValue = false,
    Flag = "AutoLobby",
@@ -4332,7 +4266,7 @@ local function exportMacroToClipboard(macroName, format)
     end
 end
 
-local RefreshMacroListButton = MacroTab:CreateButton({
+ RefreshMacroListButton = MacroTab:CreateButton({
     Name = "Refresh Macro List",
     Callback = function()
         loadAllMacros()
@@ -4342,7 +4276,7 @@ local RefreshMacroListButton = MacroTab:CreateButton({
     end,
 })
 
-local DeleteSelectedMacroButton = MacroTab:CreateButton({
+ DeleteSelectedMacroButton = MacroTab:CreateButton({
     Name = "Delete Selected Macro",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
