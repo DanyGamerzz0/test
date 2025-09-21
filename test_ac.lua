@@ -1,4 +1,4 @@
--- 50
+-- 51
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1868,39 +1868,39 @@ local function sendWebhook(messageType, unitData)
             }}
         }
 
-    elseif messageType == "unit_drop" then
-        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
-        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        local unitName = "Unknown Unit"
-        
-        print("DEBUG WEBHOOK: unitData type:", type(unitData), "value:", unitData)
-        
-        -- Simply get the unit name from argument 5 (based on your console output)
-        if unitData and type(unitData) == "table" then
-            print("DEBUG WEBHOOK: unitData has", #unitData, "items")
-            for _, argInfo in ipairs(unitData) do
-                print("DEBUG WEBHOOK: arg", argInfo.index, "=", argInfo.value)
-                if argInfo.index == 5 and argInfo.type == "string" then
-                    unitName = argInfo.value -- This should be "Sanji" from your example
-                    print("DEBUG WEBHOOK: Set unitName to:", unitName)
-                    break
-                end
+elseif messageType == "unit_drop" then
+    local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    local unitName = "Unknown Unit"
+    
+    print("DEBUG WEBHOOK: unitData type:", type(unitData), "value:", unitData)
+    
+    -- Simply get the unit name from argument 5 (based on your console output)
+    if unitData and type(unitData) == "table" then
+        print("DEBUG WEBHOOK: unitData has", #unitData, "items")
+        for _, argInfo in ipairs(unitData) do
+            print("DEBUG WEBHOOK: arg", argInfo.index, "=", argInfo.value)
+            if argInfo.index == 5 and argInfo.type == "string" then
+                unitName = argInfo.value
+                print("DEBUG WEBHOOK: Set unitName to:", unitName)
+                break
             end
         end
-        
-        print("DEBUG WEBHOOK: Final unitName:", unitName)
-        
-        data = {
-            username = "LixHub",
-            content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
-            embeds = {{
-                title = "Unit Drop!",
-                description = string.format("**%s** obtained **%s**!", playerName, unitName),
-                color = 0x5865F2,
-                footer = { text = "LixHub" },
-                timestamp = timestamp
-            }}
-        }
+    end
+    
+    print("DEBUG WEBHOOK: Final unitName:", unitName)
+    
+    data = {
+        username = "LixHub",
+        content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
+        embeds = {{
+            title = "Unit Drop!",
+            description = string.format("**%s** obtained **%s**!", playerName, unitName),
+            color = 0x5865F2,
+            footer = { text = "LixHub" },
+            timestamp = timestamp
+        }}
+    }
 
     elseif messageType == "stage" then
         -- Keep existing stage webhook code unchanged
@@ -5544,34 +5544,34 @@ if unitAddedRemote then
         if State.SendStageCompletedWebhook then
             print("DEBUG: SendUnitDropWebhook is enabled, processing args...")
             
-            -- Create detailed remote params info for webhook
+            -- FIXED: Process the actual remote arguments directly
             local remoteParamsInfo = {}
             
-            for i, arg in ipairs(args) do
-                print("DEBUG: Processing arg", i, "type:", type(arg), "value:", tostring(arg))
-                
-                local argInfo = {
-                    index = i,
-                    type = type(arg),
-                    value = nil
-                }
-                
-                if type(arg) == "table" then
-                    -- Convert table to readable format
-                    local tableStr = "{\n"
-                    for key, value in pairs(arg) do
-                        tableStr = tableStr .. "  " .. tostring(key) .. " = " .. tostring(value) .. " (" .. type(value) .. ")\n"
+            -- If the first argument is a table, process its contents as individual arguments
+            if #args == 1 and type(args[1]) == "table" then
+                local tableData = args[1]
+                for i = 1, 8 do -- Process up to 8 arguments based on your console output
+                    if tableData[i] then
+                        local argInfo = {
+                            index = i,
+                            type = type(tableData[i]),
+                            value = tostring(tableData[i])
+                        }
+                        table.insert(remoteParamsInfo, argInfo)
+                        print("DEBUG: Added table arg", i, "=", argInfo.value)
                     end
-                    tableStr = tableStr .. "}"
-                    argInfo.value = tableStr
-                elseif type(arg) == "string" or type(arg) == "number" or type(arg) == "boolean" then
-                    argInfo.value = tostring(arg)
-                else
-                    argInfo.value = tostring(arg) .. " (" .. type(arg) .. ")"
                 end
-                
-                table.insert(remoteParamsInfo, argInfo)
-                print("DEBUG: Added argInfo for index", i, "with value:", argInfo.value)
+            else
+                -- Process arguments normally if not in a table
+                for i, arg in ipairs(args) do
+                    local argInfo = {
+                        index = i,
+                        type = type(arg),
+                        value = tostring(arg)
+                    }
+                    table.insert(remoteParamsInfo, argInfo)
+                    print("DEBUG: Added direct arg", i, "=", argInfo.value)
+                end
             end
             
             print("DEBUG: About to call sendWebhook with", #remoteParamsInfo, "arguments")
