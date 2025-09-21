@@ -1,4 +1,4 @@
--- 43
+-- 44
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1875,18 +1875,39 @@ local function sendWebhook(messageType, unitData)
         
         -- Extract unit information based on the observed remote structure
         if unitData and type(unitData) == "table" then
+            print("DEBUG: Searching for unit name in", #unitData, "arguments")
+            
             -- Based on the remote data, Arg[5] contains the unit name (like "Igris")
             for _, argInfo in ipairs(unitData) do
+                print("DEBUG: Checking arg", argInfo.index, "type:", argInfo.type, "value:", tostring(argInfo.value))
+                
                 if argInfo.index == 5 and argInfo.type == "string" then
                     unitName = argInfo.value
+                    print("DEBUG: Found unit name:", unitName)
+                    
                     -- Try to get display name from game data
                     local displayName = getUnitDisplayName(unitName)
                     if displayName and displayName ~= unitName then
                         unitName = displayName
+                        print("DEBUG: Using display name:", unitName)
                     end
                     break
                 end
             end
+            
+            if unitName == "Unknown Unit" then
+                print("DEBUG: Unit name not found, trying any string argument")
+                -- Fallback: try to find any string argument that looks like a unit name
+                for _, argInfo in ipairs(unitData) do
+                    if argInfo.type == "string" and argInfo.value and argInfo.value ~= "" and not argInfo.value:match("^%x+$") then
+                        unitName = argInfo.value
+                        print("DEBUG: Using fallback unit name:", unitName)
+                        break
+                    end
+                end
+            end
+        else
+            print("DEBUG: unitData is not a table or is nil")
         end
         
         -- Determine embed color based on unit name
@@ -3318,7 +3339,7 @@ section = JoinerTab:CreateSection("Gate Joiner")
 
 local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
 
- AutoJoinGateToggle = JoinerTab:CreateToggle({
+local AutoJoinGateToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Gate",
     CurrentValue = false,
     Flag = "AutoJoinGate",
@@ -3353,7 +3374,7 @@ local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
     end,
 })
 
- Toggle = JoinerTab:CreateToggle({
+local AutoNextGateToggle = JoinerTab:CreateToggle({
    Name = "Auto Next Gate",
    CurrentValue = false,
    Flag = "AutoNextGate",
@@ -5544,6 +5565,8 @@ if unitAddedRemote then
         local args = {...}
         print("unit_added RemoteEvent fired!")
         print("Number of arguments:", #args)
+        AutoJoinGateToggle:Set(false)
+        AutoNextGateToggle:Set(false)
         
         -- Print detailed argument contents for debugging
         for i, arg in ipairs(args) do
@@ -5556,7 +5579,7 @@ if unitAddedRemote then
         end
         
         -- Send webhook notification if enabled
-        if State.SendStageCompletedWebhook then
+        if State.SendUnitDropWebhook then
             -- Create detailed remote params info for webhook
             local remoteParamsInfo = {}
             
