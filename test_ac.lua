@@ -1,4 +1,4 @@
-    -- 52
+    -- 53
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -128,6 +128,8 @@
     local unitPositionToPlacementOrder = {}
     local placementOrderToPosition = {}
     local placementOrderToSpawnUUID = {}
+
+    local currentChallenge = nil
 
     local pendingUpgrades = {} -- Track ongoing upgrades
     local upgradeStateSnapshots = {} -- Store unit states before upgrades
@@ -1755,30 +1757,46 @@
         return displayName
     end
 
+local function getChallengeDisplayName(challenge)
+    if not challenge then return nil end
+    
+    -- Convert snake_case to Title Case
+    return challenge:gsub("_", " "):gsub("(%w)(%w*)", function(first, rest)
+        return first:upper() .. rest:lower()
+    end)
+end
+
     -- Function to get current map info
-    local function getMapInfo()
-        local mapName = "Unknown Map"
+local function getMapInfo()
+    local mapName = "Unknown Map"
+    local challengeModifier = nil
+    
+    -- Try to get map data from GetLevelData
+    if Services.Workspace:FindFirstChild("_MAP_CONFIG") and Services.Workspace._MAP_CONFIG:FindFirstChild("GetLevelData") then
+        local success, result = pcall(function()
+            return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
+        end)
         
-        -- Try to get map data from GetLevelData
-        if Services.Workspace:FindFirstChild("_MAP_CONFIG") and Services.Workspace._MAP_CONFIG:FindFirstChild("GetLevelData") then
-            local success, result = pcall(function()
-                return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
-            end)
+        if success and result then
+            -- Try different possible field names for the map name
+            mapName = result.MapName or result.mapName or result.Name or result.name or 
+                     result.LevelName or result.levelName or result.Map or result.map or "Unknown Map"
             
-            if success and result then
-                -- Try different possible field names for the map name
-                mapName = result.MapName or result.mapName or result.Name or result.name or 
-                        result.LevelName or result.levelName or result.Map or result.map or "Unknown Map"
-                
-                print("Map info retrieved:", mapName)
-                print("Full map data:", result)
-            else
-                print("Failed to get map data:", result)
+            -- Capture challenge modifier
+            challengeModifier = result.challenge
+            
+            print("Map info retrieved:", mapName)
+            if challengeModifier then
+                print("Challenge modifier found:", challengeModifier)
             end
+            print("Full map data:", result)
+        else
+            print("Failed to get map data:", result)
         end
-        
-        return mapName
     end
+    
+    return mapName, challengeModifier
+end
 
     -- Function to capture current stats
     local function captureStats()
@@ -1905,72 +1923,79 @@
         }
 
         elseif messageType == "stage" then
-            -- Keep existing stage webhook code unchanged
-            local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
-            local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            local gameDuration = tick() - gameStartTime
-            local formattedTime = formatTime(gameDuration)
-            
-            -- Get stat changes (excluding resource)
-            endStats = captureStats()
-            local statChanges = getStatChanges()
-            
-            -- Format rewards text
-            local rewardsText = ""
-            
-            -- Add items if any were collected
-            if next(sessionItems) then
-                for itemName, quantity in pairs(sessionItems) do
-                    local displayName = getItemDisplayName(itemName)
-                    rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
-                end
-            end
-            
-            -- Add stat changes if any with total amounts (excluding resource)
-            if next(statChanges) then
-                for statName, change in pairs(statChanges) do
-                    local totalAmount = endStats[statName] or 0
-                    local displayStatName = getStatDisplayName(statName)
-                    rewardsText = rewardsText .. "+" .. change .. " " .. displayStatName .. " [" .. totalAmount .. "]\n"
-                end
-            end
-            
-            if rewardsText == "" then
-                rewardsText = "No rewards gained this match"
-            else
-                rewardsText = rewardsText:gsub("\n$", "")
-            end
-            
-            local footerText = "discord.gg/cYKnXE2Nf8"
-            
-            -- Determine title and color based on game result
-            local titleText = "Stage Completed!"
-            local embedColor = 0x57F287
-            
-            if gameResult == "Victory" or gameResult == "Win" then
-                titleText = "Stage Finished!"
-                embedColor = 0x57F287
-            elseif gameResult == "Defeat" or gameResult == "Loss" then
-                titleText = "Stage Failed!"
-                embedColor = 0xED4245
-            end
-            
-            data = {
-                username = "LixHub",
-                embeds = {{
-                    title = titleText,
-                    description = currentMapName .. " - " .. gameResult,
-                    color = embedColor,
-                    fields = {
-                        { name = "Player", value = playerName, inline = true },
-                        { name = "Duration", value = formattedTime, inline = true },
-                        { name = "Waves Completed", value = tostring(lastWave), inline = true },
-                        { name = "Rewards", value = rewardsText, inline = false },
-                    },
-                    footer = { text = footerText },
-                    timestamp = timestamp
-                }}
-            }
+    -- Keep existing stage webhook code unchanged
+    local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    local gameDuration = tick() - gameStartTime
+    local formattedTime = formatTime(gameDuration)
+    
+    -- Add challenge info to duration if it exists
+    local durationText = formattedTime
+    if currentChallenge then
+        local challengeDisplay = getChallengeDisplayName(currentChallenge)
+        durationText = formattedTime .. " - (" .. challengeDisplay .. ")"
+    end
+    
+    -- Get stat changes (excluding resource)
+    endStats = captureStats()
+    local statChanges = getStatChanges()
+    
+    -- Format rewards text
+    local rewardsText = ""
+    
+    -- Add items if any were collected
+    if next(sessionItems) then
+        for itemName, quantity in pairs(sessionItems) do
+            local displayName = getItemDisplayName(itemName)
+            rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
+        end
+    end
+    
+    -- Add stat changes if any with total amounts (excluding resource)
+    if next(statChanges) then
+        for statName, change in pairs(statChanges) do
+            local totalAmount = endStats[statName] or 0
+            local displayStatName = getStatDisplayName(statName)
+            rewardsText = rewardsText .. "+" .. change .. " " .. displayStatName .. " [" .. totalAmount .. "]\n"
+        end
+    end
+    
+    if rewardsText == "" then
+        rewardsText = "No rewards gained this match"
+    else
+        rewardsText = rewardsText:gsub("\n$", "")
+    end
+    
+    local footerText = "discord.gg/cYKnXE2Nf8"
+    
+    -- Determine title and color based on game result
+    local titleText = "Stage Completed!"
+    local embedColor = 0x57F287
+    
+    if gameResult == "Victory" or gameResult == "Win" then
+        titleText = "Stage Finished!"
+        embedColor = 0x57F287
+    elseif gameResult == "Defeat" or gameResult == "Loss" then
+        titleText = "Stage Failed!"
+        embedColor = 0xED4245
+    end
+    
+     data = {
+        username = "LixHub",
+        embeds = {{
+            title = titleText,
+            description = currentMapName .. " - " .. gameResult,
+            color = embedColor,
+            fields = {
+                { name = "Player", value = playerName, inline = true },
+                { name = "Duration", value = durationText, inline = true }, -- This now includes challenge info
+                { name = "Waves Completed", value = tostring(lastWave), inline = true },
+                { name = "Rewards", value = rewardsText, inline = false },
+            },
+            footer = { text = footerText },
+            timestamp = timestamp
+        }}
+    }
         end
         
         local payload = Services.HttpService:JSONEncode(data)
@@ -2007,41 +2032,47 @@
     end
 
     -- Function to start game tracking
-    local function startGameTracking()
-        if gameInProgress then return end
-        
-        gameInProgress = true
-        sessionItems = {}
-        gameStartTime = tick()
-        startStats = captureStats()
-        currentMapName = getMapInfo()
-        gameResult = "In Progress"
-        
-        print("Game tracking started!")
-        print("Map: " .. currentMapName)
+local function startGameTracking()
+    if gameInProgress then return end
+    
+    gameInProgress = true
+    sessionItems = {}
+    gameStartTime = tick()
+    startStats = captureStats()
+    
+    -- Get both map name and challenge info
+    currentMapName, currentChallenge = getMapInfo()
+    gameResult = "In Progress"
+    
+    print("Game tracking started!")
+    print("Map: " .. currentMapName)
+    if currentChallenge then
+        print("Challenge: " .. currentChallenge)
     end
+end
 
     -- Function to end game tracking
-    local function endGameTracking()
-        if not gameInProgress then return end
-        
-        print("Game ended! Sending summary...")
-        
-        -- Send summary webhook
-        if State.SendStageCompletedWebhook then
-            sendWebhook("stage")
-        end
-        
-        -- Reset tracking
-        gameInProgress = false
-        sessionItems = {}
-        gameStartTime = 0
-        lastWave = 0
-        startStats = {}
-        endStats = {}
-        currentMapName = "Unknown Map"
-        gameResult = "Unknown"
+local function endGameTracking()
+    if not gameInProgress then return end
+    
+    print("Game ended! Sending summary...")
+    
+    -- Send summary webhook
+    if State.SendStageCompletedWebhook then
+        sendWebhook("stage")
     end
+    
+    -- Reset tracking
+    gameInProgress = false
+    sessionItems = {}
+    gameStartTime = 0
+    lastWave = 0
+    startStats = {}
+    endStats = {}
+    currentMapName = "Unknown Map"
+    currentChallenge = nil -- Clear challenge info
+    gameResult = "Unknown"
+end
 
     -- Monitor wave number for game start detection
     local function monitorWaves()
