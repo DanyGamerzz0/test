@@ -220,7 +220,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local ValidWebhook
 
@@ -5066,7 +5066,7 @@ end)
     end,
     })
 
-    JoinerSection0 = JoinerTab:CreateSection("🗺️ Expedition Mode Joiner 🗺️")
+    JoinerSection0 = JoinerTab:CreateSection("⏳ Expedition Mode Joiner ⏳")
 
      AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Expidition Mode",
@@ -5077,7 +5077,7 @@ end)
     end,
     })
 
-    JoinerSection0 = JoinerTab:CreateSection("🗺️ Holy Grail War Joiner 🗺️")
+    JoinerSection0 = JoinerTab:CreateSection("🪖 Holy Grail War Joiner 🪖")
 
      AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Holy Grail War Mode",
