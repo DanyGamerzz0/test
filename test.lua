@@ -1637,6 +1637,12 @@ local function setProcessingState(action)
             notify("🔄 Processing: ", action)
             elseif action == "Adventure Mode Auto Join" then
             notify("🔄 Processing: ", action)
+            elseif action == "Grail Dungeon Auto Join" then
+            notify("🔄 Processing: ", action)
+            elseif action == "Holy Grail War Mode Auto Join" then
+            notify("🔄 Processing: ", action)
+            elseif action == "Expidition Mode Auto Join" then
+            notify("🔄 Processing: ", action)
     end
 end
 
@@ -5069,7 +5075,7 @@ end)
     JoinerSection0 = JoinerTab:CreateSection("⏳ Expedition Mode Joiner ⏳")
 
      AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Expidition Mode",
+    Name = "Auto Join Expedition Mode",
     CurrentValue = false,
     Flag = "AutoExpeditionModeToggle",
     Callback = function(Value)
@@ -5077,7 +5083,7 @@ end)
     end,
     })
 
-    JoinerSection0 = JoinerTab:CreateSection("🪖 Holy Grail War Joiner 🪖")
+    JoinerSection0 = JoinerTab:CreateSection("🔱 Holy Grail War Joiner 🔱")
 
      AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Holy Grail War Mode",
