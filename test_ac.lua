@@ -1,4 +1,4 @@
--- 46
+-- 47
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1877,37 +1877,43 @@ local function sendWebhook(messageType, unitData)
         if unitData and type(unitData) == "table" then
             print("DEBUG: Searching for unit name in", #unitData, "arguments")
             
-            -- Based on the remote data, Arg[5] contains the unit name (like "Igris")
+            -- Based on the remote data, look for the string argument that contains the unit name
             for _, argInfo in ipairs(unitData) do
                 print("DEBUG: Checking arg", argInfo.index, "type:", argInfo.type, "value:", tostring(argInfo.value))
                 
-                if argInfo.index == 5 and argInfo.type == "string" then
+                -- Look for Arg[5] which should be "Sanji" based on your debug output
+                if argInfo.index == 5 and argInfo.type == "string" and argInfo.value and argInfo.value ~= "" then
                     unitName = argInfo.value
-                    print("DEBUG: Found unit name:", unitName)
+                    print("DEBUG: Found unit name in arg 5:", unitName)
                     
                     -- Try to get display name from game data
                     local displayName = getUnitDisplayName(unitName)
                     if displayName and displayName ~= unitName then
+                        print("DEBUG: Using display name:", displayName)
                         unitName = displayName
-                        print("DEBUG: Using display name:", unitName)
                     end
                     break
                 end
             end
             
+            -- If still unknown, try any string that looks like a unit name (not hex IDs)
             if unitName == "Unknown Unit" then
-                print("DEBUG: Unit name not found, trying any string argument")
-                -- Fallback: try to find any string argument that looks like a unit name
+                print("DEBUG: Unit name not found in arg 5, searching all string args")
                 for _, argInfo in ipairs(unitData) do
-                    if argInfo.type == "string" and argInfo.value and argInfo.value ~= "" and not argInfo.value:match("^%x+$") then
-                        unitName = argInfo.value
-                        print("DEBUG: Using fallback unit name:", unitName)
-                        break
+                    if argInfo.type == "string" and argInfo.value and argInfo.value ~= "" then
+                        -- Skip hex strings (IDs) and look for actual names
+                        if not argInfo.value:match("^[%x]+$") and not argInfo.value:match("^0x") then
+                            unitName = argInfo.value
+                            print("DEBUG: Using fallback unit name:", unitName)
+                            break
+                        end
                     end
                 end
             end
+            
+            print("DEBUG: Final unit name:", unitName)
         else
-            print("DEBUG: unitData is not a table or is nil")
+            print("DEBUG: unitData is not a table or is nil, type:", type(unitData))
         end
         
         -- Determine embed color based on unit name
@@ -5564,8 +5570,6 @@ if unitAddedRemote then
         local args = {...}
         print("unit_added RemoteEvent fired!")
         print("Number of arguments:", #args)
-        AutoJoinGateToggle:Set(false)
-        AutoNextGateToggle:Set(false)
         
         -- Print detailed argument contents for debugging
         for i, arg in ipairs(args) do
