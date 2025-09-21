@@ -1,4 +1,4 @@
--- 45
+-- 46
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -5559,7 +5559,6 @@ local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"
 local challengeChangedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_challenge_changed")
 local unitAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("unit_added")
 
-
 if unitAddedRemote then
     unitAddedRemote.OnClientEvent:Connect(function(...)
         local args = {...}
@@ -5636,6 +5635,9 @@ if challengeChangedRemote then
         local args = {...}
         print("normal_challenge_changed RemoteEvent fired!")
         print("New challenge detected - arguments:", #args)
+
+        AutoJoinGateToggle:Set(false)
+        AutoNextGateToggle:Set(false)
         
         -- Print challenge change data for debugging
         for i, arg in ipairs(args) do
