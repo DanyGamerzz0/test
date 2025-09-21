@@ -1,4 +1,4 @@
--- 47
+-- 48
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1873,62 +1873,14 @@ local function sendWebhook(messageType, unitData)
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local unitName = "Unknown Unit"
         
-        -- Extract unit information based on the observed remote structure
+        -- Simply get the unit name from argument 5 (based on your console output)
         if unitData and type(unitData) == "table" then
-            print("DEBUG: Searching for unit name in", #unitData, "arguments")
-            
-            -- Based on the remote data, look for the string argument that contains the unit name
             for _, argInfo in ipairs(unitData) do
-                print("DEBUG: Checking arg", argInfo.index, "type:", argInfo.type, "value:", tostring(argInfo.value))
-                
-                -- Look for Arg[5] which should be "Sanji" based on your debug output
-                if argInfo.index == 5 and argInfo.type == "string" and argInfo.value and argInfo.value ~= "" then
-                    unitName = argInfo.value
-                    print("DEBUG: Found unit name in arg 5:", unitName)
-                    
-                    -- Try to get display name from game data
-                    local displayName = getUnitDisplayName(unitName)
-                    if displayName and displayName ~= unitName then
-                        print("DEBUG: Using display name:", displayName)
-                        unitName = displayName
-                    end
+                if argInfo.index == 5 and argInfo.type == "string" then
+                    unitName = argInfo.value -- This should be "Sanji" from your example
                     break
                 end
             end
-            
-            -- If still unknown, try any string that looks like a unit name (not hex IDs)
-            if unitName == "Unknown Unit" then
-                print("DEBUG: Unit name not found in arg 5, searching all string args")
-                for _, argInfo in ipairs(unitData) do
-                    if argInfo.type == "string" and argInfo.value and argInfo.value ~= "" then
-                        -- Skip hex strings (IDs) and look for actual names
-                        if not argInfo.value:match("^[%x]+$") and not argInfo.value:match("^0x") then
-                            unitName = argInfo.value
-                            print("DEBUG: Using fallback unit name:", unitName)
-                            break
-                        end
-                    end
-                end
-            end
-            
-            print("DEBUG: Final unit name:", unitName)
-        else
-            print("DEBUG: unitData is not a table or is nil, type:", type(unitData))
-        end
-        
-        -- Determine embed color based on unit name
-        local embedColor = 0x5865F2 -- Default Discord blue
-        local unitNameLower = string.lower(unitName)
-        
-        -- Color coding for different units/rarities
-        if unitNameLower:find("igris") or unitNameLower:find("shadow") then
-            embedColor = 0x2C2F33 -- Dark gray/black for shadow units
-        elseif unitNameLower:find("vegeta") or unitNameLower:find("goku") or unitNameLower:find("frieza") then
-            embedColor = 0xFF6B35 -- Orange for main characters
-        elseif unitNameLower:find("legendary") or unitNameLower:find("mythic") then
-            embedColor = 0xFF6B35 -- Orange for legendary
-        elseif unitNameLower:find("unknown") then
-            embedColor = 0x808080 -- Gray for unknown
         end
         
         data = {
@@ -1937,7 +1889,7 @@ local function sendWebhook(messageType, unitData)
             embeds = {{
                 title = "Unit Drop!",
                 description = string.format("**%s** obtained **%s**!", playerName, unitName),
-                color = embedColor,
+                color = 0x5865F2,
                 footer = { text = "LixHub" },
                 timestamp = timestamp
             }}
@@ -5582,11 +5534,15 @@ if unitAddedRemote then
         end
         
         -- Send webhook notification if enabled
-        if State.SendStageCompletedWebhook then
+        if State.SendUnitDropWebhook then
+            print("DEBUG: SendUnitDropWebhook is enabled, processing args...")
+            
             -- Create detailed remote params info for webhook
             local remoteParamsInfo = {}
             
             for i, arg in ipairs(args) do
+                print("DEBUG: Processing arg", i, "type:", type(arg), "value:", tostring(arg))
+                
                 local argInfo = {
                     index = i,
                     type = type(arg),
@@ -5608,9 +5564,13 @@ if unitAddedRemote then
                 end
                 
                 table.insert(remoteParamsInfo, argInfo)
+                print("DEBUG: Added argInfo for index", i, "with value:", argInfo.value)
             end
             
+            print("DEBUG: About to call sendWebhook with", #remoteParamsInfo, "arguments")
             sendWebhook("unit_drop", remoteParamsInfo)
+        else
+            print("DEBUG: SendUnitDropWebhook is disabled")
         end
         
         notify("Unit Drop", "You got a unit drop! Check webhook for details.")
