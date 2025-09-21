@@ -189,6 +189,10 @@ local State = {
     [6] = {paths = {1, 2, 3, 4}, enabled = false}},
     bossRushCurrentSlot = 1,
     bossRushLastDeploymentTimes = {},
+    autoExpeditionEnabled = false,
+    autoHolyGrailEnabled = false,
+    autoGrailDungeonEnabled = false,
+    AutoGrailDungeonDifficultySelector = nil,
 }
 
 local Data = {
@@ -216,7 +220,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local ValidWebhook
 
@@ -2075,6 +2079,35 @@ local function checkAndExecuteHighestPriority()
         return
     end
 
+    if State.autoExpeditionEnabled then
+        setProcessingState("Expidition Mode Auto Join")
+
+        Remotes.PlayEvent:FireServer("ExpiditionMode")
+        task.wait(1)
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoHolyGrailEnabled then
+        setProcessingState("Holy Grail War Mode Auto Join")
+
+        Remotes.PlayEvent:FireServer("Fate Mode")
+        task.wait(1)
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+        if State.autoGrailDungeonEnabled and State.AutoGrailDungeonDifficultySelector and State.AutoGrailDungeonDifficultySelector ~= "" then
+        setProcessingState("Grail Dungeon Auto Join")
+
+        local args = {"GrailDungeon",{Difficulty = State.AutoGrailDungeonDifficultySelector[1]}}
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer(unpack(args))
+        task.delay(5, clearProcessingState)
+        return
+    end
+    
     if State.autoBossRushEnabled then
         setProcessingState("Boss Rush Auto Join")
 
@@ -4077,7 +4110,7 @@ CodeButton = LobbyTab:CreateButton({
 })
 
  Dropdown = LobbyTab:CreateDropdown({
-   Name = "Auto Summon Bannter",
+   Name = "Auto Summon Banner",
    Options = {"Standard","Rateup"},
    CurrentOption = {},
    MultipleOptions = false,
@@ -5032,6 +5065,50 @@ end)
         State.autoAdventureModeEnabled = Value
     end,
     })
+
+    JoinerSection0 = JoinerTab:CreateSection("🗺️ Expedition Mode Joiner 🗺️")
+
+     AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Expidition Mode",
+    CurrentValue = false,
+    Flag = "AutoExpeditionModeToggle",
+    Callback = function(Value)
+        State.autoExpeditionEnabled = Value
+    end,
+    })
+
+    JoinerSection0 = JoinerTab:CreateSection("🗺️ Holy Grail War Joiner 🗺️")
+
+     AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Holy Grail War Mode",
+    CurrentValue = false,
+    Flag = "AutoHolyGrailModeToggle",
+    Callback = function(Value)
+        State.autoHolyGrailEnabled = Value
+    end,
+    })
+
+     JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Grail Dungeon Joiner ⛓️")
+
+     Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Grail Dungeon",
+    CurrentValue = false,
+    Flag = "AutoGrailDungeonToggle",
+    Callback = function(Value)
+        State.autoGrailDungeonEnabled = Value
+    end,
+    })
+
+    Dropdown = JoinerTab:CreateDropdown({
+   Name = "Select Grail Dungeon Difficulty",
+   Options = {"Easy","Normal","Hell"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "AutoGrailDungeonDifficultySelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Option)
+        State.AutoGrailDungeonDifficultySelector = Option
+   end,
+})
 
      JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
 
