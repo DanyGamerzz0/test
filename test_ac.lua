@@ -1,4 +1,4 @@
--- 49
+-- 50
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -1873,15 +1873,22 @@ local function sendWebhook(messageType, unitData)
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local unitName = "Unknown Unit"
         
+        print("DEBUG WEBHOOK: unitData type:", type(unitData), "value:", unitData)
+        
         -- Simply get the unit name from argument 5 (based on your console output)
         if unitData and type(unitData) == "table" then
+            print("DEBUG WEBHOOK: unitData has", #unitData, "items")
             for _, argInfo in ipairs(unitData) do
+                print("DEBUG WEBHOOK: arg", argInfo.index, "=", argInfo.value)
                 if argInfo.index == 5 and argInfo.type == "string" then
                     unitName = argInfo.value -- This should be "Sanji" from your example
+                    print("DEBUG WEBHOOK: Set unitName to:", unitName)
                     break
                 end
             end
         end
+        
+        print("DEBUG WEBHOOK: Final unitName:", unitName)
         
         data = {
             username = "LixHub",
