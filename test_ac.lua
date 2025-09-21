@@ -1,4 +1,4 @@
--- 44
+-- 45
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 end)
@@ -5579,7 +5579,7 @@ if unitAddedRemote then
         end
         
         -- Send webhook notification if enabled
-        if State.SendUnitDropWebhook then
+        if State.SendStageCompletedWebhook then
             -- Create detailed remote params info for webhook
             local remoteParamsInfo = {}
             
