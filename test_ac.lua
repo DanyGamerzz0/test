@@ -1,4 +1,4 @@
-    -- 3
+    -- 4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1108,18 +1108,6 @@ local function processSellActionRefactored(actionInfo)
     notify("Macro Recorder", string.format("Recorded sell: %s at %.1fs", displayText, gameRelativeTime))
 end
 
--- Updated wave skip function with cleaner format
-local function processWaveSkipAction(actionInfo)
-    local gameRelativeTime = actionInfo.timestamp - gameStartTime
-    
-    table.insert(macro, {
-        Type = "vote_wave_skip",
-        Time = string.format("%.2f", gameRelativeTime)
-    })
-    
-    notify("Macro Recorder", string.format("Recorded wave skip at %.1fs", gameRelativeTime))
-end
-
 local function processWaveSkipAction(actionInfo)
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
@@ -1339,14 +1327,19 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
         local x, y, z = action.Pos:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
         local targetPosition = Vector3.new(tonumber(x), tonumber(y), tonumber(z))
         
-        -- Parse direction if available
+        -- Build proper raycast parameter
         local raycastParam = {}
         if action.Dir and action.Dir ~= "" then
-            local dx, dy, dz = action.Dir:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
+            local dx, dy, dz = action.Dir:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
             raycastParam.Direction = Vector3.new(tonumber(dx), tonumber(dy), tonumber(dz))
-            raycastParam.Origin = Vector3.new(targetPosition.X, targetPosition.Y + 10, targetPosition.Z)
-            raycastParam.Unit = targetPosition
+        else
+            -- Default downward direction if no direction stored
+            raycastParam.Direction = Vector3.new(0, -1, 0)
         end
+        
+        -- Always set Origin and Unit for proper ground detection
+        raycastParam.Origin = Vector3.new(targetPosition.X, targetPosition.Y + 50, targetPosition.Z)
+        raycastParam.Unit = targetPosition
         
         -- Apply random offset if enabled
         if State.RandomOffsetEnabled then
@@ -1536,7 +1529,6 @@ local function validateUpgradeActionRefactored(action, actionIndex, totalActionC
         actionIndex, totalActionCount, action.Unit))
     return false
 end
-
 
 local function validateSellActionRefactored(action, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
