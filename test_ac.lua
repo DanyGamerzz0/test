@@ -1,4 +1,4 @@
-    -- 5
+    -- 6
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -582,6 +582,62 @@ local function getInternalSpawnName(unit)
     return nil
 end
 
+local function getDisplayNameFromUnitId(unitId)
+    if not unitId then return nil end
+    
+    local success, displayName = pcall(function()
+        local UnitsFolder = Services.ReplicatedStorage.Framework.Data.Units
+        if not UnitsFolder then return nil end
+        
+        -- Search through all unit modules
+        for _, moduleScript in pairs(UnitsFolder:GetChildren()) do
+            if moduleScript:IsA("ModuleScript") then
+                local moduleSuccess, unitData = pcall(require, moduleScript)
+                
+                if moduleSuccess and unitData then
+                    -- Search through each unit in this module
+                    for unitKey, unitInfo in pairs(unitData) do
+                        if type(unitInfo) == "table" and unitInfo.id == unitId and unitInfo.name then
+                            return unitInfo.name
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end)
+    
+    return success and displayName or unitId -- Fallback to ID if not found
+end
+
+local function getUnitIdFromDisplayName(displayName)
+    if not displayName then return nil end
+    
+    local success, unitId = pcall(function()
+        local UnitsFolder = Services.ReplicatedStorage.Framework.Data.Units
+        if not UnitsFolder then return nil end
+        
+        -- Search through all unit modules
+        for _, moduleScript in pairs(UnitsFolder:GetChildren()) do
+            if moduleScript:IsA("ModuleScript") then
+                local moduleSuccess, unitData = pcall(require, moduleScript)
+                
+                if moduleSuccess and unitData then
+                    -- Search through each unit in this module
+                    for unitKey, unitInfo in pairs(unitData) do
+                        if type(unitInfo) == "table" and unitInfo.name == displayName and unitInfo.id then
+                            return unitInfo.id
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end)
+    
+    return success and unitId or displayName -- Fallback to display name if not found
+end
+
 local function getDisplayNameFromInternal(internalName)
     if not internalName then return nil end
     
@@ -925,7 +981,8 @@ local function processPlacementActionRefactored(actionInfo)
         return
     end
     
-    local displayName = getDisplayNameFromInternal(internalName)
+    -- UPDATED: Use new function to get display name from unit modules
+    local displayName = getDisplayNameFromUnitId(internalName)
     if not displayName then
         warn("Could not convert internal name to display name:", internalName)
         return
@@ -1302,19 +1359,19 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        -- Convert display name back to internal name
-        local internalName = getInternalNameFromDisplay(displayName)
-        if not internalName then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Could not convert display name to internal: %s", 
+        -- UPDATED: Convert display name back to unit ID using new function
+        local unitId = getUnitIdFromDisplayName(displayName)
+        if not unitId then
+            updateDetailedStatus(string.format("(%d/%d) FAILED: Could not convert display name to unit ID: %s", 
                 actionIndex, totalActionCount, displayName))
             return false
         end
         
-        -- Resolve UUID from internal name
-        local resolvedUUID = resolveUUIDFromInternalName(internalName)
+        -- Resolve UUID from unit ID
+        local resolvedUUID = resolveUUIDFromInternalName(unitId)
         if not resolvedUUID then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve UUID for: %s", 
-                actionIndex, totalActionCount, internalName))
+                actionIndex, totalActionCount, unitId))
             return false
         end
         
