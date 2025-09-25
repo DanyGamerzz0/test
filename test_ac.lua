@@ -1,4 +1,4 @@
-    -- 56
+    -- 567
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -107,7 +107,6 @@
         ignoreWorlds = 0
     }
 
-    local currentActionIndex = 0
     local totalActions = 0
     local detailedStatusLabel = nil
 
@@ -121,19 +120,16 @@ local currentMacroName = ""
 local isRecording = false
 local isPlaybacking = false
 local isRecordingLoopRunning = false
-local isPlayingLoopRunning = false
-local recordingStartTime = 0
-local gameStartTime = 0  -- Track game start for all games
+
 local recordingHasStarted = false
-local recordingPlacementCounter = 0
-local unitPositionToPlacementOrder = {}
-local placementOrderToPosition = {}
+
 local placementOrderToSpawnUUID = {}
+
+local simpleMacro = {}
+local actionCounter = 0
 
 local playbackMapping = {}
 
-local enhancedMacro = {}
-local macroRecords = {} -- Stores display name + placement number mapping
 local placementCounters = {} -- Tracks how many of each unit type we've placed
 
 -- Cache for unit data to improve performance
@@ -142,11 +138,7 @@ local displayNameToInternalCache = {}
 local internalToDisplayCache = {}
 
 local currentChallenge = nil
-local pendingUpgrades = {}
-local upgradeStateSnapshots = {}
 
-local isAutoLoopEnabled = false
-local gameHasEnded = false
 local macroHasPlayedThisGame = false
 
     local VALIDATION_CONFIG = {
@@ -163,9 +155,7 @@ local macroHasPlayedThisGame = false
     local isAutoLoopEnabled = false
     local gameHasEnded = false
 
-    local autoSelectEnabled = false
     local worldMacroMappings = {} -- Format: {worldKey = macroName}
-    local currentWorldKey = nil
     local worldDropdowns = {}
 
     -- ========== EXISTING VARIABLES (keep all your existing variables) ==========
@@ -178,8 +168,6 @@ local macroHasPlayedThisGame = false
     local currentMapName = "Unknown Map"
     local gameResult = "Unknown"
     local itemNameCache = {}
-    local waveStartTimes = {} -- Track when each wave started
-    local recordingStartWave = 0
 
     local Config = {
         DISCORD_USER_ID = nil,
@@ -256,13 +244,8 @@ local macroHasPlayedThisGame = false
         })
     end
 
-    local function clearMacroRecords()
-    macroRecords = {}
-    placementCounters = {}
-end
-
 local function initializeUnitDataCache()
-    if next(unitDataCache) then return end -- Already initialized
+    if next(unitDataCache) then return end
     
     local success, result = pcall(function()
         local UnitsFolder = Services.ReplicatedStorage.Framework.Data.Units
@@ -276,11 +259,8 @@ local function initializeUnitDataCache()
                         local internalName = unitData.id
                         local displayName = unitData.name
                         
-                        -- Cache both directions for fast lookup
                         displayNameToInternalCache[displayName] = internalName
                         internalToDisplayCache[internalName] = displayName
-                        
-                        -- Store full unit data
                         unitDataCache[internalName] = unitData
                     end
                 end
@@ -347,25 +327,21 @@ end
         return newPosition
     end
 
-    local function findUnitByUUID(targetUUID)
+local function findUnitByUUID(targetUUID)
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     if not unitsFolder then return nil end
     
-    -- Loop through all models in _UNITS (names are UUID + spawn number)
     for _, model in pairs(unitsFolder:GetChildren()) do
         if model:IsA("Model") then
             local stats = model:FindFirstChild("_stats")
             if stats then
                 local uuidValue = stats:FindFirstChild("uuid")
-                if uuidValue and uuidValue:IsA("StringValue") then
-                    if uuidValue.Value == targetUUID then
-                        return model
-                    end
+                if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == targetUUID then
+                    return model
                 end
             end
         end
     end
-    
     return nil
 end
 
@@ -379,6 +355,42 @@ local function getInternalSpawnNameFromUnit(unitModel)
     if not idValue then return nil end
     
     return idValue.Value
+end
+
+local function getCurrentWave()
+        local success, wave = pcall(function()
+            if Services.Workspace:FindFirstChild("_wave_num") then
+                return Services.Workspace._wave_num.Value
+            end
+            local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui", 5)
+            
+            for _, gui in pairs(playerGui:GetChildren()) do
+                local function searchForWave(obj)
+                    for _, child in pairs(obj:GetDescendants()) do
+                        if child:IsA("TextLabel") or child:IsA("TextBox") then
+                            local text = child.Text:lower()
+                            local waveMatch = text:match("wave[%s:]*(%d+)")
+                            if waveMatch then
+                                return tonumber(waveMatch)
+                            end
+                        end
+                    end
+                end
+                
+                local foundWave = searchForWave(gui)
+                if foundWave then return foundWave end
+            end
+            
+            return 1
+        end)
+        
+        return success and wave or 1
+    end
+
+local function formatTime(gameTime)
+    local wave = getCurrentWave()
+    local waveTime = gameTime % 30 -- Assuming waves are ~30 seconds, adjust as needed
+    return string.format("%d %.1f", wave, waveTime)
 end
 
 local function getDisplayNameWithPlacementNumber(displayName)
@@ -501,26 +513,21 @@ end
     end
 
     -- Recording Functions
-    local function clearRecordingMapping()
-        unitPositionToPlacementOrder = {}
-        placementOrderToPosition = {}
-        placementOrderToSpawnUUID = {}
-        recordingPlacementCounter = 0
-    end
 
-local function startEnhancedRecording()
-    table.clear(enhancedMacro)
-    clearMacroRecords()
+local function startSimpleRecording()
+    simpleMacro = {}
+    playbackMapping = {}
+    actionCounter = 0
+    placementCounters = {}
     initializeUnitDataCache()
     isRecording = true
-    recordingStartTime = tick()
     
     if gameStartTime == 0 then
         gameStartTime = tick()
-        print("Setting game start time for enhanced recording:", gameStartTime)
+        print("Setting game start time for simple recording:", gameStartTime)
     end
     
-    print("Started enhanced recording with display name system")
+    print("Started simple macro recording")
 end
 
     local function getMacroFilename(name)
@@ -713,144 +720,138 @@ end
         return actionsArray
     end
 
-local function processEnhancedPlacementAction(actionInfo)
-    local spawnUUID = actionInfo.args[1] -- UUID from the spawn remote
+local function processSimplePlacement(actionInfo)
+    local spawnUUID = actionInfo.args[1]
+    task.wait(0.5) -- Wait for unit to spawn
     
-    -- Wait a moment for the unit to fully spawn
-    task.wait(0.5)
-    
-    -- Step 1: Find the correct unit by UUID
     local unitModel = findUnitByUUID(spawnUUID)
-    if not unitModel then
-        print("Could not find unit with UUID:", spawnUUID)
+    if not unitModel or not isOwnedByLocalPlayer(unitModel) then
+        print("Could not find spawned unit")
         return
     end
     
-    -- Verify this unit is owned by the local player
-    if not isOwnedByLocalPlayer(unitModel) then
-        print("Unit not owned by local player")
-        return
+    -- Get internal name and convert to display name
+    local internalName = getInternalSpawnNameFromUnit(unitModel)
+    if not internalName then return end
+    
+    local displayName = getDisplayNameFromInternal(internalName)
+    
+    -- Track placement number
+    if not placementCounters[displayName] then
+        placementCounters[displayName] = 0
     end
+    placementCounters[displayName] = placementCounters[displayName] + 1
     
-    -- Step 2: Get internal spawn name
-    local internalSpawnName = getInternalSpawnNameFromUnit(unitModel)
-    if not internalSpawnName then
-        print("Could not get internal spawn name from unit")
-        return
-    end
-    
-    -- Step 3: Map to display name
-    local displayName = getDisplayNameFromInternal(internalSpawnName)
-    
-    -- Step 4: Assign placement number
-    local finalDisplayName, placementNumber = getDisplayNameWithPlacementNumber(displayName)
-    
-    -- Get position and orientation
+    -- Get position
     local position = unitModel.PrimaryPart and unitModel.PrimaryPart.Position or 
                     unitModel:FindFirstChildWhichIsA("BasePart").Position
-    local orientation = unitModel.PrimaryPart and unitModel.PrimaryPart.CFrame or 
-                       unitModel:FindFirstChildWhichIsA("BasePart").CFrame
     
-    -- Store the enhanced record
-    local placementRecord = {
-        action = "PlaceUnit",
-        displayName = displayName,
-        placementNumber = placementNumber,
-        internalName = internalSpawnName, -- Store for reference
-        spawnUUID = spawnUUID,
-        position = position,
-        orientation = orientation,
-        raycast = actionInfo.args[2] or {},
-        gameRelativeTime = actionInfo.timestamp - gameStartTime,
-        timestamp = actionInfo.timestamp
+    -- Get direction from raycast
+    local raycast = actionInfo.args[2] or {}
+    local direction = raycast.Direction or Vector3.new(0, -1, 0)
+    
+    actionCounter = actionCounter + 1
+    
+    -- Create simple record matching your format
+    simpleMacro[tostring(actionCounter)] = {
+        Type = "spawn_unit",
+        Time = formatTime(actionInfo.timestamp - gameStartTime),
+        Unit = displayName,
+        Pos = string.format("%.2f, %.2f, %.2f", position.X, position.Y, position.Z),
+        Dir = string.format("%.2f, %.2f, %.2f", direction.X, direction.Y, direction.Z),
+        Rot = 0
     }
     
-    table.insert(enhancedMacro, placementRecord)
+    -- Store mapping for upgrades/sells
+    local unitKey = displayName .. " - " .. placementCounters[displayName]
+    playbackMapping[unitKey] = unitModel
     
-    -- Store in our tracking
-    local fullDisplayName = displayName .. " #" .. placementNumber
-    macroRecords[spawnUUID] = {
-        displayName = displayName,
-        placementNumber = placementNumber,
-        fullName = fullDisplayName,
-        unitModel = unitModel
-    }
-    
-    print(string.format("Recorded placement: %s (Internal: %s, UUID: %s)", 
-        fullDisplayName, internalSpawnName, spawnUUID))
-    
-    notify("Enhanced Recording", string.format("Recorded: %s", fullDisplayName))
+    print("Recorded placement:", unitKey)
+    notify("Recording", "Placed: " .. unitKey)
 end
 
-local function findUnitRecordByRemoteParam(remoteParam)
-    -- Try to find which unit was affected by looking at the remote parameter
-    -- This might be the model name or UUID
-    
-    for uuid, record in pairs(macroRecords) do
-        if record.unitModel and record.unitModel.Name == remoteParam then
-            return record, uuid
-        elseif uuid == remoteParam then
-            return record, uuid
-        elseif tostring(uuid):find(tostring(remoteParam)) then
-            return record, uuid
+local function findUnitByRemoteParam(remoteParam)
+    -- Find which unit was affected
+    for unitKey, unitModel in pairs(playbackMapping) do
+        if unitModel and unitModel.Name == remoteParam then
+            return unitKey, unitModel
         end
     end
-    
     return nil, nil
 end
 
-local function processEnhancedUpgradeAction(actionInfo)
+local function processSimpleUpgrade(actionInfo)
     local remoteParam = actionInfo.args[1]
+    local unitKey, unitModel = findUnitByRemoteParam(remoteParam)
     
-    -- Find which unit was upgraded
-    local record, uuid = findUnitRecordByRemoteParam(remoteParam)
-    if not record then
-        print("Could not find unit record for upgrade param:", remoteParam)
+    if not unitKey then
+        print("Could not find unit for upgrade:", remoteParam)
         return
     end
     
-    local upgradeRecord = {
-        action = "UpgradeUnit",
-        displayName = record.displayName,
-        placementNumber = record.placementNumber,
-        gameRelativeTime = actionInfo.timestamp - gameStartTime,
-        timestamp = actionInfo.timestamp
+    actionCounter = actionCounter + 1
+    
+    simpleMacro[tostring(actionCounter)] = {
+        Type = "upgrade_unit_ingame",
+        Time = formatTime(actionInfo.timestamp - gameStartTime),
+        Pos = unitKey
     }
     
-    table.insert(enhancedMacro, upgradeRecord)
-    
-    print(string.format("Recorded upgrade: %s", record.fullName))
-    notify("Enhanced Recording", string.format("Recorded upgrade: %s", record.fullName))
+    print("Recorded upgrade:", unitKey)
+    notify("Recording", "Upgraded: " .. unitKey)
 end
 
-local function processEnhancedSellAction(actionInfo)
+local function processSimpleSell(actionInfo)
     local remoteParam = actionInfo.args[1]
+    local unitKey, unitModel = findUnitByRemoteParam(remoteParam)
     
-    -- Find which unit was sold
-    local record, uuid = findUnitRecordByRemoteParam(remoteParam)
-    if not record then
-        print("Could not find unit record for sell param:", remoteParam)
+    if not unitKey then
+        print("Could not find unit for sell:", remoteParam)
         return
     end
     
-    local sellRecord = {
-        action = "SellUnit",
-        displayName = record.displayName,
-        placementNumber = record.placementNumber,
-        gameRelativeTime = actionInfo.timestamp - gameStartTime,
-        timestamp = actionInfo.timestamp
+    actionCounter = actionCounter + 1
+    
+    simpleMacro[tostring(actionCounter)] = {
+        Type = "sell_unit_ingame",
+        Time = formatTime(actionInfo.timestamp - gameStartTime),
+        Pos = unitKey
     }
     
-    table.insert(enhancedMacro, sellRecord)
+    -- Remove from mapping since it's sold
+    playbackMapping[unitKey] = nil
     
-    -- Remove from our tracking since it's sold
-    macroRecords[uuid] = nil
-    
-    print(string.format("Recorded sell: %s", record.fullName))
-    notify("Enhanced Recording", string.format("Recorded sell: %s", record.fullName))
+    print("Recorded sell:", unitKey)
+    notify("Recording", "Sold: " .. unitKey)
 end
 
-local function setupEnhancedMacroHooks()
+local function processSimpleWaveSkip(actionInfo)
+    actionCounter = actionCounter + 1
+    
+    simpleMacro[tostring(actionCounter)] = {
+        Type = "vote_wave_skip",
+        Time = formatTime(actionInfo.timestamp - gameStartTime)
+    }
+    
+    notify("Recording", "Wave skip recorded")
+end
+
+local function parsePosition(posString)
+    local x, y, z = posString:match("([%d%.%-]+),%s*([%d%.%-]+),%s*([%d%.%-]+)")
+    return Vector3.new(tonumber(x), tonumber(y), tonumber(z))
+end
+
+local function parseDirection(dirString)
+    local x, y, z = dirString:match("([%d%.%-]+),%s*([%d%.%-]+),%s*([%d%.%-]+)")
+    return Vector3.new(tonumber(x), tonumber(y), tonumber(z))
+end
+
+local function parseTime(timeString)
+    local wave, time = timeString:match("(%d+)%s+([%d%.]+)")
+    return tonumber(wave), tonumber(time)
+end
+
+local function setupSimpleHooks()
     local mt = getrawmetatable(game)
     local oldNamecall = mt.__namecall
     setreadonly(mt, false)
@@ -865,10 +866,8 @@ local function setupEnhancedMacroHooks()
                 task.spawn(function()
                     local timestamp = tick()
                     
-                    -- Ensure we have game start time
                     if gameStartTime == 0 then
                         gameStartTime = tick()
-                        print("Setting game start time in enhanced hook:", gameStartTime)
                     end
                     
                     local actionInfo = {
@@ -877,21 +876,14 @@ local function setupEnhancedMacroHooks()
                         timestamp = timestamp
                     }
                     
-                    -- Process with enhanced system
                     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
-                        processEnhancedPlacementAction(actionInfo)
+                        processSimplePlacement(actionInfo)
                     elseif actionInfo.remoteName == MACRO_CONFIG.UPGRADE_REMOTE then
-                        processEnhancedUpgradeAction(actionInfo)
+                        processSimpleUpgrade(actionInfo)
                     elseif actionInfo.remoteName == MACRO_CONFIG.SELL_REMOTE then
-                        processEnhancedSellAction(actionInfo)
+                        processSimpleSell(actionInfo)
                     elseif actionInfo.remoteName == MACRO_CONFIG.WAVE_SKIP_REMOTE then
-                        local gameRelativeTime = actionInfo.timestamp - gameStartTime
-                        table.insert(enhancedMacro, {
-                            action = "SkipWave",
-                            gameRelativeTime = gameRelativeTime,
-                            timestamp = actionInfo.timestamp
-                        })
-                        notify("Enhanced Recording", "Recorded wave skip")
+                        processSimpleWaveSkip(actionInfo)
                     end
                 end)
             end
@@ -901,7 +893,7 @@ local function setupEnhancedMacroHooks()
     end)
 
     setreadonly(mt, true)
-    print("Enhanced macro hooks setup complete")
+    print("Simple macro hooks setup complete")
 end
 
     -- File Management Functions
@@ -942,165 +934,154 @@ end
         macroManager[name] = nil
     end
 
-local function resolveUUIDFromInternalName(internalName)
-    -- Step 2 from playback: Resolve fresh UUID from ReplicatedStorage
+local function resolveUUIDFromInternal(internalName)
     local success, uuid = pcall(function()
-        -- Look through ReplicatedStorage for unit data folders
-        -- This part depends on your game's structure - you may need to adjust the path
-        local replicatedStorage = Services.ReplicatedStorage
+        local fxCache = Services.ReplicatedStorage._FX_CACHE
         
-        -- Try common paths where unit UUIDs might be stored
-        local possiblePaths = {
-            replicatedStorage:FindFirstChild("Units"),
-            replicatedStorage:FindFirstChild("Data"),
-            replicatedStorage:FindFirstChild("Framework")
-        }
-        
-        for _, basePath in pairs(possiblePaths) do
-            if basePath then
-                for _, child in pairs(basePath:GetDescendants()) do
-                    local itemIndex = child:GetAttribute("ITEMINDEX")
-                    if itemIndex == internalName then
-                        local uuidValue = child:FindFirstChild("_uuid")
-                        if uuidValue and uuidValue:IsA("StringValue") then
-                            return uuidValue.Value
-                        end
-                    end
+        for _, child in pairs(fxCache:GetChildren()) do
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            if itemIndex == internalName then
+                local uuidValue = child:FindFirstChild("_uuid")
+                if uuidValue and uuidValue:IsA("StringValue") then
+                    return uuidValue.Value
                 end
             end
         end
-        
         return nil
     end)
     
-    if success and uuid then
-        return uuid
-    else
-        warn("Could not resolve UUID for internal name:", internalName)
-        return nil
-    end
+    return success and uuid or nil
 end
 
-local function executeEnhancedPlacement(action)
-    -- Step 1: Convert display name back to internal spawn name
-    local internalName = getInternalNameFromDisplay(action.displayName)
+local function executeSimplePlacement(action)
+    local displayName = action.Unit
+    local internalName = getInternalNameFromDisplay(displayName)
+    
     if not internalName then
-        warn("Could not convert display name to internal:", action.displayName)
+        warn("Could not find internal name for:", displayName)
         return false
     end
     
-    -- Step 2: Resolve fresh UUID
-    local uuid = resolveUUIDFromInternalName(internalName)
+    local uuid = resolveUUIDFromInternal(internalName)
     if not uuid then
-        warn("Could not resolve UUID for internal name:", internalName)
+        warn("Could not resolve UUID for:", internalName)
         return false
     end
     
-    -- Step 3: Spawn the unit
-    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    local position = parsePosition(action.Pos)
+    local direction = parseDirection(action.Dir)
     
     -- Apply random offset if enabled
-    local finalRaycast = action.raycast
-    if State.RandomOffsetEnabled and action.position then
-        local offsetPosition = applyRandomOffset(action.position, State.RandomOffsetAmount)
-        
-        -- Update raycast to match new position
-        finalRaycast = {
-            Origin = Vector3.new(offsetPosition.X, offsetPosition.Y + 10, offsetPosition.Z),
-            Direction = Vector3.new(0, -1, 0),
-            Unit = offsetPosition
-        }
+    if State.RandomOffsetEnabled then
+        position = applyRandomOffset(position, State.RandomOffsetAmount)
     end
+    
+    local raycast = {
+        Origin = Vector3.new(position.X, position.Y + 10, position.Z),
+        Direction = direction,
+        Unit = position
+    }
+    
+    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
     local success = pcall(function()
-        endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-            uuid,
-            finalRaycast,
-            0 -- rotation
-        )
+        endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(uuid, raycast, action.Rot or 0)
     end)
     
-    if not success then
-        warn("Failed to spawn unit:", action.displayName)
-        return false
+    if success then
+        task.wait(0.5)
+        local spawnedUnit = findUnitByUUID(uuid)
+        if spawnedUnit and isOwnedByLocalPlayer(spawnedUnit) then
+            -- Figure out placement number by checking how many of this unit we've placed
+            local placementNum = 1
+            for key, _ in pairs(playbackMapping) do
+                if key:match("^" .. displayName .. " %- (%d+)$") then
+                    local num = tonumber(key:match("(%d+)$"))
+                    if num >= placementNum then
+                        placementNum = num + 1
+                    end
+                end
+            end
+            
+            local unitKey = displayName .. " - " .. placementNum
+            playbackMapping[unitKey] = spawnedUnit
+            
+            print("Successfully placed:", unitKey)
+            return true
+        end
     end
     
-    -- Wait for spawn and find the new unit
-    task.wait(0.5)
-    local spawnedUnit = findUnitByUUID(uuid)
-    if spawnedUnit and isOwnedByLocalPlayer(spawnedUnit) then
-        -- Step 4: Map placement number for future upgrades/sells
-        local fullName = action.displayName .. " #" .. action.placementNumber
-        playbackMapping[fullName] = spawnedUnit
-        
-        print(string.format("Successfully placed: %s (UUID: %s)", fullName, uuid))
-        return true
-    else
-        warn("Failed to find spawned unit:", action.displayName)
-        return false
-    end
+    warn("Failed to place:", displayName)
+    return false
 end
 
-local function executeEnhancedUpgrade(action)
-    local fullName = action.displayName .. " #" .. action.placementNumber
-    local targetUnit = playbackMapping[fullName]
+local function executeSimpleUpgrade(action)
+    local unitKey = action.Pos
+    local targetUnit = playbackMapping[unitKey]
     
     if not targetUnit or not targetUnit.Parent then
-        warn("Target unit not found for upgrade:", fullName)
+        warn("Target unit not found:", unitKey)
         return false
     end
     
     if not isOwnedByLocalPlayer(targetUnit) then
-        warn("Target unit not owned by local player:", fullName)
+        warn("Target unit not owned by player:", unitKey)
         return false
     end
     
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
-    -- Use the model name as the remote parameter (like the original system)
     local success = pcall(function()
         endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(targetUnit.Name)
     end)
     
     if success then
-        print(string.format("Successfully upgraded: %s", fullName))
+        print("Successfully upgraded:", unitKey)
         return true
-    else
-        warn("Failed to upgrade:", fullName)
-        return false
     end
+    
+    warn("Failed to upgrade:", unitKey)
+    return false
 end
 
-local function executeEnhancedSell(action)
-    local fullName = action.displayName .. " #" .. action.placementNumber
-    local targetUnit = playbackMapping[fullName]
+local function executeSimpleSell(action)
+    local unitKey = action.Pos
+    local targetUnit = playbackMapping[unitKey]
     
     if not targetUnit or not targetUnit.Parent then
-        warn("Target unit not found for sell:", fullName)
+        warn("Target unit not found:", unitKey)
         return false
     end
     
     if not isOwnedByLocalPlayer(targetUnit) then
-        warn("Target unit not owned by local player:", fullName)
+        warn("Target unit not owned by player:", unitKey)
         return false
     end
     
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
-    -- Use the model name as the remote parameter
     local success = pcall(function()
         endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(targetUnit.Name)
     end)
     
     if success then
-        -- Remove from mapping since it's sold
-        playbackMapping[fullName] = nil
-        print(string.format("Successfully sold: %s", fullName))
+        playbackMapping[unitKey] = nil
+        print("Successfully sold:", unitKey)
         return true
-    else
-        warn("Failed to sell:", fullName)
-        return false
     end
+    
+    warn("Failed to sell:", unitKey)
+    return false
+end
+
+local function executeSimpleWaveSkip()
+    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    
+    local success = pcall(function()
+        endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
+    end)
+    
+    return success
 end
 
 local function executeEnhancedAction(action, actionIndex, totalActions)
@@ -1544,7 +1525,7 @@ local function monitorWaves()
             if isRecording and not recordingHasStarted then
                 recordingHasStarted = true
                 isRecordingLoopRunning = true
-                startEnhancedRecording()
+                startSimpleRecording()
                 --MacroStatusLabel:Set("Status: Recording active!")
                 notify("Recording Started", "Game started - macro recording is now active.")
             end
@@ -1563,7 +1544,7 @@ local function monitorWaves()
         if isRecording and not recordingHasStarted then
             recordingHasStarted = true
             isRecordingLoopRunning = true
-            startEnhancedRecording()
+            startSimpleRecording()
             --MacroStatusLabel:Set("Status: Recording active!")
             notify("Recording Started", "Joined mid-game - macro recording is now active.")
         end
@@ -4159,17 +4140,17 @@ end
         end,
     })
 
-local function stopEnhancedRecording()
+local function stopSimpleRecording()
     isRecording = false
     recordingHasStarted = false
-    print(string.format("Stopped enhanced recording. Recorded %d actions", #enhancedMacro))
+    print(string.format("Stopped recording. Recorded %d actions", actionCounter))
     
     if currentMacroName and currentMacroName ~= "" then
-        macroManager[currentMacroName] = enhancedMacro
+        macroManager[currentMacroName] = simpleMacro
         saveMacroToFile(currentMacroName)
     end
     
-    return enhancedMacro
+    return simpleMacro
 end
 
 local RecordToggle = MacroTab:CreateToggle({
@@ -4184,7 +4165,7 @@ local RecordToggle = MacroTab:CreateToggle({
             if not isInLobby() and gameInProgress then
                 recordingHasStarted = true
                 isRecordingLoopRunning = true
-                startEnhancedRecording()
+                startSimpleRecording()
                 MacroStatusLabel:Set("Status: Recording active!")
                 notify("Recording Started", "Macro recording is now active.")
             else
@@ -4197,90 +4178,99 @@ local RecordToggle = MacroTab:CreateToggle({
                 notify("Recording Stopped", "Recording manually stopped.")
             end
             isRecordingLoopRunning = false
-            stopEnhancedRecording()
+            stopSimpleRecording()
             MacroStatusLabel:Set("Status: Recording stopped")
         end
     end
 })
 
-local function playEnhancedMacroWithGameTiming()
-    if not enhancedMacro or #enhancedMacro == 0 then
-        print("No enhanced macro data to play back")
+local function playSimpleMacro()
+    if not simpleMacro or not next(simpleMacro) then
+        print("No macro data to play back")
         updateDetailedStatus("No macro data to play back")
         return false
     end
     
-    -- Check if macro already played this game
     if macroHasPlayedThisGame then
-        print("Enhanced macro already played this game, skipping")
+        print("Macro already played this game")
         updateDetailedStatus("Macro already played this game - waiting for next game")
         return false
     end
     
     macroHasPlayedThisGame = true
-    totalActions = #enhancedMacro
-    currentActionIndex = 0
-    
-    -- Initialize unit data cache for playback
     initializeUnitDataCache()
-    playbackMapping = {} -- Clear previous mappings
+    playbackMapping = {}
     
-    if State.IgnoreTiming then
-        updateDetailedStatus(string.format("Starting immediate enhanced playback with %d actions", totalActions))
-    else
-        updateDetailedStatus(string.format("Starting enhanced game-time playback with %d actions", totalActions))
+    -- Convert macro to ordered list and sort by action number
+    local orderedActions = {}
+    for actionNum, action in pairs(simpleMacro) do
+        action.actionNum = tonumber(actionNum)
+        table.insert(orderedActions, action)
     end
     
+    table.sort(orderedActions, function(a, b) return a.actionNum < b.actionNum end)
+    
+    totalActions = #orderedActions
     gameHasEnded = false
     
-    -- Ensure we have a game start time (only needed if not ignoring timing)
+    updateDetailedStatus(string.format("Starting simple macro playback with %d actions", totalActions))
+    
     if not State.IgnoreTiming and gameStartTime == 0 then
         gameStartTime = tick()
-        print("Setting game start time for enhanced playback:", gameStartTime)
     end
     
-    for i, action in ipairs(enhancedMacro) do
+    for i, action in ipairs(orderedActions) do
         if not isPlaybacking or not isAutoLoopEnabled or gameHasEnded then
-            updateDetailedStatus("Enhanced macro interrupted - stopping execution")
-            print("Enhanced macro interrupted - stopping execution")
+            updateDetailedStatus("Macro interrupted")
             return false
         end
         
-        -- Only do timing checks if ignore timing is disabled
-        if not State.IgnoreTiming then
-            local targetGameTime = action.gameRelativeTime or 0
-            local currentGameTime = tick() - gameStartTime
-            local waitTime = targetGameTime - currentGameTime
+        currentActionIndex = i
+        
+        -- Handle timing
+        if not State.IgnoreTiming and action.Time then
+            local targetWave, targetTime = parseTime(action.Time)
+            local currentWave = getCurrentWave()
             
-            if waitTime > 0 then
-                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for timing", i, totalActions, waitTime))
-                
-                local waitStart = tick()
-                while tick() - waitStart < waitTime and isPlaybacking and not gameHasEnded do
-                    task.wait(0.1)
-                end
+            -- Wait for correct wave
+            while currentWave < targetWave and isPlaybacking and not gameHasEnded do
+                updateDetailedStatus(string.format("(%d/%d) Waiting for wave %d (currently %d)", 
+                    i, totalActions, targetWave, currentWave))
+                task.wait(1)
+                currentWave = getCurrentWave()
             end
             
             if not isPlaybacking or gameHasEnded then
-                updateDetailedStatus("Enhanced macro stopped during timing wait")
                 return false
             end
         else
             if i > 1 then
-                task.wait(0.2) -- Small delay between actions
+                task.wait(0.2)
             end
         end
         
-        -- Execute the enhanced action
-        local actionSuccess = executeEnhancedAction(action, i, totalActions)
+        -- Execute action
+        local success = false
+        if action.Type == "spawn_unit" then
+            updateDetailedStatus(string.format("(%d/%d) Placing %s", i, totalActions, action.Unit))
+            success = executeSimplePlacement(action)
+        elseif action.Type == "upgrade_unit_ingame" then
+            updateDetailedStatus(string.format("(%d/%d) Upgrading %s", i, totalActions, action.Pos))
+            success = executeSimpleUpgrade(action)
+        elseif action.Type == "sell_unit_ingame" then
+            updateDetailedStatus(string.format("(%d/%d) Selling %s", i, totalActions, action.Pos))
+            success = executeSimpleSell(action)
+        elseif action.Type == "vote_wave_skip" then
+            updateDetailedStatus(string.format("(%d/%d) Skipping wave", i, totalActions))
+            success = executeSimpleWaveSkip()
+        end
         
-        if not actionSuccess then
-            notify("Enhanced Macro", string.format("Action %d failed, continuing with next action", i))
+        if not success then
+            notify("Macro Playback", string.format("Action %d failed, continuing", i))
         end
     end
     
-    updateDetailedStatus("Enhanced macro playback completed")
-    print("Enhanced macro playback completed")
+    updateDetailedStatus("Simple macro playback completed")
     return true
 end
 
@@ -4538,7 +4528,7 @@ local function autoLoopPlaybackWithGameTiming()
         
         notify("Playbook Started", macroToUse .. macroSource .. timingMode .. " (" .. #macro .. " actions)")
         
-        local completed = playEnhancedMacroWithGameTiming()
+        local completed = playSimpleMacro()
         
         isPlaybacking = false
         isPlayingLoopRunning = false
@@ -5294,7 +5284,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     -- ========== MAIN EXECUTION ==========
 
     -- Setup macro hooks
-    setupEnhancedMacroHooks()
+    setupSimpleHooks()
     monitorWavesForRecording()
 
     -- Auto joiner loop
