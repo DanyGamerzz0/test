@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -909,47 +909,37 @@ end
 
 local function processPlacementActionRefactored(actionInfo)
     local currentMoney = getPlayerMoney()
-    local targetUUID = actionInfo.args[1] -- This is the UUID used in the spawn remote
+    local targetUUID = actionInfo.args[1]
     
-    -- Wait a moment for the unit to spawn
     task.wait(0.3)
     
-    -- Find the newly spawned unit by UUID
     local spawnedUnit = findUnitBySpawnUUID(targetUUID)
     if not spawnedUnit then
         warn("Could not find spawned unit with UUID:", targetUUID)
         return
     end
     
-    -- Get internal spawn name from the unit
     local internalName = getInternalSpawnName(spawnedUnit)
     if not internalName then
         warn("Could not get internal spawn name from unit")
         return
     end
     
-    -- Convert to display name
     local displayName = getDisplayNameFromInternal(internalName)
     if not displayName then
         warn("Could not convert internal name to display name:", internalName)
         return
     end
     
-    -- Track placement numbers
     recordingPlacementCounter = recordingPlacementCounter + 1
-    local placementOrder = recordingPlacementCounter
-    
-    -- Increment counter for this display name
     displayNamePlacements[displayName] = (displayNamePlacements[displayName] or 0) + 1
     local instanceNumber = displayNamePlacements[displayName]
     
-    -- Store mappings
-    placementToDisplayName[placementOrder] = {
+    placementToDisplayName[recordingPlacementCounter] = {
         displayName = displayName,
         instanceNumber = instanceNumber
     }
     
-    -- Initialize display name tracking if needed
     if not displayNameToCurrentInstances[displayName] then
         displayNameToCurrentInstances[displayName] = {}
     end
@@ -958,34 +948,25 @@ local function processPlacementActionRefactored(actionInfo)
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
     
-    -- Get position from spawned unit
     local unitPosition = spawnedUnit.PrimaryPart and spawnedUnit.PrimaryPart.Position or
                         spawnedUnit:FindFirstChildWhichIsA("BasePart").Position
     
-    -- Calculate cost
     local placementCost = actionInfo.preActionMoney - currentMoney
-    
-    -- Calculate game-relative time
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     local placementRecord = {
-        action = "PlaceUnit",
-        displayName = displayName,
-        instanceNumber = instanceNumber,
-        actualPosition = unitPosition,
-        raycast = raycastData,
-        rotation = rotation,
-        gameRelativeTime = gameRelativeTime,
-        timestamp = actionInfo.timestamp,
-        placementOrder = placementOrder,
-        placementCost = math.max(placementCost, 0)
+        Type = "spawn_unit",
+        Unit = string.format("%s - %d", displayName, instanceNumber),
+        Time = string.format("%.2f", gameRelativeTime),
+        Pos = string.format("%.2f, %.2f, %.2f", unitPosition.X, unitPosition.Y, unitPosition.Z),
+        Dir = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
+        Rot = rotation ~= 0 and rotation or nil
     }
     
     table.insert(macro, placementRecord)
     
     local displayText = string.format("%s - %d", displayName, instanceNumber)
-    notify("Macro Recorder", string.format("Recorded placement #%d: %s at %.1fs", placementOrder, displayText, gameRelativeTime))
-    print(string.format("Recorded: %s at placement #%d (UUID: %s)", displayText, placementOrder, targetUUID))
+    notify("Macro Recorder", string.format("Recorded: %s at %.1fs", displayText, gameRelativeTime))
 end
 
     local function waitForUpgradeLevel(targetUnit, originalLevel, maxWaitTime)
@@ -1003,9 +984,8 @@ end
     end
 
 local function processUpgradeActionRefactored(actionInfo)
-    local remoteParam = actionInfo.args[1] -- This should be the model name in workspace._UNITS
+    local remoteParam = actionInfo.args[1]
     
-    -- Find the unit that was upgraded by comparing model names
     local upgradedUnit = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
@@ -1023,7 +1003,6 @@ local function processUpgradeActionRefactored(actionInfo)
         return
     end
     
-    -- Get the UUID of this unit
     local unitUUID = nil
     local stats = upgradedUnit:FindFirstChild("_stats")
     if stats then
@@ -1038,22 +1017,14 @@ local function processUpgradeActionRefactored(actionInfo)
         return
     end
     
-    -- Find which placement this corresponds to
     local targetPlacement = nil
     for displayName, instances in pairs(displayNameToCurrentInstances) do
         for instanceNum, storedUUID in pairs(instances) do
             if storedUUID == unitUUID then
-                -- Find the placement order for this display name + instance
-                for placementOrder, placementData in pairs(placementToDisplayName) do
-                    if placementData.displayName == displayName and placementData.instanceNumber == instanceNum then
-                        targetPlacement = {
-                            placementOrder = placementOrder,
-                            displayName = displayName,
-                            instanceNumber = instanceNum
-                        }
-                        break
-                    end
-                end
+                targetPlacement = {
+                    displayName = displayName,
+                    instanceNumber = instanceNum
+                }
                 break
             end
         end
@@ -1065,67 +1036,43 @@ local function processUpgradeActionRefactored(actionInfo)
         return
     end
     
-    local preActionMoney = actionInfo.preActionMoney
-    local postActionMoney = getPlayerMoney()
-    local upgradeCost = math.max(preActionMoney - postActionMoney, 0)
-    
-    -- Get upgrade level info
-    local currentLevel = getUnitUpgradeLevel(upgradedUnit)
-    
-    -- Calculate game-relative time
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     local upgradeRecord = {
-        action = "UpgradeUnit",
-        displayName = targetPlacement.displayName,
-        instanceNumber = targetPlacement.instanceNumber,
-        targetPlacementOrder = targetPlacement.placementOrder,
-        gameRelativeTime = gameRelativeTime,
-        upgradeCost = upgradeCost,
-        upgradeLevelAfter = currentLevel,
-        timestamp = actionInfo.timestamp
+        Type = "upgrade_unit_ingame",
+        Unit = string.format("%s - %d", targetPlacement.displayName, targetPlacement.instanceNumber),
+        Time = string.format("%.2f", gameRelativeTime),
+        upgradeLevelAfter = getUnitUpgradeLevel(upgradedUnit)
     }
     
     table.insert(macro, upgradeRecord)
     
     local displayText = string.format("%s - %d", targetPlacement.displayName, targetPlacement.instanceNumber)
     notify("Macro Recorder", string.format("Recorded upgrade: %s at %.1fs", displayText, gameRelativeTime))
-    print(string.format("Recorded upgrade: %s at placement #%d", displayText, targetPlacement.placementOrder))
 end
 
 local function processSellActionRefactored(actionInfo)
-    local remoteParam = actionInfo.args[1] -- This should be the model name in workspace._UNITS
+    local remoteParam = actionInfo.args[1]
     
-    -- Since the unit is being sold, we need to find it in our tracking before it disappears
     local soldPlacement = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
-    -- Try to find the unit that matches the remote parameter
     if unitsFolder then
         for _, unit in pairs(unitsFolder:GetChildren()) do
             if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
-                -- Get UUID of this unit
                 local stats = unit:FindFirstChild("_stats")
                 if stats then
                     local uuidValue = stats:FindFirstChild("uuid")
                     if uuidValue and uuidValue:IsA("StringValue") then
                         local unitUUID = uuidValue.Value
                         
-                        -- Find which placement this corresponds to
                         for displayName, instances in pairs(displayNameToCurrentInstances) do
                             for instanceNum, storedUUID in pairs(instances) do
                                 if storedUUID == unitUUID then
-                                    -- Find the placement order
-                                    for placementOrder, placementData in pairs(placementToDisplayName) do
-                                        if placementData.displayName == displayName and placementData.instanceNumber == instanceNum then
-                                            soldPlacement = {
-                                                placementOrder = placementOrder,
-                                                displayName = displayName,
-                                                instanceNumber = instanceNum
-                                            }
-                                            break
-                                        end
-                                    end
+                                    soldPlacement = {
+                                        displayName = displayName,
+                                        instanceNumber = instanceNum
+                                    }
                                     break
                                 end
                             end
@@ -1143,40 +1090,54 @@ local function processSellActionRefactored(actionInfo)
         return
     end
     
-    -- Calculate game-relative time
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     local sellRecord = {
-        action = "SellUnit",
-        displayName = soldPlacement.displayName,
-        instanceNumber = soldPlacement.instanceNumber,
-        targetPlacementOrder = soldPlacement.placementOrder,
-        gameRelativeTime = gameRelativeTime,
-        timestamp = actionInfo.timestamp
+        Type = "sell_unit_ingame", 
+        Unit = string.format("%s - %d", soldPlacement.displayName, soldPlacement.instanceNumber),
+        Time = string.format("%.2f", gameRelativeTime)
     }
     
     table.insert(macro, sellRecord)
     
-    -- Clean up tracking
     if displayNameToCurrentInstances[soldPlacement.displayName] then
         displayNameToCurrentInstances[soldPlacement.displayName][soldPlacement.instanceNumber] = nil
     end
     
     local displayText = string.format("%s - %d", soldPlacement.displayName, soldPlacement.instanceNumber)
     notify("Macro Recorder", string.format("Recorded sell: %s at %.1fs", displayText, gameRelativeTime))
-    print(string.format("Recorded sell: %s at placement #%d", displayText, soldPlacement.placementOrder))
+end
+
+-- Updated wave skip function with cleaner format
+local function processWaveSkipAction(actionInfo)
+    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    
+    table.insert(macro, {
+        Type = "vote_wave_skip",
+        Time = string.format("%.2f", gameRelativeTime)
+    })
+    
+    notify("Macro Recorder", string.format("Recorded wave skip at %.1fs", gameRelativeTime))
 end
 
 local function processWaveSkipAction(actionInfo)
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     table.insert(macro, {
-        action = "SkipWave",
-        gameRelativeTime = gameRelativeTime,  -- Changed from waveRelativeTime
-        timestamp = actionInfo.timestamp
+        Type = "vote_wave_skip",
+        Time = string.format("%.2f", gameRelativeTime)
     })
     
     notify("Macro Recorder", string.format("Recorded wave skip at %.1fs", gameRelativeTime))
+end
+
+local function parseUnitString(unitString)
+    -- Parse "DisplayName - InstanceNumber" format
+    local displayName, instanceNumber = unitString:match("^(.+) %- (%d+)$")
+    if displayName and instanceNumber then
+        return displayName, tonumber(instanceNumber)
+    end
+    return nil, nil
 end
 
 local function processActionResponseRefactored(actionInfo)
@@ -1343,127 +1304,70 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.PLACEMENT_MAX_RETRIES
     
+    local displayName, instanceNumber = parseUnitString(action.Unit)
+    if not displayName or not instanceNumber then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Invalid unit format: %s", 
+            actionIndex, totalActionCount, action.Unit))
+        return false
+    end
+    
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        -- Money check logic (keep existing)
-        local currentMoney = getPlayerMoney()
-        local requiredCost = action.placementCost or 0
-        
-        if requiredCost > 0 and currentMoney < requiredCost then
-            local missingMoney = requiredCost - currentMoney
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to place %s - %d - waiting for money...", 
-                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, action.displayName, action.instanceNumber))
-            
-            -- Wait for money (keep existing logic)
-            local moneyWaitStart = tick()
-            local maxMoneyWaitTime = 300
-            
-            while currentMoney < requiredCost and isPlaybacking and not gameHasEnded do
-                if tick() - moneyWaitStart > maxMoneyWaitTime then
-                    updateDetailedStatus(string.format("(%d/%d) TIMEOUT: Waited %d seconds for money, still need %d more yen", 
-                        actionIndex, totalActionCount, maxMoneyWaitTime, requiredCost - currentMoney))
-                    break
-                end
-                
-                task.wait(1)
-                currentMoney = getPlayerMoney()
-                local stillMissing = requiredCost - currentMoney
-                
-                if stillMissing > 0 then
-                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen to place %s - %d...", 
-                        actionIndex, totalActionCount, stillMissing, action.displayName, action.instanceNumber))
-                end
-            end
-            
-            if not isPlaybacking or gameHasEnded then
-                return false
-            end
-            
-            currentMoney = getPlayerMoney()
-            if currentMoney < requiredCost then
-                if attempt == maxRetries then
-                    updateDetailedStatus(string.format("(%d/%d) FAILED: Still not enough money after waiting and %d attempts", 
-                        actionIndex, totalActionCount, maxRetries))
-                    return false
-                end
-                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
-                continue
-            end
-        end
-        
         -- Convert display name back to internal name
-        local internalName = getInternalNameFromDisplay(action.displayName)
+        local internalName = getInternalNameFromDisplay(displayName)
         if not internalName then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Could not convert display name to internal: %s", 
-                actionIndex, totalActionCount, action.displayName))
+                actionIndex, totalActionCount, displayName))
             return false
         end
         
         -- Resolve UUID from internal name
         local resolvedUUID = resolveUUIDFromInternalName(internalName)
         if not resolvedUUID then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve UUID for internal name: %s", 
+            updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve UUID for: %s", 
                 actionIndex, totalActionCount, internalName))
             return false
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s - %d", 
-            actionIndex, totalActionCount, attempt, maxRetries, action.displayName, action.instanceNumber))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", 
+            actionIndex, totalActionCount, attempt, maxRetries, action.Unit))
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Build raycast parameter with random offset (keep existing logic)
+        -- Parse position
+        local x, y, z = action.Pos:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
+        local targetPosition = Vector3.new(tonumber(x), tonumber(y), tonumber(z))
+        
+        -- Parse direction if available
         local raycastParam = {}
-        if action.raycast then
-            local originalUnit = action.raycast.Unit
-            local offsetUnit = originalUnit
-            
-            if State.RandomOffsetEnabled then
-                if type(originalUnit) == "table" then
-                    local originalPos = Vector3.new(originalUnit.x, originalUnit.y, originalUnit.z)
-                    local offsetPos = applyRandomOffset(originalPos, State.RandomOffsetAmount)
-                    offsetUnit = {x = offsetPos.X, y = offsetPos.Y, z = offsetPos.Z}
-                elseif type(originalUnit) == "userdata" then
-                    offsetUnit = applyRandomOffset(originalUnit, State.RandomOffsetAmount)
-                end
-            end
-            
-            if action.raycast.Origin then
-                if type(action.raycast.Origin) == "table" then
-                    raycastParam.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
-                else
-                    raycastParam.Origin = action.raycast.Origin
-                end
-            end
-            
-            if action.raycast.Direction then
-                if type(action.raycast.Direction) == "table" then
-                    raycastParam.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
-                else
-                    raycastParam.Direction = action.raycast.Direction
-                end
-            end
-            
-            if type(offsetUnit) == "table" then
-                raycastParam.Unit = Vector3.new(offsetUnit.x, offsetUnit.y, offsetUnit.z)
-            else
-                raycastParam.Unit = offsetUnit
+        if action.Dir and action.Dir ~= "" then
+            local dx, dy, dz = action.Dir:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
+            raycastParam.Direction = Vector3.new(tonumber(dx), tonumber(dy), tonumber(dz))
+            raycastParam.Origin = Vector3.new(targetPosition.X, targetPosition.Y + 10, targetPosition.Z)
+            raycastParam.Unit = targetPosition
+        end
+        
+        -- Apply random offset if enabled
+        if State.RandomOffsetEnabled then
+            targetPosition = applyRandomOffset(targetPosition, State.RandomOffsetAmount)
+            if raycastParam.Unit then
+                raycastParam.Unit = targetPosition
             end
         end
-
-        -- Execute placement with resolved UUID
+        
+        -- Execute placement
         local success, error = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
-                resolvedUUID,  -- Use resolved UUID instead of stored one
+                resolvedUUID,
                 raycastParam,
-                action.rotation
+                action.Rot or 0
             )
         end)
         
         if not success then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s - %d", 
-                actionIndex, totalActionCount, attempt, maxRetries, action.displayName, action.instanceNumber))
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s", 
+                actionIndex, totalActionCount, attempt, maxRetries, action.Unit))
             
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
@@ -1473,7 +1377,6 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
             end
         end
         
-        -- Use validation timing (keep existing logic)
         local validationWaitTime = (attempt == 1) and VALIDATION_CONFIG.NORMAL_VALIDATION_TIME or VALIDATION_CONFIG.EXTENDED_VALIDATION_TIME
         task.wait(validationWaitTime)
         
@@ -1481,7 +1384,6 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
         local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
         
         if placedUnit and isOwnedByLocalPlayer(placedUnit) then
-            -- Get UUID of the newly placed unit
             local newUnitUUID = nil
             local stats = placedUnit:FindFirstChild("_stats")
             if stats then
@@ -1492,28 +1394,27 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
             end
             
             if newUnitUUID then
-                -- Store the mapping for this playback session
-                if not playbackDisplayNameInstances[action.displayName] then
-                    playbackDisplayNameInstances[action.displayName] = {}
+                if not playbackDisplayNameInstances[displayName] then
+                    playbackDisplayNameInstances[displayName] = {}
                 end
-                playbackDisplayNameInstances[action.displayName][action.instanceNumber] = newUnitUUID
+                playbackDisplayNameInstances[displayName][instanceNumber] = newUnitUUID
                 
-                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s - %d (UUID: %s, attempt %d/%d, %.1fs)", 
-                    actionIndex, totalActionCount, action.displayName, action.instanceNumber, newUnitUUID, attempt, maxRetries, validationWaitTime))
+                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s (UUID: %s)", 
+                    actionIndex, totalActionCount, action.Unit, newUnitUUID))
                 return true
             end
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate placement of %s - %d", 
-            actionIndex, totalActionCount, attempt, maxRetries, action.displayName, action.instanceNumber))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate placement of %s", 
+            actionIndex, totalActionCount, attempt, maxRetries, action.Unit))
         
         if attempt < maxRetries then
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s - %d after %d attempts", 
-        actionIndex, totalActionCount, action.displayName, action.instanceNumber, maxRetries))
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s after %d attempts", 
+        actionIndex, totalActionCount, action.Unit, maxRetries))
     return false
 end
 
@@ -1521,89 +1422,46 @@ local function validateUpgradeActionRefactored(action, actionIndex, totalActionC
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
     
-    -- Find the current UUID for this display name + instance number
+    local displayName, instanceNumber = parseUnitString(action.Unit)
+    if not displayName or not instanceNumber then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Invalid unit format: %s", 
+            actionIndex, totalActionCount, action.Unit))
+        return false
+    end
+    
     local currentUUID = nil
-    if playbackDisplayNameInstances[action.displayName] then
-        currentUUID = playbackDisplayNameInstances[action.displayName][action.instanceNumber]
+    if playbackDisplayNameInstances[displayName] then
+        currentUUID = playbackDisplayNameInstances[displayName][instanceNumber]
     end
     
     if not currentUUID then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No UUID tracked for %s - %d", 
-            actionIndex, totalActionCount, action.displayName, action.instanceNumber))
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No UUID tracked for %s", 
+            actionIndex, totalActionCount, action.Unit))
         return false
     end
     
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        -- Find the unit using the current UUID
         local unit = findUnitBySpawnUUID(currentUUID)
         if not unit or not isOwnedByLocalPlayer(unit) then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s - %d (UUID: %s)", 
-                actionIndex, totalActionCount, action.displayName, action.instanceNumber, currentUUID))
+            updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s", 
+                actionIndex, totalActionCount, action.Unit))
             return false
         end
         
         local originalLevel = getUnitUpgradeLevel(unit)
         
-        -- Money check logic (keep existing)
-        local currentMoney = getPlayerMoney()
-        local requiredCost = action.upgradeCost or 0
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s (Level %d)", 
+            actionIndex, totalActionCount, attempt, maxRetries, action.Unit, originalLevel))
         
-        if requiredCost > 0 and currentMoney < requiredCost then
-            -- Keep existing money waiting logic
-            local missingMoney = requiredCost - currentMoney
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Missing %d yen to upgrade %s - %d - waiting for money...", 
-                actionIndex, totalActionCount, attempt, maxRetries, missingMoney, action.displayName, action.instanceNumber))
-            
-            local moneyWaitStart = tick()
-            local maxMoneyWaitTime = 300
-            
-            while currentMoney < requiredCost and isPlaybacking and not gameHasEnded do
-                if tick() - moneyWaitStart > maxMoneyWaitTime then
-                    updateDetailedStatus(string.format("(%d/%d) TIMEOUT: Waited %d seconds for money, still need %d more yen", 
-                        actionIndex, totalActionCount, maxMoneyWaitTime, requiredCost - currentMoney))
-                    break
-                end
-                
-                task.wait(1)
-                currentMoney = getPlayerMoney()
-                local stillMissing = requiredCost - currentMoney
-                
-                if stillMissing > 0 then
-                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen to upgrade %s - %d...", 
-                        actionIndex, totalActionCount, stillMissing, action.displayName, action.instanceNumber))
-                end
-            end
-            
-            if not isPlaybacking or gameHasEnded then
-                return false
-            end
-            
-            currentMoney = getPlayerMoney()
-            if currentMoney < requiredCost then
-                if attempt == maxRetries then
-                    updateDetailedStatus(string.format("(%d/%d) FAILED: Still not enough money after waiting and %d attempts", 
-                        actionIndex, totalActionCount, maxRetries))
-                    return false
-                end
-                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
-                continue
-            end
-        end
-        
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s - %d (Level %d, UUID: %s)", 
-            actionIndex, totalActionCount, attempt, maxRetries, action.displayName, action.instanceNumber, originalLevel, currentUUID))
-        
-        -- Find the exact model name for this UUID (keep existing logic)
+        -- Find model name for remote call
         local remoteParameter = ""
         for _, model in ipairs(Services.Workspace:WaitForChild("_UNITS"):GetChildren()) do
             if model:IsA("Model") then
                 local stats = model:FindFirstChild("_stats")
                 if stats and stats:FindFirstChild("uuid") and stats.uuid:IsA("StringValue") then
-                    local modelUUID = stats.uuid.Value
-                    
-                    if modelUUID == currentUUID then
+                    if stats.uuid.Value == currentUUID then
                         local playerOwner = stats:FindFirstChild("player")
                         if playerOwner and playerOwner.Value == getLocalPlayer() then
                             remoteParameter = model.Name
@@ -1615,9 +1473,8 @@ local function validateUpgradeActionRefactored(action, actionIndex, totalActionC
         end
         
         if remoteParameter == "" then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Could not find unit with UUID %s", 
-                actionIndex, totalActionCount, attempt, maxRetries, currentUUID))
-            
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Could not find unit model", 
+                actionIndex, totalActionCount, attempt, maxRetries))
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
                 continue
@@ -1626,15 +1483,13 @@ local function validateUpgradeActionRefactored(action, actionIndex, totalActionC
             end
         end
         
-        -- Execute upgrade (keep existing logic)
         local success = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(remoteParameter)
         end)
         
         if not success then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s - %d", 
-                actionIndex, totalActionCount, attempt, maxRetries, action.displayName, action.instanceNumber))
-            
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed for %s", 
+                actionIndex, totalActionCount, attempt, maxRetries, action.Unit))
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
                 continue
@@ -1643,11 +1498,9 @@ local function validateUpgradeActionRefactored(action, actionIndex, totalActionC
             end
         end
         
-        -- Validate upgrade success (keep existing logic)
+        -- Validate upgrade success
         local validationTimeout = (attempt == 1) and (VALIDATION_CONFIG.UPGRADE_TIMEOUT / 2) or VALIDATION_CONFIG.UPGRADE_TIMEOUT
-        local quickCheckTime = (attempt == 1) and 0.5 or 1.0
-        
-        task.wait(quickCheckTime)
+        task.wait(0.5)
         
         local upgradeSuccess = false
         local validationStartTime = tick()
@@ -1658,17 +1511,15 @@ local function validateUpgradeActionRefactored(action, actionIndex, totalActionC
             local currentUnit = findUnitBySpawnUUID(currentUUID)
             if currentUnit and isOwnedByLocalPlayer(currentUnit) then
                 local currentLevel = getUnitUpgradeLevel(currentUnit)
-                
                 if currentLevel > originalLevel then
                     upgradeSuccess = true
-                    updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s - %d from Level %d to %d (attempt %d/%d, %.1fs)", 
-                        actionIndex, totalActionCount, action.displayName, action.instanceNumber, originalLevel, currentLevel, attempt, maxRetries, tick() - validationStartTime + quickCheckTime))
+                    updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s (Level %d->%d)", 
+                        actionIndex, totalActionCount, action.Unit, originalLevel, currentLevel))
                     break
                 end
             else
                 break
             end
-            
             task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
         end
         
@@ -1676,20 +1527,13 @@ local function validateUpgradeActionRefactored(action, actionIndex, totalActionC
             return true
         end
         
-        -- Upgrade failed - log and potentially retry
-        local finalUnit = findUnitBySpawnUUID(currentUUID)
-        local finalLevel = finalUnit and getUnitUpgradeLevel(finalUnit) or originalLevel
-        
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Failed to validate upgrade of %s - %d (Level still %d after %.1fs)", 
-            actionIndex, totalActionCount, attempt, maxRetries, action.displayName, action.instanceNumber, finalLevel, validationTimeout))
-        
         if attempt < maxRetries then
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not upgrade %s - %d after %d attempts", 
-        actionIndex, totalActionCount, action.displayName, action.instanceNumber, maxRetries))
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not upgrade %s", 
+        actionIndex, totalActionCount, action.Unit))
     return false
 end
 
@@ -1697,41 +1541,37 @@ end
 local function validateSellActionRefactored(action, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
-    -- Find the current UUID for this display name + instance number
+    local displayName, instanceNumber = parseUnitString(action.Unit)
+    if not displayName or not instanceNumber then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Invalid unit format: %s", 
+            actionIndex, totalActionCount, action.Unit))
+        return false
+    end
+    
     local currentUUID = nil
-    if playbackDisplayNameInstances[action.displayName] then
-        currentUUID = playbackDisplayNameInstances[action.displayName][action.instanceNumber]
+    if playbackDisplayNameInstances[displayName] then
+        currentUUID = playbackDisplayNameInstances[displayName][instanceNumber]
     end
     
     if not currentUUID then
-        updateDetailedStatus(string.format("(%d/%d) No UUID tracked for sell %s - %d", 
-            actionIndex, totalActionCount, action.displayName, action.instanceNumber))
+        updateDetailedStatus(string.format("(%d/%d) No UUID tracked for sell %s", 
+            actionIndex, totalActionCount, action.Unit))
         return false
     end
     
-    local unit = findUnitBySpawnUUID(currentUUID)
-    if not unit or not isOwnedByLocalPlayer(unit) then
-        updateDetailedStatus(string.format("(%d/%d) Could not find unit for sell %s - %d", 
-            actionIndex, totalActionCount, action.displayName, action.instanceNumber))
-        return false
-    end
+    updateDetailedStatus(string.format("(%d/%d) Selling %s", 
+        actionIndex, totalActionCount, action.Unit))
     
-    updateDetailedStatus(string.format("(%d/%d) Selling %s - %d (UUID: %s)", 
-        actionIndex, totalActionCount, action.displayName, action.instanceNumber, currentUUID))
-    
-    -- Find the exact model name for this UUID (same logic as upgrade)
+    -- Find model name for remote call
     local remoteParameter = ""
     for _, model in ipairs(Services.Workspace:WaitForChild("_UNITS"):GetChildren()) do
         if model:IsA("Model") then
             local stats = model:FindFirstChild("_stats")
             if stats and stats:FindFirstChild("uuid") and stats.uuid:IsA("StringValue") then
-                local modelUUID = stats.uuid.Value
-                
-                if modelUUID == currentUUID then
+                if stats.uuid.Value == currentUUID then
                     local playerOwner = stats:FindFirstChild("player")
                     if playerOwner and playerOwner.Value == getLocalPlayer() then
                         remoteParameter = model.Name
-                        print(string.format("Found sell target: %s (UUID: %s)", model.Name, modelUUID))
                         break
                     end
                 end
@@ -1740,42 +1580,31 @@ local function validateSellActionRefactored(action, actionIndex, totalActionCoun
     end
     
     if remoteParameter == "" then
-        updateDetailedStatus(string.format("(%d/%d) Could not find model name for UUID %s", 
-            actionIndex, totalActionCount, currentUUID))
+        updateDetailedStatus(string.format("(%d/%d) Could not find model for %s", 
+            actionIndex, totalActionCount, action.Unit))
         return false
     end
     
-    print(string.format("About to sell %s - %d with parameter: '%s' (UUID: %s)", 
-        action.displayName, action.instanceNumber, remoteParameter, currentUUID))
-    
-    -- Execute sell using model name as parameter
     local success = pcall(function()
         endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(remoteParameter)
     end)
     
     if success then
         task.wait(0.5)
-        
         local soldUnit = findUnitBySpawnUUID(currentUUID)
         if not soldUnit then
-            -- Unit successfully sold, clean up tracking
-            if playbackDisplayNameInstances[action.displayName] then
-                playbackDisplayNameInstances[action.displayName][action.instanceNumber] = nil
+            if playbackDisplayNameInstances[displayName] then
+                playbackDisplayNameInstances[displayName][instanceNumber] = nil
             end
-            
-            updateDetailedStatus(string.format("(%d/%d) Successfully sold %s - %d", 
-                actionIndex, totalActionCount, action.displayName, action.instanceNumber))
+            updateDetailedStatus(string.format("(%d/%d) Successfully sold %s", 
+                actionIndex, totalActionCount, action.Unit))
             return true
-        else
-            updateDetailedStatus(string.format("(%d/%d) Sell command sent but unit still exists for %s - %d", 
-                actionIndex, totalActionCount, action.displayName, action.instanceNumber))
-            return false
         end
-    else
-        updateDetailedStatus(string.format("(%d/%d) Remote call failed for selling %s - %d", 
-            actionIndex, totalActionCount, action.displayName, action.instanceNumber))
-        return false
     end
+    
+    updateDetailedStatus(string.format("(%d/%d) Failed to sell %s", 
+        actionIndex, totalActionCount, action.Unit))
+    return false
 end
 
 local function executeActionWithValidationRefactored(action, actionIndex, totalActionCount)
@@ -1784,29 +1613,26 @@ local function executeActionWithValidationRefactored(action, actionIndex, totalA
     currentActionIndex = actionIndex
     totalActions = totalActionCount
     
-    if action.action == "PlaceUnit" then
+    if action.Type == "spawn_unit" then
         return validatePlacementActionRefactored(action, actionIndex, totalActionCount)
         
-    elseif action.action == "UpgradeUnit" then
+    elseif action.Type == "upgrade_unit_ingame" then
         return validateUpgradeActionRefactored(action, actionIndex, totalActionCount)
         
-    elseif action.action == "SellUnit" then
+    elseif action.Type == "sell_unit_ingame" then
         return validateSellActionRefactored(action, actionIndex, totalActionCount)
         
-    elseif action.action == "SkipWave" then
-        updateDetailedStatus(string.format("(%d/%d) Skipping wave", 
-            actionIndex, totalActionCount))
+    elseif action.Type == "vote_wave_skip" then
+        updateDetailedStatus(string.format("(%d/%d) Skipping wave", actionIndex, totalActionCount))
         
         local success = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
         end)
         
         if success then
-            updateDetailedStatus(string.format("(%d/%d) Wave skipped", 
-                actionIndex, totalActionCount))
+            updateDetailedStatus(string.format("(%d/%d) Wave skipped", actionIndex, totalActionCount))
         else
-            updateDetailedStatus(string.format("(%d/%d) Failed to skip wave", 
-                actionIndex, totalActionCount))
+            updateDetailedStatus(string.format("(%d/%d) Failed to skip wave", actionIndex, totalActionCount))
         end
         
         return success
