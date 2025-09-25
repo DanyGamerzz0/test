@@ -1,4 +1,4 @@
-    -- 55
+    -- 56
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -3351,7 +3351,7 @@ end
     GameSection = GameTab:CreateSection("🎮 Game 🎮")
 
 
-     = GameTab:CreateToggle({
+    Toggle = GameTab:CreateToggle({
         Name = "Delete Enemies",
         CurrentValue = false,
         Flag = "enableDeleteEnemies",
@@ -3415,7 +3415,7 @@ end
         end,
     })
 
-     = GameTab:CreateToggle({
+    Toggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
     CurrentValue = false,
     Flag = "AutoStartGame",
@@ -3439,7 +3439,7 @@ end
         end
     end)
 
-     = GameTab:CreateToggle({
+    Toggle = GameTab:CreateToggle({
     Name = "Auto Skip Waves",
     CurrentValue = false,
     Flag = "AutoSkipWaves",
