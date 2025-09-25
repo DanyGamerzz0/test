@@ -1,4 +1,4 @@
-    -- 4
+    -- 5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -945,6 +945,7 @@ local function processPlacementActionRefactored(actionInfo)
     end
     displayNameToCurrentInstances[displayName][instanceNumber] = targetUUID
     
+    -- FIXED: Properly capture the original raycast data
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
     
@@ -954,37 +955,29 @@ local function processPlacementActionRefactored(actionInfo)
     local placementCost = actionInfo.preActionMoney - currentMoney
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
+    -- FIXED: Store complete raycast information and cost
     local placementRecord = {
         Type = "spawn_unit",
         Unit = string.format("%s - %d", displayName, instanceNumber),
         Time = string.format("%.2f", gameRelativeTime),
         Pos = string.format("%.2f, %.2f, %.2f", unitPosition.X, unitPosition.Y, unitPosition.Z),
-        Dir = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
-        Rot = rotation ~= 0 and rotation or nil
+        -- Store original raycast parameters for accurate playback
+        RaycastOrigin = raycastData.Origin and string.format("%.2f, %.2f, %.2f", raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
+        RaycastDirection = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
+        RaycastUnit = raycastData.Unit and string.format("%.2f, %.2f, %.2f", raycastData.Unit.X, raycastData.Unit.Y, raycastData.Unit.Z) or "",
+        Rot = rotation ~= 0 and rotation or nil,
+        Cost = placementCost -- Store cost for money waiting
     }
     
     table.insert(macro, placementRecord)
     
     local displayText = string.format("%s - %d", displayName, instanceNumber)
-    notify("Macro Recorder", string.format("Recorded: %s at %.1fs", displayText, gameRelativeTime))
+    notify("Macro Recorder", string.format("Recorded: %s at %.1fs (Cost: %d)", displayText, gameRelativeTime, placementCost))
 end
-
-    local function waitForUpgradeLevel(targetUnit, originalLevel, maxWaitTime)
-        local startTime = tick()
-        
-        while tick() - startTime < maxWaitTime do
-            local currentLevel = getUnitUpgradeLevel(targetUnit)
-            if currentLevel > originalLevel then
-                return true
-            end
-            task.wait(0.1) -- Check every 0.1 seconds
-        end
-        
-        return false -- Timeout or upgrade failed
-    end
 
 local function processUpgradeActionRefactored(actionInfo)
     local remoteParam = actionInfo.args[1]
+    local preActionMoney = actionInfo.preActionMoney
     
     local upgradedUnit = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
@@ -1002,6 +995,11 @@ local function processUpgradeActionRefactored(actionInfo)
         warn("Could not find upgraded unit with model name:", remoteParam)
         return
     end
+
+    -- FIXED: Calculate upgrade cost properly
+    task.wait(0.2) -- Small delay to let money update
+    local currentMoney = getPlayerMoney()
+    local upgradeCost = preActionMoney - currentMoney
     
     local unitUUID = nil
     local stats = upgradedUnit:FindFirstChild("_stats")
@@ -1038,17 +1036,19 @@ local function processUpgradeActionRefactored(actionInfo)
     
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
+    -- FIXED: Store upgrade cost
     local upgradeRecord = {
         Type = "upgrade_unit_ingame",
         Unit = string.format("%s - %d", targetPlacement.displayName, targetPlacement.instanceNumber),
         Time = string.format("%.2f", gameRelativeTime),
+        Cost = upgradeCost, -- Store cost for money waiting
         upgradeLevelAfter = getUnitUpgradeLevel(upgradedUnit)
     }
     
     table.insert(macro, upgradeRecord)
     
     local displayText = string.format("%s - %d", targetPlacement.displayName, targetPlacement.instanceNumber)
-    notify("Macro Recorder", string.format("Recorded upgrade: %s at %.1fs", displayText, gameRelativeTime))
+    notify("Macro Recorder", string.format("Recorded upgrade: %s at %.1fs (Cost: %d)", displayText, gameRelativeTime, upgradeCost))
 end
 
 local function processSellActionRefactored(actionInfo)
@@ -1323,30 +1323,37 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Parse position
+        -- FIXED: Parse position and build proper raycast from recorded data
         local x, y, z = action.Pos:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
         local targetPosition = Vector3.new(tonumber(x), tonumber(y), tonumber(z))
         
-        -- Build proper raycast parameter
+        -- FIXED: Use original recorded raycast data for accurate placement
         local raycastParam = {}
-        if action.Dir and action.Dir ~= "" then
-            local dx, dy, dz = action.Dir:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
+        
+        if action.RaycastOrigin and action.RaycastOrigin ~= "" then
+            local ox, oy, oz = action.RaycastOrigin:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
+            raycastParam.Origin = Vector3.new(tonumber(ox), tonumber(oy), tonumber(oz))
+        else
+            raycastParam.Origin = Vector3.new(targetPosition.X, targetPosition.Y + 50, targetPosition.Z)
+        end
+        
+        if action.RaycastDirection and action.RaycastDirection ~= "" then
+            local dx, dy, dz = action.RaycastDirection:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
             raycastParam.Direction = Vector3.new(tonumber(dx), tonumber(dy), tonumber(dz))
         else
-            -- Default downward direction if no direction stored
             raycastParam.Direction = Vector3.new(0, -1, 0)
         end
         
-        -- Always set Origin and Unit for proper ground detection
-        raycastParam.Origin = Vector3.new(targetPosition.X, targetPosition.Y + 50, targetPosition.Z)
-        raycastParam.Unit = targetPosition
+        if action.RaycastUnit and action.RaycastUnit ~= "" then
+            local ux, uy, uz = action.RaycastUnit:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
+            raycastParam.Unit = Vector3.new(tonumber(ux), tonumber(uy), tonumber(uz))
+        else
+            raycastParam.Unit = targetPosition
+        end
         
-        -- Apply random offset if enabled
+        -- Apply random offset if enabled (only to the Unit position)
         if State.RandomOffsetEnabled then
-            targetPosition = applyRandomOffset(targetPosition, State.RandomOffsetAmount)
-            if raycastParam.Unit then
-                raycastParam.Unit = targetPosition
-            end
+            raycastParam.Unit = applyRandomOffset(raycastParam.Unit, State.RandomOffsetAmount)
         end
         
         -- Execute placement
@@ -4713,9 +4720,9 @@ local function playMacroWithGameTimingRefactored()
     end
     
     gameHasEnded = false
-    clearPlaybackTracking() -- Initialize playback tracking
+    clearPlaybackTracking()
     
-    if not State.IgnoreTiming and gameStartTime == 0 then
+    if gameStartTime == 0 then
         gameStartTime = tick()
         print("Setting game start time for playback:", gameStartTime)
     end
@@ -4727,14 +4734,44 @@ local function playMacroWithGameTimingRefactored()
             return false
         end
         
-        -- Timing logic (keep existing)
+        -- FIXED: Money waiting logic for ALL timing modes
+        if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
+            local requiredCost = action.Cost or 0
+            
+            if requiredCost > 0 then
+                local maxWaitTime = 180
+                local waitStart = tick()
+                
+                while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
+                    if tick() - waitStart > maxWaitTime then
+                        updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money", i, totalActions))
+                        print("Timeout waiting for sufficient money")
+                        break
+                    end
+                    
+                    local missingMoney = requiredCost - getPlayerMoney()
+                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen (need %d, have %d)", 
+                        i, totalActions, missingMoney, requiredCost, getPlayerMoney()))
+                    task.wait(1)
+                end
+                
+                if not isPlaybacking or gameHasEnded then
+                    updateDetailedStatus("Macro stopped during money wait")
+                    return false
+                end
+            end
+        end
+        
+        -- FIXED: Timing logic with proper field access
         if not State.IgnoreTiming then
-            local targetGameTime = action.gameRelativeTime or 0
+            -- Convert stored time string to number
+            local targetGameTime = tonumber(action.Time) or 0
             local currentGameTime = tick() - gameStartTime
             local waitTime = targetGameTime - currentGameTime
             
             if waitTime > 0 then
-                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for timing", i, totalActions, waitTime))
+                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for timing (target: %.1fs, current: %.1fs)", 
+                    i, totalActions, waitTime, targetGameTime, currentGameTime))
                 print(string.format("Waiting %.2fs for game time %.2fs", waitTime, targetGameTime))
                 
                 local waitStart = tick()
@@ -4749,35 +4786,18 @@ local function playMacroWithGameTimingRefactored()
                 return false
             end
         else
+            -- Small delay between actions in immediate mode
             if i > 1 then
                 task.wait(0.2)
             end
-            
-            if action.action == "PlaceUnit" or action.action == "UpgradeUnit" then
-                local requiredCost = action.placementCost or action.upgradeCost or 0
-                local maxWaitTime = 180
-                local waitStart = tick()
-                
-                while requiredCost > 0 and getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
-                    if tick() - waitStart > maxWaitTime then
-                        updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money", i, totalActions))
-                        print("Timeout waiting for sufficient money")
-                        break
-                    end
-                    
-                    local missingMoney = requiredCost - getPlayerMoney()
-                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen", 
-                        i, totalActions, missingMoney))
-                    task.wait(1)
-                end
-            end
         end
         
-        -- Execute the action with the new system
+        -- Execute the action
         local actionSuccess = executeActionWithValidationRefactored(action, i, totalActions)
         
         if not actionSuccess then
             notify("Macro Playback", string.format("Action %d failed, continuing with next action", i))
+            print(string.format("Action %d failed: %s", i, action.Type))
         end
     end
     
