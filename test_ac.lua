@@ -1,4 +1,4 @@
-    -- 577
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.03"
+    local script_version = "V0.069"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
