@@ -1,4 +1,4 @@
-    -- 13
+    -- 14
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1073,7 +1073,7 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.PLACEMENT_MAX_RETRIES
 
-    if not waitForSufficientMoney(action, actionIndexm totalActionCount) then
+    if not waitForSufficientMoney(action, actionIndex, totalActionCount) then
         return false
     end
     
