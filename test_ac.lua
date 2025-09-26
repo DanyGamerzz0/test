@@ -1,4 +1,4 @@
-    -- 68
+    -- 69
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -809,7 +809,6 @@ local function parseUnitString(unitString)
     return nil, nil
 end
 
-
 local function waitForSufficientMoney(action, actionIndex, totalActions)
     local requiredCost = 0
 
@@ -1108,7 +1107,7 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
     
     -- Parse unit info from clean macro format
     local placementId = action.Unit -- "Shadow #1"
-    local displayName, placementNumber = placementId:match("^(.+) #(%d+)$")
+    local displayName, placementNumber = placementId:match("^(.-) #%s*(%d+)$")
     
     if not displayName or not placementNumber then
         updateDetailedStatus(string.format("(%d/%d) FAILED: Invalid unit format: %s", 
@@ -4492,9 +4491,41 @@ local function playMacroWithGameTimingRefactored()
             return false
         end
         
-        -- FIXED: Money waiting logic for ALL timing modes
+        -- Money waiting logic for ALL timing modes
         if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
-            local requiredCost = action.Cost or 0
+            local requiredCost = 0
+            
+            if action.Type == "spawn_unit" then
+                -- Calculate placement cost
+                local displayName, instanceNumber = parseUnitString(action.Unit)
+                if displayName then
+                    local unitId = getUnitIdFromDisplayName(displayName)
+                    if unitId then
+                        requiredCost = getPlacementCost(unitId)
+                    end
+                end
+            elseif action.Type == "upgrade_unit_ingame" then
+                -- Calculate upgrade cost
+                local placementId = action.Unit
+                local currentSpawnId = playbackPlacementToSpawnId[placementId]
+                
+                if currentSpawnId then
+                    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                    if unitsFolder then
+                        for _, unit in pairs(unitsFolder:GetChildren()) do
+                            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                                local displayName = parseUnitString(action.Unit)
+                                if displayName then
+                                    local unitId = getUnitIdFromDisplayName(displayName)
+                                    local currentLevel = getUnitUpgradeLevel(unit)
+                                    requiredCost = getUpgradeCost(unitId, currentLevel)
+                                end
+                                break
+                            end
+                        end
+                    end
+                end
+            end
             
             if requiredCost > 0 then
                 local maxWaitTime = 180
@@ -4520,7 +4551,7 @@ local function playMacroWithGameTimingRefactored()
             end
         end
         
-        -- FIXED: Timing logic with proper field access
+        -- Timing logic with proper field access
         if not State.IgnoreTiming then
             -- Convert stored time string to number
             local targetGameTime = tonumber(action.Time) or 0
