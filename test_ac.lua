@@ -1,4 +1,4 @@
-    -- 8
+    -- 9
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -733,155 +733,44 @@ end
         print("Macro Status: " .. message)
     end
 
-    local function saveMacroToFile(name)
-        if not name or name == "" then return end
-        
-        local data = macroManager[name]
-        if not data then return end
+local function saveMacroToFile(name)
+    if not name or name == "" then return end
+    
+    local data = macroManager[name]
+    if not data then return end
 
-        local serializedData = {}
-        
-        for _, action in ipairs(data) do
-            local newAction = table.clone(action)
-            
-            -- Handle Vector3 positions
-            if newAction.actualPosition then
-                newAction.actualPosition = serializeVector3(newAction.actualPosition)
-            end
-            if newAction.unitPosition then
-                newAction.unitPosition = serializeVector3(newAction.unitPosition)
-            end
-            
-            -- Handle raycast serialization
-            if newAction.raycast and type(newAction.raycast) == "table" then
-                local serializedRaycast = {}
-                
-                if newAction.raycast.Origin then
-                    serializedRaycast.Origin = {
-                        x = newAction.raycast.Origin.X,
-                        y = newAction.raycast.Origin.Y,
-                        z = newAction.raycast.Origin.Z
-                    }
-                end
-                
-                if newAction.raycast.Direction then
-                    serializedRaycast.Direction = {
-                        x = newAction.raycast.Direction.X,
-                        y = newAction.raycast.Direction.Y,
-                        z = newAction.raycast.Direction.Z
-                    }
-                end
-                
-                if newAction.raycast.Unit then
-                    serializedRaycast.Unit = {
-                        x = newAction.raycast.Unit.X,
-                        y = newAction.raycast.Unit.Y,
-                        z = newAction.raycast.Unit.Z
-                    }
-                end
-                
-                newAction.raycast = serializedRaycast
-            end
-            
-            table.insert(serializedData, newAction)
-        end
+    -- Direct JSON encoding - no complex serialization needed
+    local json = Services.HttpService:JSONEncode(data)
+    local filePath = getMacroFilename(name)
+    if filePath then
+        writefile(filePath, json)
+        print("Saved macro to file:", name, "with", #data, "actions")
+    end
+end
 
-        local json = Services.HttpService:JSONEncode(serializedData)
-        local filePath = getMacroFilename(name)
-        if filePath then
-            writefile(filePath, json)
-            print("Saved macro to file:", name, "with", #serializedData, "actions")
-        end
+local function loadMacroFromFile(name)
+    local filePath = getMacroFilename(name)
+    if not filePath or not isfile(filePath) then return nil end
+
+    local json = readfile(filePath)
+    local data = Services.HttpService:JSONDecode(json)
+    
+    if type(data) == "table" and #data == 0 then
+        return {}
+    end
+    
+    local actionsArray
+    if data.actions and type(data.actions) == "table" then
+        actionsArray = data.actions
+    elseif type(data) == "table" then
+        actionsArray = data
+    else
+        warn("Unrecognized file format for macro:", name)
+        return nil
     end
 
-    local function loadMacroFromFile(name)
-        local filePath = getMacroFilename(name)
-        if not filePath or not isfile(filePath) then return nil end
-
-        local json = readfile(filePath)
-        local data = Services.HttpService:JSONDecode(json)
-        
-        local actionsArray
-        
-        -- Handle empty array case first
-        if type(data) == "table" and #data == 0 then
-            -- Empty macro file - return empty array
-            print("Loading empty macro file:", name)
-            return {}
-        end
-        
-        -- Handle both formats when loading
-        if data.actions and type(data.actions) == "table" then
-            -- Wrapped format
-            actionsArray = data.actions
-            print("Loading wrapped format file:", name)
-        elseif data[1] and data[1].action then
-            -- Direct array format with actions
-            actionsArray = data
-            print("Loading direct array format file:", name)
-        elseif type(data) == "table" and #data >= 0 then
-            -- Handle edge case: array exists but is empty or has non-action items
-            actionsArray = data
-            print("Loading array format file (possibly empty):", name)
-        else
-            warn("Unrecognized file format for macro:", name)
-            return nil
-        end
-
-        -- Process the actions (deserialize Vector3 and raycast data)
-        for _, action in ipairs(actionsArray) do
-            -- Handle Vector3 positions
-            if action.actualPosition then
-                action.actualPosition = deserializeVector3(action.actualPosition)
-            end
-            if action.unitPosition then
-                action.unitPosition = deserializeVector3(action.unitPosition)
-            end
-            
-            -- Deserialize raycast data
-            if action.raycast and type(action.raycast) == "table" then
-                local deserializedRaycast = {}
-                
-                -- Deserialize Origin
-                if action.raycast.Origin and type(action.raycast.Origin) == "table" and
-                action.raycast.Origin.x and action.raycast.Origin.y and action.raycast.Origin.z then
-                    deserializedRaycast.Origin = Vector3.new(action.raycast.Origin.x, action.raycast.Origin.y, action.raycast.Origin.z)
-                end
-                
-                -- Deserialize Direction
-                if action.raycast.Direction and type(action.raycast.Direction) == "table" and
-                action.raycast.Direction.x and action.raycast.Direction.y and action.raycast.Direction.z then
-                    deserializedRaycast.Direction = Vector3.new(action.raycast.Direction.x, action.raycast.Direction.y, action.raycast.Direction.z)
-                end
-                
-                -- Deserialize Unit
-                if action.raycast.Unit and type(action.raycast.Unit) == "table" and
-                action.raycast.Unit.x and action.raycast.Unit.y and action.raycast.Unit.z then
-                    deserializedRaycast.Unit = Vector3.new(action.raycast.Unit.x, action.raycast.Unit.y, action.raycast.Unit.z)
-                end
-                
-                -- Create fallback if any components are missing
-                if not deserializedRaycast.Origin or not deserializedRaycast.Direction or not deserializedRaycast.Unit then
-                    print("Warning: Incomplete raycast in saved file, creating fallback")
-                    local fallbackPos = action.actualPosition or Vector3.new(0, 0, 0)
-                    
-                    if not deserializedRaycast.Origin then
-                        deserializedRaycast.Origin = Vector3.new(fallbackPos.X, fallbackPos.Y + 10, fallbackPos.Z)
-                    end
-                    if not deserializedRaycast.Direction then
-                        deserializedRaycast.Direction = Vector3.new(0, -1, 0)
-                    end
-                    if not deserializedRaycast.Unit then
-                        deserializedRaycast.Unit = fallbackPos
-                    end
-                end
-                
-                action.raycast = deserializedRaycast
-            end
-        end
-        
-        return actionsArray
-    end
+    return actionsArray
+end
 
     local function stopRecording()
         isRecording = false
@@ -979,7 +868,6 @@ local function processPlacementActionRefactored(actionInfo)
         return
     end
     
-    -- UPDATED: Use new function to get display name from unit modules
     local displayName = getDisplayNameFromUnitId(internalName)
     if not displayName then
         warn("Could not convert internal name to display name:", internalName)
@@ -1000,34 +888,25 @@ local function processPlacementActionRefactored(actionInfo)
     end
     displayNameToCurrentInstances[displayName][instanceNumber] = targetUUID
     
-    -- FIXED: Properly capture the original raycast data
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
-    
-    local unitPosition = spawnedUnit.PrimaryPart and spawnedUnit.PrimaryPart.Position or
-                        spawnedUnit:FindFirstChildWhichIsA("BasePart").Position
-    
     local placementCost = actionInfo.preActionMoney - currentMoney
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
-    -- FIXED: Store complete raycast information and cost
+    -- Store in simplified format
     local placementRecord = {
         Type = "spawn_unit",
         Unit = string.format("%s - %d", displayName, instanceNumber),
         Time = string.format("%.2f", gameRelativeTime),
-        Pos = string.format("%.2f, %.2f, %.2f", unitPosition.X, unitPosition.Y, unitPosition.Z),
-        -- Store original raycast parameters for accurate playback
-        RaycastOrigin = raycastData.Origin and string.format("%.2f, %.2f, %.2f", raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
-        RaycastDirection = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
-        RaycastUnit = raycastData.Unit and string.format("%.2f, %.2f, %.2f", raycastData.Unit.X, raycastData.Unit.Y, raycastData.Unit.Z) or "",
-        Rot = rotation ~= 0 and rotation or nil,
-        Cost = placementCost -- Store cost for money waiting
+        Pos = raycastData.Origin and string.format("%.17f, %.17f, %.17f", raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
+        Dir = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
+        Rot = rotation ~= 0 and rotation or 0
     }
     
     table.insert(macro, placementRecord)
     
     local displayText = string.format("%s - %d", displayName, instanceNumber)
-    notify("Macro Recorder", string.format("Recorded: %s at %.1fs (Cost: %d)", displayText, gameRelativeTime, placementCost))
+    notify("Macro Recorder", string.format("Recorded: %s at %.1fs", displayText, gameRelativeTime))
 end
 
 local function processUpgradeActionRefactored(actionInfo)
@@ -1357,7 +1236,6 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        -- UPDATED: Convert display name back to unit ID using new function
         local unitId = getUnitIdFromDisplayName(displayName)
         if not unitId then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Could not convert display name to unit ID: %s", 
@@ -1365,7 +1243,6 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
             return false
         end
         
-        -- Resolve UUID from unit ID
         local resolvedUUID = resolveUUIDFromInternalName(unitId)
         if not resolvedUUID then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve UUID for: %s", 
@@ -1378,40 +1255,31 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- FIXED: Parse position and build proper raycast from recorded data
-        local x, y, z = action.Pos:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
-        local targetPosition = Vector3.new(tonumber(x), tonumber(y), tonumber(z))
+        -- Parse the stored position and direction
+        local px, py, pz = action.Pos:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
+        local dx, dy, dz = action.Dir:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
         
-        -- FIXED: Use original recorded raycast data for accurate placement
-        local raycastParam = {}
-        
-        if action.RaycastOrigin and action.RaycastOrigin ~= "" then
-            local ox, oy, oz = action.RaycastOrigin:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
-            raycastParam.Origin = Vector3.new(tonumber(ox), tonumber(oy), tonumber(oz))
-        else
-            raycastParam.Origin = Vector3.new(targetPosition.X, targetPosition.Y + 50, targetPosition.Z)
+        if not (px and py and pz and dx and dy and dz) then
+            updateDetailedStatus(string.format("(%d/%d) FAILED: Invalid position or direction format", 
+                actionIndex, totalActionCount))
+            return false
         end
         
-        if action.RaycastDirection and action.RaycastDirection ~= "" then
-            local dx, dy, dz = action.RaycastDirection:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
-            raycastParam.Direction = Vector3.new(tonumber(dx), tonumber(dy), tonumber(dz))
-        else
-            raycastParam.Direction = Vector3.new(0, -1, 0)
-        end
+        local originPos = Vector3.new(tonumber(px), tonumber(py), tonumber(pz))
+        local direction = Vector3.new(tonumber(dx), tonumber(dy), tonumber(dz))
         
-        if action.RaycastUnit and action.RaycastUnit ~= "" then
-            local ux, uy, uz = action.RaycastUnit:match("([%-%d%.]+), ([%-%d%.]+), ([%-%d%.]+)")
-            raycastParam.Unit = Vector3.new(tonumber(ux), tonumber(uy), tonumber(uz))
-        else
-            raycastParam.Unit = targetPosition
-        end
-        
-        -- Apply random offset if enabled (only to the Unit position)
+        -- Apply random offset if enabled
         if State.RandomOffsetEnabled then
-            raycastParam.Unit = applyRandomOffset(raycastParam.Unit, State.RandomOffsetAmount)
+            local offsetX = (math.random() - 0.5) * 2 * State.RandomOffsetAmount
+            local offsetZ = (math.random() - 0.5) * 2 * State.RandomOffsetAmount
+            originPos = Vector3.new(originPos.X + offsetX, originPos.Y, originPos.Z + offsetZ)
         end
         
-        -- Execute placement
+        local raycastParam = {
+            Origin = originPos,
+            Direction = direction
+        }
+        
         local success, error = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
                 resolvedUUID,
@@ -1454,8 +1322,8 @@ local function validatePlacementActionRefactored(action, actionIndex, totalActio
                 end
                 playbackDisplayNameInstances[displayName][instanceNumber] = newUnitUUID
                 
-                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s (UUID: %s)", 
-                    actionIndex, totalActionCount, action.Unit, newUnitUUID))
+                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
+                    actionIndex, totalActionCount, action.Unit))
                 return true
             end
         end
