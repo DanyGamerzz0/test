@@ -1,4 +1,4 @@
-    -- 6
+    -- 7
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -588,14 +588,13 @@ local function getDisplayNameFromUnitId(unitId)
     local success, displayName = pcall(function()
         local UnitsFolder = Services.ReplicatedStorage.Framework.Data.Units
         if not UnitsFolder then return nil end
-        
-        -- Search through all unit modules
-        for _, moduleScript in pairs(UnitsFolder:GetChildren()) do
+
+
+        for _, moduleScript in pairs(UnitsFolder:GetDescendants()) do
             if moduleScript:IsA("ModuleScript") then
                 local moduleSuccess, unitData = pcall(require, moduleScript)
                 
                 if moduleSuccess and unitData then
-                    -- Search through each unit in this module
                     for unitKey, unitInfo in pairs(unitData) do
                         if type(unitInfo) == "table" and unitInfo.id == unitId and unitInfo.name then
                             return unitInfo.name
@@ -606,8 +605,7 @@ local function getDisplayNameFromUnitId(unitId)
         end
         return nil
     end)
-    
-    return success and displayName or unitId -- Fallback to ID if not found
+    return success and displayName or unitId
 end
 
 local function getUnitIdFromDisplayName(displayName)
