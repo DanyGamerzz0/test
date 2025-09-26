@@ -1,4 +1,4 @@
-    -- 17
+    -- 67
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -920,12 +920,33 @@ end
 
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
+        print("----------------------------------------------Processing spawn action----------------------------------------------")
+            Rayfield:Notify({
+   Title = "Macro Recorder",
+   Content = "Processing spawn action",
+   Duration = 2,
+   Image = 4483362458,
+})
         processPlacementActionWithSpawnIdMapping(actionInfo)
     elseif actionInfo.remoteName == MACRO_CONFIG.UPGRADE_REMOTE then
+        print("----------------------------------------------Processing upgrade action----------------------------------------------")
+            Rayfield:Notify({
+   Title = "Macro Recorder",
+   Content = "Processing upgrade action",
+   Duration = 2,
+   Image = 4483362458,
+})
         processUpgradeActionWithSpawnIdMapping(actionInfo)
     elseif actionInfo.remoteName == MACRO_CONFIG.SELL_REMOTE then
         processSellActionWithSpawnIdMapping(actionInfo)
     elseif actionInfo.remoteName == MACRO_CONFIG.WAVE_SKIP_REMOTE then
+        print("----------------------------------------------Processing wave skip action----------------------------------------------")
+            Rayfield:Notify({
+   Title = "Macro Recorder",
+   Content = "Processing wave skip action",
+   Duration = 2,
+   Image = 4483362458,
+})
         processWaveSkipAction(actionInfo)
     end
 end
