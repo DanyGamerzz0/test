@@ -1,4 +1,4 @@
-    -- 15
+    -- 16
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -788,13 +788,14 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
 end
 
 local function parseUnitString(unitString)
-    -- Parse "DisplayName - InstanceNumber" format
-    local displayName, instanceNumber = unitString:match("^(.+) %- (%d+)$")
+    -- Parse "DisplayName #InstanceNumber" format
+    local displayName, instanceNumber = unitString:match("^(.-) #%s*(%d+)$")
     if displayName and instanceNumber then
         return displayName, tonumber(instanceNumber)
     end
     return nil, nil
 end
+
 
 local function waitForSufficientMoney(action, actionIndex, totalActions)
     local requiredCost = 0
