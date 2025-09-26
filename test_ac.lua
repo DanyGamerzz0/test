@@ -1,4 +1,4 @@
-    -- 11
+    -- 12
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -608,6 +608,48 @@ local function getDisplayNameFromUnitId(unitId)
     return success and displayName or unitId
 end
 
+local function getUnitData(unitId)
+    local success, unitData = pcall(function()
+        local UnitsFolder = Services.ReplicatedStorage.Framework.Data.Units
+        if not UnitsFolder then return nil end
+        
+        for _, moduleScript in pairs(UnitsFolder:GetDescendants()) do
+            if moduleScript:IsA("ModuleScript") then
+                local moduleSuccess, data = pcall(require, moduleScript)
+                
+                if moduleSuccess and data then
+                    for unitKey, unitInfo in pairs(data) do
+                        if type(unitInfo) == "table" and unitInfo.id == unitId then
+                            return unitInfo
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end)
+    
+    return success and unitData or nil
+end
+
+local function getPlacementCost(unitId)
+    local unitData = getUnitData(unitId)
+    return unitData and unitData.cost or 0
+end
+
+local function getUpgradeCost(unitId, currentLevel)
+    local unitData = getUnitData(unitId)
+    if not unitData or not unitData.upgrade then return 0 end
+
+    local upgradeIndex = currentLevel + 1
+    
+    if upgradeIndex > #unitData.upgrade then
+        return 0
+    end
+    
+    return unitData.upgrade[upgradeIndex] and unitData.upgrade[upgradeIndex].cost or 0
+end
+
 local function getUnitIdFromDisplayName(displayName)
     if not displayName then return nil end
     
@@ -967,14 +1009,59 @@ local function processUpgradeActionRefactored(actionInfo)
         Type = "upgrade_unit_ingame",
         Unit = string.format("%s - %d", targetPlacement.displayName, targetPlacement.instanceNumber),
         Time = string.format("%.2f", gameRelativeTime),
-        Cost = upgradeCost, -- Store cost for money waiting
-        upgradeLevelAfter = getUnitUpgradeLevel(upgradedUnit)
     }
     
     table.insert(macro, upgradeRecord)
     
     local displayText = string.format("%s - %d", targetPlacement.displayName, targetPlacement.instanceNumber)
     notify("Macro Recorder", string.format("Recorded upgrade: %s at %.1fs (Cost: %d)", displayText, gameRelativeTime, upgradeCost))
+end
+
+local function parseUnitString(unitString)
+    -- Parse "DisplayName - InstanceNumber" format
+    local displayName, instanceNumber = unitString:match("^(.+) %- (%d+)$")
+    if displayName and instanceNumber then
+        return displayName, tonumber(instanceNumber)
+    end
+    return nil, nil
+end
+
+local function waitForSufficientMoney(action, actionIndex, totalActions)
+    local requiredCost = 0
+
+    local displayName, instanceNumber = parseUnitString(action.Unit)
+    local unitid = displayName and getUnitIdFromDisplayName(displayName)
+    
+    if action.Type == "spawn_unit" and unitid then
+        requiredCost = getPlacementCost(unitid)
+    elseif action.Type == "upgrade_unit_ingame" and displayName and instanceNumber then
+            local currentUUID = playbackDisplayNameInstances[displayName] and
+                              playbackDisplayNameInstances[displayName][instanceNumber]
+            if currentUUID then
+                local unit = findUnitBySpawnUUID(currentUUID)
+                if unit then
+                    local currentLevel = getUnitUpgradeLevel(unit)
+                    requiredCost = getUpgradeCost(unitid, currentLevel)
+                end
+            end
+        end    
+    if requiredCost > 0 then
+        local maxWaitTime = 180
+        local waitStart = tick()
+        
+        while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
+            if tick() - waitStart > maxWaitTime then
+                updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money", actionIndex, totalActions))
+                return false
+            end
+            
+            local missingMoney = requiredCost - getPlayerMoney()
+            updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen (need %d, have %d)", 
+                actionIndex, totalActions, missingMoney, requiredCost, getPlayerMoney()))
+            task.wait(1)
+        end
+    end
+    return true
 end
 
 local function processSellActionRefactored(actionInfo)
@@ -1043,15 +1130,6 @@ local function processWaveSkipAction(actionInfo)
     })
     
     notify("Macro Recorder", string.format("Recorded wave skip at %.1fs", gameRelativeTime))
-end
-
-local function parseUnitString(unitString)
-    -- Parse "DisplayName - InstanceNumber" format
-    local displayName, instanceNumber = unitString:match("^(.+) %- (%d+)$")
-    if displayName and instanceNumber then
-        return displayName, tonumber(instanceNumber)
-    end
-    return nil, nil
 end
 
 local function processActionResponseRefactored(actionInfo)
@@ -1217,6 +1295,10 @@ end
 local function validatePlacementActionRefactored(action, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.PLACEMENT_MAX_RETRIES
+
+    if not waitForSufficientMoney(action, actionIndexm totalActionCount) then
+        return false
+    end
     
     local displayName, instanceNumber = parseUnitString(action.Unit)
     if not displayName or not instanceNumber then
@@ -1336,6 +1418,10 @@ end
 local function validateUpgradeActionRefactored(action, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
+
+    if not waitForSufficientMoney(action, actionIndex, totalActionCount) then
+        return false
+    end
     
     local displayName, instanceNumber = parseUnitString(action.Unit)
     if not displayName or not instanceNumber then
@@ -3858,6 +3944,42 @@ end
         end
     end)
 
+     Toggle = GameTab:CreateToggle({
+    Name = "Auto Retry",
+    CurrentValue = false,
+    Flag = "AutoRetry",
+    Callback = function(Value)
+            State.AutoVoteRetry = Value
+            if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay")
+            end
+    end,
+    })
+
+    Toggle = GameTab:CreateToggle({
+    Name = "Auto Next",
+    CurrentValue = false,
+    Flag = "AutoNext",
+    Callback = function(Value)
+            State.AutoVoteNext = Value
+            if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
+            end
+    end,
+    })
+
+    Toggle = GameTab:CreateToggle({
+    Name = "Auto Lobby",
+    CurrentValue = false,
+    Flag = "AutoLobby",
+    Callback = function(Value)
+            State.AutoVoteLobby = Value
+            if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
+            end
+    end,
+    })
+
     Toggle = GameTab:CreateToggle({
     Name = "Auto Skip Waves",
     CurrentValue = false,
@@ -3974,43 +4096,6 @@ end
                 notify("Auto Sell Farm", string.format("Updated - will sell farm units on wave %d", Value))
             end
         end,
-    })
-
-
-    Toggle = GameTab:CreateToggle({
-    Name = "Auto Retry",
-    CurrentValue = false,
-    Flag = "AutoRetry",
-    Callback = function(Value)
-            State.AutoVoteRetry = Value
-            if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay")
-            end
-    end,
-    })
-
-    Toggle = GameTab:CreateToggle({
-    Name = "Auto Next",
-    CurrentValue = false,
-    Flag = "AutoNext",
-    Callback = function(Value)
-            State.AutoVoteNext = Value
-            if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
-            end
-    end,
-    })
-
-    Toggle = GameTab:CreateToggle({
-    Name = "Auto Lobby",
-    CurrentValue = false,
-    Flag = "AutoLobby",
-    Callback = function(Value)
-            State.AutoVoteLobby = Value
-            if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
-            end
-    end,
     })
 
     -- Macro Tab
