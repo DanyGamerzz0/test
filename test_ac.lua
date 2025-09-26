@@ -1,4 +1,4 @@
-    -- 9
+    -- 10
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -717,14 +717,6 @@ local function resolveUUIDFromInternalName(internalName)
     
     return success and uuid or nil
 end
-
-    local function createDetailedStatusLabel()
-        if detailedStatusLabel then
-            return -- Already created
-        end
-        
-        detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
-    end
 
     local function updateDetailedStatus(message)
         if detailedStatusLabel then
@@ -4023,6 +4015,7 @@ end
 
     -- Macro Tab
     local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
+    detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
 
     local MacroDropdown = MacroTab:CreateDropdown({
         Name = "Select Macro",
@@ -4734,8 +4727,6 @@ local function playMacroWithGameTimingRefactored()
     return true
 end
 
-    createDetailedStatusLabel()
-
     local function getCurrentWorld()
         local success, levelData = pcall(function()
             return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
@@ -5032,6 +5023,8 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     end,
 })
 
+local Divider = MacroTab:CreateDivider()
+
     RandomOffsetToggle = MacroTab:CreateToggle({
         Name = "Random Offset",
         CurrentValue = false,
@@ -5125,6 +5118,8 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         end,
     })--]]
 
+    local Divider = MacroTab:CreateDivider()
+
     ImportInput = MacroTab:CreateInput({
         Name = "Import Macro",
         CurrentValue = "",
@@ -5205,6 +5200,8 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             exportMacroToClipboard(currentMacroName, "compact")
         end,
     })
+
+    local Divider = MacroTab:CreateDivider()
 
     --[[local SendWebhookButton = MacroTab:CreateButton({
         Name = "Send Macro via Webhook",
