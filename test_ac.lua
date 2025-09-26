@@ -1,4 +1,4 @@
-    -- 12
+    -- 13
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -107,7 +107,6 @@
         ignoreWorlds = 0
     }
 
-    local currentActionIndex = 0
     local totalActions = 0
     local detailedStatusLabel = nil
 
@@ -129,7 +128,6 @@ local currentChallenge = nil
 local macroHasPlayedThisGame = false
 
 local displayNamePlacements = {} -- {displayName: count} - tracks how many of each unit we've placed
-local placementToDisplayName = {} -- {placementNumber: {displayName, instanceNumber}}
 local displayNameToCurrentInstances = {} -- {displayName: {instanceNumber: spawnUUID}}
 local playbackDisplayNameInstances = {}
 
@@ -238,7 +236,6 @@ local playbackDisplayNameInstances = {}
 
     local function clearDisplayNameTracking()
     displayNamePlacements = {}
-    placementToDisplayName = {}
     displayNameToCurrentInstances = {}
     recordingPlacementCounter = 0
 end
@@ -343,143 +340,6 @@ end
         return newPosition
     end
 
-    local function getCurrentWave()
-        local success, wave = pcall(function()
-            if Services.Workspace:FindFirstChild("_wave_num") then
-                return Services.Workspace._wave_num.Value
-            end
-            local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui", 5)
-            
-            for _, gui in pairs(playerGui:GetChildren()) do
-                local function searchForWave(obj)
-                    for _, child in pairs(obj:GetDescendants()) do
-                        if child:IsA("TextLabel") or child:IsA("TextBox") then
-                            local text = child.Text:lower()
-                            local waveMatch = text:match("wave[%s:]*(%d+)")
-                            if waveMatch then
-                                return tonumber(waveMatch)
-                            end
-                        end
-                    end
-                end
-                
-                local foundWave = searchForWave(gui)
-                if foundWave then return foundWave end
-            end
-            
-            return 1
-        end)
-        
-        return success and wave or 1
-    end
-
-    local function findUnitBySpawnId(targetSpawnId)
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        if not unitsFolder then return nil end
-        
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) then
-                local unitStats = unit:FindFirstChild("_stats")
-                if unitStats and unitStats:FindFirstChild("spawn_id") then
-                    local unitSpawnId = unitStats.spawn_id.Value
-                    -- Direct comparison, no string parsing
-                    if unitSpawnId == targetSpawnId or tostring(unitSpawnId) == tostring(targetSpawnId) then
-                        return unit
-                    end
-                end
-            end
-        end
-        
-        return nil
-    end
-
-    local function findUpgradedUnitByRemoteParam(remoteParam, preActionUnits, postActionUnits)
-        -- Find which unit had its level increase
-        for spawnId, postData in pairs(postActionUnits) do
-            local preData = preActionUnits[spawnId]
-            if preData and postData.level > preData.level then
-                -- This unit was upgraded, check if its model name matches the remote param
-                local unit = findUnitBySpawnId(spawnId)
-                if unit and unit.Name == remoteParam then
-                    return spawnId, preData.level, postData.level
-                end
-            end
-        end
-        return nil, nil, nil
-    end
-
-    local function findPlacementOrderBySpawnId(spawnId)
-        for placementOrder, storedSpawnId in pairs(placementOrderToSpawnUUID) do
-            if tostring(storedSpawnId) == tostring(spawnId) then
-                return placementOrder
-            end
-        end
-        return nil
-    end
-
-    local function findUnitByPlacementOrder(playbackMapping, targetPlacementOrder)
-        local spawnId = playbackMapping[targetPlacementOrder]
-        if not spawnId then
-            print("No spawn ID found for placement order:", targetPlacementOrder)
-            return nil, nil
-        end
-        
-        local unit = findUnitBySpawnId(spawnId)
-        if not unit then
-            print("No unit found for spawn ID:", spawnId, "placement order:", targetPlacementOrder)
-            return nil, spawnId
-        end
-        
-        if not isOwnedByLocalPlayer(unit) then
-            print("Unit not owned by local player for spawn ID:", spawnId)
-            return nil, spawnId
-        end
-        
-        return unit, spawnId
-    end
-
-    local function findUnitFromRemoteParam(remoteParam)
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        if not unitsFolder then return nil, nil end
-        
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) then
-                local unitStats = unit:FindFirstChild("_stats")
-                if unitStats and unitStats:FindFirstChild("spawn_id") then
-                    local spawnId = unitStats.spawn_id.Value
-                    
-                    -- Check if this spawn_id matches the remote parameter in any way
-                    if tostring(spawnId) == tostring(remoteParam) or 
-                    spawnId == remoteParam or
-                    string.find(tostring(remoteParam), tostring(spawnId)) then
-                        return unit, spawnId
-                    end
-                end
-            end
-        end
-        
-        return nil, nil
-    end
-
-    local function positionToKey(position)
-        return string.format("%.2f,%.2f,%.2f", position.X, position.Y, position.Z)
-    end
-
-    local function getUnitType(unit)
-        if unit then
-            local unitType = unit:GetAttribute("UnitType") or 
-                            unit:GetAttribute("_UNIT_TYPE") or
-                            unit:GetAttribute("Type")
-            
-            if unitType then return unitType end
-            
-            local unitName = unit.Name
-            return unitName:match("^([^_]+)") or unitName
-        end
-        
-        return "Unknown"
-    end
-
 local function startRecordingRefactored()
     table.clear(macro)
     isRecording = true
@@ -518,34 +378,6 @@ end
     local function deserializeCFrame(components)
         if not components or #components ~= 12 then return nil end
         return CFrame.new(unpack(components))
-    end
-
-    local function getUnitDisplayName(unitId)
-        if not unitId then return "Unknown Unit" end
-        
-        -- Try to find unit name in ReplicatedStorage data
-        local success, displayName = pcall(function()
-            local unitsData = Services.ReplicatedStorage:FindFirstChild("Framework")
-            if unitsData then
-                unitsData = unitsData:FindFirstChild("Data")
-                if unitsData then
-                    unitsData = unitsData:FindFirstChild("Units")
-                    if unitsData then
-                        for _, moduleScript in pairs(unitsData:GetChildren()) do
-                            if moduleScript:IsA("ModuleScript") then
-                                local moduleData = require(moduleScript)
-                                if moduleData and moduleData[unitId] then
-                                    return moduleData[unitId].name or unitId
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-            return unitId
-        end)
-        
-        return success and displayName or unitId
     end
 
     local function findUnitBySpawnUUID(targetUUID)
@@ -676,55 +508,6 @@ local function getUnitIdFromDisplayName(displayName)
     end)
     
     return success and unitId or displayName -- Fallback to display name if not found
-end
-
-local function getDisplayNameFromInternal(internalName)
-    if not internalName then return nil end
-    
-    local success, displayName = pcall(function()
-        local unitsFolder = Services.ReplicatedStorage.Framework.Data.Units
-        if not unitsFolder then return nil end
-        
-        for _, moduleScript in pairs(unitsFolder:GetChildren()) do
-            if moduleScript:IsA("ModuleScript") then
-                local moduleData = require(moduleScript)
-                if moduleData then
-                    for unitKey, unitData in pairs(moduleData) do
-                        if type(unitData) == "table" and unitData.id == internalName then
-                            return unitData.name
-                        end
-                    end
-                end
-            end
-        end
-        return nil
-    end) 
-    return success and displayName or internalName
-end
-
-local function getInternalNameFromDisplay(displayName)
-    if not displayName then return nil end
-    
-    local success, internalName = pcall(function()
-        local unitsFolder = Services.ReplicatedStorage.Framework.Data.Units
-        if not unitsFolder then return nil end
-        
-        for _, moduleScript in pairs(unitsFolder:GetChildren()) do
-            if moduleScript:IsA("ModuleScript") then
-                local moduleData = require(moduleScript)
-                if moduleData then
-                    for unitKey, unitData in pairs(moduleData) do
-                        if type(unitData) == "table" and unitData.name == displayName then
-                            return unitData.id
-                        end
-                    end
-                end
-            end
-        end
-        return nil
-    end)
-    
-    return success and internalName or displayName
 end
 
 local function resolveUUIDFromInternalName(internalName)
@@ -912,11 +695,6 @@ local function processPlacementActionRefactored(actionInfo)
     displayNamePlacements[displayName] = (displayNamePlacements[displayName] or 0) + 1
     local instanceNumber = displayNamePlacements[displayName]
     
-    placementToDisplayName[recordingPlacementCounter] = {
-        displayName = displayName,
-        instanceNumber = instanceNumber
-    }
-    
     if not displayNameToCurrentInstances[displayName] then
         displayNameToCurrentInstances[displayName] = {}
     end
@@ -924,7 +702,6 @@ local function processPlacementActionRefactored(actionInfo)
     
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
-    local placementCost = actionInfo.preActionMoney - currentMoney
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     -- Store in simplified format
@@ -1610,7 +1387,6 @@ end
 local function executeActionWithValidationRefactored(action, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     
-    currentActionIndex = actionIndex
     totalActions = totalActionCount
     
     if action.Type == "spawn_unit" then
@@ -4712,7 +4488,6 @@ local function playMacroWithGameTimingRefactored()
     
     macroHasPlayedThisGame = true
     totalActions = #macro
-    currentActionIndex = 0
     
     if State.IgnoreTiming then
         updateDetailedStatus(string.format("Starting immediate playback with %d actions", totalActions))
