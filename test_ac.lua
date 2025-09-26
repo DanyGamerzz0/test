@@ -1,4 +1,4 @@
-    -- 10
+    -- 11
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4016,6 +4016,8 @@ end
     -- Macro Tab
     local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
     detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
+
+    local Divider = MacroTab:CreateDivider()
 
     local MacroDropdown = MacroTab:CreateDropdown({
         Name = "Select Macro",
