@@ -1,4 +1,4 @@
-    -- 67
+    -- 68
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -681,20 +681,23 @@ end
     end
 
 local function processPlacementActionWithSpawnIdMapping(actionInfo)
-    local targetUUID = actionInfo.args[1]
+
+    local beforeSnapshot = actionInfo.preActionUnits or takeUnitsSnapshot()
     
     task.wait(0.3) -- Wait for unit to spawn
+
+    local afterSnapshot = takeUnitsSnapshot()
     
-    local spawnedUnit = findUnitBySpawnUUID(targetUUID)
+    local spawnedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     if not spawnedUnit then
-        warn("Could not find spawned unit with UUID:", targetUUID)
+        warn("Could not find newly placed unit")
         return
     end
     
     -- Get the spawn_id from the unit
     local spawnId = getUnitSpawnId(spawnedUnit)
     if not spawnId then
-        warn("Could not get spawn_id from unit")
+        warn("Could not get spawn_id from newly placed unit")
         return
     end
     
@@ -972,9 +975,9 @@ local function setupMacroHooksRefactored()
                     end
                     
                     local preActionMoney = getPlayerMoney()
-                    local preActionUnits = captureUnitSnapshot()
+                    local preActionUnits = takeUnitsSnapshot()
                     
-                    task.wait(0.5)
+                    task.wait(0.2)
                     
                     local actionInfo = {
                         remoteName = self.Name,
