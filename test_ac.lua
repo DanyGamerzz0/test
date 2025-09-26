@@ -1,4 +1,4 @@
-    -- 7
+    -- 8
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -616,7 +616,7 @@ local function getUnitIdFromDisplayName(displayName)
         if not UnitsFolder then return nil end
         
         -- Search through all unit modules
-        for _, moduleScript in pairs(UnitsFolder:GetChildren()) do
+        for _, moduleScript in pairs(UnitsFolder:GetDescendants()) do
             if moduleScript:IsA("ModuleScript") then
                 local moduleSuccess, unitData = pcall(require, moduleScript)
                 
