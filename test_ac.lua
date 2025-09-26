@@ -1,4 +1,4 @@
-    -- 16
+    -- 17
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -733,7 +733,12 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     table.insert(macro, placementRecord)
     
     print(string.format("Recorded placement: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    notify("Macro Recorder", string.format("Recorded: %s at %.1fs", placementId, gameRelativeTime))
+    Rayfield:Notify({
+   Title = "Macro Recorder",
+   Content = string.format("Recorded: %s at %.1fs", placementId, gameRelativeTime),
+   Duration = 3,
+   Image = 4483362458,
+})
 end
 
 local function processUpgradeActionWithSpawnIdMapping(actionInfo)
@@ -784,7 +789,12 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     table.insert(macro, upgradeRecord)
     
     print(string.format("Recorded upgrade: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    notify("Macro Recorder", string.format("Recorded upgrade: %s at %.1fs", placementId, gameRelativeTime))
+    Rayfield:Notify({
+   Title = "Macro Recorder",
+   Content = string.format("Recorded upgrade: %s at %.1fs", placementId, gameRelativeTime),
+   Duration = 3,
+   Image = 4483362458,
+})
 end
 
 local function parseUnitString(unitString)
@@ -885,7 +895,12 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     recordingSpawnIdToPlacement[tostring(spawnId)] = nil
     
     print(string.format("Recorded sell: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    notify("Macro Recorder", string.format("Recorded sell: %s at %.1fs", placementId, gameRelativeTime))
+    Rayfield:Notify({
+   Title = "Macro Recorder",
+   Content = string.format("Recorded sell: %s at %.1fs", placementId, gameRelativeTime),
+   Duration = 3,
+   Image = 4483362458,
+})
 end
 
 local function processWaveSkipAction(actionInfo)
@@ -895,8 +910,12 @@ local function processWaveSkipAction(actionInfo)
         Type = "vote_wave_skip",
         Time = string.format("%.2f", gameRelativeTime)
     })
-    
-    notify("Macro Recorder", string.format("Recorded wave skip at %.1fs", gameRelativeTime))
+    Rayfield:Notify({
+   Title = "Macro Recorder",
+   Content = string.format("Recorded wave skip at %.1fs", gameRelativeTime),
+   Duration = 2,
+   Image = 4483362458,
+})
 end
 
 local function processActionResponseWithSpawnIdMapping(actionInfo)
