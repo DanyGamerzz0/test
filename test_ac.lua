@@ -1,4 +1,4 @@
-    -- 667
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -927,7 +927,7 @@ local function waitForSufficientMoney(action, actionIndex, totalActions)
     end
     
     if requiredCost > 0 then
-        local maxWaitTime = 600
+        local maxWaitTime = 9999999999999999999999999999999999999999
         local waitStart = tick()
         
         while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
@@ -1351,7 +1351,7 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         
         -- Wait for money if needed (per attempt timeout)
         if requiredCost > 0 then
-            local maxWaitTime = 30 -- Shorter wait time per attempt
+            local maxWaitTime = 999999999999999999999999999999 -- Shorter wait time per attempt
             local waitStart = tick()
             
             while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
@@ -4596,7 +4596,7 @@ local function playMacroWithGameTimingRefactored()
             end
             
             if requiredCost > 0 then
-                local maxWaitTime = 600
+                local maxWaitTime = 999999999999999999999999999999999999999
                 local waitStart = tick()
                 
                 while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
