@@ -1,4 +1,4 @@
-    -- 6
+    -- 67
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -128,6 +128,7 @@ local waveStartTimes = 0
 
 local recordingSpawnIdToPlacement = {} -- spawn_id -> "Shadow #1"
 local recordingPlacementCounter = {} -- "Shadow" -> 3 (how many placed so far)
+local recordingUnitNameToSpawnId = {}
 
 local playbackPlacementToSpawnId = {} -- "Shadow #1" -> current spawn_id
 local playbackPlacementCounter = {} -- "Shadow" -> 2 (how many placed so far in this playback)
@@ -247,11 +248,10 @@ end
 local function clearSpawnIdMappings()
     recordingSpawnIdToPlacement = {}
     recordingPlacementCounter = {}
+    recordingUnitNameToSpawnId = {}
     playbackPlacementToSpawnId = {}
     playbackPlacementCounter = {}
 end
-
-
 
     -- Utility Functions
     local function getLocalPlayer()
@@ -734,6 +734,8 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     
     -- Map spawn_id to logical placement for upgrade/sell tracking
     recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
+
+    recordingUnitNameToSpawnId[spawnedUnit.Name] = tostring(spawnId)
     
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
@@ -854,34 +856,21 @@ local function waitForSufficientMoney(action, actionIndex, totalActions)
 end
 
 local function processSellActionWithSpawnIdMapping(actionInfo)
-    local remoteParam = actionInfo.args[1]
+    local remoteParam = actionInfo.args[1] -- This should be the unit.Name like "ea27546614ef43b1"
     
-    -- First, try to find the unit in the current snapshot (before waiting)
-    local soldUnit = nil
-    local spawnId = nil
-    local placementId = nil
-    
-    -- Check if we can find it in our mapping first (most reliable)
-    for currentSpawnId, currentPlacementId in pairs(recordingSpawnIdToPlacement) do
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        if unitsFolder then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
-                if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
-                    local unitSpawnId = getUnitSpawnId(unit)
-                    if tostring(unitSpawnId) == currentSpawnId then
-                        soldUnit = unit
-                        spawnId = unitSpawnId
-                        placementId = currentPlacementId
-                        break
-                    end
-                end
-            end
-        end
-        if soldUnit then break end
+    -- Find spawn ID from unit name
+    local spawnId = recordingUnitNameToSpawnId[remoteParam]
+    if not spawnId then
+        warn("Could not find spawn ID for unit name:", remoteParam)
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find spawn ID for unit name: "..remoteParam,Duration = 3,Image = 4483362458})
+        return
     end
     
-    if not soldUnit or not spawnId or not placementId then
-        warn("Could not find unit or mapping for sell action:", remoteParam)
+    -- Find placement ID from spawn ID
+    local placementId = recordingSpawnIdToPlacement[spawnId]
+    if not placementId then
+        warn("Could not find placement mapping for spawn_id:", spawnId)
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find placement mapping for spawn_id: "..spawnId,Duration = 3,Image = 4483362458})
         return
     end
     
@@ -894,10 +883,13 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     }
     
     table.insert(macro, sellRecord)
-    recordingSpawnIdToPlacement[tostring(spawnId)] = nil
     
-    print(string.format("Recorded sell: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    Rayfield:Notify({Title = "Macro Recorder", Content = "Recorded sell: " .. placementId, Duration = 3, Image = 4483362458})
+    -- Clean up mappings
+    recordingSpawnIdToPlacement[spawnId] = nil
+    recordingUnitNameToSpawnId[remoteParam] = nil
+    
+    print(string.format("Recorded sell: %s (was unit_name: %s)", placementId, remoteParam))
+    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded sell: " .. placementId,Duration = 3,Image = 4483362458})
 end
 
 local function processWaveSkipAction(actionInfo)
