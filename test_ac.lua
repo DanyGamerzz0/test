@@ -1,4 +1,4 @@
-    -- 4
+    -- 5.5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -490,10 +490,47 @@ local function getUnitData(unitId)
     return success and unitData or nil
 end
 
+local function getCostScale()
+    local success, costScale = pcall(function()
+        local levelModifiers = Services.Workspace:FindFirstChild("_DATA")
+        if levelModifiers then
+            levelModifiers = levelModifiers:FindFirstChild("LevelModifiers")
+            if levelModifiers then
+                local playerCostScale = levelModifiers:FindFirstChild("player_cost_scale")
+                if playerCostScale and playerCostScale:IsA("NumberValue") then
+                    return playerCostScale.Value
+                end
+            end
+        end
+        return 1.0 -- Default to normal cost if not found
+    end)
+    
+    if success and costScale then
+        if costScale ~= 1.0 then
+            print("Cost scale modifier detected:", costScale)
+        end
+        return costScale
+    else
+        print("Failed to get cost scale, defaulting to 1.0")
+        return 1.0
+    end
+end
+
 local function getPlacementCost(unitId)
     local unitData = getUnitData(unitId)
-    return unitData and unitData.cost or 0
+    local baseCost = unitData and unitData.cost or 0
+    local costScale = getCostScale()
+    
+    local finalCost = math.floor(baseCost * costScale)
+    
+    if costScale ~= 1.0 then
+        print(string.format("Placement cost for %s: %d -> %d (x%.1f scale)", 
+            unitId, baseCost, finalCost, costScale))
+    end
+    
+    return finalCost
 end
+
 
 local function getUpgradeCost(unitId, currentLevel)
     local unitData = getUnitData(unitId)
@@ -505,7 +542,17 @@ local function getUpgradeCost(unitId, currentLevel)
         return 0
     end
     
-    return unitData.upgrade[upgradeIndex] and unitData.upgrade[upgradeIndex].cost or 0
+    local baseCost = unitData.upgrade[upgradeIndex] and unitData.upgrade[upgradeIndex].cost or 0
+    local costScale = getCostScale()
+    
+    local finalCost = math.floor(baseCost * costScale)
+    
+    if costScale ~= 1.0 then
+        print(string.format("Upgrade cost for %s level %d->%d: %d -> %d (x%.1f scale)", 
+            unitId, currentLevel, currentLevel + 1, baseCost, finalCost, costScale))
+    end
+    
+    return finalCost
 end
 
 local function getUnitIdFromDisplayName(displayName)
@@ -5157,6 +5204,16 @@ local CheckUnitsButton = MacroTab:CreateButton({
 local EquipMacroUnitsButton = MacroTab:CreateButton({
     Name = "Equip Macro Units",
     Callback = function()
+        if not isInLobby() then 
+            Rayfield:Notify({
+                Title = "Equip Error",
+                Content = "You must be in lobby to use this!",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+
         if not currentMacroName or currentMacroName == "" then
             Rayfield:Notify({
                 Title = "Equip Error",
@@ -5227,7 +5284,7 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
                         local uuidValue = child:FindFirstChild("_uuid")
                         if uuidValue and uuidValue:IsA("StringValue") then
                             availableUnits[displayName] = uuidValue.Value
-                            print("Found available unit:", displayName, "UUID:", uuidValue.Value)
+                            --print("Found available unit:", displayName, "UUID:", uuidValue.Value)
                         end
                     end
                 end
