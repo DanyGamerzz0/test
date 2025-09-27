@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4316,7 +4316,7 @@ local RecordToggle = MacroTab:CreateToggle({
             if not isInLobby() and gameInProgress then
                 recordingHasStarted = true
                 isRecordingLoopRunning = true
-                startRecordingRefactored()
+                startRecordingWithSpawnIdMapping()
                 MacroStatusLabel:Set("Status: Recording active!")
                 notify("Recording Started", "Macro recording is now active.")
             else
