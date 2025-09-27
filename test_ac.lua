@@ -1,4 +1,4 @@
-    -- 2
+    -- 667
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1336,7 +1336,7 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         local upgradeText = upgradeAmount > 1 and 
             string.format("Multi-upgrading x%d", upgradeAmount) or "Upgrading"
         
-        -- Calculate required money FRESH each attempt
+        -- Calculate required money FRESH each attempt for ALL upgrades
         local displayName = parseUnitString(action.Unit)
         local unitId = displayName and getUnitIdFromDisplayName(displayName)
         local requiredCost = 0
@@ -1383,67 +1383,115 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: %s %s (Level %d)", 
             actionIndex, totalActionCount, attempt, maxRetries, upgradeText, placementId, originalLevel))
         
-        -- Prepare arguments based on upgrade type
-        local args
-        if upgradeAmount > 1 then
-            -- Multi-upgrade format: args = {unitName, [3] = amount}
-            args = {targetUnit.Name}
-            args[3] = upgradeAmount
-        else
-            -- Single upgrade format: args = {unitName}
-            args = {targetUnit.Name}
-        end
+        -- NEW: Fire multiple single upgrade remotes instead of one multi-upgrade remote
+        local successfulUpgrades = 0
+        local lastKnownLevel = originalLevel
         
-        local success = pcall(function()
-            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(unpack(args))
-        end)
-        
-        if not success then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed", 
-                actionIndex, totalActionCount, attempt, maxRetries))
-            if attempt < maxRetries then
-                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
-                continue
-            else
-                return false
-            end
-        end
-        
-        -- Validate upgrade success - check for expected level increase
-        local expectedLevel = originalLevel + upgradeAmount
-        task.wait(1.0) -- Longer wait for level update
-        
-        -- Re-find unit after upgrade (important!)
-        local currentUnit = nil
-        local unitsFolder2 = Services.Workspace:FindFirstChild("_UNITS")
-        
-        if unitsFolder2 then
-            for _, unit in pairs(unitsFolder2:GetChildren()) do
-                if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
-                    currentUnit = unit
-                    break
+        for upgradeIndex = 1, upgradeAmount do
+            -- Re-find unit for each upgrade (in case the unit reference changes)
+            local currentTargetUnit = nil
+            local currentUnitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+            
+            if currentUnitsFolder then
+                for _, unit in pairs(currentUnitsFolder:GetChildren()) do
+                    if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                        currentTargetUnit = unit
+                        break
+                    end
                 end
             end
+            
+            if not currentTargetUnit then
+                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Unit lost during upgrade sequence", 
+                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
+                break
+            end
+            
+            -- Check if we have enough money for this individual upgrade
+            local currentLevel = getUnitUpgradeLevel(currentTargetUnit)
+            local singleUpgradeCost = getUpgradeCost(unitId, currentLevel)
+            
+            if singleUpgradeCost > 0 and getPlayerMoney() < singleUpgradeCost then
+                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Insufficient money for upgrade (need %d, have %d)", 
+                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount, singleUpgradeCost, getPlayerMoney()))
+                break
+            end
+            
+            -- Fire single upgrade remote
+            local upgradeSuccess = pcall(function()
+                endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentTargetUnit.Name)
+            end)
+            
+            if not upgradeSuccess then
+                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Remote call failed", 
+                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
+                break
+            end
+            
+            -- Quick validation for this single upgrade (shorter wait time)
+            local upgradeValidated = false
+            local validationStart = tick()
+            
+            while tick() - validationStart < 2.0 do -- 2 second timeout per upgrade
+                if not isPlaybacking then return false end
+                
+                -- Re-check unit level
+                local validationUnit = nil
+                local validationUnitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                
+                if validationUnitsFolder then
+                    for _, unit in pairs(validationUnitsFolder:GetChildren()) do
+                        if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                            validationUnit = unit
+                            break
+                        end
+                    end
+                end
+                
+                if validationUnit then
+                    local newLevel = getUnitUpgradeLevel(validationUnit)
+                    if newLevel > lastKnownLevel then
+                        lastKnownLevel = newLevel
+                        successfulUpgrades = successfulUpgrades + 1
+                        upgradeValidated = true
+                        updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Level %d -> %d SUCCESS", 
+                            actionIndex, totalActionCount, upgradeIndex, upgradeAmount, currentLevel, newLevel))
+                        break
+                    end
+                else
+                    -- Unit lost during validation
+                    updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Unit lost during validation", 
+                        actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
+                    break
+                end
+                
+                task.wait(0.1)
+            end
+            
+            if not upgradeValidated then
+                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Validation timeout", 
+                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
+                -- Continue to next upgrade instead of breaking - maybe this one will work
+            end
+            
+            -- Small delay between upgrades to prevent server overload
+            task.wait(0.1)
         end
         
-        if currentUnit then
-            local currentLevel = getUnitUpgradeLevel(currentUnit)
-            print(string.format("DEBUG: Expected level: %d, Current level: %d, Original: %d", 
-                expectedLevel, currentLevel, originalLevel))
-            
-            -- For multi-upgrade, we expect the level to increase by the upgrade amount
-            if currentLevel >= expectedLevel then
-                local actualIncrease = currentLevel - originalLevel
-                updateDetailedStatus(string.format("(%d/%d) SUCCESS: %s %s (Level %d->%d, +%d)", 
-                    actionIndex, totalActionCount, upgradeText, placementId, 
-                    originalLevel, currentLevel, actualIncrease))
-                return true
-            else
-                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Level check failed - expected %d, got %d", 
-                    actionIndex, totalActionCount, attempt, maxRetries, expectedLevel, currentLevel))
-            end
+        -- Check overall success
+        if successfulUpgrades >= upgradeAmount then
+            updateDetailedStatus(string.format("(%d/%d) SUCCESS: %s %s (Level %d->%d, +%d upgrades)", 
+                actionIndex, totalActionCount, upgradeText, placementId, 
+                originalLevel, lastKnownLevel, successfulUpgrades))
+            return true
+        elseif successfulUpgrades > 0 then
+            updateDetailedStatus(string.format("(%d/%d) PARTIAL: %s %s (Level %d->%d, %d/%d upgrades)", 
+                actionIndex, totalActionCount, upgradeText, placementId, 
+                originalLevel, lastKnownLevel, successfulUpgrades, upgradeAmount))
+            -- Consider partial success as success if we got at least some upgrades
+            return true
         else
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Unit lost after upgrade attempt", 
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
                 actionIndex, totalActionCount, attempt, maxRetries))
         end
         
