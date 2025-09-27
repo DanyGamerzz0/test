@@ -1,4 +1,4 @@
-    -- 72
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -124,6 +124,7 @@ local recordingStartTime = 0
 local recordingHasStarted = false
 local currentChallenge = nil
 local macroHasPlayedThisGame = false
+local waveStartTimes = 0
 
 local recordingSpawnIdToPlacement = {} -- spawn_id -> "Shadow #1"
 local recordingPlacementCounter = {} -- "Shadow" -> 3 (how many placed so far)
