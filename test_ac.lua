@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4796,55 +4796,6 @@ local Divider = MacroTab:CreateDivider()
         end,
     })
 
-    --[[local CheckUnitsButton = MacroTab:CreateButton({
-        Name = "Check Macro Units",
-        Callback = function()
-            if not currentMacroName or currentMacroName == "" then
-                notify(nil,"Error: No macro selected.")
-                return
-            end
-            
-            local macroData = macroManager[currentMacroName]
-            if not macroData or #macroData == 0 then
-                notify(nil,"Error: Selected macro is empty.")
-                return
-            end
-            
-            -- Extract unique units from macro
-            local units = {}
-            local unitCounts = {}
-            
-            for _, action in ipairs(macroData) do
-                if action.action == "PlaceUnit" then
-                    local unitName = action.unitId or action.unitType or "Unknown"
-                    if not units[unitName] then
-                        units[unitName] = true
-                        unitCounts[unitName] = 0
-                    end
-                    unitCounts[unitName] = unitCounts[unitName] + 1
-                end
-            end
-            
-            -- Create display text
-            local unitList = {}
-            for unitName, count in pairs(unitCounts) do
-                table.insert(unitList, unitName .. " (Placed x" .. count .. " times)")
-            end
-            
-            if #unitList > 0 then
-                table.sort(unitList)
-                local displayText = table.concat(unitList, "\n")
-                notify(nil,"Macro Units (" .. #unitList .. " types):")
-                print("Units in macro:")
-                for _, unitInfo in ipairs(unitList) do
-                    print("  " .. unitInfo)
-                end
-            else
-                notify(nil,"No Units Found: This macro contains no unit placements.")
-            end
-        end,
-    })--]]
-
     local Divider = MacroTab:CreateDivider()
 
     ImportInput = MacroTab:CreateInput({
@@ -5134,6 +5085,71 @@ local Divider = MacroTab:CreateDivider()
             })
             
             print("Request failed:", result)
+        end
+    end,
+})
+
+local CheckUnitsButton = MacroTab:CreateButton({
+    Name = "Check Macro Units",
+    Callback = function()
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Check Units Error",
+                Content = "No macro selected.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        local macroData = macroManager[currentMacroName]
+        if not macroData or #macroData == 0 then
+            Rayfield:Notify({
+                Title = "Check Units Error", 
+                Content = "Selected macro is empty.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        -- Extract unique units from macro
+        local unitsUsed = {}
+        
+        for _, action in ipairs(macroData) do
+            if action.Type == "spawn_unit" and action.Unit then
+                local unitName = action.Unit
+                
+                -- Extract base unit name (remove instance number like "#1", "#2")
+                local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
+                
+                unitsUsed[baseUnitName] = true
+            end
+        end
+        
+        -- Create display text for units
+        local unitsList = {}
+        for unitName, _ in pairs(unitsUsed) do
+            table.insert(unitsList, unitName)
+        end
+        
+        if #unitsList > 0 then
+            table.sort(unitsList)
+            local unitsText = table.concat(unitsList, ", ")
+            
+            Rayfield:Notify({
+                Title = currentMacroName,
+                Content = unitsText,
+                Duration = 6,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = currentMacroName,
+                Content = "No units found in this macro.",
+                Duration = 3,
+                Image = 4483362458,
+            })
         end
     end,
 })
