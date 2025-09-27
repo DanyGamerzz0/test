@@ -1,4 +1,4 @@
-    -- 5
+    -- 6
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -856,57 +856,48 @@ end
 local function processSellActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1]
     
-    -- Find the unit that matches the remote parameter
+    -- First, try to find the unit in the current snapshot (before waiting)
     local soldUnit = nil
-    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    local spawnId = nil
+    local placementId = nil
     
-    if unitsFolder then
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
-                soldUnit = unit
-                break
+    -- Check if we can find it in our mapping first (most reliable)
+    for currentSpawnId, currentPlacementId in pairs(recordingSpawnIdToPlacement) do
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if unitsFolder then
+            for _, unit in pairs(unitsFolder:GetChildren()) do
+                if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
+                    local unitSpawnId = getUnitSpawnId(unit)
+                    if tostring(unitSpawnId) == currentSpawnId then
+                        soldUnit = unit
+                        spawnId = unitSpawnId
+                        placementId = currentPlacementId
+                        break
+                    end
+                end
             end
         end
+        if soldUnit then break end
     end
     
-    if not soldUnit then
-        warn("Could not find unit with model name:", remoteParam)
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find unit with model name: "..remoteParam,Duration = 3,Image = 4483362458})
-        return
-    end
-    
-    -- Get the spawn_id from the sold unit
-    local spawnId = getUnitSpawnId(soldUnit)
-    if not spawnId then
-        warn("Could not get spawn_id from sold unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get spawn_id from sold unit",Duration = 3,Image = 4483362458})
-        return
-    end
-    
-    -- Look up the logical placement identifier
-    local placementId = recordingSpawnIdToPlacement[tostring(spawnId)]
-    if not placementId then
-        warn("Could not find placement mapping for spawn_id:", spawnId)
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find placement mapping for spawn_id: "..spawnId,Duration = 3,Image = 4483362458})
+    if not soldUnit or not spawnId or not placementId then
+        warn("Could not find unit or mapping for sell action:", remoteParam)
         return
     end
     
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
-    -- Store clean sell record
     local sellRecord = {
         Type = "sell_unit_ingame",
-        Unit = placementId, -- "Shadow #1", etc.
+        Unit = placementId,
         Time = string.format("%.2f", gameRelativeTime)
     }
     
     table.insert(macro, sellRecord)
-    
-    -- Remove from mapping since unit is sold
     recordingSpawnIdToPlacement[tostring(spawnId)] = nil
     
     print(string.format("Recorded sell: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded sell: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458})
+    Rayfield:Notify({Title = "Macro Recorder", Content = "Recorded sell: " .. placementId, Duration = 3, Image = 4483362458})
 end
 
 local function processWaveSkipAction(actionInfo)
@@ -938,6 +929,7 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
         processUpgradeActionWithSpawnIdMapping(actionInfo)
     elseif actionInfo.remoteName == MACRO_CONFIG.SELL_REMOTE then
         processSellActionWithSpawnIdMapping(actionInfo)
+
     elseif actionInfo.remoteName == MACRO_CONFIG.WAVE_SKIP_REMOTE then
             Rayfield:Notify({
    Title = "Macro Recorder",
