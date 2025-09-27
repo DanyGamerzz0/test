@@ -1,4 +1,4 @@
-    -- 3
+    -- 4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5151,6 +5151,185 @@ local CheckUnitsButton = MacroTab:CreateButton({
                 Image = 4483362458,
             })
         end
+    end,
+})
+
+local EquipMacroUnitsButton = MacroTab:CreateButton({
+    Name = "Equip Macro Units",
+    Callback = function()
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Equip Error",
+                Content = "No macro selected.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        local macroData = macroManager[currentMacroName]
+        if not macroData or #macroData == 0 then
+            Rayfield:Notify({
+                Title = "Equip Error", 
+                Content = "Selected macro is empty.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        -- Extract unique units from macro
+        local requiredUnits = {}
+        
+        for _, action in ipairs(macroData) do
+            if action.Type == "spawn_unit" and action.Unit then
+                local unitName = action.Unit
+                
+                -- Extract base unit name (remove instance number like "#1", "#2")
+                local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
+                
+                requiredUnits[baseUnitName] = true
+            end
+        end
+        
+        -- Get list of required units
+        local requiredUnitsList = {}
+        for unitName, _ in pairs(requiredUnits) do
+            table.insert(requiredUnitsList, unitName)
+        end
+        
+        if #requiredUnitsList == 0 then
+            Rayfield:Notify({
+                Title = "Equip Error",
+                Content = "No units found in this macro.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        -- Check if we have all required units in our collection
+        local success, result = pcall(function()
+            local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+            if not fxCache then
+                error("_FX_CACHE not found")
+            end
+            
+            local availableUnits = {} -- {displayName: uuid}
+            local missingUnits = {}
+            
+            -- Scan through _FX_CACHE to find available units
+            for _, child in pairs(fxCache:GetChildren()) do
+                local itemIndex = child:GetAttribute("ITEMINDEX")
+                if itemIndex then
+                    local displayName = getDisplayNameFromUnitId(itemIndex)
+                    if displayName then
+                        local uuidValue = child:FindFirstChild("_uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            availableUnits[displayName] = uuidValue.Value
+                            print("Found available unit:", displayName, "UUID:", uuidValue.Value)
+                        end
+                    end
+                end
+            end
+            
+            -- Check if we have all required units
+            for _, requiredUnit in ipairs(requiredUnitsList) do
+                if not availableUnits[requiredUnit] then
+                    table.insert(missingUnits, requiredUnit)
+                end
+            end
+            
+            if #missingUnits > 0 then
+                local missingText = table.concat(missingUnits, ", ")
+                error("Missing units: " .. missingText)
+            end
+            
+            return availableUnits
+        end)
+        
+        if not success then
+            Rayfield:Notify({
+                Title = "Equip Error",
+                Content = result,
+                Duration = 5,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        local availableUnits = result
+        
+        -- Start equipping process
+        Rayfield:Notify({
+            Title = "Equipping Units",
+            Content = string.format("Starting to equip %d units...", #requiredUnitsList),
+            Duration = 3,
+            Image = 4483362458,
+        })
+        
+        task.spawn(function()
+            -- Step 1: Unequip all current units
+            local unequipSuccess = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("unequip_all"):InvokeServer()
+            end)
+            
+            if not unequipSuccess then
+                Rayfield:Notify({
+                    Title = "Equip Error",
+                    Content = "Failed to unequip current units.",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+                return
+            end
+            
+            print("Successfully unequipped all units")
+            task.wait(0.5) -- Small delay after unequipping
+            
+            -- Step 2: Equip each required unit
+            local equippedCount = 0
+            local failedUnits = {}
+            
+            for _, unitName in ipairs(requiredUnitsList) do
+                local unitUUID = availableUnits[unitName]
+                if unitUUID then
+                    local equipSuccess = pcall(function()
+                        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("equip_unit"):InvokeServer(unitUUID)
+                    end)
+                    
+                    if equipSuccess then
+                        equippedCount = equippedCount + 1
+                        print("Successfully equipped:", unitName, "UUID:", unitUUID)
+                    else
+                        table.insert(failedUnits, unitName)
+                        print("Failed to equip:", unitName)
+                    end
+                    
+                    task.wait(0.2) -- Small delay between equips
+                end
+            end
+            
+            -- Final notification
+            if #failedUnits == 0 then
+                Rayfield:Notify({
+                    Title = "Equip Complete",
+                    Content = string.format("Successfully equipped all %d units for %s", equippedCount, currentMacroName),
+                    Duration = 5,
+                    Image = 4483362458,
+                })
+            else
+                local failedText = table.concat(failedUnits, ", ")
+                Rayfield:Notify({
+                    Title = "Equip Partial",
+                    Content = string.format("Equipped %d/%d units. Failed: %s", equippedCount, #requiredUnitsList, failedText),
+                    Duration = 5,
+                    Image = 4483362458,
+                })
+            end
+            
+            print(string.format("Equip process completed: %d/%d successful", equippedCount, #requiredUnitsList))
+        end)
     end,
 })
 
