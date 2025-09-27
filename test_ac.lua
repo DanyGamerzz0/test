@@ -1,4 +1,4 @@
-    -- 4
+    -- 5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -704,7 +704,7 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local spawnedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     if not spawnedUnit then
         warn("Could not find newly placed unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find newly placed unit",Duration = 3,Image = 4483362458,})
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find newly placed unit",Duration = 3,Image = 4483362458})
         return
     end
     
@@ -712,7 +712,7 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local spawnId = getUnitSpawnId(spawnedUnit)
     if not spawnId then
         warn("Could not get spawn_id from newly placed unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get spawn_id from newly placed unit",Duration = 3,Image = 4483362458,})
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get spawn_id from newly placed unit",Duration = 3,Image = 4483362458})
         return
     end
     
@@ -721,7 +721,7 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local displayName = getDisplayNameFromUnitId(internalName)
     if not displayName then
         warn("Could not get display name for unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get display name for unit",Duration = 3,Image = 4483362458,})
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get display name for unit",Duration = 3,Image = 4483362458})
         return
     end
     
@@ -752,7 +752,7 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     table.insert(macro, placementRecord)
     
     print(string.format("Recorded placement: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded placement: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458,})
+    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded placement: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458})
 end
 
 local function processUpgradeActionWithSpawnIdMapping(actionInfo)
@@ -790,18 +790,6 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         warn("Could not find placement mapping for spawn_id:", spawnId)
         return
     end
-
-    local beforeLevel = getUnitUpgradeLevel(upgradedUnit)
-
-    task.wait(0.3)
-
-    local afterLevel = getUnitUpgradeLevel(upgradedUnit)
-
-    if afterLevel <= beforeLevel then
-    warn("Upgrade failed - level did not increase")
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Upgrade failed - level did not increase!",Duration = 3,Image = 4483362458,})
-    return
-end
     
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
@@ -815,7 +803,7 @@ end
     table.insert(macro, upgradeRecord)
     
     print(string.format("Recorded upgrade: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded upgrade: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458,})
+    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded upgrade: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458})
 end
 
 local function parseUnitString(unitString)
@@ -883,7 +871,7 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     
     if not soldUnit then
         warn("Could not find unit with model name:", remoteParam)
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find unit with model name: "..remoteParam,Duration = 3,Image = 4483362458,})
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find unit with model name: "..remoteParam,Duration = 3,Image = 4483362458})
         return
     end
     
@@ -891,7 +879,7 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     local spawnId = getUnitSpawnId(soldUnit)
     if not spawnId then
         warn("Could not get spawn_id from sold unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get spawn_id from sold unit",Duration = 3,Image = 4483362458,})
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get spawn_id from sold unit",Duration = 3,Image = 4483362458})
         return
     end
     
@@ -899,30 +887,9 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     local placementId = recordingSpawnIdToPlacement[tostring(spawnId)]
     if not placementId then
         warn("Could not find placement mapping for spawn_id:", spawnId)
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find placement mapping for spawn_id: "..spawnId,Duration = 3,Image = 4483362458,})
+        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find placement mapping for spawn_id: "..spawnId,Duration = 3,Image = 4483362458})
         return
     end
-
-    task.wait(0.3)
-
-    local stillExists = false
-    if unitsFolder then
-    for _, unit in pairs(unitsFolder:GetChildren()) do
-        if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
-            local checkSpawnId = getUnitSpawnId(unit)
-            if checkSpawnId == spawnId then
-                stillExists = true
-                break
-            end
-        end
-    end
-end
-
-if stillExists then
-    warn("Sell failed - unit still exists")
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Sell failed - unit still exists!",Duration = 3,Image = 4483362458,})
-    return
-end
     
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
@@ -939,7 +906,7 @@ end
     recordingSpawnIdToPlacement[tostring(spawnId)] = nil
     
     print(string.format("Recorded sell: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded sell: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458,})
+    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded sell: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458})
 end
 
 local function processWaveSkipAction(actionInfo)
@@ -949,7 +916,7 @@ local function processWaveSkipAction(actionInfo)
         Type = "vote_wave_skip",
         Time = string.format("%.2f", gameRelativeTime)
     })
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded wave skip",Duration = 3,Image = 4483362458,})
+    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded wave skip",Duration = 3,Image = 4483362458})
 end
 
 local function processActionResponseWithSpawnIdMapping(actionInfo)
