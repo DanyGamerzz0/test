@@ -1,4 +1,4 @@
-    -- 5
+    -- 6.6
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -843,7 +843,9 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     
     -- FIXED: Get the level BEFORE the remote was processed
     -- We need to capture this from the actionInfo's pre-action state or estimate it
-    local levelBeforeRemote = getUnitUpgradeLevel(upgradedUnit)
+    local levelBeforeRemote = getUnitUpgradeLevel(upgradedUnit) - 1
+
+    if levelBeforeRemote < 0 then levelBeforeRemote = 0 end
     
     print(string.format("Recording upgrade attempt: %s at level %d (trying x%d upgrades)", 
         placementId, levelBeforeRemote, upgradeAmount))
