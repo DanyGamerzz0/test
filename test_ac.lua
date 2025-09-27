@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -841,28 +841,87 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    -- Get the ORIGINAL level before upgrade
+    local originalLevel = getUnitUpgradeLevel(upgradedUnit)
+    print(string.format("Recording upgrade attempt: %s from level %d (trying x%d upgrades)", placementId, originalLevel, upgradeAmount))
     
-    -- Store upgrade record with amount
-    local upgradeRecord = {
-        Type = "upgrade_unit_ingame",
-        Unit = placementId,
-        Time = string.format("%.2f", gameRelativeTime),
-        Amount = upgradeAmount > 1 and upgradeAmount or nil -- Only store amount if > 1
-    }
-    
-    table.insert(macro, upgradeRecord)
-    
-    local upgradeText = upgradeAmount > 1 and 
-        string.format("multi-upgrade x%d", upgradeAmount) or "upgrade"
-    
-    print(string.format("Recorded %s: %s (spawn_id: %s)", upgradeText, placementId, tostring(spawnId)))
-    Rayfield:Notify({
-        Title = "Macro Recorder",
-        Content = string.format("Recorded %s: %s", upgradeText, placementId),
-        Duration = 3,
-        Image = 4483362458
-    })
+    -- Wait a bit for the upgrade to process, then check if it actually happened
+    task.spawn(function()
+        local maxWaitTime = 5.0 -- Max time to wait for upgrade confirmation
+        local checkInterval = 0.1 -- How often to check
+        local startTime = tick()
+        
+        local finalLevel = originalLevel
+        local upgradeDetected = false
+        
+        while tick() - startTime < maxWaitTime do
+            -- Re-find the unit (it might have changed references)
+            local currentUnit = nil
+            local currentUnitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+            
+            if currentUnitsFolder then
+                for _, unit in pairs(currentUnitsFolder:GetChildren()) do
+                    if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
+                        currentUnit = unit
+                        break
+                    end
+                end
+            end
+            
+            if currentUnit then
+                local currentLevel = getUnitUpgradeLevel(currentUnit)
+                
+                -- Check if level actually increased
+                if currentLevel > originalLevel then
+                    finalLevel = currentLevel
+                    upgradeDetected = true
+                    break -- Stop checking once we detect the upgrade
+                end
+            else
+                -- Unit was sold/destroyed during upgrade, don't record
+                print("Unit was destroyed during upgrade validation:", placementId)
+                return
+            end
+            
+            task.wait(checkInterval)
+        end
+        
+        -- Only record if upgrade actually happened
+        if upgradeDetected then
+            local actualUpgradeAmount = finalLevel - originalLevel
+            local gameRelativeTime = actionInfo.timestamp - gameStartTime
+            
+            -- Store upgrade record with actual amount that happened
+            local upgradeRecord = {
+                Type = "upgrade_unit_ingame",
+                Unit = placementId,
+                Time = string.format("%.2f", gameRelativeTime),
+                Amount = actualUpgradeAmount > 1 and actualUpgradeAmount or nil -- Only store amount if > 1
+            }
+            
+            table.insert(macro, upgradeRecord)
+            
+            local upgradeText = actualUpgradeAmount > 1 and 
+                string.format("multi-upgrade x%d", actualUpgradeAmount) or "upgrade"
+            
+            print(string.format("Recorded successful %s: %s (level %d -> %d, spawn_id: %s)", 
+                upgradeText, placementId, originalLevel, finalLevel, tostring(spawnId)))
+            Rayfield:Notify({
+                Title = "Macro Recorder",
+                Content = string.format("Recorded successful %s: %s (L%d->L%d)", upgradeText, placementId, originalLevel, finalLevel),
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            print(string.format("Upgrade failed or timed out for %s, not recording", placementId))
+            Rayfield:Notify({
+                Title = "Macro Recorder",
+                Content = string.format("Upgrade failed for %s - not recorded", placementId),
+                Duration = 2,
+                Image = 4483362458
+            })
+        end
+    end)
 end
 
 local function parseUnitString(unitString)
