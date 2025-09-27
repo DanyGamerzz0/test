@@ -1,4 +1,4 @@
-    -- 6.0
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1295,10 +1295,6 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
     local placementId = action.Unit
     local upgradeAmount = action.Amount or 1 -- Default to single upgrade
     
-    if not waitForSufficientMoney(action, actionIndex, totalActionCount) then
-        return false
-    end
-    
     -- Look up current spawn_id for this placement
     local currentSpawnId = playbackPlacementToSpawnId[placementId]
     if not currentSpawnId then
@@ -1310,7 +1306,7 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
     for attempt = 1, maxRetries do
         if not isPlaybacking then return false end
         
-        -- Find the unit by spawn_id
+        -- Find the unit by spawn_id FRESH each attempt (important for retries)
         local targetUnit = nil
         local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
         
@@ -1326,12 +1322,63 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         if not targetUnit then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
                 actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
-            return false
+            if attempt < maxRetries then
+                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed - unit not found, retrying...", 
+                    actionIndex, totalActionCount, attempt, maxRetries))
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                continue
+            else
+                return false
+            end
         end
         
         local originalLevel = getUnitUpgradeLevel(targetUnit)
         local upgradeText = upgradeAmount > 1 and 
             string.format("Multi-upgrading x%d", upgradeAmount) or "Upgrading"
+        
+        -- Calculate required money FRESH each attempt
+        local displayName = parseUnitString(action.Unit)
+        local unitId = displayName and getUnitIdFromDisplayName(displayName)
+        local requiredCost = 0
+        
+        if unitId then
+            if upgradeAmount > 1 then
+                requiredCost = getMultiUpgradeCost(unitId, originalLevel, upgradeAmount)
+            else
+                requiredCost = getUpgradeCost(unitId, originalLevel)
+            end
+        end
+        
+        -- Wait for money if needed (per attempt timeout)
+        if requiredCost > 0 then
+            local maxWaitTime = 30 -- Shorter wait time per attempt
+            local waitStart = tick()
+            
+            while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
+                if tick() - waitStart > maxWaitTime then
+                    updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Money timeout - need %d, have %d", 
+                        actionIndex, totalActionCount, attempt, maxRetries, requiredCost, getPlayerMoney()))
+                    break
+                end
+                
+                local missingMoney = requiredCost - getPlayerMoney()
+                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Waiting for %d more yen (%s)", 
+                    actionIndex, totalActionCount, attempt, maxRetries, missingMoney, upgradeText))
+                task.wait(1)
+            end
+        end
+        
+        -- Skip attempt if still not enough money
+        if requiredCost > 0 and getPlayerMoney() < requiredCost then
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Insufficient money, trying next attempt", 
+                actionIndex, totalActionCount, attempt, maxRetries))
+            if attempt < maxRetries then
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                continue
+            else
+                return false
+            end
+        end
         
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: %s %s (Level %d)", 
             actionIndex, totalActionCount, attempt, maxRetries, upgradeText, placementId, originalLevel))
@@ -1352,6 +1399,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         end)
         
         if not success then
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Remote call failed", 
+                actionIndex, totalActionCount, attempt, maxRetries))
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
                 continue
@@ -1362,8 +1411,9 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         
         -- Validate upgrade success - check for expected level increase
         local expectedLevel = originalLevel + upgradeAmount
-        task.wait(0.5)
+        task.wait(1.0) -- Longer wait for level update
         
+        -- Re-find unit after upgrade (important!)
         local currentUnit = nil
         local unitsFolder2 = Services.Workspace:FindFirstChild("_UNITS")
         
@@ -1378,6 +1428,9 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         
         if currentUnit then
             local currentLevel = getUnitUpgradeLevel(currentUnit)
+            print(string.format("DEBUG: Expected level: %d, Current level: %d, Original: %d", 
+                expectedLevel, currentLevel, originalLevel))
+            
             -- For multi-upgrade, we expect the level to increase by the upgrade amount
             if currentLevel >= expectedLevel then
                 local actualIncrease = currentLevel - originalLevel
@@ -1385,16 +1438,25 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                     actionIndex, totalActionCount, upgradeText, placementId, 
                     originalLevel, currentLevel, actualIncrease))
                 return true
+            else
+                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Level check failed - expected %d, got %d", 
+                    actionIndex, totalActionCount, attempt, maxRetries, expectedLevel, currentLevel))
             end
+        else
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Unit lost after upgrade attempt", 
+                actionIndex, totalActionCount, attempt, maxRetries))
         end
         
+        -- Only continue retry loop if we haven't hit max attempts
         if attempt < maxRetries then
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
+                actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
             task.wait(VALIDATION_CONFIG.RETRY_DELAY)
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s", 
-        actionIndex, totalActionCount, upgradeText:lower(), placementId))
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts", 
+        actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
     return false
 end
 
