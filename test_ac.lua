@@ -1,4 +1,4 @@
-    -- 71
+    -- 72
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -829,7 +829,7 @@ local function waitForSufficientMoney(action, actionIndex, totalActions)
             end
         end    
     if requiredCost > 0 then
-        local maxWaitTime = 180
+        local maxWaitTime = 600
         local waitStart = tick()
         
         while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
@@ -1195,6 +1195,8 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
             local newSpawnId = getUnitSpawnId(placedUnit)
             if newSpawnId then
                 playbackPlacementToSpawnId[placementId] = newSpawnId
+
+                print("PLACEMENT SUCCESS - Unit:", placementId, "Mapped to spawn_id:", newSpawnId)
                 
                 print(string.format("Playback placement success: %s -> spawn_id %s", placementId, tostring(newSpawnId)))
                 updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
@@ -1218,6 +1220,13 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
     local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
     
     local placementId = action.Unit -- "Shadow #1"
+
+    local currentSpawnId = playbackPlacementToSpawnId[placementId]
+    print("UPGRADE ATTEMPT - Looking for:", placementId, "Spawn ID:", currentSpawnId)
+    if not currentSpawnId then
+        print("ERROR: No spawn ID mapping found for", placementId)
+        print("Current mappings:", playbackPlacementToSpawnId)
+    end
     
     if not waitForSufficientMoney(action, actionIndex, totalActionCount) then
         return false
@@ -4340,6 +4349,8 @@ local function playMacroWithGameTimingRefactored()
     gameHasEnded = false
     clearPlaybackTracking()
     clearPlaybackTrackingWithSpawnIdMapping()
+
+    print("Starting macro playback - mappings cleared")
     
     if gameStartTime == 0 then
         gameStartTime = tick()
@@ -4390,7 +4401,7 @@ local function playMacroWithGameTimingRefactored()
             end
             
             if requiredCost > 0 then
-                local maxWaitTime = 180
+                local maxWaitTime = 600
                 local waitStart = tick()
                 
                 while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
@@ -4439,7 +4450,7 @@ local function playMacroWithGameTimingRefactored()
         else
             -- Small delay between actions in immediate mode
             if i > 1 then
-                task.wait(0.2)
+                task.wait(0.3)
             end
         end
         
