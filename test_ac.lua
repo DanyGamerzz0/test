@@ -267,10 +267,22 @@ end
         return playerValue.Value
     end
 
-    local function isOwnedByLocalPlayer(unit)
-        local owner = getUnitOwner(unit)
-        return owner == getLocalPlayer()
+local function isOwnedByLocalPlayer(unit)
+    local owner = getUnitOwner(unit)
+    if owner ~= getLocalPlayer() then
+        return false
     end
+    
+    local stats = unit:FindFirstChild("_stats")
+    if stats then
+        local parentUnit = stats:FindFirstChild("Parent_unit")
+        if parentUnit then
+            return false -- This is a summon, not a direct player unit
+        end
+    end
+    
+    return true
+end
 
     local function takeUnitsSnapshot()
         local snapshot = {}
