@@ -1,4 +1,4 @@
-    -- 69
+    -- 70
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -3985,413 +3985,273 @@ end
         end,
     })
 
-    local function importMacroFromTXT(txtContent, macroName)
-        -- This is a simple TXT parser - you can customize the format as needed
-        -- Example TXT format:
-        -- PlaceUnit,unit_id,wave,time,x,y,z
-        -- UpgradeUnit,placement_order,wave,time
-        -- etc.
-        
-        local lines = {}
-        for line in txtContent:gmatch("[^\r\n]+") do
-            table.insert(lines, line:match("^%s*(.-)%s*$")) -- trim whitespace
-        end
-        
-        local actions = {}
-        
-        for i, line in ipairs(lines) do
-            if line and line ~= "" and not line:match("^#") then -- skip empty lines and comments
-                local parts = {}
-                for part in line:gmatch("[^,]+") do
-                    table.insert(parts, part:match("^%s*(.-)%s*$"))
-                end
-                
-                if #parts >= 1 then
-                    local actionType = parts[1]
-                    
-                    if actionType == "PlaceUnit" and #parts >= 7 then
-                        -- Format: PlaceUnit,unit_id,wave,time,x,y,z[,rotation]
-                        local action = {
-                            action = "PlaceUnit",
-                            unitId = parts[2],
-                            wave = tonumber(parts[3]) or 1,
-                            waveRelativeTime = tonumber(parts[4]) or 0,
-                            actualPosition = Vector3.new(
-                                tonumber(parts[5]) or 0,
-                                tonumber(parts[6]) or 0,
-                                tonumber(parts[7]) or 0
-                            ),
-                            rotation = tonumber(parts[8]) or 0,
-                            placementOrder = #actions + 1,
-                            -- Create basic raycast from position
-                            raycast = {
-                                Origin = Vector3.new(tonumber(parts[5]) or 0, (tonumber(parts[6]) or 0) + 10, tonumber(parts[7]) or 0),
-                                Direction = Vector3.new(0, -1, 0),
-                                Unit = Vector3.new(tonumber(parts[5]) or 0, tonumber(parts[6]) or 0, tonumber(parts[7]) or 0)
-                            }
-                        }
-                        table.insert(actions, action)
-                        
-                    elseif actionType == "UpgradeUnit" and #parts >= 4 then
-                        -- Format: UpgradeUnit,placement_order,wave,time
-                        local action = {
-                            action = "UpgradeUnit",
-                            targetPlacementOrder = tonumber(parts[2]) or 1,
-                            wave = tonumber(parts[3]) or 1,
-                            waveRelativeTime = tonumber(parts[4]) or 0
-                        }
-                        table.insert(actions, action)
-                        
-                    elseif actionType == "SellUnit" and #parts >= 4 then
-                        -- Format: SellUnit,placement_order,wave,time
-                        local action = {
-                            action = "SellUnit",
-                            targetPlacementOrder = tonumber(parts[2]) or 1,
-                            wave = tonumber(parts[3]) or 1,
-                            waveRelativeTime = tonumber(parts[4]) or 0
-                        }
-                        table.insert(actions, action)
-                        
-                    elseif actionType == "SkipWave" and #parts >= 3 then
-                        -- Format: SkipWave,wave,time
-                        local action = {
-                            action = "SkipWave",
-                            wave = tonumber(parts[2]) or 1,
-                            waveRelativeTime = tonumber(parts[3]) or 0
-                        }
-                        table.insert(actions, action)
-                    end
-                end
-            end
-        end
-        
-        if #actions == 0 then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "No valid actions found in TXT file",
-                Duration = 3
-            })
-            return
-        end
-        
-        -- Save the macro
-        macroManager[macroName] = actions
-        saveMacroToFile(macroName)
-        refreshMacroDropdown()
-        
-        Rayfield:Notify({
-            Title = "TXT Import Success",
-            Content = string.format("Imported '%s' with %d actions", macroName, #actions),
-            Duration = 5
-        })
-        
-        print("Successfully imported TXT macro:", macroName, "with", #actions, "actions")
+local function importMacroFromTXT(txtContent, macroName)
+    -- Parse TXT format and convert to new format
+    -- Expected TXT format:
+    -- spawn_unit,Shadow (Atomic) #1,3.68,54.197,300.763,-179.418,0.458,-0.871,-0.178,0
+    -- upgrade_unit_ingame,Shadow (Atomic) #1,56.77
+    -- vote_wave_skip,14.93
+    
+    local lines = {}
+    for line in txtContent:gmatch("[^\r\n]+") do
+        table.insert(lines, line:match("^%s*(.-)%s*$")) -- trim whitespace
     end
-
-    local function importMacroFromContent(jsonContent, macroName)
-        local success, data = pcall(function()
-            return Services.HttpService:JSONDecode(jsonContent)
-        end)
-        
-        if not success then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Invalid JSON format",
-                Duration = 3
-            })
-            return
-        end
-        
-        local importedActions
-        
-        -- Handle both formats: direct array and wrapped in actions field
-        if type(data) == "table" then
-            if data.actions and type(data.actions) == "table" then
-                -- New export format with metadata
-                importedActions = data.actions
-                print("Importing wrapped format macro with", #importedActions, "actions")
-            elseif data[1] and data[1].action then
-                -- Direct array format (old recorded format)
-                importedActions = data
-                print("Importing direct array format macro with", #importedActions, "actions")
-            else
-                Rayfield:Notify({
-                    Title = "Import Error", 
-                    Content = "Unrecognized macro format",
-                    Duration = 3
-                })
-                return
+    
+    local actions = {}
+    
+    for i, line in ipairs(lines) do
+        if line and line ~= "" and not line:match("^#") then -- skip empty lines and comments
+            local parts = {}
+            for part in line:gmatch("[^,]+") do
+                table.insert(parts, part:match("^%s*(.-)%s*$"))
             end
+            
+            if #parts >= 1 then
+                local actionType = parts[1]
+                
+                if actionType == "spawn_unit" and #parts >= 10 then
+                    -- Format: spawn_unit,unit_name,time,pos_x,pos_y,pos_z,dir_x,dir_y,dir_z,rotation
+                    local action = {
+                        Type = "spawn_unit",
+                        Unit = parts[2],
+                        Time = parts[3],
+                        Pos = string.format("%.17f, %.17f, %.17f", tonumber(parts[4]) or 0, tonumber(parts[5]) or 0, tonumber(parts[6]) or 0),
+                        Dir = string.format("%.17f, %.17f, %.17f", tonumber(parts[7]) or 0, tonumber(parts[8]) or 0, tonumber(parts[9]) or 0),
+                        Rot = tonumber(parts[10]) or 0
+                    }
+                    table.insert(actions, action)
+                    
+                elseif actionType == "upgrade_unit_ingame" and #parts >= 3 then
+                    -- Format: upgrade_unit_ingame,unit_name,time
+                    local action = {
+                        Type = "upgrade_unit_ingame",
+                        Unit = parts[2],
+                        Time = parts[3]
+                    }
+                    table.insert(actions, action)
+                    
+                elseif actionType == "sell_unit_ingame" and #parts >= 3 then
+                    -- Format: sell_unit_ingame,unit_name,time
+                    local action = {
+                        Type = "sell_unit_ingame",
+                        Unit = parts[2],
+                        Time = parts[3]
+                    }
+                    table.insert(actions, action)
+                    
+                elseif actionType == "vote_wave_skip" and #parts >= 2 then
+                    -- Format: vote_wave_skip,time
+                    local action = {
+                        Type = "vote_wave_skip",
+                        Time = parts[2]
+                    }
+                    table.insert(actions, action)
+                end
+            end
+        end
+    end
+    
+    if #actions == 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "No valid actions found in TXT file",
+            Duration = 3
+        })
+        return
+    end
+    
+    -- Save the macro in new format
+    macroManager[macroName] = actions
+    saveMacroToFile(macroName)
+    refreshMacroDropdown()
+    refreshAutoSelectDropdowns()
+    
+    Rayfield:Notify({
+        Title = "TXT Import Success",
+        Content = string.format("Imported '%s' with %d actions", macroName, #actions),
+        Duration = 5
+    })
+    
+    print("Successfully imported TXT macro:", macroName, "with", #actions, "actions")
+end
+
+local function importMacroFromContent(jsonContent, macroName)
+    local success, data = pcall(function()
+        return Services.HttpService:JSONDecode(jsonContent)
+    end)
+    
+    if not success then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Invalid JSON format",
+            Duration = 3
+        })
+        return
+    end
+    
+    local importedActions
+    
+    -- Only accept new format with Type field
+    if type(data) == "table" then
+        if data.actions and type(data.actions) == "table" then
+            -- Wrapped format with metadata
+            importedActions = data.actions
+            print("Importing wrapped format macro with", #importedActions, "actions")
+        elseif data[1] and data[1].Type then
+            -- Direct array format with Type field
+            importedActions = data
+            print("Importing new format macro with", #importedActions, "actions")
         else
             Rayfield:Notify({
                 Title = "Import Error", 
-                Content = "Invalid macro data structure",
+                Content = "Only new macro format with 'Type' field is supported",
                 Duration = 3
             })
             return
         end
-        
-        if #importedActions == 0 then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Macro contains no actions",
-                Duration = 3
-            })
-            return
-        end
-        
-        -- Process the imported actions (deserialize Vector3 and raycast data)
-        local processedMacro = {}
-        
-        for i, action in ipairs(importedActions) do
-            local processedAction = {}
-            
-            -- Copy all fields
-            for key, value in pairs(action) do
-                if key == "actualPosition" and type(value) == "table" then
-                    -- Deserialize Vector3 position
-                    processedAction[key] = deserializeVector3(value)
-                    print("Deserialized actualPosition for action", i)
-                elseif key == "unitPosition" and type(value) == "table" then
-                    -- Deserialize Vector3 position
-                    processedAction[key] = deserializeVector3(value)
-                    print("Deserialized unitPosition for action", i)
-                elseif key == "raycast" and type(value) == "table" then
-                    -- Handle raycast deserialization
-                    local deserializedRaycast = {}
-                    local hasOrigin, hasDirection, hasUnit = false, false, false
-                    
-                    -- Check and deserialize Origin
-                    if value.Origin and type(value.Origin) == "table" and 
-                    value.Origin.x and value.Origin.y and value.Origin.z then
-                        deserializedRaycast.Origin = Vector3.new(value.Origin.x, value.Origin.y, value.Origin.z)
-                        hasOrigin = true
-                        print("Deserialized raycast Origin:", deserializedRaycast.Origin)
-                    end
-                    
-                    -- Check and deserialize Direction
-                    if value.Direction and type(value.Direction) == "table" and
-                    value.Direction.x and value.Direction.y and value.Direction.z then
-                        deserializedRaycast.Direction = Vector3.new(value.Direction.x, value.Direction.y, value.Direction.z)
-                        hasDirection = true
-                        print("Deserialized raycast Direction:", deserializedRaycast.Direction)
-                    end
-                    
-                    -- Check and deserialize Unit
-                    if value.Unit and type(value.Unit) == "table" and
-                    value.Unit.x and value.Unit.y and value.Unit.z then
-                        deserializedRaycast.Unit = Vector3.new(value.Unit.x, value.Unit.y, value.Unit.z)
-                        hasUnit = true
-                        print("Deserialized raycast Unit:", deserializedRaycast.Unit)
-                    end
-                    
-                    -- Create fallback if any components are missing
-                    if not hasOrigin or not hasDirection or not hasUnit then
-                        print("Warning: Incomplete raycast data for action", i, "filling in missing components")
-                        local fallbackPos = processedAction.actualPosition or 
-                                        (action.actualPosition and deserializeVector3(action.actualPosition)) or
-                                        Vector3.new(0, 0, 0)
-                        
-                        if not hasOrigin then
-                            deserializedRaycast.Origin = Vector3.new(fallbackPos.X, fallbackPos.Y + 10, fallbackPos.Z)
-                            print("Created fallback Origin:", deserializedRaycast.Origin)
-                        end
-                        if not hasDirection then
-                            deserializedRaycast.Direction = Vector3.new(0, -1, 0)
-                            print("Created fallback Direction:", deserializedRaycast.Direction)
-                        end
-                        if not hasUnit then
-                            deserializedRaycast.Unit = fallbackPos
-                            print("Created fallback Unit:", deserializedRaycast.Unit)
-                        end
-                    end
-                    
-                    processedAction[key] = deserializedRaycast
-                else
-                    -- Copy value as-is
-                    processedAction[key] = value
-                end
-            end
-            
-            -- Additional check: If this is a PlaceUnit action and still has no raycast, create one
-            if processedAction.action == "PlaceUnit" and not processedAction.raycast and processedAction.actualPosition then
-                print("Creating missing raycast for PlaceUnit action", i)
-                processedAction.raycast = {
-                    Origin = Vector3.new(processedAction.actualPosition.X, processedAction.actualPosition.Y + 10, processedAction.actualPosition.Z),
-                    Direction = Vector3.new(0, -1, 0),
-                    Unit = processedAction.actualPosition
-                }
-            end
-            
-            table.insert(processedMacro, processedAction)
-        end
-        
-        -- Validate the processed macro
-        local placementCount = 0
-        local upgradeCount = 0
-        local sellCount = 0
-        local raycastIssues = 0
-        
-        for i, action in ipairs(processedMacro) do
-            if action.action == "PlaceUnit" then
-                placementCount = placementCount + 1
-                -- Check if raycast is valid
-                if not action.raycast or not action.raycast.Origin or not action.raycast.Direction or not action.raycast.Unit then
-                    raycastIssues = raycastIssues + 1
-                    print("Warning: PlaceUnit action", i, "has invalid raycast data")
-                end
-            elseif action.action == "UpgradeUnit" then
-                upgradeCount = upgradeCount + 1
-            elseif action.action == "SellUnit" then
-                sellCount = sellCount + 1
-            end
-        end
-        
-        print(string.format("Macro validation: %d placements, %d upgrades, %d sells, %d raycast issues", 
-            placementCount, upgradeCount, sellCount, raycastIssues))
-        
-        -- Save the processed macro
-        macroManager[macroName] = processedMacro
-        saveMacroToFile(macroName)
-        refreshMacroDropdown()
-        
-        local statusMsg = string.format("Imported '%s' with %d actions (%d placements)", macroName, #processedMacro, placementCount)
-        if raycastIssues > 0 then
-            statusMsg = statusMsg .. string.format(", %d raycast issues fixed", raycastIssues)
-        end
-        
+    else
         Rayfield:Notify({
-            Title = "Import Success",
-            Content = statusMsg,
-            Duration = 5
+            Title = "Import Error", 
+            Content = "Invalid macro data structure",
+            Duration = 3
         })
-        
-        print("Successfully imported macro:", macroName)
+        return
     end
-
-    local function importMacroFromURL(url, macroName)
-        local requestFunc = syn and syn.request or 
-                        http and http.request or 
-                        http_request or 
-                        request
-        
-        if not requestFunc then
+    
+    if #importedActions == 0 then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Macro contains no actions",
+            Duration = 3
+        })
+        return
+    end
+    
+    -- Validate that all actions have the required Type field
+    for i, action in ipairs(importedActions) do
+        if not action.Type then
             Rayfield:Notify({
                 Title = "Import Error",
-                Content = "HTTP requests not supported by your executor",
+                Content = string.format("Action %d missing 'Type' field", i),
                 Duration = 3
             })
             return
         end
-        
-        local success, response = pcall(function()
-            return requestFunc({
-                Url = url,
-                Method = "GET"
-            })
-        end)
-        
-        if success and response and response.StatusCode == 200 then
-            -- Check if it's a TXT or JSON file based on URL or content
-            if url:match("%.txt") then
-                -- Handle as TXT file
-                importMacroFromTXT(response.Body, macroName)
-            else
-                -- Handle as JSON file (default)
-                importMacroFromContent(response.Body, macroName)
-            end
-        else
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Failed to download from URL",
-                Duration = 3
-            })
+    end
+    
+    -- Count action types for summary
+    local placementCount = 0
+    local upgradeCount = 0
+    local sellCount = 0
+    local skipCount = 0
+    
+    for _, action in ipairs(importedActions) do
+        if action.Type == "spawn_unit" then
+            placementCount = placementCount + 1
+        elseif action.Type == "upgrade_unit_ingame" then
+            upgradeCount = upgradeCount + 1
+        elseif action.Type == "sell_unit_ingame" then
+            sellCount = sellCount + 1
+        elseif action.Type == "vote_wave_skip" then
+            skipCount = skipCount + 1
         end
     end
+    
+    print(string.format("Macro validation: %d placements, %d upgrades, %d sells, %d skips", 
+        placementCount, upgradeCount, sellCount, skipCount))
+    
+    -- Save the macro as-is (no conversion)
+    macroManager[macroName] = importedActions
+    saveMacroToFile(macroName)
+    refreshMacroDropdown()
+    refreshAutoSelectDropdowns()
+    
+    local statusMsg = string.format("Imported '%s' with %d actions (%d placements, %d upgrades, %d sells, %d skips)", 
+        macroName, #importedActions, placementCount, upgradeCount, sellCount, skipCount)
+    
+    Rayfield:Notify({
+        Title = "Import Success",
+        Content = statusMsg,
+        Duration = 5
+    })
+    
+    print("Successfully imported new format macro:", macroName)
+end
 
-    local function exportMacroToClipboard(macroName, format)
-        if not macroManager[macroName] or #macroManager[macroName] == 0 then
-            Rayfield:Notify({
-                Title = "Export Error",
-                Content = "No macro data to export",
-                Duration = 3
-            })
-            return
-        end
-        
-        local macroData = macroManager[macroName]
-        
-        -- Export in DIRECT ARRAY format to match recorded macros
-        local serializedData = {}
-        
-        for _, action in ipairs(macroData) do
-            local serializedAction = {}
-            
-            -- Copy all fields and serialize Vector3 positions for JSON compatibility
-            for key, value in pairs(action) do
-                if key == "actualPosition" and value then
-                    serializedAction[key] = serializeVector3(value)
-                elseif key == "unitPosition" and value then
-                    serializedAction[key] = serializeVector3(value)
-                elseif key == "raycast" and value then
-                    -- Properly serialize raycast data
-                    local serializedRaycast = {}
-                    
-                    if value.Origin then
-                        serializedRaycast.Origin = {
-                            x = value.Origin.X,
-                            y = value.Origin.Y,
-                            z = value.Origin.Z
-                        }
-                    end
-                    
-                    if value.Direction then
-                        serializedRaycast.Direction = {
-                            x = value.Direction.X,
-                            y = value.Direction.Y,
-                            z = value.Direction.Z
-                        }
-                    end
-                    
-                    if value.Unit then
-                        serializedRaycast.Unit = {
-                            x = value.Unit.X,
-                            y = value.Unit.Y,
-                            z = value.Unit.Z
-                        }
-                    end
-                    
-                    serializedAction[key] = serializedRaycast
-                else
-                    serializedAction[key] = value
-                end
-            end
-            
-            table.insert(serializedData, serializedAction)
-        end
-        
-        -- Export as direct array (same format as recorded macros save to file)
-        local jsonData = Services.HttpService:JSONEncode(serializedData)
-        
-        -- Copy to clipboard (if supported)
-        if setclipboard then
-            setclipboard(jsonData)
-            Rayfield:Notify({
-                Title = "Export Success",
-                Content = "Macro JSON copied to clipboard (" .. #macroData .. " actions)",
-                Duration = 3
-            })
-        else
-            Rayfield:Notify({
-                Title = "Export Info",
-                Content = "Clipboard not supported. JSON printed to console.",
-                Duration = 3
-            })
-            print("=== MACRO EXPORT ===")
-            print(jsonData)
-            print("=== END EXPORT ===")
-        end
+local function importMacroFromURL(url, macroName)
+    local requestFunc = syn and syn.request or 
+                    http and http.request or 
+                    http_request or 
+                    request
+    
+    if not requestFunc then
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "HTTP requests not supported by your executor",
+            Duration = 3
+        })
+        return
     end
+    
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = url,
+            Method = "GET"
+        })
+    end)
+    
+    if success and response and response.StatusCode == 200 then
+        -- Check if it's a TXT or JSON file based on URL or content
+        if url:match("%.txt") then
+            -- Handle as TXT file
+            importMacroFromTXT(response.Body, macroName)
+        else
+            -- Handle as JSON file (default) - use the new format import
+            importMacroFromContent(response.Body, macroName)
+        end
+    else
+        Rayfield:Notify({
+            Title = "Import Error",
+            Content = "Failed to download from URL",
+            Duration = 3
+        })
+    end
+end
+
+local function exportMacroToClipboard(macroName, format)
+    if not macroManager[macroName] or #macroManager[macroName] == 0 then
+        Rayfield:Notify({
+            Title = "Export Error",
+            Content = "No macro data to export",
+            Duration = 3
+        })
+        return
+    end
+    
+    local macroData = macroManager[macroName]
+    
+    -- Export in new format (no conversion needed since data is already in new format)
+    local jsonData = Services.HttpService:JSONEncode(macroData)
+    
+    -- Copy to clipboard (if supported)
+    if setclipboard then
+        setclipboard(jsonData)
+        Rayfield:Notify({
+            Title = "Export Success",
+            Content = "Macro JSON copied to clipboard (" .. #macroData .. " actions)",
+            Duration = 3
+        })
+    else
+        Rayfield:Notify({
+            Title = "Export Info",
+            Content = "Clipboard not supported. JSON printed to console.",
+            Duration = 3
+        })
+        print("=== MACRO EXPORT ===")
+        print(jsonData)
+        print("=== END EXPORT ===")
+    end
+end
 
     RefreshMacroListButton = MacroTab:CreateButton({
         Name = "Refresh Macro List",
