@@ -1,4 +1,4 @@
-    -- 5.5
+    -- 6.0
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.069"
+    local script_version = "V0.04"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -806,6 +806,7 @@ end
 
 local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1]
+    local upgradeAmount = actionInfo.args[3] or 1 -- Default to single upgrade if no amount specified
     local preActionMoney = actionInfo.preActionMoney
     
     -- Find the unit that matches the remote parameter
@@ -816,7 +817,7 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         for _, unit in pairs(unitsFolder:GetChildren()) do
             if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
                 upgradedUnit = unit
-                break -- We'll identify the correct one by spawn_id
+                break
             end
         end
     end
@@ -842,17 +843,26 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
-    -- Store clean upgrade record
+    -- Store upgrade record with amount
     local upgradeRecord = {
         Type = "upgrade_unit_ingame",
-        Unit = placementId, -- "Shadow #1", etc.
+        Unit = placementId,
         Time = string.format("%.2f", gameRelativeTime),
+        Amount = upgradeAmount > 1 and upgradeAmount or nil -- Only store amount if > 1
     }
     
     table.insert(macro, upgradeRecord)
     
-    print(string.format("Recorded upgrade: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded upgrade: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458})
+    local upgradeText = upgradeAmount > 1 and 
+        string.format("multi-upgrade x%d", upgradeAmount) or "upgrade"
+    
+    print(string.format("Recorded %s: %s (spawn_id: %s)", upgradeText, placementId, tostring(spawnId)))
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded %s: %s", upgradeText, placementId),
+        Duration = 3,
+        Image = 4483362458
+    })
 end
 
 local function parseUnitString(unitString)
@@ -864,25 +874,58 @@ local function parseUnitString(unitString)
     return nil, nil
 end
 
+local function getMultiUpgradeCost(unitId, currentLevel, upgradeAmount)
+    local unitData = getUnitData(unitId)
+    if not unitData or not unitData.upgrade then return 0 end
+    
+    local totalCost = 0
+    local costScale = getCostScale()
+    
+    -- Calculate cumulative cost for multiple upgrades
+    for i = 1, upgradeAmount do
+        local upgradeIndex = currentLevel + i
+        
+        if upgradeIndex > #unitData.upgrade then
+            break -- Can't upgrade beyond max level
+        end
+        
+        local baseCost = unitData.upgrade[upgradeIndex] and unitData.upgrade[upgradeIndex].cost or 0
+        totalCost = totalCost + math.floor(baseCost * costScale)
+    end
+    
+    if costScale ~= 1.0 then
+        print(string.format("Multi-upgrade cost for %s level %d->%d (x%d): %d (x%.1f scale)", 
+            unitId, currentLevel, currentLevel + upgradeAmount, upgradeAmount, totalCost, costScale))
+    end
+    
+    return totalCost
+end
+
 local function waitForSufficientMoney(action, actionIndex, totalActions)
     local requiredCost = 0
-
     local displayName, instanceNumber = parseUnitString(action.Unit)
     local unitid = displayName and getUnitIdFromDisplayName(displayName)
     
     if action.Type == "spawn_unit" and unitid then
         requiredCost = getPlacementCost(unitid)
     elseif action.Type == "upgrade_unit_ingame" and displayName and instanceNumber then
-            local currentUUID = playbackDisplayNameInstances[displayName] and
-                              playbackDisplayNameInstances[displayName][instanceNumber]
-            if currentUUID then
-                local unit = findUnitBySpawnUUID(currentUUID)
-                if unit then
-                    local currentLevel = getUnitUpgradeLevel(unit)
+        local currentUUID = playbackDisplayNameInstances[displayName] and
+                          playbackDisplayNameInstances[displayName][instanceNumber]
+        if currentUUID then
+            local unit = findUnitBySpawnUUID(currentUUID)
+            if unit then
+                local currentLevel = getUnitUpgradeLevel(unit)
+                local upgradeAmount = action.Amount or 1
+                
+                if upgradeAmount > 1 then
+                    requiredCost = getMultiUpgradeCost(unitid, currentLevel, upgradeAmount)
+                else
                     requiredCost = getUpgradeCost(unitid, currentLevel)
                 end
             end
-        end    
+        end
+    end
+    
     if requiredCost > 0 then
         local maxWaitTime = 600
         local waitStart = tick()
@@ -894,8 +937,11 @@ local function waitForSufficientMoney(action, actionIndex, totalActions)
             end
             
             local missingMoney = requiredCost - getPlayerMoney()
-            updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen (need %d, have %d)", 
-                actionIndex, totalActions, missingMoney, requiredCost, getPlayerMoney()))
+            local upgradeAmount = action.Amount or 1
+            local upgradeText = upgradeAmount > 1 and string.format(" (x%d upgrade)", upgradeAmount) or ""
+            
+            updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen%s (need %d, have %d)", 
+                actionIndex, totalActions, missingMoney, upgradeText, requiredCost, getPlayerMoney()))
             task.wait(1)
         end
     end
@@ -1246,14 +1292,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
     
-    local placementId = action.Unit -- "Shadow #1"
-
-    local currentSpawnId = playbackPlacementToSpawnId[placementId]
-    print("UPGRADE ATTEMPT - Looking for:", placementId, "Spawn ID:", currentSpawnId)
-    if not currentSpawnId then
-        print("ERROR: No spawn ID mapping found for", placementId)
-        print("Current mappings:", playbackPlacementToSpawnId)
-    end
+    local placementId = action.Unit
+    local upgradeAmount = action.Amount or 1 -- Default to single upgrade
     
     if not waitForSufficientMoney(action, actionIndex, totalActionCount) then
         return false
@@ -1290,12 +1330,25 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         end
         
         local originalLevel = getUnitUpgradeLevel(targetUnit)
+        local upgradeText = upgradeAmount > 1 and 
+            string.format("Multi-upgrading x%d", upgradeAmount) or "Upgrading"
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Upgrading %s (Level %d)", 
-            actionIndex, totalActionCount, attempt, maxRetries, placementId, originalLevel))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: %s %s (Level %d)", 
+            actionIndex, totalActionCount, attempt, maxRetries, upgradeText, placementId, originalLevel))
+        
+        -- Prepare arguments based on upgrade type
+        local args
+        if upgradeAmount > 1 then
+            -- Multi-upgrade format: args = {unitName, [3] = amount}
+            args = {targetUnit.Name}
+            args[3] = upgradeAmount
+        else
+            -- Single upgrade format: args = {unitName}
+            args = {targetUnit.Name}
+        end
         
         local success = pcall(function()
-            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(targetUnit.Name)
+            endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(unpack(args))
         end)
         
         if not success then
@@ -1307,8 +1360,10 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             end
         end
         
-        -- Validate upgrade success
+        -- Validate upgrade success - check for expected level increase
+        local expectedLevel = originalLevel + upgradeAmount
         task.wait(0.5)
+        
         local currentUnit = nil
         local unitsFolder2 = Services.Workspace:FindFirstChild("_UNITS")
         
@@ -1323,9 +1378,12 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         
         if currentUnit then
             local currentLevel = getUnitUpgradeLevel(currentUnit)
-            if currentLevel > originalLevel then
-                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Upgraded %s (Level %d->%d)", 
-                    actionIndex, totalActionCount, placementId, originalLevel, currentLevel))
+            -- For multi-upgrade, we expect the level to increase by the upgrade amount
+            if currentLevel >= expectedLevel then
+                local actualIncrease = currentLevel - originalLevel
+                updateDetailedStatus(string.format("(%d/%d) SUCCESS: %s %s (Level %d->%d, +%d)", 
+                    actionIndex, totalActionCount, upgradeText, placementId, 
+                    originalLevel, currentLevel, actualIncrease))
                 return true
             end
         end
@@ -1335,8 +1393,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not upgrade %s", 
-        actionIndex, totalActionCount, placementId))
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s", 
+        actionIndex, totalActionCount, upgradeText:lower(), placementId))
     return false
 end
 
