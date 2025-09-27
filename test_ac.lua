@@ -1,4 +1,4 @@
-    -- 70
+    -- 71
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -3985,13 +3985,7 @@ end
         end,
     })
 
-local function importMacroFromTXT(txtContent, macroName)
-    -- Parse TXT format and convert to new format
-    -- Expected TXT format:
-    -- spawn_unit,Shadow (Atomic) #1,3.68,54.197,300.763,-179.418,0.458,-0.871,-0.178,0
-    -- upgrade_unit_ingame,Shadow (Atomic) #1,56.77
-    -- vote_wave_skip,14.93
-    
+local function importMacroFromTXT(txtContent, macroName)    
     local lines = {}
     for line in txtContent:gmatch("[^\r\n]+") do
         table.insert(lines, line:match("^%s*(.-)%s*$")) -- trim whitespace
@@ -4201,13 +4195,21 @@ local function importMacroFromURL(url, macroName)
     end)
     
     if success and response and response.StatusCode == 200 then
-        -- Check if it's a TXT or JSON file based on URL or content
-        if url:match("%.txt") then
-            -- Handle as TXT file
-            importMacroFromTXT(response.Body, macroName)
-        else
-            -- Handle as JSON file (default) - use the new format import
+        -- Try to detect if content is JSON first, regardless of file extension
+        local isJSON = false
+        pcall(function()
+            local testDecode = Services.HttpService:JSONDecode(response.Body)
+            isJSON = true
+        end)
+        
+        if isJSON then
+            -- Handle as JSON content
+            print("Detected JSON content in URL, using JSON import")
             importMacroFromContent(response.Body, macroName)
+        else
+            -- Handle as TXT format (CSV-like)
+            print("Detected TXT content in URL, using TXT import")
+            importMacroFromTXT(response.Body, macroName)
         end
     else
         Rayfield:Notify({
