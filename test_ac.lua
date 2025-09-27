@@ -1,4 +1,4 @@
-    -- 4
+    -- 5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -841,30 +841,24 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    -- FIXED: Get the ORIGINAL level BEFORE the upgrade was processed
-    -- Since this function is called after the remote, we need to subtract 1 from the current level
-    local currentLevel = getUnitUpgradeLevel(upgradedUnit)
-    local originalLevel = currentLevel - upgradeAmount -- Subtract the upgrade amount that was applied
+    -- FIXED: Get the level BEFORE the remote was processed
+    -- We need to capture this from the actionInfo's pre-action state or estimate it
+    local levelBeforeRemote = getUnitUpgradeLevel(upgradedUnit)
     
-    -- Ensure originalLevel doesn't go below 0
-    if originalLevel < 0 then
-        originalLevel = 0
-    end
+    print(string.format("Recording upgrade attempt: %s at level %d (trying x%d upgrades)", 
+        placementId, levelBeforeRemote, upgradeAmount))
     
-    print(string.format("Recording upgrade: %s from level %d to level %d (upgrade amount: x%d)", 
-        placementId, originalLevel, currentLevel, upgradeAmount))
-    
-    -- Wait a bit for the upgrade to process, then check if it actually happened
+    -- Wait for the upgrade to process, then check if it actually happened
     task.spawn(function()
         local maxWaitTime = 3.0 -- Max time to wait for upgrade confirmation
         local checkInterval = 0.1 -- How often to check
         local startTime = tick()
         
-        local finalLevel = currentLevel -- Start with current level since upgrade already happened
-        local upgradeDetected = true -- We already know it happened since we're called after
+        local originalLevel = levelBeforeRemote
+        local finalLevel = originalLevel
+        local upgradeDetected = false
         
-        -- Verify the upgrade is stable (sometimes levels can fluctuate)
-        while tick() - startTime < 1.0 do -- Shorter wait since we already have the result
+        while tick() - startTime < maxWaitTime do
             -- Re-find the unit (it might have changed references)
             local currentUnit = nil
             local currentUnitsFolder = Services.Workspace:FindFirstChild("_UNITS")
@@ -879,16 +873,14 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
             end
             
             if currentUnit then
-                local checkedLevel = getUnitUpgradeLevel(currentUnit)
+                local currentLevel = getUnitUpgradeLevel(currentUnit)
                 
-                -- Update final level if it changed
-                if checkedLevel >= originalLevel + upgradeAmount then
-                    finalLevel = checkedLevel
-                    break -- Level is stable and correct
-                elseif checkedLevel < originalLevel then
-                    -- Something went wrong, unit level went backwards
-                    upgradeDetected = false
-                    break
+                -- FIXED: Only consider it successful if the level actually increased
+                if currentLevel > originalLevel then
+                    finalLevel = currentLevel
+                    upgradeDetected = true
+                    print(string.format("Upgrade detected: %s level %d -> %d", placementId, originalLevel, finalLevel))
+                    break -- Stop checking once we detect the upgrade
                 end
             else
                 -- Unit was sold/destroyed during upgrade, don't record
@@ -899,7 +891,7 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
             task.wait(checkInterval)
         end
         
-        -- Only record if upgrade actually happened and is valid
+        -- FIXED: Only record if upgrade actually happened (level increased)
         if upgradeDetected and finalLevel > originalLevel then
             local actualUpgradeAmount = finalLevel - originalLevel
             local gameRelativeTime = actionInfo.timestamp - gameStartTime
@@ -926,10 +918,10 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
                 Image = 4483362458
             })
         else
-            print(string.format("Upgrade validation failed for %s (original: %d, final: %d)", placementId, originalLevel, finalLevel))
+            print(string.format("Upgrade failed or no level change for %s (stayed at level %d), not recording", placementId, originalLevel))
             Rayfield:Notify({
                 Title = "Macro Recorder",
-                Content = string.format("Upgrade validation failed for %s - not recorded", placementId),
+                Content = string.format("Upgrade failed for %s - not recorded (no level change)", placementId),
                 Duration = 2,
                 Image = 4483362458
             })
