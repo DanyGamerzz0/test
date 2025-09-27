@@ -1,4 +1,4 @@
-    -- 68
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5023,7 +5023,7 @@ local Divider = MacroTab:CreateDivider()
                 fields = {
                     {
                         name = "📊 Action Summary",
-                        value = string.format("**Total Actions:** %d\n🏗️ **Placements:** %d\n⬆️ **Upgrades:** %d\n💸 **Sells:** %d\n⚡ **Wave Skips:** %d",
+                        value = string.format("**Total Actions:** %d\n🏗️ **Placements:** %d\n⬆️ **Upgrades:** %d\n💸 **Sells:** %d\n➡️ **Wave Skips:** %d",
                             #macroData,
                             actionCounts.spawn_unit,
                             actionCounts.upgrade_unit_ingame, 
@@ -5037,19 +5037,9 @@ local Divider = MacroTab:CreateDivider()
                         value = unitsText,
                         inline = false
                     },
-                    {
-                        name = "📋 Format",
-                        value = "New Format (Type-based)",
-                        inline = true
-                    },
-                    {
-                        name = "📎 File",
-                        value = fileName,
-                        inline = true
-                    }
                 },
                 footer = {
-                    text = "LixHub Macro System • " .. script_version
+                    text = script_version
                 },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
