@@ -1,4 +1,4 @@
-    -- 6.9
+    -- 7.0
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -120,7 +120,6 @@ local currentMacroName = ""
 local isRecording = false
 local isPlaybacking = false
 local isRecordingLoopRunning = false
-local recordingStartTime = 0
 local recordingHasStarted = false
 local currentChallenge = nil
 local macroHasPlayedThisGame = false
@@ -131,10 +130,7 @@ local recordingPlacementCounter = {} -- "Shadow" -> 3 (how many placed so far)
 local recordingUnitNameToSpawnId = {}
 
 local playbackPlacementToSpawnId = {} -- "Shadow #1" -> current spawn_id
-local playbackPlacementCounter = {} -- "Shadow" -> 2 (how many placed so far in this playback)
 
-local displayNamePlacements = {} -- {displayName: count} - tracks how many of each unit we've placed
-local displayNameToCurrentInstances = {} -- {displayName: {instanceNumber: spawnUUID}}
 local playbackDisplayNameInstances = {}
 
     local VALIDATION_CONFIG = {
@@ -240,17 +236,11 @@ local playbackDisplayNameInstances = {}
         })
     end
 
-    local function clearDisplayNameTracking()
-    displayNamePlacements = {}
-    displayNameToCurrentInstances = {}
-end
-
 local function clearSpawnIdMappings()
     recordingSpawnIdToPlacement = {}
     recordingPlacementCounter = {}
     recordingUnitNameToSpawnId = {}
     playbackPlacementToSpawnId = {}
-    playbackPlacementCounter = {}
 end
 
     -- Utility Functions
@@ -367,7 +357,6 @@ local function startRecordingWithSpawnIdMapping()
     table.clear(macro)
     clearSpawnIdMappings() -- Clear all temporary mappings
     isRecording = true
-    recordingStartTime = tick()
     
     if gameStartTime == 0 then
         gameStartTime = tick()
@@ -806,7 +795,7 @@ end
 
 local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1]
-    local upgradeAmount = actionInfo.args[3] or 1 -- Default to single upgrade if no amount specified
+    local upgradeAmount = actionInfo.args[3] or 1 -- Get the actual amount from remote call
     local preUpgradeLevel = actionInfo.preUpgradeLevel -- Get the captured pre-upgrade level
     
     -- Find the unit that matches the remote parameter
@@ -845,32 +834,36 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     local currentLevel = getUnitUpgradeLevel(upgradedUnit)
     local originalLevel = preUpgradeLevel or 0 -- Use captured level or default to 0
     
-    print(string.format("Upgrade check: %s from level %d to level %d", 
-        placementId, originalLevel, currentLevel))
+    print(string.format("Upgrade check: %s from level %d to level %d (remote amount: %d)", 
+        placementId, originalLevel, currentLevel, upgradeAmount))
     
     -- Simple check: did the level actually increase?
     if currentLevel > originalLevel then
-        local actualUpgradeAmount = currentLevel - originalLevel
         local gameRelativeTime = actionInfo.timestamp - gameStartTime
         
-        -- Store upgrade record
+        -- Store upgrade record - only add Amount field if remote specified multi-upgrade
         local upgradeRecord = {
             Type = "upgrade_unit_ingame",
             Unit = placementId,
-            Time = string.format("%.2f", gameRelativeTime),
-            Amount = actualUpgradeAmount > 1 and actualUpgradeAmount or nil -- Only store amount if > 1
+            Time = string.format("%.2f", gameRelativeTime)
         }
+        
+        -- Only store amount if the remote call actually specified multi-upgrade
+        if upgradeAmount > 1 then
+            upgradeRecord.Amount = upgradeAmount
+        end
+        -- For single upgrades (upgradeAmount == 1), don't include Amount field at all
         
         table.insert(macro, upgradeRecord)
         
-        local upgradeText = actualUpgradeAmount > 1 and 
-            string.format("multi-upgrade x%d", actualUpgradeAmount) or "upgrade"
+        local upgradeText = upgradeAmount > 1 and 
+            string.format("multi-upgrade x%d", upgradeAmount) or "upgrade"
         
-        print(string.format("Recorded successful %s: %s (level %d -> %d, spawn_id: %s)", 
-            upgradeText, placementId, originalLevel, currentLevel, tostring(spawnId)))
+        print(string.format("Recorded %s: %s (remote specified: %d, level %d -> %d, spawn_id: %s)", 
+            upgradeText, placementId, upgradeAmount, originalLevel, currentLevel, tostring(spawnId)))
         Rayfield:Notify({
             Title = "Macro Recorder",
-            Content = string.format("Recorded successful %s: %s (L%d->L%d)", upgradeText, placementId, originalLevel, currentLevel),
+            Content = string.format("Recorded %s: %s (remote: x%d, L%d->L%d)", upgradeText, placementId, upgradeAmount, originalLevel, currentLevel),
             Duration = 3,
             Image = 4483362458
         })
@@ -952,8 +945,8 @@ local function waitForSufficientMoney(action, actionIndex, totalActions)
         
         while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
             if tick() - waitStart > maxWaitTime then
-                updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money", actionIndex, totalActions))
-                return false
+                updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money - continuing macro", actionIndex, totalActions))
+                return true
             end
             
             local missingMoney = requiredCost - getPlayerMoney()
@@ -1317,9 +1310,9 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s", 
-        actionIndex, totalActionCount, placementId))
-    return false
+updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s - continuing macro", 
+    actionIndex, totalActionCount, placementId))
+return true
 end
 
 local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
@@ -1537,9 +1530,9 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts", 
-        actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
-    return false
+updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts - continuing macro", 
+    actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
+return true
 end
 
 local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
@@ -1606,9 +1599,9 @@ local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalAc
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Failed to sell %s", 
-        actionIndex, totalActionCount, placementId))
-    return false
+updateDetailedStatus(string.format("(%d/%d) Failed to sell %s - continuing macro", 
+    actionIndex, totalActionCount, placementId))
+return true
 end
 
 local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
