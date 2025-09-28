@@ -1,4 +1,4 @@
-    -- 6.8
+    -- 6.9
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1057,9 +1057,8 @@ local function setupMacroHooksRefactored()
         
         if not checkcaller() then
             if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
-                
-                -- Capture pre-upgrade level BEFORE calling the remote
-                local preUpgradeLevel = nil
+                task.spawn(function()
+                    local preUpgradeLevel = nil
                 if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
                     local unitName = args[1]
                     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
@@ -1073,8 +1072,6 @@ local function setupMacroHooksRefactored()
                         end
                     end
                 end
-                
-                task.spawn(function()
                     local timestamp = tick()
                     
                     if gameStartTime == 0 then
