@@ -1,4 +1,4 @@
-    -- 7.4
+    -- 7.5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1518,20 +1518,22 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             -- Consider partial success as success if we got at least some upgrades
             return true
         else
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
-                actionIndex, totalActionCount, attempt, maxRetries))
-            
-            -- Only continue retry loop if we haven't hit max attempts
-            if attempt < maxRetries then
-                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
-                    actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
-                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
-            else
-                break
-                -- Continue to next attempt (this will loop back to the top of the for loop)
-            end
-            -- If this was the last attempt, the for loop will naturally end and reach the final return true
-        end
+    updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
+        actionIndex, totalActionCount, attempt, maxRetries))
+    
+    print("DEBUG: About to check retry condition - attempt:", attempt, "maxRetries:", maxRetries)
+    
+    if attempt < maxRetries then
+        print("DEBUG: Will retry - waiting for delay")
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
+            actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
+        task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+        print("DEBUG: Finished waiting, continuing to next attempt")
+    else
+        print("DEBUG: Final attempt failed, breaking out of loop")
+        break
+    end
+end
     end -- This closes the "for attempt = 1, maxRetries do" loop
     
     -- This runs after all retry attempts are exhausted
