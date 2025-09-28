@@ -1,4 +1,4 @@
-    -- 7.66
+    -- 7.7
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -216,6 +216,11 @@ local playbackDisplayNameInstances = {}
         AutoSellWave = 10,
         AutoSellFarmEnabled = false,
         AutoSellFarmWave = 15,
+        ReturnToLobbyFailsafe = false,
+        failsafeActive = false,
+        AutoMatchmakeLegendStage = false,
+        AutoMatchmakeRaidStage = false,
+        AutoMatchmakeGateStage = false,
     }
 
     -- ========== CREATE TABS ==========
@@ -1977,6 +1982,7 @@ end
 local function startGameTracking()
     if gameInProgress then return end
     
+    State.failsafeActive = false
     gameInProgress = true
     sessionItems = {}
     gameStartTime = tick()  -- Always track game start time
@@ -2340,32 +2346,50 @@ end
         return tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown
     end
 
-    local function setProcessingState(action)
-        AutoJoinState.isProcessing = true
-        AutoJoinState.currentAction = action
-        AutoJoinState.lastActionTime = tick()
+local function setProcessingState(action)
+    AutoJoinState.isProcessing = true
+    AutoJoinState.currentAction = action
+    AutoJoinState.lastActionTime = tick()
 
-        if action == "Story Auto Join" then
-            notify("Auto Joiner: ", string.format(
-                "Joining %s%s [%s]",
-                State.StoryStageSelected or "?",
-                State.StoryActSelected or "?",
-                State.StoryDifficultySelected or "?"
-            ))
-        elseif action == "Legend Stage Auto Join" then
-            notify("Auto Joiner: ", string.format(
-                "Joining %s%s",
-                string.lower(State.LegendStageSelected) or "?",
-                State.LegendActSelected or "?"
-            ))
-        elseif action == "Raid Auto Join" then
-            notify("Auto Joiner: ", string.format(
-                "Joining %s%s",
-                string.lower(State.RaidStageSelected) or "?",
-                State.RaidActSelected or "?"
-            ))
-        end
+    if action == "Story Auto Join" then
+        local joinType = State.AutoMatchmakeStoryStage and "Matchmaking" or "Solo joining"
+        notify("Auto Joiner: ", string.format(
+            "%s %s%s [%s]",
+            joinType,
+            State.StoryStageSelected or "?",
+            State.StoryActSelected or "?",
+            State.StoryDifficultySelected or "?"
+        ))
+    elseif action == "Legend Stage Auto Join" then
+        local joinType = State.AutoMatchmakeLegendStage and "Matchmaking" or "Solo joining"
+        notify("Auto Joiner: ", string.format(
+            "%s %s%s",
+            joinType,
+            string.lower(State.LegendStageSelected) or "?",
+            State.LegendActSelected or "?"
+        ))
+    elseif action == "Raid Auto Join" then
+        local joinType = State.AutoMatchmakeRaidStage and "Matchmaking" or "Solo joining"
+        notify("Auto Joiner: ", string.format(
+            "%s %s%s",
+            joinType,
+            string.lower(State.RaidStageSelected) or "?",
+            State.RaidActSelected or "?"
+        ))
+    elseif action == "Challenge Auto Join" then
+        local joinType = State.AutoMatchmakeRaidStage and "Matchmaking" or "Solo joining"
+        notify("Auto Joiner: ", string.format(
+            "%s %s%s",
+            joinType,
+            string.lower(State.RaidStageSelected) or "?",
+            State.RaidActSelected or "?"
+        ))
+    elseif action == "Gate Auto Join" then
+        notify("Auto Joiner: ","Attempting to join gate...")
+    elseif action == "Challenge Auto Join" then
+        notify("Auto Joiner: ","Attempting to join challenge...")
     end
+end
 
     local function clearProcessingState()
         AutoJoinState.isProcessing = false
@@ -2704,9 +2728,21 @@ end
         return acceptableGates[1]
     end
 
-    local function joinGate(gateInfo)
+    local function joinGate(gateInfo, useMatchmaking)
         if not gateInfo then return false end
         
+        if useMatchmaking then
+        local success = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_GATE",{GateUuid = tonumber(gateInfo.id)})
+        end)
+        if success then
+            notify("Gate Matchmaking", string.format("Matchmaking for %s Gate with %s modifier", gateInfo.type, gateInfo.modifier))
+            return true
+        else
+            notify("Gate Joiner", "Failed to matchmake gate")
+            return false
+        end
+    else
         local success = pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_GATE"..gateInfo.id)
 
@@ -2725,6 +2761,7 @@ end
             return false
         end
     end
+end
 
     local function checkGateJoin()
         if not State.AutoJoinGate then return false end
@@ -2735,8 +2772,10 @@ end
         local bestGate = findBestGate()
         if bestGate then
             setProcessingState("Gate Auto Join")
+
+            local useMatchmaking = State.AutoMatchmakeGateStage or false
             
-            if joinGate(bestGate) then
+            if joinGate(bestGate, useMatchmaking) then
                 print("Successfully initiated gate join!")
             else
                 print("Gate join failed!")
@@ -2779,6 +2818,25 @@ end
             -- Build the complete stage ID
             local completeStageId = State.StoryStageSelected .. State.StoryActSelected
 
+            if State.AutoMatchmakeStoryStage then
+            local args = {
+                completeStageId,
+                {
+                    Difficulty = State.StoryDifficultySelected
+                }
+            }
+            
+            local success = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(unpack(args))
+            end)
+            
+            if success then
+                print("Successfully sent story matchmaking request!")
+                notify("Story Matchmaking", string.format("Matchmaking for %s [%s]", completeStageId, State.StoryDifficultySelected))
+            else
+                warn("Failed to send story matchmaking request!")
+            end
+        else
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
 
             local args = {
@@ -2798,6 +2856,7 @@ end
             else
                 warn("Failed to send story join request!")
             end
+        end
 
             task.delay(5, clearProcessingState)
             return
@@ -2810,6 +2869,17 @@ end
             -- Build the complete legend stage ID
             local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
 
+            if State.AutoMatchmakeLegendStage then            
+            local success = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(string.lower(completeLegendStageId),{Difficulty = "Normal"})
+            end)
+            if success then
+                print("Successfully sent legend matchmaking request!")
+                notify("Legend Matchmaking", string.format("Matchmaking for %s", completeLegendStageId))
+            else
+                warn("Failed to send legend matchmaking request!")
+            end
+        else
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
 
             local args = {
@@ -2829,6 +2899,7 @@ end
             else
                 warn("Failed to send legend join request!")
             end
+        end
             task.delay(5, clearProcessingState)
             return
         end
@@ -2836,6 +2907,19 @@ end
             setProcessingState("Raid Auto Join")
 
             local completeRaidStageId = State.RaidStageSelected .. State.RaidActSelected
+
+             if State.AutoMatchmakeRaidStage then        
+            local success = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(completeRaidStageId,{Difficulty = "Normal"})
+            end)
+            
+            if success then
+                print("Successfully sent raid matchmaking request!")
+                notify("Raid Matchmaking", string.format("Matchmaking for %s", completeRaidStageId))
+            else
+                warn("Failed to send raid matchmaking request!")
+            end
+        else
 
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
 
@@ -2856,6 +2940,7 @@ end
             else
                 warn("Failed to send raid join request!")
             end
+        end
             task.delay(5, clearProcessingState)
             return
         end
@@ -3179,6 +3264,15 @@ end
         end,
     })
 
+    MatchMakeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Matchmake Legend Stage",
+    CurrentValue = false,
+    Flag = "AutoMatchmakeLegendStage",
+    Callback = function(Value)
+        State.AutoMatchmakeLegendStage = Value
+    end,
+})
+
     section = JoinerTab:CreateSection("Raid Joiner")
 
     AutoJoinRaidToggle = JoinerTab:CreateToggle({
@@ -3246,6 +3340,15 @@ end
             end
         end,
     })
+
+         MatchMakeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Matchmake Raid Stage",
+    CurrentValue = false,
+    Flag = "AutoMatchmakeRaidStage",
+    Callback = function(Value)
+        State.AutoMatchmakeRaidStage = Value
+    end,
+})
 
     section = JoinerTab:CreateSection("Challenge Joiner")
 
@@ -3342,6 +3445,15 @@ end
             State.AutoNextGate = Value
     end,
     })
+
+             MatchMakeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Matchmake Gate",
+    CurrentValue = false,
+    Flag = "AutoMatchmakeGateStage",
+    Callback = function(Value)
+        State.AutoMatchmakeGateStage = Value
+    end,
+})
 
     task.spawn(function()
         while true do
@@ -3951,7 +4063,8 @@ end
     Callback = function(Value)
             State.AutoVoteNext = Value
             if Services.Players.LocalPlayer.PlayerGui.ResultsUI.Enabled == true then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_raid")
             end
     end,
     })
@@ -3967,6 +4080,16 @@ end
             end
     end,
     })
+
+    local ReturnToLobbyFailsafeToggle = GameTab:CreateToggle({
+    Name = "Return to Lobby Failsafe",
+    CurrentValue = false,
+    Flag = "ReturnToLobbyFailsafe",
+    Info = "Return to lobby if no auto-vote happens within 2 minutes after game ends",
+    Callback = function(Value)
+        State.ReturnToLobbyFailsafe = Value
+    end,
+})
 
     Toggle = GameTab:CreateToggle({
     Name = "Auto Skip Waves",
@@ -4116,6 +4239,21 @@ end
             end
         end,
     })
+
+    local function startFailsafeTimer()
+    if not State.ReturnToLobbyFailsafe then return end
+    
+    State.failsafeActive = true
+    
+    task.spawn(function()
+        task.wait(120)
+        
+        if State.failsafeActive and not isInLobby() then
+            notify("Failsafe", "No vote detected - returning to lobby")
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
+        end
+    end)
+end
 
     local function refreshMacroDropdown()
         local options = {}
@@ -5947,6 +6085,7 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
             print("Number of arguments:", #args)
 
             gameHasEnded = true
+            startFailsafeTimer()
             macroHasPlayedThisGame = false
             
                     if isRecording then
@@ -6083,6 +6222,7 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
             print("Auto Next enabled and game won - Voting for next stage...")
             local success, err = pcall(function()
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_raid")
             end)
             
             if success then
