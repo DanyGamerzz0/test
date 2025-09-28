@@ -1,4 +1,4 @@
-    -- 6.6
+    -- 6.7
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -807,7 +807,7 @@ end
 local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1]
     local upgradeAmount = actionInfo.args[3] or 1 -- Default to single upgrade if no amount specified
-    local preActionMoney = actionInfo.preActionMoney
+    local preUpgradeLevel = actionInfo.preUpgradeLevel -- Get the captured pre-upgrade level
     
     -- Find the unit that matches the remote parameter
     local upgradedUnit = nil
@@ -841,94 +841,48 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    -- FIXED: Get the level BEFORE the remote was processed
-    -- We need to capture this from the actionInfo's pre-action state or estimate it
-    local levelBeforeRemote = getUnitUpgradeLevel(upgradedUnit) - 1
-
-    if levelBeforeRemote < 0 then levelBeforeRemote = 0 end
+    -- Get the current level (after upgrade attempt)
+    local currentLevel = getUnitUpgradeLevel(upgradedUnit)
+    local originalLevel = preUpgradeLevel or 0 -- Use captured level or default to 0
     
-    print(string.format("Recording upgrade attempt: %s at level %d (trying x%d upgrades)", 
-        placementId, levelBeforeRemote, upgradeAmount))
+    print(string.format("Upgrade check: %s from level %d to level %d", 
+        placementId, originalLevel, currentLevel))
     
-    -- Wait for the upgrade to process, then check if it actually happened
-    task.spawn(function()
-        local maxWaitTime = 3.0 -- Max time to wait for upgrade confirmation
-        local checkInterval = 0.1 -- How often to check
-        local startTime = tick()
+    -- Simple check: did the level actually increase?
+    if currentLevel > originalLevel then
+        local actualUpgradeAmount = currentLevel - originalLevel
+        local gameRelativeTime = actionInfo.timestamp - gameStartTime
         
-        local originalLevel = levelBeforeRemote
-        local finalLevel = originalLevel
-        local upgradeDetected = false
+        -- Store upgrade record
+        local upgradeRecord = {
+            Type = "upgrade_unit_ingame",
+            Unit = placementId,
+            Time = string.format("%.2f", gameRelativeTime),
+            Amount = actualUpgradeAmount > 1 and actualUpgradeAmount or nil -- Only store amount if > 1
+        }
         
-        while tick() - startTime < maxWaitTime do
-            -- Re-find the unit (it might have changed references)
-            local currentUnit = nil
-            local currentUnitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-            
-            if currentUnitsFolder then
-                for _, unit in pairs(currentUnitsFolder:GetChildren()) do
-                    if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
-                        currentUnit = unit
-                        break
-                    end
-                end
-            end
-            
-            if currentUnit then
-                local currentLevel = getUnitUpgradeLevel(currentUnit)
-                
-                -- FIXED: Only consider it successful if the level actually increased
-                if currentLevel > originalLevel then
-                    finalLevel = currentLevel
-                    upgradeDetected = true
-                    print(string.format("Upgrade detected: %s level %d -> %d", placementId, originalLevel, finalLevel))
-                    break -- Stop checking once we detect the upgrade
-                end
-            else
-                -- Unit was sold/destroyed during upgrade, don't record
-                print("Unit was destroyed during upgrade validation:", placementId)
-                return
-            end
-            
-            task.wait(checkInterval)
-        end
+        table.insert(macro, upgradeRecord)
         
-        -- FIXED: Only record if upgrade actually happened (level increased)
-        if upgradeDetected and finalLevel > originalLevel then
-            local actualUpgradeAmount = finalLevel - originalLevel
-            local gameRelativeTime = actionInfo.timestamp - gameStartTime
-            
-            -- Store upgrade record with actual amount that happened
-            local upgradeRecord = {
-                Type = "upgrade_unit_ingame",
-                Unit = placementId,
-                Time = string.format("%.2f", gameRelativeTime),
-                Amount = actualUpgradeAmount > 1 and actualUpgradeAmount or nil -- Only store amount if > 1
-            }
-            
-            table.insert(macro, upgradeRecord)
-            
-            local upgradeText = actualUpgradeAmount > 1 and 
-                string.format("multi-upgrade x%d", actualUpgradeAmount) or "upgrade"
-            
-            print(string.format("Recorded successful %s: %s (level %d -> %d, spawn_id: %s)", 
-                upgradeText, placementId, originalLevel, finalLevel, tostring(spawnId)))
-            Rayfield:Notify({
-                Title = "Macro Recorder",
-                Content = string.format("Recorded successful %s: %s (L%d->L%d)", upgradeText, placementId, originalLevel, finalLevel),
-                Duration = 3,
-                Image = 4483362458
-            })
-        else
-            print(string.format("Upgrade failed or no level change for %s (stayed at level %d), not recording", placementId, originalLevel))
-            Rayfield:Notify({
-                Title = "Macro Recorder",
-                Content = string.format("Upgrade failed for %s - not recorded (no level change)", placementId),
-                Duration = 2,
-                Image = 4483362458
-            })
-        end
-    end)
+        local upgradeText = actualUpgradeAmount > 1 and 
+            string.format("multi-upgrade x%d", actualUpgradeAmount) or "upgrade"
+        
+        print(string.format("Recorded successful %s: %s (level %d -> %d, spawn_id: %s)", 
+            upgradeText, placementId, originalLevel, currentLevel, tostring(spawnId)))
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = string.format("Recorded successful %s: %s (L%d->L%d)", upgradeText, placementId, originalLevel, currentLevel),
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        print(string.format("Upgrade failed for %s (level stayed at %d), not recording", placementId, currentLevel))
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = string.format("Upgrade failed for %s - not recorded (no level change)", placementId),
+            Duration = 2,
+            Image = 4483362458
+        })
+    end
 end
 
 local function parseUnitString(unitString)
@@ -1104,6 +1058,26 @@ local function setupMacroHooksRefactored()
         if not checkcaller() then
             if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
                 
+                -- Capture pre-upgrade level BEFORE calling the remote
+                local preUpgradeLevel = nil
+                if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
+                    local unitName = args[1]
+                    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                    if unitsFolder then
+                        for _, unit in pairs(unitsFolder:GetChildren()) do
+                            if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
+                                preUpgradeLevel = getUnitUpgradeLevel(unit)
+                                print("Captured pre-upgrade level:", preUpgradeLevel, "for unit:", unitName)
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- Call the original remote first
+                local result = oldNamecall(self, ...)
+                
+                -- Then process the action with the captured data
                 task.spawn(function()
                     local timestamp = tick()
                     
@@ -1122,11 +1096,14 @@ local function setupMacroHooksRefactored()
                         args = args,
                         timestamp = timestamp,
                         preActionMoney = preActionMoney,
-                        preActionUnits = preActionUnits
+                        preActionUnits = preActionUnits,
+                        preUpgradeLevel = preUpgradeLevel -- Add the captured level
                     }
                     
-                    processActionResponseWithSpawnIdMapping(actionInfo) -- Use refactored version
+                    processActionResponseWithSpawnIdMapping(actionInfo)
                 end)
+                
+                return result -- Return the result from the original call
             end
         end
         
