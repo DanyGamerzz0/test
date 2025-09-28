@@ -1,4 +1,4 @@
-    -- 7.2
+    -- 7.3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1520,19 +1520,22 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         else
             updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
                 actionIndex, totalActionCount, attempt, maxRetries))
+            
+            -- Only continue retry loop if we haven't hit max attempts
+            if attempt < maxRetries then
+                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
+                    actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                -- Continue to next attempt (this will loop back to the top of the for loop)
+            end
+            -- If this was the last attempt, the for loop will naturally end and reach the final return true
         end
-        
-        -- Only continue retry loop if we haven't hit max attempts
-        if attempt < maxRetries then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
-                actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
-            task.wait(VALIDATION_CONFIG.RETRY_DELAY)
-        end
-    end
+    end -- This closes the "for attempt = 1, maxRetries do" loop
     
-updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts - continuing macro", 
-    actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
-return true
+    -- This runs after all retry attempts are exhausted
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts - continuing macro", 
+        actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
+    return true
 end
 
 local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
