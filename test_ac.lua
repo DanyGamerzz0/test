@@ -1,4 +1,4 @@
-    -- 7.5
+    -- 7.66
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1517,26 +1517,22 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 originalLevel, lastKnownLevel, successfulUpgrades, upgradeAmount))
             -- Consider partial success as success if we got at least some upgrades
             return true
-        else
-    updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
-        actionIndex, totalActionCount, attempt, maxRetries))
-    
-    print("DEBUG: About to check retry condition - attempt:", attempt, "maxRetries:", maxRetries)
-    
-    if attempt < maxRetries then
-        print("DEBUG: Will retry - waiting for delay")
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
-            actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
-        task.wait(VALIDATION_CONFIG.RETRY_DELAY)
-        print("DEBUG: Finished waiting, continuing to next attempt")
-    else
-        print("DEBUG: Final attempt failed, breaking out of loop")
-        break
+         else
+            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
+                actionIndex, totalActionCount, attempt, maxRetries))
+            
+            if attempt < maxRetries then
+                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
+                    actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
+                task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+            else
+                -- Final attempt failed, exit function and continue macro
+                updateDetailedStatus(string.format("(%d/%d) All upgrade attempts failed - continuing macro", 
+                    actionIndex, totalActionCount))
+                return true
+            end
+        end
     end
-end
-    end -- This closes the "for attempt = 1, maxRetries do" loop
-    
-    -- This runs after all retry attempts are exhausted
     updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts - continuing macro", 
         actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
     return true
