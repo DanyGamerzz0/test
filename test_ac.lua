@@ -1,4 +1,4 @@
-    -- 7.7
+    -- 8
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -6169,37 +6169,43 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
             return
         end
         
-        -- NEW: Priority 1: Auto Next Gate (highest priority when both Auto Join Gate and Auto Next Gate are enabled)
-        if State.AutoNextGate and State.AutoJoinGate then
-            print("Auto Next Gate enabled - Finding and joining next gate...")
-            
-            local bestGate = findBestGate()
-            if bestGate then
-                local success, err = pcall(function()
-                    local args = {
-                        "play_gate_next",
-                        {
-                            GateUuid = bestGate.id
-                        }
-                    }
-                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer(unpack(args))
-                end)
-                
-                if success then
-                    print("Successfully voted for next gate:", bestGate.id, "Type:", bestGate.type, "Modifier:", bestGate.modifier)
-                    notify("Auto Next Gate", string.format("Joining next %s Gate with %s modifier", bestGate.type, bestGate.modifier), 5)
-                else
-                    warn("Failed to vote for next gate:", err)
-                    notify("Auto Next Gate", "Failed to join next gate - falling back to other auto vote options", 3)
-                    -- Don't return here, let it fall through to other options
-                end
-                return -- Exit early if successful
+if State.AutoNextGate and State.AutoJoinGate then
+    print("Auto Next Gate enabled - Finding and joining next gate...")
+    
+    local bestGate = findBestGate()
+    if bestGate then
+        if State.AutoMatchmakeGateStage then
+            local success, err = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_GATE",{GateUuid = tonumber(bestGate.id)})
+            end)
+            if success then
+                print("Successfully started matchmaking for next gate:", bestGate.id, "Type:", bestGate.type, "Modifier:", bestGate.modifier)
+                notify("Auto Next Gate", string.format("Matchmaking next %s Gate with %s modifier", bestGate.type, bestGate.modifier), 5)
             else
-                print("No acceptable gates available for Auto Next Gate")
-                notify("Auto Next Gate", "No acceptable gates available - falling back to other auto vote options", 3)
+                warn("Failed to matchmake next gate:", err)
+                notify("Auto Next Gate", "Failed to matchmake next gate - falling back to other auto vote options", 3)
+            end
+        else
+            local success, err = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("play_gate_next",{GateUuid = bestGate.id})
+            end)
+            
+            if success then
+                print("Successfully voted for next gate:", bestGate.id, "Type:", bestGate.type, "Modifier:", bestGate.modifier)
+                notify("Auto Next Gate", string.format("Solo joining next %s Gate with %s modifier", bestGate.type, bestGate.modifier), 5)
+            else
+                warn("Failed to vote for next gate:", err)
+                notify("Auto Next Gate", "Failed to join next gate - falling back to other auto vote options", 3)
                 -- Don't return here, let it fall through to other options
             end
         end
+        return -- Exit early if we attempted gate logic (successful or not)
+    else
+        print("No acceptable gates available for Auto Next Gate")
+        notify("Auto Next Gate", "No acceptable gates available - falling back to other auto vote options", 3)
+        -- Don't return here, let it fall through to other options
+    end
+end
         
         -- Priority 2: Auto Retry (high priority)
         if State.AutoVoteRetry then
