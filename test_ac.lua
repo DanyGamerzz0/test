@@ -1,4 +1,4 @@
-    -- 7.0
+    -- 7.1
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1520,6 +1520,7 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         else
             updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
                 actionIndex, totalActionCount, attempt, maxRetries))
+            return true
         end
         
         -- Only continue retry loop if we haven't hit max attempts
