@@ -1,4 +1,4 @@
-    -- 6.7
+    -- 6.8
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1074,10 +1074,6 @@ local function setupMacroHooksRefactored()
                     end
                 end
                 
-                -- Call the original remote first
-                local result = oldNamecall(self, ...)
-                
-                -- Then process the action with the captured data
                 task.spawn(function()
                     local timestamp = tick()
                     
@@ -1102,8 +1098,6 @@ local function setupMacroHooksRefactored()
                     
                     processActionResponseWithSpawnIdMapping(actionInfo)
                 end)
-                
-                return result -- Return the result from the original call
             end
         end
         
