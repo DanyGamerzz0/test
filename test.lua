@@ -3316,7 +3316,7 @@ local function RerollTraits(unit)
 end
 
 local function StartAutoReroll(selectedTraits)
-    if not isInLobby() then -- Assuming you have this function from your curse system
+    if not isInLobby() then
         notify("Auto Reroll", "Must be in lobby to use auto reroll!")
         return
     end
@@ -3334,7 +3334,6 @@ local function StartAutoReroll(selectedTraits)
     task.spawn(function()
         local attempts = 0
         
-        -- Dynamic success message based on mode
         local targetMessage
         if State.rollOnlyDoubleTraits then
             targetMessage = string.format("Looking for 2 traits from: %s", table.concat(selectedTraits, ", "))
@@ -3354,6 +3353,10 @@ local function StartAutoReroll(selectedTraits)
                 task.wait(3)
                 continue
             end
+            
+            -- Store traits before reroll for comparison
+            local beforePrimary = currentTraits.primary
+            local beforeSecondary = currentTraits.secondary
             
             -- Check if current traits match our requirements
             if TraitsMatch(currentTraits, selectedTraits, State.rollOnlyDoubleTraits) then
@@ -3383,8 +3386,38 @@ local function StartAutoReroll(selectedTraits)
                 continue
             end
             
-            -- Wait a bit before checking results
-            task.wait(0.5)
+            -- Wait for traits to actually change (with timeout)
+            local maxWaitTime = 2 -- Maximum 2 seconds to wait for change
+            local checkInterval = 0.05 -- Check every 50ms
+            local elapsed = 0
+            local traitsChanged = false
+            
+            while elapsed < maxWaitTime and State.AutoRerollEnabled do
+                task.wait(checkInterval)
+                elapsed = elapsed + checkInterval
+                
+                local newTraits = GetSelectedUnitTraits()
+                if newTraits then
+                    -- Check if traits actually changed
+                    if newTraits.primary ~= beforePrimary or newTraits.secondary ~= beforeSecondary then
+                        traitsChanged = true
+                        
+                        -- If we rolled the same trait (rare edge case), take a validation pause
+                        if newTraits.primary == beforePrimary and newTraits.secondary == beforeSecondary then
+                            print("Warning: Rolled identical traits - taking validation pause")
+                            task.wait(0.5)
+                        end
+                        
+                        break
+                    end
+                end
+            end
+            
+            -- If traits didn't change after timeout, add safety pause
+            if not traitsChanged then
+                print("Warning: Traits didn't change after reroll - adding safety pause")
+                task.wait(0.5)
+            end
             
             -- Progress notification every 20 attempts
             if attempts % 20 == 0 then
