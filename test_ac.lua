@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -807,6 +807,18 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1]
     local upgradeAmount = actionInfo.args[3] or 1 -- Get the actual amount from remote call
     local preUpgradeLevel = actionInfo.preUpgradeLevel -- Get the captured pre-upgrade level
+    local preUpgradeSpawnId = actionInfo.preUpgradeSpawnId
+
+        if not preUpgradeSpawnId then
+        warn("Could not get pre-upgrade spawn_id")
+        return
+    end
+
+        local placementId = recordingSpawnIdToPlacement[tostring(preUpgradeSpawnId)]
+    if not placementId then
+        warn("Could not find placement mapping for spawn_id:", preUpgradeSpawnId)
+        return
+    end
     
     -- Find the unit that matches the remote parameter
     local upgradedUnit = nil
@@ -1062,6 +1074,7 @@ local function setupMacroHooksRefactored()
             if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
                 task.spawn(function()
                     local preUpgradeLevel = nil
+                    local preUpgradeSpawnId = nil
                 if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
                     local unitName = args[1]
                     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
@@ -1069,7 +1082,8 @@ local function setupMacroHooksRefactored()
                         for _, unit in pairs(unitsFolder:GetChildren()) do
                             if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
                                 preUpgradeLevel = getUnitUpgradeLevel(unit)
-                                print("Captured pre-upgrade level:", preUpgradeLevel, "for unit:", unitName)
+                                preUpgradeSpawnId = getUnitSpawnId(unit)
+                                print("Captured pre-upgrade level:", preUpgradeLevel, "spawn_id:", preUpgradeSpawnId, "for unit:", unitName)
                                 break
                             end
                         end
@@ -1093,7 +1107,8 @@ local function setupMacroHooksRefactored()
                         timestamp = timestamp,
                         preActionMoney = preActionMoney,
                         preActionUnits = preActionUnits,
-                        preUpgradeLevel = preUpgradeLevel -- Add the captured level
+                        preUpgradeLevel = preUpgradeLevel, -- Add the captured level
+                        preUpgradeSpawnId = preUpgradeSpawnId
                     }
                     
                     processActionResponseWithSpawnIdMapping(actionInfo)
