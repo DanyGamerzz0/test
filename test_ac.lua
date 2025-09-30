@@ -1,4 +1,4 @@
-    -- 8
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -581,33 +581,38 @@ local function resolveUUIDFromInternalName(internalName)
     if not internalName then return nil end
     
     local success, uuid = pcall(function()
-        -- Search through ReplicatedStorage for unit data
-        local function searchForUnit(parent)
-            for _, child in pairs(parent:GetChildren()) do
-                -- Check if this child has ITEMINDEX attribute matching our internal name
-                local itemIndex = child:GetAttribute("ITEMINDEX")
-                if itemIndex == internalName then
-                    -- Found matching unit, look for _uuid
-                    local uuidValue = child:FindFirstChild("_uuid")
-                    if uuidValue and uuidValue:IsA("StringValue") then
-                        return uuidValue.Value
+        local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+        if not fxCache then return nil end
+        
+        for _, child in pairs(fxCache:GetChildren()) do
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            
+            if itemIndex == internalName then
+                -- Check if this unit is equipped using EquippedList
+                local equippedList = child:FindFirstChild("EquippedList")
+                if equippedList then
+                    local equipped = equippedList:FindFirstChild("Equipped")
+                    if equipped and equipped.Visible == true then
+                        local uuidValue = child:FindFirstChild("_uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            print("Found EQUIPPED", internalName, "UUID:", uuidValue.Value)
+                            return uuidValue.Value
+                        end
                     end
                 end
-                
-                -- Recursively search in subfolders
-                if child:IsA("Folder") then
-                    local result = searchForUnit(child)
-                    if result then return result end
-                end
             end
-            return nil
         end
         
-        -- Start search from ReplicatedStorage
-        return searchForUnit(game:GetService("ReplicatedStorage")._FX_CACHE)
+        print("WARNING: No equipped unit found for", internalName)
+        return nil
     end)
     
-    return success and uuid or nil
+    if not success then
+        warn("Error resolving UUID for", internalName, ":", uuid)
+        return nil
+    end
+    
+    return uuid
 end
 
     local function updateDetailedStatus(message)
