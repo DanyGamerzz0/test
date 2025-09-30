@@ -193,6 +193,7 @@ local State = {
     autoHolyGrailEnabled = false,
     autoGrailDungeonEnabled = false,
     AutoGrailDungeonDifficultySelector = nil,
+    autoAscensionEnabled = false,
 }
 
 local Data = {
@@ -220,7 +221,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.14"
+local script_version = "V0.15"
 
 local ValidWebhook
 
@@ -1643,6 +1644,8 @@ local function setProcessingState(action)
             notify("🔄 Processing: ", action)
             elseif action == "Expidition Mode Auto Join" then
             notify("🔄 Processing: ", action)
+            elseif action == "Ascension Mode Auto Join" then
+            notify("🔄 Processing: ", action)
     end
 end
 
@@ -2099,6 +2102,16 @@ local function checkAndExecuteHighestPriority()
         setProcessingState("Holy Grail War Mode Auto Join")
 
         Remotes.PlayEvent:FireServer("Fate Mode")
+        task.wait(1)
+        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+        task.delay(5, clearProcessingState)
+        return
+    end
+
+    if State.autoAscensionEnabled then
+        setProcessingState("Ascension Mode Auto Join")
+
+        Remotes.PlayEvent:FireServer("AscensionEvent")
         task.wait(1)
         Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
         task.delay(5, clearProcessingState)
@@ -3404,7 +3417,7 @@ local function StartAutoReroll(selectedTraits)
                         
                         -- If we rolled the same trait (rare edge case), take a validation pause
                         if newTraits.primary == beforePrimary and newTraits.secondary == beforeSecondary then
-                            print("Warning: Rolled identical traits - taking validation pause")
+                            notify("Auto Reroll","Warning: Rolled identical traits - taking pause to ensure accuracy")
                             task.wait(0.5)
                         end
                         
@@ -5135,6 +5148,17 @@ end)
     Flag = "AutoGrailDungeonToggle",
     Callback = function(Value)
         State.autoGrailDungeonEnabled = Value
+    end,
+    })
+
+    JoinerSectionDungeons = JoinerTab:CreateSection("✨ Ascension Mode Joiner ✨")
+
+    AutoJoinAscensionModeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Ascension Mode",
+    CurrentValue = false,
+    Flag = "AutoAscensionModeToggle",
+    Callback = function(Value)
+        State.autoAscensionEnabled = Value
     end,
     })
 
