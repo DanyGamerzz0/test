@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -125,6 +125,7 @@ local currentChallenge = nil
 local macroHasPlayedThisGame = false
 local waveStartTimes = 0
 
+local lastRecordedUpgrade = {}
 local recordingSpawnIdToPlacement = {} -- spawn_id -> "Shadow #1"
 local recordingPlacementCounter = {} -- "Shadow" -> 3 (how many placed so far)
 local recordingUnitNameToSpawnId = {}
@@ -819,6 +820,15 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         warn("Could not find placement mapping for spawn_id:", preUpgradeSpawnId)
         return
     end
+
+    local upgradeKey = placementId .. "_" .. tostring(preUpgradeLevel)
+    local now = tick()
+
+        if lastRecordedUpgrade[upgradeKey] and (now - lastRecordedUpgrade[upgradeKey]) < 0.5 then
+        print(string.format("⚠️ UPGRADE BLOCKED: %s level %d->? was just recorded %.2fs ago", 
+            placementId, preUpgradeLevel, now - lastRecordedUpgrade[upgradeKey]))
+        return
+    end
     
     -- Find the unit that matches the remote parameter
     local upgradedUnit = nil
@@ -876,6 +886,7 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     end
     
     if currentLevel <= originalLevel then
+        lastRecordedUpgrade[upgradeKey] = now
         print(string.format("❌ UPGRADE TIMEOUT: Level stayed at %d after %.2fs (%d)", 
             currentLevel, tick() - waitStart, pollCount))
     end
