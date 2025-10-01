@@ -1,4 +1,4 @@
-    -- 3
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.04"
+    local script_version = "V0.05"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -805,16 +805,16 @@ end
 
 local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1]
-    local upgradeAmount = actionInfo.args[3] or 1 -- Get the actual amount from remote call
-    local preUpgradeLevel = actionInfo.preUpgradeLevel -- Get the captured pre-upgrade level
+    local upgradeAmount = actionInfo.args[3] or 1
+    local preUpgradeLevel = actionInfo.preUpgradeLevel
     local preUpgradeSpawnId = actionInfo.preUpgradeSpawnId
 
-        if not preUpgradeSpawnId then
+    if not preUpgradeSpawnId then
         warn("Could not get pre-upgrade spawn_id")
         return
     end
 
-        local placementId = recordingSpawnIdToPlacement[tostring(preUpgradeSpawnId)]
+    local placementId = recordingSpawnIdToPlacement[tostring(preUpgradeSpawnId)]
     if not placementId then
         warn("Could not find placement mapping for spawn_id:", preUpgradeSpawnId)
         return
@@ -838,28 +838,52 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    -- Get the spawn_id from the upgraded unit
     local spawnId = getUnitSpawnId(upgradedUnit)
     if not spawnId then
         warn("Could not get spawn_id from upgraded unit")
         return
     end
     
-    -- Look up the logical placement identifier
     local placementId = recordingSpawnIdToPlacement[tostring(spawnId)]
     if not placementId then
         warn("Could not find placement mapping for spawn_id:", spawnId)
         return
     end
     
-    -- Get the current level (after upgrade attempt)
-    local currentLevel = getUnitUpgradeLevel(upgradedUnit)
-    local originalLevel = preUpgradeLevel or 0 -- Use captured level or default to 0
+    local originalLevel = preUpgradeLevel or 0
+    
+    -- POLLING FIX with detailed logging
+    print(string.format("⏳ UPGRADE START: %s (original level: %d)", placementId, originalLevel))
+    
+    local maxWaitTime = 3.0
+    local waitStart = tick()
+    local currentLevel = originalLevel
+    local pollCount = 0
+    
+    while tick() - waitStart < maxWaitTime do
+        currentLevel = getUnitUpgradeLevel(upgradedUnit)
+        pollCount = pollCount + 1
+        
+        print(string.format("  UpgradeTiming #%d: level = %d (elapsed: %.2fs)", pollCount, currentLevel, tick() - waitStart))
+        
+        if currentLevel > originalLevel then
+            print(string.format("✅ LEVEL CHANGED: %d -> %d after %.2fs (%d)", 
+                originalLevel, currentLevel, tick() - waitStart, pollCount))
+            break
+        end
+        
+        task.wait(0.1)
+    end
+    
+    if currentLevel <= originalLevel then
+        print(string.format("❌ UPGRADE TIMEOUT: Level stayed at %d after %.2fs (%d)", 
+            currentLevel, tick() - waitStart, pollCount))
+    end
     
     print(string.format("Upgrade check: %s from level %d to level %d (remote amount: %d)", 
         placementId, originalLevel, currentLevel, upgradeAmount))
     
-    -- Simple check: did the level actually increase?
+    -- Check: did the level actually increase?
     if currentLevel > originalLevel then
         local gameRelativeTime = actionInfo.timestamp - gameStartTime
         
