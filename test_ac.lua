@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -821,7 +821,7 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    -- Find the unit that matches the remote parameter
+    -- Find the unit
     local upgradedUnit = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
@@ -839,30 +839,25 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    local spawnId = getUnitSpawnId(upgradedUnit)
-    if not spawnId then
-        warn("Could not get spawn_id from upgraded unit")
-        return
-    end
+    -- REMOVE these lines - we already have placementId:
+    -- local spawnId = getUnitSpawnId(upgradedUnit)
+    -- if not spawnId then ... end
+    -- local placementId = recordingSpawnIdToPlacement[tostring(spawnId)]
+    -- if not placementId then ... end
     
-    local placementId = recordingSpawnIdToPlacement[tostring(spawnId)]
-    if not placementId then
-        warn("Could not find placement mapping for spawn_id:", spawnId)
-        return
-    end
-    
-    -- NOW define originalLevel
+    -- Get current level and verify
     local originalLevel = preUpgradeLevel or 0
-
-    -- Verify it hasn't already changed (spam-click protection)
     local currentLevelNow = getUnitUpgradeLevel(upgradedUnit)
+    
+    print(string.format("Pre-upgrade level from hook: %d, Current level now: %d", originalLevel, currentLevelNow))
+    
     if currentLevelNow > originalLevel then
         print(string.format("⚠️ Level already changed %d -> %d before polling started, using %d as baseline", 
             originalLevel, currentLevelNow, currentLevelNow))
         originalLevel = currentLevelNow
     end
     
-    -- NOW check for duplicates (after originalLevel is properly set)
+    -- Check for duplicates
     local upgradeKey = placementId .. "_" .. tostring(originalLevel)
     local now = tick()
 
