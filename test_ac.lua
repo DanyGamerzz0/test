@@ -1,4 +1,4 @@
-    -- 6
+    -- 7
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1106,7 +1106,7 @@ mt.__namecall = newcclosure(function(self, ...)
     if not checkcaller() then
         if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
             
-            -- CRITICAL: Capture pre-upgrade state SYNCHRONOUSLY before remote fires
+            -- UPGRADE: Capture pre-state BEFORE remote fires
             if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
                 local unitName = args[1]
                 local upgradeAmount = args[3] or 1
@@ -1118,7 +1118,7 @@ mt.__namecall = newcclosure(function(self, ...)
                             local preLevel = getUnitUpgradeLevel(unit)
                             local preSpawnId = getUnitSpawnId(unit)
                             
-                            -- Store in pending table for Heartbeat to monitor
+                            -- Queue for monitoring AFTER remote completes
                             pendingUpgrades[unitName] = {
                                 preLevel = preLevel,
                                 preSpawnId = preSpawnId,
@@ -1127,7 +1127,7 @@ mt.__namecall = newcclosure(function(self, ...)
                                 processed = false
                             }
                             
-                            print(string.format("⏰ Queued upgrade monitoring: %s at level %d (spawn_id: %s)", 
+                            print(string.format("⏰ Queued upgrade: %s at L%d (spawn_id: %s)", 
                                 unitName, preLevel, tostring(preSpawnId)))
                             break
                         end
@@ -1135,7 +1135,7 @@ mt.__namecall = newcclosure(function(self, ...)
                 end
             end
             
-            -- Handle spawn actions (unchanged)
+            -- SPAWN: Process asynchronously (unchanged)
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
                 task.spawn(function()
                     local timestamp = tick()
@@ -1159,6 +1159,7 @@ mt.__namecall = newcclosure(function(self, ...)
         end
     end
     
+    -- Remote fires HERE - upgrade happens on server
     return oldNamecall(self, ...)
 end)
 
