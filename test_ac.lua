@@ -1,4 +1,4 @@
-    -- 4
+    -- 5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1111,10 +1111,9 @@ mt.__namecall = newcclosure(function(self, ...)
     
     if not checkcaller() then
         if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
-            -- Capture pre-upgrade state BEFORE the call
+            -- Capture pre-upgrade state synchronously BEFORE the remote call
             local preUpgradeLevel = nil
             local preUpgradeSpawnId = nil
-            local capturedUnit = nil
             
             if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
                 local unitName = args[1]
@@ -1124,29 +1123,26 @@ mt.__namecall = newcclosure(function(self, ...)
                         if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
                             preUpgradeLevel = getUnitUpgradeLevel(unit)
                             preUpgradeSpawnId = getUnitSpawnId(unit)
-                            capturedUnit = unit
-                            print("✅ Captured BEFORE remote call - Level:", preUpgradeLevel, "spawn_id:", preUpgradeSpawnId)
+                            print("Captured pre-upgrade level:", preUpgradeLevel, "spawn_id:", preUpgradeSpawnId, "for unit:", unitName)
                             break
                         end
                     end
                 end
             end
             
-            -- Now spawn async processing AFTER capturing
+            -- Spawn async processing AFTER we've captured but BEFORE we return
             task.spawn(function()
                 local timestamp = tick()
                 
                 if gameStartTime == 0 then
                     gameStartTime = tick()
+                    print("Setting game start time in hook:", gameStartTime)
                 end
                 
                 local preActionMoney = getPlayerMoney()
                 local preActionUnits = takeUnitsSnapshot()
                 
-                -- Only wait for non-upgrade actions
-                if self.Name ~= MACRO_CONFIG.UPGRADE_REMOTE then
-                    task.wait(0.2)
-                end
+                task.wait(0.2)
                 
                 local actionInfo = {
                     remoteName = self.Name,
@@ -1163,6 +1159,7 @@ mt.__namecall = newcclosure(function(self, ...)
         end
     end
     
+    -- CRITICAL: This must always execute to let the actual remote call through
     return oldNamecall(self, ...)
 end)
 
