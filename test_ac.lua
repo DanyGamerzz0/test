@@ -1,4 +1,4 @@
-    -- 3
+    -- 4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1105,58 +1105,66 @@ local function setupMacroHooksRefactored()
     local oldNamecall = mt.__namecall
     setreadonly(mt, false)
 
-    mt.__namecall = newcclosure(function(self, ...)
-        local args = { ... }
-        local method = getnamecallmethod()
-        
-        if not checkcaller() then
-            if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
-                task.spawn(function()
-                    local preUpgradeLevel = nil
-                    local preUpgradeSpawnId = nil
-                if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
-                    local unitName = args[1]
-                    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-                    if unitsFolder then
-                        for _, unit in pairs(unitsFolder:GetChildren()) do
-                            if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
-                                preUpgradeLevel = getUnitUpgradeLevel(unit)
-                                preUpgradeSpawnId = getUnitSpawnId(unit)
-                                print("Captured pre-upgrade level:", preUpgradeLevel, "spawn_id:", preUpgradeSpawnId, "for unit:", unitName)
-                                break
-                            end
+mt.__namecall = newcclosure(function(self, ...)
+    local args = { ... }
+    local method = getnamecallmethod()
+    
+    if not checkcaller() then
+        if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
+            -- Capture pre-upgrade state BEFORE the call
+            local preUpgradeLevel = nil
+            local preUpgradeSpawnId = nil
+            local capturedUnit = nil
+            
+            if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
+                local unitName = args[1]
+                local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                if unitsFolder then
+                    for _, unit in pairs(unitsFolder:GetChildren()) do
+                        if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
+                            preUpgradeLevel = getUnitUpgradeLevel(unit)
+                            preUpgradeSpawnId = getUnitSpawnId(unit)
+                            capturedUnit = unit
+                            print("✅ Captured BEFORE remote call - Level:", preUpgradeLevel, "spawn_id:", preUpgradeSpawnId)
+                            break
                         end
                     end
                 end
-                    local timestamp = tick()
-                    
-                    if gameStartTime == 0 then
-                        gameStartTime = tick()
-                        print("Setting game start time in hook:", gameStartTime)
-                    end
-                    
-                    local preActionMoney = getPlayerMoney()
-                    local preActionUnits = takeUnitsSnapshot()
-                    
-                    task.wait(0.2)
-                    
-                    local actionInfo = {
-                        remoteName = self.Name,
-                        args = args,
-                        timestamp = timestamp,
-                        preActionMoney = preActionMoney,
-                        preActionUnits = preActionUnits,
-                        preUpgradeLevel = preUpgradeLevel, -- Add the captured level
-                        preUpgradeSpawnId = preUpgradeSpawnId
-                    }
-                    
-                    processActionResponseWithSpawnIdMapping(actionInfo)
-                end)
             end
+            
+            -- Now spawn async processing AFTER capturing
+            task.spawn(function()
+                local timestamp = tick()
+                
+                if gameStartTime == 0 then
+                    gameStartTime = tick()
+                end
+                
+                local preActionMoney = getPlayerMoney()
+                local preActionUnits = takeUnitsSnapshot()
+                
+                -- Only wait for non-upgrade actions
+                if self.Name ~= MACRO_CONFIG.UPGRADE_REMOTE then
+                    task.wait(0.2)
+                end
+                
+                local actionInfo = {
+                    remoteName = self.Name,
+                    args = args,
+                    timestamp = timestamp,
+                    preActionMoney = preActionMoney,
+                    preActionUnits = preActionUnits,
+                    preUpgradeLevel = preUpgradeLevel,
+                    preUpgradeSpawnId = preUpgradeSpawnId
+                }
+                
+                processActionResponseWithSpawnIdMapping(actionInfo)
+            end)
         end
-        
-        return oldNamecall(self, ...)
-    end)
+    end
+    
+    return oldNamecall(self, ...)
+end)
 
     setreadonly(mt, true)
     print("Refactored macro hooks setup complete")
