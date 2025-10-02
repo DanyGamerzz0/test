@@ -1,4 +1,4 @@
-    -- 5
+    -- 6
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -804,7 +804,7 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded placement: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458})
 end
 
-local function processUpgradeActionWithSpawnIdMapping(actionInfo)
+--[[local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1]
     local upgradeAmount = actionInfo.args[3] or 1
     local preUpgradeLevel = actionInfo.preUpgradeLevel
@@ -937,7 +937,7 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
             Image = 4483362458
         })
     end
-end
+end--]]
 
 local function parseUnitString(unitString)
     -- Parse "DisplayName #InstanceNumber" format
@@ -1071,34 +1071,28 @@ end
 
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
-            Rayfield:Notify({
-   Title = "Macro Recorder",
-   Content = "Processing spawn action",
-   Duration = 2,
-   Image = 4483362458,
-})
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = "Processing spawn action",
+            Duration = 2,
+            Image = 4483362458,
+        })
         processPlacementActionWithSpawnIdMapping(actionInfo)
-    elseif actionInfo.remoteName == MACRO_CONFIG.UPGRADE_REMOTE then
-            Rayfield:Notify({
-   Title = "Macro Recorder",
-   Content = "Processing upgrade action",
-   Duration = 2,
-   Image = 4483362458,
-})
-        processUpgradeActionWithSpawnIdMapping(actionInfo)
     elseif actionInfo.remoteName == MACRO_CONFIG.SELL_REMOTE then
         processSellActionWithSpawnIdMapping(actionInfo)
-
     elseif actionInfo.remoteName == MACRO_CONFIG.WAVE_SKIP_REMOTE then
-            Rayfield:Notify({
-   Title = "Macro Recorder",
-   Content = "Processing wave skip action",
-   Duration = 2,
-   Image = 4483362458,
-})
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = "Processing wave skip action",
+            Duration = 2,
+            Image = 4483362458,
+        })
         processWaveSkipAction(actionInfo)
     end
+    -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
+
+local pendingUpgrades = {}
 
 local function setupMacroHooksRefactored()
     local mt = getrawmetatable(game)
@@ -1106,66 +1100,143 @@ local function setupMacroHooksRefactored()
     setreadonly(mt, false)
 
 mt.__namecall = newcclosure(function(self, ...)
-    local args = { ... }
+    local args = {...}
     local method = getnamecallmethod()
     
     if not checkcaller() then
         if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
-            -- Capture pre-upgrade state synchronously BEFORE the remote call
-            local preUpgradeLevel = nil
-            local preUpgradeSpawnId = nil
             
+            -- CRITICAL: Capture pre-upgrade state SYNCHRONOUSLY before remote fires
             if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
                 local unitName = args[1]
+                local upgradeAmount = args[3] or 1
                 local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                
                 if unitsFolder then
                     for _, unit in pairs(unitsFolder:GetChildren()) do
                         if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
-                            preUpgradeLevel = getUnitUpgradeLevel(unit)
-                            preUpgradeSpawnId = getUnitSpawnId(unit)
-                            print("Captured pre-upgrade level:", preUpgradeLevel, "spawn_id:", preUpgradeSpawnId, "for unit:", unitName)
+                            local preLevel = getUnitUpgradeLevel(unit)
+                            local preSpawnId = getUnitSpawnId(unit)
+                            
+                            -- Store in pending table for Heartbeat to monitor
+                            pendingUpgrades[unitName] = {
+                                preLevel = preLevel,
+                                preSpawnId = preSpawnId,
+                                timestamp = tick(),
+                                upgradeAmount = upgradeAmount,
+                                processed = false
+                            }
+                            
+                            print(string.format("⏰ Queued upgrade monitoring: %s at level %d (spawn_id: %s)", 
+                                unitName, preLevel, tostring(preSpawnId)))
                             break
                         end
                     end
                 end
             end
             
-            -- Spawn async processing AFTER we've captured but BEFORE we return
-            task.spawn(function()
-                local timestamp = tick()
-                
-                if gameStartTime == 0 then
-                    gameStartTime = tick()
-                    print("Setting game start time in hook:", gameStartTime)
-                end
-                
-                local preActionMoney = getPlayerMoney()
-                local preActionUnits = takeUnitsSnapshot()
-                
-                task.wait(0.2)
-                
-                local actionInfo = {
-                    remoteName = self.Name,
-                    args = args,
-                    timestamp = timestamp,
-                    preActionMoney = preActionMoney,
-                    preActionUnits = preActionUnits,
-                    preUpgradeLevel = preUpgradeLevel,
-                    preUpgradeSpawnId = preUpgradeSpawnId
-                }
-                
-                processActionResponseWithSpawnIdMapping(actionInfo)
-            end)
+            -- Handle spawn actions (unchanged)
+            if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
+                task.spawn(function()
+                    local timestamp = tick()
+                    if gameStartTime == 0 then
+                        gameStartTime = tick()
+                    end
+                    
+                    local preActionMoney = getPlayerMoney()
+                    local preActionUnits = takeUnitsSnapshot()
+                    task.wait(0.2)
+                    
+                    processActionResponseWithSpawnIdMapping({
+                        remoteName = self.Name,
+                        args = args,
+                        timestamp = timestamp,
+                        preActionMoney = preActionMoney,
+                        preActionUnits = preActionUnits
+                    })
+                end)
+            end
         end
     end
     
-    -- CRITICAL: This must always execute to let the actual remote call through
     return oldNamecall(self, ...)
 end)
 
     setreadonly(mt, true)
     print("Refactored macro hooks setup complete")
 end
+
+game:GetService("RunService").Heartbeat:Connect(function()
+    if not isRecording then return end
+    
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    if not unitsFolder then return end
+    
+    for unitName, upgradeData in pairs(pendingUpgrades) do
+        if upgradeData.processed then continue end
+        
+        -- Find the unit
+        local targetUnit = nil
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
+                targetUnit = unit
+                break
+            end
+        end
+        
+        if not targetUnit then
+            -- Unit was destroyed/sold before upgrade completed
+            print(string.format("❌ Unit %s lost before upgrade completed", unitName))
+            pendingUpgrades[unitName] = nil
+            continue
+        end
+        
+        local currentLevel = getUnitUpgradeLevel(targetUnit)
+        
+        -- Check if level increased
+        if currentLevel > upgradeData.preLevel then
+            print(string.format("✅ Upgrade confirmed: %s from level %d → %d (detected in %.3fs)", 
+                unitName, upgradeData.preLevel, currentLevel, tick() - upgradeData.timestamp))
+            
+            -- Process the upgrade now with correct pre-level
+            local placementId = recordingSpawnIdToPlacement[tostring(upgradeData.preSpawnId)]
+            
+            if placementId then
+                local gameRelativeTime = upgradeData.timestamp - gameStartTime
+                local upgradeRecord = {
+                    Type = "upgrade_unit_ingame",
+                    Unit = placementId,
+                    Time = string.format("%.2f", gameRelativeTime)
+                }
+                
+                if upgradeData.upgradeAmount > 1 then
+                    upgradeRecord.Amount = upgradeData.upgradeAmount
+                end
+                
+                table.insert(macro, upgradeRecord)
+                
+                print(string.format("📝 Recorded upgrade: %s (L%d→L%d)", 
+                    placementId, upgradeData.preLevel, currentLevel))
+                
+                Rayfield:Notify({
+                    Title = "Macro Recorder",
+                    Content = string.format("Recorded upgrade: %s (L%d→L%d)", 
+                        placementId, upgradeData.preLevel, currentLevel),
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            else
+                warn(string.format("No placement mapping for spawn_id: %s", tostring(upgradeData.preSpawnId)))
+            end
+            
+            pendingUpgrades[unitName] = nil
+        elseif tick() - upgradeData.timestamp > 5.0 then
+            -- Timeout after 5 seconds
+            warn(string.format("⏱️ Upgrade timeout for %s (stayed at level %d)", unitName, currentLevel))
+            pendingUpgrades[unitName] = nil
+        end
+    end
+end)
 
     -- File Management Functions
     local function ensureMacroFolders()
