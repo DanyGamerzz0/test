@@ -1,4 +1,4 @@
-    -- 3
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -820,15 +820,6 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         warn("Could not find placement mapping for spawn_id:", preUpgradeSpawnId)
         return
     end
-
-    local upgradeKey = placementId .. "_" .. tostring(preUpgradeLevel)
-    local now = tick()
-
-        if lastRecordedUpgrade[upgradeKey] and (now - lastRecordedUpgrade[upgradeKey]) < 0.5 then
-        print(string.format("⚠️ UPGRADE BLOCKED: %s level %d->? was just recorded %.2fs ago", 
-            placementId, preUpgradeLevel, now - lastRecordedUpgrade[upgradeKey]))
-        return
-    end
     
     -- Find the unit that matches the remote parameter
     local upgradedUnit = nil
@@ -860,7 +851,26 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         return
     end
     
+    -- NOW define originalLevel
     local originalLevel = preUpgradeLevel or 0
+
+    -- Verify it hasn't already changed (spam-click protection)
+    local currentLevelNow = getUnitUpgradeLevel(upgradedUnit)
+    if currentLevelNow > originalLevel then
+        print(string.format("⚠️ Level already changed %d -> %d before polling started, using %d as baseline", 
+            originalLevel, currentLevelNow, currentLevelNow))
+        originalLevel = currentLevelNow
+    end
+    
+    -- NOW check for duplicates (after originalLevel is properly set)
+    local upgradeKey = placementId .. "_" .. tostring(originalLevel)
+    local now = tick()
+
+    if lastRecordedUpgrade[upgradeKey] and (now - lastRecordedUpgrade[upgradeKey]) < 0.5 then
+        print(string.format("⚠️ UPGRADE BLOCKED: %s level %d was just recorded %.2fs ago", 
+            placementId, originalLevel, now - lastRecordedUpgrade[upgradeKey]))
+        return
+    end
     
     -- POLLING FIX with detailed logging
     print(string.format("⏳ UPGRADE START: %s (original level: %d)", placementId, originalLevel))
@@ -877,7 +887,7 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
         print(string.format("  UpgradeTiming #%d: level = %d (elapsed: %.2fs)", pollCount, currentLevel, tick() - waitStart))
         
         if currentLevel > originalLevel then
-            print(string.format("✅ LEVEL CHANGED: %d -> %d after %.2fs (%d)", 
+            print(string.format("✅ LEVEL CHANGED: %d -> %d after %.2fs (%d polls)", 
                 originalLevel, currentLevel, tick() - waitStart, pollCount))
             break
         end
@@ -886,8 +896,7 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     end
     
     if currentLevel <= originalLevel then
-        lastRecordedUpgrade[upgradeKey] = now
-        print(string.format("❌ UPGRADE TIMEOUT: Level stayed at %d after %.2fs (%d)", 
+        print(string.format("❌ UPGRADE TIMEOUT: Level stayed at %d after %.2fs (%d polls)", 
             currentLevel, tick() - waitStart, pollCount))
     end
     
@@ -896,20 +905,20 @@ local function processUpgradeActionWithSpawnIdMapping(actionInfo)
     
     -- Check: did the level actually increase?
     if currentLevel > originalLevel then
+        -- Mark as recorded BEFORE inserting into macro
+        lastRecordedUpgrade[upgradeKey] = now
+        
         local gameRelativeTime = actionInfo.timestamp - gameStartTime
         
-        -- Store upgrade record - only add Amount field if remote specified multi-upgrade
         local upgradeRecord = {
             Type = "upgrade_unit_ingame",
             Unit = placementId,
             Time = string.format("%.2f", gameRelativeTime)
         }
         
-        -- Only store amount if the remote call actually specified multi-upgrade
         if upgradeAmount > 1 then
             upgradeRecord.Amount = upgradeAmount
         end
-        -- For single upgrades (upgradeAmount == 1), don't include Amount field at all
         
         table.insert(macro, upgradeRecord)
         
