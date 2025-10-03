@@ -1,4 +1,4 @@
-    -- 6.7
+    -- 6.8
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -337,28 +337,6 @@ end
         end
     end
 
-    local function applyRandomOffset(originalPosition, offsetAmount)
-        if not State.RandomOffsetEnabled or not offsetAmount or offsetAmount <= 0 then
-            return originalPosition
-        end
-        
-        -- Generate random offsets for X and Z axes (keep Y the same for proper ground placement)
-        local randomX = (math.random() - 0.5) * 2 * offsetAmount -- Range: -offsetAmount to +offsetAmount
-        local randomZ = (math.random() - 0.5) * 2 * offsetAmount -- Range: -offsetAmount to +offsetAmount
-        
-        local newPosition = Vector3.new(
-            originalPosition.X + randomX,
-            originalPosition.Y, -- Keep original Y position
-            originalPosition.Z + randomZ
-        )
-        
-        print(string.format("Applied random offset: (%.2f, %.2f, %.2f) -> (%.2f, %.2f, %.2f)", 
-            originalPosition.X, originalPosition.Y, originalPosition.Z,
-            newPosition.X, newPosition.Y, newPosition.Z))
-        
-        return newPosition
-    end
-
 local function startRecordingWithSpawnIdMapping()
     table.clear(macro)
     clearSpawnIdMappings() -- Clear all temporary mappings
@@ -380,25 +358,6 @@ end
         if type(name) == "table" then name = name[1] or "" end
         if type(name) ~= "string" or name == "" then return nil end
         return "LixHub/Macros/AC/" .. name .. ".json"
-    end
-
-    local function serializeVector3(v)
-        return { x = v.X, y = v.Y, z = v.Z }
-    end
-
-    local function serializeCFrame(cframe)
-        if not cframe then return nil end
-        local components = {cframe:GetComponents()}
-        return components
-    end
-
-    local function deserializeVector3(t)
-        return Vector3.new(t.x, t.y, t.z)
-    end
-
-    local function deserializeCFrame(components)
-        if not components or #components ~= 12 then return nil end
-        return CFrame.new(unpack(components))
     end
 
     local function findUnitBySpawnUUID(targetUUID)
@@ -1094,6 +1053,7 @@ end
 
 local pendingUpgrades = {}
 local pendingUpgradesQueue = {}
+local pendingEntries = {}
 
 local function setupMacroHooksRefactored()
     -- Ensure globals exist
