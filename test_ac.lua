@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1095,76 +1095,88 @@ end
 local pendingUpgrades = {}
 
 local function setupMacroHooksRefactored()
-    -- Hookmetamethod version
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local args = {...}
         local method = getnamecallmethod()
 
-        if not checkcaller() then
-            if isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
-                
-                -- UPGRADE: Capture pre-state BEFORE remote fires
-                if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
-                    local unitName = args[1]
-                    local upgradeAmount = args[3] or 1
-                    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if not checkcaller() and isRecording and method == "InvokeServer" and self.Parent and self.Parent.Name == "client_to_server" then
+            
+            -- Only enqueue minimal info; no heavy workspace iteration here
+            if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
+                table.insert(pendingUpgradesQueue, {
+                    type = "upgrade",
+                    unitName = args[1],
+                    upgradeAmount = args[3] or 1,
+                    timestamp = tick()
+                })
+            end
 
+            if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
+                table.insert(pendingUpgradesQueue, {
+                    type = "spawn",
+                    args = args,
+                    timestamp = tick()
+                })
+            end
+        end
+
+        -- Always call the original remote immediately
+        return oldNamecall(self, ...)
+    end)
+
+    -- Process heavy stuff outside of the hook
+    task.spawn(function()
+        while true do
+            for i = #pendingUpgradesQueue, 1, -1 do
+                local req = table.remove(pendingUpgradesQueue, i)
+                
+                if req.type == "upgrade" then
+                    local unitsFolder = workspace:FindFirstChild("_UNITS")
                     if unitsFolder then
                         for _, unit in pairs(unitsFolder:GetChildren()) do
-                            if unit.Name == unitName and isOwnedByLocalPlayer(unit) then
+                            if unit.Name == req.unitName and isOwnedByLocalPlayer(unit) then
                                 local preLevel = getUnitUpgradeLevel(unit)
                                 local preSpawnId = getUnitSpawnId(unit)
 
-                                -- Queue for monitoring AFTER remote completes
-                                pendingUpgrades[unitName] = {
+                                pendingUpgrades[req.unitName] = {
                                     preLevel = preLevel,
                                     preSpawnId = preSpawnId,
-                                    timestamp = tick(),
-                                    upgradeAmount = upgradeAmount,
+                                    timestamp = req.timestamp,
+                                    upgradeAmount = req.upgradeAmount,
                                     processed = false
                                 }
 
                                 print(string.format(
-                                    "⏰ Queued upgrade: %s at L%d (spawn_id: %s)", 
-                                    unitName, preLevel, tostring(preSpawnId)
+                                    "⏰ Queued upgrade: %s at Level:%d (spawn_id: %s)",
+                                    req.unitName, preLevel, tostring(preSpawnId)
                                 ))
                                 break
                             end
                         end
                     end
-                end
-
-                -- SPAWN: Process asynchronously
-                if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
+                elseif req.type == "spawn" then
                     task.spawn(function()
-                        local timestamp = tick()
-                        if gameStartTime == 0 then
-                            gameStartTime = tick()
-                        end
-
                         local preActionMoney = getPlayerMoney()
                         local preActionUnits = takeUnitsSnapshot()
                         task.wait(0.2)
-
                         processActionResponseWithSpawnIdMapping({
-                            remoteName = self.Name,
-                            args = args,
-                            timestamp = timestamp,
+                            remoteName = req.args[0],
+                            args = req.args,
+                            timestamp = req.timestamp,
                             preActionMoney = preActionMoney,
                             preActionUnits = preActionUnits
                         })
                     end)
                 end
             end
+            task.wait(0.05)
         end
-
-        -- Call the original namecall so the remote fires on server
-        return oldNamecall(self, ...)
     end)
 
-    print("Refactored macro hooks setup complete (hookmetamethod version)")
+    print("Hookmetamethod macro hooks setup complete (safe)")
 end
+
 
 game:GetService("RunService").Heartbeat:Connect(function()
     if not isRecording then return end
