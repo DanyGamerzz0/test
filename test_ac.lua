@@ -1,4 +1,4 @@
-    -- 7.0
+    -- 7.1
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -123,7 +123,7 @@ local isRecordingLoopRunning = false
 local recordingHasStarted = false
 local currentChallenge = nil
 local macroHasPlayedThisGame = false
-local waveStartTimes = 0
+local waveStartTimes = {}
 
 local lastRecordedUpgrade = {}
 local recordingSpawnIdToPlacement = {} -- spawn_id -> "Shadow #1"
@@ -1678,7 +1678,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             
             -- Fire single upgrade remote
             local upgradeSuccess = pcall(function()
-                endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentTargetUnit.Name)
+                local currentSpawnId = getUnitSpawnId(currentTargetUnit)
+                endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentSpawnId)
             end)
             
             if not upgradeSuccess then
