@@ -1,4 +1,4 @@
-    -- 6.9
+    -- 7.0
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1075,10 +1075,12 @@ local function setupMacroHooksRefactored()
            and self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.UPGRADE_REMOTE and args[1] then
+                local requestedAmount = tonumber(args[3]) or 1
                 table.insert(pendingUpgradesQueue, {
                     type = "upgrade",
                     unitName = args[1],
-                    remoteAmount = tonumber(args[3]) or 1,
+                    remoteAmount = requestedAmount,
+                    isMultiUpgrade = requestedAmount > 1, -- Track if this was a multi-upgrade request
                     timestamp = tick()
                 })
             end
@@ -1125,17 +1127,24 @@ local function setupMacroHooksRefactored()
                                 totalRemoteCalls = 0,
                                 totalLevelChanges = 0,
                                 timestamp = req.timestamp,
-                                processed = false
+                                processed = false,
+                                hasMultiUpgrade = false -- Track if ANY request was multi-upgrade
                             }
+                        end
+                        
+                        -- Mark if this is a multi-upgrade request
+                        if req.isMultiUpgrade then
+                            pendingUpgrades[spawnKey].hasMultiUpgrade = true
                         end
                         
                         -- Increment remote call counter
                         pendingUpgrades[spawnKey].totalRemoteCalls = 
                             pendingUpgrades[spawnKey].totalRemoteCalls + req.remoteAmount
                         
-                        print(string.format("⏰ Remote call: %s (spawn: %s) +%d upgrades requested (total queued: %d)",
+                        print(string.format("⏰ Remote call: %s (spawn: %s) +%d upgrades requested (total queued: %d) %s",
                             req.unitName, spawnKey, req.remoteAmount, 
-                            pendingUpgrades[spawnKey].totalRemoteCalls))
+                            pendingUpgrades[spawnKey].totalRemoteCalls,
+                            req.isMultiUpgrade and "[MULTI]" or "[SINGLE]"))
                     else
                         if tick() - req.timestamp < 1.0 then
                             table.insert(pendingUpgradesQueue, 1, req)
@@ -1163,7 +1172,7 @@ local function setupMacroHooksRefactored()
         end
     end)
 
-    -- ========== Heartbeat - match level changes to remote calls ==========
+    -- ========== Heartbeat - distribute level changes to pending upgrades FIFO ==========
     local RunService = game:GetService("RunService")
     RunService.Heartbeat:Connect(function()
         if not isRecording then return end
@@ -1171,23 +1180,23 @@ local function setupMacroHooksRefactored()
         local unitsFolder = workspace:FindFirstChild("_UNITS")
         if not unitsFolder then return end
 
-        local keysToRemove = {}
+        local keysToCleanup = {}
         
-        for spawnKey, entry in pairs(pendingUpgrades) do
-            if not entry.processed then
-                -- Find the unit
-                local targetUnit = nil
-                for _, u in pairs(unitsFolder:GetChildren()) do
-                    if isOwnedByLocalPlayer(u) and tostring(getUnitSpawnId(u)) == spawnKey then
-                        targetUnit = u
-                        break
-                    end
+        for spawnKey, entries in pairs(pendingUpgrades) do
+            -- Find the unit
+            local targetUnit = nil
+            for _, u in pairs(unitsFolder:GetChildren()) do
+                if isOwnedByLocalPlayer(u) and tostring(getUnitSpawnId(u)) == spawnKey then
+                    targetUnit = u
+                    break
                 end
+            end
 
-                if not targetUnit then
-                    -- Unit disappeared - finalize if we saw any changes
-                    if tick() - entry.timestamp > 5.0 then
-                        if entry.totalLevelChanges > 0 then
+            if not targetUnit then
+                -- Unit disappeared - timeout any remaining entries
+                for _, entry in ipairs(entries) do
+                    if not entry.processed and tick() - entry.timestamp > 5.0 then
+                        if entry.observedLevels > 0 then
                             local placementId = recordingSpawnIdToPlacement[spawnKey]
                             if placementId then
                                 local record = {
@@ -1195,91 +1204,130 @@ local function setupMacroHooksRefactored()
                                     Unit = placementId,
                                     Time = string.format("%.2f", entry.timestamp - gameStartTime)
                                 }
-                                if entry.totalLevelChanges > 1 then 
-                                    record.Amount = entry.totalLevelChanges 
+                                if entry.isMultiUpgrade and entry.observedLevels > 1 then
+                                    record.Amount = entry.observedLevels
                                 end
                                 table.insert(macro, record)
-                                print(string.format("⚠️ Unit lost - recorded %d upgrades for %s",
-                                    entry.totalLevelChanges, placementId))
+                                print(string.format("⚠️ Unit lost - recorded partial upgrade for %s", placementId))
                             end
                         end
                         entry.processed = true
-                        table.insert(keysToRemove, spawnKey)
-                    end
-                else
-                    -- Check for level changes
-                    local currentLevel = getUnitUpgradeLevel(targetUnit)
-                    local levelChange = currentLevel - entry.lastSeenLevel
-                    
-                    if levelChange > 0 then
-                        entry.totalLevelChanges = entry.totalLevelChanges + levelChange
-                        print(string.format("🔔 Level change: %s (spawn: %s) %d → %d (+%d, total: %d/%d)",
-                            entry.unitName, spawnKey, entry.lastSeenLevel, currentLevel, levelChange,
-                            entry.totalLevelChanges, entry.totalRemoteCalls))
-                        entry.lastSeenLevel = currentLevel
-                    end
-
-                    -- Finalize when level changes match remote calls
-                    if entry.totalLevelChanges >= entry.totalRemoteCalls and entry.totalRemoteCalls > 0 then
-                        local placementId = recordingSpawnIdToPlacement[spawnKey]
-                        if placementId then
-                            local record = {
-                                Type = MACRO_CONFIG.UPGRADE_REMOTE,
-                                Unit = placementId,
-                                Time = string.format("%.2f", entry.timestamp - gameStartTime)
-                            }
-                            if entry.totalLevelChanges > 1 then 
-                                record.Amount = entry.totalLevelChanges 
-                            end
-                            table.insert(macro, record)
-                            
-                            print(string.format("✅ Upgrade complete: %s L%d→L%d (+%d upgrades recorded)",
-                                placementId, entry.baseLevel, entry.lastSeenLevel, entry.totalLevelChanges))
-                            
-                            Rayfield:Notify({
-                                Title = "Macro Recorder",
-                                Content = string.format("Recorded: %s L%d→L%d (+%d)",
-                                    placementId, entry.baseLevel, entry.lastSeenLevel, entry.totalLevelChanges),
-                                Duration = 3,
-                                Image = 4483362458
-                            })
-                        end
-                        entry.processed = true
-                        table.insert(keysToRemove, spawnKey)
-                    elseif tick() - entry.timestamp > 8.0 then
-                        -- Timeout fallback
-                        if entry.totalLevelChanges > 0 then
-                            local placementId = recordingSpawnIdToPlacement[spawnKey]
-                            if placementId then
-                                local record = {
-                                    Type = MACRO_CONFIG.UPGRADE_REMOTE,
-                                    Unit = placementId,
-                                    Time = string.format("%.2f", entry.timestamp - gameStartTime)
-                                }
-                                if entry.totalLevelChanges > 1 then 
-                                    record.Amount = entry.totalLevelChanges 
-                                end
-                                table.insert(macro, record)
-                                print(string.format("⏱️ Timeout - recorded %d/%d upgrades for %s",
-                                    entry.totalLevelChanges, entry.totalRemoteCalls, placementId))
-                            end
-                        end
-                        entry.processed = true
-                        table.insert(keysToRemove, spawnKey)
                     end
                 end
             else
-                table.insert(keysToRemove, spawnKey)
+                local currentLevel = getUnitUpgradeLevel(targetUnit)
+                local lastKnownLevel = entries[1] and entries[1].baseLevel or currentLevel
+                
+                -- Calculate how much level has changed since we started tracking
+                for i, entry in ipairs(entries) do
+                    if entry.processed then
+                        -- Skip already finalized entries
+                    else
+                        lastKnownLevel = math.max(lastKnownLevel, entry.baseLevel + entry.observedLevels)
+                    end
+                end
+                
+                local availableLevels = currentLevel - lastKnownLevel
+                
+                if availableLevels > 0 then
+                    print(string.format("🔔 Detected +%d level changes for %s (spawn: %s) %d → %d",
+                        availableLevels, entries[1].unitName, spawnKey, lastKnownLevel, currentLevel))
+                    
+                    -- Distribute available levels to pending entries FIFO
+                    for _, entry in ipairs(entries) do
+                        if entry.processed or availableLevels <= 0 then
+                            break
+                        end
+                        
+                        local needed = entry.expectedLevels - entry.observedLevels
+                        local assigned = math.min(needed, availableLevels)
+                        
+                        if assigned > 0 then
+                            entry.observedLevels = entry.observedLevels + assigned
+                            availableLevels = availableLevels - assigned
+                            
+                            print(string.format("  ✓ Assigned +%d levels to entry (now %d/%d)",
+                                assigned, entry.observedLevels, entry.expectedLevels))
+                        end
+                        
+                        -- Finalize if complete
+                        if entry.observedLevels >= entry.expectedLevels then
+                            local placementId = recordingSpawnIdToPlacement[spawnKey]
+                            if placementId then
+                                local record = {
+                                    Type = MACRO_CONFIG.UPGRADE_REMOTE,
+                                    Unit = placementId,
+                                    Time = string.format("%.2f", entry.timestamp - gameStartTime)
+                                }
+                                -- Only add Amount for actual multi-upgrades
+                                if entry.isMultiUpgrade and entry.observedLevels > 1 then
+                                    record.Amount = entry.observedLevels
+                                end
+                                table.insert(macro, record)
+                                
+                                local upgradeText = entry.isMultiUpgrade 
+                                    and string.format("multi-upgrade x%d", entry.observedLevels)
+                                    or "upgrade"
+                                
+                                print(string.format("✅ Recorded %s: %s (L%d→L%d)",
+                                    upgradeText, placementId, entry.baseLevel, entry.baseLevel + entry.observedLevels))
+                                
+                                Rayfield:Notify({
+                                    Title = "Macro Recorder",
+                                    Content = string.format("Recorded %s: %s", upgradeText, placementId),
+                                    Duration = 3,
+                                    Image = 4483362458
+                                })
+                            end
+                            entry.processed = true
+                        end
+                    end
+                end
+                
+                -- Timeout check
+                for _, entry in ipairs(entries) do
+                    if not entry.processed and tick() - entry.timestamp > 8.0 then
+                        if entry.observedLevels > 0 then
+                            local placementId = recordingSpawnIdToPlacement[spawnKey]
+                            if placementId then
+                                local record = {
+                                    Type = MACRO_CONFIG.UPGRADE_REMOTE,
+                                    Unit = placementId,
+                                    Time = string.format("%.2f", entry.timestamp - gameStartTime)
+                                }
+                                if entry.isMultiUpgrade and entry.observedLevels > 1 then
+                                    record.Amount = entry.observedLevels
+                                end
+                                table.insert(macro, record)
+                                print(string.format("⏱️ Timeout - recorded partial for %s (%d/%d levels)",
+                                    placementId, entry.observedLevels, entry.expectedLevels))
+                            end
+                        end
+                        entry.processed = true
+                    end
+                end
+            end
+            
+            -- Clean up fully processed entries
+            local allProcessed = true
+            for _, entry in ipairs(entries) do
+                if not entry.processed then
+                    allProcessed = false
+                    break
+                end
+            end
+            if allProcessed then
+                table.insert(keysToCleanup, spawnKey)
             end
         end
         
-        -- Clean up processed entries
-        for _, key in ipairs(keysToRemove) do
+        -- Remove fully processed units
+        for _, key in ipairs(keysToCleanup) do
             pendingUpgrades[key] = nil
         end
     end)
 
-    print("Macro hooks initialized - intelligent upgrade matching enabled")
+    print("Macro hooks initialized - individual upgrade tracking enabled")
 end
 
     -- File Management Functions
