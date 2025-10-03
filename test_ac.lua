@@ -1,4 +1,4 @@
-    -- 4
+    -- 5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1092,6 +1092,7 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
 
+local pendingUpgrades = {}
 local pendingUpgradesQueue = {}
 
 local function setupMacroHooksRefactored()
