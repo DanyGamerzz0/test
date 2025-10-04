@@ -1,4 +1,4 @@
-    -- 8.1
+    -- 8.2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -3538,7 +3538,7 @@ end
 
 section = JoinerTab:CreateSection("Portal Joiner")
 
- Toggle = Tab:CreateToggle({
+ Toggle = JoinerTab:CreateToggle({
    Name = "Auto Join Portal",
    CurrentValue = false,
    Flag = "AutoJoinPortal",
@@ -3547,7 +3547,7 @@ section = JoinerTab:CreateSection("Portal Joiner")
    end,
 })
 
-local SelectPortalDropdown = Tab:CreateDropdown({
+local SelectPortalDropdown = JoinerTab:CreateDropdown({
    Name = "Select Portal to join",
    Options = {"Option 1","Option 2"},
    CurrentOption = {"Option 1"},
@@ -3558,7 +3558,7 @@ local SelectPortalDropdown = Tab:CreateDropdown({
    end,
 })
 
- Toggle = Tab:CreateToggle({
+ Toggle = JoinerTab:CreateToggle({
    Name = "Auto Next Portal",
    CurrentValue = false,
    Flag = "AutoNextPortal",
