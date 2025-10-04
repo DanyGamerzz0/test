@@ -1,4 +1,4 @@
-    -- 8.3
+    -- 8.4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2933,6 +2933,7 @@ local function joinPortal(portalId)
     if success then
         notify("Portal Joiner", string.format("Joining portal: %s", portalId))
         print("Successfully called use_portal with UUID:", portalUUID)
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer(portalUUID)
         return true
     else
         notify("Portal Joiner", "Failed to join portal")
@@ -6526,6 +6527,7 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
         if success then
             print("Successfully voted to replay portal:", State.SelectedPortal, "with UUID:", portalUUID)
             notify("Auto Next Portal", string.format("Replaying portal: %s", State.SelectedPortal), 5)
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer(portalUUID)
         else
             warn("Failed to vote for portal replay:", err)
             notify("Auto Next Portal", "Failed to replay portal - falling back to other auto vote options", 3)
