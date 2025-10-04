@@ -1,4 +1,4 @@
-    -- 7.5
+    -- 8.0
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.05"
+    local script_version = "V0.06"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -104,7 +104,8 @@
         story = 0,
         legend = 0,
         raid = 0,
-        ignoreWorlds = 0
+        ignoreWorlds = 0,
+        portal = 0
     }
 
     local totalActions = 0
@@ -223,6 +224,9 @@ local playbackDisplayNameInstances = {}
         AutoMatchmakeLegendStage = false,
         AutoMatchmakeRaidStage = false,
         AutoMatchmakeGateStage = false,
+        AutoJoinPortal = false,
+        SelectedPortal = {},
+        AutoNextPortal = false,
     }
 
     -- ========== CREATE TABS ==========
@@ -1160,12 +1164,12 @@ local function setupMacroHooksRefactored()
                             print(string.format("Recorded upgrade%s: %s (L%d->L%d)",
                                 upgradeText, placementId, lastLevel, currentLevel))
                             
-                            Rayfield:Notify({
-                                Title = "Macro Recorder",
-                                Content = string.format("Recorded upgrade%s: %s", upgradeText, placementId),
-                                Duration = 3,
-                                Image = 4483362458
-                            })
+                            --Rayfield:Notify({
+                               -- Title = "Macro Recorder",
+                               -- Content = string.format("Recorded upgrade%s: %s", upgradeText, placementId),
+                               -- Duration = 3,
+                              --  Image = 4483362458
+                           -- })
                             
                             -- Update tracked level
                             trackedUnits[spawnKey].lastLevel = currentLevel
@@ -3532,6 +3536,37 @@ end
     end,
 })
 
+section = JoinerTab:CreateSection("Portal Joiner")
+
+ Toggle = Tab:CreateToggle({
+   Name = "Auto Join Portal",
+   CurrentValue = false,
+   Flag = "AutoJoinPortal",
+   Callback = function(Value)
+        State.AutoJoinPortal = Value
+   end,
+})
+
+local SelectPortalDropdown = Tab:CreateDropdown({
+   Name = "Select Portal to join",
+   Options = {"Option 1","Option 2"},
+   CurrentOption = {"Option 1"},
+   MultipleOptions = false,
+   Flag = "SelectPortalDropdown",
+   Callback = function(Options)
+        State.SelectedPortal = Options[1]
+   end,
+})
+
+ Toggle = Tab:CreateToggle({
+   Name = "Auto Next Portal",
+   CurrentValue = false,
+   Flag = "AutoNextPortal",
+   Callback = function(Value)
+        State.AutoNextPortal = Value
+   end,
+})
+
     task.spawn(function()
         while true do
             task.wait(2)
@@ -3661,6 +3696,80 @@ end
             end
         end
     end
+
+    local function loadPortalsWithRetry()
+    loadingRetries.portal = loadingRetries.portal or 0
+    loadingRetries.portal = loadingRetries.portal + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.portal <= maxRetries then
+            print(string.format("Portals loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.portal, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadPortalsWithRetry)
+        else
+            warn("Failed to load portals after", maxRetries, "attempts - giving up")
+            SelectPortalDropdown:Refresh({"Failed to load - check console"})
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local portalsFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
+        
+        if not portalsFolder then
+            error("Testing folder not found in ReplicatedStorage")
+        end
+        
+        local portalOptions = {}
+        
+        -- Get all children and filter for portal modules
+        for _, child in ipairs(portalsFolder:GetChildren()) do
+            if child:IsA("ModuleScript") then
+                local childNameLower = string.lower(child.Name)
+                
+                -- Check if the module name contains "portal"
+                if childNameLower:find("portal") then
+                    local moduleSuccess, portalData = pcall(require, child)
+                    
+                    if moduleSuccess and portalData then
+                        -- Iterate through all portals in this module
+                        for portalKey, portalInfo in pairs(portalData) do
+                            if type(portalInfo) == "table" and portalInfo.name and portalInfo._portal_only_level then
+                                table.insert(portalOptions, portalInfo.name)
+                                print("Found portal:", portalInfo.name, "with ID:", portalKey)
+                            end
+                        end
+                    else
+                        warn("Failed to require portal module:", child.Name, "-", portalData)
+                    end
+                end
+            end
+        end
+        
+        if #portalOptions == 0 then
+            error("No portals found in Testing folder")
+        end
+        
+        -- Sort alphabetically for consistent ordering
+        table.sort(portalOptions)
+        
+        return portalOptions
+    end)
+    
+    if success and result and #result > 0 then
+        SelectPortalDropdown:Refresh(result)
+        print(string.format("Successfully loaded %d portals (attempt %d)", #result, loadingRetries.portal))
+    else
+        if loadingRetries.portal <= maxRetries then
+            print(string.format("Portals loading failed (attempt %d/%d): %s - retrying...", loadingRetries.portal, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllPortalsWithRetry)
+        else
+            warn("Failed to load portals after", maxRetries, "attempts:", result)
+            SelectPortalDropdown:Refresh({"Failed to load - check console"})
+        end
+    end
+end
 
     local function loadLegendStagesWithRetry()
         loadingRetries.legend = loadingRetries.legend + 1
@@ -6383,6 +6492,7 @@ end
         task.spawn(loadLegendStagesWithRetry) 
         task.spawn(loadRaidStagesWithRetry)
         task.spawn(loadIgnoreWorldsWithRetry)
+        task.spawn(loadPortalsWithRetry)
         
         -- Create auto-select dropdowns after game data loads
         task.spawn(function()
