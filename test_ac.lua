@@ -1,4 +1,4 @@
-    -- 9.3
+    -- 9.4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2921,7 +2921,7 @@ end
 local function joinPortal(portalId)
     if not portalId then return false end
     
-    local portalUUID = getPortalUUID(portalId)
+    local portalUUID = getPortalUUID(portalId, 1)
     
     if not portalUUID then
         notify("Portal Joiner", "Failed to find portal UUID - do you own this portal?")
