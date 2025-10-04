@@ -1,4 +1,4 @@
-    -- 7.4
+    -- 7.5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -761,8 +761,13 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     
     table.insert(macro, placementRecord)
     
-    print(string.format("Recorded placement: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded placement: "..placementId.." (spawnid: "..tostring(spawnId)..")",Duration = 3,Image = 4483362458})
+print(string.format("Recorded placement: %s (spawn_id: %s)", placementId, tostring(spawnId)))
+Rayfield:Notify({
+    Title = "Macro Recorder",
+    Content = string.format("Recorded placement: %s", placementId),
+    Duration = 3,
+    Image = 4483362458
+})
 end
 
 --[[local function processUpgradeActionWithSpawnIdMapping(actionInfo)
@@ -1016,8 +1021,13 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     recordingSpawnIdToPlacement[spawnId] = nil
     recordingUnitNameToSpawnId[remoteParam] = nil
     
-    print(string.format("Recorded sell: %s (was unit_name: %s)", placementId, remoteParam))
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded sell: " .. placementId,Duration = 3,Image = 4483362458})
+print(string.format("Recorded sell: %s (was unit_name: %s)", placementId, remoteParam))
+Rayfield:Notify({
+    Title = "Macro Recorder",
+    Content = string.format("Recorded sell: %s", placementId),
+    Duration = 3,
+    Image = 4483362458
+})
 end
 
 local function processWaveSkipAction(actionInfo)
@@ -1060,7 +1070,7 @@ local function setupMacroHooksRefactored()
         workspace:WaitForChild("_UNITS")
     end)
 
-    -- Only hook placement/sell remotes
+    -- Hook placement and sell remotes
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local args = {...}
@@ -1079,6 +1089,21 @@ local function setupMacroHooksRefactored()
                         args = args,
                         timestamp = tick(),
                         preActionUnits = preActionUnits
+                    })
+                end)
+            elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
+                task.spawn(function()
+                    processActionResponseWithSpawnIdMapping({
+                        remoteName = MACRO_CONFIG.SELL_REMOTE,
+                        args = args,
+                        timestamp = tick()
+                    })
+                end)
+            elseif self.Name == MACRO_CONFIG.WAVE_SKIP_REMOTE then
+                task.spawn(function()
+                    processActionResponseWithSpawnIdMapping({
+                        remoteName = MACRO_CONFIG.WAVE_SKIP_REMOTE,
+                        timestamp = tick()
                     })
                 end)
             end
@@ -1151,7 +1176,7 @@ local function setupMacroHooksRefactored()
         end
     end)
 
-    print("Macro hooks initialized - level change monitoring active")
+    print("Macro hooks initialized - placement, sell, and upgrade monitoring active")
 end
 
     -- File Management Functions
