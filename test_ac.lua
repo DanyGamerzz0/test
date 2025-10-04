@@ -1,4 +1,4 @@
-    -- 8.0
+    -- 8.1
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5049,83 +5049,101 @@ end
     end
 
     local function createAutoSelectDropdowns()
-        if not isGameDataLoaded() then
-            print("Game data not loaded yet for auto-select dropdowns")
-            return
-        end
+    if not isGameDataLoaded() then
+        print("Game data not loaded yet for auto-select dropdowns")
+        return
+    end
+    
+    local success, allMapsData = pcall(function()
+        local mapIdToDisplayName = {}
         
-        local success, allMapsData = pcall(function()
-            local mapIdToDisplayName = {}
-            
-            -- Get all maps from Maps folder
-            local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
-            if MapsFolder then
-                for _, mapModule in ipairs(MapsFolder:GetChildren()) do
-                    if mapModule:IsA("ModuleScript") then
-                        local moduleSuccess, mapData = pcall(require, mapModule)
-                        
-                        if moduleSuccess and mapData then
-                            -- Iterate through all maps in this module
-                            for mapKey, mapInfo in pairs(mapData) do
-                                if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                    -- Create separate entries for regular and legend stages
-                                    if mapInfo.id:lower():find("legend") then
-                                        -- Legend stage - use full ID as key
-                                        mapIdToDisplayName[mapInfo.id] = mapInfo.name .. " (Legend)"
-                                        print("Added legend stage for auto-select:", mapInfo.name .. " (Legend)", "with ID:", mapInfo.id)
-                                    else
-                                        -- Regular stage - extract base name from ID for matching
-                                        local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
-                                        mapIdToDisplayName[baseName] = mapInfo.name
-                                        print("Added regular stage for auto-select:", mapInfo.name, "with base ID:", baseName, "(from", mapInfo.id .. ")")
-                                    end
+        -- Get all maps from Maps folder
+        local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
+        if MapsFolder then
+            for _, mapModule in ipairs(MapsFolder:GetChildren()) do
+                if mapModule:IsA("ModuleScript") then
+                    local moduleSuccess, mapData = pcall(require, mapModule)
+                    
+                    if moduleSuccess and mapData then
+                        for mapKey, mapInfo in pairs(mapData) do
+                            if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
+                                if mapInfo.id:lower():find("legend") then
+                                    mapIdToDisplayName[mapInfo.id] = mapInfo.name .. " (Legend)"
+                                    print("Added legend stage for auto-select:", mapInfo.name .. " (Legend)", "with ID:", mapInfo.id)
+                                else
+                                    local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
+                                    mapIdToDisplayName[baseName] = mapInfo.name
+                                    print("Added regular stage for auto-select:", mapInfo.name, "with base ID:", baseName, "(from", mapInfo.id .. ")")
                                 end
                             end
                         end
                     end
                 end
             end
-            
-            return mapIdToDisplayName
-        end)
-        
-        if not success or not allMapsData then
-            warn("Failed to load maps from Maps folder for auto-select dropdowns")
-            return
         end
         
-        -- Create dropdowns for each map
-        for mapId, displayName in pairs(allMapsData) do
-            local dropdown = MacroTab:CreateDropdown({
-                Name = string.format("Auto: %s", displayName),
-                Options = {"None"},
-                CurrentOption = {"None"},
-                MultipleOptions = false,
-                Flag = "AutoSelect_" .. mapId,
-                Info = string.format("Auto-select macro for %s", displayName),
-                Callback = function(Option)
-                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+        -- Get all portals from Testing folder
+        local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
+        if TestingFolder then
+            for _, portalModule in ipairs(TestingFolder:GetChildren()) do
+                if portalModule:IsA("ModuleScript") then
+                    local moduleNameLower = string.lower(portalModule.Name)
                     
-                    if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[mapId] = nil
-                        print("Cleared auto-select for", displayName)
-                    else
-                        worldMacroMappings[mapId] = selectedMacro
-                        print("Set auto-select:", displayName, "->", selectedMacro)
+                    if moduleNameLower:find("portal") then
+                        local moduleSuccess, portalData = pcall(require, portalModule)
+                        
+                        if moduleSuccess and portalData then
+                            for portalKey, portalInfo in pairs(portalData) do
+                                if type(portalInfo) == "table" and portalInfo.name and portalInfo._portal_only_level then
+                                    -- Use portal ID as key for mapping
+                                    mapIdToDisplayName[portalKey] = portalInfo.name .. " (Portal)"
+                                    print("Added portal for auto-select:", portalInfo.name .. " (Portal)", "with ID:", portalKey)
+                                end
+                            end
+                        end
                     end
-                    
-                    -- Save mappings
-                    saveWorldMappings()
-                end,
-            })
-            
-            worldDropdowns[mapId] = dropdown
+                end
+            end
         end
         
-        -- Initial refresh with current macros
-        refreshAutoSelectDropdowns()
-        print("Created auto-select dropdowns for", table.getn(allMapsData), "maps from Maps folder")
+        return mapIdToDisplayName
+    end)
+    
+    if not success or not allMapsData then
+        warn("Failed to load maps/portals from folders for auto-select dropdowns")
+        return
     end
+    
+    -- Create dropdowns for each map/portal
+    for mapId, displayName in pairs(allMapsData) do
+        local dropdown = MacroTab:CreateDropdown({
+            Name = string.format("Auto: %s", displayName),
+            Options = {"None"},
+            CurrentOption = {"None"},
+            MultipleOptions = false,
+            Flag = "AutoSelect_" .. mapId,
+            Info = string.format("Auto-select macro for %s", displayName),
+            Callback = function(Option)
+                local selectedMacro = type(Option) == "table" and Option[1] or Option
+                
+                if selectedMacro == "None" or selectedMacro == "" then
+                    worldMacroMappings[mapId] = nil
+                    print("Cleared auto-select for", displayName)
+                else
+                    worldMacroMappings[mapId] = selectedMacro
+                    print("Set auto-select:", displayName, "->", selectedMacro)
+                end
+                
+                saveWorldMappings()
+            end,
+        })
+        
+        worldDropdowns[mapId] = dropdown
+    end
+    
+    refreshAutoSelectDropdowns()
+    print("Created auto-select dropdowns for", table.getn(allMapsData), "maps/portals")
+end
 
     local function getMacroForCurrentWorld()
         if isInLobby() then
