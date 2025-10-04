@@ -1,4 +1,4 @@
-    -- 9.1
+    -- 9.2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -6518,29 +6518,57 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
             return
         end
 
-        if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
-    print("Auto Next Portal enabled - Rejoining same portal...")
+       if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
+    print("Auto Next Portal enabled - Trying portals with ID:", State.SelectedPortal)
     
-    task.wait(1) -- Small delay to ensure we're in lobby/ready state
+    task.wait(1)
     
-    local portalUUID = getPortalUUID(State.SelectedPortal)
+    local maxAttempts = 5
     
-    if portalUUID then
-        local success, err = pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay_portal",portalUUID)
+    for attempt = 1, maxAttempts do
+        local portalUUID = getPortalUUID(State.SelectedPortal)
+        
+        if not portalUUID then
+            print("No more portals found with ID:", State.SelectedPortal)
+            notify("Auto Next Portal", "No portals available", 3)
+            break
+        end
+        
+        print(string.format("Attempt %d/%d - Trying portal UUID: %s", attempt, maxAttempts, portalUUID))
+        
+        pcall(function()
+            local args = {"replay_portal",portalUUID}
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer(unpack(args))
         end)
         
-        if success then
-            print("Successfully voted for portal:", State.SelectedPortal, "with UUID:", portalUUID)
-            notify("Auto Next Portal", string.format("Selected portal: %s", State.SelectedPortal), 5)
-        else
-            warn("Failed to vote for portal:", err)
-            notify("Auto Next Portal", "Failed to vote for portal - falling back to other auto vote options", 3)
+        -- Wait a few seconds - if portal is valid, we'll teleport
+        task.wait(3)
+        
+        -- Still here? Portal didn't work, hide it and try next
+        print("Portal didn't work, trying next one...")
+        local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+        if itemsGui then
+            local itemFrames = itemsGui:FindFirstChild("grid")
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end  
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+            
+            if itemFrames then
+                for _, child in ipairs(itemFrames:GetChildren()) do
+                    if child.Name == State.SelectedPortal then
+                        local uuid = child:FindFirstChild("_uuid") or child:FindFirstChild("id")
+                        if uuid and uuid.Value == portalUUID then
+                            child.Visible = false
+                            break
+                        end
+                    end
+                end
+            end
         end
-    else
-        warn("Failed to get portal UUID for auto next portal")
-        notify("Auto Next Portal", "Could not find portal UUID - falling back to other auto vote options", 3)
     end
+    
+    -- If we reach here, none of the portals worked
+    notify("Auto Next Portal", "No valid portals available", 3)
     return
 end
         
