@@ -1,4 +1,4 @@
-    -- 9.4
+    -- 9.5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2872,9 +2872,8 @@ end
     end
 end
 
-local function getPortalUUID(portalId, index)
-    local player = Services.Players.LocalPlayer
-    local itemsGui = player.PlayerGui:FindFirstChild("items")
+local function getPortalUUID(portalId)
+    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
     
     if not itemsGui then
         warn("Items GUI not found")
@@ -2897,31 +2896,30 @@ local function getPortalUUID(portalId, index)
         return nil
     end
     
-    -- Collect all matching portals
-    local matchingPortals = {}
+    -- Search for the portal item by ID
     for _, child in ipairs(itemFrames:GetChildren()) do
         if child.Name == portalId then
-            local uuidValue = child:FindFirstChild("_uuid") or child:FindFirstChild("id")
+            -- Look for _uuid or id Value object
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
+            
             if uuidValue and uuidValue:IsA("StringValue") then
-                table.insert(matchingPortals, uuidValue.Value)
+                print("Found portal UUID:", uuidValue.Value, "for portal:", portalId)
+                return uuidValue.Value
+            else
+                warn("UUID/ID not found in portal item:", portalId)
+                return nil
             end
         end
     end
     
-    -- Return the one at the requested index
-    if matchingPortals[index] then
-        print("Found portal UUID at index", index, ":", matchingPortals[index])
-        return matchingPortals[index]
-    end
-    
-    warn("No portal found at index", index, "for portal:", portalId)
+    warn("Portal item not found in ItemFrames:", portalId)
     return nil
 end
 
 local function joinPortal(portalId)
     if not portalId then return false end
     
-    local portalUUID = getPortalUUID(portalId, 1)
+    local portalUUID = getPortalUUID(portalId)
     
     if not portalUUID then
         notify("Portal Joiner", "Failed to find portal UUID - do you own this portal?")
@@ -6520,7 +6518,7 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
             return
         end
 
-    if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
+       if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
     print("Auto Next Portal enabled - Trying portals with ID:", State.SelectedPortal)
     
     task.wait(1)
@@ -6528,27 +6526,50 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
     local maxAttempts = 5
     
     for attempt = 1, maxAttempts do
-        local portalUUID = getPortalUUID(State.SelectedPortal, attempt)
+        getPortalUUID(State.SelectedPortal)
+
+        local portalUUID = getPortalUUID(State.SelectedPortal)
         
         if not portalUUID then
-            print("No portal found at index", attempt)
-            notify("Auto Next Portal", "No more portals available", 3)
+            print("No more portals found with ID:", State.SelectedPortal)
+            notify("Auto Next Portal", "No portals available", 3)
             break
         end
         
         print(string.format("Attempt %d/%d - Trying portal UUID: %s", attempt, maxAttempts, portalUUID))
         
         pcall(function()
-            local args = {  "replay_portal",portalUUID }
+            local args = {"replay_portal",portalUUID}
             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer(unpack(args))
         end)
         
-        -- Wait - if portal is valid, we'll teleport
+        -- Wait a few seconds - if portal is valid, we'll teleport
         task.wait(3)
         
-        print("Portal didn't work, trying next index...")
+        -- Still here? Portal didn't work, hide it and try next
+        print("Portal didn't work, trying next one...")
+        local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+        if itemsGui then
+            local itemFrames = itemsGui:FindFirstChild("grid")
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end  
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+            
+            if itemFrames then
+                for _, child in ipairs(itemFrames:GetChildren()) do
+                    if child.Name == State.SelectedPortal then
+                        local uuid = child:FindFirstChild("_uuid") or child:FindFirstChild("id")
+                        if uuid and uuid.Value == portalUUID then
+                            child.Visible = false
+                            break
+                        end
+                    end
+                end
+            end
+        end
     end
     
+    -- If we reach here, none of the portals worked
     notify("Auto Next Portal", "No valid portals available", 3)
     return
 end
