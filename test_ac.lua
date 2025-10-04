@@ -1,4 +1,4 @@
-    -- 9.0
+    -- 9.1
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -6527,15 +6527,15 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
     
     if portalUUID then
         local success, err = pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer(portalUUID)
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay_portal",portalUUID)
         end)
         
         if success then
-            print("Successfully voted to replay portal:", State.SelectedPortal, "with UUID:", portalUUID)
-            notify("Auto Next Portal", string.format("Replaying portal: %s", State.SelectedPortal), 5)
+            print("Successfully voted for portal:", State.SelectedPortal, "with UUID:", portalUUID)
+            notify("Auto Next Portal", string.format("Selected portal: %s", State.SelectedPortal), 5)
         else
-            warn("Failed to vote for portal replay:", err)
-            notify("Auto Next Portal", "Failed to replay portal - falling back to other auto vote options", 3)
+            warn("Failed to vote for portal:", err)
+            notify("Auto Next Portal", "Failed to vote for portal - falling back to other auto vote options", 3)
         end
     else
         warn("Failed to get portal UUID for auto next portal")
