@@ -1,4 +1,4 @@
-    -- 8.2
+    -- 8.3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2354,6 +2354,34 @@ end
         return nil
     end
 
+    local function getBackendPortalKeyFromDisplayName(selectedDisplayName)
+    local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
+    
+    if not TestingFolder then
+        return nil
+    end
+    
+    for _, portalModule in ipairs(TestingFolder:GetChildren()) do
+        if portalModule:IsA("ModuleScript") then
+            local moduleNameLower = string.lower(portalModule.Name)
+            
+            if moduleNameLower:find("portal") then
+                local success, portalData = pcall(require, portalModule)
+                
+                if success and portalData then
+                    for portalKey, portalInfo in pairs(portalData) do
+                        if type(portalInfo) == "table" and portalInfo.name == selectedDisplayName and portalInfo._portal_only_level then
+                            return portalKey -- Returns "portal_tengen", "portal_tengen_secret", etc.
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return nil
+end
+
     local function getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
         local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
@@ -2844,6 +2872,74 @@ end
     end
 end
 
+local function getPortalUUID(portalId)
+    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+    
+    if not itemsGui then
+        warn("Items GUI not found")
+        return nil
+    end
+    
+    local itemFrames = itemsGui:FindFirstChild("grid")
+    if itemFrames then
+        itemFrames = itemFrames:FindFirstChild("List")
+    end
+    if itemFrames then
+        itemFrames = itemFrames:FindFirstChild("Outer")
+    end
+    if itemFrames then
+        itemFrames = itemFrames:FindFirstChild("ItemFrames")
+    end
+    
+    if not itemFrames then
+        warn("ItemFrames not found in PlayerGui")
+        return nil
+    end
+    
+    -- Search for the portal item by ID
+    for _, child in ipairs(itemFrames:GetChildren()) do
+        if child.Name == portalId then
+            -- Look for _uuid or id Value object
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
+            
+            if uuidValue and uuidValue:IsA("StringValue") then
+                print("Found portal UUID:", uuidValue.Value, "for portal:", portalId)
+                return uuidValue.Value
+            else
+                warn("UUID/ID not found in portal item:", portalId)
+                return nil
+            end
+        end
+    end
+    
+    warn("Portal item not found in ItemFrames:", portalId)
+    return nil
+end
+
+local function joinPortal(portalId)
+    if not portalId then return false end
+    
+    local portalUUID = getPortalUUID(portalId)
+    
+    if not portalUUID then
+        notify("Portal Joiner", "Failed to find portal UUID - do you own this portal?")
+        return false
+    end
+    
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("use_portal"):InvokeServer(portalUUID)
+    end)
+    
+    if success then
+        notify("Portal Joiner", string.format("Joining portal: %s", portalId))
+        print("Successfully called use_portal with UUID:", portalUUID)
+        return true
+    else
+        notify("Portal Joiner", "Failed to join portal")
+        return false
+    end
+end
+
     local function checkGateJoin()
         if not State.AutoJoinGate then return false end
         if not isInLobby() then return false end
@@ -2891,6 +2987,19 @@ end
                 return -- Exit early since challenge has highest priority
             end
         end
+
+    if State.AutoJoinPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
+        setProcessingState("Portal Auto Join")
+        
+        if joinPortal(State.SelectedPortal) then
+            print("Successfully initiated portal join!")
+        else
+            print("Portal join failed!")
+        end
+        
+        task.delay(5, clearProcessingState)
+        return
+    end
 
         -- STORY
         if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
@@ -3548,14 +3657,43 @@ section = JoinerTab:CreateSection("Portal Joiner")
 })
 
 local SelectPortalDropdown = JoinerTab:CreateDropdown({
-   Name = "Select Portal to join",
-   Options = {"Option 1","Option 2"},
-   CurrentOption = {"Option 1"},
-   MultipleOptions = false,
-   Flag = "SelectPortalDropdown",
-   Callback = function(Options)
-        State.SelectedPortal = Options[1]
-   end,
+    Name = "Select Portal to join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "SelectPortalDropdown",
+    Callback = function(Option)
+        if not isGameDataLoaded() then
+            warn("Game data not loaded yet, ignoring portal selection")
+            return
+        end
+        
+        -- Handle both table and string inputs safely
+        local selectedDisplayName
+        if type(Option) == "table" and Option[1] then
+            selectedDisplayName = Option[1]
+        elseif type(Option) == "string" then
+            selectedDisplayName = Option
+        else
+            warn("Invalid option type in SelectPortalDropdown:", type(Option))
+            return
+        end
+        
+        -- Safely call the backend function
+        local success, backendPortalKey = pcall(function()
+            return getBackendPortalKeyFromDisplayName(selectedDisplayName)
+        end)
+        
+        if success and backendPortalKey then
+            State.SelectedPortal = backendPortalKey
+            print("Selected portal:", selectedDisplayName, "->", backendPortalKey)
+        else
+            warn("Failed to get backend portal key for:", selectedDisplayName)
+            if not success then
+                warn("Error:", backendPortalKey)
+            end
+        end
+    end,
 })
 
  Toggle = JoinerTab:CreateToggle({
@@ -6372,6 +6510,32 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
             
             return
         end
+
+        if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
+    print("Auto Next Portal enabled - Rejoining same portal...")
+    
+    task.wait(1) -- Small delay to ensure we're in lobby/ready state
+    
+    local portalUUID = getPortalUUID(State.SelectedPortal)
+    
+    if portalUUID then
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("replay_portal", portalUUID)
+        end)
+        
+        if success then
+            print("Successfully voted to replay portal:", State.SelectedPortal, "with UUID:", portalUUID)
+            notify("Auto Next Portal", string.format("Replaying portal: %s", State.SelectedPortal), 5)
+        else
+            warn("Failed to vote for portal replay:", err)
+            notify("Auto Next Portal", "Failed to replay portal - falling back to other auto vote options", 3)
+        end
+    else
+        warn("Failed to get portal UUID for auto next portal")
+        notify("Auto Next Portal", "Could not find portal UUID - falling back to other auto vote options", 3)
+    end
+    return
+end
         
 if State.AutoNextGate and State.AutoJoinGate then
     print("Auto Next Gate enabled - Finding and joining next gate...")
