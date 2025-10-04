@@ -1,4 +1,4 @@
-    -- 7.3
+    -- 7.4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -1503,7 +1503,7 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             -- Fire single upgrade remote
             local upgradeSuccess = pcall(function()
                 local currentSpawnId = getUnitSpawnId(currentTargetUnit)
-                endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentSpawnId)
+                endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentTargetUnit.Name)
             end)
             
             if not upgradeSuccess then
