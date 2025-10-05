@@ -1,4 +1,4 @@
---18
+--19
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -275,7 +275,7 @@ local function getPlayerUnitsFolder()
         return nil
     end
     
-    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")
+    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
     if not playerUnitsFolder then
         warn("Player units folder not found!")
         return nil
@@ -1421,7 +1421,7 @@ local function getPlayerUnitsFolder()
         return nil
     end
     
-    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")
+    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
     if not playerUnitsFolder then
         warn("Player units folder not found!")
         return nil
@@ -1583,8 +1583,8 @@ end
 
     local function getUnitUpgradeLevel(unit)
         --print(unit.Name)
-        if Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")[unit.Name].Upgrade then
-            return Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")[unit.Name].Upgrade.Value
+        if Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)"):FindFirstChild(unit.Name).Upgrade then
+            return Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)"):FindFirstChild(unit.Name).Upgrade.Value
         end
         return 0
     end
@@ -1655,7 +1655,7 @@ RunService.Heartbeat:Connect(function()
     
     if not unitServer then return end
     
-    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")
+    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
     if not playerUnitsFolder then return end
 
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
