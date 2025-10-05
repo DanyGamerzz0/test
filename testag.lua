@@ -1,4 +1,4 @@
---24
+--25
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1965,23 +1965,24 @@ end
 
 local function executeUnitUpgrade(actionData)
     local targetOrder = actionData.targetPlacementOrder
-    local unitType = actionData.unitType or getBaseUnitName(actionData.unitName or "")
+    local unitType = actionData.unitType
     
     if not targetOrder or targetOrder == 0 then
         warn("Invalid target placement order for upgrade")
         return false
     end
     
-    local currentUnitName = findUnitForPlayback(targetOrder, unitType)
+    -- Get the actual unit name from our placement mapping
+    local currentUnitName = playbackUnitMapping[targetOrder]
     
-    if not currentUnitName then
-        warn(string.format("Could not find unit for placement #%d (type: %s)", targetOrder, unitType))
+    if not currentUnitName or not unitExistsInServer(currentUnitName) then
+        warn(string.format("Could not find unit for placement #%d (type: %s)", targetOrder, unitType or "unknown"))
         return false
     end
     
     print(string.format("Upgrading placement #%d: %s", targetOrder, currentUnitName))
     
-    -- Check current upgrade level and max upgrade level
+    -- Check current and max upgrade levels
     local currentUpgradeLevel = getUnitUpgradeLevel(currentUnitName)
     local maxUpgradeLevel = getUnitMaxUpgradeLevel(currentUnitName)
     
@@ -1996,40 +1997,30 @@ local function executeUnitUpgrade(actionData)
         return true
     end
     
-    local attempts = 0
-    local maxAttempts = 10
-    
-    while attempts < maxAttempts and isPlaybacking do
-        attempts = attempts + 1
-        
-        local upgradeCost = getUnitUpgradeCost(currentUnitName)
-        
-        if upgradeCost then
-            if not waitForSufficientMoney(upgradeCost, string.format("upgrade %s", currentUnitName)) then
-                return false
-            end
-            
-            local success, err = pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
-            end)
-            
-            if success then
-                task.wait(0.5)
-                local newLevel = getUnitUpgradeLevel(currentUnitName)
-                
-                if newLevel and newLevel > currentUpgradeLevel then
-                    print(string.format("Successfully upgraded placement #%d (%d→%d)", 
-                        targetOrder, currentUpgradeLevel, newLevel))
-                    return true
-                end
-            end
-        end
-        
-        task.wait(1)
+    -- Get upgrade cost and wait for money if needed
+    local upgradeCost = getUnitUpgradeCost(currentUnitName)
+    if upgradeCost and not waitForSufficientMoney(upgradeCost, string.format("upgrade %s", currentUnitName)) then
+        return false
     end
     
-    warn(string.format("Failed to upgrade unit after %d attempts", maxAttempts))
+    -- Try to upgrade
+    local success, err = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
+    end)
+    
+    if success then
+        task.wait(0.5)
+        local newLevel = getUnitUpgradeLevel(currentUnitName)
+        
+        if newLevel and newLevel > currentUpgradeLevel then
+            print(string.format("✅ Successfully upgraded placement #%d (%d→%d)", 
+                targetOrder, currentUpgradeLevel, newLevel))
+            return true
+        end
+    end
+    
+    warn(string.format("Failed to upgrade placement #%d", targetOrder))
     return false
 end
 
@@ -2773,7 +2764,7 @@ local function playMacroOnce()
         
         if not isPlaybacking or not gameInProgress then break end
         
-        -- Execute action
+        -- Execute action based on type
         if action.Type == "spawn_unit" then
             MacroStatusLabel:Set(string.format("Status: (%d/%d) Placing %s", actionIndex, #macro, action.Unit))
             
@@ -2786,6 +2777,39 @@ local function playMacroOnce()
             
             if not success then
                 print("Failed to place:", action.Unit)
+            end
+            
+        elseif action.Type == "upgrade_unit_ingame" then
+            MacroStatusLabel:Set(string.format("Status: (%d/%d) Upgrading %s", actionIndex, #macro, action.Unit))
+            
+            -- Extract placement number from Unit field (e.g., "Unit Name #1" -> 1)
+            local placementNum = tonumber(action.Unit:match("#(%d+)$"))
+            local unitType = action.Unit:match("^(.+)%s#%d+$")
+            
+            if placementNum and unitType then
+                local success = executeUnitUpgrade({
+                    targetPlacementOrder = placementNum,
+                    unitType = unitType
+                })
+                
+                if not success then
+                    print("Failed to upgrade:", action.Unit)
+                end
+            else
+                warn("Invalid upgrade action format:", action.Unit)
+            end
+            
+        elseif action.Type == "sell_unit_ingame" then
+            MacroStatusLabel:Set(string.format("Status: (%d/%d) Selling %s", actionIndex, #macro, action.Unit))
+            
+            local placementNum = tonumber(action.Unit:match("#(%d+)$"))
+            local unitType = action.Unit:match("^(.+)%s#%d+$")
+            
+            if placementNum and unitType then
+                executeUnitSell({
+                    targetPlacementOrder = placementNum,
+                    unitType = unitType
+                })
             end
         end
         
