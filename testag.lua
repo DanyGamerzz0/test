@@ -1,4 +1,4 @@
---10
+--11
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1350,6 +1350,66 @@ end)
     end
 end
 
+local function startGameTracking()
+    if gameInProgress then return end
+    
+    gameInProgress = true
+    gameStartTime = tick()
+    macroHasPlayedThisGame = false
+    
+    print("Game tracking started at:", gameStartTime)
+    
+    -- Auto-start recording if toggle is enabled but recording hasn't started yet
+    if isRecording and not recordingHasStarted then
+        recordingHasStarted = true
+        isRecordingLoopRunning = true
+        clearSpawnIdMappings()
+        table.clear(macro)
+        MacroStatusLabel:Set("Status: Recording active!")
+        notify("Recording Started", "Game started - macro recording is now active.")
+        print("Recording auto-started with game")
+    end
+    
+    -- Initialize tracking structures
+    State.startingInventory = snapshotInventory() -- Your existing function
+    
+    print("Game tracking initialized - ready for macro playback/recording")
+end
+
+local function stopGameTracking()
+    if not gameInProgress then return end
+    
+    print("Game ended - stopping tracking")
+    
+    -- Auto-stop recording if it was running
+    if isRecording and recordingHasStarted then
+        recordingHasStarted = false
+        isRecording = false
+        
+        if RecordToggle then
+            RecordToggle:Set(false)
+        end
+        
+        Rayfield:Notify({
+            Title = "Recording Stopped",
+            Content = "Game ended, recording saved.",
+            Duration = 3
+        })
+        
+        if currentMacroName and #macro > 0 then
+            macroManager[currentMacroName] = macro
+            saveMacroToFile(currentMacroName)
+            print(string.format("Auto-saved recording: %s with %d actions", currentMacroName, #macro))
+        end
+    end
+    
+    -- Reset game state
+    gameInProgress = false
+    gameStartTime = 0
+    
+    print("Game tracking stopped")
+end
+
 local function getPlayerUnitsFolder()
     local unitServer = Services.Workspace:FindFirstChild("Ground") 
         and Services.Workspace.Ground:FindFirstChild("unitServer")
@@ -2646,82 +2706,6 @@ local RecordToggle = MacroTab:CreateToggle({
     end
 })
 
-local function playMacroLoop()
-    if not macro or #macro == 0 then
-        MacroStatusLabel:Set("Status: Error - No macro data!")
-        return
-    end
-
-    isPlayingLoopRunning = true
-    
-    while isPlaybacking do
-        -- Wait for a game to be active
-        while (not gameInProgress or macroHasPlayedThisGame) and isPlaybacking do
-            MacroStatusLabel:Set("Status: Waiting for next game...")
-            task.wait(1)
-        end
-        
-        if not isPlaybacking then break end
-        
-        -- Mark that we're playing this game
-        macroHasPlayedThisGame = true
-        playbackPlacementToSpawnId = {}
-        
-        MacroStatusLabel:Set("Status: Executing macro...")
-        print("Starting macro playback for this game")
-        
-        local gamePlaybackStartTime = gameStartTime -- Use the global gameStartTime set by onGameStart
-        local actionIndex = 1
-        local totalActions = #macro
-        
-        while isPlaybacking and actionIndex <= totalActions and gameInProgress do
-            local currentTime = tick() - gamePlaybackStartTime
-            local action = macro[actionIndex]
-            local actionTime = tonumber(action.Time) or 0
-            
-            -- Wait for timing
-            if currentTime < actionTime then
-                local waitTime = actionTime - currentTime
-                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs...", actionIndex, totalActions, waitTime))
-                
-                local waitStart = tick()
-                while (tick() - waitStart) < waitTime and isPlaybacking and gameInProgress do
-                    task.wait(0.1)
-                end
-                
-                if not isPlaybacking or not gameInProgress then break end
-            end
-            
-            -- Execute action
-            local actionSuccess = false
-            
-            if action.Type == "spawn_unit" then
-                local maxRetries = 3
-                for attempt = 1, maxRetries do
-                    actionSuccess = executePlacementAction(action, actionIndex, totalActions)
-                    if actionSuccess then break end
-                    if attempt < maxRetries then task.wait(0.5) end
-                end
-            end
-            
-            actionIndex = actionIndex + 1
-            task.wait(0.1)
-        end
-        
-        if actionIndex > totalActions then
-            MacroStatusLabel:Set("Status: Macro completed, waiting for next game...")
-        end
-        
-        -- Wait for this game to end before looping
-        while gameInProgress and isPlaybacking do
-            task.wait(0.5)
-        end
-    end
-    
-    isPlayingLoopRunning = false
-    MacroStatusLabel:Set("Status: Playback stopped")
-end
-
 local function playMacroOnce()
     if not macro or #macro == 0 then
         print("No macro data to play")
@@ -3974,29 +3958,20 @@ end
 -- Update your wave monitoring to call onGameStart
 Services.Workspace:WaitForChild("_wave_num").Changed:Connect(function(newWave)
     if newWave >= 1 and not gameInProgress then
-        onGameStart()
+        startGameTracking()
     elseif newWave == 0 and gameInProgress then
-        gameInProgress = false
+        stopGameTracking()
         macroHasPlayedThisGame = false -- Reset for next game
-        
-        -- Auto-stop recording (like File 2)
-        if isRecording and recordingHasStarted then
-            recordingHasStarted = false
-            
-            if currentMacroName and #macro > 0 then
-                macroManager[currentMacroName] = macro
-                saveMacroToFile(currentMacroName)
-                Rayfield:Notify({
-                    Title = "Recording Auto-Saved",
-                    Content = string.format("%s (%d actions)", currentMacroName, #macro),
-                    Duration = 3
-                })
-            end
-        end
-        
-        print("Game ended")
     end
 end)
+
+local function checkInitialGameState()
+    local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+    if waveNum and waveNum.Value >= 1 then
+        print("Joined mid-game at wave", waveNum.Value)
+        startGameTracking()
+    end
+end
 
 local function checkGameStarted()
     if isInLobby() then return end
@@ -4030,6 +4005,7 @@ end)
 if not isInLobby() then
     Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
     print("Game ended")
+    stopGameTracking()
 
     State.gameEndRealTime = tick()
     
@@ -4154,6 +4130,7 @@ end
 ensureMacroFolders()
 loadAllMacros()
 setupGameTimeTracking()
+checkInitialGameState()
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
