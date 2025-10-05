@@ -1,4 +1,4 @@
---1
+--2
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1549,25 +1549,6 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
-local function shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
-    if playbackMode == "timing" then
-        return currentTime >= action.time
-    elseif playbackMode == "wave" then
-        if currentWave > action.wave then
-            return true
-        elseif currentWave == action.wave then
-            return currentWaveTime >= (action.waveTime or 0)
-        end
-        return false
-    elseif playbackMode == "both" then
-        local timingReady = currentTime >= action.time
-        local waveReady = currentWave >= action.wave and 
-                        (currentWave > action.wave or currentWaveTime >= (action.waveTime or 0))
-        return timingReady and waveReady
-    end
-    return false
-end
-
 local function onWaveChanged()
     local newWave = getCurrentWave()
     if newWave ~= currentWave then
@@ -2826,77 +2807,76 @@ local function playMacroLoop()
     
     while isPlaybacking do
         -- Clear mapping at start of each game
-        clearPlaybackMapping()
+        playbackPlacementToSpawnId = {}
         
-        local gameStartTime = tick()
-        print("Starting macro playback...")
+        -- Wait for game to start
+        local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+        while not waveNum or waveNum.Value < 1 do
+            if not isPlaybacking then return end
+            MacroStatusLabel:Set("Status: Waiting for game to start...")
+            task.wait(0.5)
+        end
+        
+        local gamePlaybackStartTime = tick()
+        print("Starting macro playback with game timing...")
         MacroStatusLabel:Set("Status: Executing macro actions...")
         
         local actionIndex = 1
-        currentWave = getCurrentWave()
-        waveStartTime = tick()
-        --placedUnitsTracking = {}
+        local totalActions = #macro
         
-        print(string.format("Macro has %d total actions to execute", #macro))
+        print(string.format("Macro has %d total actions to execute", totalActions))
         
-        while isPlaybacking and actionIndex <= #macro do
-            onWaveChanged()
-            
-            local currentTime = tick() - gameStartTime
-            local currentWaveTime = tick() - waveStartTime
+        while isPlaybacking and actionIndex <= totalActions do
+            local currentTime = tick() - gamePlaybackStartTime
             local action = macro[actionIndex]
             
-            local shouldExecute = shouldExecuteAction(action, currentTime, currentWave, currentWaveTime)
+            -- Parse action time (uppercase Time)
+            local actionTime = tonumber(action.Time) or 0
             
-            if shouldExecute then
-                print(string.format("Executing action %d/%d: %s", 
-                    actionIndex, #macro, action.action))
+            -- Wait until it's time to execute this action
+            if currentTime < actionTime then
+                local waitTime = actionTime - currentTime
+                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs until time %.1fs...", actionIndex, totalActions, waitTime, actionTime))
                 
-                local actionSuccess = false
+                -- Wait in small increments so we can cancel
+                local waitStart = tick()
+                while (tick() - waitStart) < waitTime and isPlaybacking do
+                    task.wait(0.1)
+                end
                 
-                if action.action == "PlaceUnit" then
-                    actionSuccess = executeAction(action, actionIndex, nil)
+                if not isPlaybacking then break end
+            end
+            
+            -- Execute the action
+            print(string.format("Executing action %d/%d: %s at game time %.2fs", actionIndex, totalActions, action.Type, currentTime))
+            
+            local actionSuccess = false
+            
+            if action.Type == "spawn_unit" then
+                -- Retry logic for placement
+                local maxRetries = 3
+                for attempt = 1, maxRetries do
+                    actionSuccess = executePlacementAction(action, actionIndex, totalActions)
+                    if actionSuccess then break end
                     
-                elseif action.action == "UpgradeUnit" then
-                    actionSuccess = executeAction(action, actionIndex, nil)
-                    
-                elseif action.action == "SellUnit" then
-                    actionSuccess = executeAction(action, actionIndex, nil)
-
-                elseif action.action == "UltUnit" then
-                    actionSuccess = executeAction(action, actionIndex, nil)
-                    
-                elseif action.action == "SkipWave" then
-                    local success, err = pcall(function()
-                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
-                        end)
-                    if success then
-                        print("⏭️ Skipped wave")
-                        MacroStatusLabel:Set("Status: Skipped wave")
-                        actionSuccess = true
-                    else
-                        warn(string.format("Failed to skip wave: %s", err))
-                        MacroStatusLabel:Set("Status: Failed to skip wave")
-                        actionSuccess = true -- Don't get stuck on skip wave failures
+                    if attempt < maxRetries then
+                        print(string.format("Retry %d/%d for %s", attempt, maxRetries, action.Unit))
+                        task.wait(0.5)
                     end
                 end
-                
-                -- Always proceed to next action now - failed actions are handled internally with attempt limits
-                if actionSuccess then
-                    print(string.format("✅ Action %d completed successfully", actionIndex))
-                else
-                    print(string.format("❌ Action %d failed after all attempts - skipping to next action", actionIndex))
-                end
-                
-                --print("actionIndex = actionIndex + 1")
-                actionIndex = actionIndex + 1
             end
-            local entityCount = countPlacedUnits()
-            local waitTime = entityCount > 20 and 0.5 or 0.1
-            task.wait(waitTime)
+            
+            if actionSuccess then
+                print(string.format("✅ Action %d completed successfully", actionIndex))
+            else
+                print(string.format("❌ Action %d failed - continuing to next action", actionIndex))
+            end
+            
+            actionIndex = actionIndex + 1
+            task.wait(0.1)
         end
         
-        if actionIndex > #macro then
+        if actionIndex > totalActions then
             print("Macro completed all actions, waiting for next game...")
             MacroStatusLabel:Set("Status: Macro completed, waiting for next game...")
         else
@@ -2904,10 +2884,9 @@ local function playMacroLoop()
             MacroStatusLabel:Set("Status: Macro interrupted")
         end
         
-        if actionIndex > #macro and isPlaybacking then
-            print("Waiting for next game to start...")
-            MacroStatusLabel:Set("Status: Waiting for next game...")
-            waitForGameStart()
+        -- Wait for game to end before looping
+        while waveNum and waveNum.Value >= 1 and isPlaybacking do
+            task.wait(0.5)
         end
     end
     
