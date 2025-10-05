@@ -1,4 +1,4 @@
---9
+--10
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -282,12 +282,12 @@ local function getPlayerUnitsFolder()
     return playerUnitsFolder
 end
 
-    local function updateDetailedStatus(message)
-        if detailedStatusLabel then
-            detailedStatusLabel:Set("Macro Details: " .. message)
-        end
-        print("Macro Status: " .. message)
+local function updateDetailedStatus(message)
+    if detailedStatusLabel then
+        detailedStatusLabel:Set("Macro Details: " .. message)
     end
+    print("Macro Status: " .. message)
+end
 
         local function notify(title, content, duration)
         Rayfield:Notify({
@@ -1287,6 +1287,13 @@ local function StreamerMode()
     end
 end
 
+local function clearSpawnIdMappings()
+    recordingSpawnIdToPlacement = {}
+    recordingPlacementCounter = {}
+    playbackPlacementToSpawnId = {}
+    trackedUnits = {}
+end
+
 local function startRecordingNow()
     if gameStartTime == 0 then
         gameStartTime = tick()
@@ -1393,13 +1400,6 @@ local function getEquippedUnitUUID(displayName)
         end
     end
     return nil
-end
-
-local function clearSpawnIdMappings()
-    recordingSpawnIdToPlacement = {}
-    recordingPlacementCounter = {}
-    playbackPlacementToSpawnId = {}
-    trackedUnits = {}
 end
 
 local function countPlacedUnits()
@@ -2615,33 +2615,33 @@ MacroInput = MacroTab:CreateInput({
         end,
     })
 
-RecordToggle = MacroTab:CreateToggle({
-    Name = "Record",
+local RecordToggle = MacroTab:CreateToggle({
+    Name = "Record Macro",
     CurrentValue = false,
     Flag = "RecordMacro",
     Callback = function(Value)
         isRecording = Value
-        
+
         if Value then
-            if gameInProgress then
-                -- Start recording immediately if in game
-                startRecordingNow()
+            -- Start recording immediately if in game, or when game starts
+            if not isInLobby() and gameInProgress then
+                recordingHasStarted = true
+                isRecordingLoopRunning = true
+                startRecordingNow() -- Your existing function
+                MacroStatusLabel:Set("Status: Recording active!")
+                notify("Recording Started", "Macro recording is now active.")
             else
-                MacroStatusLabel:Set("Status: Recording enabled - waiting for game")
+                recordingHasStarted = false
+                MacroStatusLabel:Set("Status: Recording enabled - will start when game begins")
+                notify("Recording Ready", "Recording will start when you enter a game.")
             end
-        else
+        elseif not Value then
+            if isRecordingLoopRunning then
+                notify("Recording Stopped", "Recording manually stopped.")
+            end
+            isRecordingLoopRunning = false
+            stopRecording() -- Your existing function
             MacroStatusLabel:Set("Status: Recording stopped")
-            recordingHasStarted = false
-            
-            if currentMacroName and #macro > 0 then
-                macroManager[currentMacroName] = macro
-                saveMacroToFile(currentMacroName)
-                Rayfield:Notify({
-                    Title = "Recording Saved",
-                    Content = string.format("%s (%d actions)", currentMacroName, #macro),
-                    Duration = 3
-                })
-            end
         end
     end
 })
@@ -2787,29 +2787,51 @@ end
 local function autoPlaybackLoop()
     while isAutoLoopEnabled do
         -- Wait for game to be active
-        while not gameInProgress and isAutoLoopEnabled do
-            MacroStatusLabel:Set("Status: Waiting for game...")
+        while (not gameInProgress or macroHasPlayedThisGame) and isAutoLoopEnabled do
+            if macroHasPlayedThisGame then
+                MacroStatusLabel:Set("Status: Waiting for next game...")
+            else
+                MacroStatusLabel:Set("Status: Waiting for active game...")
+            end
             task.wait(1)
         end
         
         if not isAutoLoopEnabled then break end
         
-        -- Play macro once for this game
-        playMacroOnce()
+        -- Mark that we're playing this game
+        macroHasPlayedThisGame = true
+        playbackPlacementToSpawnId = {}
         
-        -- Wait for game to end
+        MacroStatusLabel:Set("Status: Executing macro...")
+        updateDetailedStatus("Starting macro playback...")
+        print("Starting macro playback for this game")
+        
+        -- Play the macro once
+        local success = playMacroOnce() -- Your existing function
+        
+        if success then
+            MacroStatusLabel:Set("Status: Macro completed - waiting for next game...")
+            updateDetailedStatus("Macro completed successfully")
+        else
+            MacroStatusLabel:Set("Status: Macro interrupted - waiting for next game...")
+            updateDetailedStatus("Macro was interrupted")
+        end
+        
+        -- Wait for game to end before looping
         while gameInProgress and isAutoLoopEnabled do
             task.wait(0.5)
         end
         
-        task.wait(1) -- Small delay before next game
+        task.wait(1)
     end
     
     MacroStatusLabel:Set("Status: Playback stopped")
+    updateDetailedStatus("Playback stopped")
+    isPlaybacking = false
 end
 
-PlayToggle = MacroTab:CreateToggle({
-    Name = "Playback",
+local PlayToggle = MacroTab:CreateToggle({
+    Name = "Playback Macro",
     CurrentValue = false,
     Flag = "PlayBackMacro",
     Callback = function(Value)
@@ -2825,13 +2847,16 @@ PlayToggle = MacroTab:CreateToggle({
                 })
                 isAutoLoopEnabled = false
                 isPlaybacking = false
+                PlayToggle:Set(false)
                 return
             end
             
             local loadedMacro = loadMacroFromFile(currentMacroName)
             if loadedMacro then
                 macro = loadedMacro
-                task.spawn(autoPlaybackLoop)
+                MacroStatusLabel:Set("Status: Playback enabled - will play when conditions are met")
+                notify("Playback Enabled", "Macro will play once per game.")
+                task.spawn(autoPlaybackLoop) -- Your existing loop function
                 print("Started playback:", currentMacroName, "with", #macro, "actions")
             else
                 Rayfield:Notify({
@@ -2841,9 +2866,12 @@ PlayToggle = MacroTab:CreateToggle({
                 })
                 isAutoLoopEnabled = false
                 isPlaybacking = false
+                PlayToggle:Set(false)
             end
         else
             MacroStatusLabel:Set("Status: Playback disabled")
+            isPlaybacking = false
+            notify("Playback Disabled", "Macro playback stopped.")
         end
     end
 })
@@ -3931,21 +3959,41 @@ local function onGameStart()
     macroHasPlayedThisGame = false
     gameStartTime = tick()
     
+    -- Auto-start recording if enabled (like File 2)
     if isRecording and not recordingHasStarted then
         recordingHasStarted = true
         clearSpawnIdMappings()
         table.clear(macro)
         MacroStatusLabel:Set("Status: Recording active!")
+        notify("Recording Started", "Game started - recording active.")
     end
     
-    print("Game started, flags reset")
+    print("Game started, tracking initialized")
 end
 
+-- Update your wave monitoring to call onGameStart
 Services.Workspace:WaitForChild("_wave_num").Changed:Connect(function(newWave)
     if newWave >= 1 and not gameInProgress then
         onGameStart()
     elseif newWave == 0 and gameInProgress then
         gameInProgress = false
+        macroHasPlayedThisGame = false -- Reset for next game
+        
+        -- Auto-stop recording (like File 2)
+        if isRecording and recordingHasStarted then
+            recordingHasStarted = false
+            
+            if currentMacroName and #macro > 0 then
+                macroManager[currentMacroName] = macro
+                saveMacroToFile(currentMacroName)
+                Rayfield:Notify({
+                    Title = "Recording Auto-Saved",
+                    Content = string.format("%s (%d actions)", currentMacroName, #macro),
+                    Duration = 3
+                })
+            end
+        end
+        
         print("Game ended")
     end
 end)
