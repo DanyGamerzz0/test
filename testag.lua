@@ -1,4 +1,4 @@
---11
+--12
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1310,7 +1310,7 @@ local function startRecordingNow()
 end
 
 local function setupGameTimeTracking()
-    local waveNum = Services.Workspace:WaitForChild("_wave_num")
+    local waveNum = Services.Workspace.GameSettings.Wave
     
 waveNum.Changed:Connect(function(newWave)
     if newWave >= 1 and not gameInProgress then
@@ -3956,7 +3956,7 @@ local function onGameStart()
 end
 
 -- Update your wave monitoring to call onGameStart
-Services.Workspace:WaitForChild("_wave_num").Changed:Connect(function(newWave)
+Services.Workspace.GameSettings.Wave.Changed:Connect(function(newWave)
     if newWave >= 1 and not gameInProgress then
         startGameTracking()
     elseif newWave == 0 and gameInProgress then
@@ -3966,7 +3966,7 @@ Services.Workspace:WaitForChild("_wave_num").Changed:Connect(function(newWave)
 end)
 
 local function checkInitialGameState()
-    local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+    local waveNum = Services.Workspace.GameSettings.Wave
     if waveNum and waveNum.Value >= 1 then
         print("Joined mid-game at wave", waveNum.Value)
         startGameTracking()
