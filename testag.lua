@@ -1,4 +1,4 @@
---pipi1
+--1
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1368,6 +1368,11 @@ local function processPlacementAction(actionInfo)
     
     if not placedUnit or not spawnId then
         warn("Could not find newly placed unit")
+        Rayfield:Notify({
+            Title = "Recording Error",
+            Content = "Failed to detect placed unit",
+            Duration = 3
+        })
         return
     end
     
@@ -1386,42 +1391,53 @@ local function processPlacementAction(actionInfo)
     local placementRecord = {
         Type = "spawn_unit",
         Unit = placementId, -- "Shigeru (Gachi Fighter) #1"
-        DisplayName = displayName, -- Store for playback lookup
         Time = string.format("%.2f", gameRelativeTime),
-        CFrame = {
-            Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z},
-            Rotation = {cframe:ToEulerAnglesXYZ()}
-        },
+        Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z},
         Rotation = rotation
     }
     
     table.insert(macro, placementRecord)
     
-    print(string.format("Recorded: %s (spawn_id: %d)", placementId, spawnId))
+    print(string.format("Recorded: %s (spawn_id: %d) at time %.2fs", placementId, spawnId, gameRelativeTime))
+    Rayfield:Notify({
+        Title = "Recorded Placement",
+        Content = placementId,
+        Duration = 2
+    })
 end
 
-local function executePlacementAction(action)
+local function getDisplayNameFromUnit(unitString)
+    -- "Shigeru (Gachi Fighter) #1" -> "Shigeru (Gachi Fighter)"
+    return unitString:match("^(.+) #%d+$") or unitString
+end
+
+local function executePlacementAction(action, actionIndex, totalActions)
+    -- Extract display name from Unit field
+    local displayName = getDisplayNameFromUnit(action.Unit)
+    
     -- Get UUID for the equipped unit
-    local uuid = getEquippedUnitUUID(action.DisplayName)
+    local uuid = getEquippedUnitUUID(displayName)
     
     if not uuid then
-        warn("Unit not equipped:", action.DisplayName)
+        warn("Unit not equipped:", displayName)
+        updateDetailedStatus(string.format("(%d/%d) ERROR: %s not equipped!", actionIndex, totalActions, displayName))
         return false
     end
     
-    -- Reconstruct CFrame
-    local pos = action.CFrame.Position
-    local rot = action.CFrame.Rotation
-    local cframe = CFrame.new(pos[1], pos[2], pos[3]) * CFrame.Angles(rot[1], rot[2], rot[3])
+    -- Reconstruct CFrame from position
+    local pos = action.Position
+    local cframe = CFrame.new(pos[1], pos[2], pos[3])
     
     local args = {
         {
-            action.DisplayName,
+            displayName,
             cframe,
             action.Rotation or 0
         },
         uuid
     }
+    
+    updateDetailedStatus(string.format("(%d/%d) Placing %s...", actionIndex, totalActions, action.Unit))
     
     local beforeSnapshot = takeUnitsSnapshot()
     
@@ -1429,19 +1445,24 @@ local function executePlacementAction(action)
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
     end)
     
-    if not success then return false end
+    if not success then 
+        warn("Failed to call spawnunit remote")
+        return false 
+    end
     
-    task.wait(0.3)
+    task.wait(0.5)
     
     local afterSnapshot = takeUnitsSnapshot()
-    local placedUnit, displayName, newSpawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    local placedUnit, foundDisplayName, newSpawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     
     if placedUnit and newSpawnId then
         playbackPlacementToSpawnId[action.Unit] = newSpawnId
         print(string.format("Placed: %s -> spawn_id: %d", action.Unit, newSpawnId))
+        updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
         return true
     end
     
+    warn("Failed to detect placed unit")
     return false
 end
 
