@@ -1,4 +1,4 @@
---19
+--20
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1311,6 +1311,26 @@ local function startRecordingNow()
     print("Recording started")
 end
 
+local function saveMacroToFile(name)
+        local data = macroManager[name]
+        if not data then return end
+
+        local serializedData = {}
+        for _, action in ipairs(data) do
+            local newAction = table.clone(action)
+            if newAction.position then
+                newAction.position = serializeVector3(newAction.position)
+            end
+            if newAction.cframe then
+                newAction.cframe = serializeCFrame(newAction.cframe)
+            end
+            table.insert(serializedData, newAction)
+        end
+
+        local json = Services.HttpService:JSONEncode(serializedData)
+        writefile(getMacroFilename(name), json)
+    end
+
 local function setupGameTimeTracking()
     local waveNum = Services.Workspace.GameSettings.Wave
     
@@ -1583,8 +1603,8 @@ end
 
     local function getUnitUpgradeLevel(unit)
         --print(unit.Name)
-        if Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)"):FindFirstChild(unit.Name).Upgrade then
-            return Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)"):FindFirstChild(unit.Name).Upgrade.Value
+        if Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)"):FindFirstChild(unit).Upgrade then
+            return Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)"):FindFirstChild(unit).Upgrade.Value
         end
         return 0
     end
@@ -1662,7 +1682,7 @@ RunService.Heartbeat:Connect(function()
         local spawnId = getUnitSpawnId(unit)
         if spawnId then
             local spawnKey = tostring(spawnId)
-            local currentLevel = getUnitUpgradeLevel(unit)
+            local currentLevel = getUnitUpgradeLevel(unit.Name)
             local placementId = recordingSpawnIdToPlacement[spawnKey]
             
             if placementId then
@@ -1735,25 +1755,6 @@ local function getUnitMaxUpgradeLevel(unitName)
     local maxUpgradeValue = unit:FindFirstChild("MaxUpgrade")
     if maxUpgradeValue and maxUpgradeValue:IsA("NumberValue") then
         return maxUpgradeValue.Value
-    end
-    
-    return nil
-end
-
-local function getUnitUpgradeLevel(unitName)
-    local playerUnitsFolder = getPlayerUnitsFolder()
-    if not playerUnitsFolder then
-        return nil
-    end
-    
-    local unit = playerUnitsFolder:FindFirstChild(unitName)
-    if not unit then
-        return nil
-    end
-    
-    local upgradeValue = unit:FindFirstChild("Upgrade")
-    if upgradeValue and upgradeValue:IsA("NumberValue") then
-        return upgradeValue.Value
     end
     
     return nil
@@ -2159,26 +2160,6 @@ local function getMacroFilename(name)
         end
         
         return "LixHub/Macros/AG/" .. name .. ".json"
-    end
-
-local function saveMacroToFile(name)
-        local data = macroManager[name]
-        if not data then return end
-
-        local serializedData = {}
-        for _, action in ipairs(data) do
-            local newAction = table.clone(action)
-            if newAction.position then
-                newAction.position = serializeVector3(newAction.position)
-            end
-            if newAction.cframe then
-                newAction.cframe = serializeCFrame(newAction.cframe)
-            end
-            table.insert(serializedData, newAction)
-        end
-
-        local json = Services.HttpService:JSONEncode(serializedData)
-        writefile(getMacroFilename(name), json)
     end
 
 local function refreshMacroDropdown()
