@@ -1,4 +1,4 @@
---15
+--16
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1580,6 +1580,13 @@ local function executePlacementAction(action, actionIndex, totalActions)
     warn("Failed to detect placed unit")
     return false
 end
+
+    local function getUnitUpgradeLevel(unit)
+        if Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")[unit].Upgrade then
+            return Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")[unit].Upgrade.Value
+        end
+        return 0
+    end
 
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
