@@ -221,7 +221,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.15"
+local script_version = "V0.16"
 
 local ValidWebhook
 
@@ -2045,7 +2045,7 @@ local function checkAndExecuteHighestPriority()
             local inventoryFrame = Services.Players.LocalPlayer:FindFirstChild("PlayerGui").Items.Main.Base.Space:FindFirstChild("Scrolling")
             if not inventoryFrame then return nil end
             for _, item in ipairs(inventoryFrame:GetChildren()) do
-                if item.Name:lower():find("portal") and table.find(State.selectedPortals, item.Name) then
+                if (item.Name:lower():find("portal") or item.Name:lower():find("tier")) and table.find(State.selectedPortals, item.Name) then
                 return item.Name
                 end
             end
@@ -4637,7 +4637,7 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
 
       MerchantSelectorDropdown = ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Merchant)",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments"},
+    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments","Divine Flower Tier I"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "MerchantPurchaseSelector",
@@ -5151,17 +5151,6 @@ end)
     end,
     })
 
-    JoinerSectionDungeons = JoinerTab:CreateSection("✨ Ascension Mode Joiner ✨")
-
-    AutoJoinAscensionModeToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Ascension Mode",
-    CurrentValue = false,
-    Flag = "AutoAscensionModeToggle",
-    Callback = function(Value)
-        State.autoAscensionEnabled = Value
-    end,
-    })
-
     Dropdown = JoinerTab:CreateDropdown({
    Name = "Select Grail Dungeon Difficulty",
    Options = {"Easy","Normal","Hell"},
@@ -5172,6 +5161,17 @@ end)
         State.AutoGrailDungeonDifficultySelector = Option
    end,
 })
+
+    JoinerSectionDungeons = JoinerTab:CreateSection("✨ Ascension Mode Joiner ✨")
+
+    AutoJoinAscensionModeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Ascension Mode",
+    CurrentValue = false,
+    Flag = "AutoAscensionModeToggle",
+    Callback = function(Value)
+        State.autoAscensionEnabled = Value
+    end,
+    })
 
      JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
 
@@ -5390,7 +5390,7 @@ task.spawn(function()
         local inventory = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items
         if inventory then
             for _, item in ipairs(inventory:GetChildren()) do
-                if item:IsA("Folder") and item.Name:lower():find("portal") and item:FindFirstChild("Amount").Value > 0 then
+                if item:IsA("Folder") and (item.Name:lower():find("portal") or item.Name:lower():find("tier")) and item:FindFirstChild("Amount").Value > 0 then
                     table.insert(portalNames, item.Name)
                 end
             end
