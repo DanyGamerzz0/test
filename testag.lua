@@ -1,4 +1,4 @@
---23
+--24
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1311,25 +1311,27 @@ local function startRecordingNow()
     print("Recording started")
 end
 
-local function saveMacroToFile(name)
-        local data = macroManager[name]
-        if not data then return end
-
-        local serializedData = {}
-        for _, action in ipairs(data) do
-            local newAction = table.clone(action)
-            if newAction.position then
-                newAction.position = serializeVector3(newAction.position)
-            end
-            if newAction.cframe then
-                newAction.cframe = serializeCFrame(newAction.cframe)
-            end
-            table.insert(serializedData, newAction)
+local function getMacroFilename(name)
+        if type(name) == "table" then
+            name = name[1] or ""
         end
-
-        local json = Services.HttpService:JSONEncode(serializedData)
-        writefile(getMacroFilename(name), json)
+        
+        -- Ensure name is a string
+        if type(name) ~= "string" or name == "" then
+            warn("getMacroFilename: Invalid name provided:", name)
+            return nil
+        end
+        
+        return "LixHub/Macros/AG/" .. name .. ".json"
     end
+
+local function saveMacroToFile(name)
+    local data = macroManager[name]
+    if not data then return end
+
+    local json = Services.HttpService:JSONEncode(data)
+    writefile(getMacroFilename(name), json)
+end
 
 local function setupGameTimeTracking()
     local waveNum = Services.Workspace.GameSettings.Wave
@@ -2152,19 +2154,6 @@ local MacroDropdown = MacroTab:CreateDropdown({
             makefolder("LixHub/Macros/AG")
         end
     end
-local function getMacroFilename(name)
-        if type(name) == "table" then
-            name = name[1] or ""
-        end
-        
-        -- Ensure name is a string
-        if type(name) ~= "string" or name == "" then
-            warn("getMacroFilename: Invalid name provided:", name)
-            return nil
-        end
-        
-        return "LixHub/Macros/AG/" .. name .. ".json"
-    end
 
 local function refreshMacroDropdown()
         local options = {}
@@ -2577,24 +2566,17 @@ end
 
 
 
-    local function loadMacroFromFile(name)
-        local filePath = getMacroFilename(name)
-        if not isfile(filePath) then return end
+local function loadMacroFromFile(name)
+    local filePath = getMacroFilename(name)
+    if not isfile(filePath) then return end
 
-            local json = readfile(filePath)
-            local data = Services.HttpService:JSONDecode(json)
-
-            for _, action in ipairs(data) do
-            if action.position then
-                action.position = deserializeVector3(action.position)
-            end
-            if action.cframe then
-                action.cframe = deserializeCFrame(action.cframe)
-            end
-        end
-        macroManager[name] = data
-        return data
-    end
+    local json = readfile(filePath)
+    local data = Services.HttpService:JSONDecode(json)
+    
+    -- No deserialization needed!
+    macroManager[name] = data
+    return data
+end
 
     local function deleteMacroFile(name)
         if isfile(getMacroFilename(name)) then
