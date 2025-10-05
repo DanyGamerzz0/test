@@ -1,4 +1,4 @@
---22
+--23
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1519,7 +1519,6 @@ local function processPlacementAction(actionInfo)
     local placementNumber = recordingPlacementCounter[displayName]
     local placementId = string.format("%s #%d", displayName, placementNumber)
     
-    recordingSpawnIdToPlacement[spawnId] = placementId
     
     -- Use the global gameStartTime that was set when game started
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
@@ -1533,6 +1532,8 @@ local function processPlacementAction(actionInfo)
     }
     
     table.insert(macro, placementRecord)
+
+    recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
     
     print(string.format("Recorded: %s at time %.2fs", placementId, gameRelativeTime))
 end
@@ -1622,6 +1623,8 @@ mt.__namecall = newcclosure(function(self, ...)
             -- Detect spawnunit remote during recording
             if isRecording and method == "InvokeServer" and self.Name == "spawnunit" then
                 local timestamp = tick()
+
+                local tempUnitName = args[1][1]
                 
                 processPlacementAction({
                     args = args,
@@ -1684,7 +1687,7 @@ RunService.Heartbeat:Connect(function()
             local spawnKey = tostring(spawnId)
             local currentLevel = getUnitUpgradeLevel(unit.Name)
             local placementId = recordingSpawnIdToPlacement[spawnKey]
-            print(tostring(recordingSpawnIdToPlacement[spawnKey]))
+            --print(tostring(recordingSpawnIdToPlacement[spawnKey]))
             
             if placementId then
                 -- Initialize tracking if new unit
