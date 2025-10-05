@@ -1002,6 +1002,27 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
     end
 end
 
+local function getTotalAmount(itemName)
+    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+    
+    -- Try Data folder first
+    local dataItem = playerData.Data:FindFirstChild(itemName)
+    if dataItem and dataItem.Value then
+        return dataItem.Value, "Data"
+    end
+    
+    -- Try Items folder second
+    local itemObj = playerData.Items:FindFirstChild(itemName)
+    if itemObj then
+        local amountValue = itemObj:FindFirstChild("Amount")
+        if amountValue then
+            return amountValue.Value, "Items"
+        end
+    end
+    
+    return nil, nil
+end
+
 local function buildRewardsText()
     local endingInventory = snapshotInventory()
     local gainedItems = compareInventories(State.startingInventory, endingInventory)
@@ -1015,28 +1036,16 @@ local function buildRewardsText()
 
         detectedRewards[itemName] = amount
 
-        local totalText = ""
         if reward.isUnit then
             table.insert(detectedUnits, itemName)
-            totalText = ""
             table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
-        elseif itemName == "Gem" then
-            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName.."(s)", totalText))
-        elseif itemName == "Gold" then
-            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "Beach Balls" then
-            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "Fall Currency" then
-            totalText = string.format(" [%d total]", Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Fall Currency"].Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
         else
-            local itemObj = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(itemName)
-            local totalAmount = itemObj and itemObj:FindFirstChild("Amount") and itemObj.Amount.Value or nil
-            totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+            local totalAmount, location = getTotalAmount(itemName)
+            local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
+            
+            -- Add (s) suffix only for "Gem"
+            local displayName = itemName == "Gem" and itemName.."(s)" or itemName
+            table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
         end
     end
 
@@ -3997,19 +4006,32 @@ local function sendSummaryWebhook(newUnits, totalGems)
 end
 
 local function doSummon()
-    local args = {
-        "10x",
-        State.AutoSummonBannerSelected,
-        {
-            Epic = true,
-            Legendary = true,
-            Rare = true
+    local args
+    
+    if State.AutoSummonBannerSelected == "Divine" then
+        args = {
+            "10x",
+            "Divine",
+            {}
         }
-    }
+    else
+        args = {
+            "10x",
+            State.AutoSummonBannerSelected,
+            {}
+        }
+    end
     
     pcall(function()
         Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("UnitsGacha"):FireServer(unpack(args))
     end)
+end
+
+local function getCurrentDivineFlowers()
+    local success, flowers = pcall(function()
+        return Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Magic Flower"].Value
+    end)
+    return success and flowers or 0
 end
 
 local function startAutoSummon()
@@ -4031,8 +4053,14 @@ local function startAutoSummon()
     initialUnits = takeUnitSnapshot()
     print("📸 Initial units snapshot taken")
     
-    local initialGems = getCurrentGems()
-    Services.Players.LocalPlayer:SetAttribute("InitialGems", initialGems)
+    local initialCurrency
+    if State.AutoSummonBannerSelected == "Divine" then
+        initialCurrency = getCurrentDivineFlowers()
+        Services.Players.LocalPlayer:SetAttribute("InitialDivineFlowers", initialCurrency)
+    else
+        initialCurrency = getCurrentGems()
+        Services.Players.LocalPlayer:SetAttribute("InitialGems", initialCurrency)
+    end
     
     -- UI keeping task - runs independently
     local uiTask = task.spawn(function()
@@ -4045,37 +4073,52 @@ local function startAutoSummon()
                     collection.Enabled = true
                 end
             end
-            task.wait(0.1) -- Keep UI enabled every 0.1 seconds
+            task.wait(0.1)
         end
     end)
     
     -- Main summoning task
     summonTask = task.spawn(function()
         while autoSummonActive do
-            local currentGems = getCurrentGems()
+            local currentCurrency, requiredAmount, currencyName
             
-            if currentGems < 500 then
-                print("💎 Not enough gems! Stopping auto summon...")
-                notify("Auto Summon","Not enough gems! Stopping auto summon...")
+            if State.AutoSummonBannerSelected == "Divine" then
+                currentCurrency = getCurrentDivineFlowers()
+                requiredAmount = 1500  -- Divine banner costs 1 per summon
+                currencyName = "Divine Flowers"
+            else
+                currentCurrency = getCurrentGems()
+                requiredAmount = 500  -- Standard/Rateup costs 500 gems
+                currencyName = "gems"
+            end
+            
+            if currentCurrency < requiredAmount then
+                print("💎 Not enough " .. currencyName .. "! Stopping auto summon...")
+                notify("Auto Summon", "Not enough " .. currencyName .. "! Stopping auto summon...")
                 Services.Players.LocalPlayer.PlayerGui.HUD.Enabled = true
                 break
             end
             
             doSummon()
-            print("🎲 Summoned! Gems remaining:", currentGems)
+            print("🎲 Summoned! " .. currencyName .. " remaining:", currentCurrency)
             
-            task.wait(3) -- Normal 3 second delay between summons
+            task.wait(3)
         end
         
-        -- Auto summon stopped - generate summary
-        local finalGems = getCurrentGems()
-        gemsSpent = initialGems - finalGems
+        -- Generate summary
+        local finalCurrency, currencySpent
+        if State.AutoSummonBannerSelected == "Divine" then
+            finalCurrency = getCurrentDivineFlowers()
+            currencySpent = (Services.Players.LocalPlayer:GetAttribute("InitialDivineFlowers") or getCurrentDivineFlowers()) - finalCurrency
+        else
+            finalCurrency = getCurrentGems()
+            currencySpent = (Services.Players.LocalPlayer:GetAttribute("InitialGems") or getCurrentGems()) - finalCurrency
+        end
         
-        task.wait(1) -- Wait for inventory to update
+        task.wait(1)
         local finalUnits = takeUnitSnapshot()
         local newUnits = compareUnits(initialUnits, finalUnits)
         
-        -- Send webhook if any units were obtained
         local hasNewUnits = false
         for _, count in pairs(newUnits) do
             if count > 0 then
@@ -4085,7 +4128,7 @@ local function startAutoSummon()
         end
         
         if hasNewUnits then
-            sendSummaryWebhook(newUnits, gemsSpent)
+            sendSummaryWebhook(newUnits, currencySpent)
             print("📊 Summary sent to webhook!")
         else
             print("📊 No new units obtained")
@@ -4163,7 +4206,7 @@ CodeButton = LobbyTab:CreateButton({
 
  Dropdown = LobbyTab:CreateDropdown({
    Name = "Auto Summon Banner",
-   Options = {"Standard","Rateup"},
+   Options = {"Standard","Rateup","Divine"},
    CurrentOption = {},
    MultipleOptions = false,
    Flag = "AutoSummonBannerSelection",
@@ -4734,9 +4777,9 @@ local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
     end,
     })
 
- GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
+ --GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
 
-     Toggle = ShopTab:CreateToggle({
+    --[[ Toggle = ShopTab:CreateToggle({
     Name = "Auto Purchase Swarm Event Shop",
     CurrentValue = false,
     Flag = "AutoPurchaseSwarmEvent",
@@ -4754,11 +4797,11 @@ local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
     Callback = function(Options)
         Data.SwarmEventPurchaseTable = Options
     end,
-    })
+    })--]]
 
-    local BorosPityCounterLabel = ShopTab:CreateLabel("Boros Pity: ")
+    --local BorosPityCounterLabel = ShopTab:CreateLabel("Boros Pity: ")
 
-local function setupBorosPityCounter()
+--[[local function setupBorosPityCounter()
     local Players = game:GetService("Players")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -4799,7 +4842,7 @@ local SwarmToggle = ShopTab:CreateToggle({
            startAutoSwarmEvent()
        end
    end,
-})
+})--]]
 
      GameSection = LobbyTab:CreateSection("🎁 Claimers 🎁")
 
