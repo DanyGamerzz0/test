@@ -1,4 +1,4 @@
---3
+--4
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -2821,7 +2821,7 @@ local function playMacroLoop()
         playbackPlacementToSpawnId = {}
         
         -- Wait for game to start
-        local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+        local waveNum = Services.Workspace.GameSettings.Wave
         print("Wave_num exists:", waveNum ~= nil)
 while not waveNum or waveNum.Value < 1 do
     if not isPlaybacking then 
