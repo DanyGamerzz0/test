@@ -1,4 +1,4 @@
---13
+--14
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -2675,6 +2675,19 @@ MacroInput = MacroTab:CreateInput({
             refreshMacroDropdown()
         end,
     })
+
+    local function stopRecording()
+        isRecording = false
+        recordingHasStarted = false
+        print(string.format("Stopped recording. Recorded %d actions", #macro))
+        
+        if currentMacroName and currentMacroName ~= "" then
+            macroManager[currentMacroName] = macro
+            saveMacroToFile(currentMacroName)
+        end
+        
+        return macro
+    end
 
 local RecordToggle = MacroTab:CreateToggle({
     Name = "Record Macro",
