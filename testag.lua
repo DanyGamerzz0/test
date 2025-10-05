@@ -1,4 +1,4 @@
---12
+--13
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -221,6 +221,8 @@ local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "tv")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
+
+local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
 
 CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
@@ -2057,7 +2059,6 @@ local function executeUnitUlt(actionData)
     return false
 end
 
-    local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
     detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
 
     local Divider = MacroTab:CreateDivider()
