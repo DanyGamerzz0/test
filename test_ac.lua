@@ -1,4 +1,4 @@
-    -- 9.5
+    -- 9.6
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -6304,6 +6304,30 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
         end,
     })
 
+    local function getAllPortalUUIDs(portalId)
+    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+    if not itemsGui then return {} end
+
+    local itemFrames = itemsGui:FindFirstChild("grid")
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+    if not itemFrames then return {} end
+
+    local results = {}
+
+    for _, child in ipairs(itemFrames:GetChildren()) do
+        if child.Name == portalId then
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
+            if uuidValue and uuidValue:IsA("StringValue") then
+                table.insert(results, uuidValue.Value)
+            end
+        end
+    end
+    
+    return results
+end
+
     -- ========== REMOTE EVENT CONNECTIONS ==========
     local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
     local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
@@ -6526,9 +6550,9 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
     local maxAttempts = 5
     
     for attempt = 1, maxAttempts do
-        getPortalUUID(State.SelectedPortal)
 
-        local portalUUID = getPortalUUID(State.SelectedPortal)
+        local uuids = getAllPortalUUIDs(State.SelectedPortal)
+        local portalUUID = uuids[2]
         
         if not portalUUID then
             print("No more portals found with ID:", State.SelectedPortal)
