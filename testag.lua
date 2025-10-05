@@ -1,4 +1,4 @@
---20
+--21
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1683,6 +1683,7 @@ RunService.Heartbeat:Connect(function()
         if spawnId then
             local spawnKey = tostring(spawnId)
             local currentLevel = getUnitUpgradeLevel(unit.Name)
+            print(currentLevel)
             local placementId = recordingSpawnIdToPlacement[spawnKey]
             
             if placementId then
