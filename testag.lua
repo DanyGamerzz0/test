@@ -1,4 +1,4 @@
---27
+--28
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1978,6 +1978,7 @@ end
 local function executeUnitUpgrade(actionData)
     local targetOrder = actionData.targetPlacementOrder
     local unitType = actionData.unitType
+    local upgradeAmount = actionData.amount or 1  -- Default to 1 if not specified
     
     if not targetOrder or targetOrder == 0 then
         warn("Invalid target placement order for upgrade")
@@ -1992,7 +1993,7 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
-    print(string.format("Upgrading placement #%d: %s", targetOrder, currentUnitName))
+    print(string.format("Upgrading placement #%d: %s (x%d levels)", targetOrder, currentUnitName, upgradeAmount))
     
     -- Check current and max upgrade levels
     local currentUpgradeLevel = getUnitUpgradeLevel(currentUnitName)
@@ -2009,16 +2010,20 @@ local function executeUnitUpgrade(actionData)
         return true
     end
     
-    -- Get upgrade cost and wait for money if needed
+    -- Calculate total upgrade cost (if needed)
     local upgradeCost = getUnitUpgradeCost(currentUnitName)
-    if upgradeCost and not waitForSufficientMoney(upgradeCost, string.format("upgrade %s", currentUnitName)) then
-        return false
+    if upgradeCost then
+        -- Approximate total cost (may not be exact if costs increase per level)
+        local estimatedTotalCost = upgradeCost * upgradeAmount
+        if not waitForSufficientMoney(estimatedTotalCost, string.format("upgrade %s x%d", currentUnitName, upgradeAmount)) then
+            return false
+        end
     end
     
-    -- Try to upgrade
+    -- Try to upgrade with the amount parameter
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName)
+            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName, upgradeAmount)
     end)
     
     if success then
