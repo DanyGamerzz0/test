@@ -1,4 +1,4 @@
---5
+--6
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -190,6 +190,9 @@ local recordingUnitNameToSpawnId = {}
 local playbackPlacementToSpawnId = {} 
 local trackedUnits = {} 
 local lastRecordedUpgrade = {}
+
+local gameInProgress = false
+local macroHasPlayedThisGame = false
 
 local gameStartTime = 0
 
@@ -2648,253 +2651,82 @@ local MacroInput = MacroTab:CreateInput({
     end,
     })
 
-local function clearRecordingMapping()
-    recordingPlacementCounter = 0
-    print("🧹 Cleared recording mapping for new game")
-end
-
 RecordToggle = MacroTab:CreateToggle({
     Name = "Record",
     CurrentValue = false,
     Flag = "RecordMacro",
     Callback = function(Value)
         isRecording = Value
-
-        if Value and not isRecordingLoopRunning then
-            recordingHasStarted = false
-            MacroStatusLabel:Set("Status: Preparing to record...")
-            
-            task.spawn(function()
-                -- Wait for game to start
-                local waveNum = Services.Workspace:FindFirstChild("_wave_num")
-                while not waveNum or waveNum.Value < 1 do
-                    task.wait(0.5)
-                end
-                
-                if isRecording then
-                    recordingHasStarted = true
-                    isRecordingLoopRunning = true
-                    
-                    -- Clear mappings and start fresh
-                    clearSpawnIdMappings()
-                    table.clear(macro)
-                    gameStartTime = tick()
-                    
-                    MacroStatusLabel:Set("Status: Recording active!")
-                    Rayfield:Notify({
-                        Title = "Recording Started",
-                        Content = "Macro recording is now active.",
-                        Duration = 4
-                    })
-                end
-            end)
-
-        elseif not Value then
-            if isRecordingLoopRunning then
-                Rayfield:Notify({
-                    Title = "Recording Stopped",
-                    Content = "Recording manually stopped.",
-                    Duration = 3
-                })
-            end
-            isRecordingLoopRunning = false
-            recordingHasStarted = false
-            MacroStatusLabel:Set("Status: Recording stopped")
-
-            if currentMacroName then
+        
+        if Value then
+            MacroStatusLabel:Set("Status: Recording enabled - will start when game begins")
+        else
+            MacroStatusLabel:Set("Status: Recording disabled")
+            if recordingHasStarted and currentMacroName then
                 macroManager[currentMacroName] = macro
                 saveMacroToFile(currentMacroName)
             end
+            recordingHasStarted = false
         end
     end
 })
 
-local function clearPlaybackMapping()
-    playbackUnitMapping = {}
-    print("🧹 Cleared playback unit mapping for new game")
-end
-
-local function executeAction(action, actionIndex, totalActions)
-    if action.Type == "spawn_unit" then
-        --updateDetailedStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
-        
-        local maxRetries = 3
-        for attempt = 1, maxRetries do
-            local success = executePlacementAction(action)
-            if success then
-                return true
-            end
-            
-            if attempt < maxRetries then
-                task.wait(0.5)
-            end
-        end
-        
-        warn("Failed to place unit after retries:", action.Unit)
-        return false
-        
-    elseif action.Type == "upgrade_unit_ingame" then
-        --updateDetailedStatus(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
-        
-        local spawnId = playbackPlacementToSpawnId[action.Unit]
-        if not spawnId then
-            warn("No spawn ID mapping for upgrade:", action.Unit)
-            return false
-        end
-        
-        local playerUnitsFolder = getPlayerUnitsFolder()
-        if not playerUnitsFolder then return false end
-        
-        -- Find unit by spawn ID
-        for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-            if getUnitSpawnId(unit) == spawnId then
-                local success = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", unit.Name)
-                end)
-                
-                if success then
-                    print("Successfully upgraded:", action.Unit)
-                    return true
-                end
-                break
-            end
-        end
-        
-        return false
-        
-    elseif action.Type == "sell_unit_ingame" then
-        --updateDetailedStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
-        
-        local spawnId = playbackPlacementToSpawnId[action.Unit]
-        if not spawnId then
-            warn("No spawn ID mapping for sell:", action.Unit)
-            return false
-        end
-        
-        local playerUnitsFolder = getPlayerUnitsFolder()
-        if not playerUnitsFolder then return false end
-        
-        for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-            if getUnitSpawnId(unit) == spawnId then
-                local success = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", unit.Name)
-                end)
-                
-                if success then
-                    playbackPlacementToSpawnId[action.Unit] = nil
-                    print("Successfully sold:", action.Unit)
-                    return true
-                end
-                break
-            end
-        end
-        
-        return false
-    end
-    
-    return false
-end
-
 local function playMacroLoop()
-        print("=== PLAYBACK DEBUG: playMacroLoop called ===")
-    print("Macro exists:", macro ~= nil)
-    print("Macro length:", macro and #macro or 0)
     if not macro or #macro == 0 then
         MacroStatusLabel:Set("Status: Error - No macro data!")
-        Rayfield:Notify({
-            Title = "Playback Error",
-            Content = "No macro data to play back.",
-            Duration = 3
-        })
         return
     end
 
-        print("First action Type:", macro[1].Type)
-    print("First action Unit:", macro[1].Unit)
-    print("First action Time:", macro[1].Time)
-
     isPlayingLoopRunning = true
-    MacroStatusLabel:Set("Status: Macro playback active")
     
     while isPlaybacking do
-        -- Clear mapping at start of each game
+        -- Wait for a game to be active
+        while (not gameInProgress or macroHasPlayedThisGame) and isPlaybacking do
+            MacroStatusLabel:Set("Status: Waiting for next game...")
+            task.wait(1)
+        end
+        
+        if not isPlaybacking then break end
+        
+        -- Mark that we're playing this game
+        macroHasPlayedThisGame = true
         playbackPlacementToSpawnId = {}
         
-        -- Wait for game to start
-        local waveNum = Services.Workspace.GameSettings.Wave
-        print("Wave_num exists:", waveNum ~= nil)
-while not waveNum or waveNum.Value < 1 do
-    if not isPlaybacking then 
-        print("Playback stopped while waiting")
-        return 
-    end
-    print("Waiting for game... current wave:", waveNum and waveNum.Value or "nil")
-    MacroStatusLabel:Set("Status: Waiting for game to start...")
-    task.wait(0.5)
-end
-
-        print("Game started! Wave:", waveNum.Value)
+        MacroStatusLabel:Set("Status: Executing macro...")
+        print("Starting macro playback for this game")
         
-        local gamePlaybackStartTime = tick()
-        print("Starting macro playback with game timing...")
-        MacroStatusLabel:Set("Status: Executing macro actions...")
-        
+        local gamePlaybackStartTime = gameStartTime -- Use the global gameStartTime set by onGameStart
         local actionIndex = 1
         local totalActions = #macro
         
-        print(string.format("Macro has %d total actions to execute", totalActions))
-        
-        while isPlaybacking and actionIndex <= totalActions do
+        while isPlaybacking and actionIndex <= totalActions and gameInProgress do
             local currentTime = tick() - gamePlaybackStartTime
             local action = macro[actionIndex]
-
-                print(string.format("=== Action %d/%d ===", actionIndex, totalActions))
-    print("Action Type:", action.Type)
-    print("Action Unit:", action.Unit)
-    print("Action Time:", action.Time)
-    print("Current Time:", string.format("%.2f", currentTime))
-            
-            -- Parse action time (uppercase Time)
             local actionTime = tonumber(action.Time) or 0
             
-            -- Wait until it's time to execute this action
+            -- Wait for timing
             if currentTime < actionTime then
                 local waitTime = actionTime - currentTime
-                --updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs until time %.1fs...", actionIndex, totalActions, waitTime, actionTime))
+                --updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs...", actionIndex, totalActions, waitTime))
                 
-                -- Wait in small increments so we can cancel
                 local waitStart = tick()
-                while (tick() - waitStart) < waitTime and isPlaybacking do
+                while (tick() - waitStart) < waitTime and isPlaybacking and gameInProgress do
                     task.wait(0.1)
                 end
                 
-                if not isPlaybacking then break end
+                if not isPlaybacking or not gameInProgress then break end
             end
             
-            -- Execute the action
-            print(string.format("Executing action %d/%d: %s at game time %.2fs", actionIndex, totalActions, action.Type, currentTime))
-            
+            -- Execute action
             local actionSuccess = false
             
             if action.Type == "spawn_unit" then
-                print("Calling executePlacementAction for:", action.Unit)
-                -- Retry logic for placement
                 local maxRetries = 3
                 for attempt = 1, maxRetries do
                     actionSuccess = executePlacementAction(action, actionIndex, totalActions)
                     if actionSuccess then break end
-                    
-                    if attempt < maxRetries then
-                        print(string.format("Retry %d/%d for %s", attempt, maxRetries, action.Unit))
-                        task.wait(0.5)
-                    end
+                    if attempt < maxRetries then task.wait(0.5) end
                 end
-            end
-            
-            if actionSuccess then
-                print(string.format("✅ Action %d completed successfully", actionIndex))
-            else
-                print(string.format("❌ Action %d failed - continuing to next action", actionIndex))
             end
             
             actionIndex = actionIndex + 1
@@ -2902,22 +2734,17 @@ end
         end
         
         if actionIndex > totalActions then
-            print("Macro completed all actions, waiting for next game...")
             MacroStatusLabel:Set("Status: Macro completed, waiting for next game...")
-        else
-            print("Macro interrupted")
-            MacroStatusLabel:Set("Status: Macro interrupted")
         end
         
-        -- Wait for game to end before looping
-        while waveNum and waveNum.Value >= 1 and isPlaybacking do
+        -- Wait for this game to end before looping
+        while gameInProgress and isPlaybacking do
             task.wait(0.5)
         end
     end
     
     isPlayingLoopRunning = false
     MacroStatusLabel:Set("Status: Playback stopped")
-    print("Macro playback loop ended")
 end
 
 PlayToggle = MacroTab:CreateToggle({
@@ -2926,68 +2753,21 @@ PlayToggle = MacroTab:CreateToggle({
     Flag = "PlayBackMacro",
     Callback = function(Value)
         isPlaybacking = Value
-
-        if Value and not isPlayingLoopRunning then
-            MacroStatusLabel:Set("Status: Preparing playback...")
-            Rayfield:Notify({
-                Title = "Macro Playback",
-                Content = "Waiting for game to start...",
-                Duration = 4
-            })
-
-            local playbackThread = task.spawn(function()
-                waitForGameStart()
-                if isPlaybacking then
-                    if currentMacroName then
-                        ensureMacroFolders()
-                        local loadedMacro = loadMacroFromFile(currentMacroName)
-                        if loadedMacro then
-                            macro = loadedMacro
-                        else
-                            MacroStatusLabel:Set("Status: Error - Failed to load macro!")
-                            Rayfield:Notify({
-                                Title = "Playback Error",
-                                Content = "Failed to load macro: " .. tostring(currentMacroName),
-                                Duration = 5,
-                            })
-                            isPlaybacking = false
-                            PlayToggle:Set(false)
-                            return
-                        end
-                    else
-                        MacroStatusLabel:Set("Status: Error - No macro selected!")
-                        Rayfield:Notify({
-                            Title = "Playback Error",
-                            Content = "No macro selected for playback.",
-                            Duration = 5,
-                        })
-                        isPlaybacking = false
-                        PlayToggle:Set(false)
-                        return
-                    end
-
-                    isPlayingLoopRunning = true
-
-                    Rayfield:Notify({
-                        Title = "Playback Started",
-                        Content = "Macro is now executing...",
-                        Duration = 4
-                    })
-
-                    playMacroLoop()
-
-                    isPlayingLoopRunning = false
-                end
-            end)
-        elseif not Value then
-            MacroStatusLabel:Set("Status: Playback disabled")
-            Rayfield:Notify({
-                Title = "Macro Playback",
-                Content = "Playback disabled.",
-                Duration = 3
-            })
+        
+        if Value then
+            if currentMacroName and macroManager[currentMacroName] then
+                macro = macroManager[currentMacroName]
+                task.spawn(playMacroLoop)
+            else
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "No macro selected",
+                    Duration = 3
+                })
+                isPlaybacking = false
+            end
         end
-    end,
+    end
 })
 
 local ImportInput = MacroTab:CreateInput({
@@ -4069,18 +3849,28 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
 end
 
 local function onGameStart()
-    State.startingInventory = snapshotInventory()
-    State.isGameRunning = true
-
-    State.gameStartRealTime = tick()
-    State.gameEndRealTime = nil
-    State.actualClearTime = nil
-    print("🟢Game Started: ", State.gameStartRealTime)
-    if isRecording then
+    gameInProgress = true
+    macroHasPlayedThisGame = false
+    gameStartTime = tick()
+    
+    if isRecording and not recordingHasStarted then
+        recordingHasStarted = true
         clearSpawnIdMappings()
-        gameStartTime = tick()
+        table.clear(macro)
+        MacroStatusLabel:Set("Status: Recording active!")
     end
+    
+    print("Game started, flags reset")
 end
+
+Services.Workspace:WaitForChild("_wave_num").Changed:Connect(function(newWave)
+    if newWave >= 1 and not gameInProgress then
+        onGameStart()
+    elseif newWave == 0 and gameInProgress then
+        gameInProgress = false
+        print("Game ended")
+    end
+end)
 
 local function checkGameStarted()
     if isInLobby() then return end
@@ -4117,25 +3907,22 @@ if not isInLobby() then
 
     State.gameEndRealTime = tick()
     
-    if isRecording and recordingHasStarted then
-        isRecording = false
-        isRecordingLoopRunning = false
-        recordingHasStarted = false
-        RecordToggle:Set(false)
-        
-        Rayfield:Notify({
-            Title = "Recording Stopped",
-            Content = "Game ended, recording has been automatically stopped and saved.",
-            Duration = 3
-        })
-        
-        if currentMacroName then
-            macroManager[currentMacroName] = macro
-            saveMacroToFile(currentMacroName)
-        end
-    elseif isRecording and not recordingHasStarted then
-        print("Recording was waiting for game start - not stop recording")
+if isRecording and recordingHasStarted then
+    isRecording = false
+    recordingHasStarted = false
+    RecordToggle:Set(false)
+    
+    Rayfield:Notify({
+        Title = "Recording Stopped",
+        Content = "Game ended, recording saved.",
+        Duration = 3
+    })
+    
+    if currentMacroName then
+        macroManager[currentMacroName] = macro
+        saveMacroToFile(currentMacroName)
     end
+end
     
     State.isGameRunning = false
     
