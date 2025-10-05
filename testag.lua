@@ -1,4 +1,4 @@
---17
+--18
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1582,7 +1582,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
 end
 
     local function getUnitUpgradeLevel(unit)
-        print(unit.Name)
+        --print(unit.Name)
         if Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")[unit.Name].Upgrade then
             return Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")[unit.Name].Upgrade.Value
         end
