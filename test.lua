@@ -974,6 +974,7 @@ local function compareInventories(startInv, endInv)
 end
 
 local function patchRewardsFromFolder(existingGained, detectedRewards, detectedUnits, lines)
+
     local rewardFolder = Services.Players.LocalPlayer:FindFirstChild("RewardsShow")
     if not rewardFolder then return end
 
@@ -985,16 +986,9 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
                 detectedRewards[rewardEntry.Name] = amount
                 table.insert(existingGained, { name = rewardEntry.Name, amount = amount, isUnit = false })
 
-                local totalText = ""
-
-                if rewardEntry.Name == "Gem" or rewardEntry.Name == "Gold" or rewardEntry.Name == "Beach Balls" or rewardEntry.Name == "BossRushCurrency" or rewardEntry.Name == "Fall Currency" then
-                    local dataValue = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data:FindFirstChild(rewardEntry.Name)
-                    totalText = dataValue and string.format(" [%d total]", dataValue.Value) or ""
-                else
-                    local item = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(rewardEntry.Name)
-                    local itemAmount = item and item:FindFirstChild("Amount")
-                    totalText = itemAmount and string.format(" [%d total]", itemAmount.Value) or ""
-                end
+                -- use getTotalAmount instead of hardcoded folders
+                local totalValue, _ = getTotalAmount(rewardEntry.Name)
+                local totalText = totalValue and string.format(" [%d total]", totalValue) or ""
 
                 table.insert(lines, string.format("+ %s %s%s", amount, rewardEntry.Name, totalText))
             end
@@ -1008,7 +1002,7 @@ local function getTotalAmount(itemName)
     -- Try Data folder first
     local dataItem = playerData.Data:FindFirstChild(itemName)
     if dataItem and dataItem.Value then
-        print("comparing "..itemName.." and "..dataItem.Name)
+        --print("comparing "..itemName.." and "..dataItem.Name)
         return dataItem.Value, "Data"
     end
     
