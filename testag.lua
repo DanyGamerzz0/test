@@ -1,4 +1,4 @@
---4
+--5
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1424,7 +1424,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     
     if not uuid then
         warn("Unit not equipped:", displayName)
-        updateDetailedStatus(string.format("(%d/%d) ERROR: %s not equipped!", actionIndex, totalActions, displayName))
+        --updateDetailedStatus(string.format("(%d/%d) ERROR: %s not equipped!", actionIndex, totalActions, displayName))
         return false
     end
     
@@ -1441,7 +1441,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
         uuid
     }
     
-    updateDetailedStatus(string.format("(%d/%d) Placing %s...", actionIndex, totalActions, action.Unit))
+    --updateDetailedStatus(string.format("(%d/%d) Placing %s...", actionIndex, totalActions, action.Unit))
     
     local beforeSnapshot = takeUnitsSnapshot()
     
@@ -1462,7 +1462,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     if placedUnit and newSpawnId then
         playbackPlacementToSpawnId[action.Unit] = newSpawnId
         print(string.format("Placed: %s -> spawn_id: %d", action.Unit, newSpawnId))
-        updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
+        --updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
         return true
     end
     
@@ -2716,7 +2716,7 @@ end
 
 local function executeAction(action, actionIndex, totalActions)
     if action.Type == "spawn_unit" then
-        updateDetailedStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
+        --updateDetailedStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
         
         local maxRetries = 3
         for attempt = 1, maxRetries do
@@ -2734,7 +2734,7 @@ local function executeAction(action, actionIndex, totalActions)
         return false
         
     elseif action.Type == "upgrade_unit_ingame" then
-        updateDetailedStatus(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
+        --updateDetailedStatus(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
         
         local spawnId = playbackPlacementToSpawnId[action.Unit]
         if not spawnId then
@@ -2763,7 +2763,7 @@ local function executeAction(action, actionIndex, totalActions)
         return false
         
     elseif action.Type == "sell_unit_ingame" then
-        updateDetailedStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
+        --updateDetailedStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
         
         local spawnId = playbackPlacementToSpawnId[action.Unit]
         if not spawnId then
@@ -2860,7 +2860,7 @@ end
             -- Wait until it's time to execute this action
             if currentTime < actionTime then
                 local waitTime = actionTime - currentTime
-                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs until time %.1fs...", actionIndex, totalActions, waitTime, actionTime))
+                --updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs until time %.1fs...", actionIndex, totalActions, waitTime, actionTime))
                 
                 -- Wait in small increments so we can cancel
                 local waitStart = tick()
