@@ -1008,6 +1008,7 @@ local function getTotalAmount(itemName)
     -- Try Data folder first
     local dataItem = playerData.Data:FindFirstChild(itemName)
     if dataItem and dataItem.Value then
+        print("comparing "..itemName.." and "..dataItem.Name)
         return dataItem.Value, "Data"
     end
     
