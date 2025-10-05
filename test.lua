@@ -973,6 +973,28 @@ local function compareInventories(startInv, endInv)
     return gained
 end
 
+local function getTotalAmount(itemName)
+    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+    
+    -- Try Data folder first
+    local dataItem = playerData.Data:FindFirstChild(itemName)
+    if dataItem and dataItem.Value then
+        --print("comparing "..itemName.." and "..dataItem.Name)
+        return dataItem.Value, "Data"
+    end
+    
+    -- Try Items folder second
+    local itemObj = playerData.Items:FindFirstChild(itemName)
+    if itemObj then
+        local amountValue = itemObj:FindFirstChild("Amount")
+        if amountValue then
+            return amountValue.Value, "Items"
+        end
+    end
+    
+    return nil, nil
+end
+
 local function patchRewardsFromFolder(existingGained, detectedRewards, detectedUnits, lines)
 
     local rewardFolder = Services.Players.LocalPlayer:FindFirstChild("RewardsShow")
@@ -994,28 +1016,6 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
             end
         end
     end
-end
-
-local function getTotalAmount(itemName)
-    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-    
-    -- Try Data folder first
-    local dataItem = playerData.Data:FindFirstChild(itemName)
-    if dataItem and dataItem.Value then
-        --print("comparing "..itemName.." and "..dataItem.Name)
-        return dataItem.Value, "Data"
-    end
-    
-    -- Try Items folder second
-    local itemObj = playerData.Items:FindFirstChild(itemName)
-    if itemObj then
-        local amountValue = itemObj:FindFirstChild("Amount")
-        if amountValue then
-            return amountValue.Value, "Items"
-        end
-    end
-    
-    return nil, nil
 end
 
 local function buildRewardsText()
