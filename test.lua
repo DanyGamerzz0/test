@@ -3350,58 +3350,48 @@ local function StartAutoReroll(selectedTraits)
     
     task.spawn(function()
         local attempts = 0
-
-        local targetMessage = State.rollOnlyDoubleTraits
-            and string.format("Looking for 2 traits from: %s", table.concat(selectedTraits, ", "))
-            or string.format("Looking for any of: %s", table.concat(selectedTraits, ", "))
-        notify("Auto Reroll", targetMessage)
+        notify("Auto Reroll", "Searching for traits: " .. table.concat(selectedTraits, ", "))
         
         while State.AutoRerollEnabled do
             attempts += 1
             
-            -- First check
+            -- First quick check
             local currentTraits = GetSelectedUnitTraits()
             if not currentTraits then
-                notify("Auto Reroll", "No unit selected! Please select a unit in the trait UI.")
-                task.wait(3)
+                notify("Auto Reroll", "No unit selected! Please open trait UI.")
+                task.wait(1)
                 continue
             end
-            
+
             if TraitsMatch(currentTraits, selectedTraits, State.rollOnlyDoubleTraits) then
-                local successMessage = State.rollOnlyDoubleTraits
-                    and string.format("Found double traits: %s + %s! (Attempt %d)", currentTraits.primary, currentTraits.secondary, attempts)
-                    or string.format("Found matching trait! Primary: %s, Secondary: %s (Attempt %d)", currentTraits.primary, currentTraits.secondary, attempts)
-                notify("Auto Reroll", successMessage)
+                notify("Auto Reroll", string.format("Found traits after %d attempts!", attempts))
                 State.AutoRerollEnabled = false
                 break
             end
-
-            -- Short delay to allow any UI/server change
-            task.wait(0.25)
-
-            -- Second check just in case traits updated late
-            currentTraits = GetSelectedUnitTraits()
-            if currentTraits and TraitsMatch(currentTraits, selectedTraits, State.rollOnlyDoubleTraits) then
-                local successMessage = State.rollOnlyDoubleTraits
-                    and string.format("Found double traits (late update): %s + %s! (Attempt %d)", currentTraits.primary, currentTraits.secondary, attempts)
-                    or string.format("Found matching trait (late update)! Primary: %s, Secondary: %s (Attempt %d)", currentTraits.primary, currentTraits.secondary, attempts)
-                notify("Auto Reroll", successMessage)
-                State.AutoRerollEnabled = false
-                break
-            end
-
-            -- Log attempt
-            print(string.format("Attempt %d: Primary: %s, Secondary: %s", attempts, currentTraits.primary, currentTraits.secondary))
 
             -- Reroll
             local rollSuccess = RerollTraits(currentTraits.unit)
             if not rollSuccess then
-                notify("Auto Reroll", "Failed to reroll traits! Retrying...")
+                notify("Auto Reroll", "Failed to reroll! Retrying...")
+                task.wait(0.2)
+                continue
             end
 
-            -- Delay before next loop
-            task.wait(0.5)
+            -- Micro-delay to allow UI/server update
+            task.wait(0.1)
 
+            -- Second check (catches late updates)
+            local newTraits = GetSelectedUnitTraits()
+            if newTraits and TraitsMatch(newTraits, selectedTraits, State.rollOnlyDoubleTraits) then
+                notify("Auto Reroll", string.format("Found traits after %d attempts!", attempts))
+                State.AutoRerollEnabled = false
+                break
+            end
+
+            -- Short delay before loop repeats
+            task.wait(0.15)
+
+            -- Progress update every 20 attempts
             if attempts % 20 == 0 then
                 notify("Auto Reroll", string.format("Attempt %d - Still searching...", attempts))
             end
