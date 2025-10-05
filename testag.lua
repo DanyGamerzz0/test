@@ -1,4 +1,4 @@
---28
+--29
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1978,7 +1978,10 @@ end
 local function executeUnitUpgrade(actionData)
     local targetOrder = actionData.targetPlacementOrder
     local unitType = actionData.unitType
-    local upgradeAmount = actionData.amount or 1  -- Default to 1 if not specified
+    local upgradeAmount = actionData.amount or 1
+    
+    print(string.format("DEBUG: executeUnitUpgrade called - order: %d, type: %s, amount: %d", 
+        targetOrder, unitType or "nil", upgradeAmount))
     
     if not targetOrder or targetOrder == 0 then
         warn("Invalid target placement order for upgrade")
@@ -1987,15 +1990,21 @@ local function executeUnitUpgrade(actionData)
     
     -- Get the actual unit name from our placement mapping
     local currentUnitName = playbackUnitMapping[targetOrder]
+    print(string.format("DEBUG: Found mapping for order %d: %s", targetOrder, currentUnitName or "nil"))
     
-    if not currentUnitName or not unitExistsInServer(currentUnitName) then
-        warn(string.format("Could not find unit for placement #%d (type: %s)", targetOrder, unitType or "unknown"))
+    if not currentUnitName then
+        warn(string.format("No mapping found for placement #%d", targetOrder))
+        return false
+    end
+    
+    if not unitExistsInServer(currentUnitName) then
+        warn(string.format("Unit %s does not exist in server for placement #%d", currentUnitName, targetOrder))
         return false
     end
     
     print(string.format("Upgrading placement #%d: %s (x%d levels)", targetOrder, currentUnitName, upgradeAmount))
     
-    -- Check current and max upgrade levels
+    -- Rest of the function stays the same...
     local currentUpgradeLevel = getUnitUpgradeLevel(currentUnitName)
     local maxUpgradeLevel = getUnitMaxUpgradeLevel(currentUnitName)
     
@@ -2010,17 +2019,14 @@ local function executeUnitUpgrade(actionData)
         return true
     end
     
-    -- Calculate total upgrade cost (if needed)
     local upgradeCost = getUnitUpgradeCost(currentUnitName)
     if upgradeCost then
-        -- Approximate total cost (may not be exact if costs increase per level)
         local estimatedTotalCost = upgradeCost * upgradeAmount
         if not waitForSufficientMoney(estimatedTotalCost, string.format("upgrade %s x%d", currentUnitName, upgradeAmount)) then
             return false
         end
     end
     
-    -- Try to upgrade with the amount parameter
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
             :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName, upgradeAmount)
@@ -2035,6 +2041,8 @@ local function executeUnitUpgrade(actionData)
                 targetOrder, currentUpgradeLevel, newLevel))
             return true
         end
+    else
+        warn(string.format("pcall failed: %s", tostring(err)))
     end
     
     warn(string.format("Failed to upgrade placement #%d", targetOrder))
@@ -2807,7 +2815,8 @@ local function playMacroOnce()
             if placementNum and unitType then
                 local success = executeUnitUpgrade({
                     targetPlacementOrder = placementNum,
-                    unitType = unitType
+                    unitType = unitType,
+                    amount = action.Amount
                 })
                 
                 if not success then
