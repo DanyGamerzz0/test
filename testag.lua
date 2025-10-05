@@ -1,4 +1,4 @@
---7
+--8
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -281,6 +281,15 @@ end
             detailedStatusLabel:Set("Macro Details: " .. message)
         end
         print("Macro Status: " .. message)
+    end
+
+        local function notify(title, content, duration)
+        Rayfield:Notify({
+            Title = title or "Notice",
+            Content = content or "No message.",
+            Duration = duration or 5,
+            Image = "info",
+        })
     end
 
 local function getUnitsOfType(unitType)
