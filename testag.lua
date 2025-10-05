@@ -1,4 +1,4 @@
---25
+--26
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -188,6 +188,7 @@ local recordingSpawnIdToPlacement = {}
 local recordingPlacementCounter = {} 
 local recordingUnitNameToSpawnId = {} 
 local playbackPlacementToSpawnId = {} 
+local playbackUnitMapping = {}
 local trackedUnits = {} 
 local lastRecordedUpgrade = {}
 local gameStartTime = 0
@@ -1293,6 +1294,7 @@ local function clearSpawnIdMappings()
     recordingSpawnIdToPlacement = {}
     recordingPlacementCounter = {}
     playbackPlacementToSpawnId = {}
+    playbackUnitMapping = {}
     trackedUnits = {} -- Add this line
 end
 
@@ -2735,6 +2737,7 @@ local function playMacroOnce()
     MacroStatusLabel:Set("Status: Executing macro...")
     
     playbackPlacementToSpawnId = {}
+    playbackUnitMapping = {}
     local playbackStartTime = gameStartTime
     
     if playbackStartTime == 0 then
