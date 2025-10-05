@@ -1,4 +1,4 @@
---26
+--27
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1548,8 +1548,16 @@ local function getDisplayNameFromUnit(unitString)
 end
 
 local function executePlacementAction(action, actionIndex, totalActions)
-        print("=== executePlacementAction called ===")
+    print("=== executePlacementAction called ===")
     print("Action Unit:", action.Unit)
+    
+    -- Extract the placement order from the Unit field (e.g., "Shigeru (Gachi Fighter) #1" -> 1)
+    local placementOrder = tonumber(action.Unit:match("#(%d+)$"))
+    if not placementOrder then
+        warn("Could not extract placement order from:", action.Unit)
+        return false
+    end
+    
     -- Extract display name from Unit field
     local displayName = getDisplayNameFromUnit(action.Unit)
     print("Extracted displayName:", displayName)
@@ -1597,7 +1605,9 @@ local function executePlacementAction(action, actionIndex, totalActions)
     
     if placedUnit and newSpawnId then
         playbackPlacementToSpawnId[action.Unit] = newSpawnId
-        print(string.format("Placed: %s -> spawn_id: %d", action.Unit, newSpawnId))
+        playbackUnitMapping[placementOrder] = placedUnit.Name  -- Map placement order to actual unit name
+        print(string.format("Placed: %s -> spawn_id: %d -> unit_name: %s", action.Unit, newSpawnId, placedUnit.Name))
+        print(string.format("Mapped placement #%d to unit: %s", placementOrder, placedUnit.Name))
         updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
         return true
     end
