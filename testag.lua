@@ -1,7 +1,7 @@
 --pipi1
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -183,9 +183,15 @@ local oldNamecall = mt.__namecall
 local macroManager = {}
 local currentMacroName
 local macro = {}
-local pendingMacroName = ""
-local pendingImportURL = ""
-local pendingImportContent = ""
+
+local recordingSpawnIdToPlacement = {}
+local recordingPlacementCounter = {} 
+local recordingUnitNameToSpawnId = {} 
+local playbackPlacementToSpawnId = {} 
+local trackedUnits = {} 
+local lastRecordedUpgrade = {}
+
+local gameStartTime = 0
 
 local recordingStartTime
 local isRecording = false
@@ -196,18 +202,6 @@ local playbackMode = "timing"
 local currentWave = 0
 local waveStartTime = 0
 local currentPlacementOrder = 0
-
-local unitMapping = {}
-
-local unitTracker = {
-    lastUnitCount = 0,
-    unitSnapshots = {},
-    placementHistory = {}
-}
-
-local playbackUnitMapping = {}
-local recordingPlacementCounter = 0
-local playbackPlacementIndex = 0
 
 local ValidWebhook = nil
 
@@ -260,10 +254,6 @@ local Button = LobbyTab:CreateButton({
             Services.TeleportService:Teleport(17282336195, Services.Players.LocalPlayer)
         end,
     })
-
-local function getBaseUnitName(unitName)
-    return unitName:match("^(.-)%s*%d*$") or unitName
-end
 
 local function getPlayerUnitsFolder()
     local unitServer = Services.Workspace:FindFirstChild("Ground") 
@@ -1150,66 +1140,56 @@ setupChestDetection()
         return Services.Workspace.GameSettings:FindFirstChild("Wave").Value or 0
     end
 
-local function takeUnitSnapshot()
-    local snapshot = {}
-    local entities = Services.Workspace:FindFirstChild("Ground") 
-    if entities then
-        local unitClient = entities:FindFirstChild("unitClient")
-        if unitClient then
-            for _, unit in pairs(unitClient:GetChildren()) do
-                if unit:IsA("Model") then
-                    snapshot[unit.Name] = {
-                        position = unit.WorldPivot.Position,
-                        timestamp = tick()
-                    }
-                end
-            end
-        end
-    end
-    return snapshot
+local function getUnitDisplayName(unit)
+    if not unit then return nil end
+    return unit:GetAttribute("original_name")
 end
 
-local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot, expectedPosition, originalUnitName)
-    local newUnits = {}
+local function getUnitSpawnId(unit)
+    if not unit then return nil end
+    local spawnId = unit.Name:match("%s(%d+)$")
+    return spawnId and tonumber(spawnId) or nil
+end
+
+local function takeUnitsSnapshot()
+    local snapshot = {}
+    local playerUnitsFolder = getPlayerUnitsFolder()
     
-    -- Find units that exist in 'after' but not in 'before'
-    for unitName, unitData in pairs(afterSnapshot) do
-        if not beforeSnapshot[unitName] then
-            table.insert(newUnits, {
-                name = unitName,
-                position = unitData.position,
-                timestamp = unitData.timestamp
+    if not playerUnitsFolder then 
+        return snapshot 
+    end
+    
+    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        local displayName = getUnitDisplayName(unit)
+        local spawnId = getUnitSpawnId(unit)
+        
+        if displayName and spawnId then
+            table.insert(snapshot, {
+                instance = unit,
+                name = unit.Name,
+                displayName = displayName,
+                spawnId = spawnId,
+                position = unit:FindFirstChild("HumanoidRootPart") and unit.HumanoidRootPart.Position or nil
             })
         end
     end
     
-    if #newUnits == 0 then
-        return nil
+    return snapshot
+end
+
+local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    local beforeSpawnIds = {}
+    for _, unitData in pairs(beforeSnapshot) do
+        beforeSpawnIds[unitData.spawnId] = true
     end
     
-    -- If only one new unit, return it
-    if #newUnits == 1 then
-        return newUnits[1].name
-    end
-    
-    -- If multiple new units, find the one closest to expected position
-    local closestUnit = nil
-    local closestDistance = math.huge
-    local baseUnitName = originalUnitName:match("^(.-)%s*%d*$")
-    
-    for _, unitInfo in pairs(newUnits) do
-        -- Check if unit matches the expected type
-        local unitBaseName = unitInfo.name:match("^(.-)%s*%d*$")
-        if unitBaseName == baseUnitName then
-            local distance = (unitInfo.position - expectedPosition).Magnitude
-            if distance < closestDistance then
-                closestDistance = distance
-                closestUnit = unitInfo.name
-            end
+    for _, unitData in pairs(afterSnapshot) do
+        if not beforeSpawnIds[unitData.spawnId] then
+            return unitData.instance, unitData.displayName, unitData.spawnId
         end
     end
     
-    return closestUnit
+    return nil, nil, nil
 end
 
 local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
@@ -1298,6 +1278,65 @@ local function clearUnitMapping()
     print("Unit mapping cleared for new game")
 end
 
+local function getPlayerUnitsFolder()
+    local unitServer = Services.Workspace:FindFirstChild("Ground") 
+        and Services.Workspace.Ground:FindFirstChild("unitServer")
+    
+    if not unitServer then
+        warn("unitServer not found!")
+        return nil
+    end
+    
+    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer).." (UNIT)")
+    if not playerUnitsFolder then
+        warn("Player units folder not found!")
+        return nil
+    end
+    
+    return playerUnitsFolder
+end
+
+local function getUnitUUIDFromInventory(displayName)
+    local unitsInventory = Services.Players.LocalPlayer:FindFirstChild("UnitsInventory")
+    if not unitsInventory then return nil end
+    
+    for _, folder in pairs(unitsInventory:GetChildren()) do
+        if folder:IsA("Folder") then
+            local unitValue = folder:FindFirstChild("Unit")
+            if unitValue and unitValue.Value == displayName then
+                return folder.Name -- This is the UUID
+            end
+        end
+    end
+    return nil
+end
+
+local function getEquippedUnitUUID(displayName)
+    local unitsInventory = Services.Players.LocalPlayer:FindFirstChild("UnitsInventory")
+    if not unitsInventory then return nil end
+    
+    for _, folder in pairs(unitsInventory:GetChildren()) do
+        if folder:IsA("Folder") then
+            local unitValue = folder:FindFirstChild("Unit")
+            local dataSetting = folder:FindFirstChild("data") and folder.data:FindFirstChild("setting")
+            local equipValue = dataSetting and dataSetting:FindFirstChild("equip")
+            
+            if unitValue and unitValue.Value == displayName and 
+               equipValue and equipValue.Value == "t" then
+                return folder.Name -- UUID
+            end
+        end
+    end
+    return nil
+end
+
+local function clearSpawnIdMappings()
+    recordingSpawnIdToPlacement = {}
+    recordingPlacementCounter = {}
+    playbackPlacementToSpawnId = {}
+    trackedUnits = {}
+end
+
 local function countPlacedUnits()
     local count = 0
     local entities = Services.Workspace:FindFirstChild("Ground") and Services.Workspace.Ground:FindFirstChild("unitClient")
@@ -1313,181 +1352,178 @@ local function countPlacedUnits()
     return count
 end
 
+local function processPlacementAction(actionInfo)
+    local args = actionInfo.args
+    local unitDisplayName = args[1][1] -- "Shigeru (Gachi Fighter)"
+    local cframe = args[1][2]
+    local rotation = args[1][3]
+    local uuid = args[2]
+    
+    local beforeSnapshot = takeUnitsSnapshot()
+    
+    task.wait(0.3)
+    
+    local afterSnapshot = takeUnitsSnapshot()
+    local placedUnit, displayName, spawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    
+    if not placedUnit or not spawnId then
+        warn("Could not find newly placed unit")
+        return
+    end
+    
+    -- Increment placement counter for this unit type
+    recordingPlacementCounter[displayName] = (recordingPlacementCounter[displayName] or 0) + 1
+    local placementNumber = recordingPlacementCounter[displayName]
+    
+    -- Create logical placement ID
+    local placementId = string.format("%s #%d", displayName, placementNumber)
+    
+    -- Map spawn ID to logical placement
+    recordingSpawnIdToPlacement[spawnId] = placementId
+    
+    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    
+    local placementRecord = {
+        Type = "spawn_unit",
+        Unit = placementId, -- "Shigeru (Gachi Fighter) #1"
+        DisplayName = displayName, -- Store for playback lookup
+        Time = string.format("%.2f", gameRelativeTime),
+        CFrame = {
+            Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z},
+            Rotation = {cframe:ToEulerAnglesXYZ()}
+        },
+        Rotation = rotation
+    }
+    
+    table.insert(macro, placementRecord)
+    
+    print(string.format("Recorded: %s (spawn_id: %d)", placementId, spawnId))
+end
+
+local function executePlacementAction(action)
+    -- Get UUID for the equipped unit
+    local uuid = getEquippedUnitUUID(action.DisplayName)
+    
+    if not uuid then
+        warn("Unit not equipped:", action.DisplayName)
+        return false
+    end
+    
+    -- Reconstruct CFrame
+    local pos = action.CFrame.Position
+    local rot = action.CFrame.Rotation
+    local cframe = CFrame.new(pos[1], pos[2], pos[3]) * CFrame.Angles(rot[1], rot[2], rot[3])
+    
+    local args = {
+        {
+            action.DisplayName,
+            cframe,
+            action.Rotation or 0
+        },
+        uuid
+    }
+    
+    local beforeSnapshot = takeUnitsSnapshot()
+    
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
+    end)
+    
+    if not success then return false end
+    
+    task.wait(0.3)
+    
+    local afterSnapshot = takeUnitsSnapshot()
+    local placedUnit, displayName, newSpawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    
+    if placedUnit and newSpawnId then
+        playbackPlacementToSpawnId[action.Unit] = newSpawnId
+        print(string.format("Placed: %s -> spawn_id: %d", action.Unit, newSpawnId))
+        return true
+    end
+    
+    return false
+end
+
+local mt = getrawmetatable(game)
+setreadonly(mt, false)
+local oldNamecall = mt.__namecall
+
 mt.__namecall = newcclosure(function(self, ...)
     local args = { ... }
     local method = getnamecallmethod()
+    
     if not checkcaller() then
         task.spawn(function()
-            -- Detection for spawnunit remote
+            -- Detect spawnunit remote during recording
             if isRecording and method == "InvokeServer" and self.Name == "spawnunit" then
-                local unitData = args[1]
-                local unitName = unitData[1]
-                local unitCFrame = unitData[2]
-                local unitRotation = unitData[3]
-                local unitId = args[2]
                 local timestamp = tick()
-                local currentWaveNum = getCurrentWave()
                 
-                -- Take snapshot before placement (keeping your original validation)
-                local beforeSnapshot = takeUnitSnapshot()
-                
-                print(string.format("Recording placement attempt for %s", unitName))
-                
-                -- Wait for placement to complete (keeping your original timing)
-                task.wait(1.5)
-                
-                -- Take snapshot after placement
-                local afterSnapshot = takeUnitSnapshot()
-                
-                -- Find the newly placed unit (using your original validation)
-                local actualUnitName = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot, unitCFrame.Position, unitName)
-                
-                if actualUnitName then
-                    -- Only NOW increment the counter since placement succeeded
-                    recordingPlacementCounter = recordingPlacementCounter + 1
-                    local thisPlacementOrder = recordingPlacementCounter
-                    local unitType = getBaseUnitName(unitName)
-                    
-                    local placementData = {
-                        action = "PlaceUnit",
-                        unitName = unitName,
-                        unitType = unitType,
-                        actualUnitName = actualUnitName,
-                        cframe = unitCFrame,
-                        rotation = unitRotation,
-                        unitId = unitId,
-                        time = timestamp - recordingStartTime,
-                        wave = currentWaveNum,
-                        timestamp = timestamp,
-                        placementOrder = thisPlacementOrder
-                    }
-                    
-                    table.insert(macro, placementData)
-                    
-                    print(string.format("✅ Recorded placement #%d: %s -> %s", 
-                        thisPlacementOrder, unitName, actualUnitName))
-                else
-                    -- Placement failed, don't increment counter
-                    print(string.format("❌ Placement failed, not recording: %s", unitName))
-                end
-                
-            -- Detection for ManageUnits remote (Upgrade/Sell)
-            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" then
-                local action = args[1]
-                local unitName = args[2] -- Actual server unit name
+                -- Store the action info for processing
+                processPlacementAction({
+                    args = args,
+                    timestamp = timestamp
+                })
+            
+            -- Detect upgrade remote during recording
+            elseif isRecording and method == "InvokeServer" and self.Name == "upgrade_unit_ingame" then
+                local unitName = args[1] -- This is the unit's model name like "Shigeru (Gachi Fighter) 3"
                 local timestamp = tick()
-                local currentWaveNum = getCurrentWave()
                 
-                -- Find which placement order this unit corresponds to
-                local targetPlacementOrder = nil
-                local unitType = getBaseUnitName(unitName)
-                
-                -- Search through recorded placements to find the matching one
-                local unitsOfTypeCount = 0
-                for _, recordedAction in ipairs(macro) do
-                    if recordedAction.action == "PlaceUnit" and 
-                       getBaseUnitName(recordedAction.unitName) == unitType then
-                        unitsOfTypeCount = unitsOfTypeCount + 1
+                -- Find the unit in unitServer to get its spawn ID
+                local playerUnitsFolder = getPlayerUnitsFolder()
+                if playerUnitsFolder then
+                    local unit = playerUnitsFolder:FindFirstChild(unitName)
+                    if unit then
+                        local spawnId = getUnitSpawnId(unit)
+                        local placementId = recordingSpawnIdToPlacement[spawnId]
                         
-                        -- Get current units of this type and see which one this is
-                        local currentUnitsOfType = getUnitsOfType(unitType)
-                        
-                        -- Find position of this unit in the sorted list
-                        local unitPosition = nil
-                        for i, currentUnitName in ipairs(currentUnitsOfType) do
-                            if currentUnitName == unitName then
-                                unitPosition = i
-                                break
-                            end
-                        end
-                        
-                        -- If this is the Nth unit of its type, it corresponds to the Nth placement
-                        if unitPosition == unitsOfTypeCount then
-                            targetPlacementOrder = recordedAction.placementOrder
-                            break
+                        if placementId then
+                            local gameRelativeTime = timestamp - gameStartTime
+                            
+                            table.insert(macro, {
+                                Type = "upgrade_unit_ingame",
+                                Unit = placementId,
+                                Time = string.format("%.2f", gameRelativeTime)
+                            })
+                            
+                            print(string.format("Recorded upgrade: %s", placementId))
                         end
                     end
                 end
-                
-                if not targetPlacementOrder then
-                    warn(string.format("Could not determine placement order for unit '%s'", unitName))
-                    return
-                end
-                
-                if action == "Upgrade" then
-                    table.insert(macro, {
-                        action = "UpgradeUnit", 
-                        unitName = unitName,
-                        unitType = unitType,
-                        time = timestamp - recordingStartTime,
-                        wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder
-                    })
-                    print(string.format("📈 Recorded upgrade for placement #%d (%s)", 
-                        targetPlacementOrder, unitName))
-                    
-                elseif action == "Selling" then
-                    table.insert(macro, {
-                        action = "SellUnit", 
-                        unitName = unitName,
-                        unitType = unitType,
-                        time = timestamp - recordingStartTime,
-                        wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder
-                    })
-                    print(string.format("💰 Recorded sell for placement #%d (%s)", 
-                        targetPlacementOrder, unitName))
-                end
-                
-            elseif isRecording and method == "InvokeServer" and self.Name == "Skills" then
+            
+            -- Detect sell remote during recording
+            elseif isRecording and method == "InvokeServer" and self.Name == "sell_unit_ingame" then
+                local unitName = args[1]
                 local timestamp = tick()
-                local currentWaveNum = getCurrentWave()
                 
-                local buttonType = args[1]
-                local unitString = args[2]
-                
-                if buttonType == "SkillsButton" and unitString then
-                    -- Extract unit name and find corresponding placement order
-                    local targetPlacementOrder = nil
-                    local unitType = getBaseUnitName(unitString)
-                    
-                    -- Similar logic to upgrade/sell for finding placement order
-                    local unitsOfTypeCount = 0
-                    for _, recordedAction in ipairs(macro) do
-                        if recordedAction.action == "PlaceUnit" and 
-                           getBaseUnitName(recordedAction.unitName) == unitType then
-                            unitsOfTypeCount = unitsOfTypeCount + 1
+                local playerUnitsFolder = getPlayerUnitsFolder()
+                if playerUnitsFolder then
+                    local unit = playerUnitsFolder:FindFirstChild(unitName)
+                    if unit then
+                        local spawnId = getUnitSpawnId(unit)
+                        local placementId = recordingSpawnIdToPlacement[spawnId]
+                        
+                        if placementId then
+                            local gameRelativeTime = timestamp - gameStartTime
                             
-                            local currentUnitsOfType = getUnitsOfType(unitType)
+                            table.insert(macro, {
+                                Type = "sell_unit_ingame",
+                                Unit = placementId,
+                                Time = string.format("%.2f", gameRelativeTime)
+                            })
                             
-                            for i, currentUnitName in ipairs(currentUnitsOfType) do
-                                if unitString:find(currentUnitName, 1, true) then
-                                    if i == unitsOfTypeCount then
-                                        targetPlacementOrder = recordedAction.placementOrder
-                                        break
-                                    end
-                                end
-                            end
+                            print(string.format("Recorded sell: %s", placementId))
                             
-                            if targetPlacementOrder then break end
+                            -- Clean up mapping
+                            recordingSpawnIdToPlacement[spawnId] = nil
                         end
                     end
-                    
-                    table.insert(macro, {
-                        action = "UltUnit",
-                        unitString = unitString,
-                        unitType = unitType,
-                        time = timestamp - recordingStartTime,
-                        wave = currentWaveNum,
-                        targetPlacementOrder = targetPlacementOrder or 0
-                    })
-                    
-                    print(string.format("⚡ Recorded ult for placement #%d", 
-                        targetPlacementOrder or 0))
                 end
             end
         end)
     end
+    
     return oldNamecall(self, ...)
 end)
 setreadonly(mt, true)
@@ -2619,24 +2655,26 @@ RecordToggle = MacroTab:CreateToggle({
         isRecording = Value
 
         if Value and not isRecordingLoopRunning then
-            recordingHasStarted = false -- Reset the flag when starting
+            recordingHasStarted = false
             MacroStatusLabel:Set("Status: Preparing to record...")
-            Rayfield:Notify({
-                Title = "Macro Recording",
-                Content = "Waiting for game to start...",
-                Duration = 4
-            })
-
-            local recordingThread = task.spawn(function()
-                waitForGameStart()
+            
+            task.spawn(function()
+                -- Wait for game to start
+                local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+                while not waveNum or waveNum.Value < 1 do
+                    task.wait(0.5)
+                end
+                
                 if isRecording then
-                    recordingHasStarted = true -- Set flag when recording actually starts
+                    recordingHasStarted = true
                     isRecordingLoopRunning = true
-                    clearRecordingMapping()
+                    
+                    -- Clear mappings and start fresh
+                    clearSpawnIdMappings()
                     table.clear(macro)
-                    recordingStartTime = tick()
+                    gameStartTime = tick()
+                    
                     MacroStatusLabel:Set("Status: Recording active!")
-
                     Rayfield:Notify({
                         Title = "Recording Started",
                         Content = "Macro recording is now active.",
@@ -2654,12 +2692,11 @@ RecordToggle = MacroTab:CreateToggle({
                 })
             end
             isRecordingLoopRunning = false
-            recordingHasStarted = false -- Reset flag when stopping
+            recordingHasStarted = false
             MacroStatusLabel:Set("Status: Recording stopped")
 
             if currentMacroName then
                 macroManager[currentMacroName] = macro
-                ensureMacroFolders()
                 saveMacroToFile(currentMacroName)
             end
         end
@@ -2669,6 +2706,87 @@ RecordToggle = MacroTab:CreateToggle({
 local function clearPlaybackMapping()
     playbackUnitMapping = {}
     print("🧹 Cleared playback unit mapping for new game")
+end
+
+local function executeAction(action, actionIndex, totalActions)
+    if action.Type == "spawn_unit" then
+        updateDetailedStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
+        
+        local maxRetries = 3
+        for attempt = 1, maxRetries do
+            local success = executePlacementAction(action)
+            if success then
+                return true
+            end
+            
+            if attempt < maxRetries then
+                task.wait(0.5)
+            end
+        end
+        
+        warn("Failed to place unit after retries:", action.Unit)
+        return false
+        
+    elseif action.Type == "upgrade_unit_ingame" then
+        updateDetailedStatus(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
+        
+        local spawnId = playbackPlacementToSpawnId[action.Unit]
+        if not spawnId then
+            warn("No spawn ID mapping for upgrade:", action.Unit)
+            return false
+        end
+        
+        local playerUnitsFolder = getPlayerUnitsFolder()
+        if not playerUnitsFolder then return false end
+        
+        -- Find unit by spawn ID
+        for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+            if getUnitSpawnId(unit) == spawnId then
+                local success = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", unit.Name)
+                end)
+                
+                if success then
+                    print("Successfully upgraded:", action.Unit)
+                    return true
+                end
+                break
+            end
+        end
+        
+        return false
+        
+    elseif action.Type == "sell_unit_ingame" then
+        updateDetailedStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
+        
+        local spawnId = playbackPlacementToSpawnId[action.Unit]
+        if not spawnId then
+            warn("No spawn ID mapping for sell:", action.Unit)
+            return false
+        end
+        
+        local playerUnitsFolder = getPlayerUnitsFolder()
+        if not playerUnitsFolder then return false end
+        
+        for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+            if getUnitSpawnId(unit) == spawnId then
+                local success = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", unit.Name)
+                end)
+                
+                if success then
+                    playbackPlacementToSpawnId[action.Unit] = nil
+                    print("Successfully sold:", action.Unit)
+                    return true
+                end
+                break
+            end
+        end
+        
+        return false
+    end
+    
+    return false
 end
 
 local function playMacroLoop()
@@ -2716,16 +2834,16 @@ local function playMacroLoop()
                 local actionSuccess = false
                 
                 if action.action == "PlaceUnit" then
-                    actionSuccess = executeUnitPlacement(action)
+                    actionSuccess = executeAction(action, actionIndex, nil)
                     
                 elseif action.action == "UpgradeUnit" then
-                    actionSuccess = executeUnitUpgrade(action)
+                    actionSuccess = executeAction(action, actionIndex, nil)
                     
                 elseif action.action == "SellUnit" then
-                    actionSuccess = executeUnitSell(action)
+                    actionSuccess = executeAction(action, actionIndex, nil)
 
                 elseif action.action == "UltUnit" then
-                    actionSuccess = executeUnitUlt(action)
+                    actionSuccess = executeAction(action, actionIndex, nil)
                     
                 elseif action.action == "SkipWave" then
                     local success, err = pcall(function()
@@ -3933,6 +4051,10 @@ local function onGameStart()
     State.gameEndRealTime = nil
     State.actualClearTime = nil
     print("🟢Game Started: ", State.gameStartRealTime)
+    if isRecording then
+        clearSpawnIdMappings()
+        gameStartTime = tick()
+    end
 end
 
 local function checkGameStarted()
@@ -3963,75 +4085,6 @@ task.spawn(function()
     checkAndExecuteHighestPriority()
     end
 end)
-
---[[Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
-                if isRecording then
-            isRecording = false
-            isRecordingLoopRunning = false
-            Rayfield:Notify({
-                Title = "Recording Stopped",
-                Content = "Game ended, recording has been automatically stopped and saved.",
-                Duration = 3,
-                Image = 0,
-            })
-            RecordToggle:Set(false)
-
-            if currentMacroName then
-                macroManager[currentMacroName] = macro
-                saveMacroToFile(currentMacroName)
-            end
-        end 
-    State.isGameRunning = false
-    if State.SendStageCompletedWebhook then
-        sendWebhook("stage", nil, "1:50", nil)
-    end
-    if State.AutoVoteNext and not isNexting then
-        isNexting = true
-        spawn(function()
-            while State.AutoVoteNext and not game.Workspace.GameSettings.GameStarted.Value do
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
-                end)
-                
-                if success then
-                    print("Next sent!")
-                else
-                    print("Next failed, retrying...")
-                end
-                
-                wait(10)
-            end
-            isNexting = false
-        end)
-    end
-
-   if State.AutoVoteRetry and not isRetrying then
-    isRetrying = true
-    retryStartTime = tick()
-    
-    spawn(function()
-        while State.AutoVoteRetry and not game.Workspace.GameSettings.GameStarted.Value do
-            local success, err = pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-            end)
-            
-            if success then
-                print("Vote sent!")
-            else
-                print("Failed, retrying...")
-            end
-            wait(10)
-        end
-        isRetrying = false
-    end)
-end
-    if State.AutoVoteLobby then
-        Services.TeleportService:Teleport(17282336195, LocalPlayer)
-    end
-    isPlayingLoopRunning = false
-end)--]]
 
 if not isInLobby() then
     Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
