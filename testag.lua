@@ -1,4 +1,4 @@
---6
+--7
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -190,6 +190,7 @@ local recordingUnitNameToSpawnId = {}
 local playbackPlacementToSpawnId = {} 
 local trackedUnits = {} 
 local lastRecordedUpgrade = {}
+local gameStartTime = 0
 
 local gameInProgress = false
 local macroHasPlayedThisGame = false
@@ -205,6 +206,7 @@ local playbackMode = "timing"
 local currentWave = 0
 local waveStartTime = 0
 local currentPlacementOrder = 0
+local detailedStatusLabel = nil
 
 local ValidWebhook = nil
 
@@ -213,8 +215,6 @@ local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "tv")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
-
-local MacroStatusLabel = MacroTab:CreateLabel("Status: Idle", "info")
 
 CodeButton = LobbyTab:CreateButton({
     Name = "Redeem All Codes",
@@ -276,6 +276,13 @@ local function getPlayerUnitsFolder()
     return playerUnitsFolder
 end
 
+    local function updateDetailedStatus(message)
+        if detailedStatusLabel then
+            detailedStatusLabel:Set("Macro Details: " .. message)
+        end
+        print("Macro Status: " .. message)
+    end
+
 local function getUnitsOfType(unitType)
     local units = {}
     local playerUnitsFolder = getPlayerUnitsFolder()
@@ -332,12 +339,6 @@ local function findUnitForPlayback(placementOrder, unitType)
     end
     warn(string.format("Could not find unit index %d for type '%s', using last available", targetIndex, unitType))
     return unitsOfThisType[#unitsOfThisType]
-end
-
-local function clearAllMappings()
-    recordingPlacementCounter = 0
-    playbackUnitMapping = {}
-    print("Cleared all unit mappings for new game")
 end
 
 local function purchaseFromBlackMarket(unitName)
@@ -1271,14 +1272,62 @@ local function StreamerMode()
     end
 end
 
-local function getCurrentUnitName(recordedUnitName)
-    return unitMapping[recordedUnitName] or recordedUnitName
-end
-
-local function clearUnitMapping()
-    unitMapping = {}
-    --placementOrder = {}
-    print("Unit mapping cleared for new game")
+local function setupGameTimeTracking()
+    local waveNum = Services.Workspace:WaitForChild("_wave_num")
+    
+    waveNum.Changed:Connect(function(newWave)
+        if newWave >= 1 and not gameInProgress then
+            -- Game just started
+            gameInProgress = true
+            gameStartTime = tick()  -- Always set this, regardless of recording state
+            macroHasPlayedThisGame = false
+            
+            print("Game started at time:", gameStartTime)
+            
+            -- If recording is enabled, initialize it
+            if isRecording and not recordingHasStarted then
+                recordingHasStarted = true
+                clearSpawnIdMappings()
+                table.clear(macro)
+                MacroStatusLabel:Set("Status: Recording active!")
+                Rayfield:Notify({
+                    Title = "Recording Started",
+                    Content = "Recording from current game time",
+                    Duration = 3
+                })
+            end
+            
+        elseif newWave == 0 and gameInProgress then
+            -- Game ended
+            gameInProgress = false
+            print("Game ended")
+            
+            -- Auto-stop recording if active
+            if isRecording and recordingHasStarted then
+                isRecording = false
+                recordingHasStarted = false
+                RecordToggle:Set(false)
+                
+                if currentMacroName then
+                    macroManager[currentMacroName] = macro
+                    saveMacroToFile(currentMacroName)
+                end
+                
+                Rayfield:Notify({
+                    Title = "Recording Stopped",
+                    Content = "Game ended, recording saved.",
+                    Duration = 3
+                })
+            end
+        end
+    end)
+    
+    -- Check current wave on startup
+    if waveNum.Value >= 1 then
+        gameInProgress = true
+        gameStartTime = tick()
+        print("Joined mid-game, tracking time from now")
+    end
 end
 
 local function getPlayerUnitsFolder()
@@ -1357,43 +1406,32 @@ end
 
 local function processPlacementAction(actionInfo)
     local args = actionInfo.args
-    local unitDisplayName = args[1][1] -- "Shigeru (Gachi Fighter)"
+    local unitDisplayName = args[1][1]
     local cframe = args[1][2]
     local rotation = args[1][3]
-    local uuid = args[2]
     
     local beforeSnapshot = takeUnitsSnapshot()
-    
     task.wait(0.3)
-    
     local afterSnapshot = takeUnitsSnapshot()
     local placedUnit, displayName, spawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     
     if not placedUnit or not spawnId then
         warn("Could not find newly placed unit")
-        Rayfield:Notify({
-            Title = "Recording Error",
-            Content = "Failed to detect placed unit",
-            Duration = 3
-        })
         return
     end
     
-    -- Increment placement counter for this unit type
     recordingPlacementCounter[displayName] = (recordingPlacementCounter[displayName] or 0) + 1
     local placementNumber = recordingPlacementCounter[displayName]
-    
-    -- Create logical placement ID
     local placementId = string.format("%s #%d", displayName, placementNumber)
     
-    -- Map spawn ID to logical placement
     recordingSpawnIdToPlacement[spawnId] = placementId
     
+    -- Use the global gameStartTime that was set when game started
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     local placementRecord = {
         Type = "spawn_unit",
-        Unit = placementId, -- "Shigeru (Gachi Fighter) #1"
+        Unit = placementId,
         Time = string.format("%.2f", gameRelativeTime),
         Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z},
         Rotation = rotation
@@ -1401,12 +1439,7 @@ local function processPlacementAction(actionInfo)
     
     table.insert(macro, placementRecord)
     
-    print(string.format("Recorded: %s (spawn_id: %d) at time %.2fs", placementId, spawnId, gameRelativeTime))
-    Rayfield:Notify({
-        Title = "Recorded Placement",
-        Content = placementId,
-        Duration = 2
-    })
+    print(string.format("Recorded: %s at time %.2fs", placementId, gameRelativeTime))
 end
 
 local function getDisplayNameFromUnit(unitString)
@@ -1427,7 +1460,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     
     if not uuid then
         warn("Unit not equipped:", displayName)
-        --updateDetailedStatus(string.format("(%d/%d) ERROR: %s not equipped!", actionIndex, totalActions, displayName))
+        updateDetailedStatus(string.format("(%d/%d) ERROR: %s not equipped!", actionIndex, totalActions, displayName))
         return false
     end
     
@@ -1444,7 +1477,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
         uuid
     }
     
-    --updateDetailedStatus(string.format("(%d/%d) Placing %s...", actionIndex, totalActions, action.Unit))
+    updateDetailedStatus(string.format("(%d/%d) Placing %s...", actionIndex, totalActions, action.Unit))
     
     local beforeSnapshot = takeUnitsSnapshot()
     
@@ -1465,7 +1498,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     if placedUnit and newSpawnId then
         playbackPlacementToSpawnId[action.Unit] = newSpawnId
         print(string.format("Placed: %s -> spawn_id: %d", action.Unit, newSpawnId))
-        --updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
+        updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
         return true
     end
     
@@ -1951,79 +1984,35 @@ local function executeUnitUlt(actionData)
     return false
 end
 
-    local MacroDropdown = MacroTab:CreateDropdown({
-    Name = "Select Macro",
-    Options = {},
-    CurrentOption = currentMacroName,
-    MultipleOptions = false,
-    Flag = "MacroDropdown",
-    Callback = function(selected)
-    local selectedName
+    local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
+    detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
 
-    if type(selected) == "table" then
-        selectedName = selected[1]
-    else
-        selectedName = selected
-    end
+    local Divider = MacroTab:CreateDivider()
 
-    print("User selected macro:", selectedName)
-    currentMacroName = selectedName
-    if selectedName and macroManager[selectedName] then
-        macro = macroManager[selectedName]
-        Rayfield:Notify({
-                Title = "Macro Selected",
-                Content = "Selected macro '" .. selectedName .. "' with " .. #macro .. " actions.",
-                Duration = 3
-            })
-    else
-        print("Invalid selection or macro doesn't exist:", selectedName)
-    end
-    end,
+local MacroDropdown = MacroTab:CreateDropdown({
+        Name = "Select Macro",
+        Options = {},
+        CurrentOption = currentMacroName,
+        MultipleOptions = false,
+        Flag = "MacroDropdown",
+        Callback = function(selected)
+            local selectedName
+            if type(selected) == "table" then
+                selectedName = selected[1]
+            else
+                selectedName = selected
+            end
+
+            print("User selected macro:", selectedName)
+            currentMacroName = selectedName
+            if selectedName and macroManager[selectedName] then
+                macro = macroManager[selectedName]
+                print("Selected macro '" .. selectedName .. "' with " .. #macro .. " actions.")
+            else
+                print("Invalid selection or macro doesn't exist:", selectedName)
+            end
+        end,
     })
-
-local function serializeVector3(v)
-    return { x = v.X, y = v.Y, z = v.Z }
-end
-
-local function serializeCFrame(cf)
-    local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
-    return {
-        x = x, y = y, z = z,
-        r00 = r00, r01 = r01, r02 = r02,
-        r10 = r10, r11 = r11, r12 = r12,
-        r20 = r20, r21 = r21, r22 = r22
-    }
-end
-
-
-local function deserializeVector3(t)
-    return Vector3.new(t.x, t.y, t.z)
-end
-
-local function deserializeCFrame(t)
-    return CFrame.new(
-        t.x, t.y, t.z,
-        t.r00, t.r01, t.r02,
-        t.r10, t.r11, t.r12,
-        t.r20, t.r21, t.r22
-    )
-end
-
-local function serializeAction(action)
-    local serializedAction = table.clone(action)
-    if serializedAction.cframe then
-        serializedAction.cframe = serializeCFrame(serializedAction.cframe)
-    end
-    return serializedAction
-end
-
-local function deserializeAction(action)
-    local deserializedAction = table.clone(action)
-    if deserializedAction.cframe then
-        deserializedAction.cframe = deserializeCFrame(deserializedAction.cframe)
-    end
-    return deserializedAction
-end
 
         local function ensureMacroFolders()
         if not isfolder("LixHub") then
@@ -2037,7 +2026,6 @@ end
         end
     end
 local function getMacroFilename(name)
-        -- Handle case where name might be a table
         if type(name) == "table" then
             name = name[1] or ""
         end
@@ -2080,30 +2068,20 @@ local function refreshMacroDropdown()
 
         table.sort(options)
 
-        -- Handle case where currentMacroName might be a table
         if type(currentMacroName) == "table" then
             currentMacroName = currentMacroName[1] or ""
         end
 
-        -- Only set currentMacroName to first option if it's completely empty/nil
-        -- Don't override if it exists but isn't in macroManager (it might be loading from config)  
         if not currentMacroName or currentMacroName == "" then
             currentMacroName = options[1]
         end
 
-        -- Only update macro if currentMacroName exists in macroManager
         if currentMacroName and macroManager[currentMacroName] then
             macro = macroManager[currentMacroName]
         end
 
         MacroDropdown:Refresh(options, currentMacroName)
-
-        for i, opt in ipairs(options) do
-            print("Option " .. i .. " = " .. tostring(opt) .. " (" .. typeof(opt) .. ")")
-        end
-
-        print("Refreshed dropdown with:", table.concat(options, ", "))
-        print("Current macro is:", currentMacroName, "Type:", type(currentMacroName))
+        print("Refreshed dropdown with " .. #options .. " macros")
     end
 
 local function exportMacroToClipboard(macroName, format)
@@ -2573,82 +2551,55 @@ local function waitForGameStart()
     return Services.Workspace.GameSettings.GameStarted.Value
 end
 
-local MacroInput = MacroTab:CreateInput({
-    Name = "Create Macro",
-    CurrentValue = "",
-    PlaceholderText = "Enter macro name...",
-    RemoveTextAfterFocusLost = true,
-    --Flag = "MacroInput",
-    Callback = function(text)
-        local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        
-        pendingMacroName = cleanedName
-        
-        if cleanedName ~= "" then
-            if macroManager[cleanedName] then
-                Rayfield:Notify({
-                    Title = "Error",
-                    Content = "Macro '" .. cleanedName .. "' already exists.",
-                    Duration = 3
-                })
+MacroInput = MacroTab:CreateInput({
+        Name = "Create Macro",
+        CurrentValue = "",
+        PlaceholderText = "Enter macro name...",
+        RemoveTextAfterFocusLost = true,
+        Callback = function(text)
+            local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+            
+            if cleanedName ~= "" then
+                if macroManager[cleanedName] then
+                    notify(nil,"Error: Macro '" .. cleanedName .. "' already exists.")
+                    return
+                end
+
+                macroManager[cleanedName] = {}
+                saveMacroToFile(cleanedName)
+                refreshMacroDropdown()
+                
+                notify(nil,"Success: Created macro '" .. cleanedName .. "'.")
+            elseif text ~= "" then
+                notify(nil,"Error: Invalid macro name. Avoid special characters.")
+            end
+        end,
+    })
+
+    RefreshMacroListButton = MacroTab:CreateButton({
+        Name = "Refresh Macro List",
+        Callback = function()
+            loadAllMacros()
+            refreshMacroDropdown()
+            notify(nil,"Success: Macro list refreshed.")
+        end,
+    })
+
+    DeleteSelectedMacroButton = MacroTab:CreateButton({
+        Name = "Delete Selected Macro",
+        Callback = function()
+            if not currentMacroName or currentMacroName == "" then
+                notify(nil,"Error: No macro selected.")
                 return
             end
 
-            macroManager[cleanedName] = {}
-            saveMacroToFile(cleanedName)
+            deleteMacroFile(currentMacroName)
+            notify(nil,"Deleted: Deleted macro '" .. currentMacroName .. "'.")
+
+            macroManager[currentMacroName] = nil
+            macro = {}
             refreshMacroDropdown()
-            
-            Rayfield:Notify({
-                Title = "Success",
-                Content = "Created macro '" .. cleanedName .. "'.",
-                Duration = 3
-            })
-        elseif text ~= "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Invalid macro name. Avoid special characters.",
-                Duration = 3
-            })
-        end
-    end,
-})
-
-    local RefreshMacroListButton = MacroTab:CreateButton({
-    Name = "Refresh Macro List",
-    Callback = function()
-        loadAllMacros()
-        refreshMacroDropdown()
-        Rayfield:Notify({
-            Title = "Success",
-            Content = "Macro list refreshed.",
-            Duration = 3
-        })
-    end,
-    })
-
-    local DeleteSelectedMacroButton = MacroTab:CreateButton({
-    Name = "Delete Selected Macro",
-    Callback = function()
-            if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "No macro selected.",
-                Duration = 3
-            })
-            return
-        end
-
-        deleteMacroFile(currentMacroName)
-        Rayfield:Notify({
-            Title = "Deleted",
-            Content = "Deleted macro '" .. currentMacroName .. "'.",
-            Duration = 3
-        })
-
-        macroManager[currentMacroName] = nil
-        macro = {}
-        refreshMacroDropdown()
-    end,
+        end,
     })
 
 RecordToggle = MacroTab:CreateToggle({
@@ -2659,12 +2610,36 @@ RecordToggle = MacroTab:CreateToggle({
         isRecording = Value
         
         if Value then
-            MacroStatusLabel:Set("Status: Recording enabled - will start when game begins")
+            if gameInProgress then
+                -- Mid-game recording
+                recordingHasStarted = true
+                clearSpawnIdMappings()
+                table.clear(macro)
+                MacroStatusLabel:Set("Status: Recording active (mid-game)!")
+                Rayfield:Notify({
+                    Title = "Recording Started",
+                    Content = "Recording from current game time",
+                    Duration = 3
+                })
+            else
+                -- Pre-game recording - will start when game begins
+                MacroStatusLabel:Set("Status: Recording enabled - will start when game begins")
+                Rayfield:Notify({
+                    Title = "Recording Ready",
+                    Content = "Will start recording when game begins",
+                    Duration = 3
+                })
+            end
         else
             MacroStatusLabel:Set("Status: Recording disabled")
             if recordingHasStarted and currentMacroName then
                 macroManager[currentMacroName] = macro
                 saveMacroToFile(currentMacroName)
+                Rayfield:Notify({
+                    Title = "Recording Saved",
+                    Content = currentMacroName,
+                    Duration = 3
+                })
             end
             recordingHasStarted = false
         end
@@ -2707,7 +2682,7 @@ local function playMacroLoop()
             -- Wait for timing
             if currentTime < actionTime then
                 local waitTime = actionTime - currentTime
-                --updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs...", actionIndex, totalActions, waitTime))
+                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs...", actionIndex, totalActions, waitTime))
                 
                 local waitStart = tick()
                 while (tick() - waitStart) < waitTime and isPlaybacking and gameInProgress do
@@ -4027,6 +4002,7 @@ end
 
 ensureMacroFolders()
 loadAllMacros()
+setupGameTimeTracking()
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
