@@ -1,4 +1,4 @@
---2
+--3
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1412,11 +1412,15 @@ local function getDisplayNameFromUnit(unitString)
 end
 
 local function executePlacementAction(action, actionIndex, totalActions)
+        print("=== executePlacementAction called ===")
+    print("Action Unit:", action.Unit)
     -- Extract display name from Unit field
     local displayName = getDisplayNameFromUnit(action.Unit)
+    print("Extracted displayName:", displayName)
     
     -- Get UUID for the equipped unit
     local uuid = getEquippedUnitUUID(displayName)
+    print("Found UUID:", uuid or "NIL")
     
     if not uuid then
         warn("Unit not equipped:", displayName)
@@ -2792,6 +2796,9 @@ local function executeAction(action, actionIndex, totalActions)
 end
 
 local function playMacroLoop()
+        print("=== PLAYBACK DEBUG: playMacroLoop called ===")
+    print("Macro exists:", macro ~= nil)
+    print("Macro length:", macro and #macro or 0)
     if not macro or #macro == 0 then
         MacroStatusLabel:Set("Status: Error - No macro data!")
         Rayfield:Notify({
@@ -2802,6 +2809,10 @@ local function playMacroLoop()
         return
     end
 
+        print("First action Type:", macro[1].Type)
+    print("First action Unit:", macro[1].Unit)
+    print("First action Time:", macro[1].Time)
+
     isPlayingLoopRunning = true
     MacroStatusLabel:Set("Status: Macro playback active")
     
@@ -2811,11 +2822,18 @@ local function playMacroLoop()
         
         -- Wait for game to start
         local waveNum = Services.Workspace:FindFirstChild("_wave_num")
-        while not waveNum or waveNum.Value < 1 do
-            if not isPlaybacking then return end
-            MacroStatusLabel:Set("Status: Waiting for game to start...")
-            task.wait(0.5)
-        end
+        print("Wave_num exists:", waveNum ~= nil)
+while not waveNum or waveNum.Value < 1 do
+    if not isPlaybacking then 
+        print("Playback stopped while waiting")
+        return 
+    end
+    print("Waiting for game... current wave:", waveNum and waveNum.Value or "nil")
+    MacroStatusLabel:Set("Status: Waiting for game to start...")
+    task.wait(0.5)
+end
+
+        print("Game started! Wave:", waveNum.Value)
         
         local gamePlaybackStartTime = tick()
         print("Starting macro playback with game timing...")
@@ -2829,6 +2847,12 @@ local function playMacroLoop()
         while isPlaybacking and actionIndex <= totalActions do
             local currentTime = tick() - gamePlaybackStartTime
             local action = macro[actionIndex]
+
+                print(string.format("=== Action %d/%d ===", actionIndex, totalActions))
+    print("Action Type:", action.Type)
+    print("Action Unit:", action.Unit)
+    print("Action Time:", action.Time)
+    print("Current Time:", string.format("%.2f", currentTime))
             
             -- Parse action time (uppercase Time)
             local actionTime = tonumber(action.Time) or 0
@@ -2853,6 +2877,7 @@ local function playMacroLoop()
             local actionSuccess = false
             
             if action.Type == "spawn_unit" then
+                print("Calling executePlacementAction for:", action.Unit)
                 -- Retry logic for placement
                 local maxRetries = 3
                 for attempt = 1, maxRetries do
