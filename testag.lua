@@ -1,4 +1,4 @@
---38
+--39
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1214,45 +1214,48 @@ local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     return nil, nil, nil
 end
 
-local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
+local function findUnitAtPosition(unitType, targetCFrame, tolerance)
+    tolerance = tolerance or 5 -- studs
+    
     local playerFolder = Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
     if not playerFolder then return nil end
-
-    local baseUnitName = originalUnitName:gsub("%s*%d+$", ""):gsub("%s+$", "")
-    print("baseUnitName "..baseUnitName)
     
-    -- Create set of already mapped unit names
+    local baseUnitName = unitType:gsub("%s*%d+$", ""):gsub("%s+$", "")
+    local targetPos = targetCFrame.Position
+    
+    -- Create set of already mapped units
     local alreadyMapped = {}
     for _, unitName in pairs(playbackUnitMapping) do
         alreadyMapped[unitName] = true
     end
     
-    local bestMatch = nil
-    local lowestUnmappedSpawnNum = math.huge
+    local closestUnit = nil
+    local closestDistance = math.huge
     
     for _, unit in pairs(playerFolder:GetChildren()) do
-        if unit:IsA("Folder") then
+        if unit:IsA("Folder") and not alreadyMapped[unit.Name] then
             local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
             
             if unitBaseName == baseUnitName then
-                local spawnNum = tonumber(unit.Name:match("%s(%d+)$")) or 0
-                
-                -- Only consider units that haven't been mapped yet
-                if not alreadyMapped[unit.Name] and spawnNum < lowestUnmappedSpawnNum then
-                    lowestUnmappedSpawnNum = spawnNum
-                    bestMatch = unit.Name
+                local hrp = unit:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local distance = (hrp.Position - targetPos).Magnitude
+                    if distance < tolerance and distance < closestDistance then
+                        closestDistance = distance
+                        closestUnit = unit.Name
+                    end
                 end
             end
         end
     end
     
-    if bestMatch then
-        print("Found unmapped unit: " .. bestMatch)
+    if closestUnit then
+        print(string.format("Found unit at position: %s (distance: %.2f studs)", closestUnit, closestDistance))
     else
-        warn("No unmapped units found for type: " .. baseUnitName)
+        warn(string.format("No unmapped %s found within %.1f studs of target position", baseUnitName, tolerance))
     end
     
-    return bestMatch
+    return closestUnit
 end
 
 local function StreamerMode()
@@ -1624,27 +1627,39 @@ local function executePlacementAction(action, actionIndex, totalActions)
     end)
     
     if not success then 
-        warn("Failed to call spawnunit remote")
-        return false 
-    end
-    
+    warn("Failed to call spawnunit remote")
+    return false 
+end
+
+-- Wait for unit to spawn at the position
+local placedUnitName = nil
+local maxWaitAttempts = 10
+
+for waitAttempt = 1, maxWaitAttempts do
     task.wait(0.5)
     
-    local afterSnapshot = takeUnitsSnapshot()
-    local placedUnit, foundDisplayName, newSpawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    placedUnitName = findUnitAtPosition(displayName, cframe, 5)
     
-    if placedUnit and newSpawnId then
-        currentPlacementOrder = currentPlacementOrder + 1
-        playbackPlacementToSpawnId[action.Unit] = newSpawnId
-        playbackUnitMapping[currentPlacementOrder] = placedUnit.Name
-        print(string.format("Placed: %s -> spawn_id: %d -> unit_name: %s", action.Unit, newSpawnId, placedUnit.Name))
-        print(string.format("Mapped placement #%d to unit: %s", placementOrder, placedUnit.Name))
-        updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
-        return true
+    if placedUnitName then
+        print(string.format("Unit detected after %.1fs", waitAttempt * 0.5))
+        break
     end
     
-    warn("Failed to detect placed unit")
-    return false
+    if waitAttempt < maxWaitAttempts then
+        print(string.format("Unit not spawned yet, waiting... (attempt %d/%d)", waitAttempt, maxWaitAttempts))
+    end
+end
+
+if placedUnitName then
+    playbackUnitMapping[placementOrder] = placedUnitName
+    print(string.format("✓ Placed: %s -> placement #%d -> unit_name: %s", action.Unit, placementOrder, placedUnitName))
+    updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
+    return true
+end
+
+warn("Failed to detect unit at target position after " .. (maxWaitAttempts * 0.5) .. " seconds")
+updateDetailedStatus(string.format("(%d/%d) FAILED to place %s", actionIndex, totalActions, action.Unit))
+return false
 end
 
     local function getUnitUpgradeLevel(unit)
