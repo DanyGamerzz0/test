@@ -1,4 +1,4 @@
---33
+--34
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1214,42 +1214,60 @@ local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     return nil, nil, nil
 end
 
-local function findLatestSpawnedUnit(originalUnitName, unitCFrame, usePositionCheck)
-    usePositionCheck = usePositionCheck == nil and true or usePositionCheck -- default true
-    
+local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     local playerFolder = Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
-    if not playerFolder then return nil end
+    if not playerFolder then 
+        warn("Player folder not found!")
+        return nil 
+    end
 
     local baseUnitName = originalUnitName:gsub("%s*%d+$", ""):gsub("%s+$", "")
-    local bestMatch = nil
-    local highestSpawnNum = -1
-    local closestDistance = math.huge
+    print("DEBUG: Looking for base name:", baseUnitName)
+    print("DEBUG: Expected position:", unitCFrame.Position)
+    
+    local allMatches = {}
     
     for _, unit in pairs(playerFolder:GetChildren()) do
         if unit:IsA("Model") then
             local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
             
+            print("DEBUG: Checking unit:", unit.Name, "| Base:", unitBaseName)
+            
             if unitBaseName == baseUnitName then
                 local spawnNum = tonumber(unit.Name:match("%s(%d+)$")) or 0
+                local distance = math.huge
                 
-                if usePositionCheck and unit:FindFirstChild("HumanoidRootPart") then
-                    -- Use position as tiebreaker
-                    local distance = (unit.HumanoidRootPart.Position - unitCFrame.Position).Magnitude
-                    if distance <= 3 and spawnNum > highestSpawnNum then
-                        highestSpawnNum = spawnNum
-                        bestMatch = unit.Name
-                        closestDistance = distance
-                    end
-                elseif spawnNum > highestSpawnNum then
-                    -- Just use highest spawn number
-                    highestSpawnNum = spawnNum
-                    bestMatch = unit.Name
+                if unit:FindFirstChild("HumanoidRootPart") then
+                    distance = (unit.HumanoidRootPart.Position - unitCFrame.Position).Magnitude
+                    print(string.format("  MATCH FOUND: %s | Spawn#: %d | Distance: %.2f studs", unit.Name, spawnNum, distance))
+                else
+                    print("  No HumanoidRootPart found!")
                 end
+                
+                table.insert(allMatches, {
+                    name = unit.Name,
+                    spawnNum = spawnNum,
+                    distance = distance
+                })
             end
         end
     end
     
-    return bestMatch
+    if #allMatches == 0 then
+        warn("DEBUG: No matching units found for:", baseUnitName)
+        return nil
+    end
+    
+    -- Sort by spawn number (highest first), then by distance (closest first)
+    table.sort(allMatches, function(a, b)
+        if a.spawnNum == b.spawnNum then
+            return a.distance < b.distance
+        end
+        return a.spawnNum > b.spawnNum
+    end)
+    
+    print("DEBUG: Best match:", allMatches[1].name, "at", allMatches[1].distance, "studs")
+    return allMatches[1].name
 end
 
 local function StreamerMode()
