@@ -1,4 +1,4 @@
---32
+--33
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1214,46 +1214,42 @@ local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     return nil, nil, nil
 end
 
-local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
-    local ground = Services.Workspace:FindFirstChild("Ground")
+local function findLatestSpawnedUnit(originalUnitName, unitCFrame, usePositionCheck)
+    usePositionCheck = usePositionCheck == nil and true or usePositionCheck -- default true
+    
+    local playerFolder = Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
+    if not playerFolder then return nil end
 
-    if not ground then 
-        warn("Services.Workspace.Ground not found!")
-        return originalUnitName 
-    end
-
-    local unitClient = ground:FindFirstChild("unitClient")
-    if not unitClient then
-        warn("Services.Workspace.Ground.unitClient not found!")
-        return originalUnitName
-    end
-
+    local baseUnitName = originalUnitName:gsub("%s*%d+$", ""):gsub("%s+$", "")
+    local bestMatch = nil
+    local highestSpawnNum = -1
     local closestDistance = math.huge
-    local closestUnitName = nil
-
-    -- Extract base name without number for comparison
-    local baseUnitName = originalUnitName:match("^(.-)%s*%d*$")
-
-    for _, unit in pairs(unitClient:GetChildren()) do
+    
+    for _, unit in pairs(playerFolder:GetChildren()) do
         if unit:IsA("Model") then
-            local unitPosition = unit.WorldPivot.Position
-            local placementPosition = unitCFrame.Position
-            local distance = (unitPosition - placementPosition).Magnitude
-
-            -- Only consider units within 1 stud tolerance
-            if distance <= 1 and distance < closestDistance then
-                -- Check if this unit matches our base name
-                local unitBaseName = unit.Name:match("^(.-)%s*%d*$")
-                if unitBaseName == baseUnitName or unit.Name:find(originalUnitName, 1, true) then
-                    closestDistance = distance
-                    closestUnitName = unit.Name
-                    print("Found matching unit: " .. unit.Name .. " within tolerance (distance: " .. distance .. ")")
+            local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
+            
+            if unitBaseName == baseUnitName then
+                local spawnNum = tonumber(unit.Name:match("%s(%d+)$")) or 0
+                
+                if usePositionCheck and unit:FindFirstChild("HumanoidRootPart") then
+                    -- Use position as tiebreaker
+                    local distance = (unit.HumanoidRootPart.Position - unitCFrame.Position).Magnitude
+                    if distance <= 3 and spawnNum > highestSpawnNum then
+                        highestSpawnNum = spawnNum
+                        bestMatch = unit.Name
+                        closestDistance = distance
+                    end
+                elseif spawnNum > highestSpawnNum then
+                    -- Just use highest spawn number
+                    highestSpawnNum = spawnNum
+                    bestMatch = unit.Name
                 end
             end
         end
     end
-
-    return closestUnitName or originalUnitName
+    
+    return bestMatch
 end
 
 local function StreamerMode()
@@ -1505,36 +1501,44 @@ end
 
 local function processPlacementAction(actionInfo)
     local args = actionInfo.args
-    local unitDisplayName = args[1][1]
+    local unitDisplayName = args[1][1]  -- "Judar (Era)"
     local cframe = args[1][2]
     local rotation = args[1][3]
     
-    local beforeSnapshot = takeUnitsSnapshot()
-    task.wait(0.3)
-    local afterSnapshot = takeUnitsSnapshot()
-    local placedUnit, displayName, spawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    -- Wait for unit to spawn
+    task.wait(0.5)
     
-    if not placedUnit or not spawnId then
-        warn("Could not find newly placed unit")
+    -- Find the unit that matches our placement using the name + position
+    local actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe)
+    
+    if not actualUnitName then
+        warn("Could not find newly placed unit:", unitDisplayName)
         return
     end
     
-    -- GET THE PLACEMENT COST FROM THE UNIT
+    -- Extract spawn ID from the actual unit name (e.g., "Judar (Era) 5" -> 5)
+    local spawnId = actualUnitName:match("%s(%d+)$")
+    if not spawnId then
+        warn("Could not extract spawn ID from:", actualUnitName)
+        return
+    end
+    
+    spawnId = tonumber(spawnId)
+    
+    -- GET THE PLACEMENT COST
     local placementCost = nil
-    local unitInServer = Services.Workspace.Ground.unitServer[tostring(Services.Players.LocalPlayer.Name).." (UNIT)"]:FindFirstChild(placedUnit.Name)
+    local unitInServer = Services.Workspace.Ground.unitServer[tostring(Services.Players.LocalPlayer.Name).." (UNIT)"]:FindFirstChild(actualUnitName)
     if unitInServer then
         local sellingValue = unitInServer:FindFirstChild("Selling")
         if sellingValue and sellingValue:IsA("NumberValue") then
             placementCost = sellingValue.Value * 2
-            print(string.format("Captured placement cost: %d (Selling: %d)", placementCost, sellingValue.Value))
-        else
-            warn("Could not find Selling value for unit:", placedUnit.Name)
         end
     end
     
-    recordingPlacementCounter[displayName] = (recordingPlacementCounter[displayName] or 0) + 1
-    local placementNumber = recordingPlacementCounter[displayName]
-    local placementId = string.format("%s #%d", displayName, placementNumber)
+    -- Track this placement
+    recordingPlacementCounter[unitDisplayName] = (recordingPlacementCounter[unitDisplayName] or 0) + 1
+    local placementNumber = recordingPlacementCounter[unitDisplayName]
+    local placementId = string.format("%s #%d", unitDisplayName, placementNumber)
     
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
@@ -1548,10 +1552,9 @@ local function processPlacementAction(actionInfo)
     }
     
     table.insert(macro, placementRecord)
-
     recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
     
-    print(string.format("Recorded: %s at time %.2fs (Cost: %d)", placementId, gameRelativeTime, placementCost or 0))
+    print(string.format("Recorded: %s (Server name: %s, Spawn ID: %d)", placementId, actualUnitName, spawnId))
 end
 
 local function getDisplayNameFromUnit(unitString)
