@@ -1,4 +1,4 @@
---34
+--35
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1216,58 +1216,28 @@ end
 
 local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     local playerFolder = Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
-    if not playerFolder then 
-        warn("Player folder not found!")
-        return nil 
-    end
+    if not playerFolder then return nil end
 
     local baseUnitName = originalUnitName:gsub("%s*%d+$", ""):gsub("%s+$", "")
-    print("DEBUG: Looking for base name:", baseUnitName)
-    print("DEBUG: Expected position:", unitCFrame.Position)
-    
-    local allMatches = {}
+    local bestMatch = nil
+    local highestSpawnNum = -1
     
     for _, unit in pairs(playerFolder:GetChildren()) do
         if unit:IsA("Model") then
             local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
             
-            print("DEBUG: Checking unit:", unit.Name, "| Base:", unitBaseName)
-            
             if unitBaseName == baseUnitName then
                 local spawnNum = tonumber(unit.Name:match("%s(%d+)$")) or 0
-                local distance = math.huge
                 
-                if unit:FindFirstChild("HumanoidRootPart") then
-                    distance = (unit.HumanoidRootPart.Position - unitCFrame.Position).Magnitude
-                    print(string.format("  MATCH FOUND: %s | Spawn#: %d | Distance: %.2f studs", unit.Name, spawnNum, distance))
-                else
-                    print("  No HumanoidRootPart found!")
+                if spawnNum > highestSpawnNum then
+                    highestSpawnNum = spawnNum
+                    bestMatch = unit.Name
                 end
-                
-                table.insert(allMatches, {
-                    name = unit.Name,
-                    spawnNum = spawnNum,
-                    distance = distance
-                })
             end
         end
     end
     
-    if #allMatches == 0 then
-        warn("DEBUG: No matching units found for:", baseUnitName)
-        return nil
-    end
-    
-    -- Sort by spawn number (highest first), then by distance (closest first)
-    table.sort(allMatches, function(a, b)
-        if a.spawnNum == b.spawnNum then
-            return a.distance < b.distance
-        end
-        return a.spawnNum > b.spawnNum
-    end)
-    
-    print("DEBUG: Best match:", allMatches[1].name, "at", allMatches[1].distance, "studs")
-    return allMatches[1].name
+    return bestMatch
 end
 
 local function StreamerMode()
@@ -1519,31 +1489,42 @@ end
 
 local function processPlacementAction(actionInfo)
     local args = actionInfo.args
-    local unitDisplayName = args[1][1]  -- "Judar (Era)"
+    local unitDisplayName = args[1][1]
     local cframe = args[1][2]
     local rotation = args[1][3]
     
-    -- Wait for unit to spawn
-    task.wait(0.5)
+    print(string.format("Attempting to place: %s", unitDisplayName))
     
-    -- Find the unit that matches our placement using the name + position
-    local actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe)
+    -- Wait and retry to find the unit
+    local actualUnitName = nil
+    local maxAttempts = 10
+    
+    for attempt = 1, maxAttempts do
+        task.wait(0.5)  -- Wait between checks
+        
+        actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe)
+        
+        if actualUnitName then
+            print(string.format("Found unit on attempt %d: %s", attempt, actualUnitName))
+            break
+        else
+            print(string.format("Attempt %d/%d: Unit not found yet...", attempt, maxAttempts))
+        end
+    end
     
     if not actualUnitName then
-        warn("Could not find newly placed unit:", unitDisplayName)
+        warn("FAILED: Could not find unit after", maxAttempts, "attempts:", unitDisplayName)
         return
     end
     
-    -- Extract spawn ID from the actual unit name (e.g., "Judar (Era) 5" -> 5)
-    local spawnId = actualUnitName:match("%s(%d+)$")
+    -- Extract spawn ID
+    local spawnId = tonumber(actualUnitName:match("%s(%d+)$"))
     if not spawnId then
         warn("Could not extract spawn ID from:", actualUnitName)
         return
     end
     
-    spawnId = tonumber(spawnId)
-    
-    -- GET THE PLACEMENT COST
+    -- Get placement cost
     local placementCost = nil
     local unitInServer = Services.Workspace.Ground.unitServer[tostring(Services.Players.LocalPlayer.Name).." (UNIT)"]:FindFirstChild(actualUnitName)
     if unitInServer then
@@ -1553,7 +1534,7 @@ local function processPlacementAction(actionInfo)
         end
     end
     
-    -- Track this placement
+    -- Record the placement
     recordingPlacementCounter[unitDisplayName] = (recordingPlacementCounter[unitDisplayName] or 0) + 1
     local placementNumber = recordingPlacementCounter[unitDisplayName]
     local placementId = string.format("%s #%d", unitDisplayName, placementNumber)
@@ -1572,7 +1553,8 @@ local function processPlacementAction(actionInfo)
     table.insert(macro, placementRecord)
     recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
     
-    print(string.format("Recorded: %s (Server name: %s, Spawn ID: %d)", placementId, actualUnitName, spawnId))
+    print(string.format("✓ Recorded: %s (Server: %s, ID: %d, Cost: %d)", 
+        placementId, actualUnitName, spawnId, placementCost or 0))
 end
 
 local function getDisplayNameFromUnit(unitString)
