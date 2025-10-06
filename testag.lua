@@ -1,4 +1,4 @@
---35
+--36
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1219,12 +1219,14 @@ local function findLatestSpawnedUnit(originalUnitName, unitCFrame)
     if not playerFolder then return nil end
 
     local baseUnitName = originalUnitName:gsub("%s*%d+$", ""):gsub("%s+$", "")
+    print("baseUnitName "..baseUnitName)
     local bestMatch = nil
     local highestSpawnNum = -1
     
     for _, unit in pairs(playerFolder:GetChildren()) do
-        if unit:IsA("Model") then
+        if unit:IsA("Folder") then
             local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
+            print("unitBaseName "..unitBaseName)
             
             if unitBaseName == baseUnitName then
                 local spawnNum = tonumber(unit.Name:match("%s(%d+)$")) or 0
