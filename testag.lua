@@ -1,4 +1,4 @@
---39
+--40
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1214,48 +1214,63 @@ local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     return nil, nil, nil
 end
 
-local function findUnitAtPosition(unitType, targetCFrame, tolerance)
-    tolerance = tolerance or 5 -- studs
-    
-    local playerFolder = Services.Workspace.Ground.unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
-    if not playerFolder then return nil end
-    
-    local baseUnitName = unitType:gsub("%s*%d+$", ""):gsub("%s+$", "")
-    local targetPos = targetCFrame.Position
-    
-    -- Create set of already mapped units
-    local alreadyMapped = {}
-    for _, unitName in pairs(playbackUnitMapping) do
-        alreadyMapped[unitName] = true
+local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolerance)
+    strictTolerance = strictTolerance or 5 -- Tight 5 stud tolerance
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    if not playerUnitsFolder then
+        return nil
     end
     
-    local closestUnit = nil
-    local closestDistance = math.huge
+    local baseUnitName = unitDisplayName:gsub("%s*%d+$", ""):gsub("%s+$", "")
     
-    for _, unit in pairs(playerFolder:GetChildren()) do
-        if unit:IsA("Folder") and not alreadyMapped[unit.Name] then
-            local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
+    -- Build set of already tracked spawn IDs
+    local alreadyTracked = {}
+    for spawnId, _ in pairs(recordingSpawnIdToPlacement) do
+        alreadyTracked[spawnId] = true
+    end
+    
+    -- Collect untracked units of matching type
+    local candidates = {}
+    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
+        
+        if unitBaseName == baseUnitName then
+            local spawnId = getUnitSpawnId(unit)
             
-            if unitBaseName == baseUnitName then
+            if spawnId and not alreadyTracked[tostring(spawnId)] then
                 local hrp = unit:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    local distance = (hrp.Position - targetPos).Magnitude
-                    if distance < tolerance and distance < closestDistance then
-                        closestDistance = distance
-                        closestUnit = unit.Name
+                    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+                    
+                    -- Only add if within strict tolerance
+                    if distance <= strictTolerance then
+                        table.insert(candidates, {
+                            unit = unit,
+                            name = unit.Name,
+                            distance = distance,
+                            spawnId = spawnId,
+                            position = hrp.Position
+                        })
                     end
                 end
             end
         end
     end
     
-    if closestUnit then
-        print(string.format("Found unit at position: %s (distance: %.2f studs)", closestUnit, closestDistance))
-    else
-        warn(string.format("No unmapped %s found within %.1f studs of target position", baseUnitName, tolerance))
+    -- No candidates within strict tolerance
+    if #candidates == 0 then
+        return nil
     end
     
-    return closestUnit
+    -- Sort by distance (closest first)
+    table.sort(candidates, function(a, b) return a.distance < b.distance end)
+    
+    -- Return the closest match
+    local best = candidates[1]
+    print(string.format("Found unit: %s at %.2f studs (ID: %d)", 
+        best.name, best.distance, best.spawnId))
+    
+    return best.name
 end
 
 local function StreamerMode()
@@ -1515,20 +1530,19 @@ local function processPlacementAction(actionInfo)
     
     -- Wait and retry to find the unit
     local actualUnitName = nil
-    local maxAttempts = 10
+    local maxAttempts = 15
+    local checkInterval = 0.2
     
-    for attempt = 1, maxAttempts do
-        task.wait(0.5)  -- Wait between checks
-        
-        actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe)
-        
-        if actualUnitName then
-            print(string.format("Found unit on attempt %d: %s", attempt, actualUnitName))
-            break
-        else
-            print(string.format("Attempt %d/%d: Unit not found yet...", attempt, maxAttempts))
-        end
+for attempt = 1, maxAttempts do
+    task.wait(checkInterval)
+    
+    actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe, 5)
+    
+    if actualUnitName then
+        print(string.format("✅ Detected at %.2fs: %s", attempt * checkInterval, actualUnitName))
+        break
     end
+end
     
     if not actualUnitName then
         warn("FAILED: Could not find unit after", maxAttempts, "attempts:", unitDisplayName)
@@ -1638,7 +1652,7 @@ local maxWaitAttempts = 10
 for waitAttempt = 1, maxWaitAttempts do
     task.wait(0.5)
     
-    placedUnitName = findUnitAtPosition(displayName, cframe, 5)
+    placedUnitName = findLatestSpawnedUnit(displayName, cframe, 5)
     
     if placedUnitName then
         print(string.format("Unit detected after %.1fs", waitAttempt * 0.5))
@@ -2093,7 +2107,7 @@ local function executeUnitPlacement(actionData)
         task.wait(1.5)
         
         -- Find the actual unit that was spawned
-        local actualUnitName = findLatestSpawnedUnit(actionData.unitName, actionData.cframe)
+        local actualUnitName = findLatestSpawnedUnit(actionData.unitName, actionData.cframe, 5)
         
         if actualUnitName then
             -- Map placement order to actual unit name
