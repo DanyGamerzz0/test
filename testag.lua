@@ -1,4 +1,4 @@
---31
+--32
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1519,12 +1519,23 @@ local function processPlacementAction(actionInfo)
         return
     end
     
+    -- GET THE PLACEMENT COST FROM THE UNIT
+    local placementCost = nil
+    local unitInServer = Services.Workspace.Ground.unitServer[tostring(Services.Players.LocalPlayer.Name).." (UNIT)"]:FindFirstChild(placedUnit.Name)
+    if unitInServer then
+        local sellingValue = unitInServer:FindFirstChild("Selling")
+        if sellingValue and sellingValue:IsA("NumberValue") then
+            placementCost = sellingValue.Value * 2
+            print(string.format("Captured placement cost: %d (Selling: %d)", placementCost, sellingValue.Value))
+        else
+            warn("Could not find Selling value for unit:", placedUnit.Name)
+        end
+    end
+    
     recordingPlacementCounter[displayName] = (recordingPlacementCounter[displayName] or 0) + 1
     local placementNumber = recordingPlacementCounter[displayName]
     local placementId = string.format("%s #%d", displayName, placementNumber)
     
-    
-    -- Use the global gameStartTime that was set when game started
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     local placementRecord = {
@@ -1532,14 +1543,15 @@ local function processPlacementAction(actionInfo)
         Unit = placementId,
         Time = string.format("%.2f", gameRelativeTime),
         Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z},
-        Rotation = rotation
+        Rotation = rotation,
+        PlacementCost = placementCost
     }
     
     table.insert(macro, placementRecord)
 
     recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
     
-    print(string.format("Recorded: %s at time %.2fs", placementId, gameRelativeTime))
+    print(string.format("Recorded: %s at time %.2fs (Cost: %d)", placementId, gameRelativeTime, placementCost or 0))
 end
 
 local function getDisplayNameFromUnit(unitString)
@@ -1848,10 +1860,45 @@ local function getUnitUpgradeCost(unitName)
     return nil
 end
 
+local function waitForSufficientMoneyForPlacement(unitName, placementCost, actionDescription)
+    if not placementCost then
+        warn("No placement cost provided for:", unitName)
+        return true
+    end
+    
+    local currentMoney = getPlayerMoney()
+    
+    if currentMoney >= placementCost then
+        return true
+    end
+    
+    MacroStatusLabel:Set(string.format("Status: Waiting for money (%d/%d) - Place %s", 
+        currentMoney, placementCost, unitName))
+    
+    print(string.format("Need %d more coins to place %s (Cost: %d)", 
+        placementCost - currentMoney, unitName, placementCost))
+    
+    while getPlayerMoney() < placementCost and isPlaybacking do
+        task.wait(0.5)
+        local newMoney = getPlayerMoney()
+        if newMoney ~= currentMoney then
+            currentMoney = newMoney
+            MacroStatusLabel:Set(string.format("Status: Waiting for money (%d/%d) - Place %s", 
+                currentMoney, placementCost, unitName))
+        end
+    end
+    
+    if not isPlaybacking then
+        return false
+    end
+    
+    print(string.format("Ready to place %s!", unitName))
+    return true
+end
+
 local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, actionDescription)
     upgradeAmount = upgradeAmount or 1
     
-    -- Get unit's current stats
     local currentLevel = getUnitUpgradeLevel(unitName)
     local maxLevel = getUnitMaxUpgradeLevel(unitName)
     
@@ -1860,13 +1907,11 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
         return false
     end
     
-    -- Check if already maxed
     if currentLevel >= maxLevel then
         print(string.format("Unit %s already at max level (%d/%d)", unitName, currentLevel, maxLevel))
         return true
     end
     
-    -- Calculate actual total cost by simulating each upgrade
     local totalCost = 0
     local unitServer = Services.Workspace:FindFirstChild("Ground") 
         and Services.Workspace.Ground:FindFirstChild("unitServer")
@@ -1882,7 +1927,6 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
         return false
     end
     
-    -- Get the PriceUpgrade value which changes per level
     local priceUpgradeValue = nil
     for _, child in pairs(unit:GetDescendants()) do
         if child.Name == "PriceUpgrade" and child:IsA("NumberValue") then
@@ -1896,19 +1940,16 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
         return false
     end
     
-    -- Calculate total cost for all upgrades
     for i = 1, upgradeAmount do
         if currentLevel + i > maxLevel then
-            break -- Don't go over max
+            break
         end
-        -- The current PriceUpgrade value represents the NEXT upgrade cost
         totalCost = totalCost + priceUpgradeValue.Value
     end
     
-    print(string.format("💰 Calculated upgrade cost for %s: %d (x%d upgrades from L%d)", 
+    print(string.format("Calculated upgrade cost for %s: %d (x%d upgrades from L%d)", 
         unitName, totalCost, upgradeAmount, currentLevel))
     
-    -- Wait for sufficient money
     local currentMoney = getPlayerMoney()
     
     if currentMoney >= totalCost then
@@ -1918,7 +1959,7 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
     MacroStatusLabel:Set(string.format("Status: Waiting for money (%d/%d) - %s", 
         currentMoney, totalCost, actionDescription))
     
-    print(string.format("💰 Need %d more coins for %s", totalCost - currentMoney, actionDescription))
+    print(string.format("Need %d more coins for %s", totalCost - currentMoney, actionDescription))
     
     while getPlayerMoney() < totalCost and isPlaybacking do
         task.wait(0.5)
@@ -1934,7 +1975,7 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
         return false
     end
     
-    print(string.format("✅ Ready to upgrade %s!", unitName))
+    print(string.format("Ready to upgrade %s!", unitName))
     return true
 end
 
@@ -2059,6 +2100,8 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
+    print(string.format("Upgrading placement #%d: %s (x%d levels)", targetOrder, currentUnitName, upgradeAmount))
+    
     local currentUpgradeLevel = getUnitUpgradeLevel(currentUnitName)
     local maxUpgradeLevel = getUnitMaxUpgradeLevel(currentUnitName)
     
@@ -2067,52 +2110,37 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
-    -- Calculate target level
-    local targetLevel = currentUpgradeLevel + upgradeAmount
-    
-    -- Cap at max level
-    if targetLevel > maxUpgradeLevel then
-        targetLevel = maxUpgradeLevel
-        print(string.format("Capping target level to max: %d", maxUpgradeLevel))
-    end
-    
-    print(string.format("Upgrading placement #%d: %s (Level %d → %d)", 
-        targetOrder, currentUnitName, currentUpgradeLevel, targetLevel))
-    
     if currentUpgradeLevel >= maxUpgradeLevel then
         print(string.format("Unit %s already at max upgrade (%d/%d)", 
             currentUnitName, currentUpgradeLevel, maxUpgradeLevel))
         return true
     end
     
-    -- Calculate and wait for sufficient money
-    if not waitForSufficientMoneyForUpgrades(currentUnitName, currentUpgradeLevel, targetLevel) then
+    if not waitForSufficientMoneyForUpgrades(currentUnitName, upgradeAmount, 
+        string.format("upgrade %s x%d", currentUnitName, upgradeAmount)) then
         return false
     end
     
     local success, err = pcall(function()
-        print(string.format("Calling remote: Upgrade, %s, target level: %d", currentUnitName, targetLevel))
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName, targetLevel)
+            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName, upgradeAmount)
     end)
     
-    if not success then
-        warn(string.format("pcall failed: %s", tostring(err)))
-        return false
-    end
-    
-    task.wait(0.5)
-    local newLevel = getUnitUpgradeLevel(currentUnitName)
-    
-    if newLevel and newLevel > currentUpgradeLevel then
-        print(string.format("✅ Successfully upgraded placement #%d (%d→%d)", 
-            targetOrder, currentUpgradeLevel, newLevel))
-        return true
+    if success then
+        task.wait(0.5)
+        local newLevel = getUnitUpgradeLevel(currentUnitName)
+        
+        if newLevel and newLevel > currentUpgradeLevel then
+            print(string.format("Successfully upgraded placement #%d (%d->%d)", 
+                targetOrder, currentUpgradeLevel, newLevel))
+            return true
+        end
     else
-        warn(string.format("Level did not increase after upgrade call (was: %d, now: %d)", 
-            currentUpgradeLevel or -1, newLevel or -1))
-        return false
+        warn(string.format("pcall failed: %s", tostring(err)))
     end
+    
+    warn(string.format("Failed to upgrade placement #%d", targetOrder))
+    return false
 end
 
 local function executeUnitSell(actionData)
@@ -2840,7 +2868,6 @@ local function playMacroOnce()
             return false
         end
         
-        -- Wait for action timing
         local actionTime = tonumber(action.Time) or 0
         local currentTime = tick() - playbackStartTime
         
@@ -2856,8 +2883,14 @@ local function playMacroOnce()
         
         if not isPlaybacking or not gameInProgress then break end
         
-        -- Execute action based on type
         if action.Type == "spawn_unit" then
+            if action.PlacementCost then
+                if not waitForSufficientMoneyForPlacement(action.Unit, action.PlacementCost, action.Unit) then
+                    warn("Failed to get enough money for placement:", action.Unit)
+                    return false
+                end
+            end
+            
             MacroStatusLabel:Set(string.format("Status: (%d/%d) Placing %s", actionIndex, #macro, action.Unit))
             
             local success = false
@@ -2874,7 +2907,6 @@ local function playMacroOnce()
         elseif action.Type == "upgrade_unit_ingame" then
             MacroStatusLabel:Set(string.format("Status: (%d/%d) Upgrading %s", actionIndex, #macro, action.Unit))
             
-            -- Extract placement number from Unit field (e.g., "Unit Name #1" -> 1)
             local placementNum = tonumber(action.Unit:match("#(%d+)$"))
             local unitType = action.Unit:match("^(.+)%s#%d+$")
             
