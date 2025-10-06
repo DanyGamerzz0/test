@@ -1,4 +1,4 @@
---36
+--37
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1621,8 +1621,9 @@ local function executePlacementAction(action, actionIndex, totalActions)
     local placedUnit, foundDisplayName, newSpawnId = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     
     if placedUnit and newSpawnId then
+        currentPlacementOrder = currentPlacementOrder + 1
         playbackPlacementToSpawnId[action.Unit] = newSpawnId
-        playbackUnitMapping[placementOrder] = placedUnit.Name  -- Map placement order to actual unit name
+        playbackUnitMapping[currentPlacementOrder] = placedUnit.Name
         print(string.format("Placed: %s -> spawn_id: %d -> unit_name: %s", action.Unit, newSpawnId, placedUnit.Name))
         print(string.format("Mapped placement #%d to unit: %s", placementOrder, placedUnit.Name))
         updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
@@ -2860,6 +2861,7 @@ local function playMacroOnce()
     
     playbackPlacementToSpawnId = {}
     playbackUnitMapping = {}
+    currentPlacementOrder = 0
     local playbackStartTime = gameStartTime
     
     if playbackStartTime == 0 then
