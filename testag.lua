@@ -1,4 +1,4 @@
---56
+--57
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1691,10 +1691,9 @@ local function executePlacementAction(action, actionIndex, totalActions)
     end
     
     if placedUnitName then
-        -- CRITICAL: Map placement order to actual unit name
-        local placementOrder = getPlacementNumber(action.Unit)
-        playbackUnitMapping[placementOrder] = placedUnitName
-        print(string.format("✓ MAPPED: Placement #%d → %s", placementOrder, placedUnitName))
+        -- ✅ CRITICAL FIX: Use full placement ID (e.g., "Ai #1") as key, not just the number
+        playbackUnitMapping[action.Unit] = placedUnitName  -- Changed from [placementOrder]
+        print(string.format("✓ MAPPED: %s → %s", action.Unit, placedUnitName))
         updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
         placementExecutionLock = false
         return true
@@ -2029,24 +2028,27 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
 end
 
 local function executeUnitUpgrade(actionData)
-    local targetOrder = actionData.targetPlacementOrder
-    local upgradeAmount = actionData.amount or 1
+    local unitPlacementId = actionData.Unit  -- e.g., "Ai #1", "Senko #2"
+    local upgradeAmount = actionData.Amount or 1
     
     print(string.format("=== EXECUTING UPGRADE ==="))
-    print(string.format("Target Order: %d, Amount: %d", targetOrder, upgradeAmount))
+    print(string.format("Target Unit: %s, Amount: %d", unitPlacementId, upgradeAmount))
     
-    if not targetOrder or targetOrder == 0 then
-        warn("❌ Invalid target placement order for upgrade")
+    if not unitPlacementId then
+        warn("❌ Invalid placement ID for upgrade")
         return false
     end
     
     -- Look up the actual unit name from playback mapping
-    local currentUnitName = playbackUnitMapping[targetOrder]
+    local currentUnitName = playbackUnitMapping[unitPlacementId]  -- Changed lookup
     print(string.format("Mapped Unit: %s", currentUnitName or "nil"))
     
     if not currentUnitName then
-        warn(string.format("❌ No mapping found for placement #%d", targetOrder))
-        print("Current mappings:", playbackUnitMapping)
+        warn(string.format("❌ No mapping found for %s", unitPlacementId))
+        print("Current mappings:")
+        for k, v in pairs(playbackUnitMapping) do
+            print(string.format("  %s → %s", k, v))
+        end
         return false
     end
     
@@ -2063,7 +2065,7 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
-    print(string.format("⬆️ Upgrading placement #%d: %s (x%d levels)", targetOrder, currentUnitName, upgradeAmount))
+    print(string.format("⬆️ Upgrading %s: %s (x%d levels)", unitPlacementId, currentUnitName, upgradeAmount))
     
     -- Check upgrade levels
     local currentUpgradeLevel = getUnitUpgradeLevel(currentUnitName)
@@ -2097,38 +2099,38 @@ local function executeUnitUpgrade(actionData)
         local newLevel = getUnitUpgradeLevel(currentUnitName)
         
         if newLevel and newLevel > currentUpgradeLevel then
-            print(string.format("✓ Upgraded placement #%d (%d→%d)", targetOrder, currentUpgradeLevel, newLevel))
+            print(string.format("✓ Upgraded %s (%d→%d)", unitPlacementId, currentUpgradeLevel, newLevel))
             return true
         end
     else
         warn(string.format("❌ pcall failed: %s", tostring(err)))
     end
     
-    warn(string.format("❌ Failed to upgrade placement #%d", targetOrder))
+    warn(string.format("❌ Failed to upgrade %s", unitPlacementId))
     return false
 end
 
 local function executeUnitSell(actionData)
-    local targetOrder = actionData.targetPlacementOrder
+    local unitPlacementId = actionData.Unit  -- e.g., "Ai #1"
     
     print(string.format("=== EXECUTING SELL ==="))
-    print(string.format("Target Order: %d", targetOrder))
+    print(string.format("Target Unit: %s", unitPlacementId))
     
-    if not targetOrder or targetOrder == 0 then
-        warn("❌ Invalid target placement order for sell")
+    if not unitPlacementId then
+        warn("❌ Invalid placement ID for sell")
         return false
     end
     
     -- Look up the actual unit name from mapping
-    local currentUnitName = playbackUnitMapping[targetOrder]
+    local currentUnitName = playbackUnitMapping[unitPlacementId]  -- Changed lookup
     print(string.format("Mapped Unit: %s", currentUnitName or "nil"))
     
     if not currentUnitName then
-        warn(string.format("❌ No mapping found for placement #%d", targetOrder))
+        warn(string.format("❌ No mapping found for %s", unitPlacementId))
         return false
     end
     
-    print(string.format("💰 Selling placement #%d: %s", targetOrder, currentUnitName))
+    print(string.format("💰 Selling %s: %s", unitPlacementId, currentUnitName))
     
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
@@ -2139,14 +2141,15 @@ local function executeUnitSell(actionData)
     if success then
         task.wait(0.5)
         
-        if not unitExistsInServer(currentUnitName) then
-            print(string.format("✓ Successfully sold placement #%d", targetOrder))
-            playbackUnitMapping[targetOrder] = nil -- Remove from mapping
+        local playerUnitsFolder = getPlayerUnitsFolder()
+        if playerUnitsFolder and not playerUnitsFolder:FindFirstChild(currentUnitName) then
+            print(string.format("✓ Successfully sold %s", unitPlacementId))
+            playbackUnitMapping[unitPlacementId] = nil  -- Remove from mapping
             return true
         end
     end
     
-    warn(string.format("❌ Failed to sell placement #%d", targetOrder))
+    warn(string.format("❌ Failed to sell %s", unitPlacementId))
     return false
 end
 
