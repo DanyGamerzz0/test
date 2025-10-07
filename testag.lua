@@ -1,4 +1,4 @@
---52
+--53
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1506,74 +1506,71 @@ local function countPlacedUnits()
     return count
 end
 
+local function findUnitByPosition(unitDisplayName, targetPosition, tolerance)
+    tolerance = tolerance or 5
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    if not playerUnitsFolder then
+        warn("Player units folder not found")
+        return nil
+    end
+    
+    local baseUnitName = getBaseUnitName(unitDisplayName)
+    print(string.format("🔍 Looking for %s near (%.1f, %.1f, %.1f)", 
+        baseUnitName, targetPosition.X, targetPosition.Y, targetPosition.Z))
+    
+    local bestMatch = nil
+    local bestDistance = math.huge
+    
+    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        local unitBaseName = getBaseUnitName(unit.Name)
+        
+        if unitBaseName == baseUnitName then
+            -- Check if already tracked
+            if trackedUnits[unit.Name] then
+                continue -- Skip already tracked units
+            end
+            
+            local originAttr = unit:GetAttribute("origin")
+            if originAttr then
+                local originPos = originAttr.Position
+                local distance = (originPos - targetPosition).Magnitude
+                
+                print(string.format("  → Checking %s: distance = %.2f studs", unit.Name, distance))
+                
+                if distance <= tolerance and distance < bestDistance then
+                    bestMatch = unit.Name
+                    bestDistance = distance
+                end
+            end
+        end
+    end
+    
+    if bestMatch then
+        print(string.format("✓ Found match: %s (%.2f studs away)", bestMatch, bestDistance))
+    else
+        print("❌ No matching unit found within tolerance")
+    end
+    
+    return bestMatch
+end
+
 local function processPlacementAction(actionInfo)
     local args = actionInfo.args
     local unitDisplayName = args[1][1]
     local cframe = args[1][2]
     local rotation = args[1][3]
     
-    print(string.format("📝 Recording placement: %s", unitDisplayName))
+    print(string.format("📝 Recording placement: %s at position (%.1f, %.1f, %.1f)", 
+        unitDisplayName, cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
     
-    -- Take a snapshot of existing units BEFORE waiting
-    local existingUnits = {}
-    local playerUnitsFolder = getPlayerUnitsFolder()
-    if playerUnitsFolder then
-        for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-            local spawnId = getUnitSpawnId(unit)
-            if spawnId then
-                existingUnits[spawnId] = true
-            end
-        end
-    end
+    -- Wait a bit for unit to spawn
+    task.wait(0.5)
     
-    -- Wait for NEW unit to spawn (one that didn't exist before)
-    local actualUnitName = nil
-    local maxAttempts = 20
-    local checkInterval = 0.2
-    
-    for attempt = 1, maxAttempts do
-        task.wait(checkInterval)
-        
-        -- Search for units that are NEW (not in existingUnits)
-        if playerUnitsFolder then
-            local baseUnitName = getBaseUnitName(unitDisplayName)
-            
-            for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-                local unitBaseName = getBaseUnitName(unit.Name)
-                
-                if unitBaseName == baseUnitName then
-                    local spawnId = getUnitSpawnId(unit)
-                    
-                    -- Check if this is a NEW unit (didn't exist before placement)
-                    if spawnId and not existingUnits[spawnId] then
-                        local originCFrame = unit:GetAttribute("origin")
-                        if originCFrame then
-                            local distance = (originCFrame.Position - cframe.Position).Magnitude
-                            
-                            if distance <= 8 then
-                                actualUnitName = unit.Name
-                                print(string.format("✅ Detected NEW unit after %.2fs: %s (ID: %d)", 
-                                    attempt * checkInterval, actualUnitName, spawnId))
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        
-        if actualUnitName then break end
-    end
+    -- Find the unit by position
+    local actualUnitName = findUnitByPosition(unitDisplayName, cframe.Position, 5) -- 5 stud tolerance
     
     if not actualUnitName then
-        warn("❌ RECORDING FAILED: Could not find NEW unit after", maxAttempts, "attempts:", unitDisplayName)
-        return
-    end
-    
-    -- Extract spawn ID
-    local spawnId = tonumber(actualUnitName:match("%s(%d+)$"))
-    if not spawnId then
-        warn("❌ Could not extract spawn ID from:", actualUnitName)
+        warn("❌ RECORDING FAILED: Could not find unit at position:", unitDisplayName)
         return
     end
     
@@ -1606,11 +1603,11 @@ local function processPlacementAction(actionInfo)
     
     table.insert(macro, placementRecord)
     
-    -- Map spawn ID to placement ID for upgrade/sell tracking
-    recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
+    -- Map actual unit name to placement ID for upgrade/sell tracking
+    trackedUnits[actualUnitName] = placementId
     
-    print(string.format("✓ Recorded: %s → Server: %s (ID: %d, Cost: %d)", 
-        placementId, actualUnitName, spawnId, placementCost or 0))
+    print(string.format("✓ Recorded: %s → Server: %s (Cost: %d)", 
+        placementId, actualUnitName, placementCost or 0))
 end
 
 local function executePlacementAction(action, actionIndex, totalActions)
