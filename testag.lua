@@ -1,4 +1,4 @@
---58
+--59
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1733,7 +1733,7 @@ mt.__namecall = newcclosure(function(self, ...)
                 })
             
             -- Keep sell detection
-            elseif isRecording and method == "InvokeServer" and self.Name == "sell_unit_ingame" then
+            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and self.args[1] == "Selling" then
                 local unitName = args[1]
                 local timestamp = tick()
                 
@@ -2100,6 +2100,7 @@ local function executeUnitUpgrade(actionData)
         
         if newLevel and newLevel > currentUpgradeLevel then
             print(string.format("✓ Upgraded %s (%d→%d)", unitPlacementId, currentUpgradeLevel, newLevel))
+            updateDetailedStatus(string.format("✓ Upgraded %s (%d→%d)", unitPlacementId, currentUpgradeLevel, newLevel))
             return true
         end
     else
