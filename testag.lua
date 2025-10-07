@@ -1,4 +1,4 @@
---50
+--51
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1184,13 +1184,17 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
     local baseUnitName = getBaseUnitName(unitDisplayName)
     print(string.format("🔍 Searching for: %s (base: %s)", unitDisplayName, baseUnitName))
     
-    -- Build set of already tracked spawn IDs
-    local alreadyTracked = {}
+    -- Build set of already tracked spawn IDs FOR THIS SPECIFIC UNIT TYPE
+    local alreadyTrackedForThisUnit = {}
     for spawnId, placementId in pairs(recordingSpawnIdToPlacement) do
-        alreadyTracked[tonumber(spawnId)] = true
+        -- Extract unit type from placement ID (e.g., "Judar (Era) #1" -> "Judar (Era)")
+        local trackedUnitType = placementId:match("^(.+)%s#%d+$")
+        if trackedUnitType == baseUnitName then
+            alreadyTrackedForThisUnit[tonumber(spawnId)] = true
+        end
     end
     
-    print(string.format("Already tracked spawn IDs: %d", table.maxn(alreadyTracked)))
+    print(string.format("Already tracked spawn IDs for %s: %d", baseUnitName, table.maxn(alreadyTrackedForThisUnit)))
     
     -- Collect untracked units of matching type
     local candidates = {}
@@ -1211,9 +1215,9 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
             local spawnId = getUnitSpawnId(unit)
             
             print(string.format("  → Matched type! Unit: %s, SpawnID: %s, Already tracked: %s", 
-                unit.Name, tostring(spawnId), tostring(alreadyTracked[spawnId] or false)))
+                unit.Name, tostring(spawnId), tostring(alreadyTrackedForThisUnit[spawnId] or false)))
             
-            if spawnId and not alreadyTracked[spawnId] then
+            if spawnId and not alreadyTrackedForThisUnit[spawnId] then
                 local originCFrame = unit:GetAttribute("origin")
                 local hrp = originCFrame.Position
                 if hrp then
