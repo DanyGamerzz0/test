@@ -1,4 +1,4 @@
---43
+--44
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1174,7 +1174,7 @@ local function getBaseUnitName(fullName)
 end
 
 local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolerance)
-    strictTolerance = strictTolerance or 8 -- Slightly more lenient
+    strictTolerance = strictTolerance or 8
     local playerUnitsFolder = getPlayerUnitsFolder()
     if not playerUnitsFolder then
         warn("Player units folder not found")
@@ -1184,10 +1184,10 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
     local baseUnitName = getBaseUnitName(unitDisplayName)
     print(string.format("🔍 Searching for: %s (base: %s)", unitDisplayName, baseUnitName))
     
-    -- Build set of already tracked spawn IDs (ALL spawn IDs, not just this unit type)
+    -- Build set of already tracked spawn IDs
     local alreadyTracked = {}
     for spawnId, placementId in pairs(recordingSpawnIdToPlacement) do
-        alreadyTracked[spawnId] = true
+        alreadyTracked[tonumber(spawnId)] = true
     end
     
     print(string.format("Already tracked spawn IDs: %d", table.maxn(alreadyTracked)))
@@ -1202,7 +1202,7 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
         local unitBaseName = getBaseUnitName(unit.Name)
         
         -- Debug: Show what we're comparing
-        if scannedCount <= 3 then
+        if scannedCount <= 5 then
             print(string.format("Comparing: '%s' vs '%s'", unitBaseName, baseUnitName))
         end
         
@@ -1211,12 +1211,19 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
             local spawnId = getUnitSpawnId(unit)
             
             print(string.format("  → Matched type! Unit: %s, SpawnID: %s, Already tracked: %s", 
-                unit.Name, tostring(spawnId), tostring(alreadyTracked[tostring(spawnId)] or false)))
+                unit.Name, tostring(spawnId), tostring(alreadyTracked[spawnId] or false)))
             
-            if spawnId and not alreadyTracked[tostring(spawnId)] then
-                local hrp = unit:GetAttribute("origin").Position
+            if spawnId and not alreadyTracked[spawnId] then
+                local hrp = unit:FindFirstChild("HumanoidRootPart")
+                if not hrp then
+                    local originAttr = unit:GetAttribute("origin")
+                    if originAttr then
+                        hrp = { Position = originAttr }
+                    end
+                end
+                
                 if hrp then
-                    local distance = (hrp - targetCFrame.Position).Magnitude
+                    local distance = (hrp.Position - targetCFrame.Position).Magnitude
                     
                     print(string.format("  → Distance: %.2f studs (tolerance: %.2f)", distance, strictTolerance))
                     
@@ -1226,7 +1233,7 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
                             name = unit.Name,
                             distance = distance,
                             spawnId = spawnId,
-                            position = hrp
+                            position = hrp.Position
                         })
                         print(string.format("  ✓ Added as candidate!"))
                     end
