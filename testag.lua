@@ -1,4 +1,4 @@
---59
+--60
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1733,8 +1733,8 @@ mt.__namecall = newcclosure(function(self, ...)
                 })
             
             -- Keep sell detection
-            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and self.args[1] == "Selling" then
-                local unitName = args[1]
+            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Selling" then
+                local unitName = args[2]
                 local timestamp = tick()
                 
                 local placementId = trackedUnits[unitName] -- Direct lookup
