@@ -1,4 +1,4 @@
---55
+--56
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1692,6 +1692,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     
     if placedUnitName then
         -- CRITICAL: Map placement order to actual unit name
+        local placementOrder = getPlacementNumber(action.Unit)
         playbackUnitMapping[placementOrder] = placedUnitName
         print(string.format("✓ MAPPED: Placement #%d → %s", placementOrder, placedUnitName))
         updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
@@ -2039,7 +2040,7 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
-    -- Look up the actual unit name from mapping
+    -- Look up the actual unit name from playback mapping
     local currentUnitName = playbackUnitMapping[targetOrder]
     print(string.format("Mapped Unit: %s", currentUnitName or "nil"))
     
@@ -2049,7 +2050,15 @@ local function executeUnitUpgrade(actionData)
         return false
     end
     
-    if not unitExistsInServer(currentUnitName) then
+    -- Verify unit still exists
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    if not playerUnitsFolder then
+        warn("❌ Player units folder not found")
+        return false
+    end
+    
+    local unitExists = playerUnitsFolder:FindFirstChild(currentUnitName)
+    if not unitExists then
         warn(string.format("❌ Unit %s no longer exists", currentUnitName))
         return false
     end
