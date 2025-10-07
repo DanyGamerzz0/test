@@ -1,4 +1,4 @@
---61
+--62
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -2086,12 +2086,14 @@ local function executeUnitUpgrade(actionData)
         string.format("upgrade %s x%d", currentUnitName, upgradeAmount)) then
         return false
     end
+
+    local targetLevel = currentUpgradeLevel + upgradeAmount
     
     -- Perform upgrade
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
             :WaitForChild("Events"):WaitForChild("ManageUnits")
-            :InvokeServer("Upgrade", currentUnitName, upgradeAmount)
+            :InvokeServer("Upgrade", currentUnitName, targetLevel)
     end)
     
     if success then
