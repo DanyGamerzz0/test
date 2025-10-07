@@ -1,4 +1,4 @@
---42
+--43
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1182,26 +1182,44 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
     end
     
     local baseUnitName = getBaseUnitName(unitDisplayName)
+    print(string.format("🔍 Searching for: %s (base: %s)", unitDisplayName, baseUnitName))
     
-    -- Build set of already tracked spawn IDs
+    -- Build set of already tracked spawn IDs (ALL spawn IDs, not just this unit type)
     local alreadyTracked = {}
-    for spawnId, _ in pairs(recordingSpawnIdToPlacement) do
+    for spawnId, placementId in pairs(recordingSpawnIdToPlacement) do
         alreadyTracked[spawnId] = true
     end
     
+    print(string.format("Already tracked spawn IDs: %d", table.maxn(alreadyTracked)))
+    
     -- Collect untracked units of matching type
     local candidates = {}
+    local scannedCount = 0
+    local matchedTypeCount = 0
+    
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        scannedCount = scannedCount + 1
         local unitBaseName = getBaseUnitName(unit.Name)
         
+        -- Debug: Show what we're comparing
+        if scannedCount <= 3 then
+            print(string.format("Comparing: '%s' vs '%s'", unitBaseName, baseUnitName))
+        end
+        
         if unitBaseName == baseUnitName then
+            matchedTypeCount = matchedTypeCount + 1
             local spawnId = getUnitSpawnId(unit)
             
+            print(string.format("  → Matched type! Unit: %s, SpawnID: %s, Already tracked: %s", 
+                unit.Name, tostring(spawnId), tostring(alreadyTracked[tostring(spawnId)] or false)))
+            
             if spawnId and not alreadyTracked[tostring(spawnId)] then
-                local originCFrame = unit:GetAttribute("origin")
-                local hrp = originCFrame.Position
+                local hrp = unit:GetAttribute("origin").Position
                 if hrp then
                     local distance = (hrp - targetCFrame.Position).Magnitude
+                    
+                    print(string.format("  → Distance: %.2f studs (tolerance: %.2f)", distance, strictTolerance))
+                    
                     if distance <= strictTolerance then
                         table.insert(candidates, {
                             unit = unit,
@@ -1210,13 +1228,18 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
                             spawnId = spawnId,
                             position = hrp
                         })
+                        print(string.format("  ✓ Added as candidate!"))
                     end
                 end
             end
         end
     end
     
+    print(string.format("Scan results: %d total units, %d matched type, %d candidates within range", 
+        scannedCount, matchedTypeCount, #candidates))
+    
     if #candidates == 0 then
+        print("❌ No candidates found!")
         return nil
     end
     
