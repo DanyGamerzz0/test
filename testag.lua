@@ -1,4 +1,4 @@
---57
+--58
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -2029,10 +2029,10 @@ end
 
 local function executeUnitUpgrade(actionData)
     local unitPlacementId = actionData.Unit  -- e.g., "Ai #1", "Senko #2"
-    local upgradeAmount = actionData.Amount or 1
+    local upgradeAmount = actionData.Amount or 1  -- Default to 1 if nil
     
     print(string.format("=== EXECUTING UPGRADE ==="))
-    print(string.format("Target Unit: %s, Amount: %d", unitPlacementId, upgradeAmount))
+    print(string.format("Target Unit: %s, Amount: %d", unitPlacementId or "nil", upgradeAmount))
     
     if not unitPlacementId then
         warn("❌ Invalid placement ID for upgrade")
@@ -2040,7 +2040,7 @@ local function executeUnitUpgrade(actionData)
     end
     
     -- Look up the actual unit name from playback mapping
-    local currentUnitName = playbackUnitMapping[unitPlacementId]  -- Changed lookup
+    local currentUnitName = playbackUnitMapping[unitPlacementId]
     print(string.format("Mapped Unit: %s", currentUnitName or "nil"))
     
     if not currentUnitName then
@@ -2883,11 +2883,7 @@ local function playMacroOnce()
             local unitType = getDisplayNameFromUnit(action.Unit)
             
             if placementNum and unitType then
-                executeUnitUpgrade({
-                    targetPlacementOrder = placementNum,
-                    unitType = unitType,
-                    amount = action.Amount
-                })
+                executeUnitUpgrade(action)
             else
                 warn("Invalid upgrade action format:", action.Unit)
             end
