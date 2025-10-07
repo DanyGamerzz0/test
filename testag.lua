@@ -1,4 +1,4 @@
---41
+--42
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1198,17 +1198,17 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
             local spawnId = getUnitSpawnId(unit)
             
             if spawnId and not alreadyTracked[tostring(spawnId)] then
-                local hrp = unit:FindFirstChild("HumanoidRootPart")
+                local originCFrame = unit:GetAttribute("origin")
+                local hrp = originCFrame.Position
                 if hrp then
-                    local distance = (hrp.Position - targetCFrame.Position).Magnitude
-                    
+                    local distance = (hrp - targetCFrame.Position).Magnitude
                     if distance <= strictTolerance then
                         table.insert(candidates, {
                             unit = unit,
                             name = unit.Name,
                             distance = distance,
                             spawnId = spawnId,
-                            position = hrp.Position
+                            position = hrp
                         })
                     end
                 end
