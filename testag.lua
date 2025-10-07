@@ -1,4 +1,4 @@
---60
+--61
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -2145,6 +2145,7 @@ local function executeUnitSell(actionData)
         local playerUnitsFolder = getPlayerUnitsFolder()
         if playerUnitsFolder and not playerUnitsFolder:FindFirstChild(currentUnitName) then
             print(string.format("✓ Successfully sold %s", unitPlacementId))
+            updateDetailedStatus(string.format("✓ Successfully sold %s", unitPlacementId))
             playbackUnitMapping[unitPlacementId] = nil  -- Remove from mapping
             return true
         end
@@ -2896,10 +2897,7 @@ local function playMacroOnce()
             local unitType = getDisplayNameFromUnit(action.Unit)
             
             if placementNum and unitType then
-                executeUnitSell({
-                    targetPlacementOrder = placementNum,
-                    unitType = unitType
-                })
+                executeUnitSell(action)
             end
         end
         
