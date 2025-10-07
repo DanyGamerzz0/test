@@ -1,4 +1,4 @@
---54
+--55
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1521,6 +1521,8 @@ local function findUnitByPosition(unitDisplayName, targetPosition, tolerance)
     local bestDistance = math.huge
     
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        if unit.Name == "PLACEMENTFOLDER" then continue end
+
         local unitBaseName = getBaseUnitName(unit.Name)
         
         if unitBaseName == baseUnitName then
@@ -1767,6 +1769,7 @@ RunService.Heartbeat:Connect(function()
     if not playerUnitsFolder then return end
 
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        if unit.Name == "PLACEMENTFOLDER" then continue end
         local unitName = unit.Name
         local currentLevel = getUnitUpgradeLevel(unitName)
         local placementId = trackedUnits[unitName] -- Direct lookup by unit name
