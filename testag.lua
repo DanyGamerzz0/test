@@ -1,4 +1,4 @@
---45
+--50
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1214,8 +1214,8 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
                 unit.Name, tostring(spawnId), tostring(alreadyTracked[spawnId] or false)))
             
             if spawnId and not alreadyTracked[spawnId] then
-                local originAttr = unit:GetAttribute("origin")
-                local hrp = originAttr.Position
+                local originCFrame = unit:GetAttribute("origin")
+                local hrp = originCFrame.Position
                 if hrp then
                     local distance = (hrp - targetCFrame.Position).Magnitude
                     
