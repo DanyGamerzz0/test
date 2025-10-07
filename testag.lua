@@ -1,4 +1,4 @@
---40
+--41
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -180,18 +180,7 @@ local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
 
-local macroManager = {}
-local currentMacroName
-local macro = {}
-
-local recordingSpawnIdToPlacement = {}
-local recordingPlacementCounter = {} 
-local recordingUnitNameToSpawnId = {} 
-local playbackPlacementToSpawnId = {} 
-local playbackUnitMapping = {}
 local trackedUnits = {} 
-local lastRecordedUpgrade = {}
-local gameStartTime = 0
 
 local macro = {}
 local macroManager = {}
@@ -199,12 +188,16 @@ local currentMacroName = ""
 local recordingHasStarted = false
 local isAutoLoopEnabled = false
 
+local playbackUnitMapping = {} -- Maps placement order to actual unit name
+local recordingSpawnIdToPlacement = {} -- Maps spawn ID to placement ID during recording
+local recordingPlacementCounter = {} -- Counts placements per unit type
+local placementExecutionLock = false -- Prevent race conditions
+
 local gameInProgress = false
 local macroHasPlayedThisGame = false
 
 local gameStartTime = 0
 
-local recordingStartTime
 local isRecording = false
 local isPlaybacking = false
 local isRecordingLoopRunning = false
@@ -301,23 +294,6 @@ end
         })
     end
 
-local function getUnitsOfType(unitType)
-    local units = {}
-    local playerUnitsFolder = getPlayerUnitsFolder()
-    
-    if not playerUnitsFolder then
-        return units
-    end
-    
-    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-        if getBaseUnitName(unit.Name) == unitType then
-            table.insert(units, unit.Name)
-        end
-    end
-    table.sort(units)
-    return units
-end
-
 local function unitExistsInServer(unitName)
     local playerUnitsFolder = getPlayerUnitsFolder()
     if not playerUnitsFolder then
@@ -325,38 +301,6 @@ local function unitExistsInServer(unitName)
     end
     
     return playerUnitsFolder:FindFirstChild(unitName) ~= nil
-end
-
-local function findUnitForPlayback(placementOrder, unitType)
-    local mappedUnit = playbackUnitMapping[placementOrder]
-    if mappedUnit and unitExistsInServer(mappedUnit) then
-        return mappedUnit
-    end
-    
-    local unitsOfThisType = getUnitsOfType(unitType)
-    
-    if #unitsOfThisType == 0 then
-        warn(string.format("No units of type '%s' found for placement order %d", unitType, placementOrder))
-        return nil
-    end
-    local typeCountBefore = 0
-    for i = 1, placementOrder - 1 do
-        for _, action in ipairs(macro) do
-            if action.action == "PlaceUnit" and 
-               action.placementOrder == i and 
-               getBaseUnitName(action.unitName) == unitType then
-                typeCountBefore = typeCountBefore + 1
-                break
-            end
-        end
-    end
-    local targetIndex = typeCountBefore + 1
-    
-    if unitsOfThisType[targetIndex] then
-        return unitsOfThisType[targetIndex]
-    end
-    warn(string.format("Could not find unit index %d for type '%s', using last available", targetIndex, unitType))
-    return unitsOfThisType[#unitsOfThisType]
 end
 
 local function purchaseFromBlackMarket(unitName)
@@ -1214,14 +1158,30 @@ local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     return nil, nil, nil
 end
 
+local function getDisplayNameFromUnit(unitString)
+    -- "Shigeru (Gachi Fighter) #1" -> "Shigeru (Gachi Fighter)"
+    return unitString:match("^(.+)%s#%d+$") or unitString
+end
+
+local function getPlacementNumber(unitString)
+    -- "Shigeru (Gachi Fighter) #1" -> 1
+    return tonumber(unitString:match("#(%d+)$"))
+end
+
+local function getBaseUnitName(fullName)
+    -- "Shigeru (Gachi Fighter) 1" -> "Shigeru (Gachi Fighter)"
+    return fullName:match("^(.+)%s+%d+$") or fullName
+end
+
 local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolerance)
-    strictTolerance = strictTolerance or 5 -- Tight 5 stud tolerance
+    strictTolerance = strictTolerance or 8 -- Slightly more lenient
     local playerUnitsFolder = getPlayerUnitsFolder()
     if not playerUnitsFolder then
+        warn("Player units folder not found")
         return nil
     end
     
-    local baseUnitName = unitDisplayName:gsub("%s*%d+$", ""):gsub("%s+$", "")
+    local baseUnitName = getBaseUnitName(unitDisplayName)
     
     -- Build set of already tracked spawn IDs
     local alreadyTracked = {}
@@ -1232,7 +1192,7 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
     -- Collect untracked units of matching type
     local candidates = {}
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-        local unitBaseName = unit.Name:gsub("%s*%d+$", ""):gsub("%s+$", "")
+        local unitBaseName = getBaseUnitName(unit.Name)
         
         if unitBaseName == baseUnitName then
             local spawnId = getUnitSpawnId(unit)
@@ -1242,7 +1202,6 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
                 if hrp then
                     local distance = (hrp.Position - targetCFrame.Position).Magnitude
                     
-                    -- Only add if within strict tolerance
                     if distance <= strictTolerance then
                         table.insert(candidates, {
                             unit = unit,
@@ -1257,7 +1216,6 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
         end
     end
     
-    -- No candidates within strict tolerance
     if #candidates == 0 then
         return nil
     end
@@ -1265,9 +1223,8 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
     -- Sort by distance (closest first)
     table.sort(candidates, function(a, b) return a.distance < b.distance end)
     
-    -- Return the closest match
     local best = candidates[1]
-    print(string.format("Found unit: %s at %.2f studs (ID: %d)", 
+    print(string.format("✓ Found unit: %s at %.2f studs (ID: %d)", 
         best.name, best.distance, best.spawnId))
     
     return best.name
@@ -1308,11 +1265,12 @@ local function StreamerMode()
 end
 
 local function clearSpawnIdMappings()
+    playbackUnitMapping = {}
     recordingSpawnIdToPlacement = {}
     recordingPlacementCounter = {}
-    playbackPlacementToSpawnId = {}
-    playbackUnitMapping = {}
-    trackedUnits = {} -- Add this line
+    trackedUnits = {}
+    placementExecutionLock = false
+    print("✓ Cleared all spawn ID mappings")
 end
 
 local function startRecordingNow()
@@ -1526,33 +1484,33 @@ local function processPlacementAction(actionInfo)
     local cframe = args[1][2]
     local rotation = args[1][3]
     
-    print(string.format("Attempting to place: %s", unitDisplayName))
+    print(string.format("📝 Recording placement: %s", unitDisplayName))
     
-    -- Wait and retry to find the unit
+    -- Wait for unit to spawn
     local actualUnitName = nil
-    local maxAttempts = 15
+    local maxAttempts = 20
     local checkInterval = 0.2
     
-for attempt = 1, maxAttempts do
-    task.wait(checkInterval)
-    
-    actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe, 5)
-    
-    if actualUnitName then
-        print(string.format("✅ Detected at %.2fs: %s", attempt * checkInterval, actualUnitName))
-        break
+    for attempt = 1, maxAttempts do
+        task.wait(checkInterval)
+        
+        actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe, 8)
+        
+        if actualUnitName then
+            print(string.format("✅ Detected after %.2fs: %s", attempt * checkInterval, actualUnitName))
+            break
+        end
     end
-end
     
     if not actualUnitName then
-        warn("FAILED: Could not find unit after", maxAttempts, "attempts:", unitDisplayName)
+        warn("❌ RECORDING FAILED: Could not find unit after", maxAttempts, "attempts:", unitDisplayName)
         return
     end
     
     -- Extract spawn ID
     local spawnId = tonumber(actualUnitName:match("%s(%d+)$"))
     if not spawnId then
-        warn("Could not extract spawn ID from:", actualUnitName)
+        warn("❌ Could not extract spawn ID from:", actualUnitName)
         return
     end
     
@@ -1566,11 +1524,12 @@ end
         end
     end
     
-    -- Record the placement
+    -- Increment placement counter for this unit type
     recordingPlacementCounter[unitDisplayName] = (recordingPlacementCounter[unitDisplayName] or 0) + 1
     local placementNumber = recordingPlacementCounter[unitDisplayName]
     local placementId = string.format("%s #%d", unitDisplayName, placementNumber)
     
+    -- Record to macro
     local gameRelativeTime = actionInfo.timestamp - gameStartTime
     
     local placementRecord = {
@@ -1583,43 +1542,48 @@ end
     }
     
     table.insert(macro, placementRecord)
+    
+    -- Map spawn ID to placement ID for upgrade/sell tracking
     recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
     
-    print(string.format("✓ Recorded: %s (Server: %s, ID: %d, Cost: %d)", 
+    print(string.format("✓ Recorded: %s → Server: %s (ID: %d, Cost: %d)", 
         placementId, actualUnitName, spawnId, placementCost or 0))
 end
 
-local function getDisplayNameFromUnit(unitString)
-    -- "Shigeru (Gachi Fighter) #1" -> "Shigeru (Gachi Fighter)"
-    return unitString:match("^(.+) #%d+$") or unitString
-end
-
 local function executePlacementAction(action, actionIndex, totalActions)
-    print("=== executePlacementAction called ===")
+    -- Prevent simultaneous placements
+    while placementExecutionLock do
+        task.wait(0.1)
+    end
+    placementExecutionLock = true
+    
+    print("=== EXECUTING PLACEMENT ===")
     print("Action Unit:", action.Unit)
     
-    -- Extract the placement order from the Unit field (e.g., "Shigeru (Gachi Fighter) #1" -> 1)
-    local placementOrder = tonumber(action.Unit:match("#(%d+)$"))
+    -- Extract placement order and display name
+    local placementOrder = getPlacementNumber(action.Unit)
+    local displayName = getDisplayNameFromUnit(action.Unit)
+    
     if not placementOrder then
-        warn("Could not extract placement order from:", action.Unit)
+        warn("❌ Invalid placement order from:", action.Unit)
+        placementExecutionLock = false
         return false
     end
     
-    -- Extract display name from Unit field
-    local displayName = getDisplayNameFromUnit(action.Unit)
-    print("Extracted displayName:", displayName)
+    print("Placement Order:", placementOrder)
+    print("Display Name:", displayName)
     
-    -- Get UUID for the equipped unit
+    -- Get UUID for equipped unit
     local uuid = getEquippedUnitUUID(displayName)
-    print("Found UUID:", uuid or "NIL")
     
     if not uuid then
-        warn("Unit not equipped:", displayName)
+        warn("❌ Unit not equipped:", displayName)
         updateDetailedStatus(string.format("(%d/%d) ERROR: %s not equipped!", actionIndex, totalActions, displayName))
+        placementExecutionLock = false
         return false
     end
     
-    -- Reconstruct CFrame from position
+    -- Reconstruct CFrame
     local pos = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
     
@@ -1634,46 +1598,50 @@ local function executePlacementAction(action, actionIndex, totalActions)
     
     updateDetailedStatus(string.format("(%d/%d) Placing %s...", actionIndex, totalActions, action.Unit))
     
-    local beforeSnapshot = takeUnitsSnapshot()
-    
+    -- Send placement request
     local success = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
+        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+            :WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
     end)
     
     if not success then 
-    warn("Failed to call spawnunit remote")
-    return false 
-end
-
--- Wait for unit to spawn at the position
-local placedUnitName = nil
-local maxWaitAttempts = 10
-
-for waitAttempt = 1, maxWaitAttempts do
-    task.wait(0.5)
+        warn("❌ Failed to call spawnunit remote")
+        placementExecutionLock = false
+        return false 
+    end
     
-    placedUnitName = findLatestSpawnedUnit(displayName, cframe, 5)
+    -- Wait for unit to spawn and verify
+    local placedUnitName = nil
+    local maxWaitAttempts = 15
+    
+    for waitAttempt = 1, maxWaitAttempts do
+        task.wait(0.5)
+        
+        placedUnitName = findLatestSpawnedUnit(displayName, cframe, 8)
+        
+        if placedUnitName then
+            print(string.format("✅ Unit spawned after %.1fs", waitAttempt * 0.5))
+            break
+        end
+        
+        if waitAttempt < maxWaitAttempts then
+            print(string.format("⏳ Waiting for spawn... (attempt %d/%d)", waitAttempt, maxWaitAttempts))
+        end
+    end
     
     if placedUnitName then
-        print(string.format("Unit detected after %.1fs", waitAttempt * 0.5))
-        break
+        -- CRITICAL: Map placement order to actual unit name
+        playbackUnitMapping[placementOrder] = placedUnitName
+        print(string.format("✓ MAPPED: Placement #%d → %s", placementOrder, placedUnitName))
+        updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
+        placementExecutionLock = false
+        return true
     end
     
-    if waitAttempt < maxWaitAttempts then
-        print(string.format("Unit not spawned yet, waiting... (attempt %d/%d)", waitAttempt, maxWaitAttempts))
-    end
-end
-
-if placedUnitName then
-    playbackUnitMapping[placementOrder] = placedUnitName
-    print(string.format("✓ Placed: %s -> placement #%d -> unit_name: %s", action.Unit, placementOrder, placedUnitName))
-    updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
-    return true
-end
-
-warn("Failed to detect unit at target position after " .. (maxWaitAttempts * 0.5) .. " seconds")
-updateDetailedStatus(string.format("(%d/%d) FAILED to place %s", actionIndex, totalActions, action.Unit))
-return false
+    warn(string.format("❌ Failed to detect unit after %.1fs", maxWaitAttempts * 0.5))
+    updateDetailedStatus(string.format("(%d/%d) FAILED to place %s", actionIndex, totalActions, action.Unit))
+    placementExecutionLock = false
+    return false
 end
 
     local function getUnitUpgradeLevel(unit)
@@ -2027,151 +1995,60 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
     return true
 end
 
-local function tryPlaceUnitUntilSuccess(unitName, cframe, rotation, unitId, maxAttempts)
-    maxAttempts = maxAttempts or 10
-    local attempts = 0
-    
-    while attempts < maxAttempts and isPlaybacking do
-        attempts = attempts + 1
-        
-        MacroStatusLabel:Set(string.format("Status: Placing %s (attempt %d/%d)", 
-            unitName, attempts, maxAttempts))
-        
-        print(string.format("🎯 Attempting to place %s (attempt %d/%d)", 
-            unitName, attempts, maxAttempts))
-        
-        -- Try to place the unit
-        local success, err = pcall(function()
-            local args = {
-                {
-                    unitName,
-                    cframe,
-                    rotation or 0
-                },
-                unitId
-            }
-            
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                :WaitForChild("Events"):WaitForChild("spawnunit"):InvokeServer(unpack(args))
-        end)
-        
-        if not success then
-            warn(string.format("❌ Failed to send place request for %s: %s", unitName, err))
-            task.wait(1)
-            continue
-        end
-        
-        -- Wait and check if unit was actually placed
-        task.wait(1.5)
-        
-        -- Find and verify the unit exists in unitServer
-        local actualUnitName = findLatestSpawnedUnit(unitName, cframe)
-        if actualUnitName and unitExistsInServer(actualUnitName) then
-            print(string.format("✅ Successfully placed %s! Server unit: %s", 
-                unitName, actualUnitName))
-            
-            -- Update the mapping for upgrades/sells later
-            playbackUnitMapping[currentPlacementOrder] = actualUnitName
-            print(string.format("🔗 Mapped placement #%d -> %s", currentPlacementOrder, actualUnitName))
-            
-            return true
-        end
-        
-        -- If we reach here, placement failed
-        print(string.format("❌ Placement failed - unit not found in server"))
-        
-        if attempts < maxAttempts then
-            print(string.format("⏳ Placement attempt %d failed, waiting before retry...", attempts))
-            task.wait(2) -- Wait before next attempt
-        end
-    end
-    
-    warn(string.format("❌ Failed to place %s after %d attempts", unitName, attempts))
-    return false
-end
-
-local function executeUnitPlacement(actionData)
-    print(string.format("🎯 Placing unit: %s (placement order #%d)", 
-        actionData.unitName, actionData.placementOrder))
-    
-    local success = tryPlaceUnitUntilSuccess(
-        actionData.unitName, 
-        actionData.cframe, 
-        actionData.rotation or 0, 
-        actionData.unitId,
-        10
-    )
-    
-    if success then
-        -- Wait for unit to spawn and then map it
-        task.wait(1.5)
-        
-        -- Find the actual unit that was spawned
-        local actualUnitName = findLatestSpawnedUnit(actionData.unitName, actionData.cframe, 5)
-        
-        if actualUnitName then
-            -- Map placement order to actual unit name
-            playbackUnitMapping[actionData.placementOrder] = actualUnitName
-            print(string.format("🔗 Mapped placement #%d -> %s", 
-                actionData.placementOrder, actualUnitName))
-        else
-            warn(string.format("Failed to find spawned unit for placement #%d", actionData.placementOrder))
-        end
-    end
-    
-    return success
-end
-
 local function executeUnitUpgrade(actionData)
     local targetOrder = actionData.targetPlacementOrder
-    local unitType = actionData.unitType
     local upgradeAmount = actionData.amount or 1
     
-    print(string.format("DEBUG: executeUnitUpgrade called - order: %d, type: %s, amount: %d", 
-        targetOrder, unitType or "nil", upgradeAmount))
+    print(string.format("=== EXECUTING UPGRADE ==="))
+    print(string.format("Target Order: %d, Amount: %d", targetOrder, upgradeAmount))
     
     if not targetOrder or targetOrder == 0 then
-        warn("Invalid target placement order for upgrade")
+        warn("❌ Invalid target placement order for upgrade")
         return false
     end
     
+    -- Look up the actual unit name from mapping
     local currentUnitName = playbackUnitMapping[targetOrder]
-    print(string.format("DEBUG: Found mapping for order %d: %s", targetOrder, currentUnitName or "nil"))
+    print(string.format("Mapped Unit: %s", currentUnitName or "nil"))
     
     if not currentUnitName then
-        warn(string.format("No mapping found for placement #%d", targetOrder))
+        warn(string.format("❌ No mapping found for placement #%d", targetOrder))
+        print("Current mappings:", playbackUnitMapping)
         return false
     end
     
     if not unitExistsInServer(currentUnitName) then
-        warn(string.format("Unit %s does not exist in server for placement #%d", currentUnitName, targetOrder))
+        warn(string.format("❌ Unit %s no longer exists", currentUnitName))
         return false
     end
     
-    print(string.format("Upgrading placement #%d: %s (x%d levels)", targetOrder, currentUnitName, upgradeAmount))
+    print(string.format("⬆️ Upgrading placement #%d: %s (x%d levels)", targetOrder, currentUnitName, upgradeAmount))
     
+    -- Check upgrade levels
     local currentUpgradeLevel = getUnitUpgradeLevel(currentUnitName)
     local maxUpgradeLevel = getUnitMaxUpgradeLevel(currentUnitName)
     
     if not currentUpgradeLevel or not maxUpgradeLevel then
-        warn(string.format("Could not determine upgrade levels for %s", currentUnitName))
+        warn(string.format("❌ Could not determine upgrade levels for %s", currentUnitName))
         return false
     end
     
     if currentUpgradeLevel >= maxUpgradeLevel then
-        print(string.format("Unit %s already at max upgrade (%d/%d)", 
-            currentUnitName, currentUpgradeLevel, maxUpgradeLevel))
+        print(string.format("ℹ️ Unit %s already at max (%d/%d)", currentUnitName, currentUpgradeLevel, maxUpgradeLevel))
         return true
     end
     
+    -- Wait for money if needed
     if not waitForSufficientMoneyForUpgrades(currentUnitName, upgradeAmount, 
         string.format("upgrade %s x%d", currentUnitName, upgradeAmount)) then
         return false
     end
     
+    -- Perform upgrade
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Upgrade", currentUnitName, upgradeAmount)
+            :WaitForChild("Events"):WaitForChild("ManageUnits")
+            :InvokeServer("Upgrade", currentUnitName, upgradeAmount)
     end)
     
     if success then
@@ -2179,52 +2056,56 @@ local function executeUnitUpgrade(actionData)
         local newLevel = getUnitUpgradeLevel(currentUnitName)
         
         if newLevel and newLevel > currentUpgradeLevel then
-            print(string.format("Successfully upgraded placement #%d (%d->%d)", 
-                targetOrder, currentUpgradeLevel, newLevel))
+            print(string.format("✓ Upgraded placement #%d (%d→%d)", targetOrder, currentUpgradeLevel, newLevel))
             return true
         end
     else
-        warn(string.format("pcall failed: %s", tostring(err)))
+        warn(string.format("❌ pcall failed: %s", tostring(err)))
     end
     
-    warn(string.format("Failed to upgrade placement #%d", targetOrder))
+    warn(string.format("❌ Failed to upgrade placement #%d", targetOrder))
     return false
 end
 
 local function executeUnitSell(actionData)
     local targetOrder = actionData.targetPlacementOrder
-    local unitType = actionData.unitType or getBaseUnitName(actionData.unitName or "")
+    
+    print(string.format("=== EXECUTING SELL ==="))
+    print(string.format("Target Order: %d", targetOrder))
     
     if not targetOrder or targetOrder == 0 then
-        warn("Invalid target placement order for sell")
+        warn("❌ Invalid target placement order for sell")
         return false
     end
     
-    local currentUnitName = findUnitForPlayback(targetOrder, unitType)
+    -- Look up the actual unit name from mapping
+    local currentUnitName = playbackUnitMapping[targetOrder]
+    print(string.format("Mapped Unit: %s", currentUnitName or "nil"))
     
     if not currentUnitName then
-        warn(string.format("Could not find unit for placement #%d (type: %s)", targetOrder, unitType))
+        warn(string.format("❌ No mapping found for placement #%d", targetOrder))
         return false
     end
     
-    print(string.format("Selling placement #%d: %s", targetOrder, currentUnitName))
+    print(string.format("💰 Selling placement #%d: %s", targetOrder, currentUnitName))
     
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-            :WaitForChild("Events"):WaitForChild("ManageUnits"):InvokeServer("Selling", currentUnitName)
+            :WaitForChild("Events"):WaitForChild("ManageUnits")
+            :InvokeServer("Selling", currentUnitName)
     end)
     
     if success then
         task.wait(0.5)
         
         if not unitExistsInServer(currentUnitName) then
-            print(string.format("💰 Successfully sold placement #%d", targetOrder))
+            print(string.format("✓ Successfully sold placement #%d", targetOrder))
             playbackUnitMapping[targetOrder] = nil -- Remove from mapping
             return true
         end
     end
     
-    warn(string.format("Failed to sell placement #%d", targetOrder))
+    warn(string.format("❌ Failed to sell placement #%d", targetOrder))
     return false
 end
 
@@ -2901,16 +2782,16 @@ local function playMacroOnce()
     
     MacroStatusLabel:Set("Status: Executing macro...")
     
-    playbackPlacementToSpawnId = {}
-    playbackUnitMapping = {}
-    currentPlacementOrder = 0
-    local playbackStartTime = gameStartTime
+    -- CRITICAL: Clear mappings at start
+    clearSpawnIdMappings()
     
+    local playbackStartTime = gameStartTime
     if playbackStartTime == 0 then
         playbackStartTime = tick()
         print("No game start time, using current time")
     end
     
+    -- Rest of your playMacroOnce code...
     for actionIndex, action in ipairs(macro) do
         if not isPlaybacking or not gameInProgress then
             print("Playback stopped")
@@ -2942,33 +2823,27 @@ local function playMacroOnce()
             
             MacroStatusLabel:Set(string.format("Status: (%d/%d) Placing %s", actionIndex, #macro, action.Unit))
             
-            local success = false
-            for attempt = 1, 3 do
-                success = executePlacementAction(action, actionIndex, #macro)
-                if success then break end
-                task.wait(0.3)
-            end
+            local success = executePlacementAction(action, actionIndex, #macro)
             
             if not success then
                 print("Failed to place:", action.Unit)
             end
             
+            -- Small delay between placements to prevent race conditions
+            task.wait(0.3)
+            
         elseif action.Type == "upgrade_unit_ingame" then
             MacroStatusLabel:Set(string.format("Status: (%d/%d) Upgrading %s", actionIndex, #macro, action.Unit))
             
-            local placementNum = tonumber(action.Unit:match("#(%d+)$"))
-            local unitType = action.Unit:match("^(.+)%s#%d+$")
+            local placementNum = getPlacementNumber(action.Unit)
+            local unitType = getDisplayNameFromUnit(action.Unit)
             
             if placementNum and unitType then
-                local success = executeUnitUpgrade({
+                executeUnitUpgrade({
                     targetPlacementOrder = placementNum,
                     unitType = unitType,
                     amount = action.Amount
                 })
-                
-                if not success then
-                    print("Failed to upgrade:", action.Unit)
-                end
             else
                 warn("Invalid upgrade action format:", action.Unit)
             end
@@ -2976,8 +2851,8 @@ local function playMacroOnce()
         elseif action.Type == "sell_unit_ingame" then
             MacroStatusLabel:Set(string.format("Status: (%d/%d) Selling %s", actionIndex, #macro, action.Unit))
             
-            local placementNum = tonumber(action.Unit:match("#(%d+)$"))
-            local unitType = action.Unit:match("^(.+)%s#%d+$")
+            local placementNum = getPlacementNumber(action.Unit)
+            local unitType = getDisplayNameFromUnit(action.Unit)
             
             if placementNum and unitType then
                 executeUnitSell({
@@ -3011,7 +2886,6 @@ local function autoPlaybackLoop()
         
         -- Mark that we're playing this game
         macroHasPlayedThisGame = true
-        playbackPlacementToSpawnId = {}
         
         MacroStatusLabel:Set("Status: Executing macro...")
         updateDetailedStatus("Starting macro playback...")
