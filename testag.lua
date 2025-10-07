@@ -1,4 +1,4 @@
---51
+--52
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1514,7 +1514,19 @@ local function processPlacementAction(actionInfo)
     
     print(string.format("📝 Recording placement: %s", unitDisplayName))
     
-    -- Wait for unit to spawn
+    -- Take a snapshot of existing units BEFORE waiting
+    local existingUnits = {}
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    if playerUnitsFolder then
+        for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+            local spawnId = getUnitSpawnId(unit)
+            if spawnId then
+                existingUnits[spawnId] = true
+            end
+        end
+    end
+    
+    -- Wait for NEW unit to spawn (one that didn't exist before)
     local actualUnitName = nil
     local maxAttempts = 20
     local checkInterval = 0.2
@@ -1522,16 +1534,39 @@ local function processPlacementAction(actionInfo)
     for attempt = 1, maxAttempts do
         task.wait(checkInterval)
         
-        actualUnitName = findLatestSpawnedUnit(unitDisplayName, cframe, 8)
-        
-        if actualUnitName then
-            print(string.format("✅ Detected after %.2fs: %s", attempt * checkInterval, actualUnitName))
-            break
+        -- Search for units that are NEW (not in existingUnits)
+        if playerUnitsFolder then
+            local baseUnitName = getBaseUnitName(unitDisplayName)
+            
+            for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+                local unitBaseName = getBaseUnitName(unit.Name)
+                
+                if unitBaseName == baseUnitName then
+                    local spawnId = getUnitSpawnId(unit)
+                    
+                    -- Check if this is a NEW unit (didn't exist before placement)
+                    if spawnId and not existingUnits[spawnId] then
+                        local originCFrame = unit:GetAttribute("origin")
+                        if originCFrame then
+                            local distance = (originCFrame.Position - cframe.Position).Magnitude
+                            
+                            if distance <= 8 then
+                                actualUnitName = unit.Name
+                                print(string.format("✅ Detected NEW unit after %.2fs: %s (ID: %d)", 
+                                    attempt * checkInterval, actualUnitName, spawnId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
         end
+        
+        if actualUnitName then break end
     end
     
     if not actualUnitName then
-        warn("❌ RECORDING FAILED: Could not find unit after", maxAttempts, "attempts:", unitDisplayName)
+        warn("❌ RECORDING FAILED: Could not find NEW unit after", maxAttempts, "attempts:", unitDisplayName)
         return
     end
     
