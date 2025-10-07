@@ -1,4 +1,4 @@
---53
+--54
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1294,11 +1294,10 @@ end
 
 local function clearSpawnIdMappings()
     playbackUnitMapping = {}
-    recordingSpawnIdToPlacement = {}
-    recordingPlacementCounter = {}
     trackedUnits = {}
+    recordingPlacementCounter = {}
     placementExecutionLock = false
-    print("✓ Cleared all spawn ID mappings")
+    print("✓ Cleared all tracking data")
 end
 
 local function startRecordingNow()
@@ -1725,43 +1724,32 @@ mt.__namecall = newcclosure(function(self, ...)
             -- Detect spawnunit remote during recording
             if isRecording and method == "InvokeServer" and self.Name == "spawnunit" then
                 local timestamp = tick()
-
-                local tempUnitName = args[1][1]
                 
                 processPlacementAction({
                     args = args,
                     timestamp = timestamp
                 })
             
-            -- REMOVE THIS ENTIRE ELSEIF BLOCK FOR UPGRADE DETECTION
-            -- (Delete the upgrade_unit_ingame detection code)
-            
             -- Keep sell detection
             elseif isRecording and method == "InvokeServer" and self.Name == "sell_unit_ingame" then
                 local unitName = args[1]
                 local timestamp = tick()
                 
-                local playerUnitsFolder = getPlayerUnitsFolder()
-                if playerUnitsFolder then
-                    local unit = playerUnitsFolder:FindFirstChild(unitName)
-                    if unit then
-                        local spawnId = getUnitSpawnId(unit)
-                        local placementId = recordingSpawnIdToPlacement[spawnId]
-                        
-                        if placementId then
-                            local gameRelativeTime = timestamp - gameStartTime
-                            
-                            table.insert(macro, {
-                                Type = "sell_unit_ingame",
-                                Unit = placementId,
-                                Time = string.format("%.2f", gameRelativeTime)
-                            })
-                            
-                            print(string.format("Recorded sell: %s", placementId))
-                            
-                            recordingSpawnIdToPlacement[spawnId] = nil
-                        end
-                    end
+                local placementId = trackedUnits[unitName] -- Direct lookup
+                
+                if placementId then
+                    local gameRelativeTime = timestamp - gameStartTime
+                    
+                    table.insert(macro, {
+                        Type = "sell_unit_ingame",
+                        Unit = placementId,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    })
+                    
+                    print(string.format("Recorded sell: %s", placementId))
+                    
+                    -- Clean up tracking
+                    trackedUnits[unitName] = nil
                 end
             end
         end)
@@ -1775,64 +1763,45 @@ local RunService = game:GetService("RunService")
 RunService.Heartbeat:Connect(function()
     if not isRecording or not recordingHasStarted then return end
 
-    local unitServer = Services.Workspace:FindFirstChild("Ground")
-        and Services.Workspace.Ground:FindFirstChild("unitServer")
-    
-    if not unitServer then return end
-    
-    local playerUnitsFolder = unitServer:FindFirstChild(tostring(Services.Players.LocalPlayer.Name).." (UNIT)")
+    local playerUnitsFolder = getPlayerUnitsFolder()
     if not playerUnitsFolder then return end
 
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-        local spawnId = getUnitSpawnId(unit)
-        if spawnId then
-            local spawnKey = tostring(spawnId)
-            local currentLevel = getUnitUpgradeLevel(unit.Name)
-            local placementId = recordingSpawnIdToPlacement[spawnKey]
-            --print(tostring(recordingSpawnIdToPlacement[spawnKey]))
+        local unitName = unit.Name
+        local currentLevel = getUnitUpgradeLevel(unitName)
+        local placementId = trackedUnits[unitName] -- Direct lookup by unit name
+        
+        if placementId then
+            -- Initialize tracking if new unit
+            if not unit:GetAttribute("TrackedLevel") then
+                unit:SetAttribute("TrackedLevel", currentLevel)
+            end
             
-            if placementId then
-                -- Initialize tracking if new unit
-                if not trackedUnits[spawnKey] then
-                    trackedUnits[spawnKey] = {
-                        placementId = placementId,
-                        lastLevel = currentLevel
-                    }
+            local lastLevel = unit:GetAttribute("TrackedLevel")
+            
+            -- Check for level increase
+            if currentLevel > lastLevel then
+                local levelIncrease = currentLevel - lastLevel
+                local gameRelativeTime = tick() - gameStartTime
+                
+                local record = {
+                    Type = "upgrade_unit_ingame",
+                    Unit = placementId,
+                    Time = string.format("%.2f", gameRelativeTime)
+                }
+                
+                -- Only add Amount field if multi-upgrade
+                if levelIncrease > 1 then
+                    record.Amount = levelIncrease
                 end
                 
-                -- Check for level increase
-                local lastLevel = trackedUnits[spawnKey].lastLevel
-                if currentLevel > lastLevel then
-                    local levelIncrease = currentLevel - lastLevel
-                    
-                    local gameRelativeTime = tick() - gameStartTime
-                    
-                    local record = {
-                        Type = "upgrade_unit_ingame",
-                        Unit = placementId,
-                        Time = string.format("%.2f", gameRelativeTime)
-                    }
-                    
-                    -- Only add Amount field if multi-upgrade
-                    if levelIncrease > 1 then
-                        record.Amount = levelIncrease
-                    end
-                    
-                    table.insert(macro, record)
-                    
-                    print(string.format("Recorded upgrade: %s (L%d->L%d)",
-                        placementId, lastLevel, currentLevel))
-                    
-                    Rayfield:Notify({
-                        Title = "Macro Recorder",
-                        Content = string.format("Recorded upgrade: %s", placementId),
-                        Duration = 2,
-                        Image = 4483362458
-                    })
-                    
-                    -- Update tracked level
-                    trackedUnits[spawnKey].lastLevel = currentLevel
-                end
+                table.insert(macro, record)
+                
+                print(string.format("Recorded upgrade: %s (L%d->L%d)",
+                    placementId, lastLevel, currentLevel))
+                
+                -- Update tracked level
+                unit:SetAttribute("TrackedLevel", currentLevel)
             end
         end
     end
