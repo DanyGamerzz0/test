@@ -1,4 +1,4 @@
---69
+--70
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -116,6 +116,8 @@ local State = {
    AutoJoinRaid = nil,
    RaidStageSelected = nil,
    RaidActSelected = nil,
+   AutoJoinLimitedEvent = nil,
+   AutoJoinLimitedEventSelected = {},
 
    enableLimitFPS = false,
    SelectedFPS = 60,
@@ -649,13 +651,39 @@ end)
 
      local EventStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Event to join",
-    Options = {"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)"},
+    Options = {"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)","Shibuya Event (Shibuya)"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "AutoJoinEventSelector",
     Callback = function(Options)
         local extracted = string.match(Options[1], "%((.-)%)")
         State.AutoJoinEventSelected = extracted
+    end,
+})
+
+    local AutoJoinLimitedEventToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join CSM Event",
+    CurrentValue = false,
+    Flag = "AutoJoinEvent",
+    Callback = function(Value)
+        State.AutoJoinLimitedEvent = Value
+    end,
+    })
+
+local EventLimitedStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select CSM Event Difficulty",
+    Options = {"Easy", "Hard", "Hell"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoJoinLimitedEventSelector",
+    Callback = function(selected)
+        if selected[1] == "Easy" then
+            State.AutoJoinLimitedEventSelected = "Easy_Hell"
+        elseif selected[1] == "Hard" then
+            State.AutoJoinLimitedEventSelected = "Hard_Hell"
+        elseif selected[1] == "Hell" then
+            State.AutoJoinLimitedEventSelected = "Hell_Devil"
+        end
     end,
 })
 
@@ -3501,6 +3529,9 @@ local excludedStages = {
     ["Easter Event"] = true,
     ["Moonbase Sci-Fi"] = true,
     ["Nazarick Mausoleum"] = true,
+    ["Hell Devil"] = true,
+    ["Lingxian Academy"] = true,
+    ["Lingxian Yard"] = true,
 }
 
 local STORY_STAGE_PRIORITY = {
@@ -3645,6 +3676,17 @@ local function checkAndExecuteHighestPriority()
 
             task.delay(5, clearProcessingState)
             return
+    end
+
+    if State.AutoJoinLimitedEvent and State.AutoJoinLimitedEventSelected then
+        setProcessingState("Auto Join Event")
+
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("host",{friendOnly = false,stage = State.AutoJoinEventSelected})
+        task.wait(1)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RoomFunction"):InvokeServer("start")
+
+            task.delay(5, clearProcessingState)
+        return
     end
 
     --TOWER ADVENTURES
