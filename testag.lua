@@ -1,4 +1,4 @@
---67
+--68
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1735,6 +1735,18 @@ mt.__namecall = newcclosure(function(self, ...)
                     timestamp = timestamp
                 })
             
+            -- Detect skip wave vote during recording
+            elseif isRecording and method == "FireServer" and self.Name == "Vote" and args[1] == "Vote2" then
+                local timestamp = tick()
+                local gameRelativeTime = timestamp - gameStartTime
+                
+                table.insert(macro, {
+                    Type = "skip_wave",
+                    Time = string.format("%.2f", gameRelativeTime)
+                })
+                
+                print(string.format("Recorded skip wave at %.2fs", gameRelativeTime))
+            
             -- Keep sell detection
             elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Selling" then
                 local unitName = args[2]
@@ -1755,6 +1767,36 @@ mt.__namecall = newcclosure(function(self, ...)
                     
                     -- Clean up tracking
                     trackedUnits[unitName] = nil
+                end
+                elseif isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
+                local unitNameInClient = args[2] -- e.g., "Pucci (Made In Heaven) 1"
+                local timestamp = tick()
+                
+                -- Extract the base name without the number at the end
+                local baseUnitName = unitNameInClient:match("^(.+)%s+%d+$") or unitNameInClient
+                
+                -- Find the matching placement ID from tracked units
+                local placementId = nil
+                for serverUnitName, trackingId in pairs(trackedUnits) do
+                    local serverBaseName = serverUnitName:match("^(.+)%s+%d+$") or serverUnitName
+                    if serverBaseName == baseUnitName then
+                        placementId = trackingId
+                        break
+                    end
+                end
+                
+                if placementId then
+                    local gameRelativeTime = timestamp - gameStartTime
+                    
+                    table.insert(macro, {
+                        Type = "use_ability",
+                        Unit = placementId,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    })
+                    
+                    print(string.format("Recorded ability use: %s (%.2fs)", placementId, gameRelativeTime))
+                else
+                    warn(string.format("Could not find placement ID for ability use: %s", unitNameInClient))
                 end
             end
         end)
@@ -2160,47 +2202,80 @@ local function executeUnitSell(actionData)
     return false
 end
 
-local function executeUnitUlt(actionData)
-    local targetOrder = actionData.targetPlacementOrder
-    local unitType = actionData.unitType or getBaseUnitName(actionData.unitString or "")
+local function executeSkipWave()
+    print("⏩ Executing skip wave")
     
-    if not targetOrder or targetOrder == 0 then
-        warn("Invalid target placement order for ult")
+    local success, err = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+            :WaitForChild("Events"):WaitForChild("Vote")
+            :FireServer("Vote2")
+    end)
+    
+    if success then
+        print("✓ Skip wave vote sent")
+        updateDetailedStatus("⏩ Skip wave vote sent")
+        return true
+    else
+        warn("❌ Failed to skip wave:", err)
+        return false
+    end
+end
+
+local function executeUnitAbility(actionData)
+    local unitPlacementId = actionData.Unit  -- e.g., "Ai #1"
+    
+    print(string.format("=== EXECUTING ABILITY ==="))
+    print(string.format("Target Unit: %s", unitPlacementId))
+    
+    if not unitPlacementId then
+        warn("❌ Invalid placement ID for ability")
         return false
     end
     
-    local currentUnitName = findUnitForPlayback(targetOrder, unitType)
+    -- Look up the actual unit name from mapping
+    local currentUnitName = playbackUnitMapping[unitPlacementId]
+    print(string.format("Mapped Unit: %s", currentUnitName or "nil"))
     
     if not currentUnitName then
-        warn(string.format("Could not find unit for placement #%d (type: %s)", targetOrder, unitType))
+        warn(string.format("❌ No mapping found for %s", unitPlacementId))
         return false
     end
     
-    print(string.format("Using ult on placement #%d: %s", targetOrder, currentUnitName))
+    print(string.format("⚡ Using ability on %s: %s", unitPlacementId, currentUnitName))
     
-    -- Try to find the unit in unitClient for the ult
+    -- Try to find the unit in unitClient
     local ground = Services.Workspace:FindFirstChild("Ground")
-    if ground then
-        local unitClient = ground:FindFirstChild("unitClient")
-        if unitClient then
-            for _, unit in pairs(unitClient:GetChildren()) do
-                if unit:IsA("Model") and unit.Name:find(currentUnitName, 1, true) then
-                    local success, err = pcall(function()
-                        local args = {"SkillsButton", unit.Name}
-                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                            :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
-                    end)
-                    
-                    if success then
-                        print(string.format("⚡ Successfully ulted placement #%d", targetOrder))
-                        return true
-                    end
-                end
+    if not ground then
+        warn("❌ Ground folder not found")
+        return false
+    end
+    
+    local unitClient = ground:FindFirstChild("unitClient")
+    if not unitClient then
+        warn("❌ unitClient folder not found")
+        return false
+    end
+    
+    -- Look for the unit in unitClient
+    for _, unit in pairs(unitClient:GetChildren()) do
+        if unit:IsA("Model") and unit.Name:find(currentUnitName, 1, true) then
+            local success, err = pcall(function()
+                local args = {"SkillsButton", unit.Name}
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                    :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
+            end)
+            
+            if success then
+                print(string.format("✓ Successfully used ability on %s", unitPlacementId))
+                updateDetailedStatus(string.format("⚡ Used ability on %s", unitPlacementId))
+                return true
+            else
+                warn("❌ Failed to invoke ability:", err)
             end
         end
     end
     
-    warn(string.format("Failed to ult placement #%d", targetOrder))
+    warn(string.format("❌ Unit not found in unitClient: %s", currentUnitName))
     return false
 end
 
@@ -2918,8 +2993,14 @@ local function playMacroOnce()
             if placementNum and unitType then
                 executeUnitSell(action)
             end
-        end
-        
+            
+        elseif action.Type == "skip_wave" then
+            MacroStatusLabel:Set(string.format("Status: (%d/%d) Skipping wave", actionIndex, #macro))
+            executeSkipWave()
+        elseif action.Type == "use_ability" then
+            MacroStatusLabel:Set(string.format("Status: (%d/%d) Using ability on %s", actionIndex, #macro, action.Unit))
+            executeUnitAbility(action)
+        end        
         task.wait(0.1)
     end
     
@@ -2986,55 +3067,6 @@ local function autoPlaybackLoop()
     updateDetailedStatus("Playback stopped")
     isPlaybacking = false
     print("=== PLAYBACK LOOP ENDED ===")
-end
-
-local function restartPlaybackLoop()
-    if not isAutoLoopEnabled then return end
-    
-    print("=== RESTARTING PLAYBACK LOOP ===")
-    
-    -- Stop existing loop
-    PlaybackState.isRunning = false
-    if PlaybackState.loopCoroutine then
-        task.cancel(PlaybackState.loopCoroutine)
-        PlaybackState.loopCoroutine = nil
-    end
-    
-    -- Reset ALL game state variables
-    gameInProgress = false
-    macroHasPlayedThisGame = false
-    gameStartTime = 0
-    isPlaybacking = false  -- Add this reset
-    
-    -- Wait for things to stabilize
-    task.wait(1)
-    
-    -- Verify we still want to play and have a valid macro
-    if not isAutoLoopEnabled then 
-        print("Playback disabled during restart, aborting")
-        return 
-    end
-    
-    if not currentMacroName or currentMacroName == "" then
-        print("No macro selected during restart, aborting")
-        return
-    end
-    
-    if not macro or #macro == 0 then
-        print("No macro data during restart, attempting to reload")
-        local loadedMacro = loadMacroFromFile(currentMacroName)
-        if loadedMacro then
-            macro = loadedMacro
-            print("Successfully reloaded macro:", currentMacroName)
-        else
-            print("Failed to reload macro, aborting restart")
-            return
-        end
-    end
-    
-    -- Start new loop
-    print("Starting fresh playback loop with", #macro, "actions")
-    PlaybackState.loopCoroutine = task.spawn(autoPlaybackLoop)
 end
 
 local PlayToggle = MacroTab:CreateToggle({
