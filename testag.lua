@@ -1,4 +1,4 @@
---68
+--69
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -715,8 +715,12 @@ end)
     end,
     })
 
+    local function isInLobby()
+    return workspace:FindFirstChild("RoomCreation") ~= nil
+end
+
 local function tryStartGame()
-    if State.AutoStartGame then
+    if State.AutoStartGame and not isInLobby() then
         local mode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
         local gameStarted = Services.Workspace.GameSettings.GameStarted.Value
         local currentWave = Services.Workspace.GameSettings.Wave.Value
@@ -952,10 +956,6 @@ local Toggle = GameTab:CreateToggle({
         State.AutoCollectChests = Value
     end,
 })
-
-local function isInLobby()
-    return workspace:FindFirstChild("RoomCreation") ~= nil
-end
 
 local function collectChest(chest)
     if isInLobby() then return end
@@ -1344,6 +1344,7 @@ local function saveMacroToFile(name)
 end
 
 local function setupGameTimeTracking()
+    if isInLobby() then return end
     local waveNum = Services.Workspace.GameSettings.Wave
     
 waveNum.Changed:Connect(function(newWave)
@@ -2761,6 +2762,7 @@ end
     end
 
     local function waitForGameStart_Playback()
+        if isInLobby() then return end
     local waveNum = Services.Workspace:WaitForChild("GameSettings"):WaitForChild("Wave")
 
     -- wait for game to end (if currently in one)
@@ -4229,6 +4231,7 @@ local function onGameStart()
 end
 
 -- Update your wave monitoring to call onGameStart
+if not isInLobby() then
 Services.Workspace.GameSettings.Wave.Changed:Connect(function(newWave)
     if newWave >= 1 and not gameInProgress then
         startGameTracking()
@@ -4236,6 +4239,7 @@ Services.Workspace.GameSettings.Wave.Changed:Connect(function(newWave)
         stopGameTracking()
     end
 end)
+end
 
 local function checkInitialGameState()
     local waveNum = Services.Workspace.GameSettings.Wave
@@ -4265,7 +4269,9 @@ end
 loadRaidStages()
 loadStoryStages()
 loadPortalStages()
+if not isInLobby() then
 checkGameStarted()
+end
 
 task.spawn(function()
     while true do
@@ -4402,7 +4408,9 @@ end
 ensureMacroFolders()
 loadAllMacros()
 setupGameTimeTracking()
+if not isInLobby() then 
 checkInitialGameState()
+end
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
