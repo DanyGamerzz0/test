@@ -1,4 +1,4 @@
---70
+--71
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -167,7 +167,11 @@ local State = {
     gameStartRealTime = nil,
     gameEndRealTime = nil,
     actualClearTime = nil,
+    IgnoreTiming = nil,
 }
+
+local abilityQueue = {}
+local abilityQueueThread = nil
 
 local PlaybackState = {
     loopCoroutine = nil,
@@ -2946,6 +2950,40 @@ local RecordToggle = MacroTab:CreateToggle({
     end
 })
 
+local function scheduleAbility(action, scheduledTime, actionIndex, totalActions)
+    table.insert(abilityQueue, {
+        action = action,
+        scheduledTime = scheduledTime,
+        actionIndex = actionIndex,
+        totalActions = totalActions
+    })
+    print(string.format("⏰ Scheduled ability for %s at %.2fs", action.Unit, scheduledTime))
+end
+
+local function processAbilityQueue(playbackStartTime)
+    while isPlaybacking and gameInProgress do
+        local currentTime = tick() - playbackStartTime
+        
+        -- Check for abilities that should fire now
+        for i = #abilityQueue, 1, -1 do
+            local queuedAbility = abilityQueue[i]
+            
+            if currentTime >= queuedAbility.scheduledTime then
+                MacroStatusLabel:Set(string.format("Status: (%d/%d) Using ability on %s", 
+                    queuedAbility.actionIndex, queuedAbility.totalActions, queuedAbility.action.Unit))
+                
+                executeUnitAbility(queuedAbility.action)
+                
+                -- Remove from queue
+                table.remove(abilityQueue, i)
+                print(string.format("✅ Fired ability for %s at %.2fs", queuedAbility.action.Unit, currentTime))
+            end
+        end
+        
+        task.wait(0.1)
+    end
+end
+
 local function playMacroOnce()
     if not macro or #macro == 0 then
         print("No macro data to play")
@@ -2957,28 +2995,68 @@ local function playMacroOnce()
     -- CRITICAL: Clear mappings at start
     clearSpawnIdMappings()
     
+    -- Clear ability queue
+    abilityQueue = {}
+    
     local playbackStartTime = gameStartTime
     if playbackStartTime == 0 then
         playbackStartTime = tick()
         print("No game start time, using current time")
     end
     
+    -- Start ability queue processor
+    if abilityQueueThread then
+        task.cancel(abilityQueueThread)
+    end
+    abilityQueueThread = task.spawn(processAbilityQueue, playbackStartTime)
+    
     for actionIndex, action in ipairs(macro) do
         if not isPlaybacking or not gameInProgress then
             print("Playback stopped")
+            if abilityQueueThread then
+                task.cancel(abilityQueueThread)
+            end
             return false
         end
         
         local actionTime = tonumber(action.Time) or 0
         local currentTime = tick() - playbackStartTime
         
-        if currentTime < actionTime then
-            local waitTime = actionTime - currentTime
-            MacroStatusLabel:Set(string.format("Status: (%d/%d) Waiting %.1fs...", actionIndex, #macro, waitTime))
+        -- Handle abilities differently - schedule them instead of executing immediately
+        if action.Type == "use_ability" then
+            if State.IgnoreTiming then
+                -- Schedule ability for its correct timing
+                scheduleAbility(action, actionTime, actionIndex, #macro)
+            else
+                -- Normal timing behavior
+                if currentTime < actionTime then
+                    local waitTime = actionTime - currentTime
+                    MacroStatusLabel:Set(string.format("Status: (%d/%d) Waiting %.1fs for ability...", actionIndex, #macro, waitTime))
+                    
+                    local waitStart = tick()
+                    while (tick() - waitStart) < waitTime and isPlaybacking and gameInProgress do
+                        task.wait(0.1)
+                    end
+                end
+                
+                MacroStatusLabel:Set(string.format("Status: (%d/%d) Using ability on %s", actionIndex, #macro, action.Unit))
+                executeUnitAbility(action)
+            end
             
-            local waitStart = tick()
-            while (tick() - waitStart) < waitTime and isPlaybacking and gameInProgress do
-                task.wait(0.1)
+            task.wait(0.1)
+            continue
+        end
+        
+        -- For non-ability actions, respect timing unless IgnoreTiming is enabled
+        if not State.IgnoreTiming then
+            if currentTime < actionTime then
+                local waitTime = actionTime - currentTime
+                MacroStatusLabel:Set(string.format("Status: (%d/%d) Waiting %.1fs...", actionIndex, #macro, waitTime))
+                
+                local waitStart = tick()
+                while (tick() - waitStart) < waitTime and isPlaybacking and gameInProgress do
+                    task.wait(0.1)
+                end
             end
         end
         
@@ -2988,6 +3066,9 @@ local function playMacroOnce()
             if action.PlacementCost then
                 if not waitForSufficientMoneyForPlacement(action.Unit, action.PlacementCost, action.Unit) then
                     warn("Failed to get enough money for placement:", action.Unit)
+                    if abilityQueueThread then
+                        task.cancel(abilityQueueThread)
+                    end
                     return false
                 end
             end
@@ -3027,11 +3108,22 @@ local function playMacroOnce()
         elseif action.Type == "skip_wave" then
             MacroStatusLabel:Set(string.format("Status: (%d/%d) Skipping wave", actionIndex, #macro))
             executeSkipWave()
-        elseif action.Type == "use_ability" then
-            MacroStatusLabel:Set(string.format("Status: (%d/%d) Using ability on %s", actionIndex, #macro, action.Unit))
-            executeUnitAbility(action)
         end        
         task.wait(0.1)
+    end
+    
+    -- Wait for any remaining abilities in queue
+    if #abilityQueue > 0 then
+        MacroStatusLabel:Set(string.format("Status: Waiting for %d scheduled abilities...", #abilityQueue))
+        print(string.format("Waiting for %d remaining abilities...", #abilityQueue))
+        
+        while #abilityQueue > 0 and isPlaybacking and gameInProgress do
+            task.wait(0.5)
+        end
+    end
+    
+    if abilityQueueThread then
+        task.cancel(abilityQueueThread)
     end
     
     MacroStatusLabel:Set("Status: Macro completed")
@@ -3161,6 +3253,16 @@ local PlayToggle = MacroTab:CreateToggle({
             notify("Playback Disabled", "Macro playback stopped.")
         end
     end
+})
+
+local IgnoreTimingToggle = MacroTab:CreateToggle({
+    Name = "Ignore Timing",
+    CurrentValue = false,
+    Flag = "IgnoreTiming",
+    Info = "Skip timing waits and execute actions immediately. Will not ignore timing for abilities",
+    Callback = function(Value)
+        State.IgnoreTiming = Value
+    end,
 })
 
 local ImportInput = MacroTab:CreateInput({
