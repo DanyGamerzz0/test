@@ -1,4 +1,4 @@
---71
+--72
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1960,7 +1960,10 @@ local function getPlayerMoney()
     return tonumber(Services.Players.LocalPlayer.GameData.Yen.Value) or 0
 end
 
-local function getUnitUpgradeCost(unitName)
+local function getModuleUpgradeCosts(unitName, startLevel, upgradeAmount)
+    local totalCost = 0
+    
+    -- Get the unit from unitServer to access runtime PriceUpgrade
     local unitServer = Services.Workspace:FindFirstChild("Ground") 
         and Services.Workspace.Ground:FindFirstChild("unitServer")
     
@@ -1971,19 +1974,89 @@ local function getUnitUpgradeCost(unitName)
     
     local unit = unitServer[tostring(Services.Players.LocalPlayer).." (UNIT)"]:FindFirstChild(unitName)
     if not unit then
-        warn("Unit not found in unitServer:", unitName)
+        warn("Unit not found:", unitName)
         return nil
     end
     
-    -- Look for PriceUpgrade in any child of the unit
+    local runtimePriceUpgrade = nil
     for _, child in pairs(unit:GetDescendants()) do
         if child.Name == "PriceUpgrade" and child:IsA("NumberValue") then
-            return child.Value
+            runtimePriceUpgrade = child.Value
+            break
         end
     end
     
-    warn("PriceUpgrade not found for unit:", unitName)
-    return nil
+    if not runtimePriceUpgrade then
+        warn("PriceUpgrade not found in unitServer for:", unitName)
+        return nil
+    end
+    
+    -- Get module data for levels 2+
+    local moduleName = getBaseUnitName(unitName)
+    
+    local unitsSettings = Services.ReplicatedStorage:FindFirstChild("PlayMode")
+    if not unitsSettings then
+        warn("PlayMode not found in ReplicatedStorage")
+        return nil
+    end
+    
+    local modulesFolder = unitsSettings:FindFirstChild("Modules")
+    if not modulesFolder then
+        warn("Modules folder not found")
+        return nil
+    end
+    
+    local unitsSettingsFolder = modulesFolder:FindFirstChild("UnitsSettings")
+    if not unitsSettingsFolder then
+        warn("UnitsSettings folder not found")
+        return nil
+    end
+    
+    local unitModule = unitsSettingsFolder:FindFirstChild(moduleName)
+    if not unitModule then
+        warn(string.format("Unit module '%s' not found", moduleName))
+        return nil
+    end
+    
+    local success, moduleData = pcall(function()
+        return require(unitModule)
+    end)
+    
+    if not success then
+        warn(string.format("Failed to require module for %s: %s", moduleName, tostring(moduleData)))
+        return nil
+    end
+    
+    local settings = moduleData.settings and moduleData.settings() or nil
+    if not settings or not settings.Upgrading then
+        warn(string.format("No Upgrading data found in module for %s", moduleName))
+        return nil
+    end
+    
+    local upgradeData = settings.Upgrading
+    
+    -- Calculate cost for each upgrade level
+    for i = 1, upgradeAmount do
+        local targetLevel = startLevel + i
+        
+        if targetLevel == 1 then
+            -- Level 1: Use runtime PriceUpgrade from unitServer
+            totalCost = totalCost + runtimePriceUpgrade
+            print(string.format("  Level 1 cost (runtime): %d", runtimePriceUpgrade))
+        else
+            -- Level 2+: Use module data (module is 1-indexed, so level 2 is at index 1)
+            local moduleIndex = targetLevel - 1
+            if upgradeData[moduleIndex] and upgradeData[moduleIndex].PriceUpgrade then
+                totalCost = totalCost + upgradeData[moduleIndex].PriceUpgrade
+                print(string.format("  Level %d cost (module): %d", targetLevel, upgradeData[moduleIndex].PriceUpgrade))
+            else
+                warn(string.format("No upgrade cost found for level %d (module index %d)", targetLevel, moduleIndex))
+                break
+            end
+        end
+    end
+    
+    return totalCost
 end
 
 local function waitForSufficientMoneyForPlacement(unitName, placementCost, actionDescription)
@@ -2038,39 +2111,12 @@ local function waitForSufficientMoneyForUpgrades(unitName, upgradeAmount, action
         return true
     end
     
-    local totalCost = 0
-    local unitServer = Services.Workspace:FindFirstChild("Ground") 
-        and Services.Workspace.Ground:FindFirstChild("unitServer")
+    -- Use hybrid calculation (runtime for level 1, module for 2+)
+    local totalCost = getModuleUpgradeCosts(unitName, currentLevel, upgradeAmount)
     
-    if not unitServer then
-        warn("unitServer not found!")
+    if not totalCost then
+        warn(string.format("Failed to calculate upgrade costs for %s", unitName))
         return false
-    end
-    
-    local unit = unitServer[tostring(Services.Players.LocalPlayer).." (UNIT)"]:FindFirstChild(unitName)
-    if not unit then
-        warn("Unit not found:", unitName)
-        return false
-    end
-    
-    local priceUpgradeValue = nil
-    for _, child in pairs(unit:GetDescendants()) do
-        if child.Name == "PriceUpgrade" and child:IsA("NumberValue") then
-            priceUpgradeValue = child
-            break
-        end
-    end
-    
-    if not priceUpgradeValue then
-        warn("PriceUpgrade not found for:", unitName)
-        return false
-    end
-    
-    for i = 1, upgradeAmount do
-        if currentLevel + i > maxLevel then
-            break
-        end
-        totalCost = totalCost + priceUpgradeValue.Value
     end
     
     print(string.format("Calculated upgrade cost for %s: %d (x%d upgrades from L%d)", 
