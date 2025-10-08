@@ -1,4 +1,4 @@
---66
+--67
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -3046,32 +3046,47 @@ local PlayToggle = MacroTab:CreateToggle({
         isPlaybacking = Value
         
         if Value then
-            if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({
-                    Title = "Error",
-                    Content = "No macro selected",
-                    Duration = 3
-                })
-                --isAutoLoopEnabled = false
-                --isPlaybacking = false
-                --PlayToggle:Set(false)
-                return
+            -- Ensure we have a valid macro name
+            if type(currentMacroName) == "table" then
+                currentMacroName = currentMacroName[1] or ""
             end
             
-            local loadedMacro = loadMacroFromFile(currentMacroName)
-            if loadedMacro then
+            if not currentMacroName or currentMacroName == "" then
+                -- Try to get first available macro if none selected
+                local firstMacro = next(macroManager)
+                if firstMacro then
+                    currentMacroName = firstMacro
+                    print("No macro selected, using first available:", currentMacroName)
+                else
+                    Rayfield:Notify({
+                        Title = "Error",
+                        Content = "No macro selected and none available",
+                        Duration = 3
+                    })
+                    isAutoLoopEnabled = false
+                    isPlaybacking = false
+                    PlayToggle:Set(false)
+                    return
+                end
+            end
+            
+            -- Try to load from manager first, then from file
+            local loadedMacro = macroManager[currentMacroName] or loadMacroFromFile(currentMacroName)
+            
+            if loadedMacro and #loadedMacro > 0 then
                 macro = loadedMacro
+                macroManager[currentMacroName] = loadedMacro -- Ensure it's in manager
                 MacroStatusLabel:Set("Status: Playback enabled - waiting for game")
                 notify("Playback Enabled", "Macro will play once per game.")
                 
-                -- Start the loop (like Crusaders)
+                -- Start the loop
                 task.spawn(autoPlaybackLoop)
                 
                 print("Started playback:", currentMacroName, "with", #macro, "actions")
             else
                 Rayfield:Notify({
                     Title = "Error",
-                    Content = "Failed to load macro",
+                    Content = "Failed to load macro or macro is empty",
                     Duration = 3
                 })
                 isAutoLoopEnabled = false
