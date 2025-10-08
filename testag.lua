@@ -1,4 +1,4 @@
---73
+--74
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -3063,6 +3063,7 @@ local PlayToggle = MacroTab:CreateToggle({
         isPlaybacking = Value
         
         if Value then
+            if isInLobby() then return end
             -- Ensure we have a valid macro name
             if type(currentMacroName) == "table" then
                 currentMacroName = currentMacroName[1] or ""
