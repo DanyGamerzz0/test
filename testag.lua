@@ -1,4 +1,4 @@
---74
+--75
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -2823,23 +2823,42 @@ local function scheduleAbility(action, scheduledTime, actionIndex, totalActions)
     print(string.format("⏰ Scheduled ability for %s at %.2fs", action.Unit, scheduledTime))
 end
 
+local function scheduleWaveSkip(action, scheduledTime, actionIndex, totalActions)
+    table.insert(abilityQueue, {
+        action = action,
+        scheduledTime = scheduledTime,
+        actionIndex = actionIndex,
+        totalActions = totalActions,
+        isWaveSkip = true  -- Flag to identify wave skips
+    })
+    print(string.format("⏰ Scheduled wave skip at %.2fs", scheduledTime))
+end
+
 local function processAbilityQueue(playbackStartTime)
     while isPlaybacking and gameInProgress do
         local currentTime = tick() - playbackStartTime
         
-        -- Check for abilities that should fire now
+        -- Check for abilities/wave skips that should fire now
         for i = #abilityQueue, 1, -1 do
-            local queuedAbility = abilityQueue[i]
+            local queuedItem = abilityQueue[i]
             
-            if currentTime >= queuedAbility.scheduledTime then
-                MacroStatusLabel:Set(string.format("Status: (%d/%d) Using ability on %s", 
-                    queuedAbility.actionIndex, queuedAbility.totalActions, queuedAbility.action.Unit))
-                
-                executeUnitAbility(queuedAbility.action)
+            if currentTime >= queuedItem.scheduledTime then
+                if queuedItem.isWaveSkip then
+                    -- Execute wave skip
+                    MacroStatusLabel:Set(string.format("Status: (%d/%d) Skipping wave", 
+                        queuedItem.actionIndex, queuedItem.totalActions))
+                    executeSkipWave()
+                    print(string.format("✅ Fired wave skip at %.2fs", currentTime))
+                else
+                    -- Execute ability
+                    MacroStatusLabel:Set(string.format("Status: (%d/%d) Using ability on %s", 
+                        queuedItem.actionIndex, queuedItem.totalActions, queuedItem.action.Unit))
+                    executeUnitAbility(queuedItem.action)
+                    print(string.format("✅ Fired ability for %s at %.2fs", queuedItem.action.Unit, currentTime))
+                end
                 
                 -- Remove from queue
                 table.remove(abilityQueue, i)
-                print(string.format("✅ Fired ability for %s at %.2fs", queuedAbility.action.Unit, currentTime))
             end
         end
         
@@ -2885,7 +2904,7 @@ local function playMacroOnce()
         local actionTime = tonumber(action.Time) or 0
         local currentTime = tick() - playbackStartTime
         
-        -- Handle abilities differently - schedule them instead of executing immediately
+        -- Handle abilities - schedule them instead of executing immediately
         if action.Type == "use_ability" then
             if State.IgnoreTiming then
                 -- Schedule ability for its correct timing
@@ -2910,7 +2929,32 @@ local function playMacroOnce()
             continue
         end
         
-        -- For non-ability actions, respect timing unless IgnoreTiming is enabled
+        -- Handle wave skips - schedule them when IgnoreTiming is enabled
+        if action.Type == "skip_wave" then
+            if State.IgnoreTiming then
+                -- Schedule wave skip for its correct timing
+                scheduleWaveSkip(action, actionTime, actionIndex, #macro)
+            else
+                -- Normal timing behavior
+                if currentTime < actionTime then
+                    local waitTime = actionTime - currentTime
+                    MacroStatusLabel:Set(string.format("Status: (%d/%d) Waiting %.1fs for wave skip...", actionIndex, #macro, waitTime))
+                    
+                    local waitStart = tick()
+                    while (tick() - waitStart) < waitTime and isPlaybacking and gameInProgress do
+                        task.wait(0.1)
+                    end
+                end
+                
+                MacroStatusLabel:Set(string.format("Status: (%d/%d) Skipping wave", actionIndex, #macro))
+                executeSkipWave()
+            end
+            
+            task.wait(0.1)
+            continue
+        end
+        
+        -- For non-ability/non-wave-skip actions, respect timing unless IgnoreTiming is enabled
         if not State.IgnoreTiming then
             if currentTime < actionTime then
                 local waitTime = actionTime - currentTime
@@ -2967,18 +3011,15 @@ local function playMacroOnce()
             if placementNum and unitType then
                 executeUnitSell(action)
             end
-            
-        elseif action.Type == "skip_wave" then
-            MacroStatusLabel:Set(string.format("Status: (%d/%d) Skipping wave", actionIndex, #macro))
-            executeSkipWave()
-        end        
+        end
+        
         task.wait(0.1)
     end
     
-    -- Wait for any remaining abilities in queue
+    -- Wait for any remaining abilities/wave skips in queue
     if #abilityQueue > 0 then
-        MacroStatusLabel:Set(string.format("Status: Waiting for %d scheduled abilities...", #abilityQueue))
-        print(string.format("Waiting for %d remaining abilities...", #abilityQueue))
+        MacroStatusLabel:Set(string.format("Status: Waiting for %d scheduled actions...", #abilityQueue))
+        print(string.format("Waiting for %d remaining queued actions...", #abilityQueue))
         
         while #abilityQueue > 0 and isPlaybacking and gameInProgress do
             task.wait(0.5)
@@ -3123,7 +3164,7 @@ local IgnoreTimingToggle = MacroTab:CreateToggle({
     Name = "Ignore Timing",
     CurrentValue = false,
     Flag = "IgnoreTiming",
-    Info = "Skip timing waits and execute actions immediately. Will not ignore timing for abilities",
+    Info = "Skip timing waits and execute actions immediately. Will not ignore timing for abilities/wave skips",
     Callback = function(Value)
         State.IgnoreTiming = Value
     end,
@@ -3239,7 +3280,7 @@ local SendWebhookButton = MacroTab:CreateButton({
             spawn_unit = 0,
             upgrade_unit_ingame = 0,
             sell_unit_ingame = 0,
-            vote_wave_skip = 0,
+            skip_wave = 0,
             use_ability = 0
         }
         
@@ -3269,7 +3310,7 @@ local SendWebhookButton = MacroTab:CreateButton({
         if next(unitCounts) then
             local unitsList = {}
             for unitName, count in pairs(unitCounts) do
-                table.insert(unitsList, unitName .. " (x" .. count .. ")")
+                table.insert(unitsList, unitName)
             end
             table.sort(unitsList)
             unitsText = table.concat(unitsList, ", ")
@@ -3303,7 +3344,7 @@ local SendWebhookButton = MacroTab:CreateButton({
                             actionCounts.upgrade_unit_ingame, 
                             actionCounts.sell_unit_ingame,
                             actionCounts.use_ability,
-                            actionCounts.vote_wave_skip
+                            actionCounts.skip_wave
                         ),
                         inline = false
                     },
@@ -3435,7 +3476,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
         -- Create display text
         local unitList = {}
         for unitName, count in pairs(unitCounts) do
-            table.insert(unitList, unitName .. " (x" .. count .. ")")
+            table.insert(unitList, unitName)
         end
         
         if #unitList > 0 then
