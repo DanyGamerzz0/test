@@ -1,4 +1,4 @@
---75
+--76
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -173,23 +173,12 @@ local State = {
 local abilityQueue = {}
 local abilityQueueThread = nil
 
-local PlaybackState = {
-    loopCoroutine = nil,
-    isRunning = false
-}
-
-local recordingHasStarted = false
-
 local AutoJoinState = {
     isProcessing = false,
     currentAction = nil,
     lastActionTime = 0,
     actionCooldown = 2
 }
-
-local mt = getrawmetatable(game)
-setreadonly(mt, false)
-local oldNamecall = mt.__namecall
 
 local trackedUnits = {} 
 
@@ -198,7 +187,6 @@ local macroManager = {}
 local currentMacroName = ""
 local recordingHasStarted = false
 local isAutoLoopEnabled = false
-local gameHasEnded = false
 
 local playbackUnitMapping = {} -- Maps placement order to actual unit name
 local recordingSpawnIdToPlacement = {} -- Maps spawn ID to placement ID during recording
@@ -206,18 +194,13 @@ local recordingPlacementCounter = {} -- Counts placements per unit type
 local placementExecutionLock = false -- Prevent race conditions
 
 local gameInProgress = false
-local macroHasPlayedThisGame = false
 
 local gameStartTime = 0
 
 local isRecording = false
 local isPlaybacking = false
 local isRecordingLoopRunning = false
-local isPlayingLoopRunning = false
-local playbackMode = "timing"
 local currentWave = 0
-local waveStartTime = 0
-local currentPlacementOrder = 0
 local detailedStatusLabel = nil
 
 local ValidWebhook = nil
@@ -1421,9 +1404,7 @@ local function startGameTracking()
     if gameInProgress then return end
     
     gameInProgress = true
-    macroHasPlayedThisGame = false
     gameStartTime = tick()
-    gameHasEnded = false
     
     -- Auto-start recording if enabled
     if isRecording and not recordingHasStarted then
@@ -1469,7 +1450,6 @@ local function stopGameTracking()
     
     gameInProgress = false
     gameStartTime = 0
-    macroHasPlayedThisGame = false
     
     print("Game tracking stopped")
 end
@@ -1892,7 +1872,6 @@ local function onWaveChanged()
     local newWave = getCurrentWave()
     if newWave ~= currentWave then
         currentWave = newWave
-        waveStartTime = tick()
         print(string.format("Wave %d started", currentWave))
     end
 end
@@ -3066,7 +3045,6 @@ local function autoPlaybackLoop()
         
         macro = loadedMacro
         isPlaybacking = true
-        macroHasPlayedThisGame = true
         
         MacroStatusLabel:Set("Status: Playing macro...")
         updateDetailedStatus("Loading macro: " .. currentMacroName)
@@ -4287,7 +4265,6 @@ end
 
 local function onGameStart()
     gameInProgress = true
-    macroHasPlayedThisGame = false
     gameStartTime = tick()
     
     -- Auto-start recording if enabled (like File 2)
@@ -4415,7 +4392,6 @@ end
         Services.TeleportService:Teleport(17282336195, LocalPlayer)
     end
     
-    isPlayingLoopRunning = false
 end)
 end
 
