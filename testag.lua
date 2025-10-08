@@ -1,4 +1,4 @@
---62
+--63
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -165,6 +165,11 @@ local State = {
     gameStartRealTime = nil,
     gameEndRealTime = nil,
     actualClearTime = nil,
+}
+
+local PlaybackState = {
+    loopCoroutine = nil,
+    isRunning = false
 }
 
 local recordingHasStarted = false
@@ -2912,9 +2917,12 @@ local function playMacroOnce()
 end
 
 local function autoPlaybackLoop()
-    while isAutoLoopEnabled do
+    print("=== PLAYBACK LOOP STARTED ===")
+    PlaybackState.isRunning = true
+    
+    while isAutoLoopEnabled and PlaybackState.isRunning do
         -- Wait for game to be active
-        while (not gameInProgress or macroHasPlayedThisGame) and isAutoLoopEnabled do
+        while (not gameInProgress or macroHasPlayedThisGame) and isAutoLoopEnabled and PlaybackState.isRunning do
             if macroHasPlayedThisGame then
                 MacroStatusLabel:Set("Status: Waiting for next game...")
             else
@@ -2923,7 +2931,10 @@ local function autoPlaybackLoop()
             task.wait(1)
         end
         
-        if not isAutoLoopEnabled then break end
+        if not isAutoLoopEnabled or not PlaybackState.isRunning then 
+            print("Playback loop stopped")
+            break 
+        end
         
         -- Mark that we're playing this game
         macroHasPlayedThisGame = true
@@ -2933,7 +2944,7 @@ local function autoPlaybackLoop()
         print("Starting macro playback for this game")
         
         -- Play the macro once
-        local success = playMacroOnce() -- Your existing function
+        local success = playMacroOnce()
         
         if success then
             MacroStatusLabel:Set("Status: Macro completed - waiting for next game...")
@@ -2944,7 +2955,7 @@ local function autoPlaybackLoop()
         end
         
         -- Wait for game to end before looping
-        while gameInProgress and isAutoLoopEnabled do
+        while gameInProgress and isAutoLoopEnabled and PlaybackState.isRunning do
             task.wait(0.5)
         end
         
@@ -2954,6 +2965,70 @@ local function autoPlaybackLoop()
     MacroStatusLabel:Set("Status: Playback stopped")
     updateDetailedStatus("Playback stopped")
     isPlaybacking = false
+    PlaybackState.isRunning = false
+    print("=== PLAYBACK LOOP ENDED ===")
+end
+
+local function restartPlaybackLoop()
+    if not isAutoLoopEnabled then return end
+    
+    print("=== RESTARTING PLAYBACK LOOP ===")
+    
+    -- Stop existing loop
+    PlaybackState.isRunning = false
+    if PlaybackState.loopCoroutine then
+        task.cancel(PlaybackState.loopCoroutine)
+    end
+    
+    -- Reset game state
+    gameInProgress = false
+    macroHasPlayedThisGame = false
+    gameStartTime = 0
+    
+    -- Start new loop
+    task.wait(0.5)
+    PlaybackState.loopCoroutine = task.spawn(autoPlaybackLoop)
+end
+
+local function setupTeleportMonitoring()
+    local lastPlaceId = game.PlaceId
+    
+    -- Monitor for place changes (teleports)
+    game:GetService("RunService").Heartbeat:Connect(function()
+        if game.PlaceId ~= lastPlaceId then
+            lastPlaceId = game.PlaceId
+            print("=== TELEPORT DETECTED ===")
+            
+            -- Wait for workspace to load
+            task.wait(2)
+            
+            -- Restart playback loop if it was enabled
+            if isAutoLoopEnabled and not isInLobby() then
+                restartPlaybackLoop()
+            end
+        end
+    end)
+end
+
+local function reconnectWaveMonitoring()
+    local waveNum = Services.Workspace:WaitForChild("GameSettings"):WaitForChild("Wave")
+    
+    waveNum.Changed:Connect(function(newWave)
+        if newWave >= 1 and not gameInProgress then
+            print("Wave started, initializing game tracking")
+            startGameTracking()
+        elseif newWave == 0 and gameInProgress then
+            print("Wave reset, stopping game tracking")
+            stopGameTracking()
+            macroHasPlayedThisGame = false
+        end
+    end)
+    
+    -- Check current wave state
+    if waveNum.Value >= 1 then
+        print("Joined mid-game at wave", waveNum.Value)
+        startGameTracking()
+    end
 end
 
 local PlayToggle = MacroTab:CreateToggle({
@@ -2982,7 +3057,10 @@ local PlayToggle = MacroTab:CreateToggle({
                 macro = loadedMacro
                 MacroStatusLabel:Set("Status: Playback enabled - will play when conditions are met")
                 notify("Playback Enabled", "Macro will play once per game.")
-                task.spawn(autoPlaybackLoop) -- Your existing loop function
+                
+                -- Start the loop with tracking
+                PlaybackState.loopCoroutine = task.spawn(autoPlaybackLoop)
+                
                 print("Started playback:", currentMacroName, "with", #macro, "actions")
             else
                 Rayfield:Notify({
@@ -2995,6 +3073,12 @@ local PlayToggle = MacroTab:CreateToggle({
                 PlayToggle:Set(false)
             end
         else
+            -- Stop the loop
+            PlaybackState.isRunning = false
+            if PlaybackState.loopCoroutine then
+                task.cancel(PlaybackState.loopCoroutine)
+            end
+            
             MacroStatusLabel:Set("Status: Playback disabled")
             isPlaybacking = false
             notify("Playback Disabled", "Macro playback stopped.")
@@ -4368,44 +4452,58 @@ toggleButton.InputEnded:Connect(function(input)
     end
 end)
 
-    task.spawn(function()
-        while true do
-            task.wait(0.1)
-            StreamerMode()
-        end
-    end)
-
-    task.delay(1, function()
-        task.spawn(function()
+task.spawn(function()
+    task.wait(1)
     monitorStagesChallengeGUI()
 end)
 
+-- Setup teleport and wave monitoring
+setupTeleportMonitoring()
+reconnectWaveMonitoring()
 
-
-        local savedMacroName = Rayfield.Flags["MacroDropdown"]
-        
-        -- Handle case where savedMacroName might be a table
-        if type(savedMacroName) == "table" then
-            savedMacroName = savedMacroName[1]
+-- Restore macro selection and playback state after config loads
+task.spawn(function()
+    task.wait(2) -- Wait for config to fully load
+    
+    -- Restore macro selection
+    local savedMacroName = Rayfield.Flags["MacroDropdown"]
+    if type(savedMacroName) == "table" then
+        savedMacroName = savedMacroName[1]
+    end
+    
+    if savedMacroName and savedMacroName ~= "" and type(savedMacroName) == "string" then
+        currentMacroName = savedMacroName
+        local loadedMacro = loadMacroFromFile(currentMacroName)
+        if loadedMacro then
+            macro = loadedMacro
+            macroManager[currentMacroName] = loadedMacro
+            print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
         end
+    end
+    
+    refreshMacroDropdown()
+    
+    -- Restore playback state if it was enabled
+    local savedPlaybackState = Rayfield.Flags["PlayBackMacro"]
+    if savedPlaybackState == true then
+        print("=== RESTORING PLAYBACK STATE ===")
         
-        if savedMacroName and savedMacroName ~= "" and type(savedMacroName) == "string" then
-            currentMacroName = savedMacroName
+        if currentMacroName and currentMacroName ~= "" and macro and #macro > 0 then
+            isAutoLoopEnabled = true
+            isPlaybacking = true
             
-            -- Load the macro data from file when restoring from config
-            local loadedMacro = loadMacroFromFile(currentMacroName)
-            if loadedMacro then
-                macro = loadedMacro
-                macroManager[currentMacroName] = loadedMacro
-                print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
-            else
-                print("Failed to load saved macro:", currentMacroName)
-                currentMacroName = nil
-            end
+            PlaybackState.loopCoroutine = task.spawn(autoPlaybackLoop)
+            MacroStatusLabel:Set("Status: Playback restored - waiting for game")
+            
+            Rayfield:Notify({
+                Title = "Playback Restored",
+                Content = string.format("Auto-playing: %s", currentMacroName),
+                Duration = 3
+            })
+            
+            print(string.format("Playback restored: %s (%d actions)", currentMacroName, #macro))
         else
-            print("No valid saved macro name found. Type:", type(savedMacroName), "Value:", tostring(savedMacroName))
+            print("Cannot restore playback - no valid macro loaded")
         end
-        
-        refreshMacroDropdown()
-    end)
-
+    end
+end)
