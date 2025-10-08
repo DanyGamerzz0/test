@@ -1,4 +1,4 @@
---65
+--66
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -3052,8 +3052,8 @@ local PlayToggle = MacroTab:CreateToggle({
                     Content = "No macro selected",
                     Duration = 3
                 })
-                isAutoLoopEnabled = false
-                isPlaybacking = false
+                --isAutoLoopEnabled = false
+                --isPlaybacking = false
                 --PlayToggle:Set(false)
                 return
             end
