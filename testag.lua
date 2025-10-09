@@ -1,4 +1,4 @@
---80
+--81
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1407,10 +1407,6 @@ local function startGameTracking()
     
     gameInProgress = true
     gameStartTime = tick()
-    State.gameStartRealTime = tick()  -- Add this line
-
-    capturedRewards = nil
-    capturedMatchResult = nil
     
     -- Auto-start recording if enabled
     if isRecording and not recordingHasStarted then
@@ -4341,6 +4337,10 @@ end
 local function onGameStart()
     gameInProgress = true
     gameStartTime = tick()
+    State.gameStartRealTime = tick()  -- Add this line
+    capturedRewards = nil
+    capturedMatchResult = nil
+
     
     -- Auto-start recording if enabled (like File 2)
     if isRecording and not recordingHasStarted then
