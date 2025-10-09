@@ -1,4 +1,4 @@
---83
+--84
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1785,43 +1785,47 @@ mt.__namecall = newcclosure(function(self, ...)
                     -- Clean up tracking
                     trackedUnits[unitName] = nil
                 end
-                elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
-                local unitName = args[2]  -- Server unit name
-                local targetLevel = args[3]  -- Target level player is upgrading to
+                            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
+                local unitName = args[2]  -- Server unit name (e.g., "Robin (HSR) 1")
                 local timestamp = tick()
                 
-                print(string.format("✅ Upgrade remote detected: %s -> L%d", unitName, targetLevel))
+                print(string.format("✅ Upgrade remote detected: %s", unitName))
                 
-                -- Find and validate matching pending upgrade(s)
+                -- Find the MOST RECENT unvalidated pending upgrade for this unit
+                local foundPending = nil
                 for i = #pendingUpgrades, 1, -1 do
                     local pending = pendingUpgrades[i]
                     
                     if pending.unitName == unitName and not pending.validated then
-                        -- Check if this pending upgrade matches the remote call
-                        if pending.endLevel == targetLevel then
-                            -- VALIDATED! Commit to macro
-                            local gameRelativeTime = pending.timestamp - gameStartTime
-                            local upgradeAmount = pending.endLevel - pending.startLevel
-                            
-                            local record = {
-                                Type = "upgrade_unit_ingame",
-                                Unit = pending.placementId,
-                                Time = string.format("%.2f", gameRelativeTime)
-                            }
-                            
-                            if upgradeAmount > 1 then
-                                record.Amount = upgradeAmount
-                            end
-                            
-                            table.insert(macro, record)
-                            
-                            print(string.format("✅ Validated & recorded: %s (L%d->L%d)",
-                                pending.placementId, pending.startLevel, pending.endLevel))
-                            
-                            -- Mark as validated
-                            pending.validated = true
-                        end
+                        foundPending = pending
+                        break -- Take the most recent one
                     end
+                end
+                
+                if foundPending then
+                    -- VALIDATED! Commit to macro
+                    local gameRelativeTime = foundPending.timestamp - gameStartTime
+                    local upgradeAmount = foundPending.endLevel - foundPending.startLevel
+                    
+                    local record = {
+                        Type = "upgrade_unit_ingame",
+                        Unit = foundPending.placementId,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    }
+                    
+                    if upgradeAmount > 1 then
+                        record.Amount = upgradeAmount
+                    end
+                    
+                    table.insert(macro, record)
+                    
+                    print(string.format("✅ Validated & recorded: %s (L%d->L%d)",
+                        foundPending.placementId, foundPending.startLevel, foundPending.endLevel))
+                    
+                    -- Mark as validated
+                    foundPending.validated = true
+                else
+                    print(string.format("⚠️ Upgrade remote but no pending upgrade found for: %s", unitName))
                 end
                 elseif isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
                 local unitNameInClient = args[2] -- e.g., "Pucci (Made In Heaven) 1"
