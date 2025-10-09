@@ -1,4 +1,4 @@
---78
+--79
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1407,6 +1407,7 @@ local function startGameTracking()
     
     gameInProgress = true
     gameStartTime = tick()
+    State.gameStartRealTime = tick()  -- Add this line
 
     capturedRewards = nil
     capturedMatchResult = nil
