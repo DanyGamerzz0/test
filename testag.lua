@@ -1,4 +1,4 @@
---85
+--86
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1789,43 +1789,25 @@ mt.__namecall = newcclosure(function(self, ...)
                 local unitName = args[2]  -- Server unit name (e.g., "Senko 1")
                 local timestamp = tick()
                 
-                print(string.format("✅ Upgrade remote detected: %s", unitName))
+                local placementId = trackedUnits[unitName]
                 
-                -- Find the MOST RECENT unvalidated pending upgrade for this unit
-                local foundPending = nil
-                for i = #pendingUpgrades, 1, -1 do
-                    local pending = pendingUpgrades[i]
+                if placementId then
+                    local currentLevel = getUnitUpgradeLevel(unitName)
                     
-                    if pending.serverUnitName == unitName and not pending.validated then
-                        foundPending = pending
-                        break -- Take the most recent one
-                    end
-                end
-                
-                if foundPending then
-                    -- VALIDATED! Commit to macro
-                    local gameRelativeTime = foundPending.timestamp - gameStartTime
-                    local upgradeAmount = foundPending.endLevel - foundPending.startLevel
+                    -- Create PENDING upgrade from remote
+                    table.insert(pendingUpgrades, {
+                        serverUnitName = unitName,
+                        placementId = placementId,
+                        startLevel = currentLevel,  -- Current level before upgrade
+                        expectedEndLevel = currentLevel + 1,  -- We expect it to go up by 1
+                        timestamp = timestamp,
+                        validated = false
+                    })
                     
-                    local record = {
-                        Type = "upgrade_unit_ingame",
-                        Unit = foundPending.placementId,  -- Use the placement ID format for macro
-                        Time = string.format("%.2f", gameRelativeTime)
-                    }
-                    
-                    if upgradeAmount > 1 then
-                        record.Amount = upgradeAmount
-                    end
-                    
-                    table.insert(macro, record)
-                    
-                    print(string.format("✅ Validated & recorded: %s (L%d->L%d)",
-                        foundPending.placementId, foundPending.startLevel, foundPending.endLevel))
-                    
-                    -- Mark as validated
-                    foundPending.validated = true
+                    print(string.format("⏳ Upgrade remote fired: %s (L%d->L%d expected) - awaiting level change",
+                        placementId, currentLevel, currentLevel + 1))
                 else
-                    print(string.format("⚠️ Upgrade remote but no pending upgrade found for: %s", unitName))
+                    warn(string.format("Could not find placement ID for upgrade remote: %s", unitName))
                 end
                 elseif isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
                 local unitNameInClient = args[2] -- e.g., "Pucci (Made In Heaven) 1"
@@ -1874,7 +1856,7 @@ RunService.Heartbeat:Connect(function()
 
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
         if unit.Name == "PLACEMENTFOLDER" then continue end
-        local unitName = unit.Name  -- This is the SERVER name like "Senko 1"
+        local unitName = unit.Name  -- Server name like "Senko 1"
         local currentLevel = getUnitUpgradeLevel(unitName)
         local placementId = trackedUnits[unitName]
         
@@ -1888,20 +1870,45 @@ RunService.Heartbeat:Connect(function()
             
             -- Check for level increase
             if currentLevel > lastLevel then
-                local levelIncrease = currentLevel - lastLevel
+                -- Find matching pending upgrade to validate
+                local foundPending = nil
+                for i = #pendingUpgrades, 1, -1 do
+                    local pending = pendingUpgrades[i]
+                    
+                    if pending.serverUnitName == unitName and 
+                       not pending.validated and
+                       pending.startLevel == lastLevel then
+                        foundPending = pending
+                        break
+                    end
+                end
                 
-                -- Store as PENDING upgrade with BOTH names
-                table.insert(pendingUpgrades, {
-                    serverUnitName = unitName,  -- "Senko 1" - for remote matching
-                    placementId = placementId,  -- "Senko #1" - for macro recording
-                    startLevel = lastLevel,
-                    endLevel = currentLevel,
-                    timestamp = tick(),
-                    validated = false
-                })
-                
-                print(string.format("⏳ Pending upgrade: %s (L%d->L%d) - awaiting remote validation",
-                    placementId, lastLevel, currentLevel))
+                if foundPending then
+                    -- VALIDATED! Level change matches pending remote
+                    local gameRelativeTime = foundPending.timestamp - gameStartTime
+                    local upgradeAmount = currentLevel - foundPending.startLevel
+                    
+                    local record = {
+                        Type = "upgrade_unit_ingame",
+                        Unit = foundPending.placementId,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    }
+                    
+                    if upgradeAmount > 1 then
+                        record.Amount = upgradeAmount
+                    end
+                    
+                    table.insert(macro, record)
+                    
+                    print(string.format("✅ Validated & recorded: %s (L%d->L%d)",
+                        foundPending.placementId, foundPending.startLevel, currentLevel))
+                    
+                    foundPending.validated = true
+                else
+                    -- Level changed but no matching remote = auto-upgrade
+                    print(string.format("🚫 Level change without remote: %s (L%d->L%d) - likely auto-upgrade",
+                        placementId, lastLevel, currentLevel))
+                end
                 
                 -- Update tracked level
                 unit:SetAttribute("TrackedLevel", currentLevel)
