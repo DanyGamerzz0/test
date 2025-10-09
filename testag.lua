@@ -1,4 +1,4 @@
---77
+--78
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -4196,8 +4196,13 @@ local function calculateActualClearTime()
 end
 
 local function sendWebhook(messageType, rewards, clearTime, matchResult)
-    if not ValidWebhook then return end
+    if not ValidWebhook then 
+        warn("❌ No webhook URL configured")
+        return 
+    end
 
+    print("🔔 Preparing webhook:", messageType)
+    
     local data
     if messageType == "test" then
         data = {
@@ -4213,41 +4218,51 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
         }
     elseif messageType == "stage" then
         local RewardsUI = Services.Workspace.GameSettings
-        local stageName = RewardsUI and RewardsUI:FindFirstChild("Stages").Value  or "Unknown Stage"
-        local gameMode = RewardsUI and RewardsUI:FindFirstChild("Act").Value or "Unknown Act"
-        local gameDif = RewardsUI and RewardsUI:FindFirstChild("Difficulty").Value  or "Unknown Difficulty"
-        local isWin = Services.Workspace.GameSettings.Base.Health.Value > 0
+        local stageName = RewardsUI and RewardsUI:FindFirstChild("Stages") and RewardsUI.Stages.Value or "Unknown Stage"
+        local gameMode = RewardsUI and RewardsUI:FindFirstChild("Act") and RewardsUI.Act.Value or "Unknown Act"
+        local gameDif = RewardsUI and RewardsUI:FindFirstChild("Difficulty") and RewardsUI.Difficulty.Value or "Unknown Difficulty"
+        
+        local baseHealth = Services.Workspace.GameSettings:FindFirstChild("Base")
+        local isWin = baseHealth and baseHealth:FindFirstChild("Health") and baseHealth.Health.Value > 0 or false
         local resultText = isWin and "Victory" or "Defeat"
-        local plrlevel = Services.Players.LocalPlayer.Data.Levels.Value or ""
+        
+        local plrlevel = Services.Players.LocalPlayer:FindFirstChild("Data") and Services.Players.LocalPlayer.Data:FindFirstChild("Levels") and Services.Players.LocalPlayer.Data.Levels.Value or "?"
+        
         local actualClearTime = calculateActualClearTime()
-        local formattedTime
+        local formattedTime = "N/A"
 
-         if actualClearTime then
+        if actualClearTime then
             local hours = math.floor(actualClearTime / 3600)
             local minutes = math.floor((actualClearTime % 3600) / 60)
             local seconds = math.floor(actualClearTime % 60)
             formattedTime = string.format("%02d:%02d:%02d", hours, minutes, seconds)
         end
 
+        print("📊 Building rewards text...")
         local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
+        print("✅ Rewards text built. Units detected:", #detectedUnits)
+        
         local shouldPing = #detectedUnits > 0
 
-        if #detectedUnits > 1 then return end
+        if #detectedUnits > 1 then 
+            print("⚠️ Multiple units detected, skipping webhook")
+            return 
+        end
 
-        local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
+        local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID or "000000000000000000") or ""
 
         local stageResult = stageName.." - Act "..gameMode .. " - " .. gameDif .. " - " .. resultText
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
         data = {
             username = "LixHub Bot",
-            content = shouldPing and pingText or nil,
+            content = shouldPing and pingText or "",
             embeds = {{
                 title = shouldPing and "🌟 UNIT DROP! 🌟" or "🎯 Stage Finished!",
                 description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
                 color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
                 fields = {
-                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                    { name = "👤 Player", value = "||" .. tostring(Services.Players.LocalPlayer.Name) .. " [" .. tostring(plrlevel) .. "]||", inline = true },
                     { name = isWin and "✅ Won in:" or "❌ Lost after:", value = formattedTime, inline = true },
                     { name = "🏆 Rewards", value = rewardsText, inline = false },
                     shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
@@ -4258,36 +4273,65 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
             }}
         }
 
+        -- Filter out nil fields
         local filteredFields = {}
-        for _, field in ipairs(data.embeds[1].fields) do if field then table.insert(filteredFields, field) end end
+        for _, field in ipairs(data.embeds[1].fields) do 
+            if field then 
+                table.insert(filteredFields, field) 
+            end 
+        end
         data.embeds[1].fields = filteredFields
     else
+        warn("❌ Unknown message type:", messageType)
         return
     end
 
+    print("🔄 Encoding payload...")
     local payload = Services.HttpService:JSONEncode(data)
-    local requestFunc = (syn and syn.request) or (http and http.request) or request
+    print("✅ Payload encoded (" .. #payload .. " bytes)")
+    
+    -- Try multiple request functions
+    local requestFunc = request or 
+                       (syn and syn.request) or 
+                       (http and http.request) or 
+                       http_request
 
-    if requestFunc then
-        local success, result = pcall(function()
-           -- notify("Webhook", "Sending webhook...")
-            return requestFunc({
-                Url = ValidWebhook,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = payload
-            })
-        end)
+    if not requestFunc then
+        warn("❌ No HTTP request function available!")
+        notify("Webhook Error", "No HTTP request method available.")
+        return
+    end
+    
+    print("📤 Sending webhook request...")
+    local success, result = pcall(function()
+        return requestFunc({
+            Url = ValidWebhook,
+            Method = "POST",
+            Headers = { 
+                ["Content-Type"] = "application/json"
+            },
+            Body = payload
+        })
+    end)
 
-        if success then
+    if success and result then
+        print("📥 Response received:")
+        print("  StatusCode:", result.StatusCode)
+        print("  Success:", result.Success)
+        
+        if result.Success or (result.StatusCode >= 200 and result.StatusCode < 300) then
+            print("✅ Webhook sent successfully!")
             notify("Webhook", "Webhook sent successfully.", 2)
         else
-            warn("Webhook failed to send: " .. tostring(result))
-            notify("Webhook Error", tostring(result))
+            warn("❌ Webhook failed with status:", result.StatusCode)
+            if result.Body then
+                warn("Response body:", result.Body)
+            end
+            notify("Webhook Error", "HTTP " .. tostring(result.StatusCode))
         end
     else
-        warn("No compatible HTTP request method found.")
-        notify("Webhook Error", "No HTTP request method available.")
+        warn("❌ Webhook request failed:", tostring(result))
+        notify("Webhook Error", tostring(result))
     end
 end
 
