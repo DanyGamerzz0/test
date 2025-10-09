@@ -1,4 +1,4 @@
---76
+--77
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -93,6 +93,8 @@ local Services = {
 local stageRewards = require(Services.ReplicatedStorage.Module.StageRewards)
 local LocalPlayer = Services.Players.LocalPlayer
 
+local capturedRewards = {}
+local capturedMatchResult = {}
 
 
 local Config = {
@@ -1405,6 +1407,9 @@ local function startGameTracking()
     
     gameInProgress = true
     gameStartTime = tick()
+
+    capturedRewards = nil
+    capturedMatchResult = nil
     
     -- Auto-start recording if enabled
     if isRecording and not recordingHasStarted then
@@ -1416,7 +1421,7 @@ local function startGameTracking()
         print("Recording auto-started with game")
     end
     
-    State.startingInventory = snapshotInventory()
+    --State.startingInventory = snapshotInventory()
     
     print("Game tracking started - ready for macro playback/recording")
 end
@@ -4088,71 +4093,94 @@ local function compareInventories(startInv, endInv)
     return gained
 end
 
+local function isUnitReward(rewardName)
+    local unitsSettings = Services.ReplicatedStorage:FindFirstChild("PlayMode")
+    if not unitsSettings then return false end
+    
+    local modules = unitsSettings:FindFirstChild("Modules")
+    if not modules then return false end
+    
+    local unitsSettingsFolder = modules:FindFirstChild("UnitsSettings")
+    if not unitsSettingsFolder then return false end
+    
+    -- Check if a ModuleScript with this reward name exists
+    local unitModule = unitsSettingsFolder:FindFirstChild(rewardName)
+    return unitModule ~= nil and unitModule:IsA("ModuleScript")
+end
+
 local function buildRewardsText()
-    local endingInventory = snapshotInventory()
-    local gainedItems = compareInventories(State.startingInventory, endingInventory)
+    if not capturedRewards or #capturedRewards == 0 then
+        return "_No rewards found after match_", {}, {}
+    end
+    
     local lines = {}
     local detectedRewards = {}
     local detectedUnits = {}
-
-    for _, reward in ipairs(gainedItems) do
-        local itemName = reward.name
-        local amount = reward.amount
-
-        print(itemName.." - "..amount)
-
+    
+    for _, rewardData in ipairs(capturedRewards) do
+        local itemName = rewardData[1]
+        local amount = rewardData[2]
+        
+        print(itemName .. " - " .. amount)
+        
         detectedRewards[itemName] = amount
-
-        local totalText = ""
-        if reward.isUnit then
+        
+        -- Check if this reward is a unit by searching in UnitsSettings
+        if isUnitReward(itemName) then
+            -- It's a unit!
             table.insert(detectedUnits, itemName)
-            totalText = ""
             table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
-        elseif itemName == "Gem" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Tokens.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName.."(s)", totalText))
-        elseif itemName == "Gold" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Coins.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "TraitReroll" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Reroll_Tokens.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "Cog" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Cog.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "Heart" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Heart.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "Honey" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Honey.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "MagicBall" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.MagicBall.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "MoonNight" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.MoonNight.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "Snowflake" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Snowflake.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "StatReroll" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.StatReroll.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
-        elseif itemName == "SuperStatReroll" then
-            totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.SuperStatReroll.Value)
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
         else
-            local itemObj = Services.Players.LocalPlayer:WaitForChild("ItemsInventory"):FindFirstChild(itemName)
-            local totalAmount = itemObj and itemObj:FindFirstChild("Amount") and itemObj.Amount.Value or nil
-            totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
-            table.insert(lines, string.format("+ %s %s%s", amount, itemName, totalText))
+            -- Standard reward
+            local totalText = ""
+            
+            -- Get current total from player data
+            if itemName == "Coins" or itemName == "Gold" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Coins.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "Gems" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Tokens.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "TraitReroll" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Reroll_Tokens.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "Cog" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Cog.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "Heart" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Heart.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "Honey" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Honey.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "MagicBall" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.MagicBall.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "MoonNight" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.MoonNight.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "Mushroom" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Mushroom.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "Snowflake" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.Snowflake.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "StatReroll" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.StatReroll.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            elseif itemName == "SuperStatReroll" then
+                totalText = string.format(" [%d total]", Services.Players.LocalPlayer.Data.SuperStatReroll.Value)
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            else
+                -- Other items (portals, generic items, etc.)
+                local itemObj = Services.Players.LocalPlayer:WaitForChild("ItemsInventory"):FindFirstChild(itemName)
+                local totalAmount = itemObj and itemObj:FindFirstChild("Amount") and itemObj.Amount.Value or nil
+                totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
+                table.insert(lines, string.format("+ %d %s%s", amount, itemName, totalText))
+            end
         end
     end
-
-    if #gainedItems == 0 then
-        return "_No rewards found after match_", {}, {}
-    end
-
+    
     local rewardsText = table.concat(lines, "\n")
     notify("Gained rewards:", rewardsText, 2)
     return rewardsText, detectedRewards, detectedUnits
@@ -4330,69 +4358,77 @@ task.spawn(function()
 end)
 
 if not isInLobby() then
-    Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function()
-    print("Game ended")
-    stopGameTracking()
+    Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function(player, result, rewards)
+        print("Game ended")
+        stopGameTracking()
 
-    State.gameEndRealTime = tick()
-    
-if isRecording and recordingHasStarted then
-    isRecording = false
-    recordingHasStarted = false
-    RecordToggle:Set(false)
-    
-    Rayfield:Notify({
-        Title = "Recording Stopped",
-        Content = "Game ended, recording saved.",
-        Duration = 3
-    })
-    
-    if currentMacroName then
-        macroManager[currentMacroName] = macro
-        saveMacroToFile(currentMacroName)
-    end
-end
-    
-    State.isGameRunning = false
-    
-    if State.SendStageCompletedWebhook then
-        sendWebhook("stage", nil, "1:50", nil)
-    end
-    
-    -- Handle retry with proper state management
-    if State.AutoVoteRetry then
-        RETRY_IN_PROGRESS = true
-        print("Starting retry process")
+        State.gameEndRealTime = tick()
         
-        -- Send retry vote immediately
-        pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-        end)
+        -- Capture rewards and result FIRST
+        capturedMatchResult = result -- "VICTORY" or "DEFEAT"
+        capturedRewards = rewards -- Array of {rewardName, amount}
         
-        -- Monitor for game start and clear retry flag
-        spawn(function()
-            -- Wait for game to start
-            while not game.Workspace.GameSettings.GameStarted.Value do
-                task.wait(0.1)
-            end
+        print("=== REWARDS CAPTURED ===")
+        print("Result:", result)
+        print("Rewards:")
+        for _, reward in ipairs(rewards) do
+            print(string.format("  %s: %d", reward[1], reward[2]))
+        end
+        print("========================")
+        
+        if isRecording and recordingHasStarted then
+            isRecording = false
+            recordingHasStarted = false
+            RecordToggle:Set(false)
             
-            -- Clear retry flag after game starts
-            task.wait(1)
-            RETRY_IN_PROGRESS = false
-            print("Retry complete, auto functions restored")
-        end)
+            Rayfield:Notify({
+                Title = "Recording Stopped",
+                Content = "Game ended, recording saved.",
+                Duration = 3
+            })
+            
+            if currentMacroName then
+                macroManager[currentMacroName] = macro
+                saveMacroToFile(currentMacroName)
+            end
+        end
         
-    elseif State.AutoVoteNext then
-        pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
-        end)
-    elseif State.AutoVoteLobby then
-        Services.TeleportService:Teleport(17282336195, LocalPlayer)
-    end
-    
-end)
+        State.isGameRunning = false
+        
+        -- Send webhook with captured data
+        if State.SendStageCompletedWebhook then
+            sendWebhook("stage")
+        end
+        
+        -- Handle retry/next/lobby voting
+        if State.AutoVoteRetry then
+            RETRY_IN_PROGRESS = true
+            print("Starting retry process")
+            
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                    :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+            end)
+            
+            spawn(function()
+                while not game.Workspace.GameSettings.GameStarted.Value do
+                    task.wait(0.1)
+                end
+                
+                task.wait(1)
+                RETRY_IN_PROGRESS = false
+                print("Retry complete, auto functions restored")
+            end)
+            
+        elseif State.AutoVoteNext then
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                    :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
+            end)
+        elseif State.AutoVoteLobby then
+            Services.TeleportService:Teleport(17282336195, LocalPlayer)
+        end
+    end)
 end
 
 if not isInLobby() then
