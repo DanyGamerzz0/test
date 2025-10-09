@@ -1,4 +1,4 @@
---84
+--85
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -1785,8 +1785,8 @@ mt.__namecall = newcclosure(function(self, ...)
                     -- Clean up tracking
                     trackedUnits[unitName] = nil
                 end
-                            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
-                local unitName = args[2]  -- Server unit name (e.g., "Robin (HSR) 1")
+                  elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
+                local unitName = args[2]  -- Server unit name (e.g., "Senko 1")
                 local timestamp = tick()
                 
                 print(string.format("✅ Upgrade remote detected: %s", unitName))
@@ -1796,7 +1796,7 @@ mt.__namecall = newcclosure(function(self, ...)
                 for i = #pendingUpgrades, 1, -1 do
                     local pending = pendingUpgrades[i]
                     
-                    if pending.unitName == unitName and not pending.validated then
+                    if pending.serverUnitName == unitName and not pending.validated then
                         foundPending = pending
                         break -- Take the most recent one
                     end
@@ -1809,7 +1809,7 @@ mt.__namecall = newcclosure(function(self, ...)
                     
                     local record = {
                         Type = "upgrade_unit_ingame",
-                        Unit = foundPending.placementId,
+                        Unit = foundPending.placementId,  -- Use the placement ID format for macro
                         Time = string.format("%.2f", gameRelativeTime)
                     }
                     
@@ -1874,7 +1874,7 @@ RunService.Heartbeat:Connect(function()
 
     for _, unit in pairs(playerUnitsFolder:GetChildren()) do
         if unit.Name == "PLACEMENTFOLDER" then continue end
-        local unitName = unit.Name
+        local unitName = unit.Name  -- This is the SERVER name like "Senko 1"
         local currentLevel = getUnitUpgradeLevel(unitName)
         local placementId = trackedUnits[unitName]
         
@@ -1890,10 +1890,10 @@ RunService.Heartbeat:Connect(function()
             if currentLevel > lastLevel then
                 local levelIncrease = currentLevel - lastLevel
                 
-                -- Store as PENDING upgrade (not committed to macro yet)
+                -- Store as PENDING upgrade with BOTH names
                 table.insert(pendingUpgrades, {
-                    unitName = unitName,
-                    placementId = placementId,
+                    serverUnitName = unitName,  -- "Senko 1" - for remote matching
+                    placementId = placementId,  -- "Senko #1" - for macro recording
                     startLevel = lastLevel,
                     endLevel = currentLevel,
                     timestamp = tick(),
