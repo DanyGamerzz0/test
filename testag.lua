@@ -1,4 +1,4 @@
---82
+--83
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -96,6 +96,8 @@ local LocalPlayer = Services.Players.LocalPlayer
 local capturedRewards = {}
 local capturedMatchResult = {}
 
+local pendingUpgrades = {}
+local UPGRADE_VALIDATION_TIMEOUT = 1.5
 
 local Config = {
    difficulties = {"Normal", "Nightmare"},
@@ -1783,6 +1785,44 @@ mt.__namecall = newcclosure(function(self, ...)
                     -- Clean up tracking
                     trackedUnits[unitName] = nil
                 end
+                elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
+                local unitName = args[2]  -- Server unit name
+                local targetLevel = args[3]  -- Target level player is upgrading to
+                local timestamp = tick()
+                
+                print(string.format("✅ Upgrade remote detected: %s -> L%d", unitName, targetLevel))
+                
+                -- Find and validate matching pending upgrade(s)
+                for i = #pendingUpgrades, 1, -1 do
+                    local pending = pendingUpgrades[i]
+                    
+                    if pending.unitName == unitName and not pending.validated then
+                        -- Check if this pending upgrade matches the remote call
+                        if pending.endLevel == targetLevel then
+                            -- VALIDATED! Commit to macro
+                            local gameRelativeTime = pending.timestamp - gameStartTime
+                            local upgradeAmount = pending.endLevel - pending.startLevel
+                            
+                            local record = {
+                                Type = "upgrade_unit_ingame",
+                                Unit = pending.placementId,
+                                Time = string.format("%.2f", gameRelativeTime)
+                            }
+                            
+                            if upgradeAmount > 1 then
+                                record.Amount = upgradeAmount
+                            end
+                            
+                            table.insert(macro, record)
+                            
+                            print(string.format("✅ Validated & recorded: %s (L%d->L%d)",
+                                pending.placementId, pending.startLevel, pending.endLevel))
+                            
+                            -- Mark as validated
+                            pending.validated = true
+                        end
+                    end
+                end
                 elseif isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
                 local unitNameInClient = args[2] -- e.g., "Pucci (Made In Heaven) 1"
                 local timestamp = tick()
@@ -1832,7 +1872,7 @@ RunService.Heartbeat:Connect(function()
         if unit.Name == "PLACEMENTFOLDER" then continue end
         local unitName = unit.Name
         local currentLevel = getUnitUpgradeLevel(unitName)
-        local placementId = trackedUnits[unitName] -- Direct lookup by unit name
+        local placementId = trackedUnits[unitName]
         
         if placementId then
             -- Initialize tracking if new unit
@@ -1845,26 +1885,49 @@ RunService.Heartbeat:Connect(function()
             -- Check for level increase
             if currentLevel > lastLevel then
                 local levelIncrease = currentLevel - lastLevel
-                local gameRelativeTime = tick() - gameStartTime
                 
-                local record = {
-                    Type = "upgrade_unit_ingame",
-                    Unit = placementId,
-                    Time = string.format("%.2f", gameRelativeTime)
-                }
+                -- Store as PENDING upgrade (not committed to macro yet)
+                table.insert(pendingUpgrades, {
+                    unitName = unitName,
+                    placementId = placementId,
+                    startLevel = lastLevel,
+                    endLevel = currentLevel,
+                    timestamp = tick(),
+                    validated = false
+                })
                 
-                -- Only add Amount field if multi-upgrade
-                if levelIncrease > 1 then
-                    record.Amount = levelIncrease
-                end
-                
-                table.insert(macro, record)
-                
-                print(string.format("Recorded upgrade: %s (L%d->L%d)",
+                print(string.format("⏳ Pending upgrade: %s (L%d->L%d) - awaiting remote validation",
                     placementId, lastLevel, currentLevel))
                 
                 -- Update tracked level
                 unit:SetAttribute("TrackedLevel", currentLevel)
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        if isRecording and recordingHasStarted then
+            local currentTime = tick()
+            
+            -- Remove expired pending upgrades that were never validated
+            for i = #pendingUpgrades, 1, -1 do
+                local pending = pendingUpgrades[i]
+                local age = currentTime - pending.timestamp
+                
+                if not pending.validated and age > UPGRADE_VALIDATION_TIMEOUT then
+                    print(string.format("🚫 Expired unvalidated upgrade: %s (L%d->L%d) - likely auto-upgrade",
+                        pending.placementId, pending.startLevel, pending.endLevel))
+                    table.remove(pendingUpgrades, i)
+                end
+            end
+        else
+            -- Clear pending upgrades when not recording
+            if #pendingUpgrades > 0 then
+                pendingUpgrades = {}
             end
         end
     end
@@ -2754,6 +2817,7 @@ MacroInput = MacroTab:CreateInput({
         isRecording = false
         recordingHasStarted = false
         print(string.format("Stopped recording. Recorded %d actions", #macro))
+        notify("Macro Recorder","Stopped recording! Saved "..#macro.." actions.")
         
         if currentMacroName and currentMacroName ~= "" then
             macroManager[currentMacroName] = macro
