@@ -1,4 +1,4 @@
---81
+--82
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -4447,55 +4447,131 @@ if not isInLobby() then
             sendWebhook("stage")
         end
         
-        -- Handle retry/next/lobby voting
-        if State.AutoVoteRetry then
-            RETRY_IN_PROGRESS = true
-            print("Starting retry process")
+        -- Handle auto voting logic with priority system
+        task.spawn(function()
+            task.wait(1) -- Small delay to ensure game state is stable
             
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-            end)
-            
-            spawn(function()
-                while not game.Workspace.GameSettings.GameStarted.Value do
-                    task.wait(0.1)
-                end
+            -- Priority 1: Auto Retry (highest priority)
+            if State.AutoVoteRetry then
+                print("Auto Retry enabled - Voting to replay...")
+                local success, err = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+                end)
                 
-                task.wait(1)
-                RETRY_IN_PROGRESS = false
-                print("Retry complete, auto functions restored")
-            end)
+                if success then
+                    print("Successfully voted for retry!")
+                    Rayfield:Notify({
+                        Title = "Auto Vote",
+                        Content = "Voted to retry the stage",
+                        Duration = 3
+                    })
+                else
+                    warn("Failed to vote for retry:", err)
+                end
+                return -- Exit early since retry has highest priority
+            end
             
-        elseif State.AutoVoteNext then
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                    :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
-            end)
-        elseif State.AutoVoteLobby then
-            Services.TeleportService:Teleport(17282336195, LocalPlayer)
-        end
+            -- Priority 2: Auto Next (medium priority) - only for victories
+            if State.AutoVoteNext and result == "VICTORY" then
+                print("Auto Next enabled and game won - Voting for next stage...")
+                local success, err = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
+                end)
+                
+                if success then
+                    print("Successfully voted for next stage!")
+                    Rayfield:Notify({
+                        Title = "Auto Vote",
+                        Content = "Voted for next stage",
+                        Duration = 3
+                    })
+                else
+                    warn("Failed to vote for next stage:", err)
+                end
+                return -- Exit early
+            end
+            
+            -- Priority 3: Auto Lobby (lowest priority)
+            if State.AutoVoteLobby then
+                print("Auto Lobby enabled - Returning to lobby...")
+                -- Small additional delay for lobby return
+                task.wait(1)
+                
+                local success, err = pcall(function()
+                    Services.TeleportService:Teleport(17282336195, LocalPlayer)
+                end)
+                
+                if success then
+                    print("Successfully returned to lobby!")
+                    Rayfield:Notify({
+                        Title = "Auto Vote",
+                        Content = "Returned to lobby",
+                        Duration = 3
+                    })
+                else
+                    warn("Failed to return to lobby:", err)
+                end
+            end
+        end)
     end)
 end
 
 if not isInLobby() then
-    game.Workspace.GameSettings.StagesChallenge.Mode.Changed:Connect(function()
-    --if RETRY_IN_PROGRESS then 
-    --    print("Retry in progress, ignoring mode change")
-      --  return 
-   -- end
-    
-    if State.AutoStartGame then
-        local mode = game.Workspace.GameSettings.StagesChallenge.Mode.Value
-        if mode ~= nil and mode ~= "" and not game.Workspace.GameSettings.GameStarted.Value then
-            print("Mode set, starting game")
-            task.wait(0.5)
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
-            end)
+    local GameSettings = game.Workspace:WaitForChild("GameSettings")
+    local StagesChallenge = GameSettings:WaitForChild("StagesChallenge")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local VoteEvent = ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote")
+
+    local function tryStartGame()
+        if not State.AutoStartGame then return end
+        if GameSettings.GameStarted.Value then return end
+
+        local mode = StagesChallenge.Mode.Value
+        local wave = GameSettings:FindFirstChild("Wave") and GameSettings.Wave.Value or nil
+
+        if not wave or wave ~= 0 then
+            -- Only start when at the beginning
+            print("[AutoStart] Waiting for wave 0, current wave:", wave)
+            return
         end
+
+        if not mode or mode == "" then
+            print("[AutoStart] Mode not ready, waiting...")
+            return
+        end
+
+        print(string.format("[AutoStart] Starting game (mode: %s, wave: %d)", mode, wave))
+        task.wait(0.5)
+        pcall(function()
+            VoteEvent:FireServer("Vote1")
+        end)
     end
-end)
+
+    -- 1️⃣ Initial delayed attempt
+    task.delay(2, tryStartGame)
+
+    -- 2️⃣ React to relevant changes
+    StagesChallenge.Mode.Changed:Connect(tryStartGame)
+    GameSettings.GameStarted.Changed:Connect(function(started)
+        if not started then
+            print("[AutoStart] Game reset, retrying soon...")
+            task.delay(1, tryStartGame)
+        end
+    end)
+
+    if GameSettings:FindFirstChild("Wave") then
+        GameSettings.Wave.Changed:Connect(tryStartGame)
+    end
+
+    -- 3️⃣ Optional safety loop (if other signals fail)
+    task.spawn(function()
+        while not GameSettings.GameStarted.Value and State.AutoStartGame do
+            tryStartGame()
+            task.wait(5)
+        end
+    end)
 end
 
 local function monitorStagesChallengeGUI()
