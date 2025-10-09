@@ -1,4 +1,4 @@
---79
+--80
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.02"
@@ -4188,6 +4188,8 @@ local function buildRewardsText()
 end
 
 local function calculateActualClearTime()
+    print(State.gameStartRealTime)
+    print(State.gameEndRealTime)
     if State.gameStartRealTime and State.gameEndRealTime then
         State.actualClearTime = State.gameEndRealTime - State.gameStartRealTime
         print(string.format("Clear time: %.2f seconds", State.actualClearTime))
