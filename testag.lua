@@ -1,7 +1,7 @@
---88
+--89
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -3616,7 +3616,6 @@ local SendWebhookButton = MacroTab:CreateButton({
         body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
         body = body .. "Content-Type: application/json\r\n\r\n"
         body = body .. Services.HttpService:JSONEncode({
-            username = "LixHub Macro Share",
             embeds = {{
                 title = "📁 Macro Shared: " .. currentMacroName,
                 color = 0x5865F2,
@@ -3640,7 +3639,7 @@ local SendWebhookButton = MacroTab:CreateButton({
                     },
                 },
                 footer = {
-                    text = script_version
+                    text = "LixHub"
                 },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
