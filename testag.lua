@@ -1,4 +1,4 @@
---87
+--88
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.03"
@@ -166,12 +166,12 @@ local State = {
     gameEndRealTime = nil,
     actualClearTime = nil,
     IgnoreTiming = nil,
-    AutoSkipWaves = nil,
-    AutoSkipUntilWave = nil,
-    AutoSellFarmEnabled = nil,
-    AutoSellFarmWave = nil,
-    AutoSellEnabled = nil,
-    AutoSellWave = nil,
+    AutoSkipWaves = false,
+    AutoSkipUntilWave = 0,
+    AutoSellFarmEnabled = false,
+    AutoSellFarmWave = 0,
+    AutoSellEnabled = false,
+    AutoSellWave = 0,
 }
 
 local abilityQueue = {}
@@ -926,8 +926,8 @@ local Toggle2 = GameTab:CreateToggle({
     Flag = "AutoSkipWaves",
     Callback = function(Value)
             State.AutoSkipWaves = Value
-            if Services.Players.LocalPlayer.PlayerGui.VoteSkip.Enabled == true then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_wave_skip"):InvokeServer()
+            if Services.Players.LocalPlayer.PlayerGui.GUI.SkipwaveFrame.Visible == true then
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
             end
     end,
     })
@@ -952,12 +952,12 @@ local Toggle2 = GameTab:CreateToggle({
                 local skipLimit = State.AutoSkipUntilWave
                 if skipLimit == 0 then
                     local voteSkip = Services.Players.LocalPlayer.PlayerGui.GUI.SkipwaveFrame
-                    if voteSkip and voteSkip.Enabled then
+                    if voteSkip and voteSkip.Visible then
                         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
                     end
                 elseif waveNum <= skipLimit then
                     local voteSkip = Services.Players.LocalPlayer.PlayerGui.GUI.SkipwaveFrame
-                    if voteSkip and voteSkip.Enabled then
+                    if voteSkip and voteSkip.Visible then
                         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
                     end
                 end
