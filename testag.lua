@@ -1,4 +1,4 @@
---89
+--90
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.04"
@@ -1985,125 +1985,137 @@ end
 
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
-local oldNamecall = mt.__namecall
 
-mt.__namecall = newcclosure(function(self, ...)
+-- Save the true original __namecall once
+local originalNamecall = mt.__namecall
+
+-- === General hook: placements, upgrades, sells, skips ===
+local generalHook = newcclosure(function(self, ...)
     local args = { ... }
     local method = getnamecallmethod()
-    
+
     if not checkcaller() then
         task.spawn(function()
-            -- Detect spawnunit remote during recording
+            -- spawnunit
             if isRecording and method == "InvokeServer" and self.Name == "spawnunit" then
                 local timestamp = tick()
-                
                 processPlacementAction({
                     args = args,
                     timestamp = timestamp
                 })
-            
-            -- Detect skip wave vote during recording
+
+            -- skip wave
             elseif isRecording and method == "FireServer" and self.Name == "Vote" and args[1] == "Vote2" then
                 local timestamp = tick()
                 local gameRelativeTime = timestamp - gameStartTime
-                
                 table.insert(macro, {
                     Type = "skip_wave",
                     Time = string.format("%.2f", gameRelativeTime)
                 })
-                
                 print(string.format("Recorded skip wave at %.2fs", gameRelativeTime))
-            
-            -- Keep sell detection
+
+            -- sell unit
             elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Selling" then
                 local unitName = args[2]
                 local timestamp = tick()
-                
-                local placementId = trackedUnits[unitName] -- Direct lookup
-                
+                local placementId = trackedUnits[unitName]
                 if placementId then
                     local gameRelativeTime = timestamp - gameStartTime
-                    
                     table.insert(macro, {
                         Type = "sell_unit_ingame",
                         Unit = placementId,
                         Time = string.format("%.2f", gameRelativeTime)
                     })
-                    
                     print(string.format("Recorded sell: %s", placementId))
-                    
-                    -- Clean up tracking
                     trackedUnits[unitName] = nil
                 end
-                  elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
-                local unitName = args[2]  -- Server unit name (e.g., "Senko 1")
+
+            -- upgrade unit
+            elseif isRecording and method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
+                local unitName = args[2]
                 local timestamp = tick()
-                
                 local placementId = trackedUnits[unitName]
-                
                 if placementId then
                     local currentLevel = getUnitUpgradeLevel(unitName)
-                    
-                    -- Create PENDING upgrade from remote
                     table.insert(pendingUpgrades, {
                         serverUnitName = unitName,
                         placementId = placementId,
-                        startLevel = currentLevel,  -- Current level before upgrade
-                        expectedEndLevel = currentLevel + 1,  -- We expect it to go up by 1
+                        startLevel = currentLevel,
+                        expectedEndLevel = currentLevel + 1,
                         timestamp = timestamp,
                         validated = false
                     })
-                    
-                    print(string.format("⏳ Upgrade remote fired: %s (L%d->L%d expected) - awaiting level change",
-                        placementId, currentLevel, currentLevel + 1))
+                    print(string.format("⏳ Upgrade remote fired: %s (L%d->L%d expected)", placementId, currentLevel, currentLevel + 1))
                 else
                     warn(string.format("Could not find placement ID for upgrade remote: %s", unitName))
                 end
-    elseif isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
-    local unitNameInClient = args[2] -- e.g., "Pucci (Made In Heaven) 1"
-    local abilityName = args[3] -- Optional: e.g., "Mahoraga"
-    local timestamp = tick()
-    
-    -- Extract the base name without the number at the end
-    local baseUnitName = unitNameInClient:match("^(.+)%s+%d+$") or unitNameInClient
-    
-    -- Find the matching placement ID from tracked units
-    local placementId = nil
-    for serverUnitName, trackingId in pairs(trackedUnits) do
-        local serverBaseName = serverUnitName:match("^(.+)%s+%d+$") or serverUnitName
-        if serverBaseName == baseUnitName then
-            placementId = trackingId
-            break
-        end
-    end
-    
-    if placementId then
-        local gameRelativeTime = timestamp - gameStartTime
-        
-        local abilityAction = {
-            Type = "use_ability",
-            Unit = placementId,
-            Time = string.format("%.2f", gameRelativeTime)
-        }
-        
-        -- Add ability name if present
-        if abilityName and abilityName ~= "" then
-            abilityAction.AbilityName = abilityName
-            print(string.format("Recorded ability use: %s - %s (%.2fs)", placementId, abilityName, gameRelativeTime))
-        else
-            print(string.format("Recorded ability use: %s (%.2fs)", placementId, gameRelativeTime))
-        end
-        
-        table.insert(macro, abilityAction)
-    else
-        warn(string.format("Could not find placement ID for ability use: %s", unitNameInClient))
-    end
             end
         end)
     end
-    
-    return oldNamecall(self, ...)
+
+    return originalNamecall(self, ...)
 end)
+
+-- === Ability-only hook ===
+local abilityHook = newcclosure(function(self, ...)
+    local args = { ... }
+    local method = getnamecallmethod()
+
+    if not checkcaller() and isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
+        -- Call the wrapped hook chain (so other remotes still flow)
+        local result = generalHook(self, ...)
+
+        -- Only record if the server approved
+        if not result then
+            return result
+        end
+
+        task.spawn(function()
+            local unitNameInClient = args[2]
+            local abilityName = args[3]
+            local timestamp = tick()
+            local baseUnitName = unitNameInClient:match("^(.+)%s+%d+$") or unitNameInClient
+
+            -- Find placement ID
+            local placementId
+            for serverUnitName, trackingId in pairs(trackedUnits) do
+                local serverBaseName = serverUnitName:match("^(.+)%s+%d+$") or serverUnitName
+                if serverBaseName == baseUnitName then
+                    placementId = trackingId
+                    break
+                end
+            end
+
+            if placementId then
+                local gameRelativeTime = timestamp - gameStartTime
+                local abilityAction = {
+                    Type = "use_ability",
+                    Unit = placementId,
+                    Time = string.format("%.2f", gameRelativeTime)
+                }
+
+                if abilityName and abilityName ~= "" then
+                    abilityAction.AbilityName = abilityName
+                    print(string.format("✅ Valid ability: %s - %s (%.2fs)", placementId, abilityName, gameRelativeTime))
+                else
+                    print(string.format("✅ Valid ability: %s (%.2fs)", placementId, gameRelativeTime))
+                end
+
+                table.insert(macro, abilityAction)
+            else
+                warn(string.format("⚠️ Could not find placement ID for ability use: %s", unitNameInClient))
+            end
+        end)
+
+        return result
+    end
+
+    -- For everything else, pass to the general hook
+    return generalHook(self, ...)
+end)
+
+-- Apply the outermost (ability) hook
+mt.__namecall = abilityHook
 setreadonly(mt, true)
 
 local RunService = game:GetService("RunService")
