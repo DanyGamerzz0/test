@@ -1,7 +1,7 @@
---86
+--87
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -94,18 +94,12 @@ local stageRewards = require(Services.ReplicatedStorage.Module.StageRewards)
 local LocalPlayer = Services.Players.LocalPlayer
 
 local capturedRewards = {}
-local capturedMatchResult = {}
 
 local pendingUpgrades = {}
 local UPGRADE_VALIDATION_TIMEOUT = 1.5
 
 local Config = {
    difficulties = {"Normal", "Nightmare"},
-}
-
-local Data = {
-   availableStories = nil,
-   storyData = nil,
 }
 
 local Config = {
@@ -172,6 +166,12 @@ local State = {
     gameEndRealTime = nil,
     actualClearTime = nil,
     IgnoreTiming = nil,
+    AutoSkipWaves = nil,
+    AutoSkipUntilWave = nil,
+    AutoSellFarmEnabled = nil,
+    AutoSellFarmWave = nil,
+    AutoSellEnabled = nil,
+    AutoSellWave = nil,
 }
 
 local abilityQueue = {}
@@ -230,7 +230,7 @@ CodeButton = LobbyTab:CreateButton({
     end,
 })
 
-local Toggle = LobbyTab:CreateToggle({
+ Toggle = LobbyTab:CreateToggle({
     Name = "Auto Execute Script",
     CurrentValue = false,
     Flag = "enableAutoExecute",
@@ -252,7 +252,7 @@ local Toggle = LobbyTab:CreateToggle({
     end,
 })
 
-local Button = LobbyTab:CreateButton({
+ Button = LobbyTab:CreateButton({
         Name = "Return to lobby",
         Callback = function()
             Services.TeleportService:Teleport(17282336195, Services.Players.LocalPlayer)
@@ -293,20 +293,11 @@ end
         })
     end
 
-local function unitExistsInServer(unitName)
-    local playerUnitsFolder = getPlayerUnitsFolder()
-    if not playerUnitsFolder then
-        return false
-    end
-    
-    return playerUnitsFolder:FindFirstChild(unitName) ~= nil
-end
-
 local function purchaseFromBlackMarket(unitName)
     local args = {
         1,
         unitName,
-        "NightMarket"  -- or "BlackMarket" depending on your game
+        "NightMarket"
     }
     
     local success, result = pcall(function()
@@ -326,7 +317,6 @@ local function checkBlackMarket()
     end
     if not workspace:FindFirstChild("RoomCreation") ~= nil then return end
     
-    -- Wait for the black market to exist
     local blackMarket = LocalPlayer:FindFirstChild("BlackMarket")
     if not blackMarket then
         return
@@ -341,7 +331,7 @@ local function checkBlackMarket()
         if child:IsA("Folder") and child.Name == State.AutoPurchaseBlackMarketSelected then
             print("Found target unit in black market:", child.Name)
             purchaseFromBlackMarket(child.Name)
-            break -- Exit after finding and purchasing
+            break
         end
     end
 end
@@ -524,10 +514,10 @@ task.spawn(function()
     end
 end)
 
-    local JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
+     JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
 
 
-    local AutoJoinStoryToggle = JoinerTab:CreateToggle({
+     AutoJoinStoryToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Story",
     CurrentValue = false,
     Flag = "AutoJoinStory",
@@ -547,7 +537,7 @@ end)
     end,
 })
 
-    local ChapterDropdown869 = JoinerTab:CreateDropdown({
+     ChapterDropdown869 = JoinerTab:CreateDropdown({
     Name = "Select Story Act",
     Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6","Infinity"},
     CurrentOption = {},
@@ -563,7 +553,7 @@ end)
     end,
 })
 
-    local ChapterDropdown = JoinerTab:CreateDropdown({
+     ChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Story Difficulty",
     Options = {"Normal","Nightmare"},
     CurrentOption = {},
@@ -574,9 +564,9 @@ end)
     end,
     })
 
-    local JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
+     JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
 
-    local AutoJoinRaidToggle = JoinerTab:CreateToggle({
+     AutoJoinRaidToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
     CurrentValue = false,
     Flag = "AutoJoinRaid",
@@ -596,9 +586,9 @@ end)
     end,
 })
 
-    local JoinerSection00 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
+     JoinerSection00 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
 
-    local AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+     AutoJoinChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Challenge",
     CurrentValue = false,
     Flag = "AutoJoinChallenge",
@@ -607,9 +597,9 @@ end)
     end,
     })
 
-    local JoinerSection00 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
+     JoinerSection00 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
 
-    local AutoJoinPortalToggle = JoinerTab:CreateToggle({
+     AutoJoinPortalToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Portal",
     CurrentValue = false,
     Flag = "AutoJoinPortal",
@@ -629,9 +619,9 @@ end)
     end,
 })
 
-    local JoinerSection00 = JoinerTab:CreateSection("👹 Event Joiner 👹")
+     JoinerSection00 = JoinerTab:CreateSection("👹 Event Joiner 👹")
 
-    local AutoJoinEventToggle = JoinerTab:CreateToggle({
+     AutoJoinEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Event",
     CurrentValue = false,
     Flag = "AutoJoinEvent",
@@ -640,7 +630,7 @@ end)
     end,
     })
 
-     local EventStageDropdown = JoinerTab:CreateDropdown({
+      EventStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Event to join",
     Options = {"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)","Shibuya Event (Shibuya)"},
     CurrentOption = {},
@@ -652,7 +642,7 @@ end)
     end,
 })
 
-    local AutoJoinLimitedEventToggle = JoinerTab:CreateToggle({
+     AutoJoinLimitedEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join CSM Event",
     CurrentValue = false,
     Flag = "AutoJoinEvent",
@@ -661,7 +651,7 @@ end)
     end,
     })
 
-local EventLimitedStageDropdown = JoinerTab:CreateDropdown({
+ EventLimitedStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select CSM Event Difficulty",
     Options = {"Easy", "Hard", "Hell"},
     CurrentOption = {},
@@ -678,9 +668,9 @@ local EventLimitedStageDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-    local JoinerSection00 = JoinerTab:CreateSection("🏆 Worldline Joiner 🏆")
+     JoinerSection00 = JoinerTab:CreateSection("🏆 Worldline Joiner 🏆")
 
-    local AutoJoinWorldlineToggle = JoinerTab:CreateToggle({
+     AutoJoinWorldlineToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Worldlines",
     CurrentValue = false,
     Flag = "AutoJoinWorldlines",
@@ -689,7 +679,7 @@ local EventLimitedStageDropdown = JoinerTab:CreateDropdown({
     end,
     })
 
-     local WorldlineStageDropdown = JoinerTab:CreateDropdown({
+      WorldlineStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Worldline to join",
     Options = {"Double Dungeon (doubledungeon)","Double Dungeon 2 (doubledungeon2)","Lingxian Academy (lingxianacademy)","Lingxian Yard (lingxianyard)"},
     CurrentOption = {},
@@ -701,9 +691,9 @@ local EventLimitedStageDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-    local JoinerSection00 = JoinerTab:CreateSection("🪜 Tower Joiner 🪜")
+     JoinerSection00 = JoinerTab:CreateSection("🪜 Tower Joiner 🪜")
 
-    local AutoJoinTowerToggle = JoinerTab:CreateToggle({
+     AutoJoinTowerToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Tower",
     CurrentValue = false,
     Flag = "AutoJoinTower",
@@ -712,7 +702,7 @@ local EventLimitedStageDropdown = JoinerTab:CreateDropdown({
     end,
     })
 
-     local AutoJoinTowerStageDropdown = JoinerTab:CreateDropdown({
+      AutoJoinTowerStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Tower to join",
     Options = {"Cursed Place","The Lost Ancient World"},
     CurrentOption = {},
@@ -723,9 +713,9 @@ local EventLimitedStageDropdown = JoinerTab:CreateDropdown({
     end,
 }) 
 
-    local JoinerSection00 = JoinerTab:CreateSection("🚪 Gate Joiner 🚪")
+     JoinerSection00 = JoinerTab:CreateSection("🚪 Gate Joiner 🚪")
 
-    local AutoJoinGateToggle = JoinerTab:CreateToggle({
+     AutoJoinGateToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Gate",
     CurrentValue = false,
     Flag = "AutoJoinGate",
@@ -808,45 +798,6 @@ local Toggle = GameTab:CreateToggle({
 })
 
 local Toggle = GameTab:CreateToggle({
-    Name = "Delete Enemies/Units",
-    CurrentValue = false,
-    Flag = "enableDeleteEnemies",
-    Info = "Removes Unit/Enemy Models.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.deleteEntities = Value
-        
-        if Value then
-            task.spawn(function()
-                local agentFolder = workspace:FindFirstChild("Ground")
-                if agentFolder then
-                    local agentSubFolder = agentFolder:FindFirstChild("enemyClient")
-                    if agentSubFolder then
-                        -- Delete existing models first
-                        for _, model in pairs(agentSubFolder:GetChildren()) do
-                            if model and model.Parent then
-                                model:Destroy()
-                            end
-                        end
-                        
-                        State.childAddedConnection = agentSubFolder.ChildAdded:Connect(function(child)
-                            if State.deleteEntities and child then
-                                child:Destroy()
-                            end
-                        end)
-                    end
-                end
-            end)
-        else
-            if State.childAddedConnection then
-                State.childAddedConnection:Disconnect()
-                State.childAddedConnection = nil
-            end
-        end
-    end,
-})
-
-local Toggle = GameTab:CreateToggle({
     Name = "Low Performance Mode",
     CurrentValue = false,
     Flag = "LowPerformanceMode",
@@ -884,6 +835,45 @@ end
 })
 
 local GameSection = GameTab:CreateSection("🎮 Game 🎮")
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Delete Enemies",
+    CurrentValue = false,
+    Flag = "enableDeleteEnemies",
+    Info = "Removes Enemy Models.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.deleteEntities = Value
+        
+        if Value then
+            task.spawn(function()
+                local agentFolder = workspace:FindFirstChild("Ground")
+                if agentFolder then
+                    local agentSubFolder = agentFolder:FindFirstChild("enemyClient")
+                    if agentSubFolder then
+                        -- Delete existing models first
+                        for _, model in pairs(agentSubFolder:GetChildren()) do
+                            if model and model.Parent then
+                                model:Destroy()
+                            end
+                        end
+                        
+                        State.childAddedConnection = agentSubFolder.ChildAdded:Connect(function(child)
+                            if State.deleteEntities and child then
+                                child:Destroy()
+                            end
+                        end)
+                    end
+                end
+            end)
+        else
+            if State.childAddedConnection then
+                State.childAddedConnection:Disconnect()
+                State.childAddedConnection = nil
+            end
+        end
+    end,
+})
 
 local Toggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
@@ -930,6 +920,51 @@ local Toggle2 = GameTab:CreateToggle({
     end,
 })
 
+    Toggle = GameTab:CreateToggle({
+    Name = "Auto Skip Waves",
+    CurrentValue = false,
+    Flag = "AutoSkipWaves",
+    Callback = function(Value)
+            State.AutoSkipWaves = Value
+            if Services.Players.LocalPlayer.PlayerGui.VoteSkip.Enabled == true then
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_wave_skip"):InvokeServer()
+            end
+    end,
+    })
+
+    Slider = GameTab:CreateSlider({
+    Name = "Auto Skip Until Wave",
+    Range = {0, 200},
+    Increment = 1,
+    Suffix = "wave",
+    CurrentValue = 0,
+    Flag = "Slider1",
+    Info = "0 = disable",
+    Callback = function(Value)
+        State.AutoSkipUntilWave = Value
+    end,
+    })
+        task.spawn(function()
+        while true do
+            task.wait(1)
+            if State.AutoSkipWaves then
+                local waveNum = Services.Workspace.GameSettings.Wave.Value
+                local skipLimit = State.AutoSkipUntilWave
+                if skipLimit == 0 then
+                    local voteSkip = Services.Players.LocalPlayer.PlayerGui.GUI.SkipwaveFrame
+                    if voteSkip and voteSkip.Enabled then
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
+                    end
+                elseif waveNum <= skipLimit then
+                    local voteSkip = Services.Players.LocalPlayer.PlayerGui.GUI.SkipwaveFrame
+                    if voteSkip and voteSkip.Enabled then
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote2")
+                    end
+                end
+            end
+        end
+    end)
+
 --[[local function tryPickCard()
     -- Don't pick cards during retry
     if State.AutoPickCard and State.AutoPickCardSelected ~= nil and not isRetryInProgress then
@@ -975,6 +1010,221 @@ local Toggle = GameTab:CreateToggle({
         State.AutoCollectChests = Value
     end,
 })
+
+GameTab:CreateSection("Auto Sell")
+
+AutoSellToggle = GameTab:CreateToggle({
+        Name = "Auto Sell All Units",
+        CurrentValue = false,
+        Flag = "AutoSellEnabled",
+        Info = "Automatically sell all your units when the specified wave is reached",
+        Callback = function(Value)
+            State.AutoSellEnabled = Value
+            if Value then
+                notify("Auto Sell", string.format("Enabled - will sell all units on wave %d", State.AutoSellWave))
+            else
+                notify("Auto Sell", "Disabled")
+            end
+        end,
+    })
+
+     AutoSellSlider = GameTab:CreateSlider({
+        Name = "Sell on Wave",
+        Range = {1, 50},
+        Increment = 1,
+        Suffix = "",
+        CurrentValue = 10,
+        Flag = "AutoSellWave",
+        Info = "Wave number to automatically sell all units",
+        Callback = function(Value)
+            State.AutoSellWave = Value
+            if State.AutoSellEnabled then
+                notify("Auto Sell", string.format("Updated - will sell all units on wave %d", Value))
+            end
+        end,
+    })
+
+     AutoSellFarmToggle = GameTab:CreateToggle({
+        Name = "Auto Sell Farm Units",
+        CurrentValue = false,
+        Flag = "AutoSellFarmEnabled",
+        Info = "Automatically sell all farm units (that are sellable) when the specified wave is reached",
+        Callback = function(Value)
+            State.AutoSellFarmEnabled = Value
+            if Value then
+                notify("Auto Sell Farm", string.format("Enabled - will sell farm units on wave %d", State.AutoSellFarmWave))
+            else
+                notify("Auto Sell Farm", "Disabled")
+            end
+        end,
+    })
+
+     AutoSellFarmSlider = GameTab:CreateSlider({
+        Name = "Sell Farm Units on Wave",
+        Range = {1, 50},
+        Increment = 1,
+        Suffix = "",
+        CurrentValue = 15,
+        Flag = "AutoSellFarmWave",
+        Info = "Wave number to automatically sell all farm units",
+        Callback = function(Value)
+            State.AutoSellFarmWave = Value
+            if State.AutoSellFarmEnabled then
+                notify("Auto Sell Farm", string.format("Updated - will sell farm units on wave %d", Value))
+            end
+        end,
+    })
+
+    local function sellAllPlayerUnits()
+    if not State.AutoSellEnabled then return end
+    
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    
+    if not playerUnitsFolder then
+        print("No player units folder found")
+        return
+    end
+    
+    local soldCount = 0
+    local unitsToSell = {}
+    
+    -- Collect all units (excluding PLACEMENTFOLDER)
+    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        if unit.Name ~= "PLACEMENTFOLDER" then
+            table.insert(unitsToSell, unit)
+        end
+    end
+    
+    -- Sell each unit
+    for _, unit in pairs(unitsToSell) do
+        local success = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("ManageUnits")
+                :InvokeServer("Selling", unit.Name)
+        end)
+        
+        if success then
+            soldCount = soldCount + 1
+            print("Sold unit:", unit.Name)
+        else
+            warn("Failed to sell unit:", unit.Name)
+        end
+        
+        task.wait(0.1) -- Small delay to prevent overwhelming the server
+    end
+    
+    if soldCount > 0 then
+        notify("Auto Sell", string.format("Sold %d units on wave %d", soldCount, State.AutoSellWave))
+        print(string.format("Auto-sold %d units on wave %d", soldCount, State.AutoSellWave))
+    end
+end
+
+    local function sellAllFarmUnits()
+    if not State.AutoSellFarmEnabled then return end
+    
+    local playerUnitsFolder = getPlayerUnitsFolder()
+    
+    if not playerUnitsFolder then
+        print("No player units folder found")
+        return
+    end
+    
+    local soldCount = 0
+    local farmUnitsToSell = {}
+    
+    -- Collect all farm units
+    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
+        if unit.Name ~= "PLACEMENTFOLDER" then
+            -- Check if unit has PlaceType and if it's "Farm"
+            local placeType = unit:FindFirstChild("PlaceType")
+            if placeType and placeType:IsA("StringValue") and placeType.Value == "Farm" then
+                table.insert(farmUnitsToSell, unit)
+                print("Found farm unit:", unit.Name)
+            end
+        end
+    end
+    
+    -- Sell each farm unit
+    for _, unit in pairs(farmUnitsToSell) do
+        local success = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                :WaitForChild("Events"):WaitForChild("ManageUnits")
+                :InvokeServer("Selling", unit.Name)
+        end)
+        
+        if success then
+            soldCount = soldCount + 1
+            print("Sold farm unit:", unit.Name)
+        else
+            warn("Failed to sell farm unit:", unit.Name)
+        end
+        
+        task.wait(0.1) -- Small delay to prevent overwhelming the server
+    end
+    
+    if soldCount > 0 then
+        notify("Auto Sell Farm", string.format("Sold %d farm units on wave %d", soldCount, State.AutoSellFarmWave))
+        print(string.format("Auto-sold %d farm units on wave %d", soldCount, State.AutoSellFarmWave))
+    else
+        print("No farm units found to sell on wave", State.AutoSellFarmWave)
+    end
+end
+
+        local function monitorWavesForAutoSell()
+        if not Services.Workspace.GameSettings.Wave then
+            Services.Workspace.GameSettings:WaitForChild("Wave")
+        end
+        
+        local waveNum = Services.Workspace.GameSettings.Wave
+        local lastProcessedWave = 0
+        
+        waveNum.Changed:Connect(function(newWave)
+            if State.AutoSellEnabled and newWave == State.AutoSellWave and newWave ~= lastProcessedWave then
+                lastProcessedWave = newWave
+                print("Auto-sell triggered on wave", newWave)
+                
+                -- Small delay to ensure wave has properly started
+                task.wait(0.5)
+                sellAllPlayerUnits()
+            end
+        end)
+        
+        -- Check initial wave value
+        local currentWave = waveNum.Value
+        if State.AutoSellEnabled and currentWave == State.AutoSellWave and currentWave ~= lastProcessedWave then
+            lastProcessedWave = currentWave
+            task.wait(0.5)
+            sellAllPlayerUnits()
+        end
+    end
+
+    local function monitorWavesForAutoSellFarm()
+        if not Services.Workspace.GameSettings.Wave then
+            Services.Workspace.GameSettings:WaitForChild("Wave")
+        end
+        
+        local waveNum = Services.Workspace.GameSettings.Wave
+        local lastProcessedFarmWave = 0
+        
+        waveNum.Changed:Connect(function(newWave)
+            if State.AutoSellFarmEnabled and newWave == State.AutoSellFarmWave and newWave ~= lastProcessedFarmWave then
+                lastProcessedFarmWave = newWave
+                print("Auto-sell farm units triggered on wave", newWave)
+                
+                -- Small delay to ensure wave has properly started
+                task.wait(0.5)
+                sellAllFarmUnits()
+            end
+        end)
+        
+        -- Check initial wave value
+        local currentWave = waveNum.Value
+        if State.AutoSellFarmEnabled and currentWave == State.AutoSellFarmWave and currentWave ~= lastProcessedFarmWave then
+            lastProcessedFarmWave = currentWave
+            task.wait(0.5)
+            sellAllFarmUnits()
+        end
+    end
 
 local function collectChest(chest)
     if isInLobby() then return end
@@ -1809,36 +2059,45 @@ mt.__namecall = newcclosure(function(self, ...)
                 else
                     warn(string.format("Could not find placement ID for upgrade remote: %s", unitName))
                 end
-                elseif isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
-                local unitNameInClient = args[2] -- e.g., "Pucci (Made In Heaven) 1"
-                local timestamp = tick()
-                
-                -- Extract the base name without the number at the end
-                local baseUnitName = unitNameInClient:match("^(.+)%s+%d+$") or unitNameInClient
-                
-                -- Find the matching placement ID from tracked units
-                local placementId = nil
-                for serverUnitName, trackingId in pairs(trackedUnits) do
-                    local serverBaseName = serverUnitName:match("^(.+)%s+%d+$") or serverUnitName
-                    if serverBaseName == baseUnitName then
-                        placementId = trackingId
-                        break
-                    end
-                end
-                
-                if placementId then
-                    local gameRelativeTime = timestamp - gameStartTime
-                    
-                    table.insert(macro, {
-                        Type = "use_ability",
-                        Unit = placementId,
-                        Time = string.format("%.2f", gameRelativeTime)
-                    })
-                    
-                    print(string.format("Recorded ability use: %s (%.2fs)", placementId, gameRelativeTime))
-                else
-                    warn(string.format("Could not find placement ID for ability use: %s", unitNameInClient))
-                end
+    elseif isRecording and method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
+    local unitNameInClient = args[2] -- e.g., "Pucci (Made In Heaven) 1"
+    local abilityName = args[3] -- Optional: e.g., "Mahoraga"
+    local timestamp = tick()
+    
+    -- Extract the base name without the number at the end
+    local baseUnitName = unitNameInClient:match("^(.+)%s+%d+$") or unitNameInClient
+    
+    -- Find the matching placement ID from tracked units
+    local placementId = nil
+    for serverUnitName, trackingId in pairs(trackedUnits) do
+        local serverBaseName = serverUnitName:match("^(.+)%s+%d+$") or serverUnitName
+        if serverBaseName == baseUnitName then
+            placementId = trackingId
+            break
+        end
+    end
+    
+    if placementId then
+        local gameRelativeTime = timestamp - gameStartTime
+        
+        local abilityAction = {
+            Type = "use_ability",
+            Unit = placementId,
+            Time = string.format("%.2f", gameRelativeTime)
+        }
+        
+        -- Add ability name if present
+        if abilityName and abilityName ~= "" then
+            abilityAction.AbilityName = abilityName
+            print(string.format("Recorded ability use: %s - %s (%.2fs)", placementId, abilityName, gameRelativeTime))
+        else
+            print(string.format("Recorded ability use: %s (%.2fs)", placementId, gameRelativeTime))
+        end
+        
+        table.insert(macro, abilityAction)
+    else
+        warn(string.format("Could not find placement ID for ability use: %s", unitNameInClient))
+    end
             end
         end)
     end
@@ -1969,46 +2228,6 @@ local function getUnitMaxUpgradeLevel(unitName)
     end
     
     return nil
-end
-
-local function findUnitForPlayback(placementOrder, originalUnitName)
-    -- First try exact mapping
-    local mappedUnit = playbackUnitMapping[placementOrder]
-    if mappedUnit and unitExistsInServer(mappedUnit) then
-        return mappedUnit
-    end
-    
-    -- If exact mapping failed, search by unit type and placement order
-    local baseUnitName = originalUnitName:match("^(.-)%s*%d*$")
-    local playerUnitsFolder = getPlayerUnitsFolder()
-    
-    if not playerUnitsFolder then
-        return nil
-    end
-    
-    -- Look for units of the same type
-    local candidateUnits = {}
-    for _, unit in pairs(playerUnitsFolder:GetChildren()) do
-        local unitBaseName = unit.Name:match("^(.-)%s*%d*$")
-        if unitBaseName == baseUnitName then
-            table.insert(candidateUnits, unit.Name)
-        end
-    end
-    
-    -- Sort by unit number (e.g., "Unit 1", "Unit 2", etc.)
-    table.sort(candidateUnits, function(a, b)
-        local numA = tonumber(a:match("%d+$")) or 0
-        local numB = tonumber(b:match("%d+$")) or 0
-        return numA < numB
-    end)
-    
-    -- Return the unit corresponding to placement order (1st placed = index 1, etc.)
-    if candidateUnits[placementOrder] then
-        return candidateUnits[placementOrder]
-    end
-    
-    -- Fallback: return first available unit of this type
-    return candidateUnits[1]
 end
 
 local function getPlayerMoney()
@@ -2357,9 +2576,13 @@ end
 
 local function executeUnitAbility(actionData)
     local unitPlacementId = actionData.Unit  -- e.g., "Ai #1"
+    local abilityName = actionData.AbilityName  -- Optional: e.g., "Mahoraga"
     
     print(string.format("=== EXECUTING ABILITY ==="))
     print(string.format("Target Unit: %s", unitPlacementId))
+    if abilityName then
+        print(string.format("Ability Name: %s", abilityName))
+    end
     
     if not unitPlacementId then
         warn("❌ Invalid placement ID for ability")
@@ -2375,7 +2598,8 @@ local function executeUnitAbility(actionData)
         return false
     end
     
-    print(string.format("⚡ Using ability on %s: %s", unitPlacementId, currentUnitName))
+    local abilityText = abilityName and string.format(" (%s)", abilityName) or ""
+    print(string.format("⚡ Using ability on %s: %s%s", unitPlacementId, currentUnitName, abilityText))
     
     -- Try to find the unit in unitClient
     local ground = Services.Workspace:FindFirstChild("Ground")
@@ -2395,13 +2619,19 @@ local function executeUnitAbility(actionData)
         if unit:IsA("Model") and unit.Name:find(currentUnitName, 1, true) then
             local success, err = pcall(function()
                 local args = {"SkillsButton", unit.Name}
+                
+                -- Add ability name if present
+                if abilityName and abilityName ~= "" then
+                    table.insert(args, abilityName)
+                end
+                
                 game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
                     :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
             end)
             
             if success then
-                print(string.format("✓ Successfully used ability on %s", unitPlacementId))
-                updateDetailedStatus(string.format("⚡ Used ability on %s", unitPlacementId))
+                print(string.format("✓ Successfully used ability on %s%s", unitPlacementId, abilityText))
+                updateDetailedStatus(string.format("⚡ Used ability on %s%s", unitPlacementId, abilityText))
                 return true
             else
                 warn("❌ Failed to invoke ability:", err)
@@ -4414,7 +4644,6 @@ local function onGameStart()
     gameStartTime = tick()
     State.gameStartRealTime = tick()  -- Add this line
     capturedRewards = nil
-    capturedMatchResult = nil
 
     
     -- Auto-start recording if enabled (like File 2)
@@ -4487,7 +4716,6 @@ if not isInLobby() then
         State.gameEndRealTime = tick()
         
         -- Capture rewards and result FIRST
-        capturedMatchResult = result -- "VICTORY" or "DEFEAT"
         capturedRewards = rewards -- Array of {rewardName, amount}
         
         print("=== REWARDS CAPTURED ===")
@@ -4506,7 +4734,7 @@ if not isInLobby() then
             Rayfield:Notify({
                 Title = "Recording Stopped",
                 Content = "Game ended, recording saved.",
-                Duration = 3
+                Duration = 6
             })
             
             if currentMacroName then
@@ -4693,6 +4921,10 @@ setupGameTimeTracking()
 if not isInLobby() then 
 checkInitialGameState()
 end
+    if not isInLobby() then 
+        task.spawn(monitorWavesForAutoSell)
+        task.spawn(monitorWavesForAutoSellFarm)
+    end
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
