@@ -1,4 +1,4 @@
---90
+--91
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.04"
@@ -2067,6 +2067,7 @@ local abilityHook = newcclosure(function(self, ...)
 
         -- Only record if the server approved
         if not result then
+            print("❌ Not Valid Ability")
             return result
         end
 
@@ -3365,6 +3366,9 @@ local function autoPlaybackLoop()
         macro = loadedMacro
         isPlaybacking = true
         
+        -- CRITICAL: Reset unit mappings at start of each playback
+        clearSpawnIdMappings()
+        
         MacroStatusLabel:Set("Status: Playing macro...")
         updateDetailedStatus("Loading macro: " .. currentMacroName)
         notify(nil, "Playback Started: " .. currentMacroName .. " (" .. #macro .. " actions)")
@@ -3383,6 +3387,9 @@ local function autoPlaybackLoop()
             notify(nil, "Playback Interrupted: Game ended, waiting for next game...")
         end
         
+        -- Clear mappings again after game ends
+        clearSpawnIdMappings()
+        
         task.wait(1)
     end
     
@@ -3391,6 +3398,7 @@ local function autoPlaybackLoop()
     isPlaybacking = false
     print("=== PLAYBACK LOOP ENDED ===")
 end
+
 
 local PlayToggle = MacroTab:CreateToggle({
     Name = "Playback Macro",
