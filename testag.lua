@@ -1,4 +1,4 @@
---92
+--93
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.04"
@@ -172,6 +172,8 @@ local State = {
     AutoSellFarmWave = 0,
     AutoSellEnabled = false,
     AutoSellWave = 0,
+    AutoUseAbility = false,
+    SelectedUnitAbility = nil,
 }
 
 local abilityQueue = {}
@@ -399,6 +401,99 @@ local function enableBlackScreen()
             existingGui:Destroy()
         end
     end
+end
+
+local function getUnitAbilitiesList()
+    local SkillsModule = Services.ReplicatedStorage:WaitForChild("Module"):WaitForChild("Skills")
+    local SkillsData = require(SkillsModule)
+    
+    local abilitiesList = {}
+    
+    for unitName, skillData in pairs(SkillsData) do
+        -- Handle units with multiple skills (like Sukuna Heian)
+        if skillData.Skill1 and skillData.Skill2 then
+            -- Main ability
+            table.insert(abilitiesList, {
+                display = unitName .. " - " .. skillData.SkillsName,
+                unitName = unitName,
+                abilityName = nil, -- Main ability has no specific name
+                cooldown = skillData.Cooldown
+            })
+            
+            -- Skill 1
+            table.insert(abilitiesList, {
+                display = unitName .. " - " .. skillData.Skill1.SkillsName,
+                unitName = unitName,
+                abilityName = skillData.Skill1.SkillsName,
+                cooldown = skillData.Skill1.Cooldown
+            })
+            
+            -- Skill 2
+            table.insert(abilitiesList, {
+                display = unitName .. " - " .. skillData.Skill2.SkillsName,
+                unitName = unitName,
+                abilityName = skillData.Skill2.SkillsName,
+                cooldown = skillData.Skill2.Cooldown
+            })
+        else
+            -- Regular single ability
+            table.insert(abilitiesList, {
+                display = unitName .. " - " .. skillData.SkillsName,
+                unitName = unitName,
+                abilityName = nil,
+                cooldown = skillData.Cooldown
+            })
+        end
+    end
+    
+    -- Sort alphabetically by display name
+    table.sort(abilitiesList, function(a, b)
+        return a.display < b.display
+    end)
+    
+    return abilitiesList
+end
+
+local function findAndUseUnitAbility(unitBaseName, abilityName)
+    if isInLobby() then return false end
+    
+    local ground = Services.Workspace:FindFirstChild("Ground")
+    if not ground then return false end
+    
+    local unitClient = ground:FindFirstChild("unitClient")
+    if not unitClient then return false end
+    
+    -- Search for the unit in unitClient
+    for _, unit in pairs(unitClient:GetChildren()) do
+        if unit:IsA("Model") then
+            -- Check if this unit matches the base name
+            local unitName = unit.Name
+            local baseUnitName = unitName:match("^(.+)%s+%d+$") or unitName
+            
+            if baseUnitName == unitBaseName then
+                -- Found matching unit, try to use ability
+                local args = {"SkillsButton", unit.Name}
+                
+                -- Add ability name if specified (for multi-skill units)
+                if abilityName and abilityName ~= "" then
+                    table.insert(args, abilityName)
+                end
+                
+                local success, result = pcall(function()
+                    return game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                        :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
+                end)
+                
+                if success and result then
+                    local abilityText = abilityName and (" - " .. abilityName) or ""
+                    print(string.format("✓ Used ability on %s%s", unitBaseName, abilityText))
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
 end
 
 local function updateFPSLimit()
@@ -1010,6 +1105,65 @@ local Toggle = GameTab:CreateToggle({
         State.AutoCollectChests = Value
     end,
 })
+
+GameTab:CreateSection("Auto Ability")
+
+local AutoUseAbilityToggle = GameTab:CreateToggle({
+    Name = "Auto Use Ability",
+    CurrentValue = false,
+    Flag = "AutoUseAbility",
+    Info = "Automatically uses the selected unit's ability when available",
+    Callback = function(Value)
+        State.AutoUseAbility = Value
+        if Value and State.SelectedUnitAbility then
+            notify("Auto Ability", string.format("Enabled for: %s", State.SelectedUnitAbility.display))
+        end
+    end,
+})
+
+local AbilityDropdown = GameTab:CreateDropdown({
+    Name = "Select Unit Ability",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "UnitAbilitySelector",
+    Info = "Select which unit ability to automatically use",
+    Callback = function(Options)
+        if not Options or #Options == 0 then return end
+        
+        local selectedDisplay = Options[1]
+        
+        -- Find the matching ability data
+        local abilitiesList = getUnitAbilitiesList()
+        for _, abilityData in ipairs(abilitiesList) do
+            if abilityData.display == selectedDisplay then
+                State.SelectedUnitAbility = abilityData
+                print(string.format("Selected ability: %s (Cooldown: %ds)", 
+                    abilityData.display, abilityData.cooldown))
+                
+                if State.AutoUseAbility then
+                    notify("Auto Ability", string.format("Now using: %s", selectedDisplay))
+                end
+                break
+            end
+        end
+    end,
+})
+
+-- Populate the dropdown with abilities
+task.spawn(function()
+    task.wait(1) -- Wait for modules to load
+    
+    local abilitiesList = getUnitAbilitiesList()
+    local displayNames = {}
+    
+    for _, abilityData in ipairs(abilitiesList) do
+        table.insert(displayNames, abilityData.display)
+    end
+    
+    AbilityDropdown:Refresh(displayNames)
+    print("Loaded " .. #displayNames .. " unit abilities into dropdown")
+end)
 
 GameTab:CreateSection("Auto Sell")
 
@@ -1758,21 +1912,6 @@ local function getEquippedUnitUUID(displayName)
         end
     end
     return nil
-end
-
-local function countPlacedUnits()
-    local count = 0
-    local entities = Services.Workspace:FindFirstChild("Ground") and Services.Workspace.Ground:FindFirstChild("unitClient")
-    
-    if entities then
-        for _, model in ipairs(entities:GetChildren()) do
-            if model:IsA("Model") then
-                    count = count + 1
-            end
-        end
-    end
-    
-    return count
 end
 
 local function findUnitByPosition(unitDisplayName, targetPosition, tolerance)
@@ -4915,6 +5054,32 @@ if not isInLobby() then
         end
     end)
 end
+
+task.spawn(function()
+    local lastUseTime = {}
+    
+    while true do
+        task.wait(1)
+        
+        if State.AutoUseAbility and State.SelectedUnitAbility and not isInLobby() then
+            local abilityData = State.SelectedUnitAbility
+            local currentTime = tick()
+            
+            -- Check if enough time has passed since last use (respect cooldown)
+            local lastTime = lastUseTime[abilityData.display] or 0
+            local cooldown = abilityData.cooldown or 180
+            
+            if currentTime - lastTime >= cooldown then
+                local success = findAndUseUnitAbility(abilityData.unitName, abilityData.abilityName)
+                
+                if success then
+                    lastUseTime[abilityData.display] = currentTime
+                    print(string.format("Auto-used: %s (next use in %ds)", abilityData.display, cooldown))
+                end
+            end
+        end
+    end
+end)
 
 local function monitorStagesChallengeGUI()
     if isInLobby() then return end
