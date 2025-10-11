@@ -1,4 +1,4 @@
---96
+--97
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.04"
@@ -1109,6 +1109,8 @@ local AbilityDropdown = GameTab:CreateDropdown({
 
     end,
 })
+
+GameTab:CreateSection("Auto Ability - Sukuna")
 
 local AutoUseAbilityToggleSukuna = GameTab:CreateToggle({
     Name = "Auto Use Sukuna Ability",
@@ -5065,11 +5067,11 @@ task.spawn(function()
             local sukunaKey = "Sukuna_" .. State.SelectedSukunaSkill
             local lastTime = lastUseTime[sukunaKey] or 0
             
-            local cooldown = 60
+            local cooldown = 1
             if State.SelectedSukunaSkill == "Domain" then
-                cooldown = 90
-            elseif State.SelectedSukunaSkill == "Mahoraga" then
                 cooldown = 120
+            elseif State.SelectedSukunaSkill == "Mahoraga" then
+                cooldown = 9999
             end
             
             if currentTime - lastTime >= cooldown then
