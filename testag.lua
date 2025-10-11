@@ -1,4 +1,4 @@
---93
+--94
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.04"
@@ -454,6 +454,10 @@ local function getUnitAbilitiesList()
     return abilitiesList
 end
 
+    local function isInLobby()
+    return workspace:FindFirstChild("RoomCreation") ~= nil
+end
+
 local function findAndUseUnitAbility(unitBaseName, abilityName)
     if isInLobby() then return false end
     
@@ -818,10 +822,6 @@ end)
         State.AutoJoinGate = Value
     end,
     })
-
-    local function isInLobby()
-    return workspace:FindFirstChild("RoomCreation") ~= nil
-end
 
 local function tryStartGame()
     if State.AutoStartGame and not isInLobby() then
