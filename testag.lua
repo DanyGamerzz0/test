@@ -1,7 +1,7 @@
---97
+--98
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -96,6 +96,7 @@ local LocalPlayer = Services.Players.LocalPlayer
 local capturedRewards = {}
 
 local pendingUpgrades = {}
+local lastUseTime = {}
 local UPGRADE_VALIDATION_TIMEOUT = 1.5
 
 local Config = {
@@ -173,9 +174,9 @@ local State = {
     AutoSellEnabled = false,
     AutoSellWave = 0,
     AutoUseAbility = false,
-    SelectedUnitAbility = nil,
+    SelectedUnitAbilities = {},
     AutoUseAbilitySukuna = false,
-    SelectedSukunaSkill = nil,
+    SelectedSukunaSkills = {},
 }
 
 local abilityQueue = {}
@@ -1102,11 +1103,11 @@ local AbilityDropdown = GameTab:CreateDropdown({
     Name = "Select Unit Ability",
     Options = {},
     CurrentOption = {},
-    MultipleOptions = false,
+    MultipleOptions = true,
     Flag = "UnitAbilitySelector",
-    Info = "Select which unit ability to automatically use",
+    Info = "Select which unit ability to automatically use (SET IN GAME)",
     Callback = function(Options)
-
+        State.SelectedUnitAbilities = Options
     end,
 })
 
@@ -1125,10 +1126,10 @@ local AbilityDropdownSukuna = GameTab:CreateDropdown({
     Name = "Select Sukuna Skill",
     Options = {"Domain","Mahoraga"},
     CurrentOption = {},
-    MultipleOptions = false,
+    MultipleOptions = true,
     Flag = "UnitAbilitySelectorSukuna",
     Callback = function(Options)
-        State.SelectedSukunaSkill = Options[1]
+        State.SelectedSukunaSkills = Options
     end,
 })
 
@@ -4783,6 +4784,7 @@ local function onGameStart()
     gameStartTime = tick()
     State.gameStartRealTime = tick()
     capturedRewards = nil
+    lastUseTime = {}
 
     -- STOP ANY ONGOING PLAYBACK AND LET THE LOOP RESTART IT
     if isPlaybacking then
@@ -5037,50 +5039,63 @@ if not isInLobby() then
 end
 
 task.spawn(function()
-    local lastUseTime = {}
     
     while true do
         task.wait(1)
         
-        -- Auto Use Regular Abilities
-        if State.AutoUseAbility and State.SelectedUnitAbility and not isInLobby() then
-            local abilityData = State.SelectedUnitAbility
-            local currentTime = tick()
-            
-            -- Check if enough time has passed since last use (respect cooldown)
-            local lastTime = lastUseTime[abilityData.display] or 0
-            local cooldown = abilityData.cooldown or 60
-            
-            if currentTime - lastTime >= cooldown then
-                local success = findAndUseUnitAbility(abilityData.unitName, abilityData.abilityName)
+        if State.AutoUseAbility and not isInLobby() then
+            if State.SelectedUnitAbilities and #State.SelectedUnitAbilities > 0 then
+                local abilitiesList = getUnitAbilitiesList()
+                local currentTime = tick()
                 
-                if success then
-                    lastUseTime[abilityData.display] = currentTime
-                    print(string.format("Auto-used: %s (next use in %ds)", abilityData.display, cooldown))
+                -- Loop through each selected ability
+                for _, selectedName in ipairs(State.SelectedUnitAbilities) do
+                    -- Find matching ability data
+                    for _, abilityData in ipairs(abilitiesList) do
+                        if abilityData.display == selectedName then
+                            local lastTime = lastUseTime[abilityData.display] or 0
+                            local cooldown = abilityData.cooldown or 60
+                            
+                            if currentTime - lastTime >= cooldown then
+                                local success = findAndUseUnitAbility(abilityData.unitName, abilityData.abilityName)
+                                
+                                if success then
+                                    lastUseTime[abilityData.display] = currentTime
+                                    print(string.format("Auto-used: %s (next use in %ds)", abilityData.display, cooldown))
+                                end
+                            end
+                            break
+                        end
+                    end
                 end
             end
         end
         
-        -- Auto Use Sukuna Abilities
-        if State.AutoUseAbilitySukuna and State.SelectedSukunaSkill and not isInLobby() then
-            local currentTime = tick()
-            local sukunaKey = "Sukuna_" .. State.SelectedSukunaSkill
-            local lastTime = lastUseTime[sukunaKey] or 0
-            
-            local cooldown = 1
-            if State.SelectedSukunaSkill == "Domain" then
-                cooldown = 120
-            elseif State.SelectedSukunaSkill == "Mahoraga" then
-                cooldown = 9999
-            end
-            
-            if currentTime - lastTime >= cooldown then
-                -- Find Sukuna unit and use the selected skill
-                local success = findAndUseUnitAbility("Sukuna", State.SelectedSukunaSkill)
+        if State.AutoUseAbilitySukuna and not isInLobby() then
+            if State.SelectedSukunaSkills and #State.SelectedSukunaSkills > 0 then
+                local currentTime = tick()
                 
-                if success then
-                    lastUseTime[sukunaKey] = currentTime
-                    print(string.format("Auto-used Sukuna: %s (next use in %ds)", State.SelectedSukunaSkill, cooldown))
+                -- Loop through each selected Sukuna skill
+                for _, skillName in ipairs(State.SelectedSukunaSkills) do
+                    local sukunaKey = "Sukuna_" .. skillName
+                    local lastTime = lastUseTime[sukunaKey] or 0
+                    
+                    -- Different cooldowns for different skills
+                    local cooldown = 1
+                    if skillName == "Domain" then
+                        cooldown = 120
+                    elseif skillName == "Mahoraga" then
+                        cooldown = 9999
+                    end
+                    
+                    if currentTime - lastTime >= cooldown then
+                        local success = findAndUseUnitAbility("Sukuna", skillName)
+                        
+                        if success then
+                            lastUseTime[sukunaKey] = currentTime
+                            print(string.format("Auto-used Sukuna: %s (next use in %ds)", skillName, cooldown))
+                        end
+                    end
                 end
             end
         end
