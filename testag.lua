@@ -1,4 +1,4 @@
---91
+--92
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.04"
@@ -4661,11 +4661,28 @@ end
 local function onGameStart()
     gameInProgress = true
     gameStartTime = tick()
-    State.gameStartRealTime = tick()  -- Add this line
+    State.gameStartRealTime = tick()
     capturedRewards = nil
 
+    -- STOP ANY ONGOING PLAYBACK AND LET THE LOOP RESTART IT
+    if isPlaybacking then
+        print("Game ended - stopping current playback")
+        isPlaybacking = false
+        
+        -- Cancel ability queue
+        if abilityQueueThread then
+            task.cancel(abilityQueueThread)
+            abilityQueueThread = nil
+        end
+        
+        -- Clear ability queue
+        abilityQueue = {}
+        
+        -- Clear unit mappings
+        clearSpawnIdMappings()
+    end
     
-    -- Auto-start recording if enabled (like File 2)
+    -- Auto-start recording if enabled
     if isRecording and not recordingHasStarted then
         recordingHasStarted = true
         clearSpawnIdMappings()
@@ -4773,28 +4790,9 @@ if not isInLobby() then
         task.spawn(function()
             task.wait(1) -- Small delay to ensure game state is stable
             
-            -- Priority 1: Auto Retry (highest priority)
-            if State.AutoVoteRetry then
-                print("Auto Retry enabled - Voting to replay...")
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-                end)
-                
-                if success then
-                    print("Successfully voted for retry!")
-                    Rayfield:Notify({
-                        Title = "Auto Vote",
-                        Content = "Voted to retry the stage",
-                        Duration = 3
-                    })
-                else
-                    warn("Failed to vote for retry:", err)
-                end
-                return -- Exit early since retry has highest priority
-            end
             
-            -- Priority 2: Auto Next (medium priority) - only for victories
+            -- Priority 1: Auto Next (highest priority) - only for victories
+
             if State.AutoVoteNext and result == "VICTORY" then
                 print("Auto Next enabled and game won - Voting for next stage...")
                 local success, err = pcall(function()
@@ -4813,6 +4811,28 @@ if not isInLobby() then
                     warn("Failed to vote for next stage:", err)
                 end
                 return -- Exit early
+            end
+
+            -- Priority 2: Auto Retry (medium priority)
+
+            if State.AutoVoteRetry then
+                print("Auto Retry enabled - Voting to replay...")
+                local success, err = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+                end)
+                
+                if success then
+                    print("Successfully voted for retry!")
+                    Rayfield:Notify({
+                        Title = "Auto Vote",
+                        Content = "Voted to retry the stage",
+                        Duration = 3
+                    })
+                else
+                    warn("Failed to vote for retry:", err)
+                end
+                return -- Exit early since retry has highest priority
             end
             
             -- Priority 3: Auto Lobby (lowest priority)
