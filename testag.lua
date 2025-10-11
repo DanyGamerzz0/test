@@ -1,4 +1,4 @@
---94
+--95
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.04"
@@ -410,35 +410,10 @@ local function getUnitAbilitiesList()
     local abilitiesList = {}
     
     for unitName, skillData in pairs(SkillsData) do
-        -- Handle units with multiple skills (like Sukuna Heian)
-        if skillData.Skill1 and skillData.Skill2 then
-            -- Main ability
+        -- Skip units with multiple skills
+        if not (skillData.Skill1 and skillData.Skill2) then
             table.insert(abilitiesList, {
-                display = unitName .. " - " .. skillData.SkillsName,
-                unitName = unitName,
-                abilityName = nil, -- Main ability has no specific name
-                cooldown = skillData.Cooldown
-            })
-            
-            -- Skill 1
-            table.insert(abilitiesList, {
-                display = unitName .. " - " .. skillData.Skill1.SkillsName,
-                unitName = unitName,
-                abilityName = skillData.Skill1.SkillsName,
-                cooldown = skillData.Skill1.Cooldown
-            })
-            
-            -- Skill 2
-            table.insert(abilitiesList, {
-                display = unitName .. " - " .. skillData.Skill2.SkillsName,
-                unitName = unitName,
-                abilityName = skillData.Skill2.SkillsName,
-                cooldown = skillData.Skill2.Cooldown
-            })
-        else
-            -- Regular single ability
-            table.insert(abilitiesList, {
-                display = unitName .. " - " .. skillData.SkillsName,
+                display = unitName,
                 unitName = unitName,
                 abilityName = nil,
                 cooldown = skillData.Cooldown
@@ -1150,7 +1125,6 @@ local AbilityDropdown = GameTab:CreateDropdown({
     end,
 })
 
--- Populate the dropdown with abilities
 task.spawn(function()
     task.wait(1) -- Wait for modules to load
     
@@ -5067,7 +5041,7 @@ task.spawn(function()
             
             -- Check if enough time has passed since last use (respect cooldown)
             local lastTime = lastUseTime[abilityData.display] or 0
-            local cooldown = abilityData.cooldown or 180
+            local cooldown = abilityData.cooldown or 60
             
             if currentTime - lastTime >= cooldown then
                 local success = findAndUseUnitAbility(abilityData.unitName, abilityData.abilityName)
