@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -4859,7 +4860,7 @@ local function setupAutoReconnect()
     end)
 end
 
-setupAutoReconnect()
+--setupAutoReconnect()
 
      Toggle = GameTab:CreateToggle({
     Name = "Delete Map",
