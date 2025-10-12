@@ -1,3 +1,4 @@
+--1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -4722,11 +4723,7 @@ local Toggle = LobbyTab:CreateToggle({
 
 local function setupAutoReconnect()
     local TeleportService = game:GetService("TeleportService")
-    local Players = game:GetService("Players")
     local GuiService = game:GetService("GuiService")
-    
-    local currentPlaceId = game.PlaceId
-    local currentJobId = game.JobId
     
     local isReconnecting = false
     local maxRetries = 10
@@ -4742,17 +4739,10 @@ local function setupAutoReconnect()
             
             local success = false
             
-            -- Try to rejoin the same server first
-            if currentJobId and currentJobId ~= "" then
-                success = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(currentPlaceId, currentJobId, Players.LocalPlayer)
-                end)
-            end
-            
             -- If same server fails, try any server
             if not success then
                 success = pcall(function()
-                    TeleportService:Teleport(currentPlaceId, Players.LocalPlayer)
+                    TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
                 end)
             end
             
