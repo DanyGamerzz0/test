@@ -4728,29 +4728,56 @@ local function setupAutoReconnect()
     local currentPlaceId = game.PlaceId
     local currentJobId = game.JobId
     
+    local isReconnecting = false
+    local maxRetries = 10
+    local retryDelay = 3
+    
     local function attemptReconnect()
-        if not State.autoReconnectEnabled or State.intentionalTeleport then return end
+        if not State.autoReconnectEnabled or State.intentionalTeleport or isReconnecting then return end
         
-        notify("Auto Reconnect", "Attempting to reconnect...", 3)
+        isReconnecting = true
         
-        State.autoReconnectEnabled = false -- Prevent reconnect loop
-        
-        if currentJobId and currentJobId ~= "" then
-            local success = pcall(function()
-                TeleportService:TeleportToPlaceInstance(currentPlaceId, currentJobId, Players.LocalPlayer)
-            end)
+        for attempt = 1, maxRetries do
+            notify("Auto Reconnect", string.format("Reconnecting... (Attempt %d/%d)", attempt, maxRetries), 3)
             
+            local success = false
+            
+            -- Try to rejoin the same server first
+            if currentJobId and currentJobId ~= "" then
+                success = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(currentPlaceId, currentJobId, Players.LocalPlayer)
+                end)
+            end
+            
+            -- If same server fails, try any server
             if not success then
-                task.wait(1)
-                pcall(function()
+                success = pcall(function()
                     TeleportService:Teleport(currentPlaceId, Players.LocalPlayer)
                 end)
             end
-        else
-            pcall(function()
-                TeleportService:Teleport(currentPlaceId, Players.LocalPlayer)
-            end)
+            
+            if success then
+                -- Teleport initiated successfully, wait for it to complete
+                notify("Auto Reconnect", "Teleport initiated, waiting...", 2)
+                task.wait(5) -- Give time for teleport to start
+                
+                -- If we're still here after 5 seconds, teleport failed
+                if attempt < maxRetries then
+                    notify("Auto Reconnect", "Teleport failed, retrying...", 2)
+                    task.wait(retryDelay)
+                end
+            else
+                -- Teleport call failed immediately
+                if attempt < maxRetries then
+                    notify("Auto Reconnect", string.format("Failed! Retrying in %d seconds...", retryDelay), retryDelay)
+                    task.wait(retryDelay)
+                else
+                    notify("Auto Reconnect", "Max retries reached. Please reconnect manually.", 5)
+                end
+            end
         end
+        
+        isReconnecting = false
     end
     
     -- Monitor for kick messages using GetErrorMessage()
@@ -4769,17 +4796,16 @@ local function setupAutoReconnect()
                 
                 -- Check if it's actually a kick/disconnect message
                 local lowerMsg = errorMessage:lower()
-                if lowerMsg:find("kicked") or 
-                   lowerMsg:find("disconnected") or
+                if lowerMsg:find("kick") or 
+                   lowerMsg:find("disconnect") or
                    lowerMsg:find("banned") or
                    lowerMsg:find("removed") or
-                   lowerMsg:find("rejoin") or
-                   lowerMsg:find("lost connection") then
+                   lowerMsg:find("lost connection") or
+                   lowerMsg:find("error code") then -- Added error code detection
                     
-                    notify("Auto Reconnect", "Kick detected! Reconnecting in 2 seconds...", 2)
-                    task.wait(2)
+                    notify("Auto Reconnect", "Disconnect detected! Starting reconnection...", 2)
+                    task.wait(1)
                     attemptReconnect()
-                    break
                 end
             end
         end
