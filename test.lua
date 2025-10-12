@@ -4700,11 +4700,11 @@ end)
     end,
 })
 
-local Toggle = GameTab:CreateToggle({
-    Name = "Auto Reconnect When Kicked",
+local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Reconnect When disconnected",
     CurrentValue = false,
     Flag = "AutoReconnectToggle",
-    Info = "Automatically tries to reconnect when you get kicked or disconnected. Will try to rejoin the same server if possible.",
+    Info = "Automatically tries to reconnect when you get kicked or disconnected.",
     TextScaled = false,
     Callback = function(Value)
         State.autoReconnectEnabled = Value
@@ -4903,6 +4903,86 @@ local RaritySellerDropdown = LobbyTab:CreateDropdown({
     TextScaled = false,
     Callback = function(Options)
         State.SelectedRaritiesToSell = Options
+    end,
+})
+
+local function craftDivineRerolls()
+    if not isInLobby() then
+        notify("Craft Divine Rerolls", "Must be in lobby to craft!")
+        return
+    end
+    
+    task.spawn(function()
+        local totalCrafted = 0
+        
+        while true do
+            -- Get current Trait Reroll count
+            local currentRerolls = 0
+            local success = pcall(function()
+                local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+                local rerollItem = playerData.Items:FindFirstChild("Trait Reroll")
+                if rerollItem then
+                    currentRerolls = rerollItem.Amount.Value
+                end
+            end)
+            
+            if not success then
+                notify("Craft Divine Rerolls", "Failed to check Trait Reroll count!")
+                break
+            end
+            
+            -- Check if we have enough to craft (need 1000 per craft)
+            if currentRerolls < 1000 then
+                notify("Craft Divine Rerolls", string.format("Crafting complete! Crafted %d Divine Rerolls. You have %d Trait Rerolls left.", totalCrafted, currentRerolls), 5)
+                break
+            end
+            
+            -- Craft one Divine Reroll
+            local craftSuccess = pcall(function()
+                local args = {
+                    "Divine Reroll",
+                    "1",
+                    "1"
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Crafting"):WaitForChild("Event"):FireServer(unpack(args))
+            end)
+            
+            if not craftSuccess then
+                notify("Craft Divine Rerolls", "Failed to craft! Stopping...")
+                break
+            end
+            
+            totalCrafted = totalCrafted + 1
+            
+            -- Progress notification every 5 crafts
+            if totalCrafted % 5 == 0 then
+                notify("Craft Divine Rerolls", string.format("Crafted %d Divine Rerolls so far... (%d Trait Rerolls remaining)", totalCrafted, currentRerolls - 1000), 2)
+            end
+            
+            -- Small delay between crafts to avoid spam
+            task.wait(0.5)
+        end
+    end)
+end
+
+local CraftDivineRerollsButton = LobbyTab:CreateButton({
+    Name = "Craft Divine Rerolls",
+    Callback = function()
+        local currentRerolls = 0
+        pcall(function()
+            local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+            local rerollItem = playerData.Items:FindFirstChild("Trait Reroll")
+            if rerollItem then
+                currentRerolls = rerollItem.Amount.Value
+            end
+        end)
+        
+        if currentRerolls < 1000 then
+            notify("Craft Divine Rerolls", string.format("Not enough Trait Rerolls! You have %d but need 1000 to craft.", currentRerolls), 5)
+        else
+            notify("Craft Divine Rerolls", string.format("Starting to craft Divine Rerolls! You have %d Trait Rerolls.", currentRerolls), 3)
+            craftDivineRerolls()
+        end
     end,
 })
 
