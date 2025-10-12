@@ -223,7 +223,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.16"
+local script_version = "V0.17"
 
 local ValidWebhook
 
@@ -3404,17 +3404,16 @@ local function StartAutoReroll(selectedTraits)
                         embeds = {{
                             title = "💎 Auto Trait Reroll Finished! 💎",
                             description = string.format("Successfully found desired traits for **%s**!", currentTraits.unit.Name),
-                            color = 0x9B59B6, -- Purple color
+                            color = 3447003,
                             fields = {
-                                { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                                { name = "🎯 Unit", value = currentTraits.unit.Name, inline = true },
-                                { name = "🔄 Attempts", value = tostring(attempts), inline = true },
-                                { name = "💎 Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
-                                { name = "💎 Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
-                                { name = "✨ Result", value = traitsText, inline = false },
-                                { name = "📈 Script Version", value = script_version, inline = true },
+                                { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                                { name = "Unit", value = currentTraits.unit.Name, inline = true },
+                                { name = "Attempts", value = tostring(attempts), inline = true },
+                                { name = "Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
+                                { name = "Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
+                                { name = "Result", value = traitsText, inline = false },
                             },
-                            footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                            footer = { text = "discord.gg/cYKnXE2Nf8" },
                             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
                         }}
                     }
@@ -3477,17 +3476,16 @@ local function StartAutoReroll(selectedTraits)
                         embeds = {{
                             title = "💎 Auto Trait Reroll Finished! 💎",
                             description = string.format("Successfully found desired traits for **%s**!", newTraits.unit.Name),
-                            color = 0x9B59B6,
+                            color = 3447003,
                             fields = {
-                                { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                                { name = "🎯 Unit", value = newTraits.unit.Name, inline = true },
-                                { name = "🔄 Attempts", value = tostring(attempts), inline = true },
-                                { name = "💎 Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
-                                { name = "💎 Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
-                                { name = "✨ Result", value = traitsText, inline = false },
-                                { name = "📈 Script Version", value = script_version, inline = true },
+                                { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                                { name = "Unit", value = newTraits.unit.Name, inline = true },
+                                { name = "Attempts", value = tostring(attempts), inline = true },
+                                { name = "Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
+                                { name = "Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
+                                { name = "Result", value = traitsText, inline = false },
                             },
-                            footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                            footer = { text = "discord.gg/cYKnXE2Nf8" },
                             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
                         }}
                     }
@@ -3618,17 +3616,16 @@ local function StartAutoCurse(selectedCurses)
                         embeds = {{
                             title = "🔮 Auto Curse Reroll Finished! 🔮",
                             description = string.format("Successfully found desired curses for **%s**!", unit.Name),
-                            color = 0xE74C3C, -- Red color
+                            color = 3447003,
                             fields = {
-                                { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                                { name = "🎯 Unit", value = unit.Name, inline = true },
-                                { name = "🔄 Attempts", value = tostring(attempts), inline = true },
-                                { name = "☠️ Cursed Fingers Used", value = tostring(fingersUsed), inline = true },
-                                { name = "☠️ Cursed Fingers Remaining", value = tostring(endingFingers), inline = true },
-                                { name = "✨ Curse Results", value = table.concat(curseResults, "\n"), inline = false },
-                                { name = "📈 Script Version", value = script_version, inline = true },
+                                { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                                { name = "Unit", value = unit.Name, inline = true },
+                                { name = "Attempts", value = tostring(attempts), inline = true },
+                                { name = "Cursed Fingers Used", value = tostring(fingersUsed), inline = true },
+                                { name = "Cursed Fingers Remaining", value = tostring(endingFingers), inline = true },
+                                { name = "Curse Results", value = table.concat(curseResults, "\n"), inline = false },
                             },
-                            footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                            footer = { text = "discord.gg/cYKnXE2Nf8" },
                             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
                         }}
                     }
