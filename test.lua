@@ -6501,7 +6501,7 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         local args = {...}
         if table.find(args, "Game_Start") then
             State.gameRunning = true
-            capturedRewards = {}
+        State.startingInventory = snapshotInventory()
         resetUpgradeOrder()
         stopRetryLoop()
         stopNextLoop()
