@@ -1,4 +1,4 @@
---1
+--2
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -979,6 +979,7 @@ end
 
 local rewardConnection = nil
 local capturedRewards = {}
+local rewardsReceived = false
 
 local function setupRewardCapture()
     if rewardConnection then
@@ -986,15 +987,26 @@ local function setupRewardCapture()
     end
     
     capturedRewards = {}
+    rewardsReceived = false
     
     -- Listen to the remote that sends reward data
     rewardConnection = Services.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         local args = {...}
         
+        print("🔍 Remote fired with:", args[1], "| Args count:", #args)
+        
         -- Check if this is a rewards event
         if args[1] == "Rewards - Items" and type(args[2]) == "table" then
-            print("🎁 Captured rewards from remote!")
+            print("🎁 Captured rewards from remote! Count:", #args[2])
             capturedRewards = args[2]
+            rewardsReceived = true
+            
+            -- Debug: print what we captured
+            for i, reward in pairs(capturedRewards) do
+                if typeof(reward) == "Instance" then
+                    print("  Reward", i, ":", reward.Name, "| Type:", reward.ClassName)
+                end
+            end
         end
     end)
 end
@@ -6567,7 +6579,7 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         local args = {...}
         if table.find(args, "Game_Start") then
             State.gameRunning = true
-            State.startingInventory = snapshotInventory()
+            capturedRewards = {}
         resetUpgradeOrder()
         stopRetryLoop()
         stopNextLoop()
@@ -6621,7 +6633,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
         end
         resetUpgradeOrder()
 
-        task.wait(0.5)
+        task.wait(1)
         local clearTimeStr = "Unknown"
         if State.stageStartTime then
             local dt = math.floor(tick() - State.stageStartTime)
