@@ -4760,11 +4760,11 @@ local Toggle = LobbyTab:CreateToggle({
     Info = "Automatically tries to reconnect when you get kicked or disconnected.",
     TextScaled = false,
     Callback = function(Value)
-        --State.autoReconnectEnabled = Value
+        State.autoReconnectEnabled = Value
     end,
 })
 
---[[local function setupAutoReconnect()
+local function setupAutoReconnect()
     local TeleportService = game:GetService("TeleportService")
     local Players = game:GetService("Players")
     local GuiService = game:GetService("GuiService")
@@ -4801,17 +4801,7 @@ local Toggle = LobbyTab:CreateToggle({
         end
     end
     
-    -- Monitor for kick/disconnect
-    Players.LocalPlayer.OnTeleport:Connect(function(State)
-        if State == Enum.TeleportState.Failed then
-            if State.autoReconnectEnabled then
-                task.wait(2)
-                attemptReconnect()
-            end
-        end
-    end)
-    
-    -- Detect when kicked
+    -- Detect when kicked via CoreGui
     game:GetService("CoreGui").DescendantAdded:Connect(function(descendant)
         if not State.autoReconnectEnabled then return end
         
@@ -4848,7 +4838,7 @@ local Toggle = LobbyTab:CreateToggle({
     end)
 end
 
-setupAutoReconnect()--]]
+setupAutoReconnect()
 
      Toggle = GameTab:CreateToggle({
     Name = "Delete Map",
