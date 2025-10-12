@@ -1,4 +1,4 @@
---3
+--4
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1231,7 +1231,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local isWin = matchResult == "Victory"
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
-        local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
+        local rewardsText = rewards
         local shouldPing = #detectedUnits > 0
 
         -- Optional: Only ping on single rare units (uncomment if you want)
@@ -1296,9 +1296,9 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
     end
 end
 
-if not isInLobby() then
-    setupRewardCapture()
-end
+--if not isInLobby() then
+    --setupRewardCapture()
+--end
 
 --boss rush
 
@@ -6621,45 +6621,67 @@ Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Conn
         end
     end)
 
+Remotes.GameEndedUI.OnClientEvent:Connect(function(...)
+    local args = {...}
+    
+    -- Handle match result FIRST
+    if typeof(args[1]) == "string" then
+        local l = args[1]:lower()
+        if l:find("defeat") then
+            State.matchResult = "Defeat"
+        elseif l:find("won") or l:find("win") then
+            State.matchResult = "Victory"
+        else
+            State.matchResult = "Unknown"
+        end
+        print("🎯 Match result detected:", State.matchResult)
+    end
+    
+    -- Check if this is the rewards event
+    if args[1] == "Rewards - Items" and type(args[2]) == "table" then
+        print("🎁 GameEndedUI fired with rewards! Count:", #args[2])
+        capturedRewards = args[2]
+        
+        -- Send webhook with rewards NOW (after match result is set)
+        if State.SendStageCompletedWebhook and not State.hasSentWebhook then
+            local clearTimeStr = "Unknown"
+            if State.stageStartTime then
+                local dt = math.floor(tick() - State.stageStartTime)
+                clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
+            end
+            
+            sendWebhook("stage", args[2], clearTimeStr, State.matchResult)
+            State.hasSentWebhook = true
+        end
+    end
+end)
+
 Remotes.GameEnd.OnClientEvent:Connect(function()
     if State.hasSentWebhook then
-            return
-        end
-        State.hasGameEnded = true
-        if State.SendStageCompletedWebhook then
-        State.hasSentWebhook = true
-        end
-        State.gameRunning = false
-                if State.AutoFailSafeEnabled == true then
-            startFailsafeAfterGameEnd()
-        end
-        resetUpgradeOrder()
+        return
+    end
+    State.hasGameEnded = true
+    State.gameRunning = false
+    
+    if State.AutoFailSafeEnabled == true then
+        startFailsafeAfterGameEnd()
+    end
+    resetUpgradeOrder()
 
-        task.wait(1)
-        local clearTimeStr = "Unknown"
-        if State.stageStartTime then
-            local dt = math.floor(tick() - State.stageStartTime)
-            clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
-        end
+    State.autoPlayDelayActive = false
+    State.actionTaken = false
 
-        if State.SendStageCompletedWebhook then
-        sendWebhook("stage", nil, clearTimeStr, State.matchResult)
-        end
+    if State.pendingChallengeReturn and not State.actionTaken then
+        notify("Challenge Return", "New challenge detected - returning to lobby")
+        State.pendingChallengeReturn = false
+        State.actionTaken = true
+        task.delay(2, function()
+            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+        end)
+        return
+    end
 
-        State.autoPlayDelayActive = false
-        State.actionTaken = false
-
-        if State.pendingChallengeReturn and not State.actionTaken then
-            notify("Challenge Return", "New challenge detected - returning to lobby")
-            State.pendingChallengeReturn = false
-            State.actionTaken = true
-            task.delay(2, function()
-                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-            end)
-            return
-        end
-
-        local TIMEOUT = 10
+    local TIMEOUT = 10
 
     local function waitForGameRunning(timeout)
         local elapsed = 0
