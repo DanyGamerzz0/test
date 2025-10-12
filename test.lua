@@ -57,6 +57,7 @@ local State = {
     AutoPurchaseRiftStorm = false,
     enableBlackScreen = false,
     enableAutoExecute = false,
+    autoReconnectEnabled = false,
     enableAutoSummon = false,
     deleteEntities = false,
     AutoFarmEnabled = false,
@@ -3400,7 +3401,7 @@ local function StartAutoReroll(selectedTraits)
                     
                     local data = {
                         username = "LixHub Bot",
-                        content = string.format("<@%s> 🎉 **TRAIT REROLL COMPLETE!** 🎉", Config.DISCORD_USER_ID),
+                        content = string.format("<@%s>", Config.DISCORD_USER_ID),
                         embeds = {{
                             title = "💎 Auto Trait Reroll Finished! 💎",
                             description = string.format("Successfully found desired traits for **%s**!", currentTraits.unit.Name),
@@ -3612,7 +3613,7 @@ local function StartAutoCurse(selectedCurses)
                     
                     local data = {
                         username = "LixHub Bot",
-                        content = string.format("<@%s> 🎉 **CURSE REROLL COMPLETE!** 🎉", Config.DISCORD_USER_ID),
+                        content = string.format("<@%s>", Config.DISCORD_USER_ID),
                         embeds = {{
                             title = "🔮 Auto Curse Reroll Finished! 🔮",
                             description = string.format("Successfully found desired curses for **%s**!", unit.Name),
@@ -4698,6 +4699,103 @@ end)
         end
     end,
 })
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Auto Reconnect When Kicked",
+    CurrentValue = false,
+    Flag = "AutoReconnectToggle",
+    Info = "Automatically tries to reconnect when you get kicked or disconnected. Will try to rejoin the same server if possible.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.autoReconnectEnabled = Value
+    end,
+})
+
+local function setupAutoReconnect()
+    local TeleportService = game:GetService("TeleportService")
+    local Players = game:GetService("Players")
+    local GuiService = game:GetService("GuiService")
+    
+    -- Store the current place and job ID
+    local currentPlaceId = game.PlaceId
+    local currentJobId = game.JobId
+    
+    -- Function to attempt reconnection
+    local function attemptReconnect()
+        if not State.autoReconnectEnabled then return end
+        
+        notify("Auto Reconnect", "Attempting to reconnect...", 3)
+        
+        -- Try to rejoin the same server first
+        if currentJobId and currentJobId ~= "" then
+            local success, err = pcall(function()
+                TeleportService:TeleportToPlaceInstance(currentPlaceId, currentJobId, Players.LocalPlayer)
+            end)
+            
+            if not success then
+                warn("Failed to rejoin same server:", err)
+                -- Fallback to joining any server
+                task.wait(1)
+                pcall(function()
+                    TeleportService:Teleport(currentPlaceId, Players.LocalPlayer)
+                end)
+            end
+        else
+            -- No job ID, just teleport to any server
+            pcall(function()
+                TeleportService:Teleport(currentPlaceId, Players.LocalPlayer)
+            end)
+        end
+    end
+    
+    -- Monitor for kick/disconnect
+    Players.LocalPlayer.OnTeleport:Connect(function(State)
+        if State == Enum.TeleportState.Failed then
+            if State.autoReconnectEnabled then
+                task.wait(2)
+                attemptReconnect()
+            end
+        end
+    end)
+    
+    -- Detect when kicked
+    game:GetService("CoreGui").DescendantAdded:Connect(function(descendant)
+        if not State.autoReconnectEnabled then return end
+        
+        -- Check if it's a kick message
+        if descendant.Name == "ErrorPrompt" or descendant.Name == "ErrorFrame" then
+            task.wait(0.5) -- Small delay to let the error display
+            
+            -- Check if we can see the prompt (means we got kicked)
+            local promptVisible = false
+            pcall(function()
+                if descendant:IsA("Frame") or descendant:IsA("TextLabel") then
+                    promptVisible = descendant.Visible
+                end
+            end)
+            
+            if promptVisible then
+                notify("Auto Reconnect", "Kick detected! Reconnecting in 2 seconds...", 2)
+                task.wait(2)
+                attemptReconnect()
+            end
+        end
+    end)
+    
+    -- Alternative detection method using GuiService
+    GuiService.ErrorMessageChanged:Connect(function()
+        if not State.autoReconnectEnabled then return end
+        
+        local errorMessage = GuiService:GetErrorMessage()
+        if errorMessage and errorMessage ~= "" then
+            notify("Auto Reconnect", "Disconnect detected! Reconnecting...", 2)
+            task.wait(2)
+            attemptReconnect()
+        end
+    end)
+end
+
+setupAutoReconnect()
 
      Toggle = GameTab:CreateToggle({
     Name = "Delete Map",
