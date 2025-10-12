@@ -1,4 +1,4 @@
---4
+--5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -1231,12 +1231,49 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local isWin = matchResult == "Victory"
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
-        local rewardsText = rewards
+        -- Process rewards to get text and detected units
+        local rewardsText = "_No rewards found after match_"
+        local detectedUnits = {}
+        
+        if rewards and type(rewards) == "table" then
+            local lines = {}
+            
+            for _, rewardItem in pairs(rewards) do
+                local itemName = nil
+                local amount = 0
+                
+                if typeof(rewardItem) == "Instance" then
+                    itemName = rewardItem.Name
+                    
+                    if rewardItem:FindFirstChild("Amount") then
+                        amount = rewardItem.Amount.Value
+                    else
+                        amount = 1
+                    end
+                end
+                
+                if itemName and amount > 0 then
+                    -- Check if this is a unit drop
+                    if isUnitDrop(rewardItem) then
+                        table.insert(detectedUnits, itemName)
+                        table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
+                    else
+                        -- Regular item reward
+                        local totalAmount, location = getTotalAmount(itemName)
+                        local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
+                        
+                        local displayName = itemName == "Gem" and itemName.."(s)" or itemName
+                        table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
+                    end
+                end
+            end
+            
+            if #lines > 0 then
+                rewardsText = table.concat(lines, "\n")
+            end
+        end
+
         local shouldPing = #detectedUnits > 0
-
-        -- Optional: Only ping on single rare units (uncomment if you want)
-        -- if #detectedUnits > 1 then return end
-
         local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
 
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
