@@ -1,4 +1,4 @@
---2
+--3
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -989,11 +989,11 @@ local function setupRewardCapture()
     capturedRewards = {}
     rewardsReceived = false
     
-    -- Listen to the remote that sends reward data
-    rewardConnection = Services.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
+    -- Listen to GameEndedUI remote for rewards
+    rewardConnection = Remotes.GameEndedUI.OnClientEvent:Connect(function(...)
         local args = {...}
         
-        print("🔍 Remote fired with:", args[1], "| Args count:", #args)
+        print("🔍 GameEndedUI fired with:", args[1], "| Args count:", #args)
         
         -- Check if this is a rewards event
         if args[1] == "Rewards - Items" and type(args[2]) == "table" then
@@ -1005,6 +1005,8 @@ local function setupRewardCapture()
             for i, reward in pairs(capturedRewards) do
                 if typeof(reward) == "Instance" then
                     print("  Reward", i, ":", reward.Name, "| Type:", reward.ClassName)
+                else
+                    print("  Reward", i, ":", typeof(reward))
                 end
             end
         end
