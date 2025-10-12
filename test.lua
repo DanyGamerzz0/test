@@ -4723,21 +4723,29 @@ local Toggle = LobbyTab:CreateToggle({
 local function setupAutoReconnect()
     local TeleportService = game:GetService("TeleportService")
     local Players = game:GetService("Players")
+    local GuiService = game:GetService("GuiService")
     
     local currentPlaceId = game.PlaceId
     local currentJobId = game.JobId
     
     local function attemptReconnect()
-        if not State.autoReconnectEnabled then return end
+        if not State.autoReconnectEnabled or State.intentionalTeleport then return end
         
         notify("Auto Reconnect", "Attempting to reconnect...", 3)
         
-        State.autoReconnectEnabled = false -- Prevent loop
+        State.autoReconnectEnabled = false -- Prevent reconnect loop
         
         if currentJobId and currentJobId ~= "" then
-            pcall(function()
+            local success = pcall(function()
                 TeleportService:TeleportToPlaceInstance(currentPlaceId, currentJobId, Players.LocalPlayer)
             end)
+            
+            if not success then
+                task.wait(1)
+                pcall(function()
+                    TeleportService:Teleport(currentPlaceId, Players.LocalPlayer)
+                end)
+            end
         else
             pcall(function()
                 TeleportService:Teleport(currentPlaceId, Players.LocalPlayer)
@@ -4745,22 +4753,34 @@ local function setupAutoReconnect()
         end
     end
     
-    -- Only use GuiService method (more reliable)
-    game:GetService("GuiService"):GetPropertyChangedSignal("ErrorMessage"):Connect(function()
-        if not State.autoReconnectEnabled then return end
-        
-        local errorMessage = game:GetService("GuiService").ErrorMessage
-        
-        -- Check for actual kick/disconnect messages
-        if errorMessage and errorMessage ~= "" and 
-           (errorMessage:lower():find("kick") or 
-            errorMessage:lower():find("disconnect") or
-            errorMessage:lower():find("banned") or
-            errorMessage:lower():find("removed")) then
+    -- Monitor for kick messages using GetErrorMessage()
+    local lastErrorMessage = ""
+    
+    task.spawn(function()
+        while task.wait(0.5) do
+            if not State.autoReconnectEnabled or State.intentionalTeleport then continue end
             
-            notify("Auto Reconnect", "Kick detected! Reconnecting in 2 seconds...", 2)
-            task.wait(2)
-            attemptReconnect()
+            local success, errorMessage = pcall(function()
+                return GuiService:GetErrorMessage()
+            end)
+            
+            if success and errorMessage and errorMessage ~= "" and errorMessage ~= lastErrorMessage then
+                lastErrorMessage = errorMessage
+                
+                -- Check if it's actually a kick/disconnect message
+                local lowerMsg = errorMessage:lower()
+                if lowerMsg:find("kick") or 
+                   lowerMsg:find("disconnect") or
+                   lowerMsg:find("banned") or
+                   lowerMsg:find("removed") or
+                   lowerMsg:find("lost connection") then
+                    
+                    notify("Auto Reconnect", "Kick detected! Reconnecting in 2 seconds...", 2)
+                    task.wait(2)
+                    attemptReconnect()
+                    break
+                end
+            end
         end
     end)
 end
