@@ -4760,7 +4760,7 @@ local Toggle = LobbyTab:CreateToggle({
     Info = "Automatically tries to reconnect when you get kicked or disconnected.",
     TextScaled = false,
     Callback = function(Value)
-        State.autoReconnectEnabled = Value
+        --State.autoReconnectEnabled = Value
     end,
 })
 
