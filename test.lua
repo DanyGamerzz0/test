@@ -64,6 +64,8 @@ local State = {
     AutoOpenBorosEnabled = false,
     AutoSwarmEventEnabled = false,
     SendFinishedFarmingGearWebhook = false,
+    SendFinishedCurseRerollingWebhook = false,
+    SendFinishedTraitRerollingWebhook = false,
     autoAdventureModeEnabled = false,
     autoEndureEnabled = false,
     autoEndureSlider = 30,
@@ -3350,6 +3352,17 @@ local function StartAutoReroll(selectedTraits)
     
     task.spawn(function()
         local attempts = 0
+        local startingShards = 0
+        
+        -- Get starting shard count
+        pcall(function()
+            local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+            local shardsItem = playerData.Items:FindFirstChild("Trait Reroll")
+            if shardsItem then
+                startingShards = shardsItem.Amount.Value
+            end
+        end)
+        
         notify("Auto Reroll", "Searching for traits: " .. table.concat(selectedTraits, ", "))
         
         while State.AutoRerollEnabled do
@@ -3366,6 +3379,60 @@ local function StartAutoReroll(selectedTraits)
             if TraitsMatch(currentTraits, selectedTraits, State.rollOnlyDoubleTraits) then
                 notify("Auto Reroll", string.format("Found traits after %d attempts!", attempts))
                 State.AutoRerollEnabled = false
+                
+                -- Send webhook if enabled
+                if State.SendFinishedTraitRerollingWebhook and ValidWebhook then
+                    local endingShards = 0
+                    pcall(function()
+                        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+                        local shardsItem = playerData.Items:FindFirstChild("Trait Reroll")
+                        if shardsItem then
+                            endingShards = shardsItem.Amount.Value
+                        end
+                    end)
+                    
+                    local shardsUsed = startingShards - endingShards
+                    local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
+                    
+                    local traitsText = State.rollOnlyDoubleTraits and 
+                        string.format("**Double Traits:** %s & %s", currentTraits.primary, currentTraits.secondary) or
+                        string.format("**Traits Found:** %s (Primary) / %s (Secondary)", currentTraits.primary, currentTraits.secondary)
+                    
+                    local data = {
+                        username = "LixHub Bot",
+                        content = string.format("<@%s> 🎉 **TRAIT REROLL COMPLETE!** 🎉", Config.DISCORD_USER_ID),
+                        embeds = {{
+                            title = "💎 Auto Trait Reroll Finished! 💎",
+                            description = string.format("Successfully found desired traits for **%s**!", currentTraits.unit.Name),
+                            color = 0x9B59B6, -- Purple color
+                            fields = {
+                                { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                                { name = "🎯 Unit", value = currentTraits.unit.Name, inline = true },
+                                { name = "🔄 Attempts", value = tostring(attempts), inline = true },
+                                { name = "💎 Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
+                                { name = "💎 Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
+                                { name = "✨ Result", value = traitsText, inline = false },
+                                { name = "📈 Script Version", value = script_version, inline = true },
+                            },
+                            footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                        }}
+                    }
+                    
+                    local payload = Services.HttpService:JSONEncode(data)
+                    local requestFunc = (syn and syn.request) or (http and http.request) or request
+                    
+                    if requestFunc then
+                        pcall(function()
+                            requestFunc({
+                                Url = ValidWebhook,
+                                Method = "POST",
+                                Headers = { ["Content-Type"] = "application/json" },
+                                Body = payload
+                            })
+                        end)
+                    end
+                end
                 break
             end
 
@@ -3385,6 +3452,60 @@ local function StartAutoReroll(selectedTraits)
             if newTraits and TraitsMatch(newTraits, selectedTraits, State.rollOnlyDoubleTraits) then
                 notify("Auto Reroll", string.format("Found traits after %d attempts!", attempts))
                 State.AutoRerollEnabled = false
+                
+                -- Send webhook if enabled (same code as above)
+                if State.SendFinishedTraitRerollingWebhook and ValidWebhook then
+                    local endingShards = 0
+                    pcall(function()
+                        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+                        local shardsItem = playerData.Items:FindFirstChild("Trait Reroll")
+                        if shardsItem then
+                            endingShards = shardsItem.Amount.Value
+                        end
+                    end)
+                    
+                    local shardsUsed = startingShards - endingShards
+                    local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
+                    
+                    local traitsText = State.rollOnlyDoubleTraits and 
+                        string.format("**Double Traits:** %s & %s", newTraits.primary, newTraits.secondary) or
+                        string.format("**Traits Found:** %s (Primary) / %s (Secondary)", newTraits.primary, newTraits.secondary)
+                    
+                    local data = {
+                        username = "LixHub Bot",
+                        content = string.format("<@%s> 🎉 **TRAIT REROLL COMPLETE!** 🎉", Config.DISCORD_USER_ID),
+                        embeds = {{
+                            title = "💎 Auto Trait Reroll Finished! 💎",
+                            description = string.format("Successfully found desired traits for **%s**!", newTraits.unit.Name),
+                            color = 0x9B59B6,
+                            fields = {
+                                { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                                { name = "🎯 Unit", value = newTraits.unit.Name, inline = true },
+                                { name = "🔄 Attempts", value = tostring(attempts), inline = true },
+                                { name = "💎 Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
+                                { name = "💎 Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
+                                { name = "✨ Result", value = traitsText, inline = false },
+                                { name = "📈 Script Version", value = script_version, inline = true },
+                            },
+                            footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                        }}
+                    }
+                    
+                    local payload = Services.HttpService:JSONEncode(data)
+                    local requestFunc = (syn and syn.request) or (http and http.request) or request
+                    
+                    if requestFunc then
+                        pcall(function()
+                            requestFunc({
+                                Url = ValidWebhook,
+                                Method = "POST",
+                                Headers = { ["Content-Type"] = "application/json" },
+                                Body = payload
+                            })
+                        end)
+                    end
+                end
                 break
             end
 
@@ -3412,6 +3533,16 @@ local function StartAutoCurse(selectedCurses)
     
     task.spawn(function()
         local attempts = 0
+        local startingFingers = 0
+        
+        -- Get starting cursed finger count
+        pcall(function()
+            local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+            local fingersItem = playerData.Items:FindFirstChild("Cursed Finger")
+            if fingersItem then
+                startingFingers = fingersItem.Amount.Value
+            end
+        end)
         
         -- Dynamic success message based on selection
         local targetMessage = #selectedCurses == 1 and 
@@ -3453,6 +3584,69 @@ local function StartAutoCurse(selectedCurses)
                 
                 notify("Auto Curse", successMessage)
                 State.AutoCurseEnabled = false
+                
+                -- Send webhook if enabled
+                if State.SendFinishedCurseRerollingWebhook and ValidWebhook then
+                    local endingFingers = 0
+                    pcall(function()
+                        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+                        local fingersItem = playerData.Items:FindFirstChild("Cursed Finger")
+                        if fingersItem then
+                            endingFingers = fingersItem.Amount.Value
+                        end
+                    end)
+                    
+                    local fingersUsed = startingFingers - endingFingers
+                    local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
+                    
+                    -- Build curse results text
+                    local curseResults = {}
+                    for i, curse in ipairs(applied) do
+                        if curse.isGreen then
+                            for curseName, imageId in pairs(CurseImageIDs) do
+                                if curse.image == imageId then
+                                    table.insert(curseResults, string.format("**Slot %d:** %s (%+d%%)", i, curseName, curse.percentage))
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    
+                    local data = {
+                        username = "LixHub Bot",
+                        content = string.format("<@%s> 🎉 **CURSE REROLL COMPLETE!** 🎉", Config.DISCORD_USER_ID),
+                        embeds = {{
+                            title = "🔮 Auto Curse Reroll Finished! 🔮",
+                            description = string.format("Successfully found desired curses for **%s**!", unit.Name),
+                            color = 0xE74C3C, -- Red color
+                            fields = {
+                                { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                                { name = "🎯 Unit", value = unit.Name, inline = true },
+                                { name = "🔄 Attempts", value = tostring(attempts), inline = true },
+                                { name = "☠️ Cursed Fingers Used", value = tostring(fingersUsed), inline = true },
+                                { name = "☠️ Cursed Fingers Remaining", value = tostring(endingFingers), inline = true },
+                                { name = "✨ Curse Results", value = table.concat(curseResults, "\n"), inline = false },
+                                { name = "📈 Script Version", value = script_version, inline = true },
+                            },
+                            footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                        }}
+                    }
+                    
+                    local payload = Services.HttpService:JSONEncode(data)
+                    local requestFunc = (syn and syn.request) or (http and http.request) or request
+                    
+                    if requestFunc then
+                        pcall(function()
+                            requestFunc({
+                                Url = ValidWebhook,
+                                Method = "POST",
+                                Headers = { ["Content-Type"] = "application/json" },
+                                Body = payload
+                            })
+                        end)
+                    end
+                end
                 break
             end
             
@@ -6108,6 +6302,24 @@ end)
     Flag = "sendWebhookWhenFinishedFarmingGear",
     Callback = function(Value)
         State.SendFinishedFarmingGearWebhook = Value
+    end,
+    })
+
+    Toggle = WebhookTab:CreateToggle({
+    Name = "Send On Auto Trait rerolling Finished",
+    CurrentValue = false,
+    Flag = "sendWebhookWhenFinishedTraitRerollingWebhook",
+    Callback = function(Value)
+        State.SendFinishedTraitRerollingWebhook = Value
+    end,
+    })
+
+    Toggle = WebhookTab:CreateToggle({
+    Name = "Send On Auto Curse rerolling Finished",
+    CurrentValue = false,
+    Flag = "sendWebhookWhenFinishedCurseRerolling",
+    Callback = function(Value)
+        State.SendFinishedCurseRerollingWebhook = Value
     end,
     })
 
