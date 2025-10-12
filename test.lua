@@ -1,4 +1,3 @@
---5
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -977,48 +976,13 @@ local function compareInventories(startInv, endInv)
     return gained
 end
 
-local rewardConnection = nil
-local capturedRewards = {}
-local rewardsReceived = false
-
-local function setupRewardCapture()
-    if rewardConnection then
-        rewardConnection:Disconnect()
-    end
-    
-    capturedRewards = {}
-    rewardsReceived = false
-    
-    -- Listen to GameEndedUI remote for rewards
-    rewardConnection = Remotes.GameEndedUI.OnClientEvent:Connect(function(...)
-        local args = {...}
-        
-        print("🔍 GameEndedUI fired with:", args[1], "| Args count:", #args)
-        
-        -- Check if this is a rewards event
-        if args[1] == "Rewards - Items" and type(args[2]) == "table" then
-            print("🎁 Captured rewards from remote! Count:", #args[2])
-            capturedRewards = args[2]
-            rewardsReceived = true
-            
-            -- Debug: print what we captured
-            for i, reward in pairs(capturedRewards) do
-                if typeof(reward) == "Instance" then
-                    print("  Reward", i, ":", reward.Name, "| Type:", reward.ClassName)
-                else
-                    print("  Reward", i, ":", typeof(reward))
-                end
-            end
-        end
-    end)
-end
-
 local function getTotalAmount(itemName)
     local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
     
     -- Try Data folder first
     local dataItem = playerData.Data:FindFirstChild(itemName)
     if dataItem and dataItem.Value then
+        --print("comparing "..itemName.." and "..dataItem.Name)
         return dataItem.Value, "Data"
     end
     
@@ -1031,34 +995,7 @@ local function getTotalAmount(itemName)
         end
     end
     
-    -- Try Collection folder for units
-    local collectionItem = playerData.Collection:FindFirstChild(itemName)
-    if collectionItem then
-        return 1, "Collection"
-    end
-    
     return nil, nil
-end
-
-local function isUnitDrop(rewardItem)
-    -- Check if this reward is a unit by checking Collection folder
-    local success, isUnit = pcall(function()
-        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-        local collection = playerData:FindFirstChild("Collection")
-        
-        if collection then
-            -- If it's an Instance with a Name property
-            if typeof(rewardItem) == "Instance" then
-                return collection:FindFirstChild(rewardItem.Name) ~= nil
-            -- If it's just a string name
-            elseif typeof(rewardItem) == "string" then
-                return collection:FindFirstChild(rewardItem) ~= nil
-            end
-        end
-        return false
-    end)
-    
-    return success and isUnit
 end
 
 local function patchRewardsFromFolder(existingGained, detectedRewards, detectedUnits, lines)
@@ -1085,54 +1022,37 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
 end
 
 local function buildRewardsText()
-    if not capturedRewards or #capturedRewards == 0 then
-        return "_No rewards found after match_", {}, {}
-    end
-    
+    local endingInventory = snapshotInventory()
+    local gainedItems = compareInventories(State.startingInventory, endingInventory)
     local lines = {}
     local detectedRewards = {}
     local detectedUnits = {}
-    
-    -- Process all rewards from the remote
-    for _, rewardItem in pairs(capturedRewards) do
-        local itemName = nil
-        local amount = 0
-        
-        -- Handle different reward formats
-        if typeof(rewardItem) == "Instance" then
-            itemName = rewardItem.Name
+
+    for _, reward in ipairs(gainedItems) do
+        local itemName = reward.name
+        local amount = reward.amount
+
+        detectedRewards[itemName] = amount
+
+        if reward.isUnit then
+            table.insert(detectedUnits, itemName)
+            table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
+        else
+            local totalAmount, location = getTotalAmount(itemName)
+            local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
             
-            -- Check if it has an Amount value
-            if rewardItem:FindFirstChild("Amount") then
-                amount = rewardItem.Amount.Value
-            else
-                amount = 1 -- Default to 1 if no Amount (likely a unit)
-            end
-        end
-        
-        if itemName and amount > 0 then
-            detectedRewards[itemName] = amount
-            
-            -- Check if this is a unit drop
-            if isUnitDrop(rewardItem) then
-                table.insert(detectedUnits, itemName)
-                table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
-            else
-                -- Regular item reward
-                local totalAmount, location = getTotalAmount(itemName)
-                local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
-                
-                -- Add (s) suffix only for "Gem"
-                local displayName = itemName == "Gem" and itemName.."(s)" or itemName
-                table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
-            end
+            -- Add (s) suffix only for "Gem"
+            local displayName = itemName == "Gem" and itemName.."(s)" or itemName
+            table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
         end
     end
-    
-    if #lines == 0 then
+
+    patchRewardsFromFolder(gainedItems, detectedRewards, detectedUnits, lines)
+
+    if #gainedItems == 0 then
         return "_No rewards found after match_", {}, {}
     end
-    
+
     local rewardsText = table.concat(lines, "\n")
     notify("Gained rewards:", rewardsText, 2)
     return rewardsText, detectedRewards, detectedUnits
@@ -1213,7 +1133,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
             embeds = {{
                 title = "⚙️ GEAR FARM COMPLETE! ⚙️",
                 description = pingText .. "\nAll materials have been farmed successfully!",
-                color = 0x00FF00,
+                color = 0x00FF00, -- Green color for success
                 fields = {
                     { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
                     { name = "⚙️ Gears Ready to Craft", value = table.concat(gearList, "\n"), inline = false },
@@ -1231,49 +1151,11 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local isWin = matchResult == "Victory"
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
-        -- Process rewards to get text and detected units
-        local rewardsText = "_No rewards found after match_"
-        local detectedUnits = {}
-        
-        if rewards and type(rewards) == "table" then
-            local lines = {}
-            
-            for _, rewardItem in pairs(rewards) do
-                local itemName = nil
-                local amount = 0
-                
-                if typeof(rewardItem) == "Instance" then
-                    itemName = rewardItem.Name
-                    
-                    if rewardItem:FindFirstChild("Amount") then
-                        amount = rewardItem.Amount.Value
-                    else
-                        amount = 1
-                    end
-                end
-                
-                if itemName and amount > 0 then
-                    -- Check if this is a unit drop
-                    if isUnitDrop(rewardItem) then
-                        table.insert(detectedUnits, itemName)
-                        table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
-                    else
-                        -- Regular item reward
-                        local totalAmount, location = getTotalAmount(itemName)
-                        local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
-                        
-                        local displayName = itemName == "Gem" and itemName.."(s)" or itemName
-                        table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
-                    end
-                end
-            end
-            
-            if #lines > 0 then
-                rewardsText = table.concat(lines, "\n")
-            end
-        end
-
+        local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
         local shouldPing = #detectedUnits > 0
+
+        if #detectedUnits > 1 then return end
+
         local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
 
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
@@ -1313,6 +1195,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
 
     if requestFunc then
         local success, result = pcall(function()
+           -- notify("Webhook", "Sending webhook...")
             return requestFunc({
                 Url = ValidWebhook,
                 Method = "POST",
@@ -6658,67 +6541,45 @@ Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Conn
         end
     end)
 
-Remotes.GameEndedUI.OnClientEvent:Connect(function(...)
-    local args = {...}
-    
-    -- Handle match result FIRST
-    if typeof(args[1]) == "string" then
-        local l = args[1]:lower()
-        if l:find("defeat") then
-            State.matchResult = "Defeat"
-        elseif l:find("won") or l:find("win") then
-            State.matchResult = "Victory"
-        else
-            State.matchResult = "Unknown"
-        end
-        print("🎯 Match result detected:", State.matchResult)
-    end
-    
-    -- Check if this is the rewards event
-    if args[1] == "Rewards - Items" and type(args[2]) == "table" then
-        print("🎁 GameEndedUI fired with rewards! Count:", #args[2])
-        capturedRewards = args[2]
-        
-        -- Send webhook with rewards NOW (after match result is set)
-        if State.SendStageCompletedWebhook and not State.hasSentWebhook then
-            local clearTimeStr = "Unknown"
-            if State.stageStartTime then
-                local dt = math.floor(tick() - State.stageStartTime)
-                clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
-            end
-            
-            sendWebhook("stage", args[2], clearTimeStr, State.matchResult)
-            State.hasSentWebhook = true
-        end
-    end
-end)
-
 Remotes.GameEnd.OnClientEvent:Connect(function()
     if State.hasSentWebhook then
-        return
-    end
-    State.hasGameEnded = true
-    State.gameRunning = false
-    
-    if State.AutoFailSafeEnabled == true then
-        startFailsafeAfterGameEnd()
-    end
-    resetUpgradeOrder()
+            return
+        end
+        State.hasGameEnded = true
+        if State.SendStageCompletedWebhook then
+        State.hasSentWebhook = true
+        end
+        State.gameRunning = false
+                if State.AutoFailSafeEnabled == true then
+            startFailsafeAfterGameEnd()
+        end
+        resetUpgradeOrder()
 
-    State.autoPlayDelayActive = false
-    State.actionTaken = false
+        task.wait(0.5)
+        local clearTimeStr = "Unknown"
+        if State.stageStartTime then
+            local dt = math.floor(tick() - State.stageStartTime)
+            clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
+        end
 
-    if State.pendingChallengeReturn and not State.actionTaken then
-        notify("Challenge Return", "New challenge detected - returning to lobby")
-        State.pendingChallengeReturn = false
-        State.actionTaken = true
-        task.delay(2, function()
-            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-        end)
-        return
-    end
+        if State.SendStageCompletedWebhook then
+        sendWebhook("stage", nil, clearTimeStr, State.matchResult)
+        end
 
-    local TIMEOUT = 10
+        State.autoPlayDelayActive = false
+        State.actionTaken = false
+
+        if State.pendingChallengeReturn and not State.actionTaken then
+            notify("Challenge Return", "New challenge detected - returning to lobby")
+            State.pendingChallengeReturn = false
+            State.actionTaken = true
+            task.delay(2, function()
+                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            end)
+            return
+        end
+
+        local TIMEOUT = 10
 
     local function waitForGameRunning(timeout)
         local elapsed = 0
