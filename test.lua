@@ -4764,7 +4764,7 @@ local Toggle = LobbyTab:CreateToggle({
     end,
 })
 
-local function setupAutoReconnect()
+--[[local function setupAutoReconnect()
     local TeleportService = game:GetService("TeleportService")
     local Players = game:GetService("Players")
     local GuiService = game:GetService("GuiService")
@@ -4848,7 +4848,7 @@ local function setupAutoReconnect()
     end)
 end
 
-setupAutoReconnect()
+setupAutoReconnect()--]]
 
      Toggle = GameTab:CreateToggle({
     Name = "Delete Map",
