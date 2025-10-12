@@ -982,7 +982,6 @@ local function getTotalAmount(itemName)
     -- Try Data folder first
     local dataItem = playerData.Data:FindFirstChild(itemName)
     if dataItem and dataItem.Value then
-        --print("comparing "..itemName.." and "..dataItem.Name)
         return dataItem.Value, "Data"
     end
     
@@ -995,7 +994,27 @@ local function getTotalAmount(itemName)
         end
     end
     
+    -- Try Collection folder for units
+    local collectionItem = playerData.Collection:FindFirstChild(itemName)
+    if collectionItem then
+        return 1, "Collection" -- Units don't have amounts, just count as 1
+    end
+    
     return nil, nil
+end
+
+local function isUnitDrop(rewardItem)
+    local success, isUnit = pcall(function()
+        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+        local collection = playerData:FindFirstChild("Collection")
+        
+        if collection and collection:FindFirstChild(rewardItem.Name) then
+            return true
+        end
+        return false
+    end)
+    
+    return success and isUnit
 end
 
 local function patchRewardsFromFolder(existingGained, detectedRewards, detectedUnits, lines)
@@ -1022,37 +1041,67 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
 end
 
 local function buildRewardsText()
-    local endingInventory = snapshotInventory()
-    local gainedItems = compareInventories(State.startingInventory, endingInventory)
+    local rewardsFolder = Services.Players.LocalPlayer:FindFirstChild("RewardsShow")
+    
+    if not rewardsFolder then
+        return "_No rewards found after match_", {}, {}
+    end
+    
     local lines = {}
     local detectedRewards = {}
     local detectedUnits = {}
-
-    for _, reward in ipairs(gainedItems) do
-        local itemName = reward.name
-        local amount = reward.amount
-
-        detectedRewards[itemName] = amount
-
-        if reward.isUnit then
-            table.insert(detectedUnits, itemName)
-            table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
-        else
-            local totalAmount, location = getTotalAmount(itemName)
-            local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
+    
+    -- Process all rewards from RewardsShow folder
+    for _, rewardItem in pairs(rewardsFolder:GetChildren()) do
+        if not rewardItem:IsA("Folder") and rewardItem:FindFirstChild("Amount") then
+            local itemName = rewardItem.Name
+            local amount = rewardItem.Amount.Value
             
-            -- Add (s) suffix only for "Gem"
-            local displayName = itemName == "Gem" and itemName.."(s)" or itemName
-            table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
+            if amount > 0 then
+                detectedRewards[itemName] = amount
+                
+                -- Check if this is a unit drop
+                if isUnitDrop(rewardItem) then
+                    table.insert(detectedUnits, itemName)
+                    table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
+                else
+                    -- Regular item reward
+                    local totalAmount, location = getTotalAmount(itemName)
+                    local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
+                    
+                    -- Add (s) suffix only for "Gem"
+                    local displayName = itemName == "Gem" and itemName.."(s)" or itemName
+                    table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
+                end
+            end
         end
     end
-
-    patchRewardsFromFolder(gainedItems, detectedRewards, detectedUnits, lines)
-
-    if #gainedItems == 0 then
+    
+    -- Fallback: check Collection folder directly for unit drops (sometimes units don't appear in RewardsShow)
+    local success = pcall(function()
+        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+        local collection = playerData:FindFirstChild("Collection")
+        
+        if collection then
+            for _, unitItem in pairs(collection:GetChildren()) do
+                local unitName = unitItem.Name
+                
+                -- Check if we already detected this unit
+                if not detectedRewards[unitName] then
+                    -- This is a newly obtained unit not in RewardsShow
+                    -- (This can happen with rare/secret units sometimes)
+                    detectedRewards[unitName] = 1
+                    table.insert(detectedUnits, unitName)
+                    table.insert(lines, string.format("🌟 %s x1", unitName))
+                end
+            end
+        end
+    end)
+    
+    if #lines == 0 then
         return "_No rewards found after match_", {}, {}
     end
-
+    
     local rewardsText = table.concat(lines, "\n")
     notify("Gained rewards:", rewardsText, 2)
     return rewardsText, detectedRewards, detectedUnits
@@ -1073,9 +1122,14 @@ end
 local function getOrderedUnits()
     local units = {}
     for i = 1, 6 do
-        local name = getUnitNameFromSlot(i)
-        if name then
-            table.insert(units, string.format("%d️⃣ - %s", i, name))
+        local success, unitName = pcall(function()
+            local loadout = Services.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. i]
+            local unitFolder = loadout.Frame.UnitFrame.Info.Folder.Value
+            return unitFolder and unitFolder.Name or nil
+        end)
+        
+        if success and unitName then
+            table.insert(units, string.format("%d️⃣ - %s", i, unitName))
         else
             table.insert(units, string.format("%d️⃣ Empty", i))
         end
@@ -1126,16 +1180,15 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
             username = "LixHub Bot",
             content = pingText,
             embeds = {{
-                title = "⚙️ GEAR FARM COMPLETE! ⚙️",
+                title = "GEAR FARM COMPLETE!",
                 description = pingText .. "\nAll materials have been farmed successfully!",
                 color = 0x00FF00, -- Green color for success
                 fields = {
                     { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
                     { name = "⚙️ Gears Ready to Craft", value = table.concat(gearList, "\n"), inline = false },
                     { name = "📦 Materials Collected", value = table.concat(materialsSummary, "\n"), inline = false },
-                    { name = "📈 Script Version", value = script_version, inline = true },
                 },
-                footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
             }}
         }
@@ -1149,7 +1202,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
         local shouldPing = #detectedUnits > 0
 
-        if #detectedUnits > 1 then return end
+        --if #detectedUnits > 1 then return end
 
         local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
 
