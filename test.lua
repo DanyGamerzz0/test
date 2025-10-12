@@ -4769,10 +4769,11 @@ local function setupAutoReconnect()
                 
                 -- Check if it's actually a kick/disconnect message
                 local lowerMsg = errorMessage:lower()
-                if lowerMsg:find("kick") or 
-                   lowerMsg:find("disconnect") or
+                if lowerMsg:find("kicked") or 
+                   lowerMsg:find("disconnected") or
                    lowerMsg:find("banned") or
                    lowerMsg:find("removed") or
+                   lowerMsg:find("rejoin") or
                    lowerMsg:find("lost connection") then
                     
                     notify("Auto Reconnect", "Kick detected! Reconnecting in 2 seconds...", 2)
