@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1135,17 +1135,27 @@ local function sendWebhook(messageType, rewards, detectedUnits)
             }}
         }
     elseif messageType == "stage" then
-        local GameSettings = Services.Workspace:FindFirstChild("GameSettings")
-        local stageName = GameSettings and GameSettings:FindFirstChild("Stages") and GameSettings.Stages.Value or "Unknown"
-        local gameMode = GameSettings and GameSettings:FindFirstChild("Act") and GameSettings.Act.Value or "?"
-        local gameDif = GameSettings and GameSettings:FindFirstChild("Difficulty") and GameSettings.Difficulty.Value or "?"
+        -- Get accurate game data from GetTeleportData
+        local stageName = "Unknown"
+        local gameType = "?"
+        local mapNum = "?"
+        local difficulty = "?"
         
-        local baseHealth = GameSettings and GameSettings:FindFirstChild("Base") and GameSettings.Base:FindFirstChild("Health")
-        local isWin = baseHealth and baseHealth.Value > 0 or false
-        local result = isWin and "Win" or "Loss"
+        local success, teleportData = pcall(function()
+            return Services.ReplicatedStorage.Remotes.GetTeleportData:InvokeServer()
+        end)
         
-        local playerData = LocalPlayer:FindFirstChild("Data")
-        local plrlevel = playerData and playerData:FindFirstChild("Levels") and playerData.Levels.Value or "?"
+        if success and teleportData then
+            stageName = teleportData.MapName or stageName
+            gameType = teleportData.Type or gameType
+            mapNum = teleportData.MapNum or mapNum
+            difficulty = teleportData.Difficulty or difficulty
+        else
+            warn("Failed to get teleport data, using fallback")
+        end
+        
+        -- Get player level
+        local plrlevel = LocalPlayer:FindFirstChild("Level") and LocalPlayer.Level.Value or "?"
         
         local clearTime = State.gameInProgress and (tick() - State.gameStartTime) or 0
         local hours = math.floor(clearTime / 3600)
@@ -1157,12 +1167,13 @@ local function sendWebhook(messageType, rewards, detectedUnits)
         local hasUnits = detectedUnits and #detectedUnits > 0
         
         local shouldPing = hasUnits
-        local content = shouldPing and string.format("<@%s> Unit drop: %s", 
-            Config.DISCORD_USER_ID or "000000000000000000",
-            table.concat(detectedUnits, ", ")) or ""
+        local content = shouldPing and string.format("<@%s>", Config.DISCORD_USER_ID or "")
         
-        local title = hasUnits and "Unit Obtained" or "Stage Complete"
-        local stageInfo = string.format("%s - Act %s - %s - %s", stageName, gameMode, gameDif, result)
+        local title = hasUnits and "Unit Obtained!" or "Stage Finished"
+        local stageInfo = string.format("%s - %s Act %s - Finished", stageName, gameType, mapNum)
+        
+        -- Nice gray/white color
+        local embedColor = hasUnits and 0xFFD700 or 0x95A5A6  -- Gold for units, gray for normal completion
         
         data = {
             username = "LixHub",
@@ -1170,9 +1181,10 @@ local function sendWebhook(messageType, rewards, detectedUnits)
             embeds = {{
                 title = title,
                 description = stageInfo,
-                color = hasUnits and 0xFFD700 or (isWin and 0x00FF00 or 0xFF0000),
+                color = embedColor,
                 fields = {
-                    { name = "Player", value = string.format("%s [%s]", LocalPlayer.Name, tostring(plrlevel)), inline = true },
+                    { name = "Player", value = string.format("%s [Level %s]", LocalPlayer.Name, tostring(plrlevel)), inline = true },
+                    { name = "Difficulty", value = tostring(difficulty), inline = true },
                     { name = "Time", value = formattedTime, inline = true },
                     { name = "Rewards", value = rewardsText, inline = false },
                     { name = "Version", value = script_version, inline = true },
