@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.026"
+local script_version = "V0.027"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1027,53 +1027,6 @@ local function onGameStart()
     end
 end
 
-local function captureRewardTotals()
-    local totals = {}
-    local connections = {}
-    
-    print("🎯 Starting reward totals capture...")
-    
-    -- Listen to ReplicaSetValue events
-    table.insert(connections, Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
-        local args = {...}
-        if #args >= 3 then
-            local category = args[2]
-            local value = args[3]
-            
-            -- Capture Emeralds total
-            if category == "Emeralds" and type(value) == "number" then
-                totals["Emerald"] = value
-                print(string.format("✅ Captured Emerald total: %d", value))
-            end
-        end
-    end))
-    
-    -- Listen to StartPreload for item totals
-    table.insert(connections, Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
-        if dataType == "Item" and data.ItemName and data.Amount then
-            totals[data.ItemName] = data.Amount
-            print(string.format("✅ Captured %s total: %d", data.ItemName, data.Amount))
-        end
-    end))
-    
-    -- Wait for events to fire
-    task.wait(3)
-    
-    -- Cleanup connections
-    for _, conn in ipairs(connections) do
-        if conn then conn:Disconnect() end
-    end
-    
-    print(string.format("📊 Capture complete. Found %d totals", 
-        (function()
-            local count = 0
-            for _ in pairs(totals) do count = count + 1 end
-            return count
-        end)()))
-    
-    return totals
-end
-
 local function waitForRewards()
     local endGameUI = LocalPlayer.PlayerGui:WaitForChild("EndGameUI", 10)
 
@@ -1094,9 +1047,6 @@ local function waitForRewards()
     end
 
     task.wait(0.5)
-
-    -- Start capturing totals NOW (before drilling into UI)
-    local totals = captureRewardTotals()
 
     -- Drill down to the rewards holder
     local holder = endGameUI:FindFirstChild("BG")
@@ -1130,7 +1080,6 @@ local function waitForRewards()
             local amount = rewardItem:GetAttribute("Amount")
 
             if unitName then
-                -- It's a unit drop
                 table.insert(rewards, {
                     Name = unitName,
                     Amount = 1,
@@ -1138,7 +1087,6 @@ local function waitForRewards()
                 })
                 table.insert(detectedUnits, unitName)
             elseif itemName then
-                -- It's a normal item drop
                 table.insert(rewards, {
                     Name = itemName,
                     Amount = amount or 1,
@@ -1150,13 +1098,7 @@ local function waitForRewards()
 
     print(string.format("Captured %d rewards, %d units", #rewards, #detectedUnits))
     
-    -- Debug: Print totals
-    print("📦 Totals captured:")
-    for name, total in pairs(totals) do
-        print(string.format("  - %s: %d", name, total))
-    end
-    
-    return rewards, detectedUnits, totals
+    return rewards, detectedUnits
 end
 
 
@@ -1856,53 +1798,101 @@ task.spawn(function()
     end)
 
     gameEnded.Changed:Connect(function(ended)
-        if ended and State.gameInProgress then
-            local clearTime = tick() - State.gameStartTime
-            State.gameInProgress = false
-            print("Game ended (GameEnded flag)")
+    if ended and State.gameInProgress then
+        local clearTime = tick() - State.gameStartTime
+        State.gameInProgress = false
+        print("Game ended (GameEnded flag)")
 
-            -- 🧩 Move webhook + reward capture logic here
-            task.spawn(function()
-                local rewards, detectedUnits, totals = waitForRewards()
-
-                if not rewards then
-                    print("Failed to capture rewards")
-                    return
-                end
-
-                print(string.format(
-                    "Rewards captured: %d items, %d units",
-                    #rewards,
-                    detectedUnits and #detectedUnits or 0
-                ))
-
-                if State.SendStageCompletedWebhook then
-                    sendWebhook("stage", rewards, detectedUnits, clearTime, totals)
-                end
-            end)
-
-            -- 🎥 Handle recording stop
-            if State.isRecording and State.recordingHasStarted then
-                State.isRecording = false
-                State.recordingHasStarted = false
-
-                if RecordToggle then
-                    RecordToggle:Set(false)
-                end
-
-                Rayfield:Notify({
-                    Title = "Recording Stopped",
-                    Content = "Game ended, recording saved.",
-                    Duration = 3
-                })
-
-                if currentMacroName and #macro > 0 then
-                    macroManager[currentMacroName] = macro
-                    saveMacroToFile(currentMacroName)
+        -- 🔥 START CAPTURING TOTALS IMMEDIATELY
+        local totals = {}
+        local connections = {}
+        
+        print("🎯 Starting reward totals capture...")
+        
+        -- Listen to ReplicaSetValue events
+        table.insert(connections, Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
+            local args = {...}
+            if #args >= 3 then
+                local category = args[2]
+                local value = args[3]
+                
+                if category == "Emeralds" and type(value) == "number" then
+                    totals["Emerald"] = value
+                    print(string.format("✅ Captured Emerald total: %d", value))
                 end
             end
+        end))
+        
+        -- Listen to StartPreload for item totals
+        table.insert(connections, Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
+            if dataType == "Item" and data.ItemName and data.Amount then
+                totals[data.ItemName] = data.Amount
+                print(string.format("✅ Captured %s total: %d", data.ItemName, data.Amount))
+            end
+        end))
+
+        -- 🧩 Move webhook + reward capture logic here
+        task.spawn(function()
+            -- Wait for UI and rewards
+            local rewards, detectedUnits = waitForRewards()
+
+            -- Cleanup connections after UI processing
+            task.wait(0.5)
+            for _, conn in ipairs(connections) do
+                if conn then conn:Disconnect() end
+            end
+            
+            print(string.format("📊 Capture complete. Found %d totals", 
+                (function()
+                    local count = 0
+                    for _ in pairs(totals) do count = count + 1 end
+                    return count
+                end)()))
+
+            if not rewards then
+                print("Failed to capture rewards")
+                return
+            end
+
+            print(string.format(
+                "Rewards captured: %d items, %d units",
+                #rewards,
+                detectedUnits and #detectedUnits or 0
+            ))
+            
+            -- Debug: Print totals
+            print("📦 Totals captured:")
+            for name, total in pairs(totals) do
+                print(string.format("  - %s: %d", name, total))
+            end
+
+            if State.SendStageCompletedWebhook then
+                sendWebhook("stage", rewards, detectedUnits, clearTime, totals)
+            end
+        end)
+
+        -- 🎥 Handle recording stop
+        if State.isRecording and State.recordingHasStarted then
+            State.isRecording = false
+            State.recordingHasStarted = false
+
+            if RecordToggle then
+                RecordToggle:Set(false)
+            end
+
+            Rayfield:Notify({
+                Title = "Recording Stopped",
+                Content = "Game ended, recording saved.",
+                Duration = 3
+            })
+
+            if currentMacroName and #macro > 0 then
+                macroManager[currentMacroName] = macro
+                saveMacroToFile(currentMacroName)
+            end
         end
-    end)
+    end
+end)
 end)
 
 -- ============================================
