@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.01"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1917,7 +1917,7 @@ task.spawn(function()
 end)
 ensureMacroFolders()
 loadAllMacros()
-
+Rayfield:LoadConfiguration()
 -- ============================================
 -- AUTO PLAYBACK LOOP
 -- ============================================
