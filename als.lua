@@ -1116,7 +1116,7 @@ local function formatRewardsText(rewards)
     return table.concat(lines, "\n")
 end
 
-local function sendWebhook(messageType, rewards, detectedUnits)
+local function sendWebhook(messageType, rewards, detectedUnits, clearTime)
     if not ValidWebhook then 
         return 
     end
@@ -1157,7 +1157,6 @@ local function sendWebhook(messageType, rewards, detectedUnits)
         -- Get player level
         local plrlevel = LocalPlayer:FindFirstChild("Level") and LocalPlayer.Level.Value or "?"
         
-        local clearTime = State.gameInProgress and (tick() - State.gameStartTime) or 0
         local hours = math.floor(clearTime / 3600)
         local minutes = math.floor((clearTime % 3600) / 60)
         local seconds = math.floor(clearTime % 60)
@@ -1167,13 +1166,13 @@ local function sendWebhook(messageType, rewards, detectedUnits)
         local hasUnits = detectedUnits and #detectedUnits > 0
         
         local shouldPing = hasUnits
-        local content = shouldPing and string.format("<@%s>", Config.DISCORD_USER_ID or "")
+        local content = shouldPing and string.format("<@%s>", Config.DISCORD_USER_ID or "") or nil
         
-        local title = hasUnits and "Unit Obtained!" or "Stage Finished"
-        local stageInfo = string.format("%s - %s Act %s - Finished", stageName, gameType, mapNum)
+        local title = "Stage Finished - ALS"
+        local stageInfo = string.format("%s - %s (Act %s) - Finished", stageName, gameType, mapNum)
         
         -- Nice gray/white color
-        local embedColor = hasUnits and 0xFFD700 or 0x95A5A6  -- Gold for units, gray for normal completion
+        local embedColor = 0x95A5A6
         
         data = {
             username = "LixHub",
@@ -1183,11 +1182,10 @@ local function sendWebhook(messageType, rewards, detectedUnits)
                 description = stageInfo,
                 color = embedColor,
                 fields = {
-                    { name = "Player", value = string.format("%s [Level %s]", LocalPlayer.Name, tostring(plrlevel)), inline = true },
+                    { name = "Player", value = string.format("||%s [Level %s]||", LocalPlayer.Name, tostring(plrlevel)), inline = true },
                     { name = "Difficulty", value = tostring(difficulty), inline = true },
                     { name = "Time", value = formattedTime, inline = true },
                     { name = "Rewards", value = rewardsText, inline = false },
-                    { name = "Version", value = script_version, inline = true },
                 },
                 footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -1791,6 +1789,7 @@ task.spawn(function()
 
     gameEnded.Changed:Connect(function(ended)
         if ended and State.gameInProgress then
+            local clearTime = tick() - State.gameStartTime
             State.gameInProgress = false
             print("Game ended (GameEnded flag)")
 
@@ -1810,7 +1809,7 @@ task.spawn(function()
                 ))
 
                 if State.SendStageCompletedWebhook then
-                    sendWebhook("stage", rewards, detectedUnits)
+                    sendWebhook("stage", rewards, detectedUnits, clearTime)
                 end
             end)
 
