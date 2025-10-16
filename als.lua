@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.025"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1027,7 +1027,51 @@ local function onGameStart()
     end
 end
 
+local function captureRewardTotals()
+    local totals = {}
+    local connection
+    local timeout = tick() + 5  -- 5 second timeout
+    
+    -- Listen to ReplicaSetValue events
+    connection = Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
+        local args = {...}
+        if #args >= 3 then
+            local category = args[2]  -- "Emeralds", "ItemData", etc.
+            local value = args[3]
+            
+            -- Capture Emeralds total
+            if category == "Emeralds" and type(value) == "number" then
+                totals["Emerald"] = value  -- Match with reward name "Emerald"
+                print("Captured Emeralds total:", value)
+            end
+        end
+    end)
+    
+    -- Also listen to StartPreload for item totals
+    local preloadConnection
+    preloadConnection = Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
+        if dataType == "Item" and data.ItemName and data.Amount then
+            totals[data.ItemName] = data.Amount
+            print(string.format("Captured %s total: %d", data.ItemName, data.Amount))
+        end
+    end)
+    
+    -- Wait a bit for all events to fire
+    task.wait(2)
+    
+    -- Cleanup
+    if connection then connection:Disconnect() end
+    if preloadConnection then preloadConnection:Disconnect() end
+    
+    return totals
+end
+
 local function waitForRewards()
+    -- Start capturing totals immediately
+    local totalsPromise = task.spawn(function()
+        return captureRewardTotals()
+    end)
+    
     local endGameUI = LocalPlayer.PlayerGui:WaitForChild("EndGameUI", 10)
 
     if not endGameUI then
@@ -1098,25 +1142,42 @@ local function waitForRewards()
         end
     end
 
+    -- Wait for totals to finish capturing
+    task.wait(1)
+    
+    -- Get the totals (this is a bit hacky but works)
+    local totals = captureRewardTotals()
+
     print(string.format("Captured %d rewards, %d units", #rewards, #detectedUnits))
-    return rewards, detectedUnits
+    return rewards, detectedUnits, totals
 end
 
 
-local function formatRewardsText(rewards)
+local function formatRewardsText(rewards, totals)
     if not rewards or #rewards == 0 then
         return "None"
     end
     
+    totals = totals or {}
     local lines = {}
+    
     for _, reward in ipairs(rewards) do
-        table.insert(lines, string.format("%s x%s", reward.Name, tostring(reward.Amount)))
+        local total = totals[reward.Name]
+        local rewardText
+        
+        if total then
+            rewardText = string.format("%s x%s (%s total)", reward.Name, tostring(reward.Amount), tostring(total))
+        else
+            rewardText = string.format("%s x%s", reward.Name, tostring(reward.Amount))
+        end
+        
+        table.insert(lines, rewardText)
     end
     
     return table.concat(lines, "\n")
 end
 
-local function sendWebhook(messageType, rewards, detectedUnits, clearTime)
+local function sendWebhook(messageType, rewards, detectedUnits, clearTime, totals)
     if not ValidWebhook then 
         return 
     end
@@ -1162,7 +1223,7 @@ local function sendWebhook(messageType, rewards, detectedUnits, clearTime)
         local seconds = math.floor(clearTime % 60)
         local formattedTime = string.format("%02d:%02d:%02d", hours, minutes, seconds)
         
-        local rewardsText = formatRewardsText(rewards)
+        local rewardsText = formatRewardsText(rewards, totals)
         local hasUnits = detectedUnits and #detectedUnits > 0
         
         local shouldPing = hasUnits
@@ -1182,7 +1243,7 @@ local function sendWebhook(messageType, rewards, detectedUnits, clearTime)
                 description = stageInfo,
                 color = embedColor,
                 fields = {
-                    { name = "Player", value = string.format("||%s [Level %s]||", LocalPlayer.Name, tostring(plrlevel)), inline = true },
+                    { name = "Player", value = string.format("||%s [%s]||", LocalPlayer.Name, tostring(plrlevel)), inline = true },
                     { name = "Difficulty", value = tostring(difficulty), inline = true },
                     { name = "Time", value = formattedTime, inline = true },
                     { name = "Rewards", value = rewardsText, inline = false },
@@ -1795,7 +1856,7 @@ task.spawn(function()
 
             -- 🧩 Move webhook + reward capture logic here
             task.spawn(function()
-                local rewards, detectedUnits = waitForRewards()
+                local rewards, detectedUnits, totals = waitForRewards()
 
                 if not rewards then
                     print("Failed to capture rewards")
@@ -1809,7 +1870,7 @@ task.spawn(function()
                 ))
 
                 if State.SendStageCompletedWebhook then
-                    sendWebhook("stage", rewards, detectedUnits, clearTime)
+                    sendWebhook("stage", rewards, detectedUnits, clearTime, totals)
                 end
             end)
 
