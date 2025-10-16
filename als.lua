@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.025"
+local script_version = "V0.026"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1029,49 +1029,52 @@ end
 
 local function captureRewardTotals()
     local totals = {}
-    local connection
-    local timeout = tick() + 5  -- 5 second timeout
+    local connections = {}
+    
+    print("🎯 Starting reward totals capture...")
     
     -- Listen to ReplicaSetValue events
-    connection = Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
+    table.insert(connections, Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
         local args = {...}
         if #args >= 3 then
-            local category = args[2]  -- "Emeralds", "ItemData", etc.
+            local category = args[2]
             local value = args[3]
             
             -- Capture Emeralds total
             if category == "Emeralds" and type(value) == "number" then
-                totals["Emerald"] = value  -- Match with reward name "Emerald"
-                print("Captured Emeralds total:", value)
+                totals["Emerald"] = value
+                print(string.format("✅ Captured Emerald total: %d", value))
             end
         end
-    end)
+    end))
     
-    -- Also listen to StartPreload for item totals
-    local preloadConnection
-    preloadConnection = Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
+    -- Listen to StartPreload for item totals
+    table.insert(connections, Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
         if dataType == "Item" and data.ItemName and data.Amount then
             totals[data.ItemName] = data.Amount
-            print(string.format("Captured %s total: %d", data.ItemName, data.Amount))
+            print(string.format("✅ Captured %s total: %d", data.ItemName, data.Amount))
         end
-    end)
+    end))
     
-    -- Wait a bit for all events to fire
-    task.wait(2)
+    -- Wait for events to fire
+    task.wait(3)
     
-    -- Cleanup
-    if connection then connection:Disconnect() end
-    if preloadConnection then preloadConnection:Disconnect() end
+    -- Cleanup connections
+    for _, conn in ipairs(connections) do
+        if conn then conn:Disconnect() end
+    end
+    
+    print(string.format("📊 Capture complete. Found %d totals", 
+        (function()
+            local count = 0
+            for _ in pairs(totals) do count = count + 1 end
+            return count
+        end)()))
     
     return totals
 end
 
 local function waitForRewards()
-    -- Start capturing totals immediately
-    local totalsPromise = task.spawn(function()
-        return captureRewardTotals()
-    end)
-    
     local endGameUI = LocalPlayer.PlayerGui:WaitForChild("EndGameUI", 10)
 
     if not endGameUI then
@@ -1091,6 +1094,9 @@ local function waitForRewards()
     end
 
     task.wait(0.5)
+
+    -- Start capturing totals NOW (before drilling into UI)
+    local totals = captureRewardTotals()
 
     -- Drill down to the rewards holder
     local holder = endGameUI:FindFirstChild("BG")
@@ -1142,13 +1148,14 @@ local function waitForRewards()
         end
     end
 
-    -- Wait for totals to finish capturing
-    task.wait(1)
-    
-    -- Get the totals (this is a bit hacky but works)
-    local totals = captureRewardTotals()
-
     print(string.format("Captured %d rewards, %d units", #rewards, #detectedUnits))
+    
+    -- Debug: Print totals
+    print("📦 Totals captured:")
+    for name, total in pairs(totals) do
+        print(string.format("  - %s: %d", name, total))
+    end
+    
     return rewards, detectedUnits, totals
 end
 
