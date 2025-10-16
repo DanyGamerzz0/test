@@ -1029,88 +1029,79 @@ end
 
 local function waitForRewards()
     local endGameUI = LocalPlayer.PlayerGui:WaitForChild("EndGameUI", 10)
-    
+
     if not endGameUI then
         warn("EndGameUI not found")
         return nil
     end
-    
-    -- Wait for UI to be enabled
+
+    -- Wait until the UI becomes visible
     local timeout = tick() + 10
     while not endGameUI.Enabled and tick() < timeout do
         task.wait(0.1)
     end
-    
+
     if not endGameUI.Enabled then
         warn("EndGameUI never enabled")
         return nil
     end
-    
+
     task.wait(0.5)
-    
+
+    -- Drill down to the rewards holder
     local holder = endGameUI:FindFirstChild("BG")
     if holder then holder = holder:FindFirstChild("Container") end
     if holder then holder = holder:FindFirstChild("Rewards") end
     if holder then holder = holder:FindFirstChild("Holder") end
-    
+
     if not holder then
         warn("Rewards holder not found")
         return nil
     end
-    
+
     -- Wait for rewards to populate
     timeout = tick() + 15
-    local rewardCount = 0
-    
-    while tick() < timeout do
-        rewardCount = 0
-        for _, child in pairs(holder:GetChildren()) do
-            if child:IsA("TextButton") then
-                local itemName = child:GetAttribute("Item")
-                if itemName and itemName ~= "" and itemName ~= "Unknown" then
-                    rewardCount = rewardCount + 1
-                end
-            end
-        end
-        
-        if rewardCount > 0 then
-            break
-        end
-        
+    while tick() < timeout and #holder:GetChildren() == 0 do
         task.wait(0.2)
     end
-    
-    if rewardCount == 0 then
-        warn("No rewards found after waiting")
+
+    if #holder:GetChildren() == 0 then
+        warn("No rewards detected")
         return nil
     end
-    
+
     local rewards = {}
     local detectedUnits = {}
-    
+
     for _, rewardItem in pairs(holder:GetChildren()) do
-        if rewardItem:IsA("TextButton") then
+        if rewardItem:IsA("TextButton") or rewardItem:IsA("ImageButton") then
+            local unitName = rewardItem:GetAttribute("Unit")
             local itemName = rewardItem:GetAttribute("Item")
             local amount = rewardItem:GetAttribute("Amount")
-            local isUnit = rewardItem:GetAttribute("Unit")
-            
-            if itemName and itemName ~= "" and itemName ~= "Unknown" then
+
+            if unitName then
+                -- It's a unit drop
+                table.insert(rewards, {
+                    Name = unitName,
+                    Amount = 1,
+                    IsUnit = true
+                })
+                table.insert(detectedUnits, unitName)
+            elseif itemName then
+                -- It's a normal item drop
                 table.insert(rewards, {
                     Name = itemName,
-                    Amount = amount,
-                    IsUnit = isUnit or false
+                    Amount = amount or 1,
+                    IsUnit = false
                 })
-                
-                if isUnit then
-                    table.insert(detectedUnits, itemName)
-                end
             end
         end
     end
-    
+
     print(string.format("Captured %d rewards, %d units", #rewards, #detectedUnits))
     return rewards, detectedUnits
 end
+
 
 local function formatRewardsText(rewards)
     if not rewards or #rewards == 0 then
