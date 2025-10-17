@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.029"
+local script_version = "V0.03"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1936,11 +1936,12 @@ task.spawn(function()
     -- Listen to ReplicaSetValue events
     game:GetService("ReplicatedStorage").ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
         local args = {...}
+        print("REPLICASETVALUE FIRED WITH "..args)
         if #args >= 3 then
             local category = args[2]
             local value = args[3]
             
-            if (category == "Emeralds" or category == "Jewels") and type(value) == "number" then
+            if category == "Emeralds" and type(value) == "number" then
                 RewardTotals["Emerald"] = value
                 print(string.format("📊 Updated Emerald total: %d", value))
             end
@@ -1949,6 +1950,7 @@ task.spawn(function()
     
     -- Listen to StartPreload for item totals
     game:GetService("ReplicatedStorage").Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
+        print("STARTPRELOAD FIRED")
         if dataType == "Item" and data.ItemName and data.Amount then
             RewardTotals[data.ItemName] = data.Amount
             print(string.format("📊 Updated %s total: %d", data.ItemName, data.Amount))
