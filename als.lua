@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.033"
+local script_version = "V0.034"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1937,35 +1937,17 @@ task.spawn(function()
     Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
         local args = {...}
         
-        -- Debug: Print all arguments
-        print("🔍 ReplicaSetValue fired:")
-        print("  Args count:", #args)
-        for i, arg in ipairs(args) do
-            print(string.format("  Arg[%d]: %s = %s", i, type(arg), tostring(arg)))
-        end
-        
         if #args >= 3 then
             local category = args[2]
             local value = args[3]
             
-            print(string.format("  Category type: %s, Value type: %s", type(category), type(value)))
-            
-            -- 🔥 FIX: Category is a table, check its contents
+            -- Extract category name from table
             local categoryName = nil
             if type(category) == "table" then
-                -- Try to find category name in the table
-                categoryName = category[1] or category.Name or category.Category
-                print(string.format("  Category table key [1]: %s", tostring(category[1])))
-                
-                -- Debug: print all keys in category table
-                for k, v in pairs(category) do
-                    print(string.format("    Category[%s] = %s", tostring(k), tostring(v)))
-                end
+                categoryName = category[1]
             elseif type(category) == "string" then
                 categoryName = category
             end
-            
-            print(string.format("  Resolved category name: %s", tostring(categoryName)))
             
             -- Capture Emeralds total
             if categoryName == "Emeralds" and type(value) == "number" then
@@ -1973,48 +1955,40 @@ task.spawn(function()
                 print(string.format("✅ Updated Emerald total: %d", value))
             end
             
-            -- Capture EXP total (might be "Experience" or "EXP")
-            if (categoryName == "Experience" or categoryName == "EXP" or categoryName == "Player_EXP") and type(value) == "number" then
+            -- Capture EXP total
+            if categoryName == "EXP" and type(value) == "number" then
                 RewardTotals["EXP"] = value
                 print(string.format("✅ Updated EXP total: %d", value))
             end
             
+            -- Capture TotalStats subcategories
+            if categoryName == "TotalStats" and type(category) == "table" and category[2] then
+                local statName = category[2]
+                if statName == "TotalEmeralds" and type(value) == "number" then
+                    RewardTotals["Emerald"] = value
+                    print(string.format("✅ Updated Emerald total (TotalStats): %d", value))
+                end
+            end
+            
             -- Capture ItemData
             if categoryName == "ItemData" and type(value) == "table" then
-                print("  ItemData table contents:")
                 for itemName, itemData in pairs(value) do
-                    print(string.format("    [%s] = %s", tostring(itemName), type(itemData)))
-                    
-                    if type(itemData) == "table" then
-                        for k, v in pairs(itemData) do
-                            print(string.format("      %s = %s", tostring(k), tostring(v)))
-                        end
-                        
-                        if itemData.Amount then
-                            RewardTotals[itemName] = itemData.Amount
-                            print(string.format("✅ Updated %s total: %d", itemName, itemData.Amount))
-                        end
+                    if type(itemData) == "table" and itemData.Amount then
+                        RewardTotals[itemName] = itemData.Amount
+                        print(string.format("✅ Updated %s total: %d", itemName, itemData.Amount))
                     end
                 end
             end
         end
     end)
     
-    -- Listen to StartPreload for item totals (backup method)
+    -- Backup method: Listen to StartPreload
     Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
-        print("🔍 StartPreload fired:")
-        print(string.format("  DataType: %s", tostring(dataType)))
-        print(string.format("  Data type: %s", type(data)))
-        
-        if type(data) == "table" then
-            for k, v in pairs(data) do
-                print(string.format("    %s = %s", tostring(k), tostring(v)))
+        if (dataType == "Item" or dataType == "ExperienceItem") and type(data) == "table" then
+            if data.ItemName and data.Amount then
+                RewardTotals[data.ItemName] = data.Amount
+                print(string.format("✅ Updated %s total (preload): %d", data.ItemName, data.Amount))
             end
-        end
-        
-        if (dataType == "Item" or dataType == "ExperienceItem") and data.ItemName and data.Amount then
-            RewardTotals[data.ItemName] = data.Amount
-            print(string.format("✅ Updated %s total (preload): %d", data.ItemName, data.Amount))
         end
     end)
 end)
