@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.022"
+local script_version = "V0.023"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -526,49 +526,6 @@ local function processAbilityAction(towerInstance, abilityName)
     print(string.format("⚡ Ability recorded: %s used '%s'", placementId, abilityName))
 end
 
-local function processAbilitySelection(towerInstance, abilityName, selectionIndex, selectionName)
-    local uid = towerInstance:GetAttribute("UniqueID")
-    local placementId = uid and trackedUnits[uid]
-
-    if not placementId then
-        warn("❌ Ability selection on untracked tower:", towerInstance.Name)
-        return
-    end
-
-    -- Check if there's a pending ability menu open for this tower
-    local pending = nil
-    for i = #abilitySelectionPending, 1, -1 do
-        if abilitySelectionPending[i].towerUID == uid then
-            pending = abilitySelectionPending[i]
-            table.remove(abilitySelectionPending, i)
-            break
-        end
-    end
-
-    if not pending then
-        warn("⚠️ No pending ability menu found for selection")
-        return
-    end
-
-    local timestamp = tick()
-    local gameRelativeTime = timestamp - State.gameStartTime
-
-    -- Record multi-choice ability in macro
-    local record = {
-        Type = "use_ability_multi",
-        Unit = placementId,
-        AbilityName = pending.abilityName,
-        SelectionIndex = selectionIndex,
-        SelectionName = selectionName,
-        Time = string.format("%.2f", gameRelativeTime)
-    }
-
-    table.insert(macro, record)
-
-    print(string.format("⚡ Multi-ability recorded: %s used '%s' → '%s' (index: %d)", 
-        placementId, pending.abilityName, selectionName, selectionIndex))
-end
-
 -- ============================================
 -- PLAYBACK FUNCTIONS
 -- ============================================
@@ -863,67 +820,6 @@ local function executeAbility(action, actionIndex, totalActions)
     end
 end
 
-local function executeAbilityMulti(action, actionIndex, totalActions)
-    local uid = playbackUnitMapping[action.Unit]
-    
-    if not uid then
-        warn("❌ No mapping found for:", action.Unit)
-        return false
-    end
-    
-    local towers = Services.Workspace:FindFirstChild("Towers")
-    if not towers then return false end
-    
-    local towerInstance = nil
-    for _, t in pairs(towers:GetChildren()) do
-        if t:GetAttribute("UniqueID") == uid then
-            towerInstance = t
-            break
-        end
-    end
-    
-    if not towerInstance then
-        warn("❌ Tower instance not found for multi-ability:", action.Unit)
-        return false
-    end
-    
-    updateDetailedStatus(string.format("(%d/%d) Opening ability menu on %s...", actionIndex, totalActions, action.Unit))
-    
-    print(string.format("⚡ Opening ability menu '%s' on %s", action.AbilityName, action.Unit))
-    
-    -- Step 1: Open ability menu
-    local menuSuccess = pcall(function()
-        Services.ReplicatedStorage.Remotes.Ability:InvokeServer(towerInstance, action.AbilityName)
-    end)
-    
-    if not menuSuccess then
-        warn(string.format("❌ Failed to open ability menu on %s", action.Unit))
-        return false
-    end
-    
-    -- Step 2: Wait a bit for menu to open
-    task.wait(0.3)
-    
-    updateDetailedStatus(string.format("(%d/%d) Selecting '%s'...", actionIndex, totalActions, action.SelectionName))
-    
-    print(string.format("⚡ Selecting '%s' (index: %d)", action.SelectionName, action.SelectionIndex))
-    
-    -- Step 3: Make selection
-    local selectionSuccess = pcall(function()
-        Services.ReplicatedStorage.Remotes.AbilitySelection:FireServer(action.SelectionIndex, action.SelectionName)
-    end)
-    
-    if selectionSuccess then
-        print(string.format("✅ Multi-ability '%s' → '%s' used on %s", 
-            action.AbilityName, action.SelectionName, action.Unit))
-        updateDetailedStatus(string.format("(%d/%d) Multi-ability used successfully", actionIndex, totalActions))
-        return true
-    else
-        warn(string.format("❌ Failed to select ability option on %s", action.Unit))
-        return false
-    end
-end
-
 local function waitForGameStart_Playback()
     local gameStartedValue = Services.ReplicatedStorage:WaitForChild("GameStarted") -- Boolean
     local gameEndedValue = Services.ReplicatedStorage:WaitForChild("GameEnded") -- Boolean
@@ -1032,11 +928,23 @@ local function playMacroOnce()
                             queuedItem.actionIndex, queuedItem.totalActions))
                         executeAbility(queuedItem.action, queuedItem.actionIndex, queuedItem.totalActions)
                         print(string.format("✅ Fired ability at %.2fs", currentTime))
-                    elseif queuedItem.action.Type == "use_ability_multi" then
-                        MacroStatusLabel:Set(string.format("Status: (%d/%d) Using multi-ability", 
+                    elseif queuedItem.action.Type == "ability_selection" then
+                        MacroStatusLabel:Set(string.format("Status: (%d/%d) Selecting ability option", 
                             queuedItem.actionIndex, queuedItem.totalActions))
-                        executeAbilityMulti(queuedItem.action, queuedItem.actionIndex, queuedItem.totalActions)
-                        print(string.format("✅ Fired multi-ability at %.2fs", currentTime))
+                        
+                        local success = pcall(function()
+                            Services.ReplicatedStorage.Remotes.AbilitySelection:FireServer(
+                                queuedItem.action.SelectionIndex, 
+                                queuedItem.action.SelectionName
+                            )
+                        end)
+                        
+                        if success then
+                            print(string.format("✅ Fired ability selection '%s' at %.2fs", 
+                                queuedItem.action.SelectionName, currentTime))
+                        else
+                            warn(string.format("❌ Failed to fire ability selection at %.2fs", currentTime))
+                        end
                     end
                     
                     table.remove(abilityQueue, i)
@@ -1089,7 +997,7 @@ local function playMacroOnce()
         end
         
         -- 🆕 HANDLE ABILITIES WITH SMART TIMING (ALWAYS SCHEDULE)
-        if action.Type == "use_ability" or action.Type == "use_ability_multi" then
+        if action.Type == "use_ability" or action.Type == "ability_selection" then
             -- Always schedule abilities, even if IgnoreTiming is on
             table.insert(abilityQueue, {
                 action = action,
@@ -1571,89 +1479,30 @@ mt.__namecall = newcclosure(function(self, ...)
                 local abilityName = args[2]
                 
                 if towerInstance and towerInstance:IsA("Model") and abilityName then
-                    -- Check if this is just opening a menu (multi-choice ability)
-                    -- We detect this by checking if AbilitySelection gets called shortly after
-                    local uid = towerInstance:GetAttribute("UniqueID")
-                    if uid then
-                        -- Store pending menu open
-                        table.insert(abilitySelectionPending, {
-                            towerUID = uid,
-                            abilityName = abilityName,
-                            timestamp = tick()
-                        })
-                        
-                        -- Wait a bit to see if selection happens
-                        task.wait(0.5)
-                        
-                        -- Check if selection was made
-                        local stillPending = false
-                        for _, pending in ipairs(abilitySelectionPending) do
-                            if pending.towerUID == uid then
-                                stillPending = true
-                                break
-                            end
-                        end
-                        
-                        -- If still pending, it's a simple ability (no menu)
-                        if stillPending then
-                            -- Remove from pending
-                            for i = #abilitySelectionPending, 1, -1 do
-                                if abilitySelectionPending[i].towerUID == uid then
-                                    table.remove(abilitySelectionPending, i)
-                                    break
-                                end
-                            end
-                            
-                            -- Record as simple ability
-                            processAbilityAction(towerInstance, abilityName)
-                        end
-                        -- If not pending anymore, it was handled by AbilitySelection
-                    end
+                    processAbilityAction(towerInstance, abilityName)
                 end
             end
             
-            -- Multi-Choice Ability Selection
-if method == "InvokeServer" and self.Name == "Ability" then
-    local towerInstance = args[1]
-    local abilityName = args[2]
-    
-    print(string.format("🔍 Ability remote called! Tower: %s, Ability: %s", 
-        towerInstance and towerInstance.Name or "nil", 
-        tostring(abilityName)))
-    
-    if towerInstance and towerInstance:IsA("Model") and abilityName then
-        local uid = towerInstance:GetAttribute("UniqueID")
-        if uid then
-            print(string.format("🔍 Adding to pending: UID=%s, Ability=%s", uid, abilityName))
-            
-            -- Store pending menu open
-            table.insert(abilitySelectionPending, {
-                towerUID = uid,
-                abilityName = abilityName,
-                timestamp = tick()
-            })
-            
-            -- DON'T process as simple ability yet - let AbilitySelection handler decide
-            -- or use a cleanup task
-            task.delay(1.0, function()
-                -- After 1 second, if still pending, it's a simple ability
-                for i = #abilitySelectionPending, 1, -1 do
-                    local pending = abilitySelectionPending[i]
-                    if pending.towerUID == uid and pending.abilityName == abilityName then
-                        print(string.format("✅ No selection detected after 1s - recording as simple ability"))
-                        table.remove(abilitySelectionPending, i)
-                        processAbilityAction(towerInstance, abilityName)
-                        break
-                    end
+            -- Ability Selection
+            if method == "FireServer" and self.Name == "AbilitySelection" then
+                local selectionIndex = args[1]
+                local selectionName = args[2]
+                
+                if selectionIndex and selectionName then
+                    local timestamp = tick()
+                    local gameRelativeTime = timestamp - State.gameStartTime
+                    
+                    local record = {
+                        Type = "ability_selection",
+                        SelectionIndex = selectionIndex,
+                        SelectionName = selectionName,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    }
+                    
+                    table.insert(macro, record)
+                    print(string.format("⚡ Ability selection recorded: '%s' (index: %d)", selectionName, selectionIndex))
                 end
-            end)
-        else
-            warn("❌ Tower has no UniqueID!")
-        end
-    else
-        warn("❌ Invalid tower instance or ability name!")
-    end
-end
+            end
         end)
     end
     return originalNamecall(self, ...)
