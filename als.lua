@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.032"
+local script_version = "V0.033"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1948,16 +1948,39 @@ task.spawn(function()
             local category = args[2]
             local value = args[3]
             
-            print(string.format("  Category: %s, Value type: %s", tostring(category), type(value)))
+            print(string.format("  Category type: %s, Value type: %s", type(category), type(value)))
+            
+            -- 🔥 FIX: Category is a table, check its contents
+            local categoryName = nil
+            if type(category) == "table" then
+                -- Try to find category name in the table
+                categoryName = category[1] or category.Name or category.Category
+                print(string.format("  Category table key [1]: %s", tostring(category[1])))
+                
+                -- Debug: print all keys in category table
+                for k, v in pairs(category) do
+                    print(string.format("    Category[%s] = %s", tostring(k), tostring(v)))
+                end
+            elseif type(category) == "string" then
+                categoryName = category
+            end
+            
+            print(string.format("  Resolved category name: %s", tostring(categoryName)))
             
             -- Capture Emeralds total
-            if category == "Emeralds" and type(value) == "number" then
+            if categoryName == "Emeralds" and type(value) == "number" then
                 RewardTotals["Emerald"] = value
                 print(string.format("✅ Updated Emerald total: %d", value))
             end
             
+            -- Capture EXP total (might be "Experience" or "EXP")
+            if (categoryName == "Experience" or categoryName == "EXP" or categoryName == "Player_EXP") and type(value) == "number" then
+                RewardTotals["EXP"] = value
+                print(string.format("✅ Updated EXP total: %d", value))
+            end
+            
             -- Capture ItemData
-            if category == "ItemData" and type(value) == "table" then
+            if categoryName == "ItemData" and type(value) == "table" then
                 print("  ItemData table contents:")
                 for itemName, itemData in pairs(value) do
                     print(string.format("    [%s] = %s", tostring(itemName), type(itemData)))
@@ -1989,7 +2012,7 @@ task.spawn(function()
             end
         end
         
-        if dataType == "Item" and data.ItemName and data.Amount then
+        if (dataType == "Item" or dataType == "ExperienceItem") and data.ItemName and data.Amount then
             RewardTotals[data.ItemName] = data.Amount
             print(string.format("✅ Updated %s total (preload): %d", data.ItemName, data.Amount))
         end
