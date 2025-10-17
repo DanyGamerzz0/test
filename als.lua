@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.034"
+local script_version = "V0.035"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1104,6 +1104,12 @@ local function waitForRewards()
     local totals = {}
     for name, total in pairs(RewardTotals) do
         totals[name] = total
+
+        if name == "Emerald" then
+            totals["Emeralds"] = total
+        elseif name == "Emeralds" then
+            totals["Emerald"] = total
+        end
     end
     
     -- Debug: Print totals
@@ -1125,7 +1131,8 @@ local function formatRewardsText(rewards, totals)
     local lines = {}
     
     for _, reward in ipairs(rewards) do
-        local total = totals[reward.Name]
+        -- Try both "Emerald" and "Emeralds" for matching
+        local total = totals[reward.Name] or totals[reward.Name .. "s"] or totals[reward.Name:gsub("s$", "")]
         local rewardText
         
         if total then
@@ -1950,8 +1957,9 @@ task.spawn(function()
             end
             
             -- Capture Emeralds total
-            if categoryName == "Emeralds" and type(value) == "number" then
+            if (categoryName == "Emeralds" or categoryName == "Emerald") and type(value) == "number" then
                 RewardTotals["Emerald"] = value
+                RewardTotals["Emeralds"] = value  -- Store both variations
                 print(string.format("✅ Updated Emerald total: %d", value))
             end
             
