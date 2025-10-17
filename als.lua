@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.028"
+local script_version = "V0.029"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1934,7 +1934,7 @@ task.spawn(function()
     print("🎯 Global reward totals listener started")
     
     -- Listen to ReplicaSetValue events
-    Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
+    game:GetService("ReplicatedStorage").ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
         local args = {...}
         if #args >= 3 then
             local category = args[2]
@@ -1948,7 +1948,7 @@ task.spawn(function()
     end)
     
     -- Listen to StartPreload for item totals
-    Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
+    game:GetService("ReplicatedStorage").Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
         if dataType == "Item" and data.ItemName and data.Amount then
             RewardTotals[data.ItemName] = data.Amount
             print(string.format("📊 Updated %s total: %d", data.ItemName, data.Amount))
