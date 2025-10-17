@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.027"
+local script_version = "V0.028"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -89,6 +89,8 @@ local State = {
     isAutoLoopEnabled = false,
     SendStageCompletedWebhook = false,
 }
+
+local RewardTotals = {}
 
 local Config = {
     DISCORD_USER_ID = 0,
@@ -1098,7 +1100,19 @@ local function waitForRewards()
 
     print(string.format("Captured %d rewards, %d units", #rewards, #detectedUnits))
     
-    return rewards, detectedUnits
+    -- Copy current totals
+    local totals = {}
+    for name, total in pairs(RewardTotals) do
+        totals[name] = total
+    end
+    
+    -- Debug: Print totals
+    print("📦 Totals being used:")
+    for name, total in pairs(totals) do
+        print(string.format("  - %s: %d", name, total))
+    end
+    
+    return rewards, detectedUnits, totals
 end
 
 
@@ -1803,51 +1817,9 @@ task.spawn(function()
         State.gameInProgress = false
         print("Game ended (GameEnded flag)")
 
-        -- 🔥 START CAPTURING TOTALS IMMEDIATELY
-        local totals = {}
-        local connections = {}
-        
-        print("🎯 Starting reward totals capture...")
-        
-        -- Listen to ReplicaSetValue events
-        table.insert(connections, Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
-            local args = {...}
-            if #args >= 3 then
-                local category = args[2]
-                local value = args[3]
-                
-                if category == "Emeralds" and type(value) == "number" then
-                    totals["Emerald"] = value
-                    print(string.format("✅ Captured Emerald total: %d", value))
-                end
-            end
-        end))
-        
-        -- Listen to StartPreload for item totals
-        table.insert(connections, Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
-            if dataType == "Item" and data.ItemName and data.Amount then
-                totals[data.ItemName] = data.Amount
-                print(string.format("✅ Captured %s total: %d", data.ItemName, data.Amount))
-            end
-        end))
-
-        -- 🧩 Move webhook + reward capture logic here
+        -- Webhook + reward capture logic
         task.spawn(function()
-            -- Wait for UI and rewards
-            local rewards, detectedUnits = waitForRewards()
-
-            -- Cleanup connections after UI processing
-            task.wait(0.5)
-            for _, conn in ipairs(connections) do
-                if conn then conn:Disconnect() end
-            end
-            
-            print(string.format("📊 Capture complete. Found %d totals", 
-                (function()
-                    local count = 0
-                    for _ in pairs(totals) do count = count + 1 end
-                    return count
-                end)()))
+            local rewards, detectedUnits, totals = waitForRewards()
 
             if not rewards then
                 print("Failed to capture rewards")
@@ -1859,19 +1831,17 @@ task.spawn(function()
                 #rewards,
                 detectedUnits and #detectedUnits or 0
             ))
-            
-            -- Debug: Print totals
-            print("📦 Totals captured:")
-            for name, total in pairs(totals) do
-                print(string.format("  - %s: %d", name, total))
-            end
 
             if State.SendStageCompletedWebhook then
                 sendWebhook("stage", rewards, detectedUnits, clearTime, totals)
             end
+            
+            -- Clear totals after webhook sent
+            RewardTotals = {}
+            print("🧹 Cleared reward totals cache")
         end)
 
-        -- 🎥 Handle recording stop
+        -- Handle recording stop
         if State.isRecording and State.recordingHasStarted then
             State.isRecording = false
             State.recordingHasStarted = false
@@ -1958,6 +1928,32 @@ Services.RunService.Heartbeat:Connect(function()
             tower:SetAttribute("TrackedLevel", currentLevel)
         end
     end
+end)
+
+task.spawn(function()
+    print("🎯 Global reward totals listener started")
+    
+    -- Listen to ReplicaSetValue events
+    Services.ReplicatedStorage.ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
+        local args = {...}
+        if #args >= 3 then
+            local category = args[2]
+            local value = args[3]
+            
+            if (category == "Emeralds" or category == "Jewels") and type(value) == "number" then
+                RewardTotals["Emerald"] = value
+                print(string.format("📊 Updated Emerald total: %d", value))
+            end
+        end
+    end)
+    
+    -- Listen to StartPreload for item totals
+    Services.ReplicatedStorage.Remotes.StartPreload.OnClientEvent:Connect(function(dataType, data)
+        if dataType == "Item" and data.ItemName and data.Amount then
+            RewardTotals[data.ItemName] = data.Amount
+            print(string.format("📊 Updated %s total: %d", data.ItemName, data.Amount))
+        end
+    end)
 end)
 
 -- Cleanup expired pending upgrades
