@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.021"
+local script_version = "V0.022"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1613,33 +1613,47 @@ mt.__namecall = newcclosure(function(self, ...)
             end
             
             -- Multi-Choice Ability Selection
-            if method == "FireServer" and self.Name == "AbilitySelection" then
-                local selectionIndex = args[1]
-                local selectionName = args[2]
-
-                 print(string.format("🔍 AbilitySelection detected! Index: %s, Name: %s", tostring(selectionIndex), tostring(selectionName)))
-                
-                if selectionIndex and selectionName then
-                    -- Find the most recent pending ability menu
-                    if #abilitySelectionPending > 0 then
-                        local pending = abilitySelectionPending[#abilitySelectionPending]
-
-                        print(string.format("🔍 Found pending ability: %s for tower UID: %s", pending.abilityName, pending.towerUID))
-                        
-                        -- Get tower instance
-                        local towers = Services.Workspace:FindFirstChild("Towers")
-                        if towers then
-                            for _, tower in pairs(towers:GetChildren()) do
-                                if tower:GetAttribute("UniqueID") == pending.towerUID then
-                                    print(string.format("🔍 Found tower instance: %s", tower.Name))
-                                    processAbilitySelection(tower, pending.abilityName, selectionIndex, selectionName)
-                                    break
-                                end
-                            end
-                        end
+if method == "InvokeServer" and self.Name == "Ability" then
+    local towerInstance = args[1]
+    local abilityName = args[2]
+    
+    print(string.format("🔍 Ability remote called! Tower: %s, Ability: %s", 
+        towerInstance and towerInstance.Name or "nil", 
+        tostring(abilityName)))
+    
+    if towerInstance and towerInstance:IsA("Model") and abilityName then
+        local uid = towerInstance:GetAttribute("UniqueID")
+        if uid then
+            print(string.format("🔍 Adding to pending: UID=%s, Ability=%s", uid, abilityName))
+            
+            -- Store pending menu open
+            table.insert(abilitySelectionPending, {
+                towerUID = uid,
+                abilityName = abilityName,
+                timestamp = tick()
+            })
+            
+            -- DON'T process as simple ability yet - let AbilitySelection handler decide
+            -- or use a cleanup task
+            task.delay(1.0, function()
+                -- After 1 second, if still pending, it's a simple ability
+                for i = #abilitySelectionPending, 1, -1 do
+                    local pending = abilitySelectionPending[i]
+                    if pending.towerUID == uid and pending.abilityName == abilityName then
+                        print(string.format("✅ No selection detected after 1s - recording as simple ability"))
+                        table.remove(abilitySelectionPending, i)
+                        processAbilityAction(towerInstance, abilityName)
+                        break
                     end
                 end
-            end
+            end)
+        else
+            warn("❌ Tower has no UniqueID!")
+        end
+    else
+        warn("❌ Invalid tower instance or ability name!")
+    end
+end
         end)
     end
     return originalNamecall(self, ...)
