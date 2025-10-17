@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.021"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1616,17 +1616,22 @@ mt.__namecall = newcclosure(function(self, ...)
             if method == "FireServer" and self.Name == "AbilitySelection" then
                 local selectionIndex = args[1]
                 local selectionName = args[2]
+
+                 print(string.format("🔍 AbilitySelection detected! Index: %s, Name: %s", tostring(selectionIndex), tostring(selectionName)))
                 
                 if selectionIndex and selectionName then
                     -- Find the most recent pending ability menu
                     if #abilitySelectionPending > 0 then
                         local pending = abilitySelectionPending[#abilitySelectionPending]
+
+                        print(string.format("🔍 Found pending ability: %s for tower UID: %s", pending.abilityName, pending.towerUID))
                         
                         -- Get tower instance
                         local towers = Services.Workspace:FindFirstChild("Towers")
                         if towers then
                             for _, tower in pairs(towers:GetChildren()) do
                                 if tower:GetAttribute("UniqueID") == pending.towerUID then
+                                    print(string.format("🔍 Found tower instance: %s", tower.Name))
                                     processAbilitySelection(tower, pending.abilityName, selectionIndex, selectionName)
                                     break
                                 end
