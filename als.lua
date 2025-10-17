@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.02"
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -1936,7 +1936,7 @@ task.spawn(function()
     -- Listen to ReplicaSetValue events
     game:GetService("ReplicatedStorage").ReplicaRemoteEvents.Replica_ReplicaSetValue.OnClientEvent:Connect(function(...)
         local args = {...}
-        print("REPLICASETVALUE FIRED WITH "..args)
+        print("REPLICASETVALUE FIRED WITH "..args[1]..args[2]..args[3])
         if #args >= 3 then
             local category = args[2]
             local value = args[3]
