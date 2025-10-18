@@ -1,4 +1,4 @@
---99
+--100
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.05"
@@ -4896,14 +4896,18 @@ if not isInLobby() then
         State.gameEndRealTime = tick()
         
         -- Capture rewards and result FIRST
-        capturedRewards = rewards -- Array of {rewardName, amount}
+        capturedRewards = rewards or {} -- Array of {rewardName, amount}
         
         print("=== REWARDS CAPTURED ===")
         print("Result:", result)
         print("Rewards:")
+        if rewards and type(rewards) == "table" then
         for _, reward in ipairs(rewards) do
             print(string.format("  %s: %d", reward[1], reward[2]))
         end
+    else
+        print("  No rewards received")
+    end
         print("========================")
         
         if isRecording and recordingHasStarted then
