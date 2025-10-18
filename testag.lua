@@ -1,4 +1,4 @@
---101
+--102
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.06"
@@ -177,6 +177,7 @@ local State = {
     SelectedUnitAbilities = {},
     AutoUseAbilitySukuna = false,
     SelectedSukunaSkills = {},
+    ReplaceDeletedUnits = false,
 }
 
 local abilityQueue = {}
@@ -3287,6 +3288,94 @@ local function processAbilityQueue(playbackStartTime)
     end
 end
 
+local function monitorAndReplaceDeletedUnits()
+    if not State.ReplaceDeletedUnits then return end
+    
+    print("🛡️ Unit replacement monitor started")
+    
+    while State.ReplaceDeletedUnits and isPlaybacking and gameInProgress do
+        task.wait(1) -- Check every second
+        
+        local playerUnitsFolder = getPlayerUnitsFolder()
+        if not playerUnitsFolder then 
+            task.wait(1)
+            continue 
+        end
+        
+        -- Check each tracked placement
+        for placementId, serverUnitName in pairs(playbackUnitMapping) do
+            -- If unit no longer exists in the game
+            if not playerUnitsFolder:FindFirstChild(serverUnitName) then
+                print(string.format("⚠️ DELETED UNIT DETECTED: %s (was: %s)", placementId, serverUnitName))
+                
+                -- Find the original placement action in macro
+                local placementAction = nil
+                local upgradeActions = {}
+                
+                for _, action in ipairs(macro) do
+                    if action.Unit == placementId then
+                        if action.Type == "spawn_unit" then
+                            placementAction = action
+                        elseif action.Type == "upgrade_unit_ingame" then
+                            table.insert(upgradeActions, action)
+                        end
+                    end
+                end
+                
+                if placementAction then
+                    print(string.format("🔄 Re-placing deleted unit: %s", placementId))
+                    updateDetailedStatus(string.format("Replacing %s...", placementId))
+                    
+                    -- Remove old mapping (it's dead anyway)
+                    playbackUnitMapping[placementId] = nil
+                    
+                    -- Wait for sufficient money if needed
+                    if placementAction.PlacementCost then
+                        if not waitForSufficientMoneyForPlacement(placementAction.Unit, placementAction.PlacementCost, placementAction.Unit) then
+                            warn("Failed to get enough money for replacement:", placementAction.Unit)
+                            continue
+                        end
+                    end
+                    
+                    -- Re-execute placement
+                    local success = executePlacementAction(placementAction, 0, 0)
+                    
+                    if success then
+                        print(string.format("✅ Successfully replaced: %s", placementId))
+                        
+                        -- Re-apply upgrades if any existed
+                        if #upgradeActions > 0 then
+                            print(string.format("⬆️ Re-applying %d upgrades to %s", #upgradeActions, placementId))
+                            task.wait(0.5) -- Let placement settle
+                            
+                            for _, upgradeAction in ipairs(upgradeActions) do
+                                local upgradeSuccess = executeUnitUpgrade(upgradeAction)
+                                if upgradeSuccess then
+                                    print(string.format("✅ Upgrade restored for %s", placementId))
+                                    task.wait(0.3) -- Small delay between upgrades
+                                else
+                                    warn(string.format("❌ Failed to restore upgrade for %s", placementId))
+                                end
+                            end
+                        end
+                        
+                        updateDetailedStatus(string.format("✅ Replaced %s", placementId))
+                    else
+                        warn(string.format("❌ Failed to replace: %s", placementId))
+                        updateDetailedStatus(string.format("❌ Failed to replace %s", placementId))
+                    end
+                    
+                    task.wait(1) -- Cooldown between replacements to avoid spam
+                else
+                    warn(string.format("❌ No placement action found for: %s", placementId))
+                end
+            end
+        end
+    end
+    
+    print("🛡️ Unit replacement monitor stopped")
+end
+
 local function playMacroOnce()
     if not macro or #macro == 0 then
         print("No macro data to play")
@@ -3312,6 +3401,8 @@ local function playMacroOnce()
         task.cancel(abilityQueueThread)
     end
     abilityQueueThread = task.spawn(processAbilityQueue, playbackStartTime)
+
+    task.spawn(monitorAndReplaceDeletedUnits)
     
     for actionIndex, action in ipairs(macro) do
         if not isPlaybacking or not gameInProgress then
@@ -3615,6 +3706,21 @@ local IgnoreTimingToggle = MacroTab:CreateToggle({
     Info = "Skip timing waits and execute actions immediately. Will not ignore timing for abilities/wave skips",
     Callback = function(Value)
         State.IgnoreTiming = Value
+    end,
+})
+
+local ReplaceDeletedUnitsToggle = MacroTab:CreateToggle({
+    Name = "Replace Deleted Units",
+    CurrentValue = false,
+    Flag = "ReplaceDeletedUnits",
+    Info = "Automatically replaces units that get deleted by bosses (Usable for world boss event)",
+    Callback = function(Value)
+        State.ReplaceDeletedUnits = Value
+        if Value then
+            updateDetailedStatus("Unit replacement enabled")
+        else
+            updateDetailedStatus("Unit replacement disabled")
+        end
     end,
 })
 
