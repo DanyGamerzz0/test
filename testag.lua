@@ -1,4 +1,4 @@
---98
+--99
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.05"
@@ -201,6 +201,7 @@ local playbackUnitMapping = {} -- Maps placement order to actual unit name
 local recordingSpawnIdToPlacement = {} -- Maps spawn ID to placement ID during recording
 local recordingPlacementCounter = {} -- Counts placements per unit type
 local placementExecutionLock = false -- Prevent race conditions
+local playbackLoopRunning = false
 
 local gameInProgress = false
 
@@ -1100,7 +1101,7 @@ local AutoUseAbilityToggle = GameTab:CreateToggle({
 })
 
 local AbilityDropdown = GameTab:CreateDropdown({
-    Name = "Select Unit Ability",
+    Name = "Select Unit Ability - SET IN GAME",
     Options = {},
     CurrentOption = {},
     MultipleOptions = true,
@@ -3456,6 +3457,13 @@ local function playMacroOnce()
 end
 
 local function autoPlaybackLoop()
+    -- Prevent multiple loops from running
+    if playbackLoopRunning then
+        warn("⚠️ Playback loop already running! Ignoring duplicate start.")
+        return
+    end
+    
+    playbackLoopRunning = true
     print("=== PLAYBACK LOOP STARTED ===")
     
     while isAutoLoopEnabled do
@@ -3517,6 +3525,7 @@ local function autoPlaybackLoop()
     MacroStatusLabel:Set("Status: Playback stopped")
     updateDetailedStatus("Playback stopped")
     isPlaybacking = false
+    playbackLoopRunning = false
     print("=== PLAYBACK LOOP ENDED ===")
 end
 
@@ -3531,6 +3540,17 @@ local PlayToggle = MacroTab:CreateToggle({
         
         if Value then
             if isInLobby() then return end
+            
+            -- Check if already running
+            if playbackLoopRunning then
+                Rayfield:Notify({
+                    Title = "Warning",
+                    Content = "Playback already running!",
+                    Duration = 3
+                })
+                return
+            end
+            
             -- Ensure we have a valid macro name
             if type(currentMacroName) == "table" then
                 currentMacroName = currentMacroName[1] or ""
@@ -3581,6 +3601,8 @@ local PlayToggle = MacroTab:CreateToggle({
         else
             MacroStatusLabel:Set("Status: Playback disabled")
             isPlaybacking = false
+            isAutoLoopEnabled = false
+            playbackLoopRunning = false
             notify("Playback Disabled", "Macro playback stopped.")
         end
     end
@@ -4912,70 +4934,113 @@ if not isInLobby() then
         task.spawn(function()
             task.wait(1) -- Small delay to ensure game state is stable
             
+            local MAX_RETRIES = 5
+            local RETRY_DELAY = 2
             
             -- Priority 1: Auto Next (highest priority) - only for victories
-
             if State.AutoVoteNext and result == "VICTORY" then
                 print("Auto Next enabled and game won - Voting for next stage...")
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
-                end)
                 
-                if success then
-                    print("Successfully voted for next stage!")
-                    Rayfield:Notify({
-                        Title = "Auto Vote",
-                        Content = "Voted for next stage",
-                        Duration = 3
-                    })
-                else
-                    warn("Failed to vote for next stage:", err)
+                for attempt = 1, MAX_RETRIES do
+                    local success, err = pcall(function()
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                            :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
+                    end)
+                    
+                    if success then
+                        print(string.format("✓ Successfully voted for next stage (attempt %d/%d)", attempt, MAX_RETRIES))
+                        Rayfield:Notify({
+                            Title = "Auto Vote",
+                            Content = "Voted for next stage",
+                            Duration = 3
+                        })
+                        return
+                    else
+                        warn(string.format("❌ Failed to vote for next stage (attempt %d/%d): %s", attempt, MAX_RETRIES, tostring(err)))
+                        
+                        if attempt < MAX_RETRIES then
+                            print(string.format("⏳ Retrying in %d seconds...", RETRY_DELAY))
+                            task.wait(RETRY_DELAY)
+                        else
+                            Rayfield:Notify({
+                                Title = "Auto Vote Failed",
+                                Content = "Failed to vote for next stage after " .. MAX_RETRIES .. " attempts",
+                                Duration = 5
+                            })
+                        end
+                    end
                 end
-                return -- Exit early
+                return
             end
 
             -- Priority 2: Auto Retry (medium priority)
-
             if State.AutoVoteRetry then
                 print("Auto Retry enabled - Voting to replay...")
-                local success, err = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                        :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
-                end)
                 
-                if success then
-                    print("Successfully voted for retry!")
-                    Rayfield:Notify({
-                        Title = "Auto Vote",
-                        Content = "Voted to retry the stage",
-                        Duration = 3
-                    })
-                else
-                    warn("Failed to vote for retry:", err)
+                for attempt = 1, MAX_RETRIES do
+                    local success, err = pcall(function()
+                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
+                            :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+                    end)
+                    
+                    if success then
+                        print(string.format("✓ Successfully voted for retry (attempt %d/%d)", attempt, MAX_RETRIES))
+                        Rayfield:Notify({
+                            Title = "Auto Vote",
+                            Content = "Voted to retry the stage",
+                            Duration = 3
+                        })
+                        return
+                    else
+                        warn(string.format("❌ Failed to vote for retry (attempt %d/%d): %s", attempt, MAX_RETRIES, tostring(err)))
+                        
+                        if attempt < MAX_RETRIES then
+                            print(string.format("⏳ Retrying in %d seconds...", RETRY_DELAY))
+                            task.wait(RETRY_DELAY)
+                        else
+                            Rayfield:Notify({
+                                Title = "Auto Vote Failed",
+                                Content = "Failed to vote for retry after " .. MAX_RETRIES .. " attempts",
+                                Duration = 5
+                            })
+                        end
+                    end
                 end
-                return -- Exit early since retry has highest priority
+                return
             end
             
             -- Priority 3: Auto Lobby (lowest priority)
             if State.AutoVoteLobby then
                 print("Auto Lobby enabled - Returning to lobby...")
-                -- Small additional delay for lobby return
                 task.wait(1)
                 
-                local success, err = pcall(function()
-                    Services.TeleportService:Teleport(17282336195, LocalPlayer)
-                end)
-                
-                if success then
-                    print("Successfully returned to lobby!")
-                    Rayfield:Notify({
-                        Title = "Auto Vote",
-                        Content = "Returned to lobby",
-                        Duration = 3
-                    })
-                else
-                    warn("Failed to return to lobby:", err)
+                for attempt = 1, MAX_RETRIES do
+                    local success, err = pcall(function()
+                        Services.TeleportService:Teleport(17282336195, LocalPlayer)
+                    end)
+                    
+                    if success then
+                        print(string.format("✓ Successfully returned to lobby (attempt %d/%d)", attempt, MAX_RETRIES))
+                        Rayfield:Notify({
+                            Title = "Auto Vote",
+                            Content = "Returned to lobby",
+                            Duration = 3
+                        })
+                        return
+                    else
+                        warn(string.format("❌ Failed to return to lobby (attempt %d/%d): %s", attempt, MAX_RETRIES, tostring(err)))
+                        
+                        if attempt < MAX_RETRIES then
+                            print(string.format("⏳ Retrying in %d seconds...", RETRY_DELAY))
+                            task.wait(RETRY_DELAY)
+                        else
+                            Rayfield:Notify({
+                                Title = "Auto Vote Failed",
+                                Content = "Failed to return to lobby after " .. MAX_RETRIES .. " attempts",
+                                Duration = 5
+                            })
+                        end
+                    end
                 end
             end
         end)
@@ -5272,19 +5337,24 @@ task.spawn(function()
     refreshMacroDropdown()
     
     -- Restore playback if it was enabled
-    local savedPlaybackState = Rayfield.Flags["PlayBackMacro"]
+local savedPlaybackState = Rayfield.Flags["PlayBackMacro"]
     if savedPlaybackState == true and currentMacroName and currentMacroName ~= "" and macro and #macro > 0 then
-        isAutoLoopEnabled = true
-        
-        task.spawn(autoPlaybackLoop)
-        MacroStatusLabel:Set("Status: Playback restored - waiting for game")
-        
-        Rayfield:Notify({
-            Title = "Playback Restored",
-            Content = string.format("Auto-playing: %s", currentMacroName),
-            Duration = 3
-        })
-        
-        print(string.format("Playback restored: %s (%d actions)", currentMacroName, #macro))
+        -- Double check we're not already running
+        if not playbackLoopRunning then
+            isAutoLoopEnabled = true
+            
+            task.spawn(autoPlaybackLoop)
+            MacroStatusLabel:Set("Status: Playback restored - waiting for game")
+            
+            Rayfield:Notify({
+                Title = "Playback Restored",
+                Content = string.format("Auto-playing: %s", currentMacroName),
+                Duration = 3
+            })
+            
+            print(string.format("Playback restored: %s (%d actions)", currentMacroName, #macro))
+        else
+            print("Playback loop already running, skipping restore")
+        end
     end
 end)
