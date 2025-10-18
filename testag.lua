@@ -1,7 +1,7 @@
---100
+--101
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -5108,63 +5108,49 @@ if not isInLobby() then
 end
 
 task.spawn(function()
+    local ABILITY_CHECK_INTERVAL = 0.5 -- Check every 0.5 seconds instead of tracking cooldowns
     
     while true do
-        task.wait(1)
+        task.wait(ABILITY_CHECK_INTERVAL)
         
+        -- Regular unit abilities
         if State.AutoUseAbility and not isInLobby() then
             if State.SelectedUnitAbilities and #State.SelectedUnitAbilities > 0 then
                 local abilitiesList = getUnitAbilitiesList()
-                local currentTime = tick()
                 
-                -- Loop through each selected ability
                 for _, selectedName in ipairs(State.SelectedUnitAbilities) do
-                    -- Find matching ability data
                     for _, abilityData in ipairs(abilitiesList) do
                         if abilityData.display == selectedName then
-                            local lastTime = lastUseTime[abilityData.display] or 0
-                            local cooldown = abilityData.cooldown or 60
+                            -- Just try to use it - server will handle cooldown validation
+                            local success = findAndUseUnitAbility(abilityData.unitName, abilityData.abilityName)
                             
-                            if currentTime - lastTime >= cooldown then
-                                local success = findAndUseUnitAbility(abilityData.unitName, abilityData.abilityName)
-                                
-                                if success then
-                                    lastUseTime[abilityData.display] = currentTime
-                                    print(string.format("Auto-used: %s (next use in %ds)", abilityData.display, cooldown))
-                                end
+                            if success then
+                                print(string.format("✓ Auto-used: %s", abilityData.display))
                             end
+                            
                             break
                         end
                     end
+                    
+                    -- Small delay between different abilities to prevent spam
+                    task.wait(0.1)
                 end
             end
         end
         
+        -- Sukuna abilities
         if State.AutoUseAbilitySukuna and not isInLobby() then
             if State.SelectedSukunaSkills and #State.SelectedSukunaSkills > 0 then
-                local currentTime = tick()
-                
-                -- Loop through each selected Sukuna skill
                 for _, skillName in ipairs(State.SelectedSukunaSkills) do
-                    local sukunaKey = "Sukuna_" .. skillName
-                    local lastTime = lastUseTime[sukunaKey] or 0
+                    -- Just try to use it - server will handle cooldown validation
+                    local success = findAndUseUnitAbility("Sukuna", skillName)
                     
-                    -- Different cooldowns for different skills
-                    local cooldown = 1
-                    if skillName == "Domain" then
-                        cooldown = 120
-                    elseif skillName == "Mahoraga" then
-                        cooldown = 9999
+                    if success then
+                        print(string.format("✓ Auto-used Sukuna: %s", skillName))
                     end
                     
-                    if currentTime - lastTime >= cooldown then
-                        local success = findAndUseUnitAbility("Sukuna", skillName)
-                        
-                        if success then
-                            lastUseTime[sukunaKey] = currentTime
-                            print(string.format("Auto-used Sukuna: %s (next use in %ds)", skillName, cooldown))
-                        end
-                    end
+                    -- Small delay between different abilities
+                    task.wait(0.1)
                 end
             end
         end
