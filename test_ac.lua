@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5222,6 +5222,32 @@ local function createAutoSelectDropdowns()
             Portal = {}
         }
         
+        -- First, get the official legend/raid world lists
+        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+        local legendWorldKeys = {}
+        local raidWorldKeys = {}
+        
+        -- Build lookup tables for legend and raid worlds
+        if WorldLevelOrder.LEGEND_WORLD_ORDER then
+            for _, worldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
+                legendWorldKeys[worldKey:lower()] = true
+                -- Also add base name without _legend suffix
+                local baseName = worldKey:match("^(.-)_legend") or worldKey
+                legendWorldKeys[baseName:lower()] = true
+                print("Registered legend world key:", worldKey:lower(), "and base:", baseName:lower())
+            end
+        end
+        
+        if WorldLevelOrder.RAID_WORLD_ORDER then
+            for _, worldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
+                raidWorldKeys[worldKey:lower()] = true
+                -- Also add base name
+                local baseName = worldKey:match("^(.-)_raid") or worldKey
+                raidWorldKeys[baseName:lower()] = true
+                print("Registered raid world key:", worldKey:lower(), "and base:", baseName:lower())
+            end
+        end
+        
         -- Get all maps from Maps folder
         local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
         if MapsFolder then
@@ -5233,22 +5259,34 @@ local function createAutoSelectDropdowns()
                         for mapKey, mapInfo in pairs(mapData) do
                             if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
                                 local mapIdLower = mapInfo.id:lower()
+                                local mapKeyLower = mapKey:lower()
+                                local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
                                 
-                                -- Check for legend stages FIRST (highest priority)
-                                if mapIdLower:find("legend") or mapInfo.legend_stage then
-                                    local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
+                                print("Processing map:", mapInfo.name, "| ID:", mapInfo.id, "| Key:", mapKey)
+                                
+                                -- Check if it's a legend stage using multiple methods
+                                local isLegend = mapInfo.legend_stage or 
+                                               legendWorldKeys[mapKeyLower] or 
+                                               legendWorldKeys[mapIdLower] or
+                                               mapIdLower:find("legend") or
+                                               (mapInfo.world and legendWorldKeys[mapInfo.world:lower()])
+                                
+                                -- Check if it's a raid stage
+                                local isRaid = mapInfo.raid_world or 
+                                             raidWorldKeys[mapKeyLower] or 
+                                             raidWorldKeys[mapIdLower] or
+                                             mapIdLower:find("raid") or
+                                             (mapInfo.world and raidWorldKeys[mapInfo.world:lower()])
+                                
+                                if isLegend then
                                     categories.Legend[baseName] = mapInfo.name
-                                    print("Added to Legend:", mapInfo.name, "| ID:", mapInfo.id)
-                                -- Check for raid stages
-                                elseif mapIdLower:find("raid") or mapInfo.raid_world then
-                                    local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
+                                    print("✓ Added to Legend:", mapInfo.name)
+                                elseif isRaid then
                                     categories.Raid[baseName] = mapInfo.name
-                                    print("Added to Raid:", mapInfo.name, "| ID:", mapInfo.id)
-                                -- Everything else is story
+                                    print("✓ Added to Raid:", mapInfo.name)
                                 else
-                                    local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
                                     categories.Story[baseName] = mapInfo.name
-                                    print("Added to Story:", mapInfo.name, "| ID:", mapInfo.id)
+                                    print("✓ Added to Story:", mapInfo.name)
                                 end
                             end
                         end
@@ -5271,7 +5309,7 @@ local function createAutoSelectDropdowns()
                             for portalKey, portalInfo in pairs(portalData) do
                                 if type(portalInfo) == "table" and portalInfo.name and portalInfo._portal_only_level then
                                     categories.Portal[portalKey] = portalInfo.name
-                                    print("Added to Portal:", portalInfo.name, "| ID:", portalKey)
+                                    print("✓ Added to Portal:", portalInfo.name)
                                 end
                             end
                         end
@@ -5284,9 +5322,18 @@ local function createAutoSelectDropdowns()
     end)
     
     if not success or not categorizedMaps then
-        warn("Failed to load maps/portals for auto-select dropdowns")
+        warn("Failed to load maps/portals for auto-select dropdowns:", categorizedMaps)
         return
     end
+    
+    -- Get initial macro options
+    local initialMacroOptions = {"None"}
+    for macroName in pairs(macroManager) do
+        table.insert(initialMacroOptions, macroName)
+    end
+    table.sort(initialMacroOptions)
+    
+    print("Initial macro options:", table.concat(initialMacroOptions, ", "))
     
     -- Create collapsibles for each category
     local categoryCollapsibles = {}
@@ -5299,7 +5346,6 @@ local function createAutoSelectDropdowns()
             Flag = "StoryAutoSelectCollapsible"
         })
         
-        -- Sort story stages alphabetically
         local sortedStory = {}
         for mapId, displayName in pairs(categorizedMaps.Story) do
             table.insert(sortedStory, {id = mapId, name = displayName})
@@ -5307,10 +5353,12 @@ local function createAutoSelectDropdowns()
         table.sort(sortedStory, function(a, b) return a.name < b.name end)
         
         for _, stageData in ipairs(sortedStory) do
+            local currentMapping = worldMacroMappings[stageData.id] or "None"
+            
             local dropdown = categoryCollapsibles.Story.Tab:CreateDropdown({
                 Name = stageData.name,
-                Options = {"None"},
-                CurrentOption = {"None"},
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
                 MultipleOptions = false,
                 Flag = "AutoSelect_" .. stageData.id,
                 Info = string.format("Auto-select macro for %s", stageData.name),
@@ -5348,10 +5396,12 @@ local function createAutoSelectDropdowns()
         table.sort(sortedLegend, function(a, b) return a.name < b.name end)
         
         for _, stageData in ipairs(sortedLegend) do
+            local currentMapping = worldMacroMappings[stageData.id] or "None"
+            
             local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
                 Name = stageData.name,
-                Options = {"None"},
-                CurrentOption = {"None"},
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
                 MultipleOptions = false,
                 Flag = "AutoSelect_" .. stageData.id,
                 Info = string.format("Auto-select macro for %s (Legend)", stageData.name),
@@ -5389,10 +5439,12 @@ local function createAutoSelectDropdowns()
         table.sort(sortedRaid, function(a, b) return a.name < b.name end)
         
         for _, stageData in ipairs(sortedRaid) do
+            local currentMapping = worldMacroMappings[stageData.id] or "None"
+            
             local dropdown = categoryCollapsibles.Raid.Tab:CreateDropdown({
                 Name = stageData.name,
-                Options = {"None"},
-                CurrentOption = {"None"},
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
                 MultipleOptions = false,
                 Flag = "AutoSelect_" .. stageData.id,
                 Info = string.format("Auto-select macro for %s (Raid)", stageData.name),
@@ -5430,10 +5482,12 @@ local function createAutoSelectDropdowns()
         table.sort(sortedPortals, function(a, b) return a.name < b.name end)
         
         for _, portalData in ipairs(sortedPortals) do
+            local currentMapping = worldMacroMappings[portalData.id] or "None"
+            
             local dropdown = categoryCollapsibles.Portal.Tab:CreateDropdown({
                 Name = portalData.name,
-                Options = {"None"},
-                CurrentOption = {"None"},
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
                 MultipleOptions = false,
                 Flag = "AutoSelect_" .. portalData.id,
                 Info = string.format("Auto-select macro for %s (Portal)", portalData.name),
