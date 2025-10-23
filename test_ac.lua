@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.07"
+    local script_version = "V0.06"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -4618,43 +4618,58 @@ end
         writefile(filePath, json)
     end
 
-    local function refreshAutoSelectDropdowns()
-        local macroOptions = {"None"}
-        
-        -- Add all available macros
-        for macroName in pairs(macroManager) do
-            table.insert(macroOptions, macroName)
-        end
-        
-        table.sort(macroOptions)
-        
-        -- Refresh each dropdown with proper current selection
-        for worldKey, dropdown in pairs(worldDropdowns) do
-            if dropdown and dropdown.Refresh then
-                local currentMapping = worldMacroMappings[worldKey] or "None"
-                
-                -- Ensure the current mapping exists in the options
-                local mappingExists = false
-                for _, option in ipairs(macroOptions) do
-                    if option == currentMapping then
-                        mappingExists = true
-                        break
-                    end
+local function refreshAutoSelectDropdowns()
+    local macroOptions = {"None"}
+    
+    -- Add all available macros
+    for macroName in pairs(macroManager) do
+        table.insert(macroOptions, macroName)
+    end
+    
+    table.sort(macroOptions)
+    
+    -- Refresh each dropdown
+    for worldKey, dropdown in pairs(worldDropdowns) do
+        -- Check if dropdown exists and has a Refresh method
+        if dropdown and type(dropdown) == "table" then
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            
+            -- Ensure the current mapping exists in options
+            local mappingExists = false
+            for _, option in ipairs(macroOptions) do
+                if option == currentMapping then
+                    mappingExists = true
+                    break
                 end
-                
-                -- If the saved mapping doesn't exist anymore, reset to None
-                if not mappingExists and currentMapping ~= "None" then
-                    print("Saved mapping", currentMapping, "for", worldKey, "no longer exists, resetting to None")
-                    worldMacroMappings[worldKey] = nil
-                    currentMapping = "None"
-                    saveWorldMappings()
+            end
+            
+            -- Reset to None if saved mapping doesn't exist
+            if not mappingExists and currentMapping ~= "None" then
+                print("Saved mapping", currentMapping, "for", worldKey, "no longer exists, resetting to None")
+                worldMacroMappings[worldKey] = nil
+                currentMapping = "None"
+                saveWorldMappings()
+            end
+            
+            -- Try to refresh if the method exists
+            local refreshSuccess = pcall(function()
+                if dropdown.Refresh then
+                    dropdown:Refresh(macroOptions, currentMapping)
+                    print("Refreshed auto-select dropdown for", worldKey, "with current selection:", currentMapping)
+                elseif dropdown.UpdateOptions then
+                    dropdown:UpdateOptions(macroOptions)
+                    print("Updated options for", worldKey)
+                else
+                    print("Warning: No refresh method found for dropdown", worldKey)
                 end
-                
-                dropdown:Refresh(macroOptions, currentMapping)
-                print("Refreshed auto-select dropdown for", worldKey, "with current selection:", currentMapping)
+            end)
+            
+            if not refreshSuccess then
+                print("Could not refresh dropdown for", worldKey, "- skipping")
             end
         end
     end
+end
 
      MacroInput = MacroTab:CreateInput({
         Name = "Create Macro",
@@ -5217,18 +5232,23 @@ local function createAutoSelectDropdowns()
                     if moduleSuccess and mapData then
                         for mapKey, mapInfo in pairs(mapData) do
                             if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                if mapInfo.id:lower():find("legend") then
+                                local mapIdLower = mapInfo.id:lower()
+                                
+                                -- Check for legend stages FIRST (highest priority)
+                                if mapIdLower:find("legend") or mapInfo.legend_stage then
                                     local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
                                     categories.Legend[baseName] = mapInfo.name
-                                    print("Added legend stage:", mapInfo.name, "with base ID:", baseName)
-                                elseif mapInfo.id:lower():find("raid") then
+                                    print("Added to Legend:", mapInfo.name, "| ID:", mapInfo.id)
+                                -- Check for raid stages
+                                elseif mapIdLower:find("raid") or mapInfo.raid_world then
                                     local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
                                     categories.Raid[baseName] = mapInfo.name
-                                    print("Added raid stage:", mapInfo.name, "with base ID:", baseName)
+                                    print("Added to Raid:", mapInfo.name, "| ID:", mapInfo.id)
+                                -- Everything else is story
                                 else
                                     local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
                                     categories.Story[baseName] = mapInfo.name
-                                    print("Added story stage:", mapInfo.name, "with base ID:", baseName)
+                                    print("Added to Story:", mapInfo.name, "| ID:", mapInfo.id)
                                 end
                             end
                         end
@@ -5251,7 +5271,7 @@ local function createAutoSelectDropdowns()
                             for portalKey, portalInfo in pairs(portalData) do
                                 if type(portalInfo) == "table" and portalInfo.name and portalInfo._portal_only_level then
                                     categories.Portal[portalKey] = portalInfo.name
-                                    print("Added portal:", portalInfo.name, "with ID:", portalKey)
+                                    print("Added to Portal:", portalInfo.name, "| ID:", portalKey)
                                 end
                             end
                         end
@@ -5279,30 +5299,37 @@ local function createAutoSelectDropdowns()
             Flag = "StoryAutoSelectCollapsible"
         })
         
+        -- Sort story stages alphabetically
+        local sortedStory = {}
         for mapId, displayName in pairs(categorizedMaps.Story) do
+            table.insert(sortedStory, {id = mapId, name = displayName})
+        end
+        table.sort(sortedStory, function(a, b) return a.name < b.name end)
+        
+        for _, stageData in ipairs(sortedStory) do
             local dropdown = categoryCollapsibles.Story.Tab:CreateDropdown({
-                Name = displayName,
+                Name = stageData.name,
                 Options = {"None"},
                 CurrentOption = {"None"},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. mapId,
-                Info = string.format("Auto-select macro for %s", displayName),
+                Flag = "AutoSelect_" .. stageData.id,
+                Info = string.format("Auto-select macro for %s", stageData.name),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[mapId] = nil
-                        print("Cleared auto-select for", displayName)
+                        worldMacroMappings[stageData.id] = nil
+                        print("Cleared auto-select for", stageData.name)
                     else
-                        worldMacroMappings[mapId] = selectedMacro
-                        print("Set auto-select:", displayName, "->", selectedMacro)
+                        worldMacroMappings[stageData.id] = selectedMacro
+                        print("Set auto-select:", stageData.name, "->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[mapId] = dropdown
+            worldDropdowns[stageData.id] = dropdown
         end
     end
     
@@ -5314,30 +5341,36 @@ local function createAutoSelectDropdowns()
             Flag = "LegendAutoSelectCollapsible"
         })
         
+        local sortedLegend = {}
         for mapId, displayName in pairs(categorizedMaps.Legend) do
+            table.insert(sortedLegend, {id = mapId, name = displayName})
+        end
+        table.sort(sortedLegend, function(a, b) return a.name < b.name end)
+        
+        for _, stageData in ipairs(sortedLegend) do
             local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
-                Name = displayName,
+                Name = stageData.name,
                 Options = {"None"},
                 CurrentOption = {"None"},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. mapId,
-                Info = string.format("Auto-select macro for %s (Legend)", displayName),
+                Flag = "AutoSelect_" .. stageData.id,
+                Info = string.format("Auto-select macro for %s (Legend)", stageData.name),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[mapId] = nil
-                        print("Cleared auto-select for", displayName, "(Legend)")
+                        worldMacroMappings[stageData.id] = nil
+                        print("Cleared auto-select for", stageData.name, "(Legend)")
                     else
-                        worldMacroMappings[mapId] = selectedMacro
-                        print("Set auto-select:", displayName, "(Legend) ->", selectedMacro)
+                        worldMacroMappings[stageData.id] = selectedMacro
+                        print("Set auto-select:", stageData.name, "(Legend) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[mapId] = dropdown
+            worldDropdowns[stageData.id] = dropdown
         end
     end
     
@@ -5349,30 +5382,36 @@ local function createAutoSelectDropdowns()
             Flag = "RaidAutoSelectCollapsible"
         })
         
+        local sortedRaid = {}
         for mapId, displayName in pairs(categorizedMaps.Raid) do
+            table.insert(sortedRaid, {id = mapId, name = displayName})
+        end
+        table.sort(sortedRaid, function(a, b) return a.name < b.name end)
+        
+        for _, stageData in ipairs(sortedRaid) do
             local dropdown = categoryCollapsibles.Raid.Tab:CreateDropdown({
-                Name = displayName,
+                Name = stageData.name,
                 Options = {"None"},
                 CurrentOption = {"None"},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. mapId,
-                Info = string.format("Auto-select macro for %s (Raid)", displayName),
+                Flag = "AutoSelect_" .. stageData.id,
+                Info = string.format("Auto-select macro for %s (Raid)", stageData.name),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[mapId] = nil
-                        print("Cleared auto-select for", displayName, "(Raid)")
+                        worldMacroMappings[stageData.id] = nil
+                        print("Cleared auto-select for", stageData.name, "(Raid)")
                     else
-                        worldMacroMappings[mapId] = selectedMacro
-                        print("Set auto-select:", displayName, "(Raid) ->", selectedMacro)
+                        worldMacroMappings[stageData.id] = selectedMacro
+                        print("Set auto-select:", stageData.name, "(Raid) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[mapId] = dropdown
+            worldDropdowns[stageData.id] = dropdown
         end
     end
     
@@ -5384,34 +5423,39 @@ local function createAutoSelectDropdowns()
             Flag = "PortalAutoSelectCollapsible"
         })
         
+        local sortedPortals = {}
         for portalKey, displayName in pairs(categorizedMaps.Portal) do
+            table.insert(sortedPortals, {id = portalKey, name = displayName})
+        end
+        table.sort(sortedPortals, function(a, b) return a.name < b.name end)
+        
+        for _, portalData in ipairs(sortedPortals) do
             local dropdown = categoryCollapsibles.Portal.Tab:CreateDropdown({
-                Name = displayName,
+                Name = portalData.name,
                 Options = {"None"},
                 CurrentOption = {"None"},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. portalKey,
-                Info = string.format("Auto-select macro for %s (Portal)", displayName),
+                Flag = "AutoSelect_" .. portalData.id,
+                Info = string.format("Auto-select macro for %s (Portal)", portalData.name),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[portalKey] = nil
-                        print("Cleared auto-select for", displayName, "(Portal)")
+                        worldMacroMappings[portalData.id] = nil
+                        print("Cleared auto-select for", portalData.name, "(Portal)")
                     else
-                        worldMacroMappings[portalKey] = selectedMacro
-                        print("Set auto-select:", displayName, "(Portal) ->", selectedMacro)
+                        worldMacroMappings[portalData.id] = selectedMacro
+                        print("Set auto-select:", portalData.name, "(Portal) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[portalKey] = dropdown
+            worldDropdowns[portalData.id] = dropdown
         end
     end
     
-    refreshAutoSelectDropdowns()
     print("Created categorized auto-select dropdowns")
 end
 
