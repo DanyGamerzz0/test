@@ -1,4 +1,4 @@
-    -- 3
+    -- 4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5214,7 +5214,9 @@ local function createAutoSelectDropdowns()
         return
     end
     
-    local success, categorizedMaps = pcall(function()
+    print("Starting createAutoSelectDropdowns - game data confirmed loaded")
+    
+    local success, result = pcall(function()
         local categories = {
             Story = {},
             Legend = {},
@@ -5232,86 +5234,117 @@ local function createAutoSelectDropdowns()
         
         -- Get all levels from Levels folder
         local LevelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
-        if LevelsFolder then
-            for _, levelModule in ipairs(LevelsFolder:GetChildren()) do
-                if levelModule:IsA("ModuleScript") then
-                    -- Skip developer/template modules
-                    if skipModules[levelModule.Name] then
-                        print("Skipping module:", levelModule.Name)
-                        continue
-                    end
-                    
-                    local moduleSuccess, levelData = pcall(require, levelModule)
-                    
-                    if moduleSuccess and levelData then
-                        -- Check if this is the Testing folder (portals)
-                        if levelModule.Name == "Testing" then
-                            for levelKey, levelInfo in pairs(levelData) do
-                                if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
-                                    -- Check for portal levels
-                                    if levelInfo._portal_only_level then
-                                        categories.Portal[levelInfo.id] = levelInfo.name
-                                        print("✓ Added to Portal:", levelInfo.name, "| ID:", levelInfo.id)
-                                    end
-                                end
-                            end
-                        else
-                            -- Process regular levels (Story/Legend/Raid)
-                            for levelKey, levelInfo in pairs(levelData) do
-                                if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
-                                    -- Skip template/test levels (those without proper names or IDs)
-                                    if levelInfo.name == "template" or 
-                                       levelInfo.id == "template" or
-                                       levelKey:lower():find("template") or
-                                       levelKey:lower():find("test") then
-                                        print("Skipping template/test level:", levelKey)
-                                        continue
-                                    end
-                                    
-                                    -- Determine category based on level properties
-                                    if levelInfo.legend_stage then
-                                        -- It's a Legend stage
-                                        local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                        categories.Legend[baseId] = levelInfo.name
-                                        print("✓ Added to Legend:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
-                                    elseif levelInfo.infinite then
-                                        -- Infinite modes - categorize by their parent world type
-                                        if levelInfo.world and levelInfo.world:lower():find("legend") then
-                                            local baseId = levelInfo.world or levelInfo.id
-                                            categories.Legend[baseId] = levelInfo.name
-                                            print("✓ Added to Legend (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
-                                        else
-                                            -- Regular infinite mode (story)
-                                            local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                            categories.Story[baseId] = levelInfo.name
-                                            print("✓ Added to Story (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
-                                        end
-                                    elseif levelInfo.raid_world or (levelInfo.world and levelInfo.world:lower():find("raid")) then
-                                        -- It's a Raid stage
-                                        local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                        categories.Raid[baseId] = levelInfo.name
-                                        print("✓ Added to Raid:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
-                                    else
-                                        -- Default to Story
-                                        local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                        categories.Story[baseId] = levelInfo.name
-                                        print("✓ Added to Story:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
-                                    end
-                                end
+        if not LevelsFolder then
+            error("Levels folder not found!")
+        end
+        
+        print("Levels folder found, scanning modules...")
+        local moduleCount = 0
+        
+        for _, levelModule in ipairs(LevelsFolder:GetChildren()) do
+            if levelModule:IsA("ModuleScript") then
+                moduleCount = moduleCount + 1
+                print("Found module:", levelModule.Name)
+                
+                -- Skip developer/template modules
+                if skipModules[levelModule.Name] then
+                    print("  -> Skipping (in skip list)")
+                    continue
+                end
+                
+                local moduleSuccess, levelData = pcall(require, levelModule)
+                
+                if not moduleSuccess then
+                    warn("  -> Failed to require module:", levelModule.Name, "-", levelData)
+                    continue
+                end
+                
+                if not levelData or type(levelData) ~= "table" then
+                    warn("  -> Module returned invalid data:", levelModule.Name)
+                    continue
+                end
+                
+                print("  -> Successfully loaded, processing levels...")
+                
+                -- Check if this is the Testing folder (portals)
+                if levelModule.Name == "Testing" then
+                    local portalCount = 0
+                    for levelKey, levelInfo in pairs(levelData) do
+                        if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
+                            -- Check for portal levels
+                            if levelInfo._portal_only_level then
+                                categories.Portal[levelInfo.id] = levelInfo.name
+                                portalCount = portalCount + 1
+                                print("    ✓ Added to Portal:", levelInfo.name, "| ID:", levelInfo.id)
                             end
                         end
                     end
+                    print("  -> Found", portalCount, "portals in Testing module")
+                else
+                    -- Process regular levels (Story/Legend/Raid)
+                    local levelCount = 0
+                    local skippedCount = 0
+                    
+                    for levelKey, levelInfo in pairs(levelData) do
+                        if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
+                            levelCount = levelCount + 1
+                            
+                            -- Skip template/test levels
+                            if levelInfo.name == "template" or 
+                               levelInfo.id == "template" or
+                               levelKey:lower():find("template") or
+                               levelKey:lower():find("test") then
+                                print("    -> Skipping template/test level:", levelKey)
+                                skippedCount = skippedCount + 1
+                                continue
+                            end
+                            
+                            -- Determine category based on level properties
+                            if levelInfo.legend_stage then
+                                -- It's a Legend stage
+                                local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                categories.Legend[baseId] = levelInfo.name
+                                print("    ✓ Added to Legend:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                            elseif levelInfo.infinite then
+                                -- Infinite modes - categorize by their parent world type
+                                if levelInfo.world and levelInfo.world:lower():find("legend") then
+                                    local baseId = levelInfo.world or levelInfo.id
+                                    categories.Legend[baseId] = levelInfo.name
+                                    print("    ✓ Added to Legend (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
+                                else
+                                    -- Regular infinite mode (story)
+                                    local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                    categories.Story[baseId] = levelInfo.name
+                                    print("    ✓ Added to Story (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
+                                end
+                            elseif levelInfo.raid_world or (levelInfo.world and levelInfo.world:lower():find("raid")) then
+                                -- It's a Raid stage
+                                local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                categories.Raid[baseId] = levelInfo.name
+                                print("    ✓ Added to Raid:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                            else
+                                -- Default to Story
+                                local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                categories.Story[baseId] = levelInfo.name
+                                print("    ✓ Added to Story:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                            end
+                        end
+                    end
+                    print("  -> Processed", levelCount, "levels, skipped", skippedCount)
                 end
             end
         end
         
+        print("Finished scanning", moduleCount, "modules")
         return categories
     end)
     
-    if not success or not categorizedMaps then
-        warn("Failed to load maps/portals for auto-select dropdowns:", categorizedMaps)
+    if not success then
+        warn("ERROR in createAutoSelectDropdowns:", result)
         return
     end
+    
+    local categorizedMaps = result
     
     -- Get initial macro options
     local initialMacroOptions = {"None"}
@@ -5334,6 +5367,11 @@ local function createAutoSelectDropdowns()
     for _ in pairs(categorizedMaps.Portal) do portalCount = portalCount + 1 end
     
     print(string.format("Found categories - Story: %d, Legend: %d, Raid: %d, Portal: %d", storyCount, legendCount, raidCount, portalCount))
+    
+    if storyCount == 0 and legendCount == 0 and raidCount == 0 and portalCount == 0 then
+        warn("No stages found in any category! Check console output above for errors.")
+        return
+    end
     
     -- Create collapsibles for each category
     local categoryCollapsibles = {}
