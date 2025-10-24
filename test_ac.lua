@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5222,11 +5222,25 @@ local function createAutoSelectDropdowns()
             Portal = {}
         }
         
+        -- Modules to skip (developer/template modules)
+        local skipModules = {
+            ["Levels_Rest"] = true,
+            ["Template"] = true,
+            ["Templates"] = true,
+            ["_Template"] = true
+        }
+        
         -- Get all levels from Levels folder
         local LevelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
         if LevelsFolder then
             for _, levelModule in ipairs(LevelsFolder:GetChildren()) do
                 if levelModule:IsA("ModuleScript") then
+                    -- Skip developer/template modules
+                    if skipModules[levelModule.Name] then
+                        print("Skipping module:", levelModule.Name)
+                        continue
+                    end
+                    
                     local moduleSuccess, levelData = pcall(require, levelModule)
                     
                     if moduleSuccess and levelData then
@@ -5245,6 +5259,15 @@ local function createAutoSelectDropdowns()
                             -- Process regular levels (Story/Legend/Raid)
                             for levelKey, levelInfo in pairs(levelData) do
                                 if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
+                                    -- Skip template/test levels (those without proper names or IDs)
+                                    if levelInfo.name == "template" or 
+                                       levelInfo.id == "template" or
+                                       levelKey:lower():find("template") or
+                                       levelKey:lower():find("test") then
+                                        print("Skipping template/test level:", levelKey)
+                                        continue
+                                    end
+                                    
                                     -- Determine category based on level properties
                                     if levelInfo.legend_stage then
                                         -- It's a Legend stage
@@ -5298,7 +5321,19 @@ local function createAutoSelectDropdowns()
     table.sort(initialMacroOptions)
     
     print("Initial macro options:", table.concat(initialMacroOptions, ", "))
-    print("Found categories - Story:", #categorizedMaps.Story, "Legend:", #categorizedMaps.Legend, "Raid:", #categorizedMaps.Raid, "Portal:", #categorizedMaps.Portal)
+    
+    -- Count categories
+    local storyCount = 0
+    local legendCount = 0
+    local raidCount = 0
+    local portalCount = 0
+    
+    for _ in pairs(categorizedMaps.Story) do storyCount = storyCount + 1 end
+    for _ in pairs(categorizedMaps.Legend) do legendCount = legendCount + 1 end
+    for _ in pairs(categorizedMaps.Raid) do raidCount = raidCount + 1 end
+    for _ in pairs(categorizedMaps.Portal) do portalCount = portalCount + 1 end
+    
+    print(string.format("Found categories - Story: %d, Legend: %d, Raid: %d, Portal: %d", storyCount, legendCount, raidCount, portalCount))
     
     -- Create collapsibles for each category
     local categoryCollapsibles = {}
