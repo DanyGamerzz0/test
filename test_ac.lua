@@ -1,4 +1,4 @@
-    -- 5
+    -- 6
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5214,7 +5214,7 @@ local function createAutoSelectDropdowns()
         return
     end
     
-    print("Starting createAutoSelectDropdowns - game data confirmed loaded")
+    print("Starting createAutoSelectDropdowns with Levels + Worlds approach")
     
     local success, result = pcall(function()
         local categories = {
@@ -5232,110 +5232,126 @@ local function createAutoSelectDropdowns()
             ["_Template"] = true
         }
         
-        -- Get all levels from Levels folder
+        -- First, load all world data to get proper display names
+        local worldDisplayNames = {} -- world_key -> display_name
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        
+        if WorldsFolder then
+            print("Loading world display names...")
+            for _, worldModule in ipairs(WorldsFolder:GetDescendants()) do
+                if worldModule:IsA("ModuleScript") then
+                    local moduleSuccess, worldData = pcall(require, worldModule)
+                    
+                    if moduleSuccess and worldData then
+                        for worldKey, worldInfo in pairs(worldData) do
+                            if type(worldInfo) == "table" and worldInfo.name then
+                                worldDisplayNames[worldKey] = worldInfo.name
+                                print("  Registered world:", worldKey, "->", worldInfo.name)
+                            end
+                        end
+                    end
+                end
+            end
+            print("Loaded", #worldDisplayNames, "world names")
+        end
+        
+        -- Now scan through Levels to categorize and get world keys
         local LevelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
         if not LevelsFolder then
             error("Levels folder not found!")
         end
         
-        print("Levels folder found, scanning modules...")
-        local moduleCount = 0
+        print("Scanning Levels folder for categorization...")
         
-        for _, levelModule in ipairs(LevelsFolder:GetDescendants()) do
+        for _, levelModule in ipairs(LevelsFolder:GetChildren()) do
             if levelModule:IsA("ModuleScript") then
-                moduleCount = moduleCount + 1
-                print("Found module:", levelModule.Name)
-                
                 -- Skip developer/template modules
                 if skipModules[levelModule.Name] then
-                    print("  -> Skipping (in skip list)")
+                    print("Skipping module:", levelModule.Name)
                     continue
                 end
                 
                 local moduleSuccess, levelData = pcall(require, levelModule)
                 
                 if not moduleSuccess then
-                    warn("  -> Failed to require module:", levelModule.Name, "-", levelData)
+                    warn("Failed to require module:", levelModule.Name)
                     continue
                 end
                 
                 if not levelData or type(levelData) ~= "table" then
-                    warn("  -> Module returned invalid data:", levelModule.Name)
+                    warn("Module returned invalid data:", levelModule.Name)
                     continue
                 end
                 
-                print("  -> Successfully loaded, processing levels...")
+                print("Processing module:", levelModule.Name)
                 
-                -- Check if this is the Testing folder (portals)
+                -- Handle Testing module (portals)
                 if levelModule.Name == "Testing" then
-                    local portalCount = 0
                     for levelKey, levelInfo in pairs(levelData) do
                         if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
-                            -- Check for portal levels
                             if levelInfo._portal_only_level then
+                                -- Portals use their own names directly
                                 categories.Portal[levelInfo.id] = levelInfo.name
-                                portalCount = portalCount + 1
-                                print("    ✓ Added to Portal:", levelInfo.name, "| ID:", levelInfo.id)
+                                print("  ✓ Portal:", levelInfo.name, "| ID:", levelInfo.id)
                             end
                         end
                     end
-                    print("  -> Found", portalCount, "portals in Testing module")
                 else
-                    -- Process regular levels (Story/Legend/Raid)
-                    local levelCount = 0
-                    local skippedCount = 0
-                    
+                    -- Process regular levels
                     for levelKey, levelInfo in pairs(levelData) do
-                        if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
-                            levelCount = levelCount + 1
-                            
-                            -- Skip template/test levels
-                            if levelInfo.name == "template" or 
-                               levelInfo.id == "template" or
-                               levelKey:lower():find("template") or
-                               levelKey:lower():find("test") then
-                                print("    -> Skipping template/test level:", levelKey)
-                                skippedCount = skippedCount + 1
+                        if type(levelInfo) == "table" and levelInfo.world then
+                            -- Skip template/test entries
+                            if levelKey:lower():find("template") or levelKey:lower():find("test") then
                                 continue
                             end
                             
-                            -- Determine category based on level properties
+                            local worldKey = levelInfo.world
+                            local displayName = worldDisplayNames[worldKey]
+                            
+                            if not displayName then
+                                -- Fallback to level name if world display name not found
+                                displayName = levelInfo.name or worldKey
+                            end
+                            
+                            -- Categorize based on level properties
                             if levelInfo.legend_stage then
-                                -- It's a Legend stage
-                                local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                categories.Legend[baseId] = levelInfo.name
-                                print("    ✓ Added to Legend:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
-                            elseif levelInfo.infinite then
-                                -- Infinite modes - categorize by their parent world type
-                                if levelInfo.world and levelInfo.world:lower():find("legend") then
-                                    local baseId = levelInfo.world or levelInfo.id
-                                    categories.Legend[baseId] = levelInfo.name
-                                    print("    ✓ Added to Legend (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
-                                else
-                                    -- Regular infinite mode (story)
-                                    local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                    categories.Story[baseId] = levelInfo.name
-                                    print("    ✓ Added to Story (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
+                                -- Legend stage
+                                if not categories.Legend[worldKey] then
+                                    categories.Legend[worldKey] = displayName
+                                    print("  ✓ Legend:", displayName, "| World:", worldKey)
                                 end
-                            elseif levelInfo.raid_world or (levelInfo.world and levelInfo.world:lower():find("raid")) then
-                                -- It's a Raid stage
-                                local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                categories.Raid[baseId] = levelInfo.name
-                                print("    ✓ Added to Raid:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                            elseif levelInfo.infinite then
+                                -- Infinite mode - categorize by world type
+                                if worldKey:lower():find("legend") then
+                                    if not categories.Legend[worldKey] then
+                                        categories.Legend[worldKey] = displayName .. " (Infinite)"
+                                        print("  ✓ Legend Infinite:", displayName, "| World:", worldKey)
+                                    end
+                                else
+                                    if not categories.Story[worldKey] then
+                                        categories.Story[worldKey] = displayName .. " (Infinite)"
+                                        print("  ✓ Story Infinite:", displayName, "| World:", worldKey)
+                                    end
+                                end
+                            elseif levelInfo.raid_world or worldKey:lower():find("raid") then
+                                -- Raid stage
+                                if not categories.Raid[worldKey] then
+                                    categories.Raid[worldKey] = displayName
+                                    print("  ✓ Raid:", displayName, "| World:", worldKey)
+                                end
                             else
-                                -- Default to Story
-                                local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
-                                categories.Story[baseId] = levelInfo.name
-                                print("    ✓ Added to Story:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                                -- Regular story stage
+                                if not categories.Story[worldKey] then
+                                    categories.Story[worldKey] = displayName
+                                    print("  ✓ Story:", displayName, "| World:", worldKey)
+                                end
                             end
                         end
                     end
-                    print("  -> Processed", levelCount, "levels, skipped", skippedCount)
                 end
             end
         end
         
-        print("Finished scanning", moduleCount, "modules")
         return categories
     end)
     
@@ -5353,8 +5369,6 @@ local function createAutoSelectDropdowns()
     end
     table.sort(initialMacroOptions)
     
-    print("Initial macro options:", table.concat(initialMacroOptions, ", "))
-    
     -- Count categories
     local storyCount = 0
     local legendCount = 0
@@ -5369,7 +5383,7 @@ local function createAutoSelectDropdowns()
     print(string.format("Found categories - Story: %d, Legend: %d, Raid: %d, Portal: %d", storyCount, legendCount, raidCount, portalCount))
     
     if storyCount == 0 and legendCount == 0 and raidCount == 0 and portalCount == 0 then
-        warn("No stages found in any category! Check console output above for errors.")
+        warn("No stages found in any category!")
         return
     end
     
@@ -5385,8 +5399,8 @@ local function createAutoSelectDropdowns()
         })
         
         local sortedStory = {}
-        for mapId, displayName in pairs(categorizedMaps.Story) do
-            table.insert(sortedStory, {id = mapId, name = displayName})
+        for worldKey, displayName in pairs(categorizedMaps.Story) do
+            table.insert(sortedStory, {id = worldKey, name = displayName})
         end
         table.sort(sortedStory, function(a, b) return a.name < b.name end)
         
@@ -5405,10 +5419,8 @@ local function createAutoSelectDropdowns()
                     
                     if selectedMacro == "None" or selectedMacro == "" then
                         worldMacroMappings[stageData.id] = nil
-                        print("Cleared auto-select for", stageData.name)
                     else
                         worldMacroMappings[stageData.id] = selectedMacro
-                        print("Set auto-select:", stageData.name, "->", selectedMacro)
                     end
                     
                     saveWorldMappings()
@@ -5428,8 +5440,8 @@ local function createAutoSelectDropdowns()
         })
         
         local sortedLegend = {}
-        for mapId, displayName in pairs(categorizedMaps.Legend) do
-            table.insert(sortedLegend, {id = mapId, name = displayName})
+        for worldKey, displayName in pairs(categorizedMaps.Legend) do
+            table.insert(sortedLegend, {id = worldKey, name = displayName})
         end
         table.sort(sortedLegend, function(a, b) return a.name < b.name end)
         
@@ -5442,16 +5454,13 @@ local function createAutoSelectDropdowns()
                 CurrentOption = {currentMapping},
                 MultipleOptions = false,
                 Flag = "AutoSelect_" .. stageData.id,
-                Info = string.format("Auto-select macro for %s (Legend)", stageData.name),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
                         worldMacroMappings[stageData.id] = nil
-                        print("Cleared auto-select for", stageData.name, "(Legend)")
                     else
                         worldMacroMappings[stageData.id] = selectedMacro
-                        print("Set auto-select:", stageData.name, "(Legend) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
@@ -5471,8 +5480,8 @@ local function createAutoSelectDropdowns()
         })
         
         local sortedRaid = {}
-        for mapId, displayName in pairs(categorizedMaps.Raid) do
-            table.insert(sortedRaid, {id = mapId, name = displayName})
+        for worldKey, displayName in pairs(categorizedMaps.Raid) do
+            table.insert(sortedRaid, {id = worldKey, name = displayName})
         end
         table.sort(sortedRaid, function(a, b) return a.name < b.name end)
         
@@ -5485,16 +5494,13 @@ local function createAutoSelectDropdowns()
                 CurrentOption = {currentMapping},
                 MultipleOptions = false,
                 Flag = "AutoSelect_" .. stageData.id,
-                Info = string.format("Auto-select macro for %s (Raid)", stageData.name),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
                         worldMacroMappings[stageData.id] = nil
-                        print("Cleared auto-select for", stageData.name, "(Raid)")
                     else
                         worldMacroMappings[stageData.id] = selectedMacro
-                        print("Set auto-select:", stageData.name, "(Raid) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
@@ -5528,16 +5534,13 @@ local function createAutoSelectDropdowns()
                 CurrentOption = {currentMapping},
                 MultipleOptions = false,
                 Flag = "AutoSelect_" .. portalData.id,
-                Info = string.format("Auto-select macro for %s (Portal)", portalData.name),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
                         worldMacroMappings[portalData.id] = nil
-                        print("Cleared auto-select for", portalData.name, "(Portal)")
                     else
                         worldMacroMappings[portalData.id] = selectedMacro
-                        print("Set auto-select:", portalData.name, "(Portal) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
