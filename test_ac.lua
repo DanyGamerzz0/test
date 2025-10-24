@@ -1,4 +1,4 @@
-    -- 4
+    -- 5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5241,7 +5241,7 @@ local function createAutoSelectDropdowns()
         print("Levels folder found, scanning modules...")
         local moduleCount = 0
         
-        for _, levelModule in ipairs(LevelsFolder:GetChildren()) do
+        for _, levelModule in ipairs(LevelsFolder:GetDescendants()) do
             if levelModule:IsA("ModuleScript") then
                 moduleCount = moduleCount + 1
                 print("Found module:", levelModule.Name)
