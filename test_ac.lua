@@ -1,4 +1,4 @@
-    -- 3
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5222,94 +5222,58 @@ local function createAutoSelectDropdowns()
             Portal = {}
         }
         
-        -- First, get the official legend/raid world lists
-        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-        local legendWorldKeys = {}
-        local raidWorldKeys = {}
-        
-        -- Build lookup tables for legend and raid worlds
-        if WorldLevelOrder.LEGEND_WORLD_ORDER then
-            for _, worldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
-                legendWorldKeys[worldKey:lower()] = true
-                -- Also add base name without _legend suffix
-                local baseName = worldKey:match("^(.-)_legend") or worldKey
-                legendWorldKeys[baseName:lower()] = true
-                print("Registered legend world key:", worldKey:lower(), "and base:", baseName:lower())
-            end
-        end
-        
-        if WorldLevelOrder.RAID_WORLD_ORDER then
-            for _, worldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
-                raidWorldKeys[worldKey:lower()] = true
-                -- Also add base name
-                local baseName = worldKey:match("^(.-)_raid") or worldKey
-                raidWorldKeys[baseName:lower()] = true
-                print("Registered raid world key:", worldKey:lower(), "and base:", baseName:lower())
-            end
-        end
-        
-        -- Get all maps from Maps folder
-        local MapsFolder = Services.ReplicatedStorage.Framework.Data.Maps
-        if MapsFolder then
-            for _, mapModule in ipairs(MapsFolder:GetChildren()) do
-                if mapModule:IsA("ModuleScript") then
-                    local moduleSuccess, mapData = pcall(require, mapModule)
+        -- Get all levels from Levels folder
+        local LevelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
+        if LevelsFolder then
+            for _, levelModule in ipairs(LevelsFolder:GetChildren()) do
+                if levelModule:IsA("ModuleScript") then
+                    local moduleSuccess, levelData = pcall(require, levelModule)
                     
-                    if moduleSuccess and mapData then
-                        for mapKey, mapInfo in pairs(mapData) do
-                            if type(mapInfo) == "table" and mapInfo.name and mapInfo.id then
-                                local mapIdLower = mapInfo.id:lower()
-                                local mapKeyLower = mapKey:lower()
-                                local baseName = mapInfo.id:match("^([^_]+)") or mapInfo.id
-                                
-                                print("Processing map:", mapInfo.name, "| ID:", mapInfo.id, "| Key:", mapKey)
-                                
-                                -- Check if it's a legend stage using multiple methods
-                                local isLegend = mapInfo.legend_stage or 
-                                               legendWorldKeys[mapKeyLower] or 
-                                               legendWorldKeys[mapIdLower] or
-                                               mapIdLower:find("legend") or
-                                               (mapInfo.world and legendWorldKeys[mapInfo.world:lower()])
-                                
-                                -- Check if it's a raid stage
-                                local isRaid = mapInfo.raid_world or 
-                                             raidWorldKeys[mapKeyLower] or 
-                                             raidWorldKeys[mapIdLower] or
-                                             mapIdLower:find("raid") or
-                                             (mapInfo.world and raidWorldKeys[mapInfo.world:lower()])
-                                
-                                if isLegend then
-                                    categories.Legend[baseName] = mapInfo.name
-                                    print("✓ Added to Legend:", mapInfo.name)
-                                elseif isRaid then
-                                    categories.Raid[baseName] = mapInfo.name
-                                    print("✓ Added to Raid:", mapInfo.name)
-                                else
-                                    categories.Story[baseName] = mapInfo.name
-                                    print("✓ Added to Story:", mapInfo.name)
+                    if moduleSuccess and levelData then
+                        -- Check if this is the Testing folder (portals)
+                        if levelModule.Name == "Testing" then
+                            for levelKey, levelInfo in pairs(levelData) do
+                                if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
+                                    -- Check for portal levels
+                                    if levelInfo._portal_only_level then
+                                        categories.Portal[levelInfo.id] = levelInfo.name
+                                        print("✓ Added to Portal:", levelInfo.name, "| ID:", levelInfo.id)
+                                    end
                                 end
                             end
-                        end
-                    end
-                end
-            end
-        end
-        
-        -- Get all portals from Testing folder
-        local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
-        if TestingFolder then
-            for _, portalModule in ipairs(TestingFolder:GetChildren()) do
-                if portalModule:IsA("ModuleScript") then
-                    local moduleNameLower = string.lower(portalModule.Name)
-                    
-                    if moduleNameLower:find("portal") then
-                        local moduleSuccess, portalData = pcall(require, portalModule)
-                        
-                        if moduleSuccess and portalData then
-                            for portalKey, portalInfo in pairs(portalData) do
-                                if type(portalInfo) == "table" and portalInfo.name and portalInfo._portal_only_level then
-                                    categories.Portal[portalKey] = portalInfo.name
-                                    print("✓ Added to Portal:", portalInfo.name)
+                        else
+                            -- Process regular levels (Story/Legend/Raid)
+                            for levelKey, levelInfo in pairs(levelData) do
+                                if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
+                                    -- Determine category based on level properties
+                                    if levelInfo.legend_stage then
+                                        -- It's a Legend stage
+                                        local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                        categories.Legend[baseId] = levelInfo.name
+                                        print("✓ Added to Legend:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                                    elseif levelInfo.infinite then
+                                        -- Infinite modes - categorize by their parent world type
+                                        if levelInfo.world and levelInfo.world:lower():find("legend") then
+                                            local baseId = levelInfo.world or levelInfo.id
+                                            categories.Legend[baseId] = levelInfo.name
+                                            print("✓ Added to Legend (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
+                                        else
+                                            -- Regular infinite mode (story)
+                                            local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                            categories.Story[baseId] = levelInfo.name
+                                            print("✓ Added to Story (Infinite):", levelInfo.name, "| ID:", levelInfo.id)
+                                        end
+                                    elseif levelInfo.raid_world or (levelInfo.world and levelInfo.world:lower():find("raid")) then
+                                        -- It's a Raid stage
+                                        local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                        categories.Raid[baseId] = levelInfo.name
+                                        print("✓ Added to Raid:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                                    else
+                                        -- Default to Story
+                                        local baseId = levelInfo.world or levelInfo.id:match("^([^_]+)") or levelInfo.id
+                                        categories.Story[baseId] = levelInfo.name
+                                        print("✓ Added to Story:", levelInfo.name, "| ID:", levelInfo.id, "| Base:", baseId)
+                                    end
                                 end
                             end
                         end
@@ -5334,6 +5298,7 @@ local function createAutoSelectDropdowns()
     table.sort(initialMacroOptions)
     
     print("Initial macro options:", table.concat(initialMacroOptions, ", "))
+    print("Found categories - Story:", #categorizedMaps.Story, "Legend:", #categorizedMaps.Legend, "Raid:", #categorizedMaps.Raid, "Portal:", #categorizedMaps.Portal)
     
     -- Create collapsibles for each category
     local categoryCollapsibles = {}
