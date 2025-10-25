@@ -1,4 +1,4 @@
-    -- 23
+    -- 24
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2803,6 +2803,7 @@ end
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_MOB_")
         else
             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_MOB_")
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_MOB_")
         end
             task.delay(5, clearProcessingState)
             return
@@ -2816,6 +2817,7 @@ end
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_HALLOWEEN_")
         else
             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_HALLOWEEN_")
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_HALLOWEEN_")
         end
             task.delay(5, clearProcessingState)
             return
@@ -2834,6 +2836,7 @@ end
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
 
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",completeStageId,false,State.StoryDifficultySelected)
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
         end
             task.delay(5, clearProcessingState)
             return
@@ -2852,6 +2855,8 @@ end
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
 
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",string.lower(completeLegendStageId),false,"Hard")
+
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
         end
             task.delay(5, clearProcessingState)
             return
@@ -2868,6 +2873,8 @@ end
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
 
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("R1",completeRaidStageId,false,"Hard")
+
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("R1")
         end
             task.delay(5, clearProcessingState)
             return
