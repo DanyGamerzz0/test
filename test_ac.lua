@@ -1,4 +1,4 @@
-    -- 8
+    -- 9
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -3836,7 +3836,7 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
         end
     end
 
-    local function loadPortalsWithRetry()
+local function loadPortalsWithRetry()
     loadingRetries.portal = loadingRetries.portal or 0
     loadingRetries.portal = loadingRetries.portal + 1
     
@@ -3853,40 +3853,42 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
     end
     
     local success, result = pcall(function()
-        local portalsFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
+        local testingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
         
-        if not portalsFolder then
+        if not testingFolder then
             error("Testing folder not found in ReplicatedStorage")
         end
         
         local portalOptions = {}
         
-        -- Get all children and filter for portal modules
-        for _, child in ipairs(portalsFolder:GetChildren()) do
-            if child:IsA("ModuleScript") then
-                local childNameLower = string.lower(child.Name)
+        -- Scan ALL modules in Testing folder
+        for _, moduleScript in ipairs(testingFolder:GetChildren()) do
+            if moduleScript:IsA("ModuleScript") then
+                print("Checking module for portals:", moduleScript.Name)
                 
-                -- Check if the module name contains "portal"
-                if childNameLower:find("portal") then
-                    local moduleSuccess, portalData = pcall(require, child)
-                    
-                    if moduleSuccess and portalData then
-                        -- Iterate through all portals in this module
-                        for portalKey, portalInfo in pairs(portalData) do
-                            if type(portalInfo) == "table" and portalInfo.name and portalInfo._portal_only_level then
-                                table.insert(portalOptions, portalInfo.name)
-                                print("Found portal:", portalInfo.name, "with ID:", portalKey)
-                            end
+                local moduleSuccess, moduleData = pcall(require, moduleScript)
+                
+                if moduleSuccess and moduleData and type(moduleData) == "table" then
+                    -- Check each entry in the module for _portal_only_level flag
+                    for levelKey, levelInfo in pairs(moduleData) do
+                        if type(levelInfo) == "table" and 
+                           levelInfo._portal_only_level == true and 
+                           levelInfo.name and 
+                           levelInfo.id then
+                            table.insert(portalOptions, levelInfo.name)
+                            print("  ✓ Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Key:", levelKey)
                         end
-                    else
-                        warn("Failed to require portal module:", child.Name, "-", portalData)
+                    end
+                else
+                    if not moduleSuccess then
+                        warn("  Failed to require module:", moduleScript.Name, "-", moduleData)
                     end
                 end
             end
         end
         
         if #portalOptions == 0 then
-            error("No portals found in Testing folder")
+            error("No portals found with _portal_only_level flag in Testing folder")
         end
         
         -- Sort alphabetically for consistent ordering
@@ -3902,7 +3904,7 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
         if loadingRetries.portal <= maxRetries then
             print(string.format("Portals loading failed (attempt %d/%d): %s - retrying...", loadingRetries.portal, maxRetries, tostring(result)))
             task.wait(retryDelay)
-            task.spawn(loadAllPortalsWithRetry)
+            task.spawn(loadPortalsWithRetry)
         else
             warn("Failed to load portals after", maxRetries, "attempts:", result)
             SelectPortalDropdown:Refresh({"Failed to load - check console"})
