@@ -1,4 +1,4 @@
-    -- 22
+    -- 23
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -232,7 +232,7 @@ local playbackDisplayNameInstances = {}
         AutoJoinHalloween = false,
         AutoMatchmakeHalloween = false,
         AutoSelectCard = false,
-        --CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
+        CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
     local currentCardData = nil
@@ -240,7 +240,7 @@ local playbackDisplayNameInstances = {}
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
     local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
-    --local CardPriorityTab = Window:CreateTab("Auto Pick Card", "award")
+    local CardPriorityTab = Window:CreateTab("Auto Pick Card", "award")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
     local MacroTab = Window:CreateTab("Macro", "joystick")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -3509,7 +3509,7 @@ section = JoinerTab:CreateSection("Event Joiner")
    end,
 })
 
---[[local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
+local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
     CurrentValue = false,
     Flag = "AutoSelectCard",
@@ -3519,13 +3519,10 @@ section = JoinerTab:CreateSection("Event Joiner")
     end,
 })
 
-local EnemyShieldCollapsible = CardPriorityTab:CreateCollapsible({
-    Name = "Enemy Shield Priority",
-    DefaultExpanded = false,
-    Flag = "EnemyShieldCollapsible"
-})
+-- Enemy Shield Section (instead of Collapsible)
+CardPriorityTab:CreateSection("Enemy Shield Priority")
 
-EnemyShieldCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Enemy Shield Tier 1",
     Range = {0, 100},
     Increment = 1,
@@ -3537,7 +3534,7 @@ EnemyShieldCollapsible.Tab:CreateSlider({
     end,
 })
 
-EnemyShieldCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Enemy Shield Tier 2",
     Range = {0, 100},
     Increment = 1,
@@ -3549,7 +3546,7 @@ EnemyShieldCollapsible.Tab:CreateSlider({
     end,
 })
 
-EnemyShieldCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Enemy Shield Tier 3",
     Range = {0, 100},
     Increment = 1,
@@ -3561,14 +3558,10 @@ EnemyShieldCollapsible.Tab:CreateSlider({
     end,
 })
 
--- Enemy Speed Collapsible
-local EnemySpeedCollapsible = CardPriorityTab:CreateCollapsible({
-    Name = "Enemy Speed Priority",
-    DefaultExpanded = false,
-    Flag = "EnemySpeedCollapsible"
-})
+-- Enemy Speed Section
+CardPriorityTab:CreateSection("Enemy Speed Priority")
 
-EnemySpeedCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Enemy Speed Tier 1",
     Range = {0, 100},
     Increment = 1,
@@ -3580,7 +3573,7 @@ EnemySpeedCollapsible.Tab:CreateSlider({
     end,
 })
 
-EnemySpeedCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Enemy Speed Tier 2",
     Range = {0, 100},
     Increment = 1,
@@ -3592,7 +3585,7 @@ EnemySpeedCollapsible.Tab:CreateSlider({
     end,
 })
 
-EnemySpeedCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Enemy Speed Tier 3",
     Range = {0, 100},
     Increment = 1,
@@ -3604,14 +3597,10 @@ EnemySpeedCollapsible.Tab:CreateSlider({
     end,
 })
 
--- Damage Collapsible
-local DamageCollapsible = CardPriorityTab:CreateCollapsible({
-    Name = "Damage Priority",
-    DefaultExpanded = false,
-    Flag = "DamageCollapsible"
-})
+-- Damage Section
+CardPriorityTab:CreateSection("Damage Priority")
 
-DamageCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Damage Tier 1",
     Range = {0, 100},
     Increment = 1,
@@ -3623,7 +3612,7 @@ DamageCollapsible.Tab:CreateSlider({
     end,
 })
 
-DamageCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Damage Tier 2",
     Range = {0, 100},
     Increment = 1,
@@ -3635,7 +3624,7 @@ DamageCollapsible.Tab:CreateSlider({
     end,
 })
 
-DamageCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Damage Tier 3",
     Range = {0, 100},
     Increment = 1,
@@ -3647,14 +3636,10 @@ DamageCollapsible.Tab:CreateSlider({
     end,
 })
 
--- Cooldown Collapsible
-local CooldownCollapsible = CardPriorityTab:CreateCollapsible({
-    Name = "Cooldown Priority",
-    DefaultExpanded = false,
-    Flag = "CooldownCollapsible"
-})
+-- Cooldown Section
+CardPriorityTab:CreateSection("Cooldown Priority")
 
-CooldownCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Cooldown Tier 1",
     Range = {0, 100},
     Increment = 1,
@@ -3666,7 +3651,7 @@ CooldownCollapsible.Tab:CreateSlider({
     end,
 })
 
-CooldownCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Cooldown Tier 2",
     Range = {0, 100},
     Increment = 1,
@@ -3678,7 +3663,7 @@ CooldownCollapsible.Tab:CreateSlider({
     end,
 })
 
-CooldownCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Cooldown Tier 3",
     Range = {0, 100},
     Increment = 1,
@@ -3690,14 +3675,10 @@ CooldownCollapsible.Tab:CreateSlider({
     end,
 })
 
--- Range Collapsible
-local RangeCollapsible = CardPriorityTab:CreateCollapsible({
-    Name = "Range Priority",
-    DefaultExpanded = false,
-    Flag = "RangeCollapsible"
-})
+-- Range Section
+CardPriorityTab:CreateSection("Range Priority")
 
-RangeCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Range Tier 1",
     Range = {0, 100},
     Increment = 1,
@@ -3709,7 +3690,7 @@ RangeCollapsible.Tab:CreateSlider({
     end,
 })
 
-RangeCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Range Tier 2",
     Range = {0, 100},
     Increment = 1,
@@ -3721,7 +3702,7 @@ RangeCollapsible.Tab:CreateSlider({
     end,
 })
 
-RangeCollapsible.Tab:CreateSlider({
+CardPriorityTab:CreateSlider({
     Name = "Range Tier 3",
     Range = {0, 100},
     Increment = 1,
@@ -3731,7 +3712,7 @@ RangeCollapsible.Tab:CreateSlider({
     Callback = function(Value)
         State.CardPriority["Range"].tier3 = Value
     end,
-})--]]
+})
 
 local function getCardButtons()
     local playerGui = Services.Players.LocalPlayer.PlayerGui
@@ -3906,7 +3887,7 @@ local function setupCardSelectionMonitoring()
     end)
 end
 
---task.spawn(setupCardSelectionMonitoring)
+task.spawn(setupCardSelectionMonitoring)
 
     local function loadIgnoreWorldsWithRetry()
         loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds + 1
