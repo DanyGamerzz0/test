@@ -1,4 +1,4 @@
-    -- 12
+    -- 13
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -227,6 +227,10 @@ local playbackDisplayNameInstances = {}
         AutoJoinPortal = false,
         SelectedPortal = {},
         AutoNextPortal = false,
+        AutoJoinSpiritInvasion = false,
+        AutoMatchmakeSpiritInvasion = false,
+        AutoJoinHalloween = false,
+        AutoMatchmakeHalloween = false,
     }
 
     -- ========== CREATE TABS ==========
@@ -2499,6 +2503,10 @@ local function setProcessingState(action)
         notify("Auto Joiner: ","Attempting to join gate...")
     elseif action == "Challenge Auto Join" then
         notify("Auto Joiner: ","Attempting to join challenge...")
+    elseif action == "Spirit Invasion Auto Join" then
+        notify("Auto Joiner: ","Attempting to join event...")
+    elseif action == "Halloween Event Auto Join" then
+        notify("Auto Joiner: ","Attempting to join event...")
     end
 end
 
@@ -3003,6 +3011,68 @@ end
         task.delay(5, clearProcessingState)
         return
     end
+
+
+    --SPIRIT INVASION
+        if State.AutoJoinSpiritInvasion then
+            setProcessingState("Spirit Invasion Auto Join")
+
+            if State.AutoMatchmakeSpiritInvasion then
+            
+            local success = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_MOB_")
+            end)
+            
+            if success then
+                print("Successfully sent event matchmaking request!")
+                notify("Event Matchmaking", "Matchmaking for Spirit Invasion")
+            else
+                warn("Failed to send event matchmaking request!")
+            end
+        else
+            local success = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_MOB_")
+            end)
+            if success then
+                print("Successfully sent event join request!")
+                game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_MOB_")
+            else
+                warn("Failed to send event join request!")
+            end
+        end
+            task.delay(5, clearProcessingState)
+            return
+        end
+
+        --HALLOWEEN
+                if State.AutoJoinHalloween then
+            setProcessingState("Halloween Event Auto Join")
+
+            if State.AutoMatchmakeHalloween then
+            local success = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_HALLOWEEN_")
+            end)
+            
+            if success then
+                print("Successfully sent event matchmaking request!")
+                notify("Event Matchmaking", "Matchmaking for Spirit Invasion")
+            else
+                warn("Failed to send event matchmaking request!")
+            end
+        else
+            local success = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_HALLOWEEN_")
+            end)
+            if success then
+                print("Successfully sent event join request!")
+                game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_HALLOWEEN_")
+            else
+                warn("Failed to send event join request!")
+            end
+        end
+            task.delay(5, clearProcessingState)
+            return
+        end
 
         -- STORY
         if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
@@ -3735,6 +3805,44 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
             end
         end
     end)
+
+section = JoinerTab:CreateSection("Event Joiner")
+
+ Toggle = JoinerTab:CreateToggle({
+   Name = "Auto Join Spirit Invasion",
+   CurrentValue = false,
+   Flag = "AutoJoinSpiritInvasion",
+   Callback = function(Value)
+        State.AutoJoinSpiritInvasion = Value
+   end,
+})
+
+ Toggle = JoinerTab:CreateToggle({
+   Name = "Auto Matchmake Spirit Invasion",
+   CurrentValue = false,
+   Flag = "AutoMatchmakeSpiritInvasion",
+   Callback = function(Value)
+        State.AutoMatchmakeSpiritInvasion = Value
+   end,
+})
+
+ Toggle = JoinerTab:CreateToggle({
+   Name = "Auto Join Halloween Event",
+   CurrentValue = false,
+   Flag = "AutoJoinHalloween",
+   Callback = function(Value)
+        State.AutoJoinHalloween = Value
+   end,
+})
+
+ Toggle = JoinerTab:CreateToggle({
+   Name = "Auto Matchmake Halloween Event",
+   CurrentValue = false,
+   Flag = "AutoMatchmakeHalloween",
+   Callback = function(Value)
+        State.AutoMatchmakeHalloween = Value
+   end,
+})
 
     local function loadIgnoreWorldsWithRetry()
         loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds + 1
