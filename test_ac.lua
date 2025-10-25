@@ -1,4 +1,4 @@
-    -- 15
+    -- 16
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -240,7 +240,7 @@ local playbackDisplayNameInstances = {}
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
     local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
-    local CardPriorityTab = Window:CreateTab("Card Priority", "award")
+    local CardPriorityTab = Window:CreateTab("Auto Pick Card", "award")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
     local MacroTab = Window:CreateTab("Macro", "joystick")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -3513,7 +3513,7 @@ local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
     CurrentValue = false,
     Flag = "AutoSelectCard",
-    Info = "Automatically select cards based on your priority settings below",
+    Info = "Automatically select cards based on your priority settings below. Avoid setting multiple sliders to the same value",
     Callback = function(Value)
         State.AutoSelectCard = Value
     end,
@@ -6953,7 +6953,6 @@ end
     ensureMacroFolders()
     loadAllMacros()
 
-    Rayfield:LoadConfiguration()
 
     task.delay(1, function()
         print("Starting dropdown loading with retry logic...")
@@ -6989,6 +6988,8 @@ end
             end
         end)
     end)
+
+    Rayfield:LoadConfiguration()
 
     -- Restore saved macro from config after a delay
     task.delay(1, function()
