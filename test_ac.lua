@@ -1,4 +1,4 @@
-    -- 11
+    -- 12
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4632,9 +4632,10 @@ local function refreshAutoSelectDropdowns()
     
     table.sort(macroOptions)
     
+    print("Refreshing auto-select dropdowns with", #macroOptions - 1, "macros") -- -1 to exclude "None"
+    
     -- Refresh each dropdown
     for worldKey, dropdown in pairs(worldDropdowns) do
-        -- Check if dropdown exists and has a Refresh method
         if dropdown and type(dropdown) == "table" then
             local currentMapping = worldMacroMappings[worldKey] or "None"
             
@@ -4655,24 +4656,35 @@ local function refreshAutoSelectDropdowns()
                 saveWorldMappings()
             end
             
-            -- Try to refresh if the method exists
+            -- Try multiple refresh approaches
             local refreshSuccess = pcall(function()
                 if dropdown.Refresh then
                     dropdown:Refresh(macroOptions, currentMapping)
-                    print("Refreshed auto-select dropdown for", worldKey, "with current selection:", currentMapping)
+                    print("✓ Refreshed dropdown for", worldKey, "using Refresh method")
                 elseif dropdown.UpdateOptions then
                     dropdown:UpdateOptions(macroOptions)
-                    print("Updated options for", worldKey)
+                    print("✓ Updated options for", worldKey, "using UpdateOptions method")
+                elseif dropdown.Options then
+                    -- Direct property update as fallback
+                    dropdown.Options = macroOptions
+                    if dropdown.CurrentOption then
+                        dropdown.CurrentOption = {currentMapping}
+                    end
+                    print("✓ Updated", worldKey, "via direct property access")
                 else
-                    print("Warning: No refresh method found for dropdown", worldKey)
+                    print("⚠ No refresh method available for", worldKey)
                 end
             end)
             
             if not refreshSuccess then
-                print("Could not refresh dropdown for", worldKey, "- skipping")
+                print("✗ Failed to refresh dropdown for", worldKey)
             end
+        else
+            print("⚠ Invalid dropdown object for", worldKey)
         end
     end
+    
+    print("Finished refreshing all auto-select dropdowns")
 end
 
      MacroInput = MacroTab:CreateInput({
@@ -4692,6 +4704,7 @@ end
                 macroManager[cleanedName] = {}
                 saveMacroToFile(cleanedName)
                 refreshMacroDropdown()
+                task.wait(0.1)
                 refreshAutoSelectDropdowns()
                 
                 notify(nil,"Success: Created macro '" .. cleanedName .. "'.")
@@ -5413,7 +5426,7 @@ local function createAutoSelectDropdowns()
     
     -- Other Collapsible - Special events (Halloween, Spirit Invasion, etc.)
     categoryCollapsibles.Other = MacroTab:CreateCollapsible({
-        Name = "Other Events",
+        Name = "Other",
         DefaultExpanded = false,
         Flag = "OtherEventsAutoSelectCollapsible"
     })
