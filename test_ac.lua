@@ -1,4 +1,4 @@
-    -- 7
+    -- 8
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5209,158 +5209,7 @@ local function getCurrentWorld()
 end
 
 local function createAutoSelectDropdowns()
-    if not isGameDataLoaded() then
-        print("Game data not loaded yet for auto-select dropdowns")
-        return
-    end
-    
-    print("Starting createAutoSelectDropdowns with Levels + Worlds approach")
-    
-    local success, result = pcall(function()
-        local categories = {
-            Story = {},
-            Legend = {},
-            Raid = {},
-            Portal = {}
-        }
-        
-        -- Modules to skip (developer/template modules)
-        local skipModules = {
-            ["Levels_Rest"] = true,
-            ["Template"] = true,
-            ["Templates"] = true,
-            ["_Template"] = true
-        }
-        
-        -- First, load all world data to get proper display names
-        local worldDisplayNames = {} -- world_key -> display_name
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-        
-        if WorldsFolder then
-            print("Loading world display names...")
-            for _, worldModule in ipairs(WorldsFolder:GetDescendants()) do
-                if worldModule:IsA("ModuleScript") then
-                    local moduleSuccess, worldData = pcall(require, worldModule)
-                    
-                    if moduleSuccess and worldData then
-                        for worldKey, worldInfo in pairs(worldData) do
-                            if type(worldInfo) == "table" and worldInfo.name then
-                                worldDisplayNames[worldKey] = worldInfo.name
-                                print("  Registered world:", worldKey, "->", worldInfo.name)
-                            end
-                        end
-                    end
-                end
-            end
-            print("Loaded", #worldDisplayNames, "world names")
-        end
-        
-        -- Now scan through Levels to categorize and get world keys
-        local LevelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
-        if not LevelsFolder then
-            error("Levels folder not found!")
-        end
-        
-        print("Scanning Levels folder for categorization...")
-        
-        for _, levelModule in ipairs(LevelsFolder:GetDescendants()) do
-            if levelModule:IsA("ModuleScript") then
-                -- Skip developer/template modules
-                if skipModules[levelModule.Name] then
-                    print("Skipping module:", levelModule.Name)
-                    continue
-                end
-                
-                local moduleSuccess, levelData = pcall(require, levelModule)
-                
-                if not moduleSuccess then
-                    warn("Failed to require module:", levelModule.Name)
-                    continue
-                end
-                
-                if not levelData or type(levelData) ~= "table" then
-                    warn("Module returned invalid data:", levelModule.Name)
-                    continue
-                end
-                
-                print("Processing module:", levelModule.Name)
-                
-                -- Handle Testing module (portals)
-                if levelModule.Name == "Testing" then
-                    for levelKey, levelInfo in pairs(levelData) do
-                        if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
-                            if levelInfo._portal_only_level then
-                                -- Portals use their own names directly
-                                categories.Portal[levelInfo.id] = levelInfo.name
-                                print("  ✓ Portal:", levelInfo.name, "| ID:", levelInfo.id)
-                            end
-                        end
-                    end
-                else
-                    -- Process regular levels
-                    for levelKey, levelInfo in pairs(levelData) do
-                        if type(levelInfo) == "table" and levelInfo.world then
-                            -- Skip template/test entries
-                            if levelKey:lower():find("template") or levelKey:lower():find("test") then
-                                continue
-                            end
-                            
-                            local worldKey = levelInfo.world
-                            local displayName = worldDisplayNames[worldKey]
-                            
-                            if not displayName then
-                                -- Fallback to level name if world display name not found
-                                displayName = levelInfo.name or worldKey
-                            end
-                            
-                            -- Categorize based on level properties
-                            if levelInfo.legend_stage then
-                                -- Legend stage
-                                if not categories.Legend[worldKey] then
-                                    categories.Legend[worldKey] = displayName
-                                    print("  ✓ Legend:", displayName, "| World:", worldKey)
-                                end
-                            elseif levelInfo.infinite then
-                                -- Infinite mode - categorize by world type
-                                if worldKey:lower():find("legend") then
-                                    if not categories.Legend[worldKey] then
-                                        categories.Legend[worldKey] = displayName .. " (Infinite)"
-                                        print("  ✓ Legend Infinite:", displayName, "| World:", worldKey)
-                                    end
-                                else
-                                    if not categories.Story[worldKey] then
-                                        categories.Story[worldKey] = displayName .. " (Infinite)"
-                                        print("  ✓ Story Infinite:", displayName, "| World:", worldKey)
-                                    end
-                                end
-                            elseif levelInfo.raid_world or worldKey:lower():find("raid") then
-                                -- Raid stage
-                                if not categories.Raid[worldKey] then
-                                    categories.Raid[worldKey] = displayName
-                                    print("  ✓ Raid:", displayName, "| World:", worldKey)
-                                end
-                            else
-                                -- Regular story stage
-                                if not categories.Story[worldKey] then
-                                    categories.Story[worldKey] = displayName
-                                    print("  ✓ Story:", displayName, "| World:", worldKey)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        
-        return categories
-    end)
-    
-    if not success then
-        warn("ERROR in createAutoSelectDropdowns:", result)
-        return
-    end
-    
-    local categorizedMaps = result
+    print("Creating auto-select dropdowns using existing dropdown data...")
     
     -- Get initial macro options
     local initialMacroOptions = {"None"}
@@ -5369,185 +5218,192 @@ local function createAutoSelectDropdowns()
     end
     table.sort(initialMacroOptions)
     
-    -- Count categories
-    local storyCount = 0
-    local legendCount = 0
-    local raidCount = 0
-    local portalCount = 0
-    
-    for _ in pairs(categorizedMaps.Story) do storyCount = storyCount + 1 end
-    for _ in pairs(categorizedMaps.Legend) do legendCount = legendCount + 1 end
-    for _ in pairs(categorizedMaps.Raid) do raidCount = raidCount + 1 end
-    for _ in pairs(categorizedMaps.Portal) do portalCount = portalCount + 1 end
-    
-    print(string.format("Found categories - Story: %d, Legend: %d, Raid: %d, Portal: %d", storyCount, legendCount, raidCount, portalCount))
-    
-    if storyCount == 0 and legendCount == 0 and raidCount == 0 and portalCount == 0 then
-        warn("No stages found in any category!")
-        return
-    end
+    print("Initial macro options:", table.concat(initialMacroOptions, ", "))
     
     -- Create collapsibles for each category
     local categoryCollapsibles = {}
     
-    -- Story Collapsible
-    if next(categorizedMaps.Story) then
+    -- Story Collapsible - Use existing StoryStageDropdown options
+    if StoryStageDropdown and StoryStageDropdown.Options and #StoryStageDropdown.Options > 0 then
         categoryCollapsibles.Story = MacroTab:CreateCollapsible({
             Name = "📖 Story Stages",
             DefaultExpanded = true,
             Flag = "StoryAutoSelectCollapsible"
         })
         
-        local sortedStory = {}
-        for worldKey, displayName in pairs(categorizedMaps.Story) do
-            table.insert(sortedStory, {id = worldKey, name = displayName})
-        end
-        table.sort(sortedStory, function(a, b) return a.name < b.name end)
+        print("Creating Story auto-select dropdowns for", #StoryStageDropdown.Options, "stages")
         
-        for _, stageData in ipairs(sortedStory) do
-            local currentMapping = worldMacroMappings[stageData.id] or "None"
+        for _, stageName in ipairs(StoryStageDropdown.Options) do
+            -- Get backend key for this stage
+            local backendKey = getBackendWorldKeyFromDisplayName(stageName)
+            if not backendKey then
+                warn("Could not get backend key for story stage:", stageName)
+                continue
+            end
+            
+            local currentMapping = worldMacroMappings[backendKey] or "None"
             
             local dropdown = categoryCollapsibles.Story.Tab:CreateDropdown({
-                Name = stageData.name,
+                Name = stageName,
                 Options = initialMacroOptions,
                 CurrentOption = {currentMapping},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. stageData.id,
-                Info = string.format("Auto-select macro for %s", stageData.name),
+                Flag = "AutoSelect_" .. backendKey,
+                Info = string.format("Auto-select macro for %s", stageName),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[stageData.id] = nil
+                        worldMacroMappings[backendKey] = nil
+                        print("Cleared auto-select for", stageName)
                     else
-                        worldMacroMappings[stageData.id] = selectedMacro
+                        worldMacroMappings[backendKey] = selectedMacro
+                        print("Set auto-select:", stageName, "->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[stageData.id] = dropdown
+            worldDropdowns[backendKey] = dropdown
         end
     end
     
-    -- Legend Collapsible
-    if next(categorizedMaps.Legend) then
+    -- Legend Collapsible - Use existing LegendStageDropdown options
+    if LegendStageDropdown and LegendStageDropdown.Options and #LegendStageDropdown.Options > 0 then
         categoryCollapsibles.Legend = MacroTab:CreateCollapsible({
             Name = "⚔️ Legend Stages",
             DefaultExpanded = false,
             Flag = "LegendAutoSelectCollapsible"
         })
         
-        local sortedLegend = {}
-        for worldKey, displayName in pairs(categorizedMaps.Legend) do
-            table.insert(sortedLegend, {id = worldKey, name = displayName})
-        end
-        table.sort(sortedLegend, function(a, b) return a.name < b.name end)
+        print("Creating Legend auto-select dropdowns for", #LegendStageDropdown.Options, "stages")
         
-        for _, stageData in ipairs(sortedLegend) do
-            local currentMapping = worldMacroMappings[stageData.id] or "None"
+        for _, stageName in ipairs(LegendStageDropdown.Options) do
+            -- Get backend key for this stage
+            local backendKey = getBackendLegendWorldKeyFromDisplayName(stageName)
+            if not backendKey then
+                warn("Could not get backend key for legend stage:", stageName)
+                continue
+            end
+            
+            local currentMapping = worldMacroMappings[backendKey] or "None"
             
             local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
-                Name = stageData.name,
+                Name = stageName,
                 Options = initialMacroOptions,
                 CurrentOption = {currentMapping},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. stageData.id,
+                Flag = "AutoSelect_" .. backendKey,
+                Info = string.format("Auto-select macro for %s (Legend)", stageName),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[stageData.id] = nil
+                        worldMacroMappings[backendKey] = nil
+                        print("Cleared auto-select for", stageName, "(Legend)")
                     else
-                        worldMacroMappings[stageData.id] = selectedMacro
+                        worldMacroMappings[backendKey] = selectedMacro
+                        print("Set auto-select:", stageName, "(Legend) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[stageData.id] = dropdown
+            worldDropdowns[backendKey] = dropdown
         end
     end
     
-    -- Raid Collapsible
-    if next(categorizedMaps.Raid) then
+    -- Raid Collapsible - Use existing RaidStageDropdown options
+    if RaidStageDropdown and RaidStageDropdown.Options and #RaidStageDropdown.Options > 0 then
         categoryCollapsibles.Raid = MacroTab:CreateCollapsible({
             Name = "🏰 Raid Stages",
             DefaultExpanded = false,
             Flag = "RaidAutoSelectCollapsible"
         })
         
-        local sortedRaid = {}
-        for worldKey, displayName in pairs(categorizedMaps.Raid) do
-            table.insert(sortedRaid, {id = worldKey, name = displayName})
-        end
-        table.sort(sortedRaid, function(a, b) return a.name < b.name end)
+        print("Creating Raid auto-select dropdowns for", #RaidStageDropdown.Options, "stages")
         
-        for _, stageData in ipairs(sortedRaid) do
-            local currentMapping = worldMacroMappings[stageData.id] or "None"
+        for _, stageName in ipairs(RaidStageDropdown.Options) do
+            -- Get backend key for this stage
+            local backendKey = getBackendRaidWorldKeyFromDisplayName(stageName)
+            if not backendKey then
+                warn("Could not get backend key for raid stage:", stageName)
+                continue
+            end
+            
+            local currentMapping = worldMacroMappings[backendKey] or "None"
             
             local dropdown = categoryCollapsibles.Raid.Tab:CreateDropdown({
-                Name = stageData.name,
+                Name = stageName,
                 Options = initialMacroOptions,
                 CurrentOption = {currentMapping},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. stageData.id,
+                Flag = "AutoSelect_" .. backendKey,
+                Info = string.format("Auto-select macro for %s (Raid)", stageName),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[stageData.id] = nil
+                        worldMacroMappings[backendKey] = nil
+                        print("Cleared auto-select for", stageName, "(Raid)")
                     else
-                        worldMacroMappings[stageData.id] = selectedMacro
+                        worldMacroMappings[backendKey] = selectedMacro
+                        print("Set auto-select:", stageName, "(Raid) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[stageData.id] = dropdown
+            worldDropdowns[backendKey] = dropdown
         end
     end
     
-    -- Portal Collapsible
-    if next(categorizedMaps.Portal) then
+    -- Portal Collapsible - Use existing SelectPortalDropdown options
+    if SelectPortalDropdown and SelectPortalDropdown.Options and #SelectPortalDropdown.Options > 0 then
         categoryCollapsibles.Portal = MacroTab:CreateCollapsible({
             Name = "🌀 Portals",
             DefaultExpanded = false,
             Flag = "PortalAutoSelectCollapsible"
         })
         
-        local sortedPortals = {}
-        for portalKey, displayName in pairs(categorizedMaps.Portal) do
-            table.insert(sortedPortals, {id = portalKey, name = displayName})
-        end
-        table.sort(sortedPortals, function(a, b) return a.name < b.name end)
+        print("Creating Portal auto-select dropdowns for", #SelectPortalDropdown.Options, "portals")
         
-        for _, portalData in ipairs(sortedPortals) do
-            local currentMapping = worldMacroMappings[portalData.id] or "None"
+        for _, portalName in ipairs(SelectPortalDropdown.Options) do
+            -- Get backend key for this portal
+            local backendKey = getBackendPortalKeyFromDisplayName(portalName)
+            if not backendKey then
+                warn("Could not get backend key for portal:", portalName)
+                continue
+            end
+            
+            local currentMapping = worldMacroMappings[backendKey] or "None"
             
             local dropdown = categoryCollapsibles.Portal.Tab:CreateDropdown({
-                Name = portalData.name,
+                Name = portalName,
                 Options = initialMacroOptions,
                 CurrentOption = {currentMapping},
                 MultipleOptions = false,
-                Flag = "AutoSelect_" .. portalData.id,
+                Flag = "AutoSelect_" .. backendKey,
+                Info = string.format("Auto-select macro for %s (Portal)", portalName),
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     
                     if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[portalData.id] = nil
+                        worldMacroMappings[backendKey] = nil
+                        print("Cleared auto-select for", portalName, "(Portal)")
                     else
-                        worldMacroMappings[portalData.id] = selectedMacro
+                        worldMacroMappings[backendKey] = selectedMacro
+                        print("Set auto-select:", portalName, "(Portal) ->", selectedMacro)
                     end
                     
                     saveWorldMappings()
                 end,
             })
             
-            worldDropdowns[portalData.id] = dropdown
+            worldDropdowns[backendKey] = dropdown
         end
     end
     
