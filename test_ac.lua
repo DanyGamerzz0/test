@@ -1,4 +1,4 @@
-    -- 10
+    -- 11
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5409,6 +5409,100 @@ local function createAutoSelectDropdowns()
             
             worldDropdowns[backendKey] = dropdown
         end
+    end
+    
+    -- Other Collapsible - Special events (Halloween, Spirit Invasion, etc.)
+    categoryCollapsibles.Other = MacroTab:CreateCollapsible({
+        Name = "Other Events",
+        DefaultExpanded = false,
+        Flag = "OtherEventsAutoSelectCollapsible"
+    })
+    
+    print("Creating Other Events auto-select dropdowns...")
+    
+    -- Load Halloween events
+    local halloweenSuccess, halloweenData = pcall(function()
+        return require(Services.ReplicatedStorage.Framework.Data.Levels.Testing.Levels_Halloween)
+    end)
+    
+    if halloweenSuccess and halloweenData then
+        for levelKey, levelInfo in pairs(halloweenData) do
+            if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
+                -- Skip portal-only levels (they're already in Portals category)
+                if not levelInfo._portal_only_level then
+                    local backendKey = levelInfo.id
+                    local currentMapping = worldMacroMappings[backendKey] or "None"
+                    
+                    local dropdown = categoryCollapsibles.Other.Tab:CreateDropdown({
+                        Name = levelInfo.name,
+                        Options = initialMacroOptions,
+                        CurrentOption = {currentMapping},
+                        MultipleOptions = false,
+                        Flag = "AutoSelect_" .. backendKey,
+                        Info = string.format("Auto-select macro for %s (Halloween)", levelInfo.name),
+                        Callback = function(Option)
+                            local selectedMacro = type(Option) == "table" and Option[1] or Option
+                            
+                            if selectedMacro == "None" or selectedMacro == "" then
+                                worldMacroMappings[backendKey] = nil
+                                print("Cleared auto-select for", levelInfo.name, "(Halloween)")
+                            else
+                                worldMacroMappings[backendKey] = selectedMacro
+                                print("Set auto-select:", levelInfo.name, "(Halloween) ->", selectedMacro)
+                            end
+                            
+                            saveWorldMappings()
+                        end,
+                    })
+                    
+                    worldDropdowns[backendKey] = dropdown
+                    print("  ✓ Added Halloween event:", levelInfo.name, "| ID:", backendKey)
+                end
+            end
+        end
+    else
+        print("Could not load Halloween events:", halloweenData)
+    end
+    
+    -- Load Spirit Invasion events
+    local psychoSuccess, psychoData = pcall(function()
+        return require(Services.ReplicatedStorage.Framework.Data.Levels.Testing.Levels_Psycho)
+    end)
+    
+    if psychoSuccess and psychoData then
+        for levelKey, levelInfo in pairs(psychoData) do
+            if type(levelInfo) == "table" and levelInfo.name and levelInfo.id then
+                local backendKey = levelInfo.id
+                local currentMapping = worldMacroMappings[backendKey] or "None"
+                
+                local dropdown = categoryCollapsibles.Other.Tab:CreateDropdown({
+                    Name = levelInfo.name,
+                    Options = initialMacroOptions,
+                    CurrentOption = {currentMapping},
+                    MultipleOptions = false,
+                    Flag = "AutoSelect_" .. backendKey,
+                    Info = string.format("Auto-select macro for %s (Spirit Invasion)", levelInfo.name),
+                    Callback = function(Option)
+                        local selectedMacro = type(Option) == "table" and Option[1] or Option
+                        
+                        if selectedMacro == "None" or selectedMacro == "" then
+                            worldMacroMappings[backendKey] = nil
+                            print("Cleared auto-select for", levelInfo.name, "(Spirit Invasion)")
+                        else
+                            worldMacroMappings[backendKey] = selectedMacro
+                            print("Set auto-select:", levelInfo.name, "(Spirit Invasion) ->", selectedMacro)
+                        end
+                        
+                        saveWorldMappings()
+                    end,
+                })
+                
+                worldDropdowns[backendKey] = dropdown
+                print("  ✓ Added Spirit Invasion event:", levelInfo.name, "| ID:", backendKey)
+            end
+        end
+    else
+        print("Could not load Spirit Invasion events:", psychoData)
     end
     
     print("Created categorized auto-select dropdowns")
