@@ -1,4 +1,4 @@
-    -- 17
+    -- 18
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -78,8 +78,6 @@
         Key = {"0xLIXHUB"}
     }
     })
-
-    Rayfield:LoadConfiguration()
 
     -- ========== SERVICES ==========
     local Services = {
@@ -7035,3 +7033,5 @@ end
         IconColor = Color3.fromRGB(100, 150, 255),
         Duration = 5
     })
+
+    Rayfield:LoadConfiguration()
