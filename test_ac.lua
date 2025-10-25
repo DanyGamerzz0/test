@@ -1,4 +1,4 @@
-    -- 6
+    -- 7
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5263,7 +5263,7 @@ local function createAutoSelectDropdowns()
         
         print("Scanning Levels folder for categorization...")
         
-        for _, levelModule in ipairs(LevelsFolder:GetChildren()) do
+        for _, levelModule in ipairs(LevelsFolder:GetDescendants()) do
             if levelModule:IsA("ModuleScript") then
                 -- Skip developer/template modules
                 if skipModules[levelModule.Name] then
