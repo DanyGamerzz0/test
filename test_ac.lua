@@ -1,4 +1,4 @@
-    -- 21
+    -- 22
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -240,7 +240,7 @@ local playbackDisplayNameInstances = {}
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
     local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
-    local CardPriorityTab = Window:CreateTab("Auto Pick Card", "award")
+    --local CardPriorityTab = Window:CreateTab("Auto Pick Card", "award")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
     local MacroTab = Window:CreateTab("Macro", "joystick")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -3509,7 +3509,7 @@ section = JoinerTab:CreateSection("Event Joiner")
    end,
 })
 
-local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
+--[[local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
     CurrentValue = false,
     Flag = "AutoSelectCard",
@@ -3731,7 +3731,7 @@ RangeCollapsible.Tab:CreateSlider({
     Callback = function(Value)
         State.CardPriority["Range"].tier3 = Value
     end,
-})
+})--]]
 
 local function getCardButtons()
     local playerGui = Services.Players.LocalPlayer.PlayerGui
@@ -3906,7 +3906,7 @@ local function setupCardSelectionMonitoring()
     end)
 end
 
-task.spawn(setupCardSelectionMonitoring)
+--task.spawn(setupCardSelectionMonitoring)
 
     local function loadIgnoreWorldsWithRetry()
         loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds + 1
