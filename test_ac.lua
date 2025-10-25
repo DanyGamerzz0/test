@@ -1,4 +1,4 @@
-    -- 13
+    -- 14
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -231,11 +231,16 @@ local playbackDisplayNameInstances = {}
         AutoMatchmakeSpiritInvasion = false,
         AutoJoinHalloween = false,
         AutoMatchmakeHalloween = false,
+        AutoSelectCard = false,
+        CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
+
+    local currentCardData = nil
 
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
     local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
+    local CardPriorityTab = Window:CreateTab("Card Priority", "award")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
     local MacroTab = Window:CreateTab("Macro", "joystick")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -3055,7 +3060,7 @@ end
             
             if success then
                 print("Successfully sent event matchmaking request!")
-                notify("Event Matchmaking", "Matchmaking for Spirit Invasion")
+                notify("Event Matchmaking", "Matchmaking for Halloween Event")
             else
                 warn("Failed to send event matchmaking request!")
             end
@@ -3843,6 +3848,405 @@ section = JoinerTab:CreateSection("Event Joiner")
         State.AutoMatchmakeHalloween = Value
    end,
 })
+
+local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
+    Name = "Auto Select Card",
+    CurrentValue = false,
+    Flag = "AutoSelectCard",
+    Info = "Automatically select cards based on your priority settings below",
+    Callback = function(Value)
+        State.AutoSelectCard = Value
+    end,
+})
+
+local EnemyShieldCollapsible = CardPriorityTab:CreateCollapsible({
+    Name = "Enemy Shield Priority",
+    DefaultExpanded = false,
+    Flag = "EnemyShieldCollapsible"
+})
+
+EnemyShieldCollapsible.Tab:CreateSlider({
+    Name = "Enemy Shield Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyShieldT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Shield"].tier1 = Value
+    end,
+})
+
+EnemyShieldCollapsible.Tab:CreateSlider({
+    Name = "Enemy Shield Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyShieldT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Shield"].tier2 = Value
+    end,
+})
+
+EnemyShieldCollapsible.Tab:CreateSlider({
+    Name = "Enemy Shield Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyShieldT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Shield"].tier3 = Value
+    end,
+})
+
+-- Enemy Speed Collapsible
+local EnemySpeedCollapsible = CardPriorityTab:CreateCollapsible({
+    Name = "Enemy Speed Priority",
+    DefaultExpanded = false,
+    Flag = "EnemySpeedCollapsible"
+})
+
+EnemySpeedCollapsible.Tab:CreateSlider({
+    Name = "Enemy Speed Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemySpeedT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Speed"].tier1 = Value
+    end,
+})
+
+EnemySpeedCollapsible.Tab:CreateSlider({
+    Name = "Enemy Speed Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemySpeedT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Speed"].tier2 = Value
+    end,
+})
+
+EnemySpeedCollapsible.Tab:CreateSlider({
+    Name = "Enemy Speed Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemySpeedT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Speed"].tier3 = Value
+    end,
+})
+
+-- Damage Collapsible
+local DamageCollapsible = CardPriorityTab:CreateCollapsible({
+    Name = "Damage Priority",
+    DefaultExpanded = false,
+    Flag = "DamageCollapsible"
+})
+
+DamageCollapsible.Tab:CreateSlider({
+    Name = "Damage Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "DamageT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Damage"].tier1 = Value
+    end,
+})
+
+DamageCollapsible.Tab:CreateSlider({
+    Name = "Damage Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "DamageT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Damage"].tier2 = Value
+    end,
+})
+
+DamageCollapsible.Tab:CreateSlider({
+    Name = "Damage Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "DamageT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Damage"].tier3 = Value
+    end,
+})
+
+-- Cooldown Collapsible
+local CooldownCollapsible = CardPriorityTab:CreateCollapsible({
+    Name = "Cooldown Priority",
+    DefaultExpanded = false,
+    Flag = "CooldownCollapsible"
+})
+
+CooldownCollapsible.Tab:CreateSlider({
+    Name = "Cooldown Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "CooldownT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Cooldown"].tier1 = Value
+    end,
+})
+
+CooldownCollapsible.Tab:CreateSlider({
+    Name = "Cooldown Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "CooldownT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Cooldown"].tier2 = Value
+    end,
+})
+
+CooldownCollapsible.Tab:CreateSlider({
+    Name = "Cooldown Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "CooldownT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Cooldown"].tier3 = Value
+    end,
+})
+
+-- Range Collapsible
+local RangeCollapsible = CardPriorityTab:CreateCollapsible({
+    Name = "Range Priority",
+    DefaultExpanded = false,
+    Flag = "RangeCollapsible"
+})
+
+RangeCollapsible.Tab:CreateSlider({
+    Name = "Range Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "RangeT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Range"].tier1 = Value
+    end,
+})
+
+RangeCollapsible.Tab:CreateSlider({
+    Name = "Range Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "RangeT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Range"].tier2 = Value
+    end,
+})
+
+RangeCollapsible.Tab:CreateSlider({
+    Name = "Range Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "RangeT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Range"].tier3 = Value
+    end,
+})
+
+local function getCardButtons()
+    local playerGui = Services.Players.LocalPlayer.PlayerGui
+    local promptGui = playerGui:FindFirstChild("Prompt")
+    
+    if not promptGui then return nil end
+    
+    local success, buttons = pcall(function()
+        return promptGui:GetChildren()[2]:GetChildren()[4]:GetChildren()
+    end)
+    
+    if success and buttons then
+        local cardButtons = {}
+        for _, child in ipairs(buttons) do
+            if child:IsA("GuiButton") or child:IsA("TextButton") or child:IsA("ImageButton") then
+                table.insert(cardButtons, child)
+            end
+        end
+        return cardButtons
+    end
+    
+    return nil
+end
+
+local function calculateCardScore(card)
+    if not card.Effects then return 0 end
+    
+    local totalScore = 0
+    
+    for _, effect in ipairs(card.Effects) do
+        local effectName = effect.Name or ""
+        
+        -- Determine card type and tier
+        local cardType = nil
+        local tier = nil
+        
+        -- Enemy Shield
+        if effectName:find("Enemy Shield") then
+            cardType = "Enemy Shield"
+            if effectName:find("Tier 1") then tier = "tier1"
+            elseif effectName:find("Tier 2") then tier = "tier2"
+            elseif effectName:find("Tier 3") then tier = "tier3"
+            end
+        -- Enemy Speed
+        elseif effectName:find("Enemy Speed") then
+            cardType = "Enemy Speed"
+            if effectName:find("Tier 1") then tier = "tier1"
+            elseif effectName:find("Tier 2") then tier = "tier2"
+            elseif effectName:find("Tier 3") then tier = "tier3"
+            end
+        -- Damage
+        elseif effectName:find("Damage") then
+            cardType = "Damage"
+            if effectName:find("Tier 1") then tier = "tier1"
+            elseif effectName:find("Tier 2") then tier = "tier2"
+            elseif effectName:find("Tier 3") then tier = "tier3"
+            end
+        -- Cooldown
+        elseif effectName:find("Cooldown") then
+            cardType = "Cooldown"
+            if effectName:find("Tier 1") then tier = "tier1"
+            elseif effectName:find("Tier 2") then tier = "tier2"
+            elseif effectName:find("Tier 3") then tier = "tier3"
+            end
+        -- Range
+        elseif effectName:find("Range") then
+            cardType = "Range"
+            if effectName:find("Tier 1") then tier = "tier1"
+            elseif effectName:find("Tier 2") then tier = "tier2"
+            elseif effectName:find("Tier 3") then tier = "tier3"
+            end
+        end
+        
+        -- Add priority score
+        if cardType and tier and State.CardPriority[cardType] then
+            totalScore = totalScore + (State.CardPriority[cardType][tier] or 0)
+        end
+    end
+    
+    return totalScore
+end
+
+local function selectBestCard(cardData)
+    if not cardData or #cardData == 0 then return 1 end
+    
+    local bestIndex = 1
+    local bestScore = calculateCardScore(cardData[1])
+    
+    for i = 2, #cardData do
+        local score = calculateCardScore(cardData[i])
+        if score > bestScore then
+            bestScore = score
+            bestIndex = i
+        end
+    end
+    
+    return bestIndex, bestScore
+end
+
+local function autoSelectCard(cardData)
+    if not cardData or #cardData == 0 then return false end
+    
+    local selectedIndex, score = selectBestCard(cardData)
+    local selectedCard = cardData[selectedIndex]
+    
+    local buttons = getCardButtons()
+    if not buttons or #buttons == 0 or not buttons[selectedIndex] then
+        return false
+    end
+    
+    local success = pcall(function()
+        local button = buttons[selectedIndex]
+        
+        for _, connection in pairs(getconnections(button.MouseButton1Click)) do
+            connection:Fire()
+        end
+        
+        for _, connection in pairs(getconnections(button.Activated)) do
+            connection:Fire()
+        end
+        
+        for _, connection in pairs(getconnections(button.MouseButton1Down)) do
+            connection:Fire()
+        end
+        task.wait(0.05)
+        for _, connection in pairs(getconnections(button.MouseButton1Up)) do
+            connection:Fire()
+        end
+    end)
+    
+    if success then
+        local effectsText = ""
+        if selectedCard.Effects then
+            for i, effect in ipairs(selectedCard.Effects) do
+                effectsText = effectsText .. effect.Description
+                if i < #selectedCard.Effects then
+                    effectsText = effectsText .. ", "
+                end
+            end
+        end
+        
+        notify("Card Selected", string.format("%s (Score: %d)\n%s", 
+            selectedCard.CardName, 
+            score,
+            effectsText:sub(1, 80)
+        ))
+        return true
+    end
+    
+    return false
+end
+
+local function setupCardSelectionMonitoring()
+    local cardsRemote = Services.ReplicatedStorage:WaitForChild("endpoints")
+        :WaitForChild("server_to_client")
+        :WaitForChild("Cards")
+    
+    cardsRemote.OnClientEvent:Connect(function(action, cardData, waveReq, ...)
+        if action == "StartSelection" then
+            currentCardData = cardData
+            
+            if State.AutoSelectCard then
+                task.spawn(function()
+                    task.wait(0.1) -- Small delay for UI to load
+                    
+                    if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt") then
+                        autoSelectCard(cardData)
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+task.spawn(setupCardSelectionMonitoring)
 
     local function loadIgnoreWorldsWithRetry()
         loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds + 1
