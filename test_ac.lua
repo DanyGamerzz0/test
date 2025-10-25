@@ -1,4 +1,4 @@
-    -- 9
+    -- 10
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2354,31 +2354,33 @@ end
         return nil
     end
 
-    local function getBackendPortalKeyFromDisplayName(selectedDisplayName)
+local function getBackendPortalKeyFromDisplayName(selectedDisplayName)
     local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
     
     if not TestingFolder then
         return nil
     end
     
-    for _, portalModule in ipairs(TestingFolder:GetChildren()) do
-        if portalModule:IsA("ModuleScript") then
-            local moduleNameLower = string.lower(portalModule.Name)
+    -- Scan ALL modules in Testing folder for portals
+    for _, moduleScript in ipairs(TestingFolder:GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local success, moduleData = pcall(require, moduleScript)
             
-            if moduleNameLower:find("portal") then
-                local success, portalData = pcall(require, portalModule)
-                
-                if success and portalData then
-                    for portalKey, portalInfo in pairs(portalData) do
-                        if type(portalInfo) == "table" and portalInfo.name == selectedDisplayName and portalInfo._portal_only_level then
-                            return portalKey -- Returns "portal_tengen", "portal_tengen_secret", etc.
-                        end
+            if success and moduleData and type(moduleData) == "table" then
+                -- Check each entry for _portal_only_level flag
+                for levelKey, levelInfo in pairs(moduleData) do
+                    if type(levelInfo) == "table" and 
+                       levelInfo._portal_only_level == true and 
+                       levelInfo.name == selectedDisplayName then
+                        print("Found portal backend key:", levelKey, "for", selectedDisplayName)
+                        return levelKey -- Returns "portal_tengen", "portal_halloween_secret", etc.
                     end
                 end
             end
         end
     end
     
+    print("Could not find backend key for portal:", selectedDisplayName)
     return nil
 end
 
@@ -5228,8 +5230,8 @@ local function createAutoSelectDropdowns()
     -- Story Collapsible - Use existing StoryStageDropdown options
     if StoryStageDropdown and StoryStageDropdown.Options and #StoryStageDropdown.Options > 0 then
         categoryCollapsibles.Story = MacroTab:CreateCollapsible({
-            Name = "📖 Story Stages",
-            DefaultExpanded = true,
+            Name = "Story Stages",
+            DefaultExpanded = false,
             Flag = "StoryAutoSelectCollapsible"
         })
         
@@ -5274,7 +5276,7 @@ local function createAutoSelectDropdowns()
     -- Legend Collapsible - Use existing LegendStageDropdown options
     if LegendStageDropdown and LegendStageDropdown.Options and #LegendStageDropdown.Options > 0 then
         categoryCollapsibles.Legend = MacroTab:CreateCollapsible({
-            Name = "⚔️ Legend Stages",
+            Name = "Legend Stages",
             DefaultExpanded = false,
             Flag = "LegendAutoSelectCollapsible"
         })
@@ -5320,7 +5322,7 @@ local function createAutoSelectDropdowns()
     -- Raid Collapsible - Use existing RaidStageDropdown options
     if RaidStageDropdown and RaidStageDropdown.Options and #RaidStageDropdown.Options > 0 then
         categoryCollapsibles.Raid = MacroTab:CreateCollapsible({
-            Name = "🏰 Raid Stages",
+            Name = "Raid Stages",
             DefaultExpanded = false,
             Flag = "RaidAutoSelectCollapsible"
         })
@@ -5366,7 +5368,7 @@ local function createAutoSelectDropdowns()
     -- Portal Collapsible - Use existing SelectPortalDropdown options
     if SelectPortalDropdown and SelectPortalDropdown.Options and #SelectPortalDropdown.Options > 0 then
         categoryCollapsibles.Portal = MacroTab:CreateCollapsible({
-            Name = "🌀 Portals",
+            Name = "Portals",
             DefaultExpanded = false,
             Flag = "PortalAutoSelectCollapsible"
         })
