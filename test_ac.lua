@@ -1,4 +1,4 @@
-    -- 16
+    -- 17
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -78,6 +78,8 @@
         Key = {"0xLIXHUB"}
     }
     })
+
+    Rayfield:LoadConfiguration()
 
     -- ========== SERVICES ==========
     local Services = {
@@ -6988,8 +6990,6 @@ end
             end
         end)
     end)
-
-    Rayfield:LoadConfiguration()
 
     -- Restore saved macro from config after a delay
     task.delay(1, function()
