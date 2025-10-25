@@ -1,4 +1,4 @@
-    -- 14
+    -- 15
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -783,141 +783,6 @@ Rayfield:Notify({
 })
 end
 
---[[local function processUpgradeActionWithSpawnIdMapping(actionInfo)
-    local remoteParam = actionInfo.args[1]
-    local upgradeAmount = actionInfo.args[3] or 1
-    local preUpgradeLevel = actionInfo.preUpgradeLevel
-    local preUpgradeSpawnId = actionInfo.preUpgradeSpawnId
-
-    if not preUpgradeSpawnId then
-        warn("Could not get pre-upgrade spawn_id")
-        return
-    end
-
-    local placementId = recordingSpawnIdToPlacement[tostring(preUpgradeSpawnId)]
-    if not placementId then
-        warn("Could not find placement mapping for spawn_id:", preUpgradeSpawnId)
-        return
-    end
-    
-    -- Find the unit
-    local upgradedUnit = nil
-    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-    
-    if unitsFolder then
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if unit.Name == remoteParam and isOwnedByLocalPlayer(unit) then
-                upgradedUnit = unit
-                break
-            end
-        end
-    end
-    
-    if not upgradedUnit then
-        warn("Could not find unit with model name:", remoteParam)
-        return
-    end
-    
-    -- REMOVE these lines - we already have placementId:
-    -- local spawnId = getUnitSpawnId(upgradedUnit)
-    -- if not spawnId then ... end
-    -- local placementId = recordingSpawnIdToPlacement[tostring(spawnId)]
-    -- if not placementId then ... end
-    
-    -- Get current level and verify
-    local originalLevel = preUpgradeLevel or 0
-    local currentLevelNow = getUnitUpgradeLevel(upgradedUnit)
-    
-    print(string.format("Pre-upgrade level from hook: %d, Current level now: %d", originalLevel, currentLevelNow))
-    
-    if currentLevelNow > originalLevel then
-        print(string.format("⚠️ Level already changed %d -> %d before polling started, using %d as baseline", 
-            originalLevel, currentLevelNow, currentLevelNow))
-        originalLevel = currentLevelNow
-    end
-    
-    -- Check for duplicates
-    local upgradeKey = placementId .. "_" .. tostring(originalLevel)
-    local now = tick()
-
-    if lastRecordedUpgrade[upgradeKey] and (now - lastRecordedUpgrade[upgradeKey]) < 0.5 then
-        print(string.format("⚠️ UPGRADE BLOCKED: %s level %d was just recorded %.2fs ago", 
-            placementId, originalLevel, now - lastRecordedUpgrade[upgradeKey]))
-        return
-    end
-    
-    -- POLLING FIX with detailed logging
-    print(string.format("⏳ UPGRADE START: %s (original level: %d)", placementId, originalLevel))
-    
-    local maxWaitTime = 3.0
-    local waitStart = tick()
-    local currentLevel = originalLevel
-    local pollCount = 0
-    
-    while tick() - waitStart < maxWaitTime do
-        currentLevel = getUnitUpgradeLevel(upgradedUnit)
-        pollCount = pollCount + 1
-        
-        print(string.format("  UpgradeTiming #%d: level = %d (elapsed: %.2fs)", pollCount, currentLevel, tick() - waitStart))
-        
-        if currentLevel > originalLevel then
-            print(string.format("✅ LEVEL CHANGED: %d -> %d after %.2fs (%d polls)", 
-                originalLevel, currentLevel, tick() - waitStart, pollCount))
-            break
-        end
-        
-        task.wait(0.1)
-    end
-    
-    if currentLevel <= originalLevel then
-        print(string.format("❌ UPGRADE TIMEOUT: Level stayed at %d after %.2fs (%d polls)", 
-            currentLevel, tick() - waitStart, pollCount))
-    end
-    
-    print(string.format("Upgrade check: %s from level %d to level %d (remote amount: %d)", 
-        placementId, originalLevel, currentLevel, upgradeAmount))
-    
-    -- Check: did the level actually increase?
-    if currentLevel > originalLevel then
-        -- Mark as recorded BEFORE inserting into macro
-        lastRecordedUpgrade[upgradeKey] = now
-        
-        local gameRelativeTime = actionInfo.timestamp - gameStartTime
-        
-        local upgradeRecord = {
-            Type = "upgrade_unit_ingame",
-            Unit = placementId,
-            Time = string.format("%.2f", gameRelativeTime)
-        }
-        
-        if upgradeAmount > 1 then
-            upgradeRecord.Amount = upgradeAmount
-        end
-        
-        table.insert(macro, upgradeRecord)
-        
-        local upgradeText = upgradeAmount > 1 and 
-            string.format("multi-upgrade x%d", upgradeAmount) or "upgrade"
-        
-        print(string.format("Recorded %s: %s (remote specified: %d, level %d -> %d, spawn_id: %s)", 
-            upgradeText, placementId, upgradeAmount, originalLevel, currentLevel, tostring(spawnId)))
-        Rayfield:Notify({
-            Title = "Macro Recorder",
-            Content = string.format("Recorded %s: %s (remote: x%d, L%d->L%d)", upgradeText, placementId, upgradeAmount, originalLevel, currentLevel),
-            Duration = 3,
-            Image = 4483362458
-        })
-    else
-        print(string.format("Upgrade failed for %s (level stayed at %d), not recording", placementId, currentLevel))
-        Rayfield:Notify({
-            Title = "Macro Recorder",
-            Content = string.format("Upgrade failed for %s - not recorded (no level change)", placementId),
-            Duration = 2,
-            Image = 4483362458
-        })
-    end
-end--]]
-
 local function parseUnitString(unitString)
     -- Parse "DisplayName #InstanceNumber" format
     local displayName, instanceNumber = unitString:match("^(.-) #%s*(%d+)$")
@@ -1228,67 +1093,6 @@ end
             delfile(filePath)
         end
         macroManager[name] = nil
-    end
-
-    local function getUnitNameFromSpawnId(spawnId)
-        local unit = findUnitBySpawnId(spawnId)
-        if unit and unit:FindFirstChild("_stats") and unit._stats:FindFirstChild("id") then
-            local unitId = unit._stats.id.Value
-            return getUnitDisplayName(unitId)
-        end
-        return "Unknown Unit"
-    end
-
-    local function waitForPlacementSuccess(expectedSpawnId, timeout)
-        local startTime = tick()
-        
-        while tick() - startTime < timeout do
-            if not isPlaybacking then return false end
-            
-            -- Check if unit with expected spawn ID exists and is owned by player
-            local unit = findUnitBySpawnId(expectedSpawnId)
-            if unit and isOwnedByLocalPlayer(unit) then
-                return true, unit
-            end
-            
-            task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
-        end
-        
-        return false, nil
-    end
-
-    local function waitForUpgradeSuccess(spawnId, originalLevel, timeout)
-        local startTime = tick()
-        
-        print(string.format("Starting upgrade validation for spawn ID %s, original level: %d", tostring(spawnId), originalLevel))
-        
-        while tick() - startTime < timeout do
-            if not isPlaybacking then 
-                print("Playback stopped, canceling upgrade validation")
-                return false 
-            end
-            
-            -- Re-find the unit by spawn ID instead of using cached reference
-            local targetUnit = findUnitBySpawnId(spawnId)
-            if targetUnit and isOwnedByLocalPlayer(targetUnit) then
-                local currentLevel = getUnitUpgradeLevel(targetUnit)
-                print(string.format("Checking upgrade progress: Level %d (target: >%d)", currentLevel, originalLevel))
-                
-                if currentLevel > originalLevel then
-                    print(string.format("Upgrade success detected: Level %d -> %d", originalLevel, currentLevel))
-                    return true
-                end
-            else
-                -- Unit was destroyed/sold, consider as failure
-                print("Unit not found or not owned during upgrade validation")
-                return false
-            end
-            
-            task.wait(VALIDATION_CONFIG.VALIDATION_CHECK_INTERVAL)
-        end
-        
-        print(string.format("Upgrade validation timeout after %.1f seconds", timeout))
-        return false
     end
 
     local function clearPlaybackTracking()
@@ -1725,33 +1529,6 @@ local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionC
 end
 
     local playbackWaveStartTimes = {}
-
-    local function waitForGameStart_Record()
-        local waveNum = Services.Workspace:WaitForChild("_wave_num")
-
-        -- wait until we detect any active game
-        while waveNum.Value < 1 do
-            task.wait(1)
-        end
-
-        print("Recording started - wave " .. waveNum.Value)
-    end
-
-    local function waitForGameStart_Playback()
-        local waveNum = Services.Workspace:WaitForChild("_wave_num")
-
-        -- wait for game to end
-        while waveNum.Value > 0 do
-            task.wait(1)
-        end
-
-        -- wait for next game to start
-        while waveNum.Value < 1 do
-            task.wait(1)
-        end
-
-        print("Playback started - wave " .. waveNum.Value)
-    end
 
     -- ========== EXISTING FUNCTIONS (keep all your existing functions) ==========
 
@@ -3023,27 +2800,9 @@ end
             setProcessingState("Spirit Invasion Auto Join")
 
             if State.AutoMatchmakeSpiritInvasion then
-            
-            local success = pcall(function()
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_MOB_")
-            end)
-            
-            if success then
-                print("Successfully sent event matchmaking request!")
-                notify("Event Matchmaking", "Matchmaking for Spirit Invasion")
-            else
-                warn("Failed to send event matchmaking request!")
-            end
         else
-            local success = pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_MOB_")
-            end)
-            if success then
-                print("Successfully sent event join request!")
-                game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_MOB_")
-            else
-                warn("Failed to send event join request!")
-            end
         end
             task.delay(5, clearProcessingState)
             return
@@ -3054,26 +2813,9 @@ end
             setProcessingState("Halloween Event Auto Join")
 
             if State.AutoMatchmakeHalloween then
-            local success = pcall(function()
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_HALLOWEEN_")
-            end)
-            
-            if success then
-                print("Successfully sent event matchmaking request!")
-                notify("Event Matchmaking", "Matchmaking for Halloween Event")
-            else
-                warn("Failed to send event matchmaking request!")
-            end
         else
-            local success = pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_HALLOWEEN_")
-            end)
-            if success then
-                print("Successfully sent event join request!")
-                game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_HALLOWEEN_")
-            else
-                warn("Failed to send event join request!")
-            end
         end
             task.delay(5, clearProcessingState)
             return
@@ -3086,46 +2828,13 @@ end
             -- Build the complete stage ID
             local completeStageId = State.StoryStageSelected .. State.StoryActSelected
 
-            if State.AutoMatchmakeStoryStage then
-            local args = {
-                completeStageId,
-                {
-                    Difficulty = State.StoryDifficultySelected
-                }
-            }
-            
-            local success = pcall(function()
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(unpack(args))
-            end)
-            
-            if success then
-                print("Successfully sent story matchmaking request!")
-                notify("Story Matchmaking", string.format("Matchmaking for %s [%s]", completeStageId, State.StoryDifficultySelected))
-            else
-                warn("Failed to send story matchmaking request!")
-            end
+            if State.AutoMatchmakeStoryStage then      
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(completeStageId,{Difficulty = State.StoryDifficultySelected})
         else
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
 
-            local args = {
-                "P1",
-                completeStageId,
-                false,
-                State.StoryDifficultySelected
-            }
-
-            local success = pcall(function()
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer(unpack(args))
-            end)
-
-            if success then
-                print("Successfully sent story join request!")
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
-            else
-                warn("Failed to send story join request!")
-            end
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",completeStageId,false,State.StoryDifficultySelected)
         end
-
             task.delay(5, clearProcessingState)
             return
         end
@@ -3138,35 +2847,11 @@ end
             local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
 
             if State.AutoMatchmakeLegendStage then            
-            local success = pcall(function()
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(string.lower(completeLegendStageId),{Difficulty = "Normal"})
-            end)
-            if success then
-                print("Successfully sent legend matchmaking request!")
-                notify("Legend Matchmaking", string.format("Matchmaking for %s", completeLegendStageId))
-            else
-                warn("Failed to send legend matchmaking request!")
-            end
         else
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
 
-            local args = {
-                "P1",
-                string.lower(completeLegendStageId),
-                false,
-                "Hard"
-            }
-
-            local success = pcall(function()
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer(unpack(args))
-            end)
-
-            if success then
-                print("Successfully sent legend join request!")
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
-            else
-                warn("Failed to send legend join request!")
-            end
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",string.lower(completeLegendStageId),false,"Hard")
         end
             task.delay(5, clearProcessingState)
             return
@@ -3177,37 +2862,12 @@ end
             local completeRaidStageId = State.RaidStageSelected .. State.RaidActSelected
 
              if State.AutoMatchmakeRaidStage then        
-            local success = pcall(function()
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(completeRaidStageId,{Difficulty = "Normal"})
-            end)
-            
-            if success then
-                print("Successfully sent raid matchmaking request!")
-                notify("Raid Matchmaking", string.format("Matchmaking for %s", completeRaidStageId))
-            else
-                warn("Failed to send raid matchmaking request!")
-            end
         else
 
             Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
 
-            local args = {
-                "R1",
-                completeRaidStageId,
-                false,
-                "Hard"
-            }
-
-            local success = pcall(function()
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer(unpack(args))
-            end)
-
-            if success then
-                print("Successfully sent raid join request!")
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("R1")
-            else
-                warn("Failed to send raid join request!")
-            end
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("R1",completeRaidStageId,false,"Hard")
         end
             task.delay(5, clearProcessingState)
             return
@@ -5054,7 +4714,7 @@ end
     local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
     detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
 
-    local Divider = MacroTab:CreateDivider()
+     Divider = MacroTab:CreateDivider()
 
     local MacroDropdown = MacroTab:CreateDropdown({
         Name = "Select Macro",
@@ -6225,7 +5885,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     end,
 })
 
-local Divider = MacroTab:CreateDivider()
+ Divider = MacroTab:CreateDivider()
 
     RandomOffsetToggle = MacroTab:CreateToggle({
         Name = "Random Offset",
@@ -6271,7 +5931,7 @@ local Divider = MacroTab:CreateDivider()
         end,
     })
 
-    local Divider = MacroTab:CreateDivider()
+     Divider = MacroTab:CreateDivider()
 
     ImportInput = MacroTab:CreateInput({
         Name = "Import Macro",
@@ -6354,7 +6014,7 @@ local Divider = MacroTab:CreateDivider()
         end,
     })
 
-    local SendWebhookButton = MacroTab:CreateButton({
+     SendWebhookButton = MacroTab:CreateButton({
     Name = "Export Macro via Webhook",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
@@ -6564,7 +6224,7 @@ local Divider = MacroTab:CreateDivider()
     end,
 })
 
-local CheckUnitsButton = MacroTab:CreateButton({
+ CheckUnitsButton = MacroTab:CreateButton({
     Name = "Check Macro Units",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
@@ -6629,7 +6289,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
     end,
 })
 
-local EquipMacroUnitsButton = MacroTab:CreateButton({
+ EquipMacroUnitsButton = MacroTab:CreateButton({
     Name = "Equip Macro Units",
     Callback = function()
         if not isInLobby() then 
@@ -6818,178 +6478,7 @@ local EquipMacroUnitsButton = MacroTab:CreateButton({
     end,
 })
 
-    local Divider = MacroTab:CreateDivider()
-
-    --[[local SendWebhookButton = MacroTab:CreateButton({
-        Name = "Send Macro via Webhook",
-        Callback = function()
-            if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({
-                    Title = "Webhook Error",
-                    Content = "No macro selected.",
-                    Duration = 3
-                })
-                return
-            end
-            
-            if not ValidWebhook then
-                Rayfield:Notify({
-                    Title = "Webhook Error",
-                    Content = "No webhook URL configured.",
-                    Duration = 3
-                })
-                return
-            end
-            
-            local macroData = macroManager[currentMacroName]
-            if not macroData or #macroData == 0 then
-                Rayfield:Notify({
-                    Title = "Webhook Error",
-                    Content = "Selected macro is empty.",
-                    Duration = 3
-                })
-                return
-            end
-            
-            -- Create export data using the SAME format as the fixed export function
-            local exportData = {
-                version = script_version,
-                macroName = currentMacroName,
-                totalActions = #macroData,
-                actions = {}
-            }
-            
-            -- Copy actions and serialize Vector3 positions for JSON compatibility
-            for _, action in ipairs(macroData) do
-                local serializedAction = {}
-                
-                -- Copy all fields directly
-                for key, value in pairs(action) do
-                    if key == "actualPosition" and value then
-                        serializedAction[key] = serializeVector3(value)
-                    elseif key == "unitPosition" and value then
-                        serializedAction[key] = serializeVector3(value)
-                    else
-                        serializedAction[key] = value
-                    end
-                end
-                
-                table.insert(exportData.actions, serializedAction)
-            end
-            
-            local jsonData = Services.HttpService:JSONEncode(exportData)
-            local fileName = currentMacroName .. ".json"
-            
-            -- Count different action types for summary
-            local placementCount = 0
-            local upgradeCount = 0
-            local sellCount = 0
-            
-            for _, action in ipairs(macroData) do
-                if action.action == "PlaceUnit" then
-                    placementCount = placementCount + 1
-                elseif action.action == "UpgradeUnit" then
-                    upgradeCount = upgradeCount + 1
-                elseif action.action == "SellUnit" then
-                    sellCount = sellCount + 1
-                end
-            end
-            
-            -- Create multipart form data for file upload
-            local boundary = "----WebKitFormBoundary" .. tostring(tick())
-            local body = ""
-            
-            -- Add payload_json field
-            body = body .. "--" .. boundary .. "\r\n"
-            body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
-            body = body .. "Content-Type: application/json\r\n\r\n"
-            body = body .. Services.HttpService:JSONEncode({
-                username = "LixHub Macro Share",
-                content = "**Macro shared:** `" .. fileName .. "`\n" ..
-                        "📁 **Total Actions:** " .. tostring(#exportData.actions) .. "\n" ..
-                        "🏗️ **Placements:** " .. tostring(placementCount) .. "\n" ..
-                        "⬆️ **Upgrades:** " .. tostring(upgradeCount) .. "\n" ..
-                        "💸 **Sells:** " .. tostring(sellCount)
-            }) .. "\r\n"
-            
-            -- Add file field
-            body = body .. "--" .. boundary .. "\r\n"
-            body = body .. "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" .. fileName .. "\"\r\n"
-            body = body .. "Content-Type: application/json\r\n\r\n"
-            body = body .. jsonData .. "\r\n"
-            
-            -- End boundary
-            body = body .. "--" .. boundary .. "--\r\n"
-            
-            -- Try multiple request functions
-            local requestFunc = (syn and syn.request) or 
-                            (http and http.request) or 
-                            (http_request) or 
-                            request
-            
-            if not requestFunc then
-                Rayfield:Notify({
-                    Title = "Webhook Error",
-                    Content = "No HTTP request function available.",
-                    Duration = 3
-                })
-                return
-            end
-            
-            local success, result = pcall(function()
-                return requestFunc({
-                    Url = ValidWebhook,
-                    Method = "POST",
-                    Headers = { 
-                        ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
-                        ["User-Agent"] = "LixHub-Webhook/1.0"
-                    },
-                    Body = body
-                })
-            end)
-            
-            if success and result then
-                -- Check if the HTTP request was actually successful
-                if result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
-                    Rayfield:Notify({
-                        Title = "Webhook Success", 
-                        Content = "Macro file sent to Discord successfully.",
-                        Duration = 3
-                    })
-                else
-                    -- Log the actual error for debugging
-                    local errorMsg = "HTTP Error"
-                    if result.StatusCode then
-                        errorMsg = errorMsg .. " " .. tostring(result.StatusCode)
-                    end
-                    
-                    Rayfield:Notify({
-                        Title = "Webhook Error",
-                        Content = errorMsg,
-                        Duration = 5
-                    })
-                    
-                    print("Webhook failed - StatusCode:", result.StatusCode)
-                    if result.Body then
-                        print("Response body:", result.Body)
-                    end
-                end
-            else
-                local errorMsg = "Failed to send request"
-                if result then
-                    errorMsg = errorMsg .. ": " .. tostring(result)
-                end
-                
-                Rayfield:Notify({
-                    Title = "Webhook Error",
-                    Content = errorMsg,
-                    Duration = 3
-                })
-                
-                print("Request failed:", result)
-            end
-        end,
-    })--]]
+     Divider = MacroTab:CreateDivider()
 
     -- Webhook Tab
     WebhookInput = WebhookTab:CreateInput({
@@ -7501,8 +6990,6 @@ end
         end)
     end)
 
-
-
     -- Restore saved macro from config after a delay
     task.delay(1, function()
         local savedMacroName = Rayfield.Flags["MacroDropdown"]
@@ -7539,89 +7026,6 @@ end
     end
 
     Rayfield:SetVisibility(false)
-
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "RayfieldToggle"
-    screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
-    screenGui.ResetOnSpawn = false
-
-    -- Create the circular image button
-    local toggleButton = Instance.new("ImageButton")
-    toggleButton.Name = "ToggleButton"
-    toggleButton.Parent = screenGui
-    toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    toggleButton.BorderSizePixel = 0
-    toggleButton.Position = UDim2.new(0, 50, 0, 50)
-    toggleButton.Size = UDim2.new(0, 50, 0, 50)
-    toggleButton.Image = "rbxassetid://139436994731049" -- Put your logo image ID here like "rbxassetid://123456789"
-    toggleButton.ScaleType = Enum.ScaleType.Fit
-
-    -- Make it circular
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = toggleButton
-
-    -- Rayfield visibility state
-    local rayfieldVisible = true
-
-    -- Toggle function
-    local function toggleRayfield()
-        rayfieldVisible = not rayfieldVisible
-        
-        if Rayfield then
-            Rayfield:SetVisibility(rayfieldVisible)
-        end
-    end
-
-    -- Dragging variables
-    local dragging = false
-    local dragStart = nil
-    local startPos = nil
-
-    -- Mouse input handling
-    toggleButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = toggleButton.Position
-            
-            local connection
-            connection = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    connection:Disconnect()
-                end
-            end)
-        end
-    end)
-
-    toggleButton.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-
-    -- Click to toggle
-    local clickStartPos = nil
-    toggleButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            clickStartPos = input.Position
-        end
-    end)
-
-    toggleButton.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if clickStartPos then
-                local deltaMove = input.Position - clickStartPos
-                local moveDistance = math.sqrt(deltaMove.X^2 + deltaMove.Y^2)
-                
-                if moveDistance < 10 then
-                    toggleRayfield()
-                end
-            end
-        end
-    end)
 
     Rayfield:TopNotify({
         Title = "UI is hidden",
