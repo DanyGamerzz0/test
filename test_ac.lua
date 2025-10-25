@@ -1,4 +1,4 @@
-    -- 18
+    -- 19
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -6954,40 +6954,43 @@ end
     loadAllMacros()
 
 
-    task.delay(1, function()
-        print("Starting dropdown loading with retry logic...")
-        
-        -- Load world mappings and macros
-        loadWorldMappings()
-        loadAllMacros()
-        
-        -- Start all dropdown loading processes concurrently
-        task.spawn(loadStoryStagesWithRetry)
-        task.spawn(loadLegendStagesWithRetry) 
-        task.spawn(loadRaidStagesWithRetry)
-        task.spawn(loadIgnoreWorldsWithRetry)
-        task.spawn(loadPortalsWithRetry)
-        
-        -- Create auto-select dropdowns after game data loads
-        task.spawn(function()
-            task.wait(2) -- Give game data time to load
-            createAutoSelectDropdowns()
-            
-            -- Wait a bit then refresh with loaded mappings
-            task.wait(0.5)
-            refreshAutoSelectDropdowns()
-            
-            -- Force set the dropdown values based on saved mappings
-            task.wait(0.5)
-            for worldKey, macroName in pairs(worldMacroMappings) do
-                if worldDropdowns[worldKey] and macroManager[macroName] then
-                    -- Force the dropdown to show the correct value
-                    worldDropdowns[worldKey]:Set(macroName)
-                    print("Restored auto-select mapping:", worldKey, "->", macroName)
-                end
-            end
-        end)
-    end)
+task.delay(1, function()
+    print("Starting dropdown loading with retry logic...")
+    
+    -- Load world mappings and macros
+    loadWorldMappings()
+    loadAllMacros()
+    
+    -- Start all dropdown loading processes concurrently
+    task.spawn(loadStoryStagesWithRetry)
+    task.spawn(loadLegendStagesWithRetry) 
+    task.spawn(loadRaidStagesWithRetry)
+    task.spawn(loadIgnoreWorldsWithRetry)
+    task.spawn(loadPortalsWithRetry)
+    
+    -- Wait for ALL dropdowns to load FIRST
+    task.wait(3) -- Increased wait time
+    
+    -- THEN create auto-select dropdowns
+    createAutoSelectDropdowns()
+    
+    -- Wait a bit then refresh with loaded mappings
+    task.wait(0.5)
+    refreshAutoSelectDropdowns()
+    
+    -- NOW load the configuration (after all UI is created)
+    Rayfield:LoadConfiguration()
+    print("✓ Configuration loaded!")
+    
+    -- Force set the dropdown values based on saved mappings
+    task.wait(0.5)
+    for worldKey, macroName in pairs(worldMacroMappings) do
+        if worldDropdowns[worldKey] and macroManager[macroName] then
+            worldDropdowns[worldKey]:Set(macroName)
+            print("Restored auto-select mapping:", worldKey, "->", macroName)
+        end
+    end
+end)
 
     -- Restore saved macro from config after a delay
     task.delay(1, function()
@@ -7033,5 +7036,3 @@ end
         IconColor = Color3.fromRGB(100, 150, 255),
         Duration = 5
     })
-
-    Rayfield:LoadConfiguration()
