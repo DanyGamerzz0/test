@@ -1,4 +1,4 @@
-    -- 19
+    -- 20
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -6978,10 +6978,6 @@ task.delay(1, function()
     task.wait(0.5)
     refreshAutoSelectDropdowns()
     
-    -- NOW load the configuration (after all UI is created)
-    Rayfield:LoadConfiguration()
-    print("✓ Configuration loaded!")
-    
     -- Force set the dropdown values based on saved mappings
     task.wait(0.5)
     for worldKey, macroName in pairs(worldMacroMappings) do
@@ -6991,6 +6987,8 @@ task.delay(1, function()
         end
     end
 end)
+
+Rayfield:LoadConfiguration()
 
     -- Restore saved macro from config after a delay
     task.delay(1, function()
