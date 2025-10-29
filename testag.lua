@@ -1,4 +1,4 @@
---103
+--104
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.06"
@@ -1998,7 +1998,7 @@ local function processPlacementAction(actionInfo)
         -- Find which slot number this unit is equipped in
         for slotNum = 1, 6 do
             local packageSlot = Services.Players.LocalPlayer.UnitPackage:FindFirstChild(tostring(slotNum))
-            if packageSlot and packageSlot.UID.Value == uuid then
+            if packageSlot and packageSlot.Unit.Value == actualUnitName then
                 -- Found the slot, now get cost from UI
                 local cost, _ = getUnitCostFromUI(slotNum)
                 if cost then
