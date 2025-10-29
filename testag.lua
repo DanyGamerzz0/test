@@ -1,4 +1,4 @@
---102
+--103
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.06"
@@ -1948,11 +1948,33 @@ local function findUnitByPosition(unitDisplayName, targetPosition, tolerance)
     return bestMatch
 end
 
+local function getUnitCostFromUI(unitSlotNumber)
+    local unitFrame = Services.Players.LocalPlayer.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot:FindFirstChild("unit"..unitSlotNumber)
+    
+    if not unitFrame or unitFrame.unit.Value == "" then
+        return nil
+    end
+    
+    local unitName = unitFrame.unit.Value
+    local unitDisplay = unitFrame:FindFirstChild(unitName)
+    
+    if unitDisplay and unitDisplay:IsA("Frame") then
+        local yenLabel = unitDisplay:FindFirstChild("yen")
+        if yenLabel and yenLabel.Text then
+            local cost = tonumber(yenLabel.Text:match("%d+"))
+            return cost, unitName
+        end
+    end
+    
+    return nil
+end
+
 local function processPlacementAction(actionInfo)
     local args = actionInfo.args
     local unitDisplayName = args[1][1]
     local cframe = args[1][2]
     local rotation = args[1][3]
+    local uuid = args[2] -- The UUID from the placement
     
     print(string.format("📝 Recording placement: %s at position (%.1f, %.1f, %.1f)", 
         unitDisplayName, cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
@@ -1961,21 +1983,35 @@ local function processPlacementAction(actionInfo)
     task.wait(0.5)
     
     -- Find the unit by position
-    local actualUnitName = findUnitByPosition(unitDisplayName, cframe.Position, 5) -- 5 stud tolerance
+    local actualUnitName = findUnitByPosition(unitDisplayName, cframe.Position, 5)
     
     if not actualUnitName then
         warn("❌ RECORDING FAILED: Could not find unit at position:", unitDisplayName)
         return
     end
     
-    -- Get placement cost
+    -- Get placement cost from UI by finding which slot this UUID belongs to
     local placementCost = nil
-    local unitInServer = Services.Workspace.Ground.unitServer[tostring(Services.Players.LocalPlayer.Name).." (UNIT)"]:FindFirstChild(actualUnitName)
-    if unitInServer then
-        local sellingValue = unitInServer:FindFirstChild("Selling")
-        if sellingValue and sellingValue:IsA("NumberValue") then
-            placementCost = sellingValue.Value * 2
+    local unitsInventory = Services.Players.LocalPlayer:FindFirstChild("UnitsInventory")
+    
+    if unitsInventory then
+        -- Find which slot number this unit is equipped in
+        for slotNum = 1, 6 do
+            local packageSlot = Services.Players.LocalPlayer.UnitPackage:FindFirstChild(tostring(slotNum))
+            if packageSlot and packageSlot.UID.Value == uuid then
+                -- Found the slot, now get cost from UI
+                local cost, _ = getUnitCostFromUI(slotNum)
+                if cost then
+                    placementCost = cost
+                    print(string.format("✓ Found placement cost from UI slot %d: %d", slotNum, cost))
+                end
+                break
+            end
         end
+    end
+    
+    if not placementCost then
+        warn("❌ Could not determine placement cost from UI for:", unitDisplayName)
     end
     
     -- Increment placement counter for this unit type
