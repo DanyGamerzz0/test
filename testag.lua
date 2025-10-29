@@ -1,4 +1,4 @@
---106
+--107
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.06"
@@ -1956,16 +1956,24 @@ local function getUnitCostFromUI(unitSlotNumber)
     end
     
     local unitName = unitFrame.unit.Value
-    local unitDisplay = unitFrame:FindFirstChild(unitName)
     
-    if unitDisplay and unitDisplay:IsA("Frame") then
+    -- Find the Frame child with the unit name (not the StringValue)
+    local unitDisplay = nil
+    for _, child in pairs(unitFrame:GetChildren()) do
+        if child.Name == unitName and child:IsA("Frame") then
+            unitDisplay = child
+            break
+        end
+    end
+    
+    if unitDisplay then
         local yenLabel = unitDisplay:FindFirstChild("yen")
         if yenLabel and yenLabel.Text then
             local cost = tonumber(yenLabel.Text:match("%d+"))
             return cost, unitName
         end
     end
-    print("not found sir")
+    
     return nil
 end
 
