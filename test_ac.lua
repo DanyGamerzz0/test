@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.08"
+    local script_version = "V0.07"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -4587,12 +4587,7 @@ end
     Callback = function(Value)
             State.AutoSkipWaves = Value
             if Services.Players.LocalPlayer.PlayerGui.VoteSkip.Enabled == true then
-            pcall(function()
-                local connections = getconnections(Services.Players.PlayerGui.VoteSkip.Holder.ButtonHolder.Yes.MouseButton1Click)
-                for _, connection in ipairs(connections) do
-                connection:Fire()
-                end
-            end)
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_wave_skip"):InvokeServer()
             end
     end,
     })
@@ -4619,22 +4614,20 @@ end
                 if skipLimit == 0 then
                     local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
                     if voteSkip and voteSkip.Enabled then
-                    pcall(function()
-                    local connections = getconnections(Services.Players.PlayerGui.VoteSkip.Holder.ButtonHolder.Yes.MouseButton1Click)
-                    for _, connection in ipairs(connections) do
-                    connection:Fire()
-                    end
-            end)
+                        game:GetService("ReplicatedStorage")
+                            :WaitForChild("endpoints")
+                            :WaitForChild("client_to_server")
+                            :WaitForChild("vote_wave_skip")
+                            :InvokeServer()
                     end
                 elseif waveNum <= skipLimit then
                     local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
                     if voteSkip and voteSkip.Enabled then
-                        pcall(function()
-                    local connections = getconnections(Services.Players.PlayerGui.VoteSkip.Holder.ButtonHolder.Yes.MouseButton1Click)
-                    for _, connection in ipairs(connections) do
-                    connection:Fire()
-                    end
-            end)
+                        game:GetService("ReplicatedStorage")
+                            :WaitForChild("endpoints")
+                            :WaitForChild("client_to_server")
+                            :WaitForChild("vote_wave_skip")
+                            :InvokeServer()
                     end
                 end
             end
