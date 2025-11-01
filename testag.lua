@@ -1,4 +1,4 @@
---107
+--108
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.06"
@@ -812,7 +812,10 @@ local function tryStartGame()
         -- Only try to start if game hasn't started, there's a mode, and we're on wave 1
         if (mode ~= nil and mode ~= "") and not gameStarted and currentWave == 0 then
             pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote"):FireServer("Vote1")
+                local connections = getconnections(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Button)
+                for _, connection in ipairs(connections) do
+                connection:Fire()
+                end
             end)
         end
     end
