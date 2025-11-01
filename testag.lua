@@ -1,4 +1,4 @@
---109
+--110
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.06"
@@ -804,13 +804,10 @@ end)
     })
 
 local function tryStartGame()
+    while true do
     if State.AutoStartGame and not isInLobby() then
-        local mode = Services.Workspace.GameSettings.StagesChallenge.Mode.Value
-        local gameStarted = Services.Workspace.GameSettings.GameStarted.Value
-        local currentWave = Services.Workspace.GameSettings.Wave.Value
-        
         -- Only try to start if game hasn't started, there's a mode, and we're on wave 1
-        if (mode ~= nil and mode ~= "") and not gameStarted and currentWave == 0 then
+        if Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Visible == true and string.lower(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Inset.textname.Text):match("start") then
             pcall(function()
                 local connections = getconnections(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Button.MouseButton1Click)
                 for _, connection in ipairs(connections) do
@@ -819,6 +816,8 @@ local function tryStartGame()
             end)
         end
     end
+    wait(1)
+end
 end
 
 local GameSection = GameTab:CreateSection("👥 Player 👥")
