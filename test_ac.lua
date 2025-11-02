@@ -1,4 +1,4 @@
-    -- 2
+    -- 4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.1"
+    local script_version = "V0.11"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -233,6 +233,8 @@ local playbackDisplayNameInstances = {}
         AutoMatchmakeHalloween = false,
         AutoSelectCard = false,
         AutoEquipMacroUnits = false,
+        challengeJoinAttempts = 0,
+        maxChallengeAttempts = 3,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
@@ -2541,47 +2543,47 @@ end
     end
 
     local function joinChallenge()
-        local challengeData = getChallengeData()
-        
-        if not challengeData then
-            print("No challenge data available")
-            return false
-        end
-
-        -- Check if we should ignore this challenge based on world
-        if checkIgnoreWorlds(challengeData) then
-            print("Skipping challenge due to ignored world")
-            return false
-        end
-
-        -- Check if challenge has desired rewards
-        if not checkChallengeRewards(challengeData) then
-            print("Challenge doesn't contain desired rewards, skipping")
-            return false
-        end
-
-        -- Attempt to join the challenge
-        print("Challenge passed all filters, attempting to join...")
-        print("Challenge type:", challengeData.current_challenge)
-        print("Challenge level:", challengeData.current_level_id)
-
-        local success = pcall(function()
-
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
-
-            task.wait(0.5)
-
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
-        end)
-
-        if success then
-            notify("Challenge Joiner", string.format("Joining challenge: %s", challengeData.current_challenge or "Unknown"))
-            return true
-        else
-            notify("Challenge Joiner", "Failed to join challenge")
-            return false
-        end
+    local challengeData = getChallengeData()
+    
+    if not challengeData then
+        print("No challenge data available")
+        return false
     end
+
+    -- Check if we should ignore this challenge based on world
+    if checkIgnoreWorlds(challengeData) then
+        print("Skipping challenge due to ignored world")
+        State.challengeJoinAttempts = 0 -- Reset counter for skipped challenges
+        return false
+    end
+
+    -- Check if challenge has desired rewards
+    if not checkChallengeRewards(challengeData) then
+        print("Challenge doesn't contain desired rewards, skipping")
+        State.challengeJoinAttempts = 0 -- Reset counter for skipped challenges
+        return false
+    end
+
+    -- Attempt to join the challenge
+    print("Challenge passed all filters, attempting to join...")
+    print("Challenge type:", challengeData.current_challenge)
+    print("Challenge level:", challengeData.current_level_id)
+
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
+        task.wait(0.5)
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
+    end)
+
+    if success then
+        notify("Challenge Joiner", string.format("Joining challenge: %s", challengeData.current_challenge or "Unknown"))
+        State.challengeJoinAttempts = 0 -- Reset on success
+        return true
+    else
+        notify("Challenge Joiner", "Failed to join challenge")
+        return false
+    end
+end
 
     local function getAvailableGates()
         local gates = {}
@@ -2805,20 +2807,37 @@ end
         if checkGateJoin() then return end
 
         if State.AutoJoinChallenge then
-            local challengeData = getChallengeData()
-            if challengeData then
-                setProcessingState("Challenge Auto Join")
+        local challengeData = getChallengeData()
+        if challengeData then
+            setProcessingState("Challenge Auto Join")
+            
+            local joinSuccess = joinChallenge()
+            
+            if joinSuccess then
+                print("Successfully initiated challenge join!")
+                State.challengeJoinAttempts = 0 -- Reset counter on success
+            else
+                State.challengeJoinAttempts = State.challengeJoinAttempts + 1
+                print(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
                 
-                if joinChallenge() then
-                    print("Successfully initiated challenge join!")
+                if State.challengeJoinAttempts >= State.maxChallengeAttempts then
+                    notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
+                    print("Max challenge attempts reached, falling through to other join options")
+                    State.challengeJoinAttempts = 0 -- Reset counter
+                    -- Don't return here - let it fall through to next priority
                 else
-                    print("Challenge join failed or skipped!")
+                    -- Still have attempts left, wait and return to try again
+                    task.delay(5, clearProcessingState)
+                    return
                 end
-                
-                task.delay(5, clearProcessingState)
-                return -- Exit early since challenge has highest priority
+            end
+            
+            task.delay(5, clearProcessingState)
+            if joinSuccess or State.challengeJoinAttempts >= State.maxChallengeAttempts then
+                return -- Only return if successful or max attempts reached
             end
         end
+    end
 
     if State.AutoJoinPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
         setProcessingState("Portal Auto Join")
