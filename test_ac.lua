@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.13"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3860,7 +3860,7 @@ local function calculateCardScore(card)
             elseif effectName:find("Tier 3") then tier = "tier3"
             end
         -- Enemy Health
-        if effectName:find("Enemy Health") then
+        elseif effectName:find("Enemy Health") then
             cardType = "Enemy Health"
             if effectName:find("Tier 1") then tier = "tier1"
             elseif effectName:find("Tier 2") then tier = "tier2"
