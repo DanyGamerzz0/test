@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.09"
+    local script_version = "V0.1"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2314,8 +2314,10 @@ end
         local currentTime = os.time()
         local currentDate = os.date("!*t", currentTime) -- UTC time
         
-        -- Check if we just passed xx:30 (30 minutes past any hour)
-        if currentDate.min == 30 and currentDate.sec < 10 then
+        -- Check if we just passed :00 or :30 (challenges reset twice per hour)
+        local isResetTime = (currentDate.min == 0 or currentDate.min == 30) and currentDate.sec < 10
+        
+        if isResetTime then
             -- If we haven't detected this reset yet
             if currentTime - lastChallengeResetTime > 600 then -- At least 10 minutes since last reset
                 lastChallengeResetTime = currentTime
@@ -4815,7 +4817,7 @@ local function getMacroForCurrentWorld()
                             local equipSuccess = autoEquipMacroUnits(macroToEquip)
                             
                             if equipSuccess then
-                                task.wait(3) -- Wait a bit after equipping before starting
+                                task.wait(1) -- Wait a bit after equipping before starting
                             end
                         end
                     end
