@@ -1,4 +1,4 @@
-    -- 3
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2795,159 +2795,10 @@ end
         return false
     end
 
-    local function autoEquipMacroUnits(macroName)
-    if not isInLobby() then 
-        print("Cannot auto-equip: Not in lobby")
-        return false
-    end
-
-    if not macroName or macroName == "" then
-        print("Cannot auto-equip: No macro name provided")
-        return false
-    end
-    
-    local macroData = macroManager[macroName]
-    if not macroData or #macroData == 0 then
-        print("Cannot auto-equip: Macro is empty")
-        return false
-    end
-    
-    -- Extract unique units from macro
-    local requiredUnits = {}
-    
-    for _, action in ipairs(macroData) do
-        if action.Type == "spawn_unit" and action.Unit then
-            local unitName = action.Unit
-            
-            -- Extract base unit name (remove instance number like "#1", "#2")
-            local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
-            
-            requiredUnits[baseUnitName] = true
-        end
-    end
-    
-    -- Get list of required units
-    local requiredUnitsList = {}
-    for unitName, _ in pairs(requiredUnits) do
-        table.insert(requiredUnitsList, unitName)
-    end
-    
-    if #requiredUnitsList == 0 then
-        print("No units found in macro to equip")
-        return false
-    end
-    
-    -- Check if we have all required units in our collection
-    local success, result = pcall(function()
-        local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-        if not fxCache then
-            error("_FX_CACHE not found")
-        end
-        
-        local availableUnits = {} -- {displayName: uuid}
-        local missingUnits = {}
-        
-        -- Scan through _FX_CACHE to find available units
-        for _, child in pairs(fxCache:GetChildren()) do
-            local itemIndex = child:GetAttribute("ITEMINDEX")
-            if itemIndex then
-                local displayName = getDisplayNameFromUnitId(itemIndex)
-                if displayName then
-                    local uuidValue = child:FindFirstChild("_uuid")
-                    if uuidValue and uuidValue:IsA("StringValue") then
-                        availableUnits[displayName] = uuidValue.Value
-                    end
-                end
-            end
-        end
-        
-        -- Check if we have all required units
-        for _, requiredUnit in ipairs(requiredUnitsList) do
-            if not availableUnits[requiredUnit] then
-                table.insert(missingUnits, requiredUnit)
-            end
-        end
-        
-        if #missingUnits > 0 then
-            local missingText = table.concat(missingUnits, ", ")
-            error("Missing units: " .. missingText)
-        end
-        
-        return availableUnits
-    end)
-    
-    if not success then
-        print("Auto-equip failed:", result)
-        return false
-    end
-    
-    local availableUnits = result
-    
-    print(string.format("Auto-equipping %d units for macro: %s", #requiredUnitsList, macroName))
-    
-    -- Start equipping process in background
-    task.spawn(function()
-        -- Step 1: Unequip all current units
-        local unequipSuccess = pcall(function()
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("unequip_all"):InvokeServer()
-        end)
-        
-        if not unequipSuccess then
-            print("Failed to unequip current units")
-            return
-        end
-        
-        print("Successfully unequipped all units")
-        task.wait(0.5) -- Small delay after unequipping
-        
-        -- Step 2: Equip each required unit
-        local equippedCount = 0
-        local failedUnits = {}
-        
-        for _, unitName in ipairs(requiredUnitsList) do
-            local unitUUID = availableUnits[unitName]
-            if unitUUID then
-                local equipSuccess = pcall(function()
-                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("equip_unit"):InvokeServer(unitUUID)
-                end)
-                
-                if equipSuccess then
-                    equippedCount = equippedCount + 1
-                    print("Successfully equipped:", unitName)
-                else
-                    table.insert(failedUnits, unitName)
-                    print("Failed to equip:", unitName)
-                end
-                
-                task.wait(0.2) -- Small delay between equips
-            end
-        end
-        
-        if #failedUnits == 0 then
-            print(string.format("Auto-equip complete: %d/%d units equipped", equippedCount, #requiredUnitsList))
-        else
-            print(string.format("Auto-equip partial: %d/%d units equipped", equippedCount, #requiredUnitsList))
-        end
-    end)
-    
-    return true
-end
-
     local function checkAndExecuteHighestPriority()
         if not isInLobby() then return end
         if AutoJoinState.isProcessing then return end
         if not canPerformAction() then return end
-
-        if State.AutoEquipMacroUnits then
-            local worldSpecificMacro = getMacroForCurrentWorld()
-            local macroToEquip = worldSpecificMacro or currentMacroName
-            
-            if macroToEquip and macroToEquip ~= "" and macroManager[macroToEquip] then
-                print("Auto-equipping units for macro:", macroToEquip)
-                autoEquipMacroUnits(macroToEquip)
-                task.wait(2) -- Wait for equipping to complete before joining
-            end
-        end
 
         if checkGateJoin() then return end
 
@@ -4695,6 +4546,250 @@ end
         end,
     })
 
+    local function autoEquipMacroUnits(macroName)
+    if isInLobby() then 
+        print("Cannot auto-equip: Still in lobby")
+        return false
+    end
+
+    if not macroName or macroName == "" then
+        print("Cannot auto-equip: No macro name provided")
+        return false
+    end
+    
+    local macroData = macroManager[macroName]
+    if not macroData or #macroData == 0 then
+        print("Cannot auto-equip: Macro is empty")
+        return false
+    end
+    
+    -- Extract unique units from macro
+    local requiredUnits = {}
+    
+    for _, action in ipairs(macroData) do
+        if action.Type == "spawn_unit" and action.Unit then
+            local unitName = action.Unit
+            
+            -- Extract base unit name (remove instance number like "#1", "#2")
+            local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
+            
+            requiredUnits[baseUnitName] = true
+        end
+    end
+    
+    -- Get list of required units
+    local requiredUnitsList = {}
+    for unitName, _ in pairs(requiredUnits) do
+        table.insert(requiredUnitsList, unitName)
+    end
+    
+    if #requiredUnitsList == 0 then
+        print("No units found in macro to equip")
+        return false
+    end
+    
+    -- Check if we have all required units in our collection
+    local success, result = pcall(function()
+        local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+        if not fxCache then
+            error("_FX_CACHE not found")
+        end
+        
+        local availableUnits = {} -- {displayName: uuid}
+        local missingUnits = {}
+        
+        -- Scan through _FX_CACHE to find available units
+        for _, child in pairs(fxCache:GetChildren()) do
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            if itemIndex then
+                local displayName = getDisplayNameFromUnitId(itemIndex)
+                if displayName then
+                    local uuidValue = child:FindFirstChild("_uuid")
+                    if uuidValue and uuidValue:IsA("StringValue") then
+                        availableUnits[displayName] = uuidValue.Value
+                    end
+                end
+            end
+        end
+        
+        -- Check if we have all required units
+        for _, requiredUnit in ipairs(requiredUnitsList) do
+            if not availableUnits[requiredUnit] then
+                table.insert(missingUnits, requiredUnit)
+            end
+        end
+        
+        if #missingUnits > 0 then
+            local missingText = table.concat(missingUnits, ", ")
+            error("Missing units: " .. missingText)
+        end
+        
+        return availableUnits
+    end)
+    
+    if not success then
+        print("Auto-equip failed:", result)
+        notify("Auto Equip Failed", result:sub(1, 50))
+        return false
+    end
+    
+    local availableUnits = result
+    
+    print(string.format("Auto-equipping %d units for macro: %s", #requiredUnitsList, macroName))
+    notify("Auto Equip", string.format("Equipping %d units for %s", #requiredUnitsList, macroName))
+    
+    -- Step 1: Unequip all current units
+    local unequipSuccess = pcall(function()
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("unequip_all"):InvokeServer()
+    end)
+    
+    if not unequipSuccess then
+        print("Failed to unequip current units")
+        return false
+    end
+    
+    print("Successfully unequipped all units")
+    task.wait(0.5) -- Small delay after unequipping
+    
+    -- Step 2: Equip each required unit
+    local equippedCount = 0
+    local failedUnits = {}
+    
+    for _, unitName in ipairs(requiredUnitsList) do
+        local unitUUID = availableUnits[unitName]
+        if unitUUID then
+            local equipSuccess = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("equip_unit"):InvokeServer(unitUUID)
+            end)
+            
+            if equipSuccess then
+                equippedCount = equippedCount + 1
+                print("Successfully equipped:", unitName)
+            else
+                table.insert(failedUnits, unitName)
+                print("Failed to equip:", unitName)
+            end
+            
+            task.wait(0.2) -- Small delay between equips
+        end
+    end
+    
+    if #failedUnits == 0 then
+        print(string.format("Auto-equip complete: %d/%d units equipped", equippedCount, #requiredUnitsList))
+        notify("Auto Equip Complete", string.format("%d/%d units equipped", equippedCount, #requiredUnitsList))
+    else
+        print(string.format("Auto-equip partial: %d/%d units equipped", equippedCount, #requiredUnitsList))
+        notify("Auto Equip Partial", string.format("%d/%d units equipped", equippedCount, #requiredUnitsList))
+    end
+    
+    return true
+end
+
+local function getCurrentWorld()
+    local success, levelData = pcall(function()
+        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
+    end)
+    
+    if success and levelData then
+        -- Priority 1: Check if this is a portal level
+        if levelData._portal_only_level == true and levelData.id then
+            print("getCurrentWorld: Detected portal level, ID:", levelData.id)
+            return levelData.id -- Returns "portal_tengen", "portal_tengen_secret", etc.
+        end
+        
+        -- Priority 2: Check for world field (story/legend/raid stages)
+        if levelData.world then
+            print("getCurrentWorld: Using world field:", levelData.world)
+            return levelData.world
+        end
+        
+        -- Priority 3: Fallback to map field (special maps like "DoubleDungeon")
+        if levelData.map then
+            print("getCurrentWorld: Using map field:", levelData.map)
+            return levelData.map
+        end
+        
+        print("getCurrentWorld: No world, map, or portal ID found in levelData")
+    else
+        print("getCurrentWorld: Failed to get level data:", levelData)
+    end
+    
+    return nil
+end
+
+local function getMacroForCurrentWorld()
+        if isInLobby() then
+            return nil -- Don't auto-select in lobby
+        end
+        
+        local currentWorld = getCurrentWorld()
+        if not currentWorld then
+            return nil
+        end
+        
+        -- Check if we're in a legend stage by examining the level data
+        local isLegendStage = false
+        local success, levelData = pcall(function()
+            return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
+        end)
+        
+        if success and levelData then
+            -- Check for legend indicators in the level data
+            if levelData.legend or 
+            (levelData.level_id and levelData.level_id:lower():find("legend")) or
+            (levelData.map and levelData.map:lower():find("legend")) then
+                isLegendStage = true
+            end
+        end
+        
+        print("Current world:", currentWorld, "- Legend stage:", isLegendStage)
+        
+        -- First try exact match for legend stages
+        if isLegendStage then
+            -- Try to find legend-specific mapping first
+            for worldKey, macroName in pairs(worldMacroMappings) do
+                if worldKey:lower():find("legend") and 
+                (worldKey:lower():find(currentWorld:lower()) or currentWorld:lower():find(worldKey:lower():gsub("_legend", ""))) then
+                    if macroManager[macroName] then
+                        print("Found legend-specific mapping:", worldKey, "->", macroName)
+                        return macroName
+                    end
+                end
+            end
+        end
+        
+        -- Try exact match for regular stages
+        local mappedMacro = worldMacroMappings[currentWorld]
+        if mappedMacro and macroManager[mappedMacro] then
+            print("Found exact match for world:", currentWorld, "->", mappedMacro)
+            return mappedMacro
+        end
+        
+        -- If no exact match, try case-insensitive comparison
+        local currentWorldLower = string.lower(currentWorld)
+        
+        for worldKey, macroName in pairs(worldMacroMappings) do
+            if string.lower(worldKey) == currentWorldLower and macroManager[macroName] then
+                print("Found case-insensitive match:", currentWorld, "matched with", worldKey, "->", macroName)
+                return macroName
+            end
+        end
+        
+        -- Try base name matching (for cases like "namek_cartoon" -> "namek")
+        for worldKey, macroName in pairs(worldMacroMappings) do
+            local baseWorldKey = worldKey:match("^([^_]+)") or worldKey
+            local baseCurrentWorld = currentWorld:match("^([^_]+)") or currentWorld
+            
+            if string.lower(baseWorldKey) == string.lower(baseCurrentWorld) and macroManager[macroName] then
+                print("Found base name match:", currentWorld, "matched with", worldKey, "via base names:", baseCurrentWorld, "->", macroName)
+                return macroName
+            end
+        end
+        
+        print("No macro mapping found for world:", currentWorld)
+        return nil
+    end
+
     Toggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
     CurrentValue = false,
@@ -4712,7 +4807,23 @@ end
             wait(1)
             if State.AutoVoteStart then
                 local waveNum = Services.Workspace:WaitForChild("_wave_num")
-                if waveNum.Value == 0 then
+                if waveNum.Value == 0 and not isInLobby() then
+                    -- Auto-equip macro units BEFORE starting the game
+                    if State.AutoEquipMacroUnits then
+                        local worldSpecificMacro = getMacroForCurrentWorld()
+                        local macroToEquip = worldSpecificMacro or currentMacroName
+                        
+                        if macroToEquip and macroToEquip ~= "" and macroManager[macroToEquip] then
+                            print("Auto-equipping units for macro:", macroToEquip)
+                            local equipSuccess = autoEquipMacroUnits(macroToEquip)
+                            
+                            if equipSuccess then
+                                task.wait(3) -- Wait a bit after equipping before starting
+                            end
+                        end
+                    end
+                    
+                    -- Now start the game
                     game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_start"):InvokeServer()
                 end
             end
@@ -5539,38 +5650,6 @@ local function playMacroWithGameTimingRefactored()
     return true
 end
 
-local function getCurrentWorld()
-    local success, levelData = pcall(function()
-        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
-    end)
-    
-    if success and levelData then
-        -- Priority 1: Check if this is a portal level
-        if levelData._portal_only_level == true and levelData.id then
-            print("getCurrentWorld: Detected portal level, ID:", levelData.id)
-            return levelData.id -- Returns "portal_tengen", "portal_tengen_secret", etc.
-        end
-        
-        -- Priority 2: Check for world field (story/legend/raid stages)
-        if levelData.world then
-            print("getCurrentWorld: Using world field:", levelData.world)
-            return levelData.world
-        end
-        
-        -- Priority 3: Fallback to map field (special maps like "DoubleDungeon")
-        if levelData.map then
-            print("getCurrentWorld: Using map field:", levelData.map)
-            return levelData.map
-        end
-        
-        print("getCurrentWorld: No world, map, or portal ID found in levelData")
-    else
-        print("getCurrentWorld: Failed to get level data:", levelData)
-    end
-    
-    return nil
-end
-
 local function createAutoSelectDropdowns()
     print("Creating auto-select dropdowns using existing dropdown data...")
     
@@ -5866,79 +5945,6 @@ local function createAutoSelectDropdowns()
     
     print("Created categorized auto-select dropdowns")
 end
-
-    local function getMacroForCurrentWorld()
-        if isInLobby() then
-            return nil -- Don't auto-select in lobby
-        end
-        
-        local currentWorld = getCurrentWorld()
-        if not currentWorld then
-            return nil
-        end
-        
-        -- Check if we're in a legend stage by examining the level data
-        local isLegendStage = false
-        local success, levelData = pcall(function()
-            return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
-        end)
-        
-        if success and levelData then
-            -- Check for legend indicators in the level data
-            if levelData.legend or 
-            (levelData.level_id and levelData.level_id:lower():find("legend")) or
-            (levelData.map and levelData.map:lower():find("legend")) then
-                isLegendStage = true
-            end
-        end
-        
-        print("Current world:", currentWorld, "- Legend stage:", isLegendStage)
-        
-        -- First try exact match for legend stages
-        if isLegendStage then
-            -- Try to find legend-specific mapping first
-            for worldKey, macroName in pairs(worldMacroMappings) do
-                if worldKey:lower():find("legend") and 
-                (worldKey:lower():find(currentWorld:lower()) or currentWorld:lower():find(worldKey:lower():gsub("_legend", ""))) then
-                    if macroManager[macroName] then
-                        print("Found legend-specific mapping:", worldKey, "->", macroName)
-                        return macroName
-                    end
-                end
-            end
-        end
-        
-        -- Try exact match for regular stages
-        local mappedMacro = worldMacroMappings[currentWorld]
-        if mappedMacro and macroManager[mappedMacro] then
-            print("Found exact match for world:", currentWorld, "->", mappedMacro)
-            return mappedMacro
-        end
-        
-        -- If no exact match, try case-insensitive comparison
-        local currentWorldLower = string.lower(currentWorld)
-        
-        for worldKey, macroName in pairs(worldMacroMappings) do
-            if string.lower(worldKey) == currentWorldLower and macroManager[macroName] then
-                print("Found case-insensitive match:", currentWorld, "matched with", worldKey, "->", macroName)
-                return macroName
-            end
-        end
-        
-        -- Try base name matching (for cases like "namek_cartoon" -> "namek")
-        for worldKey, macroName in pairs(worldMacroMappings) do
-            local baseWorldKey = worldKey:match("^([^_]+)") or worldKey
-            local baseCurrentWorld = currentWorld:match("^([^_]+)") or currentWorld
-            
-            if string.lower(baseWorldKey) == string.lower(baseCurrentWorld) and macroManager[macroName] then
-                print("Found base name match:", currentWorld, "matched with", worldKey, "via base names:", baseCurrentWorld, "->", macroName)
-                return macroName
-            end
-        end
-        
-        print("No macro mapping found for world:", currentWorld)
-        return nil
-    end
 
     local function loadWorldMappings()
         local filePath = "LixHub/world_macro_mappings.json"
@@ -6651,19 +6657,6 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         end)
     end,
 })
-
-    local AutoEquipMacroUnitsToggle = MacroTab:CreateToggle({
-        Name = "Auto Equip Macro Units",
-        CurrentValue = false,
-        Flag = "AutoEquipMacroUnits",
-        Info = "Automatically equip units needed for the macro before joining game",
-        Callback = function(Value)
-            State.AutoEquipMacroUnits = Value
-            if Value then
-                notify("Auto Equip", "Will automatically equip macro units before joining")
-            end
-        end,
-    })
 
      Divider = MacroTab:CreateDivider()
 
