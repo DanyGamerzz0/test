@@ -1,4 +1,4 @@
-    -- 4
+    -- 5
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.11"
+    local script_version = "V0.12"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3924,9 +3924,34 @@ local function autoSelectCard(cardData)
             score,
             effectsText:sub(1, 80)
         ))
+            local promptGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt")
+            
+            if promptGui then
+                local confirmButton = promptGui:GetChildren()[2]:GetChildren()[5].Template
+                
+                if confirmButton then
+                    -- Fire all connection types for the confirm button
+                    for _, connection in pairs(getconnections(confirmButton.MouseButton1Click)) do
+                        connection:Fire()
+                    end
+                    
+                    for _, connection in pairs(getconnections(confirmButton.Activated)) do
+                        connection:Fire()
+                    end
+                    
+                    for _, connection in pairs(getconnections(confirmButton.MouseButton1Down)) do
+                        connection:Fire()
+                    end
+                    task.wait(0.05)
+                    for _, connection in pairs(getconnections(confirmButton.MouseButton1Up)) do
+                        connection:Fire()
+                    end
+                    
+                    print("Successfully clicked confirm button after card selection")
+                end
+            end
         return true
     end
-    
     return false
 end
 
