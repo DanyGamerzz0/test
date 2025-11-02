@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.07"
+    local script_version = "V0.08"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6657,6 +6657,19 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         end)
     end,
 })
+
+    local AutoEquipMacroUnitsToggle = MacroTab:CreateToggle({
+        Name = "Auto Equip Macro Units",
+        CurrentValue = false,
+        Flag = "AutoEquipMacroUnits",
+        Info = "Automatically equip units needed for the macro before starting game (requires Auto Start Game enabled)",
+        Callback = function(Value)
+            State.AutoEquipMacroUnits = Value
+            if Value then
+                notify("Auto Equip", "Will automatically equip macro units before starting game")
+            end
+        end,
+    })
 
      Divider = MacroTab:CreateDivider()
 
