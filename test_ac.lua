@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.08"
+    local script_version = "V0.09"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -4796,9 +4796,6 @@ local function getMacroForCurrentWorld()
     Flag = "AutoStartGame",
     Callback = function(Value)
             State.AutoVoteStart = Value
-            if Value then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_start"):InvokeServer()
-            end
     end,
     })
 
