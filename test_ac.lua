@@ -1,4 +1,4 @@
-    -- 5
+    -- 7
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.12"
+    local script_version = "V0.13"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -235,7 +235,7 @@ local playbackDisplayNameInstances = {}
         AutoEquipMacroUnits = false,
         challengeJoinAttempts = 0,
         maxChallengeAttempts = 3,
-        CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
+        CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
     local currentCardData = nil
@@ -3623,6 +3623,44 @@ CardPriorityTab:CreateSlider({
     end,
 })
 
+CardPriorityTab:CreateSection("Enemy Health Priority")
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Health Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyHealthT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Health"].tier1 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Health Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyHealthT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Health"].tier2 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Health Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyHealthT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Health"].tier3 = Value
+    end,
+})
+
 -- Enemy Speed Section
 CardPriorityTab:CreateSection("Enemy Speed Priority")
 
@@ -3821,6 +3859,13 @@ local function calculateCardScore(card)
             elseif effectName:find("Tier 2") then tier = "tier2"
             elseif effectName:find("Tier 3") then tier = "tier3"
             end
+        -- Enemy Health
+        if effectName:find("Enemy Health") then
+            cardType = "Enemy Health"
+            if effectName:find("Tier 1") then tier = "tier1"
+            elseif effectName:find("Tier 2") then tier = "tier2"
+            elseif effectName:find("Tier 3") then tier = "tier3"
+            end
         -- Enemy Speed
         elseif effectName:find("Enemy Speed") then
             cardType = "Enemy Speed"
@@ -3856,8 +3901,8 @@ local function calculateCardScore(card)
             totalScore = totalScore + (State.CardPriority[cardType][tier] or 0)
         end
     end
-    
     return totalScore
+end
 end
 
 local function selectBestCard(cardData)
