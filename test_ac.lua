@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -232,6 +232,7 @@ local playbackDisplayNameInstances = {}
         AutoJoinHalloween = false,
         AutoMatchmakeHalloween = false,
         AutoSelectCard = false,
+        AutoEquipMacroUnits = false,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
@@ -2273,14 +2274,6 @@ local function setProcessingState(action)
             string.lower(State.RaidStageSelected) or "?",
             State.RaidActSelected or "?"
         ))
-    elseif action == "Challenge Auto Join" then
-        local joinType = State.AutoMatchmakeRaidStage and "Matchmaking" or "Solo joining"
-        notify("Auto Joiner: ", string.format(
-            "%s %s%s",
-            joinType,
-            string.lower(State.RaidStageSelected) or "?",
-            State.RaidActSelected or "?"
-        ))
     elseif action == "Gate Auto Join" then
         notify("Auto Joiner: ","Attempting to join gate...")
     elseif action == "Challenge Auto Join" then
@@ -2314,6 +2307,50 @@ end
             return nil
         end
     end
+
+    local lastChallengeResetTime = 0
+
+    local function checkChallengeResetTime()
+        local currentTime = os.time()
+        local currentDate = os.date("!*t", currentTime) -- UTC time
+        
+        -- Check if we just passed xx:30 (30 minutes past any hour)
+        if currentDate.min == 30 and currentDate.sec < 10 then
+            -- If we haven't detected this reset yet
+            if currentTime - lastChallengeResetTime > 600 then -- At least 10 minutes since last reset
+                lastChallengeResetTime = currentTime
+                
+                print(string.format("Challenge reset time detected: %02d:%02d UTC", currentDate.hour, currentDate.min))
+                
+                -- Set flag that new challenge was detected
+                State.NewChallengeDetected = true
+                
+                -- Get the new challenge data for logging
+                task.spawn(function()
+                    task.wait(0.5) -- Small delay to ensure challenge data is updated
+                    local newChallenge = getChallengeData()
+                    if newChallenge then
+                        notify("Challenge System", string.format("New challenge available: %s", newChallenge.current_challenge or "Unknown"))
+                        print("New challenge details:")
+                        print("  Type:", newChallenge.current_challenge)
+                        print("  Level:", newChallenge.current_level_id)
+                    end
+                end)
+                
+                notify("Challenge Reset", string.format("Challenge reset detected at %02d:%02d UTC", currentDate.hour, currentDate.min))
+            end
+        end
+    end
+    
+    -- Run time check every second
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if State.ReturnToLobbyOnNewChallenge then
+                checkChallengeResetTime()
+            end
+        end
+    end)
 
     local function getItemIdFromDisplayName(displayName)
         local success, itemId = pcall(function()
@@ -2758,10 +2795,159 @@ end
         return false
     end
 
+    local function autoEquipMacroUnits(macroName)
+    if not isInLobby() then 
+        print("Cannot auto-equip: Not in lobby")
+        return false
+    end
+
+    if not macroName or macroName == "" then
+        print("Cannot auto-equip: No macro name provided")
+        return false
+    end
+    
+    local macroData = macroManager[macroName]
+    if not macroData or #macroData == 0 then
+        print("Cannot auto-equip: Macro is empty")
+        return false
+    end
+    
+    -- Extract unique units from macro
+    local requiredUnits = {}
+    
+    for _, action in ipairs(macroData) do
+        if action.Type == "spawn_unit" and action.Unit then
+            local unitName = action.Unit
+            
+            -- Extract base unit name (remove instance number like "#1", "#2")
+            local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
+            
+            requiredUnits[baseUnitName] = true
+        end
+    end
+    
+    -- Get list of required units
+    local requiredUnitsList = {}
+    for unitName, _ in pairs(requiredUnits) do
+        table.insert(requiredUnitsList, unitName)
+    end
+    
+    if #requiredUnitsList == 0 then
+        print("No units found in macro to equip")
+        return false
+    end
+    
+    -- Check if we have all required units in our collection
+    local success, result = pcall(function()
+        local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+        if not fxCache then
+            error("_FX_CACHE not found")
+        end
+        
+        local availableUnits = {} -- {displayName: uuid}
+        local missingUnits = {}
+        
+        -- Scan through _FX_CACHE to find available units
+        for _, child in pairs(fxCache:GetChildren()) do
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            if itemIndex then
+                local displayName = getDisplayNameFromUnitId(itemIndex)
+                if displayName then
+                    local uuidValue = child:FindFirstChild("_uuid")
+                    if uuidValue and uuidValue:IsA("StringValue") then
+                        availableUnits[displayName] = uuidValue.Value
+                    end
+                end
+            end
+        end
+        
+        -- Check if we have all required units
+        for _, requiredUnit in ipairs(requiredUnitsList) do
+            if not availableUnits[requiredUnit] then
+                table.insert(missingUnits, requiredUnit)
+            end
+        end
+        
+        if #missingUnits > 0 then
+            local missingText = table.concat(missingUnits, ", ")
+            error("Missing units: " .. missingText)
+        end
+        
+        return availableUnits
+    end)
+    
+    if not success then
+        print("Auto-equip failed:", result)
+        return false
+    end
+    
+    local availableUnits = result
+    
+    print(string.format("Auto-equipping %d units for macro: %s", #requiredUnitsList, macroName))
+    
+    -- Start equipping process in background
+    task.spawn(function()
+        -- Step 1: Unequip all current units
+        local unequipSuccess = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("unequip_all"):InvokeServer()
+        end)
+        
+        if not unequipSuccess then
+            print("Failed to unequip current units")
+            return
+        end
+        
+        print("Successfully unequipped all units")
+        task.wait(0.5) -- Small delay after unequipping
+        
+        -- Step 2: Equip each required unit
+        local equippedCount = 0
+        local failedUnits = {}
+        
+        for _, unitName in ipairs(requiredUnitsList) do
+            local unitUUID = availableUnits[unitName]
+            if unitUUID then
+                local equipSuccess = pcall(function()
+                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("equip_unit"):InvokeServer(unitUUID)
+                end)
+                
+                if equipSuccess then
+                    equippedCount = equippedCount + 1
+                    print("Successfully equipped:", unitName)
+                else
+                    table.insert(failedUnits, unitName)
+                    print("Failed to equip:", unitName)
+                end
+                
+                task.wait(0.2) -- Small delay between equips
+            end
+        end
+        
+        if #failedUnits == 0 then
+            print(string.format("Auto-equip complete: %d/%d units equipped", equippedCount, #requiredUnitsList))
+        else
+            print(string.format("Auto-equip partial: %d/%d units equipped", equippedCount, #requiredUnitsList))
+        end
+    end)
+    
+    return true
+end
+
     local function checkAndExecuteHighestPriority()
         if not isInLobby() then return end
         if AutoJoinState.isProcessing then return end
         if not canPerformAction() then return end
+
+        if State.AutoEquipMacroUnits then
+            local worldSpecificMacro = getMacroForCurrentWorld()
+            local macroToEquip = worldSpecificMacro or currentMacroName
+            
+            if macroToEquip and macroToEquip ~= "" and macroManager[macroToEquip] then
+                print("Auto-equipping units for macro:", macroToEquip)
+                autoEquipMacroUnits(macroToEquip)
+                task.wait(2) -- Wait for equipping to complete before joining
+            end
+        end
 
         if checkGateJoin() then return end
 
@@ -6466,6 +6652,19 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     end,
 })
 
+    local AutoEquipMacroUnitsToggle = MacroTab:CreateToggle({
+        Name = "Auto Equip Macro Units",
+        CurrentValue = false,
+        Flag = "AutoEquipMacroUnits",
+        Info = "Automatically equip units needed for the macro before joining game",
+        Callback = function(Value)
+            State.AutoEquipMacroUnits = Value
+            if Value then
+                notify("Auto Equip", "Will automatically equip macro units before joining")
+            end
+        end,
+    })
+
      Divider = MacroTab:CreateDivider()
 
     -- Webhook Tab
@@ -6551,7 +6750,6 @@ end
     -- ========== REMOTE EVENT CONNECTIONS ==========
     local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
     local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
-    local challengeChangedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_challenge_changed")
     local unitAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("unit_added")
 
     if unitAddedRemote then
@@ -6630,44 +6828,6 @@ end
                 print("Item collected: " .. itemName .. " x" .. quantity .. " (Total: " .. sessionItems[itemName] .. ")")
             end
         end)
-    end
-
-    if challengeChangedRemote then
-        challengeChangedRemote.OnClientEvent:Connect(function(...)
-            local args = {...}
-            print("normal_challenge_changed RemoteEvent fired!")
-            print("New challenge detected - arguments:", #args)
-
-            AutoJoinGateToggle:Set(false)
-            AutoNextGateToggle:Set(false)
-            
-            -- Print challenge change data for debugging
-            for i, arg in ipairs(args) do
-                print("Challenge Change Arg[" .. i .. "] (" .. type(arg) .. "):")
-                if type(arg) == "table" then
-                    printTableContents(arg, 1)
-                else
-                    print("  " .. tostring(arg))
-                end
-            end
-            
-            -- Set flag that new challenge was detected
-            State.NewChallengeDetected = true
-            
-            -- Get the new challenge data for logging
-            task.spawn(function()
-                task.wait(0.5) -- Small delay to ensure challenge data is updated
-                local newChallenge = getChallengeData()
-                if newChallenge then
-                    notify("Challenge System", string.format("New challenge available: %s", newChallenge.current_challenge or "Unknown"))
-                    print("New challenge details:")
-                    print("  Type:", newChallenge.current_challenge)
-                    print("  Level:", newChallenge.current_level_id)
-                end
-            end)
-        end)
-    else
-        warn("normal_challenge_changed RemoteEvent not found!")
     end
 
     -- Connect game finish tracking
