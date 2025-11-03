@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.07"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -921,6 +921,56 @@ local function processWaveSkipAction(actionInfo)
     Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded wave skip",Duration = 3,Image = 4483362458})
 end
 
+local function processAbilityActionWithSpawnIdMapping(actionInfo)
+    local unitUUID = actionInfo.unitUUID
+    
+    -- Find which placement ID this UUID belongs to
+    local placementId = nil
+    
+    for spawnId, placement in pairs(recordingSpawnIdToPlacement) do
+        -- Find the unit with this spawn_id
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if unitsFolder then
+            for _, unit in pairs(unitsFolder:GetChildren()) do
+                if isOwnedByLocalPlayer(unit) then
+                    local stats = unit:FindFirstChild("_stats")
+                    if stats then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == unitUUID then
+                            placementId = placement
+                            break
+                        end
+                    end
+                end
+            end
+            if placementId then break end
+        end
+    end
+    
+    if not placementId then
+        warn("Could not find placement ID for ability UUID:", unitUUID)
+        return
+    end
+    
+    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    
+    local abilityRecord = {
+        Type = "use_active_attack",
+        Unit = placementId,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    print(string.format("Recorded ability: %s", placementId))
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded ability: %s", placementId),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
         Rayfield:Notify({
@@ -951,7 +1001,7 @@ local function setupMacroHooksRefactored()
         workspace:WaitForChild("_UNITS")
     end)
 
-    -- Hook placement and sell remotes
+    -- Hook placement, sell, and ability remotes
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local args = {...}
@@ -984,6 +1034,14 @@ local function setupMacroHooksRefactored()
                 task.spawn(function()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.WAVE_SKIP_REMOTE,
+                        timestamp = tick()
+                    })
+                end)
+            elseif self.Name == "use_active_attack" then
+                -- NEW: Record ability usage
+                task.spawn(function()
+                    processAbilityActionWithSpawnIdMapping({
+                        unitUUID = args[1],
                         timestamp = tick()
                     })
                 end)
@@ -1509,6 +1567,72 @@ updateDetailedStatus(string.format("(%d/%d) Failed to sell %s - continuing macro
 return true
 end
 
+local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
+    local placementId = action.Unit
+    
+    -- Look up current spawn_id for this placement
+    local currentSpawnId = playbackPlacementToSpawnId[placementId]
+    if not currentSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
+            actionIndex, totalActionCount, placementId))
+        return false
+    end
+    
+    -- Find the unit by spawn_id to get its current UUID
+    local targetUnit = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                targetUnit = unit
+                break
+            end
+        end
+    end
+    
+    if not targetUnit then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
+            actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
+        return false
+    end
+    
+    -- Get the current UUID from the unit's _stats
+    local stats = targetUnit:FindFirstChild("_stats")
+    if not stats then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No stats for %s", 
+            actionIndex, totalActionCount, placementId))
+        return false
+    end
+    
+    local uuidValue = stats:FindFirstChild("uuid")
+    if not uuidValue or not uuidValue:IsA("StringValue") then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No UUID for %s", 
+            actionIndex, totalActionCount, placementId))
+        return false
+    end
+    
+    local currentUUID = uuidValue.Value
+    
+    updateDetailedStatus(string.format("(%d/%d) Using ability for %s", actionIndex, totalActionCount, placementId))
+    
+    local success = pcall(function()
+        local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+        endpoints:WaitForChild("use_active_attack"):InvokeServer(currentUUID)
+    end)
+    
+    if success then
+        task.wait(0.2) -- Small delay after ability use
+        updateDetailedStatus(string.format("(%d/%d) Successfully used ability for %s", 
+            actionIndex, totalActionCount, placementId))
+        return true
+    else
+        updateDetailedStatus(string.format("(%d/%d) Failed to use ability for %s", 
+            actionIndex, totalActionCount, placementId))
+        return false
+    end
+end
+
 local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     if action.Type == "spawn_unit" then
         return validatePlacementActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
@@ -1516,6 +1640,9 @@ local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionC
         return validateUpgradeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     elseif action.Type == "sell_unit_ingame" then
         return validateSellActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
+    elseif action.Type == "use_active_attack" then
+        -- NEW: Handle ability actions
+        return validateAbilityActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     elseif action.Type == "vote_wave_skip" then
         -- Wave skip logic remains unchanged
         updateDetailedStatus(string.format("(%d/%d) Skipping wave", actionIndex, totalActionCount))
@@ -5119,7 +5246,7 @@ local function getMacroForCurrentWorld()
     State.failsafeActive = true
     
     task.spawn(function()
-        task.wait(120)
+        task.wait(10)
         
         if State.failsafeActive and not isInLobby() then
             notify("Failsafe", "No vote detected - returning to lobby")
@@ -5313,6 +5440,13 @@ local function importMacroFromTXT(txtContent, macroName)
                         Time = parts[2]
                     }
                     table.insert(actions, action)
+                elseif actionType == "use_active_attack" and #parts >= 3 then
+                    local action = {
+                        Type = "use_active_attack",
+                        Unit = parts[2],
+                        Time = parts[3]
+                    }
+    table.insert(actions, action)
                 end
             end
         end
