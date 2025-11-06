@@ -1,4 +1,4 @@
-    -- 10
+    -- 11
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4907,77 +4907,126 @@ local function getCurrentWorld()
 end
 
 local function getMacroForCurrentWorld()
-        if isInLobby() then
-            return nil -- Don't auto-select in lobby
+    if isInLobby() then
+        return nil -- Don't auto-select in lobby
+    end
+    
+    local currentWorld = getCurrentWorld()
+    if not currentWorld then
+        return nil
+    end
+    
+    -- Check if we're in a legend stage and get level data
+    local isLegendStage = false
+    local actNum = nil
+    local success, levelData = pcall(function()
+        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
+    end)
+    
+    if success and levelData then
+        -- Check for legend indicators
+        if levelData.legend or 
+           (levelData.level_id and levelData.level_id:lower():find("legend")) or
+           (levelData.map and levelData.map:lower():find("legend")) then
+            isLegendStage = true
         end
         
-        local currentWorld = getCurrentWorld()
-        if not currentWorld then
-            return nil
-        end
-        
-        -- Check if we're in a legend stage by examining the level data
-        local isLegendStage = false
-        local success, levelData = pcall(function()
-            return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
-        end)
-        
-        if success and levelData then
-            -- Check for legend indicators in the level data
-            if levelData.legend or 
-            (levelData.level_id and levelData.level_id:lower():find("legend")) or
-            (levelData.map and levelData.map:lower():find("legend")) then
-                isLegendStage = true
+        -- Special handling for Nightmare Train - detect act number from Waves field
+        if currentWorld:lower():find("nightmare") then
+            -- Check Waves field for act number (format: "ds_legend_1", "ds_legend_2", "ds_legend_3")
+            if levelData.Waves then
+                local extractedAct = levelData.Waves:match("ds_legend_(%d)$")
+                if extractedAct then
+                    actNum = tonumber(extractedAct)
+                    print("Detected Nightmare Train Act from Waves field:", actNum)
+                end
+            end
+            
+            -- Fallback: Try level_id if Waves didn't work
+            if not actNum and levelData.level_id then
+                actNum = levelData.level_id:match("_(%d)$")
+                if actNum then
+                    actNum = tonumber(actNum)
+                    print("Detected Nightmare Train Act from level_id:", actNum)
+                end
+            end
+            
+            -- Fallback: Try map field
+            if not actNum and levelData.map then
+                actNum = levelData.map:match("_(%d)$")
+                if actNum then
+                    actNum = tonumber(actNum)
+                    print("Detected Nightmare Train Act from map:", actNum)
+                end
+            end
+            
+            if not actNum then
+                print("Nightmare Train detected but couldn't determine act")
+                print("Waves field:", levelData.Waves)
+                print("Full level data:", levelData)
             end
         end
+    end
+    
+    print("Current world:", currentWorld, "- Legend stage:", isLegendStage, "- Act:", actNum or "N/A")
+    
+    -- If Nightmare Train with detected act, try act-specific mapping first
+    if currentWorld:lower():find("nightmare") and actNum then
+        local nightmareKey = currentWorld .. "_act_" .. actNum
+        local mappedMacro = worldMacroMappings[nightmareKey]
         
-        print("Current world:", currentWorld, "- Legend stage:", isLegendStage)
-        
-        -- First try exact match for legend stages
-        if isLegendStage then
-            -- Try to find legend-specific mapping first
-            for worldKey, macroName in pairs(worldMacroMappings) do
-                if worldKey:lower():find("legend") and 
-                (worldKey:lower():find(currentWorld:lower()) or currentWorld:lower():find(worldKey:lower():gsub("_legend", ""))) then
-                    if macroManager[macroName] then
-                        print("Found legend-specific mapping:", worldKey, "->", macroName)
-                        return macroName
-                    end
+        if mappedMacro and macroManager[mappedMacro] then
+            print("Found Nightmare Train Act", actNum, "mapping:", nightmareKey, "->", mappedMacro)
+            return mappedMacro
+        else
+            print("No mapping found for:", nightmareKey)
+        end
+    end
+    
+    -- First try exact match for legend stages
+    if isLegendStage then
+        for worldKey, macroName in pairs(worldMacroMappings) do
+            if worldKey:lower():find("legend") and 
+               (worldKey:lower():find(currentWorld:lower()) or currentWorld:lower():find(worldKey:lower():gsub("_legend", ""))) then
+                if macroManager[macroName] then
+                    print("Found legend-specific mapping:", worldKey, "->", macroName)
+                    return macroName
                 end
             end
         end
-        
-        -- Try exact match for regular stages
-        local mappedMacro = worldMacroMappings[currentWorld]
-        if mappedMacro and macroManager[mappedMacro] then
-            print("Found exact match for world:", currentWorld, "->", mappedMacro)
-            return mappedMacro
-        end
-        
-        -- If no exact match, try case-insensitive comparison
-        local currentWorldLower = string.lower(currentWorld)
-        
-        for worldKey, macroName in pairs(worldMacroMappings) do
-            if string.lower(worldKey) == currentWorldLower and macroManager[macroName] then
-                print("Found case-insensitive match:", currentWorld, "matched with", worldKey, "->", macroName)
-                return macroName
-            end
-        end
-        
-        -- Try base name matching (for cases like "namek_cartoon" -> "namek")
-        for worldKey, macroName in pairs(worldMacroMappings) do
-            local baseWorldKey = worldKey:match("^([^_]+)") or worldKey
-            local baseCurrentWorld = currentWorld:match("^([^_]+)") or currentWorld
-            
-            if string.lower(baseWorldKey) == string.lower(baseCurrentWorld) and macroManager[macroName] then
-                print("Found base name match:", currentWorld, "matched with", worldKey, "via base names:", baseCurrentWorld, "->", macroName)
-                return macroName
-            end
-        end
-        
-        print("No macro mapping found for world:", currentWorld)
-        return nil
     end
+    
+    -- Try exact match for regular stages
+    local mappedMacro = worldMacroMappings[currentWorld]
+    if mappedMacro and macroManager[mappedMacro] then
+        print("Found exact match for world:", currentWorld, "->", mappedMacro)
+        return mappedMacro
+    end
+    
+    -- If no exact match, try case-insensitive comparison
+    local currentWorldLower = string.lower(currentWorld)
+    
+    for worldKey, macroName in pairs(worldMacroMappings) do
+        if string.lower(worldKey) == currentWorldLower and macroManager[macroName] then
+            print("Found case-insensitive match:", currentWorld, "matched with", worldKey, "->", macroName)
+            return macroName
+        end
+    end
+    
+    -- Try base name matching (for cases like "namek_cartoon" -> "namek")
+    for worldKey, macroName in pairs(worldMacroMappings) do
+        local baseWorldKey = worldKey:match("^([^_]+)") or worldKey
+        local baseCurrentWorld = currentWorld:match("^([^_]+)") or currentWorld
+        
+        if string.lower(baseWorldKey) == string.lower(baseCurrentWorld) and macroManager[macroName] then
+            print("Found base name match:", currentWorld, "matched with", worldKey, "via base names:", baseCurrentWorld, "->", macroName)
+            return macroName
+        end
+    end
+    
+    print("No macro mapping found for world:", currentWorld)
+    return nil
+end
 
     Toggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
@@ -5916,22 +5965,56 @@ local function createAutoSelectDropdowns()
     
     -- Legend Collapsible - Use existing LegendStageDropdown options
     if LegendStageDropdown and LegendStageDropdown.Options and #LegendStageDropdown.Options > 0 then
-        categoryCollapsibles.Legend = MacroTab:CreateCollapsible({
-            Name = "Legend Stages",
-            DefaultExpanded = false,
-            Flag = "LegendAutoSelectCollapsible"
-        })
+    categoryCollapsibles.Legend = MacroTab:CreateCollapsible({
+        Name = "Legend Stages",
+        DefaultExpanded = false,
+        Flag = "LegendAutoSelectCollapsible"
+    })
+    
+    print("Creating Legend auto-select dropdowns for", #LegendStageDropdown.Options, "stages")
+    
+    for _, stageName in ipairs(LegendStageDropdown.Options) do
+        -- Get backend key for this stage
+        local backendKey = getBackendLegendWorldKeyFromDisplayName(stageName)
+        if not backendKey then
+            warn("Could not get backend key for legend stage:", stageName)
+            continue
+        end
         
-        print("Creating Legend auto-select dropdowns for", #LegendStageDropdown.Options, "stages")
-        
-        for _, stageName in ipairs(LegendStageDropdown.Options) do
-            -- Get backend key for this stage
-            local backendKey = getBackendLegendWorldKeyFromDisplayName(stageName)
-            if not backendKey then
-                warn("Could not get backend key for legend stage:", stageName)
-                continue
-            end
+        -- Special handling for Nightmare Train - create 3 dropdowns
+        if stageName:lower():find("nightmare") then
+            print("Creating 3 separate dropdowns for Nightmare Train acts...")
             
+            for actNum = 1, 3 do
+                local actKey = backendKey .. "_act_" .. actNum
+                local currentMapping = worldMacroMappings[actKey] or "None"
+                
+                local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
+                    Name = "Nightmare Train Act " .. actNum,
+                    Options = initialMacroOptions,
+                    CurrentOption = {currentMapping},
+                    MultipleOptions = false,
+                    Flag = "AutoSelect_" .. actKey,
+                    Info = string.format("Auto-select macro for Nightmare Train Act %d", actNum),
+                    Callback = function(Option)
+                        local selectedMacro = type(Option) == "table" and Option[1] or Option
+                        
+                        if selectedMacro == "None" or selectedMacro == "" then
+                            worldMacroMappings[actKey] = nil
+                            print("Cleared auto-select for Nightmare Train Act", actNum)
+                        else
+                            worldMacroMappings[actKey] = selectedMacro
+                            print("Set auto-select: Nightmare Train Act", actNum, "->", selectedMacro)
+                        end
+                        
+                        saveWorldMappings()
+                    end,
+                })
+                
+                worldDropdowns[actKey] = dropdown
+            end
+        else
+            -- Normal legend stage handling
             local currentMapping = worldMacroMappings[backendKey] or "None"
             
             local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
@@ -5959,6 +6042,7 @@ local function createAutoSelectDropdowns()
             worldDropdowns[backendKey] = dropdown
         end
     end
+end
     
     -- Raid Collapsible - Use existing RaidStageDropdown options
     if RaidStageDropdown and RaidStageDropdown.Options and #RaidStageDropdown.Options > 0 then
