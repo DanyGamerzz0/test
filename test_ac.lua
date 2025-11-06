@@ -1,4 +1,4 @@
-    -- 16
+    -- 18
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4891,6 +4891,38 @@ end
     end
     
     return true
+end
+
+local function getCurrentWorld()
+    local success, levelData = pcall(function()
+        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
+    end)
+    
+    if success and levelData then
+        -- Priority 1: Check if this is a portal level
+        if levelData._portal_only_level == true and levelData.id then
+            print("getCurrentWorld: Detected portal level, ID:", levelData.id)
+            return levelData.id -- Returns "portal_tengen", "portal_tengen_secret", etc.
+        end
+        
+        -- Priority 2: Check for world field (story/legend/raid stages)
+        if levelData.world then
+            print("getCurrentWorld: Using world field:", levelData.world)
+            return levelData.world
+        end
+        
+        -- Priority 3: Fallback to map field (special maps like "DoubleDungeon")
+        if levelData.map then
+            print("getCurrentWorld: Using map field:", levelData.map)
+            return levelData.map
+        end
+        
+        print("getCurrentWorld: No world, map, or portal ID found in levelData")
+    else
+        print("getCurrentWorld: Failed to get level data:", levelData)
+    end
+    
+    return nil
 end
 
 local function getMacroForCurrentWorld()
