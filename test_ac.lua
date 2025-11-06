@@ -1,4 +1,4 @@
-    -- 9
+    -- 10
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -7188,46 +7188,10 @@ end
 end
 
 if State.AutoNextInfinityCastle then
-    print("Auto Next Infinity Castle enabled - Attempting to click Next button...")
-    
-    task.spawn(function()
-        task.wait(1) -- Small delay to ensure UI loads
-        
-        local success, err = pcall(function()
-            local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
-            if resultsUI then
-                local nextButton = resultsUI:FindFirstChild("Holder")
-                if nextButton then nextButton = nextButton:FindFirstChild("Buttons") end
-                if nextButton then nextButton = nextButton:FindFirstChild("NextRetry") end
-                
-                if nextButton then
-                    print("Found NextRetry button, clicking it...")
-                    
-                    -- Fire all connection types to ensure click registers
-                    for _, connection in pairs(getconnections(nextButton.MouseButton1Click)) do
-                        connection:Fire()
-                    end
-                    
-                    for _, connection in pairs(getconnections(nextButton.Activated)) do
-                        connection:Fire()
-                    end
-                    
-                    notify("Auto Next Infinity Castle", "Clicked Next button", 3)
-                    print("Successfully clicked NextRetry button for Infinity Castle")
-                else
-                    print("NextRetry button not found - might not be Infinity Castle")
-                end
-            else
-                print("ResultsUI not found")
-            end
-        end)
-        
-        if not success then
-            warn("Failed to click NextRetry button:", err)
-        end
-    end)
-    
-    return -- Exit early if Infinity Castle auto-next is enabled
+            local success, err = pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_infinite_tower")
+            end)
+    return
 end
         
 if State.AutoNextGate and State.AutoJoinGate then
