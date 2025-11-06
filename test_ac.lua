@@ -1,4 +1,4 @@
-    -- 12
+    -- 14
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4927,7 +4927,7 @@ end
 
 local function getMacroForCurrentWorld()
     if isInLobby() then
-        return nil -- Don't auto-select in lobby
+        return nil
     end
     
     local currentWorld = getCurrentWorld()
@@ -4935,7 +4935,6 @@ local function getMacroForCurrentWorld()
         return nil
     end
     
-    -- Check if we're in a legend stage and get level data
     local isLegendStage = false
     local actNum = nil
     local success, levelData = pcall(function()
@@ -4943,16 +4942,19 @@ local function getMacroForCurrentWorld()
     end)
     
     if success and levelData then
-        -- Check for legend indicators
         if levelData.legend or 
            (levelData.level_id and levelData.level_id:lower():find("legend")) or
            (levelData.map and levelData.map:lower():find("legend")) then
             isLegendStage = true
         end
         
-        -- Special handling for Nightmare Train - detect act number from Waves field
-        if currentWorld:lower():find("nightmare") then
-            -- Check Waves field for act number (format: "ds_legend_1", "ds_legend_2", "ds_legend_3")
+        -- FIXED: Check for ds_legend OR nightmare in world/map/level_id
+        if currentWorld:lower():find("ds_legend") or 
+           currentWorld:lower():find("nightmare") or
+           (levelData.map and levelData.map:lower():find("nightmare")) or
+           (levelData.level_id and levelData.level_id:lower():find("ds_legend")) then
+            
+            -- Try Waves field first
             if levelData.Waves then
                 local extractedAct = levelData.Waves:match("ds_legend_(%d)$")
                 if extractedAct then
@@ -4961,7 +4963,7 @@ local function getMacroForCurrentWorld()
                 end
             end
             
-            -- Fallback: Try level_id if Waves didn't work
+            -- Fallback: Try level_id
             if not actNum and levelData.level_id then
                 actNum = levelData.level_id:match("_(%d)$")
                 if actNum then
@@ -4982,6 +4984,8 @@ local function getMacroForCurrentWorld()
             if not actNum then
                 print("Nightmare Train detected but couldn't determine act")
                 print("Waves field:", levelData.Waves)
+                print("level_id field:", levelData.level_id)
+                print("map field:", levelData.map)
                 print("Full level data:", levelData)
             end
         end
@@ -4990,8 +4994,8 @@ local function getMacroForCurrentWorld()
     print("Current world:", currentWorld, "- Legend stage:", isLegendStage, "- Act:", actNum or "N/A")
     
     -- If Nightmare Train with detected act, try act-specific mapping first
-    if currentWorld:lower():find("nightmare") and actNum then
-        local nightmareKey = currentWorld .. "_act_" .. actNum
+    if (currentWorld:lower():find("ds_legend") or currentWorld:lower():find("nightmare")) and actNum then
+        local nightmareKey = "ds_legend_act_" .. actNum  -- Force consistent key format
         local mappedMacro = worldMacroMappings[nightmareKey]
         
         if mappedMacro and macroManager[mappedMacro] then
@@ -5984,84 +5988,84 @@ local function createAutoSelectDropdowns()
     
     -- Legend Collapsible - Use existing LegendStageDropdown options
     if LegendStageDropdown and LegendStageDropdown.Options and #LegendStageDropdown.Options > 0 then
-    categoryCollapsibles.Legend = MacroTab:CreateCollapsible({
-        Name = "Legend Stages",
-        DefaultExpanded = false,
-        Flag = "LegendAutoSelectCollapsible"
-    })
-    
-    print("Creating Legend auto-select dropdowns for", #LegendStageDropdown.Options, "stages")
-    
-    for _, stageName in ipairs(LegendStageDropdown.Options) do
-        -- Get backend key for this stage
-        local backendKey = getBackendLegendWorldKeyFromDisplayName(stageName)
-        if not backendKey then
-            warn("Could not get backend key for legend stage:", stageName)
-            continue
-        end
+        categoryCollapsibles.Legend = MacroTab:CreateCollapsible({
+            Name = "Legend Stages",
+            DefaultExpanded = false,
+            Flag = "LegendAutoSelectCollapsible"
+        })
         
-        -- Special handling for Nightmare Train - create 3 dropdowns
-        if stageName:lower():find("nightmare") then
-            print("Creating 3 separate dropdowns for Nightmare Train acts...")
+        print("Creating Legend auto-select dropdowns for", #LegendStageDropdown.Options, "stages")
+        
+        for _, stageName in ipairs(LegendStageDropdown.Options) do
+            -- Get backend key for this stage
+            local backendKey = getBackendLegendWorldKeyFromDisplayName(stageName)
+            if not backendKey then
+                warn("Could not get backend key for legend stage:", stageName)
+                continue
+            end
             
-            for actNum = 1, 3 do
-                local actKey = backendKey .. "_act_" .. actNum
-                local currentMapping = worldMacroMappings[actKey] or "None"
+            -- Special handling for Nightmare Train - create 3 dropdowns
+            if stageName:lower():find("nightmare") then
+                print("Creating 3 separate dropdowns for Nightmare Train acts...")
+                
+                for actNum = 1, 3 do
+                    local actKey = "ds_legend_act_" .. actNum
+                    local currentMapping = worldMacroMappings[actKey] or "None"
+                    
+                    local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
+                        Name = "Nightmare Train Act " .. actNum,
+                        Options = initialMacroOptions,
+                        CurrentOption = {currentMapping},
+                        MultipleOptions = false,
+                        Flag = "AutoSelect_" .. actKey,
+                        Info = string.format("Auto-select macro for Nightmare Train Act %d", actNum),
+                        Callback = function(Option)
+                            local selectedMacro = type(Option) == "table" and Option[1] or Option
+                            
+                            if selectedMacro == "None" or selectedMacro == "" then
+                                worldMacroMappings[actKey] = nil
+                                print("Cleared auto-select for Nightmare Train Act", actNum)
+                            else
+                                worldMacroMappings[actKey] = selectedMacro
+                                print("Set auto-select: Nightmare Train Act", actNum, "->", selectedMacro)
+                            end
+                            
+                            saveWorldMappings()
+                        end,
+                    })
+                    
+                    worldDropdowns[actKey] = dropdown
+                end
+            else
+                -- Normal legend stage handling (NOT Nightmare Train)
+                local currentMapping = worldMacroMappings[backendKey] or "None"
                 
                 local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
-                    Name = "Nightmare Train Act " .. actNum,
+                    Name = stageName,
                     Options = initialMacroOptions,
                     CurrentOption = {currentMapping},
                     MultipleOptions = false,
-                    Flag = "AutoSelect_" .. actKey,
-                    Info = string.format("Auto-select macro for Nightmare Train Act %d", actNum),
+                    Flag = "AutoSelect_" .. backendKey,
+                    Info = string.format("Auto-select macro for %s (Legend)", stageName),
                     Callback = function(Option)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         
                         if selectedMacro == "None" or selectedMacro == "" then
-                            worldMacroMappings[actKey] = nil
-                            print("Cleared auto-select for Nightmare Train Act", actNum)
+                            worldMacroMappings[backendKey] = nil
+                            print("Cleared auto-select for", stageName, "(Legend)")
                         else
-                            worldMacroMappings[actKey] = selectedMacro
-                            print("Set auto-select: Nightmare Train Act", actNum, "->", selectedMacro)
+                            worldMacroMappings[backendKey] = selectedMacro
+                            print("Set auto-select:", stageName, "(Legend) ->", selectedMacro)
                         end
                         
                         saveWorldMappings()
                     end,
                 })
                 
-                worldDropdowns[actKey] = dropdown
+                worldDropdowns[backendKey] = dropdown
             end
-        else
-            -- Normal legend stage handling
-            local currentMapping = worldMacroMappings[backendKey] or "None"
-            
-            local dropdown = categoryCollapsibles.Legend.Tab:CreateDropdown({
-                Name = stageName,
-                Options = initialMacroOptions,
-                CurrentOption = {currentMapping},
-                MultipleOptions = false,
-                Flag = "AutoSelect_" .. backendKey,
-                Info = string.format("Auto-select macro for %s (Legend)", stageName),
-                Callback = function(Option)
-                    local selectedMacro = type(Option) == "table" and Option[1] or Option
-                    
-                    if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[backendKey] = nil
-                        print("Cleared auto-select for", stageName, "(Legend)")
-                    else
-                        worldMacroMappings[backendKey] = selectedMacro
-                        print("Set auto-select:", stageName, "(Legend) ->", selectedMacro)
-                    end
-                    
-                    saveWorldMappings()
-                end,
-            })
-            
-            worldDropdowns[backendKey] = dropdown
         end
     end
-end
     
     -- Raid Collapsible - Use existing RaidStageDropdown options
     if RaidStageDropdown and RaidStageDropdown.Options and #RaidStageDropdown.Options > 0 then
