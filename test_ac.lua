@@ -1,4 +1,4 @@
-    -- 3
+    -- 9
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -235,6 +235,7 @@ local playbackDisplayNameInstances = {}
         AutoEquipMacroUnits = false,
         challengeJoinAttempts = 0,
         maxChallengeAttempts = 3,
+        AutoNextInfinityCastle = false,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
@@ -660,13 +661,6 @@ end
         return 0
     end
 
-    local function getUnitTotalSpent(unit)
-        if unit and unit:FindFirstChild("_stats") and unit._stats:FindFirstChild("total_spent") then
-            return unit._stats.total_spent.Value
-        end
-        return 0
-    end
-
     local function getUnitUpgradeLevel(unit)
         if unit and unit:FindFirstChild("_stats") and unit._stats:FindFirstChild("upgrade") then
             return unit._stats.upgrade.Value
@@ -693,28 +687,6 @@ end
         end
         
         return nil
-    end
-
-    local function captureUnitSnapshot()
-        local snapshot = {}
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        
-        if unitsFolder then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
-                if isOwnedByLocalPlayer(unit) then
-                    local spawnId = getUnitSpawnId(unit)
-                    if spawnId then
-                        snapshot[tostring(spawnId)] = {
-                            level = getUnitUpgradeLevel(unit),
-                            totalSpent = getUnitTotalSpent(unit),
-                            exists = true,
-                            position = unit.PrimaryPart and unit.PrimaryPart.Position or nil
-                        }
-                    end
-                end
-            end
-        end
-        return snapshot
     end
 
 local function processPlacementActionWithSpawnIdMapping(actionInfo)
@@ -5069,6 +5041,16 @@ local function getMacroForCurrentWorld()
     end,
     })
 
+Toggle = GameTab:CreateToggle({
+    Name = "Auto Next Infinity Castle",
+    CurrentValue = false,
+    Flag = "AutoNextInfinityCastle",
+    Info = "Automatically clicks 'Next' button after completing Infinity Castle stage",
+    Callback = function(Value)
+        State.AutoNextInfinityCastle = Value
+    end,
+})  
+
     Toggle = GameTab:CreateToggle({
     Name = "Auto Lobby",
     CurrentValue = false,
@@ -5081,7 +5063,7 @@ local function getMacroForCurrentWorld()
     end,
     })
 
-    local ReturnToLobbyFailsafeToggle = GameTab:CreateToggle({
+     ReturnToLobbyFailsafeToggle = GameTab:CreateToggle({
     Name = "Return to Lobby Failsafe",
     CurrentValue = false,
     Flag = "ReturnToLobbyFailsafe",
@@ -7203,6 +7185,49 @@ end
     -- If we reach here, none of the portals worked
     notify("Auto Next Portal", "No valid portals available", 3)
     return
+end
+
+if State.AutoNextInfinityCastle then
+    print("Auto Next Infinity Castle enabled - Attempting to click Next button...")
+    
+    task.spawn(function()
+        task.wait(1) -- Small delay to ensure UI loads
+        
+        local success, err = pcall(function()
+            local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
+            if resultsUI then
+                local nextButton = resultsUI:FindFirstChild("Holder")
+                if nextButton then nextButton = nextButton:FindFirstChild("Buttons") end
+                if nextButton then nextButton = nextButton:FindFirstChild("NextRetry") end
+                
+                if nextButton then
+                    print("Found NextRetry button, clicking it...")
+                    
+                    -- Fire all connection types to ensure click registers
+                    for _, connection in pairs(getconnections(nextButton.MouseButton1Click)) do
+                        connection:Fire()
+                    end
+                    
+                    for _, connection in pairs(getconnections(nextButton.Activated)) do
+                        connection:Fire()
+                    end
+                    
+                    notify("Auto Next Infinity Castle", "Clicked Next button", 3)
+                    print("Successfully clicked NextRetry button for Infinity Castle")
+                else
+                    print("NextRetry button not found - might not be Infinity Castle")
+                end
+            else
+                print("ResultsUI not found")
+            end
+        end)
+        
+        if not success then
+            warn("Failed to click NextRetry button:", err)
+        end
+    end)
+    
+    return -- Exit early if Infinity Castle auto-next is enabled
 end
         
 if State.AutoNextGate and State.AutoJoinGate then
