@@ -1,4 +1,4 @@
-    -- 11
+    -- 12
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -236,6 +236,7 @@ local playbackDisplayNameInstances = {}
         challengeJoinAttempts = 0,
         maxChallengeAttempts = 3,
         AutoNextInfinityCastle = false,
+        AutoJoinInfinityCastle = false,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
@@ -2980,6 +2981,15 @@ end
             return
         end
 
+        if State.AutoJoinInfinityCastle then
+            setProcessingState("Infinity Castle Auto Join")
+
+            local roomNumber = tonumber(string.match(Services.Players.LocalPlayer.PlayerGui.InfinityCastle.Main.Frame.core.Room.Text, "%d+"))
+            game:GetService("ReplicatedStorage").endpoints.client_to_server.request_start_infinite_tower:InvokeServer(roomNumber,"Normal",false)
+            task.delay(5, clearProcessingState)
+            return
+        end
+
         -- STORY
         if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
             setProcessingState("Story Auto Join")
@@ -3670,6 +3680,15 @@ section = JoinerTab:CreateSection("Event Joiner")
    Flag = "AutoMatchmakeHalloween",
    Callback = function(Value)
         State.AutoMatchmakeHalloween = Value
+   end,
+})
+
+ Toggle = JoinerTab:CreateToggle({
+   Name = "Auto Join Infinity Castle",
+   CurrentValue = false,
+   Flag = "AutoJoinInfinityCastle",
+   Callback = function(Value)
+        State.AutoJoinInfinityCastle = Value
    end,
 })
 
