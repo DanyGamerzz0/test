@@ -1,4 +1,4 @@
-    -- 14
+    -- 16
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -4893,38 +4893,6 @@ end
     return true
 end
 
-local function getCurrentWorld()
-    local success, levelData = pcall(function()
-        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
-    end)
-    
-    if success and levelData then
-        -- Priority 1: Check if this is a portal level
-        if levelData._portal_only_level == true and levelData.id then
-            print("getCurrentWorld: Detected portal level, ID:", levelData.id)
-            return levelData.id -- Returns "portal_tengen", "portal_tengen_secret", etc.
-        end
-        
-        -- Priority 2: Check for world field (story/legend/raid stages)
-        if levelData.world then
-            print("getCurrentWorld: Using world field:", levelData.world)
-            return levelData.world
-        end
-        
-        -- Priority 3: Fallback to map field (special maps like "DoubleDungeon")
-        if levelData.map then
-            print("getCurrentWorld: Using map field:", levelData.map)
-            return levelData.map
-        end
-        
-        print("getCurrentWorld: No world, map, or portal ID found in levelData")
-    else
-        print("getCurrentWorld: Failed to get level data:", levelData)
-    end
-    
-    return nil
-end
-
 local function getMacroForCurrentWorld()
     if isInLobby() then
         return nil
@@ -4942,20 +4910,37 @@ local function getMacroForCurrentWorld()
     end)
     
     if success and levelData then
+        -- Check for legend indicators
         if levelData.legend or 
            (levelData.level_id and levelData.level_id:lower():find("legend")) or
            (levelData.map and levelData.map:lower():find("legend")) then
             isLegendStage = true
         end
         
-        -- FIXED: Check for ds_legend OR nightmare in world/map/level_id
+        -- FIXED: Check for ds_legend OR nightmare OR mugen_train
         if currentWorld:lower():find("ds_legend") or 
            currentWorld:lower():find("nightmare") or
-           (levelData.map and levelData.map:lower():find("nightmare")) or
+           currentWorld:lower():find("mugen_train") or
+           (levelData.map and (levelData.map:lower():find("nightmare") or levelData.map:lower():find("mugen_train"))) or
            (levelData.level_id and levelData.level_id:lower():find("ds_legend")) then
             
-            -- Try Waves field first
-            if levelData.Waves then
+            -- Try to extract act number from map field FIRST (mugen_train_one, mugen_train_two, mugen_train_three)
+            if levelData.map then
+                local mapLower = levelData.map:lower()
+                if mapLower:find("mugen_train_one") or mapLower:find("one") then
+                    actNum = 1
+                    print("Detected Nightmare Train Act 1 from map field:", levelData.map)
+                elseif mapLower:find("mugen_train_two") or mapLower:find("two") then
+                    actNum = 2
+                    print("Detected Nightmare Train Act 2 from map field:", levelData.map)
+                elseif mapLower:find("mugen_train_three") or mapLower:find("three") then
+                    actNum = 3
+                    print("Detected Nightmare Train Act 3 from map field:", levelData.map)
+                end
+            end
+            
+            -- Fallback: Try Waves field
+            if not actNum and levelData.Waves then
                 local extractedAct = levelData.Waves:match("ds_legend_(%d)$")
                 if extractedAct then
                     actNum = tonumber(extractedAct)
@@ -4965,19 +4950,19 @@ local function getMacroForCurrentWorld()
             
             -- Fallback: Try level_id
             if not actNum and levelData.level_id then
-                actNum = levelData.level_id:match("_(%d)$")
-                if actNum then
-                    actNum = tonumber(actNum)
+                local extractedAct = levelData.level_id:match("_(%d)$")
+                if extractedAct then
+                    actNum = tonumber(extractedAct)
                     print("Detected Nightmare Train Act from level_id:", actNum)
                 end
             end
             
-            -- Fallback: Try map field
+            -- Fallback: Try numeric pattern in map field
             if not actNum and levelData.map then
-                actNum = levelData.map:match("_(%d)$")
-                if actNum then
-                    actNum = tonumber(actNum)
-                    print("Detected Nightmare Train Act from map:", actNum)
+                local extractedAct = levelData.map:match("_(%d)$")
+                if extractedAct then
+                    actNum = tonumber(extractedAct)
+                    print("Detected Nightmare Train Act from map numeric:", actNum)
                 end
             end
             
@@ -4994,8 +4979,8 @@ local function getMacroForCurrentWorld()
     print("Current world:", currentWorld, "- Legend stage:", isLegendStage, "- Act:", actNum or "N/A")
     
     -- If Nightmare Train with detected act, try act-specific mapping first
-    if (currentWorld:lower():find("ds_legend") or currentWorld:lower():find("nightmare")) and actNum then
-        local nightmareKey = "ds_legend_act_" .. actNum  -- Force consistent key format
+    if (currentWorld:lower():find("ds_legend") or currentWorld:lower():find("nightmare") or currentWorld:lower():find("mugen_train")) and actNum then
+        local nightmareKey = "ds_legend_act_" .. actNum
         local mappedMacro = worldMacroMappings[nightmareKey]
         
         if mappedMacro and macroManager[mappedMacro] then
