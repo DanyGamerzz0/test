@@ -1,4 +1,4 @@
-    -- 18
+    -- 19
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5235,7 +5235,7 @@ Toggle = GameTab:CreateToggle({
 
      AutoSellSlider = GameTab:CreateSlider({
         Name = "Sell on Wave",
-        Range = {1, 50},
+        Range = {1, 500},
         Increment = 1,
         Suffix = "",
         CurrentValue = 10,
@@ -5266,7 +5266,7 @@ Toggle = GameTab:CreateToggle({
 
      AutoSellFarmSlider = GameTab:CreateSlider({
         Name = "Sell Farm Units on Wave",
-        Range = {1, 50},
+        Range = {1, 500},
         Increment = 1,
         Suffix = "",
         CurrentValue = 15,
