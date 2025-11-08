@@ -1,4 +1,4 @@
---111
+--112
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.07"
@@ -1674,33 +1674,74 @@ local function findLatestSpawnedUnit(unitDisplayName, targetCFrame, strictTolera
 end
 
 local function StreamerMode()
-    local head = Services.Players.LocalPlayer.Character:WaitForChild("Head", 5)
+    local player = game:GetService("Players").LocalPlayer
+    local char = player.Character or player.CharacterAdded:Wait()
+    local head = char:WaitForChild("Head", 5)
     if not head then return end
 
-    local billboard = head:WaitForChild("GUI"):WaitForChild("GUI"):WaitForChild("Frame")
-    if not billboard then print("no billboard") return end
+    local billboard = head:FindFirstChild("GUI")
+        and head.GUI:FindFirstChild("GUI")
+        and head.GUI.GUI:FindFirstChild("Frame")
 
-    local originalNumbers = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Main"):WaitForChild("LevelFrame"):WaitForChild("Frame").texts
-    if not originalNumbers then print("no originalnumbers") return end
+    if not billboard then
+        warn("No billboard found")
+        return
+    end
 
-    local streamerLabel = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Main"):WaitForChild("LevelFrame"):WaitForChild("Frame"):FindFirstChild("Numbers_Streamer")
+    -- Try both possible paths for originalNumbers
+    local mainGui = player:WaitForChild("PlayerGui"):WaitForChild("Main")
+
+    local levelFrame = mainGui:FindFirstChild("LevelFrame") or
+        (mainGui:FindFirstChild("UnitBar") and mainGui.UnitBar:FindFirstChild("LevelFrame"))
+
+    if not levelFrame then
+        warn("No LevelFrame found")
+        return
+    end
+
+    local frame = levelFrame:FindFirstChild("Frame")
+    if not frame then
+        warn("No Frame found inside LevelFrame")
+        return
+    end
+
+    local originalNumbers = frame:FindFirstChild("texts")
+    if not originalNumbers then
+        warn("No originalNumbers (texts) found")
+        return
+    end
+
+    -- Check for or create streamerLabel in the same Frame
+    local streamerLabel = frame:FindFirstChild("Numbers_Streamer")
     if not streamerLabel then
         streamerLabel = originalNumbers:Clone()
         streamerLabel.Name = "Numbers_Streamer"
         streamerLabel.Text = "Level 999 - Protected by Lixhub"
         streamerLabel.Visible = false
-        streamerLabel.Parent = originalNumbers.Parent
+        streamerLabel.Parent = frame
     end
 
+    -- Apply streamer mode
     if State.streamerModeEnabled then
-        billboard:FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
-        billboard:FindFirstChild("Title").Text = "LIXHUB USER"
+        local playerName = billboard:FindFirstChild("PlayerName")
+        local title = billboard:FindFirstChild("Title")
+
+        if playerName then playerName.Text = "🔥 PROTECTED BY LIXHUB 🔥" end
+        if title then title.Text = "LIXHUB USER" end
 
         originalNumbers.Visible = false
         streamerLabel.Visible = true
     else
-        billboard:FindFirstChild("PlayerName").Text =  "Lv. " .. Services.Players.LocalPlayer:WaitForChild("Data").Levels.Value.." | "..tostring(Services.Players.LocalPlayer.Name)
-        billboard:FindFirstChild("Title").Text = Services.Players.LocalPlayer:WaitForChild("Data").Title.Value
+        local playerName = billboard:FindFirstChild("PlayerName")
+        local title = billboard:FindFirstChild("Title")
+
+        if playerName then
+            playerName.Text = "Lv. " .. player:WaitForChild("Data").Levels.Value ..
+                " | " .. tostring(player.Name)
+        end
+        if title then
+            title.Text = player:WaitForChild("Data").Title.Value
+        end
 
         originalNumbers.Visible = true
         streamerLabel.Visible = false
