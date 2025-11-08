@@ -1,7 +1,7 @@
---110
+--111
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.06"
+local script_version = "V0.07"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1706,6 +1706,13 @@ local function StreamerMode()
         streamerLabel.Visible = false
     end
 end
+
+        task.spawn(function()
+            while true do
+                task.wait(0.1)
+                StreamerMode()
+            end
+        end)
 
 local function clearSpawnIdMappings()
     playbackUnitMapping = {}
