@@ -5493,7 +5493,7 @@ end)
     Name = "Auto Boss Event Bug",
     CurrentValue = false,
     Flag = "AutoBossEventBugToggle",
-    Info = "Will spam 'restart match' to achieve 0.01s clear times on the boss event",
+    Info = "Will spam 'restart match' to achieve 0.01s clear times on the boss event. Not advised to pair with webhook",
     Callback = function(Value)
         State.autoBossEventBugEnabled = Value
     end,
@@ -5509,6 +5509,17 @@ end)
         end
     end
 end)
+
+JoinerSection0 = JoinerTab:CreateSection("👻 Fright Fest Joiner 👻")
+
+         AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Fright Fest",
+    CurrentValue = false,
+    Flag = "AutoFrightFestToggle",
+    Callback = function(Value)
+        State.autoFrightFestEnabled = Value
+    end,
+    })
 
     JoinerSection0 = JoinerTab:CreateSection("🗺️ Adventure Mode Joiner 🗺️")
 
