@@ -1,4 +1,3 @@
---1
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -112,6 +111,8 @@ local State = {
     AutoSellUnitChoice = {},
     AutoDungeonDifficultySelector = "",
     DelayAutoUltimate = 0,
+    autoFrightFestEnabled = false,
+    autoBossEventBugEnabled = false,
     
     autoBossEventEnabled = false,
     autoInfiniteEnabled = false,
@@ -225,7 +226,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.17"
+local script_version = "V0.18"
 
 local ValidWebhook
 
@@ -1663,6 +1664,8 @@ local function setProcessingState(action)
             notify("🔄 Processing: ", action)
             elseif action == "Ascension Mode Auto Join" then
             notify("🔄 Processing: ", action)
+            elseif action == "Fright Fest Auto Join" then
+            notify("🔄 Processing: ", action) 
     end
 end
 
@@ -2199,7 +2202,17 @@ local function checkAndExecuteHighestPriority()
 
         handleTeamEquipping("Boss Event")
 
-    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Swarm Event")
+    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Boss-Event",{Difficulty = "Nightmare"})
+    task.delay(5, clearProcessingState)
+        return
+    end
+
+        if State.autoFrightFestEnabled then
+    setProcessingState("Fright Fest Auto Join")
+
+    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("FrightFest")
+    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+
     task.delay(5, clearProcessingState)
         return
     end
@@ -4724,7 +4737,7 @@ local Toggle = LobbyTab:CreateToggle({
 local function setupAutoReconnect()
     local TeleportService = game:GetService("TeleportService")
     local GuiService = game:GetService("GuiService")
-    
+
     local isReconnecting = false
     local maxRetries = 10
     local retryDelay = 3
@@ -5468,13 +5481,34 @@ end)
     })--]]
 
      AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Boss Event (Swarm Event)",
+    Name = "Auto Join Boss Event",
     CurrentValue = false,
     Flag = "AutoBossEventToggle",
     Callback = function(Value)
         State.autoBossEventEnabled = Value
     end,
     })
+
+         AutoJoinBossEvent3Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Boss Event Bug",
+    CurrentValue = false,
+    Flag = "AutoBossEventBugToggle",
+    Info = "Will spam 'restart match' to achieve 0.01s clear times on the boss event",
+    Callback = function(Value)
+        State.autoBossEventBugEnabled = Value
+    end,
+    })
+
+    spawn(function()
+    while true do
+        task.wait(0.1)
+        if State.autoBossEventBugEnabled then
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("RestartMatch"):FireServer()
+            end)
+        end
+    end
+end)
 
     JoinerSection0 = JoinerTab:CreateSection("🗺️ Adventure Mode Joiner 🗺️")
 
