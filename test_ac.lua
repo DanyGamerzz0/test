@@ -1,4 +1,4 @@
-    -- 20
+    -- 21
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -7118,7 +7118,7 @@ task.spawn(function()
                                 Services.ReplicatedStorage:WaitForChild("endpoints")
                                     :WaitForChild("client_to_server")
                                     :WaitForChild("use_active_attack")
-                                    :InvokeServer(uuidValue.Value)
+                                    :InvokeServer(unit.Name) -- ← Changed from uuidValue.Value to unit.Name
                             end)
                             
                             task.wait(0.1) -- Small delay between ability casts
