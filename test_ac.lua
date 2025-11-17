@@ -1,4 +1,4 @@
-    -- 19
+    -- 20
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.07"
+    local script_version = "V0.08"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -237,6 +237,9 @@ local playbackDisplayNameInstances = {}
         maxChallengeAttempts = 3,
         AutoNextInfinityCastle = false,
         AutoJoinInfinityCastle = false,
+        AutoAbility = false,
+        PrioritizeFarmUnits = false,
+        AutoUpgrade = false,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
@@ -248,6 +251,7 @@ local playbackDisplayNameInstances = {}
     local CardPriorityTab = Window:CreateTab("Auto Pick Card", "award")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
     local MacroTab = Window:CreateTab("Macro", "joystick")
+    local AutoplayTab = Window:CreateTab("Autoplay", "joystick")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
     -- ========== MACRO SYSTEM FUNCTIONS ==========
@@ -3683,6 +3687,8 @@ section = JoinerTab:CreateSection("Event Joiner")
    end,
 })
 
+section = JoinerTab:CreateSection("Infinity Castle Joiner")
+
  Toggle = JoinerTab:CreateToggle({
    Name = "Auto Join Infinity Castle",
    CurrentValue = false,
@@ -3691,6 +3697,16 @@ section = JoinerTab:CreateSection("Event Joiner")
         State.AutoJoinInfinityCastle = Value
    end,
 })
+
+Toggle = JoinerTab:CreateToggle({
+    Name = "Auto Next Infinity Castle",
+    CurrentValue = false,
+    Flag = "AutoNextInfinityCastle",
+    Info = "Automatically clicks 'Next' button after completing Infinity Castle stage",
+    Callback = function(Value)
+        State.AutoNextInfinityCastle = Value
+    end,
+})  
 
 local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
@@ -5129,16 +5145,6 @@ end
             end
     end,
     })
-
-Toggle = GameTab:CreateToggle({
-    Name = "Auto Next Infinity Castle",
-    CurrentValue = false,
-    Flag = "AutoNextInfinityCastle",
-    Info = "Automatically clicks 'Next' button after completing Infinity Castle stage",
-    Callback = function(Value)
-        State.AutoNextInfinityCastle = Value
-    end,
-})  
 
     Toggle = GameTab:CreateToggle({
     Name = "Auto Lobby",
@@ -6999,6 +7005,130 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     })
 
      Divider = MacroTab:CreateDivider()
+
+      AutoUpgradeToggle = AutoplayTab:CreateToggle({
+    Name = "Auto Upgrade Units",
+    CurrentValue = false,
+    Flag = "AutoUpgrade",
+    Info = "Automatically upgrade units when you have enough money",
+    Callback = function(Value)
+        State.AutoUpgrade = Value
+    end,
+})
+
+
+     PrioritizeFarmToggle = AutoplayTab:CreateToggle({
+    Name = "Prioritize Farm Units",
+    CurrentValue = false,
+    Flag = "PrioritizeFarm",
+    Info = "Upgrade farm units before other units",
+    Callback = function(Value)
+        State.PrioritizeFarmUnits = Value
+    end,
+})
+
+ AutoAbilityToggle = AutoplayTab:CreateToggle({
+    Name = "Auto Use Abilities",
+    CurrentValue = false,
+    Flag = "AutoAbility",
+    Info = "Automatically use unit abilities when available",
+    Callback = function(Value)
+        State.AutoAbility = Value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(0.5) -- Check every 0.5 seconds
+        
+        if State.AutoUpgrade and not isInLobby() and gameInProgress then
+            local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+            if not unitsFolder then continue end
+            
+            local currentMoney = getPlayerMoney()
+            local unitsToUpgrade = {}
+            
+            -- Collect all upgradeable units
+            for _, unit in pairs(unitsFolder:GetChildren()) do
+                if isOwnedByLocalPlayer(unit) then
+                    local stats = unit:FindFirstChild("_stats")
+                    if stats then
+                        local currentLevel = getUnitUpgradeLevel(unit)
+                        local unitId = getInternalSpawnName(unit)
+                        local upgradeCost = getUpgradeCost(unitId, currentLevel)
+                        
+                        if upgradeCost > 0 and currentMoney >= upgradeCost then
+                            local isFarmUnit = stats:FindFirstChild("farm_amount") and 
+                                             stats.farm_amount.Value > 0
+                            
+                            table.insert(unitsToUpgrade, {
+                                unit = unit,
+                                cost = upgradeCost,
+                                isFarm = isFarmUnit,
+                                level = currentLevel
+                            })
+                        end
+                    end
+                end
+            end
+            
+            -- Sort by priority (farm first if enabled, then by cost)
+            table.sort(unitsToUpgrade, function(a, b)
+                if State.PrioritizeFarmUnits then
+                    if a.isFarm ~= b.isFarm then
+                        return a.isFarm -- Farm units first
+                    end
+                end
+                return a.cost < b.cost -- Cheaper upgrades first
+            end)
+            
+            -- Upgrade units
+            for _, upgradeData in ipairs(unitsToUpgrade) do
+                if getPlayerMoney() >= upgradeData.cost then
+                    pcall(function()
+                        local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints")
+                            :WaitForChild("client_to_server")
+                        endpoints:WaitForChild("upgrade_unit_ingame"):InvokeServer(upgradeData.unit.Name)
+                    end)
+                    
+                    task.wait(0.2) -- Small delay between upgrades
+                else
+                    break -- Not enough money for next upgrade
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1) -- Check every second
+        
+        if State.AutoAbility and not isInLobby() and gameInProgress then
+            local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+            if not unitsFolder then continue end
+            
+            for _, unit in pairs(unitsFolder:GetChildren()) do
+                if isOwnedByLocalPlayer(unit) then
+                    local stats = unit:FindFirstChild("_stats")
+                    if stats then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            pcall(function()
+                                Services.ReplicatedStorage:WaitForChild("endpoints")
+                                    :WaitForChild("client_to_server")
+                                    :WaitForChild("use_active_attack")
+                                    :InvokeServer(uuidValue.Value)
+                            end)
+                            
+                            task.wait(0.1) -- Small delay between ability casts
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
 
     -- Webhook Tab
     WebhookInput = WebhookTab:CreateInput({
