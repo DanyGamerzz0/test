@@ -1,4 +1,4 @@
-    -- 21
+    -- 22
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -7112,16 +7112,17 @@ task.spawn(function()
                 if isOwnedByLocalPlayer(unit) then
                     local stats = unit:FindFirstChild("_stats")
                     if stats then
-                        local uuidValue = stats:FindFirstChild("uuid")
-                        if uuidValue and uuidValue:IsA("StringValue") then
+                        -- Only use ability if unit has an active_attack
+                        local activeAttack = stats:FindFirstChild("active_attack")
+                        if activeAttack and activeAttack.Value ~= nil and activeAttack.Value ~= "nil" and activeAttack.Value ~= "" then
                             pcall(function()
                                 Services.ReplicatedStorage:WaitForChild("endpoints")
                                     :WaitForChild("client_to_server")
                                     :WaitForChild("use_active_attack")
-                                    :InvokeServer(unit.Name) -- ← Changed from uuidValue.Value to unit.Name
+                                    :InvokeServer(unit.Name)
                             end)
                             
-                            task.wait(0.1) -- Small delay between ability casts
+                            task.wait(1) -- Small delay between ability casts
                         end
                     end
                 end
