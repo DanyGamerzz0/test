@@ -55,8 +55,8 @@
         PlaceholderColor = Color3.fromRGB(178, 178, 178)
     },
     ToggleUIKeybind = "K",
-    DisableRayfieldPrompts = false,
-    DisableBuildWarnings = false,
+    DisableRayfieldPrompts = true,
+    DisableBuildWarnings = true,
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "LixHub",
