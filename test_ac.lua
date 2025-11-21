@@ -1,4 +1,4 @@
-    -- 22
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.08"
+    local script_version = "V0.09"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -55,8 +55,8 @@
         PlaceholderColor = Color3.fromRGB(178, 178, 178)
     },
     ToggleUIKeybind = "K",
-    DisableRayfieldPrompts = true,
-    DisableBuildWarnings = true,
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "LixHub",
@@ -240,6 +240,8 @@ local playbackDisplayNameInstances = {}
         AutoAbility = false,
         PrioritizeFarmUnits = false,
         AutoUpgrade = false,
+        AutoJoinBossRush = false,
+        AutoJoinBossRushSelectionMode = false,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
     }
 
@@ -2388,6 +2390,8 @@ local function setProcessingState(action)
         notify("Auto Joiner: ","Attempting to join event...")
     elseif action == "Halloween Event Auto Join" then
         notify("Auto Joiner: ","Attempting to join event...")
+    elseif action == "Boss Rush Auto Join" then
+        notify("Auto Joiner: ","Attempting to join Boss Rush...")
     end
 end
 
@@ -2956,6 +2960,22 @@ end
         return
     end
 
+    --BOSS RUSH
+    if State.AutoJoinBossRush then
+        setProcessingState("Boss Rush Auto Join")
+
+        if State.AutoJoinBossRushSelectionMode then
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CSM_BOSSRUSH_TRAITS")
+             task.wait(0.5) 
+             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITS") 
+        else
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CSM_BOSSRUSH_TRAITLESS")
+            task.wait(0.5)
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITLESS")
+        end
+            task.delay(5, clearProcessingState)
+            return
+    end
 
     --SPIRIT INVASION
         if State.AutoJoinSpiritInvasion then
@@ -3707,6 +3727,26 @@ Toggle = JoinerTab:CreateToggle({
         State.AutoNextInfinityCastle = Value
     end,
 })  
+
+section = JoinerTab:CreateSection("Boss Rush Joiner")
+
+ Toggle = JoinerTab:CreateToggle({
+   Name = "Auto Join Boss Rush",
+   CurrentValue = false,
+   Flag = "AutoJoinBossRush",
+   Callback = function(Value)
+        State.AutoJoinBossRush = Value
+   end,
+})
+
+ Toggle = JoinerTab:CreateToggle({
+   Name = "Traits Enabled/Disabled",
+   CurrentValue = true,
+   Flag = "AutoJoinBossRushSelectionMode",
+   Callback = function(Value)
+        State.AutoJoinBossRushSelectionMode = Value
+   end,
+})
 
 local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
@@ -5221,6 +5261,46 @@ end
             end
         end
     end)
+
+    GameTab:CreateSection("Boss Rush")
+
+     AutoSelectCardToggle = GameTab:CreateToggle({
+    Name = "Auto Select Card",
+    CurrentValue = false,
+    Flag = "AutoSelectCardBossRush",
+    Callback = function(Value)
+        State.AutoSelectCardBossRush = Value
+    end,
+})
+
+CardSelectionDropdown = GameTab:CreateDropdown({
+    Name = "Select Modifier",
+    Options = {"Unit Slot", "Damage", "Placement Limit"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoSelectCardBossRushSelection",
+    Callback = function(option)
+        if option == "Damage" then
+            State.AutoSelectCardBossRushSelection = "Damage"
+        elseif option == "Placement Limit" then
+            State.AutoSelectCardBossRushSelection = "Placement"
+        elseif option == "Unit Slot" then
+            State.AutoSelectCardBossRushSelection = "Slot"
+        end
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoSelectCardBossRush then
+            if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("Prompt") and State.AutoSelectCardBossRushSelection then
+                    game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_makima_sacrifice"):InvokeServer(State.AutoSelectCardBossRushSelection)
+                    task.wait(0.1)
+            end
+        end
+    end
+end)
 
     GameTab:CreateSection("Auto Sell")
 
