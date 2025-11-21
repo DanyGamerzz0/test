@@ -1,4 +1,4 @@
-    -- 3
+    -- 4
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -5280,11 +5280,11 @@ CardSelectionDropdown = GameTab:CreateDropdown({
     MultipleOptions = false,
     Flag = "AutoSelectCardBossRushSelection",
     Callback = function(option)
-        if option == "Damage" then
+        if option[1] == "Damage" then
             State.AutoSelectCardBossRushSelection = "Damage"
-        elseif option == "Placement Limit" then
+        elseif option[1] == "Placement Limit" then
             State.AutoSelectCardBossRushSelection = "Placement"
-        elseif option == "Unit Slot" then
+        elseif option[1] == "Unit Slot" then
             State.AutoSelectCardBossRushSelection = "Slot"
         end
     end,
