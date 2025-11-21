@@ -1,4 +1,4 @@
-    -- 2
+    -- 3
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -2965,13 +2965,13 @@ end
         setProcessingState("Boss Rush Auto Join")
 
         if State.AutoJoinBossRushSelectionMode then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CSM_BOSSRUSH_TRAITS")
-             task.wait(0.5) 
-             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITS") 
-        else
             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CSM_BOSSRUSH_TRAITLESS")
+             task.wait(0.5) 
+             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITLESS") 
+        else
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CSM_BOSSRUSH_TRAITS")
             task.wait(0.5)
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITLESS")
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITS")
         end
             task.delay(5, clearProcessingState)
             return
@@ -3740,7 +3740,7 @@ section = JoinerTab:CreateSection("Boss Rush Joiner")
 })
 
  Toggle = JoinerTab:CreateToggle({
-   Name = "Traits Enabled/Disabled",
+   Name = "Traits Disabled Mode",
    CurrentValue = true,
    Flag = "AutoJoinBossRushSelectionMode",
    Callback = function(Value)
