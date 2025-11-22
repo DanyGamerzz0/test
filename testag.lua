@@ -1,4 +1,4 @@
---pipi33
+--pipi455
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
     return
@@ -194,6 +194,10 @@ local State = {
     BlockBossDamage = false,
 
     AutoStartGame = false,
+    AutoPurchaseGriffith = false,
+    AutoPurchaseGriffithSelected = {},
+    AutoPurchaseRagna = false,
+    AutoPurchaseRagnaSelected = {},
 }
 
 local abilityQueue = {}
@@ -281,6 +285,139 @@ CodeButton = LobbyTab:CreateButton({
             Services.TeleportService:Teleport(17282336195, Services.Players.LocalPlayer)
         end,
     })
+
+    Section = LobbyTab:CreateSection("Auto Purchase")
+
+    local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Purchase Griffith Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseGriffith",
+    Callback = function(Value)
+        State.AutoPurchaseGriffith = Value
+    end,
+})
+
+ Dropdown = LobbyTab:CreateDropdown({
+    Name = "Select Griffith Item",
+    Options = {
+        "Capsule Fortune Potion",
+        "Festival Coin Potion",
+        "Blessed Luck Potion",
+        "Event Discount Potion",
+        "Guts",
+        "Dragonslayer",
+        "Artifacts Trait Reroll",
+        "SuperStatReroll",
+        "StatReroll"
+    },
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "GriffithItemSelector",
+    Callback = function(Options)
+        State.AutoPurchaseGriffithSelected = Options
+    end,
+})
+
+ Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Purchase Ragna Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseRagna",
+    Info = "Automatically purchases selected items from Ragna Shop",
+    Callback = function(Value)
+        State.AutoPurchaseRagna = Value
+    end,
+})
+
+ Dropdown = LobbyTab:CreateDropdown({
+    Name = "Select Ragna Item",
+    Options = {
+        "Artifacts Trait Reroll",
+        "Ragna Capsule",
+        "Dango",
+        "Mystic Coins",
+        "Fullsteak",
+        "Ramen",
+        "TraitReroll",
+        "Night Market Coins"
+    },
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RagnaItemSelector",
+    Callback = function(Options)
+        State.AutoPurchaseRagnaSelected = Options
+    end,
+})
+
+local griffithItemMap = {
+    ["Capsule Fortune Potion"] = 1000,
+    ["Festival Coin Potion"] = 1000,
+    ["Blessed Luck Potion"] = 1000,
+    ["Event Discount Potion"] = 1000,
+    ["Guts"] = 100,
+    ["Dragonslayer"] = 25,
+    ["Artifacts Trait Reroll"] = 10,
+    ["SuperStatReroll"] = 10,
+    ["StatReroll"] = 10,
+}
+
+local ragnaItemMap = {
+    ["Artifacts Trait Reroll"] = 5,
+    ["Ragna Capsule"] = 5,
+    ["Dango"] = 1,
+    ["Mystic Coins"] = 5,
+    ["Fullsteak"] = 2,
+    ["Ramen"] = 2,
+    ["TraitReroll"] = 5,
+    ["Night Market Coins"] = 50,
+}
+
+local function purchaseFromGriffithShop(itemName)
+    local actualCost = griffithItemMap[itemName]    
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer.ItemsInventory.Beherit.Amount / actualCost,itemName,"Behelit")
+end
+
+local function purchaseFromRagnaShop(itemName)
+    local actualCost = ragnaItemMap[itemName]   
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer.ItemsInventory.Dragonpoints.Amount / actualCost,itemName,"RagnaShop")
+end
+
+    local function isInLobby()
+    return workspace:FindFirstChild("RoomCreation") ~= nil
+end
+
+local function checkGriffithShop()
+    if not State.AutoPurchaseGriffith then return end
+    if not State.AutoPurchaseGriffithSelected or #State.AutoPurchaseGriffithSelected == 0 then return end
+    if not isInLobby() then return end
+    
+    for _, itemName in ipairs(State.AutoPurchaseGriffithSelected) do
+        purchaseFromGriffithShop(itemName)
+        task.wait(3)
+    end
+end
+
+local function checkRagnaShop()
+    if not State.AutoPurchaseRagna then return end
+    if not State.AutoPurchaseRagnaSelected or #State.AutoPurchaseRagnaSelected == 0 then return end
+    if not isInLobby() then return end
+    
+    for _, itemName in ipairs(State.AutoPurchaseRagnaSelected) do
+        purchaseFromRagnaShop(itemName)
+        task.wait(3)
+    end
+end
+
+task.spawn(function()
+    while true do
+        if State.AutoPurchaseGriffith and State.AutoPurchaseGriffithSelected then
+            checkGriffithShop()
+        end
+        if State.AutoPurchaseRagna and State.AutoPurchaseRagnaSelected then
+            checkRagnaShop()
+        end
+        task.wait(1)
+    end
+end)
 
 local function getPlayerUnitsFolder()
     local unitServer = Services.Workspace:FindFirstChild("Ground") 
@@ -448,10 +585,6 @@ local function getUnitAbilitiesList()
     end)
     
     return abilitiesList
-end
-
-    local function isInLobby()
-    return workspace:FindFirstChild("RoomCreation") ~= nil
 end
 
 local function findAndUseUnitAbility(unitBaseName, abilityName)
