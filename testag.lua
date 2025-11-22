@@ -1,4 +1,4 @@
---pipi32
+--pipi33
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
     return
@@ -191,6 +191,7 @@ local State = {
     AutoUseAbilitySukuna = false,
     SelectedSukunaSkills = {},
     ReplaceDeletedUnits = false,
+    BlockBossDamage = false,
 
     AutoStartGame = false,
 }
@@ -1097,6 +1098,15 @@ local Dropdown = GameTab:CreateDropdown({
    Callback = function(Option)
         State.AutoPickCardSelected = Option[1]
    end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Block Boss Damage to Units",
+    CurrentValue = false,
+    Flag = "BlockBossDamage",
+    Callback = function(Value)
+        State.BlockBossDamage = Value
+    end,
 })
 
 local Toggle = GameTab:CreateToggle({
@@ -2229,6 +2239,11 @@ local originalNamecall = mt.__namecall
 local generalHook = newcclosure(function(self, ...)
     local args = { ... }
     local method = getnamecallmethod()
+
+    if State.BlockBossDamage and method == "InvokeServer" and self.Name == "Damages" and args[1] == "BossDamage" then
+        print("Blocked Boss Damage")
+        return nil
+    end
 
     if not checkcaller() then
         task.spawn(function()
