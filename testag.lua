@@ -1,4 +1,4 @@
---pipi456
+--pipi457
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
     return
@@ -373,12 +373,12 @@ local ragnaItemMap = {
 
 local function purchaseFromGriffithShop(itemName)
     local actualCost = griffithItemMap[itemName]    
-    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer.ItemsInventory.Beherit.Amount.Value / actualCost,itemName,"Behelit")
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory"):FindFirstChild("Beherit"):FindFirstChild("Amount").Value / actualCost,itemName,"Behelit")
 end
 
 local function purchaseFromRagnaShop(itemName)
     local actualCost = ragnaItemMap[itemName]   
-    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer.ItemsInventory.Dragonpoints.Amount.Value / actualCost,itemName,"RagnaShop")
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory"):FindFirstChild("Dragonpoints"):FindFirstChild("Amount").Value / actualCost,itemName,"RagnaShop")
 end
 
     local function isInLobby()
