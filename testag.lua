@@ -1,4 +1,14 @@
 --pipi1
+if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+    game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
+    return
+end
+
+if game.PlaceId ~= 17282336195 and game.PlaceId ~= 17400753636 then
+    game:GetService("Players").LocalPlayer:Kick("GAME NOT SUPPORTED!")
+    return
+end
+
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
 local script_version = "V0.08"
@@ -98,6 +108,9 @@ local capturedRewards = {}
 local pendingUpgrades = {}
 local lastUseTime = {}
 local UPGRADE_VALIDATION_TIMEOUT = 1.5
+
+local webhookDebounce = false
+local WEBHOOK_DEBOUNCE_TIME = 3
 
 local Config = {
    difficulties = {"Normal", "Nightmare"},
@@ -5095,7 +5108,14 @@ end)
 
 if not isInLobby() then
     Services.ReplicatedStorage:WaitForChild("EndGame").OnClientEvent:Connect(function(player, result, rewards)
-        print("Game ended")
+
+        if webhookDebounce then
+            print("⚠️ Webhook debounced - ignoring duplicate EndGame event")
+            return
+        end
+        
+        webhookDebounce = true
+
         stopGameTracking()
 
         State.gameEndRealTime = tick()
@@ -5138,6 +5158,10 @@ if not isInLobby() then
         if State.SendStageCompletedWebhook then
             sendWebhook("stage")
         end
+
+         task.delay(WEBHOOK_DEBOUNCE_TIME, function()
+            webhookDebounce = false
+        end)
         
         -- Handle auto voting logic with priority system
         task.spawn(function()
