@@ -1,4 +1,4 @@
---pipi457
+--pipi458
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
     return
@@ -198,6 +198,7 @@ local State = {
     AutoPurchaseGriffithSelected = {},
     AutoPurchaseRagna = false,
     AutoPurchaseRagnaSelected = {},
+    AutoJoinDelay = 0,
 }
 
 local abilityQueue = {}
@@ -372,13 +373,23 @@ local ragnaItemMap = {
 }
 
 local function purchaseFromGriffithShop(itemName)
-    local actualCost = griffithItemMap[itemName]    
-    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory"):FindFirstChild("Beherit"):FindFirstChild("Amount").Value / actualCost,itemName,"Behelit")
+    local actualCost = griffithItemMap[itemName]
+    if not actualCost then return nil end
+    
+    local beherit = game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory") and game:GetService("Players").LocalPlayer.ItemsInventory:FindFirstChild("Beherit")
+    if not beherit or not beherit:FindFirstChild("Amount") then return nil end
+    
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(math.floor(beherit.Amount.Value / actualCost), itemName, "Behelit")
 end
 
 local function purchaseFromRagnaShop(itemName)
-    local actualCost = ragnaItemMap[itemName]   
-    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory"):FindFirstChild("Dragonpoints"):FindFirstChild("Amount").Value / actualCost,itemName,"RagnaShop")
+    local actualCost = ragnaItemMap[itemName]
+    if not actualCost then return nil end
+    
+    local dragonpoints = game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory") and game:GetService("Players").LocalPlayer.ItemsInventory:FindFirstChild("Dragonpoints")
+    if not dragonpoints or not dragonpoints:FindFirstChild("Amount") then return nil end
+    
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(math.floor(dragonpoints.Amount.Value / actualCost), itemName, "RagnaShop")
 end
 
     local function isInLobby()
@@ -741,6 +752,18 @@ task.spawn(function()
         task.wait(0.1)
     end
 end)
+
+    AutoJoinDelaySlider = JoinerTab:CreateSlider({
+    Name = "Auto Join Delay",
+    Range = {0, 60},
+    Increment = 1,
+    Suffix = " seconds",
+    CurrentValue = 0,
+    Flag = "AutoJoinDelay",
+    Callback = function(Value)
+        State.AutoJoinDelay = Value
+    end,
+})
 
      JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
 
@@ -4501,6 +4524,10 @@ local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     if not canPerformAction() then return end
+
+    if State.AutoJoinDelay and State.AutoJoinDelay > 0 then
+        task.wait(State.AutoJoinDelay)
+    end
 
     --GATES
     if State.AutoJoinGate then
