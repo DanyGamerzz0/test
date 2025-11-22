@@ -1,7 +1,7 @@
---112
+--pipi1
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.07"
+local script_version = "V0.08"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -178,6 +178,8 @@ local State = {
     AutoUseAbilitySukuna = false,
     SelectedSukunaSkills = {},
     ReplaceDeletedUnits = false,
+
+    AutoStartGame = false,
 }
 
 local abilityQueue = {}
@@ -803,23 +805,6 @@ end)
     end,
     })
 
-local function tryStartGame()
-    while true do
-    if State.AutoStartGame and not isInLobby() then
-        -- Only try to start if game hasn't started, there's a mode, and we're on wave 1
-        if Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Visible == true and string.lower(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Inset.textname.Text):match("start") then
-            pcall(function()
-                local connections = getconnections(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Button.MouseButton1Click)
-                for _, connection in ipairs(connections) do
-                connection:Fire()
-                end
-            end)
-        end
-    end
-    wait(1)
-end
-end
-
 local GameSection = GameTab:CreateSection("👥 Player 👥")
 
 local Toggle = GameTab:CreateToggle({
@@ -959,10 +944,31 @@ local Toggle = GameTab:CreateToggle({
     Callback = function(Value)
         State.AutoStartGame = Value
         if Value then
-            tryStartGame()
+            if Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Visible == true and string.lower(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Inset.textname.Text):match("start") then
+                local connections = getconnections(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Button.MouseButton1Click)
+                for _, connection in ipairs(connections) do
+                connection:Fire()
+                end
+            end
         end
     end,
 })
+
+task.spawn(function()
+        while true do
+    if State.AutoStartGame then
+        if Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Visible == true and string.lower(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Inset.textname.Text):match("start") then
+            pcall(function()
+                local connections = getconnections(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Button.MouseButton1Click)
+                for _, connection in ipairs(connections) do
+                connection:Fire()
+                end
+            end)
+        end
+    end
+    task.wait(1)
+end
+end)
 
 local Toggle = GameTab:CreateToggle({
     Name = "Auto Vote Retry",
@@ -5182,8 +5188,9 @@ if not isInLobby() then
                 
                 for attempt = 1, MAX_RETRIES do
                     local success, err = pcall(function()
-                        game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
-                            :WaitForChild("Events"):WaitForChild("Control"):FireServer("RetryVote")
+                        for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.EndGUI.Main.Stage.Button.Retry.Button.MouseButton1Click)) do
+                        connection:Fire()
+                        end
                     end)
                     
                     if success then
@@ -5247,62 +5254,6 @@ if not isInLobby() then
                 end
             end
         end)
-    end)
-end
-
-if not isInLobby() then
-    local GameSettings = game.Workspace:WaitForChild("GameSettings")
-    local StagesChallenge = GameSettings:WaitForChild("StagesChallenge")
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local VoteEvent = ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("Vote")
-
-    local function tryStartGame()
-        if not State.AutoStartGame then return end
-        if GameSettings.GameStarted.Value then return end
-
-        local mode = StagesChallenge.Mode.Value
-        local wave = GameSettings:FindFirstChild("Wave") and GameSettings.Wave.Value or nil
-
-        if not wave or wave ~= 0 then
-            -- Only start when at the beginning
-            print("[AutoStart] Waiting for wave 0, current wave:", wave)
-            return
-        end
-
-        if not mode or mode == "" then
-            print("[AutoStart] Mode not ready, waiting...")
-            return
-        end
-
-        print(string.format("[AutoStart] Starting game (mode: %s, wave: %d)", mode, wave))
-        task.wait(0.5)
-        pcall(function()
-            VoteEvent:FireServer("Vote1")
-        end)
-    end
-
-    -- 1️⃣ Initial delayed attempt
-    task.delay(2, tryStartGame)
-
-    -- 2️⃣ React to relevant changes
-    StagesChallenge.Mode.Changed:Connect(tryStartGame)
-    GameSettings.GameStarted.Changed:Connect(function(started)
-        if not started then
-            print("[AutoStart] Game reset, retrying soon...")
-            task.delay(1, tryStartGame)
-        end
-    end)
-
-    if GameSettings:FindFirstChild("Wave") then
-        GameSettings.Wave.Changed:Connect(tryStartGame)
-    end
-
-    -- 3️⃣ Optional safety loop (if other signals fail)
-    task.spawn(function()
-        while not GameSettings.GameStarted.Value and State.AutoStartGame do
-            tryStartGame()
-            task.wait(5)
-        end
     end)
 end
 
