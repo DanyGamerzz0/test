@@ -1,4 +1,4 @@
---pipi1
+--pipi32
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
     return
@@ -972,6 +972,7 @@ task.spawn(function()
     if State.AutoStartGame then
         if Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Visible == true and string.lower(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Inset.textname.Text):match("start") then
             pcall(function()
+                task.wait(2)
                 local connections = getconnections(Services.Players.LocalPlayer.PlayerGui.GameEvent.VoteSkip.Button.Button.MouseButton1Click)
                 for _, connection in ipairs(connections) do
                 connection:Fire()
@@ -5165,7 +5166,7 @@ if not isInLobby() then
         
         -- Handle auto voting logic with priority system
         task.spawn(function()
-            task.wait(1) -- Small delay to ensure game state is stable
+            task.wait(3) -- Small delay to ensure game state is stable
             
             local MAX_RETRIES = 5
             local RETRY_DELAY = 2
@@ -5213,6 +5214,7 @@ if not isInLobby() then
                 for attempt = 1, MAX_RETRIES do
                     local success, err = pcall(function()
                         for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.EndGUI.Main.Stage.Button.Retry.Button.MouseButton1Click)) do
+                        connection:Enable()
                         connection:Fire()
                         end
                     end)
