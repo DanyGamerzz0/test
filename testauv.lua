@@ -1,4 +1,4 @@
---pipi7
+--pipi8
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1447,14 +1447,14 @@ end
             -- Wait for WaveEndScreen to be destroyed (when leaving screen)
             repeat
                 task.wait(0.5)
-            until not defenseScreenFolder:FindFirstChild("WaveEndScreen")
+            until waveEndScreen.Visible == false
             
-            print("WaveEndScreen destroyed - waiting for next game...")
+            print("waiting for next game...")
         end
     end)
     end
 
-     AutoRetryToggle = GameTab:CreateToggle({
+     AutoStartToggle = GameTab:CreateToggle({
         Name = "Auto Start",
         CurrentValue = false,
         Flag = "AutoStart",
