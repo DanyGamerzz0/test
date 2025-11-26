@@ -1,4 +1,4 @@
---pipi8
+--pipi9
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -132,11 +132,44 @@ local WaveManager
 
 if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
     MainSharedFolder = Services.ReplicatedStorage:FindFirstChild("MainSharedFolder")
-    ReplicaModule = require(MainSharedFolder.Modules.ReplicaModule)
-    ReplicaStore = ReplicaModule.ReplicaStore
-    DataModule = MainSharedFolder.Modules.DataModule
-    WaveManager = ReplicaStore.Get("WaveManagerReplica")
-    print("✓ Replicas loaded")
+    
+    if MainSharedFolder:FindFirstChild("Modules") then
+        local Modules = MainSharedFolder:FindFirstChild("Modules")
+        
+        if Modules:FindFirstChild("ReplicaModule") then
+            ReplicaModule = require(Modules.ReplicaModule)
+            
+            if ReplicaModule.ReplicaStore then
+                ReplicaStore = ReplicaModule.ReplicaStore
+                
+                if ReplicaStore.Get then
+                    WaveManager = ReplicaStore.Get("WaveManagerReplica")
+                    
+                    if WaveManager then
+                        print("✓ Replicas loaded")
+                    else
+                        warn("[-] WaveManagerReplica not found")
+                    end
+                else
+                    warn("[-] ReplicaStore.Get function not found")
+                end
+            else
+                warn("[-] ReplicaStore not found in ReplicaModule")
+            end
+        else
+            warn("[-] ReplicaModule not found in Modules")
+        end
+        
+        if Modules:FindFirstChild("DataModule") then
+            DataModule = Modules.DataModule
+        else
+            warn("[-] DataModule not found")
+        end
+    else
+        warn("[-] Modules folder not found in MainSharedFolder")
+    end
+else
+    warn("[-] MainSharedFolder not found in ReplicatedStorage")
 end
 
 
