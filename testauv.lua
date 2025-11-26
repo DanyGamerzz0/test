@@ -1,4 +1,4 @@
---pipi5
+--pipi6
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -186,6 +186,20 @@ end
     -- ============================================
     -- UTILITY FUNCTIONS
     -- ============================================
+
+    local function enableAutoMatchRewards()
+    if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
+        local success = pcall(function()
+            Services.ReplicatedStorage:FindFirstChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Rewards",true)
+        end)
+    end
+end
+
+local function disableModuleScripts()
+    if game:GetService("ReplicatedStorage").MainSharedFolder.Packages.Webhook then
+    game:GetService("ReplicatedStorage").MainSharedFolder.Packages.Webhook:Destroy()
+    end
+end
 
     local function notify(title, content)
         Rayfield:Notify({
@@ -1941,6 +1955,8 @@ end
 
     Rayfield:LoadConfiguration()
     Rayfield:SetVisibility(false)
+    enableAutoMatchRewards()
+    disableModuleScripts()
 
     Rayfield:TopNotify({
         Title = "UI is hidden",
