@@ -1,3 +1,4 @@
+--pipi
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
     return
@@ -1960,6 +1961,98 @@ loadAllMacros()
 MacroDropdown:Refresh(getMacroList())
 
 Rayfield:LoadConfiguration()
+Rayfield:SetVisibility(false)
+
+Rayfield:TopNotify({
+    Title = "UI is hidden",
+    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+    Image = "eye-off", -- Lucide icon name
+    IconColor = Color3.fromRGB(100, 150, 255),
+    Duration = 5
+})
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RayfieldToggle"
+screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+screenGui.ResetOnSpawn = false
+
+-- Create the circular image button
+local toggleButton = Instance.new("ImageButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Parent = screenGui
+toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+toggleButton.BorderSizePixel = 0
+toggleButton.Position = UDim2.new(0, 50, 0, 50)
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Image = "rbxassetid://139436994731049" -- Put your logo image ID here like "rbxassetid://123456789"
+toggleButton.ScaleType = Enum.ScaleType.Fit
+
+-- Make it circular
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1, 0)
+corner.Parent = toggleButton
+
+-- Rayfield visibility state
+local rayfieldVisible = true
+
+-- Toggle function
+local function toggleRayfield()
+    rayfieldVisible = not rayfieldVisible
+    
+    if Rayfield then
+        Rayfield:SetVisibility(rayfieldVisible)
+    end
+end
+
+-- Dragging variables
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+-- Mouse input handling
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = toggleButton.Position
+        
+        local connection
+        connection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                connection:Disconnect()
+            end
+        end)
+    end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Click to toggle
+local clickStartPos = nil
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        clickStartPos = input.Position
+    end
+end)
+
+toggleButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if clickStartPos then
+            local deltaMove = input.Position - clickStartPos
+            local moveDistance = math.sqrt(deltaMove.X^2 + deltaMove.Y^2)
+            
+            if moveDistance < 10 then
+                toggleRayfield()
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     task.wait(2)
