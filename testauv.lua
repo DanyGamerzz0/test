@@ -1,3 +1,13 @@
+if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+    game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
+    return
+end
+
+if game.PlaceId ~= 17899227840 and game.PlaceId ~= 133424448378099 then
+    game:GetService("Players").LocalPlayer:Kick("GAME NOT SUPPORTED!")
+    return
+end
+
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -92,19 +102,32 @@ local Window = Rayfield:CreateWindow({
 })
 
 local MacroTab = Window:CreateTab("Macro", "tv")
+local GameTab = Window:CreateTab("Game", "gamepad-2")
 
 local MacroStatusLabel = MacroTab:CreateLabel("Status: Ready")
 local detailedStatusLabel = MacroTab:CreateLabel("Details: Ready")
 
+task.wait(0.1)
+
+local function isInLobby()
+    local map = Services.Workspace:FindFirstChild("Map")
+    if map then
+        local lobby = map:FindFirstChild("Lobby")
+        return lobby ~= nil
+    end
+    return false
+end
+
 -- ============================================
 -- REPLICA & DATA MODULE SETUP
 -- ============================================
-
+if not isInLobby then
 local MainSharedFolder = Services.ReplicatedStorage:WaitForChild("MainSharedFolder")
 local ReplicaModule = require(MainSharedFolder.Modules.ReplicaModule)
 local ReplicaStore = ReplicaModule.ReplicaStore
 local DataModule = MainSharedFolder.Modules.DataModule
 local WaveManager = ReplicaStore.Get("WaveManagerReplica")
+end
 
 -- ============================================
 -- STATE MANAGEMENT
@@ -112,6 +135,11 @@ local WaveManager = ReplicaStore.Get("WaveManagerReplica")
 
 local State = {
     IgnoreTiming = false,
+    AutoRetry = false,
+    AutoNext = false,
+    AutoLobby = false,
+    AutoGameSpeed = false,
+    GameSpeed = 0,
 }
 local lastWave = 0
 local isAutoLoopEnabled =  false
@@ -128,11 +156,17 @@ local gameStartTime = 0
 
 -- Unit tracking for RECORDING
 local unitTrackedLevels = {}
+local unitUpgradeListeners = {}
 local recordingUnitCounter = {} -- Maps "UnitName" -> count (e.g., "Feral Beast" -> 2 means we've placed 2)
 local recordingUnitIDToTag = {} -- Maps unitID -> "UnitName #N" (e.g., 1383 -> "Feral Beast #1")
 
 -- Unit tracking for PLAYBACK
 local playbackUnitTagToID = {} -- Maps "UnitName #N" -> current game's unitID (e.g., "Feral Beast #1" -> 2891)
+local statusUpdateQueue = {
+    macroStatus = nil,
+    detailedStatus = nil,
+    toggleUpdate = nil
+}
 
 -- Upgrade validation
 local pendingUpgrades = {}
@@ -150,12 +184,252 @@ local function notify(title, content)
     })
 end
 
-local function updateDetailedStatus(message)
-    if detailedStatusLabel then
-        detailedStatusLabel:Set("Details: " .. message)
-    end
-    print("Macro Details: " .. message)
+local function updateMacroStatus(message)
+    --print("Macro Status: " .. tostring(message))
+    statusUpdateQueue.macroStatus = message
 end
+
+local function updateDetailedStatus(message)
+    --print("Macro Details: " .. tostring(message))
+    statusUpdateQueue.detailedStatus = message
+end
+
+local function ensureMacroFolders()
+    if not isfolder("LixHub") then
+        makefolder("LixHub")
+    end
+    if not isfolder("LixHub/Macros") then
+        makefolder("LixHub/Macros")
+    end
+    if not isfolder("LixHub/Macros/AUV") then
+        makefolder("LixHub/Macros/AUV")
+    end
+end
+
+local function getMacroFilename(name)
+    return "LixHub/Macros/AUV/" .. name .. ".json"
+end
+
+local function loadMacroFromFile(name)
+    local filePath = getMacroFilename(name)
+    if not isfile(filePath) then return nil end
+    
+    local json = readfile(filePath)
+    local data = Services.HttpService:JSONDecode(json)
+    macroManager[name] = data
+    return data
+end
+
+local function loadAllMacros()
+    ensureMacroFolders()
+    macroManager = {}
+    for _, file in ipairs(listfiles("LixHub/Macros/AUV/")) do
+        if file:match("%.json$") then
+            local name = file:match("([^/\\]+)%.json$")
+            loadMacroFromFile(name)
+        end
+    end
+end
+
+local function deleteMacroFile(name)
+    if isfile(getMacroFilename(name)) then
+        delfile(getMacroFilename(name))
+    end
+    macroManager[name] = nil
+end
+
+local function getMacroList()
+    local list = {}
+    for name in pairs(macroManager) do
+        table.insert(list, name)
+    end
+    table.sort(list)
+    return list
+end
+
+local function saveMacroToFile(name)
+    ensureMacroFolders()
+    local data = macroManager[name]
+    if not data then return end
+    
+    local json = Services.HttpService:JSONEncode(data)
+    writefile(getMacroFilename(name), json)
+end
+
+local function stopRecording()
+    if not isRecording then return end
+    
+    recordingHasStarted = false
+    isRecording = false
+    
+    -- Capture the data we need BEFORE any operations
+    local macroToSave = {}
+    for i, v in ipairs(macro) do
+        macroToSave[i] = v
+    end
+    local macroNameToSave = currentMacroName
+    
+    --print(string.format("Stopped recording. Recorded %d actions", #macroToSave))
+    
+    -- Schedule the file save operation to happen on main thread
+    if macroNameToSave and macroNameToSave ~= "" then
+        task.spawn(function()
+            Services.RunService.Heartbeat:Wait()
+            
+            pcall(function()
+                macroManager[macroNameToSave] = macroToSave
+                saveMacroToFile(macroNameToSave)
+                --print(string.format("✓ Saved macro file: %s (%d actions)", macroNameToSave, #macroToSave))
+            end)
+        end)
+    end
+    
+    statusUpdateQueue.macroStatus = "Recording stopped"
+    statusUpdateQueue.detailedStatus = "Recording stopped"
+    return macro
+end
+
+local RecordToggle = MacroTab:CreateToggle({
+    Name = "Record Macro",
+    CurrentValue = false,
+    Flag = "RecordMacro",
+    Callback = function(Value)
+        -- Don't set isRecording yet - validate first
+        if Value then
+            -- Check if macro is selected
+            if not currentMacroName or currentMacroName == "" then
+                -- Schedule notification
+                task.defer(function()
+                    Rayfield:Notify({
+                        Title = "Recording Error",
+                        Content = "Please select a macro first!",
+                        Duration = 3
+                    })
+                end)
+                
+                -- The toggle will reset itself since we're returning without setting isRecording
+                return
+            end
+
+            -- NOW it's safe to enable recording
+            isRecording = true
+
+            local currentWave = WaveManager and WaveManager.Data.Wave or 0
+            local inLobby = isInLobby()
+            
+            --print(string.format("🔍 Recording enabled - Current wave: %d, In lobby: %s", currentWave, tostring(inLobby)))
+            
+            if currentWave >= 1 and not inLobby then
+                -- We're mid-game! Start recording immediately
+                --print(string.format("🎮 Mid-game detected (Wave %d) - Starting recording NOW", currentWave))
+                
+                gameInProgress = true
+                gameStartTime = tick()
+                recordingHasStarted = true
+                
+                -- Clean up tracking tables
+                recordingUnitCounter = {}
+                recordingUnitIDToTag = {}
+                pendingUpgrades = {}
+                unitTrackedLevels = {}
+                macro = {}
+                
+                --print("✅ Recording started mid-game - " .. currentMacroName)
+                
+                updateMacroStatus("Recording... (Started mid-game)")
+                updateDetailedStatus(string.format("Recording in progress - %s (Wave %d)", currentMacroName, currentWave))
+                
+                task.defer(function()
+                    Rayfield:Notify({
+                        Title = "Recording Started!",
+                        Content = string.format("Mid-game recording: %s (Wave %d)", currentMacroName, currentWave),
+                        Duration = 4
+                    })
+                end)
+            else
+                -- We're in lobby - wait for wave 1
+                recordingHasStarted = false
+                
+                --print("Recording enabled - waiting for game to start")
+                
+                updateMacroStatus("Recording enabled - Waiting for game to start...")
+                updateDetailedStatus("Recording enabled - Waiting for game start...")
+                
+                task.defer(function()
+                    Rayfield:Notify({
+                        Title = "Recording Ready",
+                        Content = "Recording will start when game begins",
+                        Duration = 3
+                    })
+                end)
+            end
+            
+        else
+            -- Stop recording
+            if recordingHasStarted then
+                local actionCount = #macro
+                stopRecording()
+                
+                task.defer(function()
+                    Rayfield:Notify({
+                        Title = "Recording Stopped",
+                        Content = string.format("Saved %d actions", actionCount),
+                        Duration = 3
+                    })
+                end)
+            else
+                isRecording = false
+                
+                updateMacroStatus("Ready")
+                updateDetailedStatus("Ready")
+                
+                task.defer(function()
+                    Rayfield:Notify({
+                        Title = "Recording Disabled",
+                        Content = "Recording toggle turned off",
+                        Duration = 2
+                    })
+                end)
+            end
+        end
+    end
+})
+
+task.spawn(function()
+    while true do
+        Services.RunService.Heartbeat:Wait()
+        
+        -- Apply queued macro status update
+        if statusUpdateQueue.macroStatus and MacroStatusLabel then
+            local msg = statusUpdateQueue.macroStatus
+            statusUpdateQueue.macroStatus = nil
+            
+            pcall(function()
+                MacroStatusLabel:Set("Status: " .. tostring(msg))
+            end)
+        end
+        
+        -- Apply queued detailed status update
+        if statusUpdateQueue.detailedStatus and detailedStatusLabel then
+            local msg = statusUpdateQueue.detailedStatus
+            statusUpdateQueue.detailedStatus = nil
+            
+            pcall(function()
+                detailedStatusLabel:Set("Details: " .. tostring(msg))
+            end)
+        end
+        
+        -- Apply queued toggle update
+        if statusUpdateQueue.toggleUpdate ~= nil and RecordToggle then
+            local value = statusUpdateQueue.toggleUpdate
+            statusUpdateQueue.toggleUpdate = nil
+            
+            pcall(function()
+                RecordToggle:Set(value)
+            end)
+        end
+    end
+end)
 
 local function getPlayerMoney()
     local success, money = pcall(function()
@@ -212,21 +486,25 @@ local function calculateTotalUpgradeCost(unitName, startLevel, upgradeAmount)
     return totalCost
 end
 
+local function clearAllUpgradeListeners()
+    -- Just disconnect all connections immediately, don't spawn a task
+    for unitID, connection in pairs(unitUpgradeListeners) do
+        pcall(function()
+            connection:Disconnect()
+        end)
+        unitUpgradeListeners[unitID] = nil
+    end
+    
+    --print("🧹 Cleared all upgrade listeners")
+    unitTrackedLevels = {}
+end
+
 local function clearSpawnIdMappings()
     playbackUnitTagToID = {}
     recordingUnitCounter = {}
     recordingUnitIDToTag = {}
     pendingUpgrades = {}
-    unitTrackedLevels = {}
-end
-
-local function isInLobby()
-    local map = Services.Workspace:FindFirstChild("Map")
-    if map then
-        local lobby = map:FindFirstChild("Lobby")
-        return lobby ~= nil
-    end
-    return false
+    clearAllUpgradeListeners() -- Clear listeners instead of just tables
 end
 
 local function isGameActive()
@@ -355,14 +633,14 @@ local function restartMatch()
                         -- Use MouseButton1Down like in your working example
                         for _, connection in pairs(getconnections(actionButton.MouseButton1Down)) do
                             connection:Fire()
-                            print("🔄 Restarted Match")
+                            --print("🔄 Restarted Match")
                             return true
                         end
                     end
                 end
             end
         end
-        warn("⚠️ Could not find restart button")
+        --warn("⚠️ Could not find restart button")
         return false
     end)
     
@@ -372,6 +650,107 @@ local function restartMatch()
     end
     
     return result
+end
+
+local function startTrackingUnitUpgrades(unitID, unitTag, unitName)
+    -- If already tracking this unit, don't add duplicate listener
+    if unitUpgradeListeners[unitID] then
+        return
+    end
+    
+    local unit = getUnitByID(unitID)
+    if not unit then
+        return
+    end
+    
+    -- Initialize the tracked level
+    local currentLevel = getUnitUpgradeLevel(unitID)
+    unitTrackedLevels[unitID] = currentLevel
+    
+    --print(string.format("👀 Started tracking upgrades for %s (ID=%d, StartLevel=%d)", unitTag, unitID, currentLevel))
+    
+    -- Listen to changes in the Upgrade field
+    local connection = unit:ListenToChange("Upgrade", function(newLevel, oldLevel)
+        -- Only run during recording
+        if not isRecording or not recordingHasStarted or not gameInProgress then
+            return
+        end
+        
+        -- Safety check
+        if not recordingUnitIDToTag[unitID] then
+            return
+        end
+        
+        local lastLevel = unitTrackedLevels[unitID] or oldLevel or 0
+        newLevel = tonumber(newLevel) or 0
+        
+        -- Check if level actually increased
+        if newLevel > lastLevel then
+            -- Find matching pending upgrade
+            local foundPending = nil
+            for i = #pendingUpgrades, 1, -1 do
+                local pending = pendingUpgrades[i]
+                
+                if pending.unitID == unitID and 
+                   not pending.validated and
+                   pending.startLevel == lastLevel then
+                    foundPending = pending
+                    break
+                end
+            end
+            
+            if foundPending then
+                -- VALIDATED UPGRADE
+                local gameRelativeTime = foundPending.timestamp - gameStartTime
+                local upgradeAmount = newLevel - foundPending.startLevel
+                
+                local record = {
+                    Type = "upgrade_unit",
+                    Unit = foundPending.unitTag,
+                    Time = string.format("%.2f", gameRelativeTime)
+                }
+                
+                if upgradeAmount > 1 then
+                    record.Amount = upgradeAmount
+                    local totalCost = calculateTotalUpgradeCost(foundPending.unitName, foundPending.startLevel, upgradeAmount)
+                    if totalCost then
+                        record.UpgradeCost = totalCost
+                    end
+                else
+                    if foundPending.upgradeCost then
+                        record.UpgradeCost = foundPending.upgradeCost
+                    end
+                end
+                
+                table.insert(macro, record)
+                
+                --print(string.format("✅ Validated upgrade: %s (L%d->L%d, Cost=%d)", 
+                    --foundPending.unitTag, foundPending.startLevel, newLevel, record.UpgradeCost or 0))
+                
+                foundPending.validated = true
+            else
+                -- AUTO-UPGRADE (not from player action)
+                --print(string.format("🚫 Auto-upgrade: %s (L%d->L%d) - skipping", 
+                    --unitTag, lastLevel, newLevel))
+            end
+            
+            -- Update tracked level
+            unitTrackedLevels[unitID] = newLevel
+        end
+    end)
+    
+    -- Store the connection so we can disconnect it later
+    unitUpgradeListeners[unitID] = connection
+end
+
+local function stopTrackingUnitUpgrades(unitID)
+    local connection = unitUpgradeListeners[unitID]
+    if connection then
+        connection:Disconnect()
+        unitUpgradeListeners[unitID] = nil
+        unitTrackedLevels[unitID] = nil
+        --print(string.format("🛑 Stopped tracking unit ID %d", unitID))
+    end
 end
 
 -- ============================================
@@ -393,47 +772,63 @@ local generalHook = newcclosure(function(self, ...)
             
             -- PLACEMENT HOOK
             if method == "InvokeServer" and self.Name == "UnitPlace" then
-                local uuid = args[1]
-                local cframe = args[2]
-                
-                print(string.format("📝 Recording placement: UUID=%s at (%.1f, %.1f, %.1f)", 
-                    uuid, cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
-                
-                task.wait(0.5)
-                
-                local unitID, unitName = findLatestPlacedUnit(cframe, 5)
-                
-                if unitID and unitName then
-                    -- Increment counter for this unit type
-                    recordingUnitCounter[unitName] = (recordingUnitCounter[unitName] or 0) + 1
-                    local unitNumber = recordingUnitCounter[unitName]
-                    local unitTag = string.format("%s #%d", unitName, unitNumber)
-                    
-                    -- Track this unit
-                    recordingUnitIDToTag[unitID] = unitTag
-                    
-                    local placementCost = getUnitPlacementCost(unitName)
-                    
-                    -- Record to macro
-                    local record = {
-                        Type = "spawn_unit",
-                        Unit = unitTag,
-                        UUID = uuid,
-                        Time = string.format("%.2f", gameRelativeTime),
-                        Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
-                    }
-                    
-                    if placementCost then
-                        record.PlacementCost = placementCost
-                    end
-                    
-                    table.insert(macro, record)
-                    
-                    print(string.format("✓ Recorded: %s (ID=%d, Cost=%d)", 
-                        unitTag, unitID, placementCost or 0))
-                else
-                    warn("❌ Failed to find placed unit!")
-                end
+    local uuid = args[1]
+    local cframe = args[2]
+    
+    --print(string.format("📝 Recording placement: UUID=%s at (%.1f, %.1f, %.1f)", 
+        --uuid, cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
+    
+    task.wait(0.5)
+    
+    -- BUILD PROPER EXCLUDE LIST - all units we've already mapped
+    local excludeIDs = {}
+    for mappedUnitID, _ in pairs(recordingUnitIDToTag) do
+        excludeIDs[mappedUnitID] = true
+        --print(string.format("  Excluding already-mapped unit ID: %d", mappedUnitID))
+    end
+    
+    local unitID, unitName = findLatestPlacedUnit(cframe, 5, excludeIDs)
+    
+    if unitID and unitName then
+        -- Double-check we haven't already mapped this unit
+        if recordingUnitIDToTag[unitID] then
+            warn(string.format("⚠️ Unit ID %d was already mapped! Skipping duplicate.", unitID))
+            return
+        end
+        
+        -- Increment counter for this unit type
+        recordingUnitCounter[unitName] = (recordingUnitCounter[unitName] or 0) + 1
+        local unitNumber = recordingUnitCounter[unitName]
+        local unitTag = string.format("%s #%d", unitName, unitNumber)
+        
+        -- Track this unit
+        recordingUnitIDToTag[unitID] = unitTag
+        
+        local placementCost = getUnitPlacementCost(unitName)
+        
+        -- Record to macro
+        local record = {
+            Type = "spawn_unit",
+            Unit = unitTag,
+            UUID = uuid,
+            Time = string.format("%.2f", gameRelativeTime),
+            Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
+        }
+        
+        if placementCost then
+            record.PlacementCost = placementCost
+        end
+        
+        table.insert(macro, record)
+        
+        -- START TRACKING UPGRADES FOR THIS UNIT
+        startTrackingUnitUpgrades(unitID, unitTag, unitName)
+        
+        --print(string.format("✓ Recorded: %s (ID=%d, Cost=%d)", 
+            --unitTag, unitID, placementCost or 0))
+    else
+        warn("❌ Failed to find placed unit!")
+    end
             
             -- UPGRADE/SELL HOOK
             elseif method == "FireServer" and self.Name == "Replica_ReplicaSignal" then
@@ -460,8 +855,8 @@ local generalHook = newcclosure(function(self, ...)
                         validated = false
                     })
                     
-                    print(string.format("⏳ Upgrade fired: %s (ID=%d, L%d->L%d, Cost=%d)", 
-                        unitTag, unitID, currentLevel, currentLevel + 1, upgradeCost or 0))
+                    --print(string.format("⏳ Upgrade fired: %s (ID=%d, L%d->L%d, Cost=%d)", 
+                        --unitTag, unitID, currentLevel, currentLevel + 1, upgradeCost or 0))
                     
                 elseif action == "Sell" then
                     table.insert(macro, {
@@ -470,7 +865,10 @@ local generalHook = newcclosure(function(self, ...)
                         Time = string.format("%.2f", gameRelativeTime)
                     })
                     
-                    print(string.format("✓ Recorded sell: %s (ID=%d)", unitTag, unitID))
+                    --print(string.format("✓ Recorded sell: %s (ID=%d)", unitTag, unitID))
+                    
+                    -- STOP TRACKING THIS UNIT'S UPGRADES
+                    stopTrackingUnitUpgrades(unitID)
                     recordingUnitIDToTag[unitID] = nil
                 end
             end
@@ -487,113 +885,6 @@ setreadonly(mt, true)
 -- UPGRADE VALIDATION (Heartbeat Monitor)
 -- ============================================
 
-Services.RunService.Heartbeat:Connect(function()
-    -- CRITICAL: Only run when actively recording
-    if not isRecording or not recordingHasStarted or not gameInProgress then 
-        return 
-    end
-    
-    -- Safety check: ensure we have unit replicas
-    local unitReplicas = getUnitReplicaFolder()
-    if not unitReplicas then return end
-    
-    -- Create a list of units to check (to avoid modifying table during iteration)
-    local unitsToCheck = {}
-    for unitID, unitTag in pairs(recordingUnitIDToTag) do
-        table.insert(unitsToCheck, {id = unitID, tag = unitTag})
-    end
-    
-    -- Process each tracked unit
-    for _, unitData in ipairs(unitsToCheck) do
-        local unitID = unitData.id
-        local unitTag = unitData.tag
-        
-        -- Wrap everything in pcall to catch ANY errors
-        local success, err = pcall(function()
-            -- Verify unit still exists
-            local unit = getUnitByID(unitID)
-            if not unit or not unit.Data then
-                -- Unit no longer exists, clean up
-                recordingUnitIDToTag[unitID] = nil
-                unitTrackedLevels[unitID] = nil
-                return
-            end
-            
-            -- Get current level safely
-            local currentLevel = unit.Data.Upgrade or 0
-            
-            -- Initialize tracking if new unit
-            if not unitTrackedLevels[unitID] then
-                unitTrackedLevels[unitID] = currentLevel
-                return
-            end
-            
-            local lastLevel = unitTrackedLevels[unitID]
-            
-            -- Check if level increased
-            if currentLevel > lastLevel then
-                -- Find matching pending upgrade
-                local foundPending = nil
-                for i = #pendingUpgrades, 1, -1 do
-                    local pending = pendingUpgrades[i]
-                    
-                    if pending.unitID == unitID and 
-                       not pending.validated and
-                       pending.startLevel == lastLevel then
-                        foundPending = pending
-                        break
-                    end
-                end
-                
-                if foundPending then
-                    -- VALIDATED UPGRADE
-                    local gameRelativeTime = foundPending.timestamp - gameStartTime
-                    local upgradeAmount = currentLevel - foundPending.startLevel
-                    
-                    local record = {
-                        Type = "upgrade_unit",
-                        Unit = foundPending.unitTag,
-                        Time = string.format("%.2f", gameRelativeTime)
-                    }
-                    
-                    if upgradeAmount > 1 then
-                        record.Amount = upgradeAmount
-                        local totalCost = calculateTotalUpgradeCost(foundPending.unitName, foundPending.startLevel, upgradeAmount)
-                        if totalCost then
-                            record.UpgradeCost = totalCost
-                        end
-                    else
-                        if foundPending.upgradeCost then
-                            record.UpgradeCost = foundPending.upgradeCost
-                        end
-                    end
-                    
-                    table.insert(macro, record)
-                    
-                    print(string.format("✅ Validated upgrade: %s (L%d->L%d, Cost=%d)", 
-                        foundPending.unitTag, foundPending.startLevel, currentLevel, record.UpgradeCost or 0))
-                    
-                    foundPending.validated = true
-                else
-                    -- AUTO-UPGRADE (not from player action)
-                    print(string.format("🚫 Auto-upgrade: %s (L%d->L%d) - skipping", 
-                        unitTag, lastLevel, currentLevel))
-                end
-                
-                -- Update tracked level
-                unitTrackedLevels[unitID] = currentLevel
-            end
-        end)
-        
-        -- If ANY error occurred, clean up that unit
-        if not success then
-            warn(string.format("⚠️ Error tracking unit %s: %s", unitTag, tostring(err)))
-            recordingUnitIDToTag[unitID] = nil
-            unitTrackedLevels[unitID] = nil
-        end
-    end
-end)
-
 -- Expire unvalidated upgrades
 task.spawn(function()
     while true do
@@ -607,8 +898,8 @@ task.spawn(function()
                 local age = currentTime - pending.timestamp
                 
                 if not pending.validated and age > UPGRADE_VALIDATION_TIMEOUT then
-                    print(string.format("🚫 Expired upgrade: %s (likely auto-upgrade)", pending.unitTag))
-                    table.remove(pendingUpgrades, i)
+                    --print(string.format("🚫 Expired upgrade: %s (likely auto-upgrade)", pending.unitTag))
+                    --table.remove(pendingUpgrades, i)
                 end
             end
         else
@@ -630,16 +921,16 @@ local function waitForSufficientMoney(cost, actionDescription)
     
     if currentMoney >= cost then return true end
     
-    MacroStatusLabel:Set(string.format("Waiting for money (%d/%d)", currentMoney, cost))
+    updateMacroStatus(string.format("Waiting for money (%d/%d)", currentMoney, cost))
     updateDetailedStatus(string.format("Need $%d more for: %s", cost - currentMoney, actionDescription))
-    print(string.format("Need %d more money for: %s", cost - currentMoney, actionDescription))
+    --print(string.format("Need %d more money for: %s", cost - currentMoney, actionDescription))
     
     while getPlayerMoney() < cost and isPlaybacking do
         task.wait(0.5)
         local newMoney = getPlayerMoney()
         if newMoney ~= currentMoney then
             currentMoney = newMoney
-            MacroStatusLabel:Set(string.format("Waiting for money (%d/%d)", currentMoney, cost))
+            updateMacroStatus(string.format("Waiting for money (%d/%d)", currentMoney, cost))
             updateDetailedStatus(string.format("Need $%d more for: %s", cost - currentMoney, actionDescription))
         end
     end
@@ -687,10 +978,10 @@ local function findUnitIDByTag(unitTag)
 end
 
 local function executePlacementAction(action, actionIndex, totalActions)
-    MacroStatusLabel:Set(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
+    updateMacroStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
     updateDetailedStatus(string.format("(%d/%d) Placing %s...", actionIndex, totalActions, action.Unit))
-    print("=== EXECUTING PLACEMENT ===")
-    print("Unit Tag:", action.Unit)
+    --print("=== EXECUTING PLACEMENT ===")
+    --print("Unit Tag:", action.Unit)
     
     if action.PlacementCost then
         if not waitForSufficientMoney(action.PlacementCost, action.Unit) then
@@ -731,8 +1022,8 @@ local function executePlacementAction(action, actionIndex, totalActions)
     if unitID then
         -- Map this placement to the unit tag
         playbackUnitTagToID[action.Unit] = unitID
-        print(string.format("✓ Placed %s (ID=%d)", action.Unit, unitID))
-        MacroStatusLabel:Set(string.format("(%d/%d) Placed %s", actionIndex, totalActions, action.Unit))
+        --print(string.format("✓ Placed %s (ID=%d)", action.Unit, unitID))
+        updateMacroStatus(string.format("(%d/%d) Placed %s", actionIndex, totalActions, action.Unit))
         updateDetailedStatus(string.format("(%d/%d) Placed %s successfully", actionIndex, totalActions, action.Unit))
         return true
     end
@@ -743,10 +1034,10 @@ local function executePlacementAction(action, actionIndex, totalActions)
 end
 
 local function executeUnitUpgrade(action, actionIndex, totalActions)
-    MacroStatusLabel:Set(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
+    updateMacroStatus(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
     updateDetailedStatus(string.format("(%d/%d) Upgrading %s...", actionIndex, totalActions, action.Unit))
-    print("=== EXECUTING UPGRADE ===")
-    print("Unit Tag:", action.Unit)
+    --print("=== EXECUTING UPGRADE ===")
+    --print("Unit Tag:", action.Unit)
     
     local unitID = findUnitIDByTag(action.Unit)
     
@@ -761,7 +1052,7 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
     local maxLevel = getUnitMaxUpgradeLevel(unitName)
     
     if currentLevel >= maxLevel then
-        print(string.format("ℹ️ %s already at max level", action.Unit))
+        --print(string.format("ℹ️ %s already at max level", action.Unit))
         return true
     end
     
@@ -788,17 +1079,17 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
         task.wait(0.3)
     end
     
-    print(string.format("✓ Upgraded %s x%d times", action.Unit, upgradeAmount))
-    MacroStatusLabel:Set(string.format("(%d/%d) Upgraded %s", actionIndex, totalActions, action.Unit))
+    --print(string.format("✓ Upgraded %s x%d times", action.Unit, upgradeAmount))
+    updateMacroStatus(string.format("(%d/%d) Upgraded %s", actionIndex, totalActions, action.Unit))
     updateDetailedStatus(string.format("(%d/%d) Upgraded %s x%d", actionIndex, totalActions, action.Unit, upgradeAmount))
     return true
 end
 
 local function executeUnitSell(action, actionIndex, totalActions)
-    MacroStatusLabel:Set(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
+    updateMacroStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
     updateDetailedStatus(string.format("(%d/%d) Selling %s...", actionIndex, totalActions, action.Unit))
-    print("=== EXECUTING SELL ===")
-    print("Unit Tag:", action.Unit)
+    --print("=== EXECUTING SELL ===")
+    --print("Unit Tag:", action.Unit)
     
     local unitID = findUnitIDByTag(action.Unit)
     
@@ -815,8 +1106,8 @@ local function executeUnitSell(action, actionIndex, totalActions)
     
     if success then
         playbackUnitTagToID[action.Unit] = nil
-        print(string.format("✓ Sold %s", action.Unit))
-        MacroStatusLabel:Set(string.format("(%d/%d) Sold %s", actionIndex, totalActions, action.Unit))
+        --print(string.format("✓ Sold %s", action.Unit))
+        updateMacroStatus(string.format("(%d/%d) Sold %s", actionIndex, totalActions, action.Unit))
         updateDetailedStatus(string.format("(%d/%d) Sold %s", actionIndex, totalActions, action.Unit))
         return true
     end
@@ -832,8 +1123,8 @@ local function playMacroOnce()
         return false
     end
     
-    print("=== PLAYBACK STARTED ===")
-    MacroStatusLabel:Set("Status: Playing macro...")
+    --print("=== PLAYBACK STARTED ===")
+    updateMacroStatus("Status: Playing macro...")
     updateDetailedStatus("Starting macro playback...")
     
     -- Clear playback mappings
@@ -846,7 +1137,7 @@ local function playMacroOnce()
     
     for actionIndex, action in ipairs(macro) do
         if not isPlaybacking or not gameInProgress then
-            print("Playback stopped")
+            --print("Playback stopped")
             return false
         end
         
@@ -857,7 +1148,7 @@ local function playMacroOnce()
         if not State.IgnoreTiming then
             if currentTime < actionTime then
                 local waitTime = actionTime - currentTime
-                MacroStatusLabel:Set(string.format("(%d/%d) Waiting %.1fs...", actionIndex, #macro, waitTime))
+                updateMacroStatus(string.format("(%d/%d) Waiting %.1fs...", actionIndex, #macro, waitTime))
                 updateDetailedStatus(string.format("Waiting %.1fs for timing...", waitTime))
                 
                 local waitStart = tick()
@@ -884,9 +1175,9 @@ local function playMacroOnce()
         end
     end
     
-    MacroStatusLabel:Set("Status: Macro completed!")
+    updateMacroStatus("Status: Macro completed!")
     updateDetailedStatus("Macro completed successfully!")
-    print("=== PLAYBACK COMPLETED ===")
+    --print("=== PLAYBACK COMPLETED ===")
     notify("Playback", "Macro completed successfully!")
     return true
 end
@@ -901,33 +1192,31 @@ local function startGameTracking()
     gameInProgress = true
     gameStartTime = tick()
     
-    print("✓ GAME STARTED - Tracking initialized")
+    --print("✓ GAME STARTED - Tracking initialized")
     
     -- Auto-start recording if enabled
     if isRecording and not recordingHasStarted then
         recordingHasStarted = true
+        
+        -- SAFE CLEANUP
         recordingUnitCounter = {}
         recordingUnitIDToTag = {}
         pendingUpgrades = {}
-        table.clear(macro)
-        
-        MacroStatusLabel:Set("Status: Recording...")
+        unitTrackedLevels = {}
+        macro = {}
+
+        updateMacroStatus("Recording...")
         updateDetailedStatus("Recording in progress - " .. currentMacroName)
         
-        Rayfield:Notify({
-            Title = "Recording Started!",
-            Content = "Recording macro: " .. currentMacroName,
-            Duration = 3
-        })
-        
-        print("Recording started - " .. currentMacroName)
+        --print("✅ Recording started - " .. currentMacroName)
     end
     
     -- Auto-start playback if enabled
     if isPlaybacking then
-        print("Starting macro playback...")
-        MacroStatusLabel:Set("Status: Starting playback...")
+        --print("Starting macro playback...")
+        updateMacroStatus("Starting playback...")
         updateDetailedStatus("Starting playback...")
+        
         task.spawn(function()
             playMacroOnce()
         end)
@@ -935,131 +1224,106 @@ local function startGameTracking()
     
     -- If neither recording nor playback, just update status
     if not isRecording and not isPlaybacking then
-        MacroStatusLabel:Set("Status: Game started")
+        updateMacroStatus("Game started")
         updateDetailedStatus("Game in progress")
     end
 end
 
-local function stopRecording()
-    if not isRecording then return end
-    
-    recordingHasStarted = false
-    isRecording = false
-    
-    if currentMacroName and currentMacroName ~= "" then
-        macroManager[currentMacroName] = macro
-        saveMacroToFile(currentMacroName)
-        print(string.format("Recording saved: %s (%d actions)", currentMacroName, #macro))
-    end
-    
-    MacroStatusLabel:Set("Status: Recording stopped")
-    updateDetailedStatus("Recording stopped")
-    return macro
-end
-local RecordToggle
 local function stopGameTracking(gameResult)
     if not gameInProgress then return end
     
     local resultText = gameResult and gameResult.Completed and "WON" or "LOST"
     print(string.format("Game ended (%s)", resultText))
     
-    -- CRITICAL: Set gameInProgress to false FIRST to signal all loops to stop
     gameInProgress = false
     gameStartTime = 0
     
+    local wasRecording = isRecording and recordingHasStarted
+    local wasPlaybacking = isPlaybacking and isAutoLoopEnabled
+    
     -- AUTO-STOP RECORDING
-    if isRecording and recordingHasStarted then
+    if wasRecording then
         local actionCount = #macro
         stopRecording()
         
-        -- Schedule the toggle update for next frame to avoid callback issues
-        task.spawn(function()
-            task.wait(0.1)
-            if RecordToggle then
-                RecordToggle:Set(false)
-            end
+        -- Queue the toggle update to happen on main thread FIRST
+        statusUpdateQueue.toggleUpdate = false
+        
+        -- Queue status updates
+        statusUpdateQueue.macroStatus = "Recording saved - Ready"
+        statusUpdateQueue.detailedStatus = string.format("Saved %d actions to %s", actionCount, currentMacroName)
+        
+        task.defer(function()
+            Rayfield:Notify({
+                Title = "Recording Auto-Stopped",
+                Content = string.format("Saved %d actions to %s", actionCount, currentMacroName),
+                Duration = 4
+            })
         end)
         
-        MacroStatusLabel:Set("Status: Recording saved - Ready")
-        updateDetailedStatus(string.format("Saved %d actions to %s", actionCount, currentMacroName))
-        
-        Rayfield:Notify({
-            Title = "Recording Auto-Stopped",
-            Content = string.format("Saved %d actions to %s", actionCount, currentMacroName),
-            Duration = 4
-        })
-        
-        print(string.format("🛑 Recording stopped - saved %d actions", actionCount))
+        --print(string.format("🛑 Recording stopped - saved %d actions", actionCount))
     end
     
-    -- Update status for playback
-    if isPlaybacking and isAutoLoopEnabled then
-        print("Game ended - playback will restart on next game")
-        MacroStatusLabel:Set("Status: Game ended - waiting for next game...")
-        updateDetailedStatus("Game ended - waiting for next game")
+    if wasPlaybacking then
+        --print("Game ended - playback will restart on next game")
+        statusUpdateQueue.macroStatus = "Game ended - waiting for next game..."
+        statusUpdateQueue.detailedStatus = "Game ended - waiting for next game"
     end
     
-    -- Clean up tracking data (ADD unitTrackedLevels here!)
     recordingUnitCounter = {}
     recordingUnitIDToTag = {}
     playbackUnitTagToID = {}
     pendingUpgrades = {}
-    unitTrackedLevels = {}  -- ADD THIS LINE
+    unitTrackedLevels = {}
+    clearAllUpgradeListeners()
     
-    if not isRecording and not isPlaybacking then
-        MacroStatusLabel:Set("Status: Ready")
-        updateDetailedStatus("Ready")
+    if not wasRecording and not wasPlaybacking then
+        statusUpdateQueue.macroStatus = "Ready"
+        statusUpdateQueue.detailedStatus = "Ready"
     end
 end
+
 
 -- ============================================
 -- WAVE MANAGER LISTENERS
 -- ============================================
-
+if not isInLobby then
 WaveManager:ListenToChange("Wave", function(wave)
-    print(string.format("🌊 Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
+    --print(string.format("🌊 Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
     
-    -- Detect wave reset (restart was pressed)
     if wave < lastWave and gameInProgress then
-        print("🔄 Wave reset detected (restart pressed)")
+        --print("🔄 Wave reset detected (restart pressed)")
         
-        -- Stop current playback execution
         if isPlaybacking and isAutoLoopEnabled then
             gameInProgress = false
             gameStartTime = 0
-            
-            clearSpawnIdMappings()  -- This should clear unitTrackedLevels
-            
-            MacroStatusLabel:Set("Status: Game restarted - waiting for wave 1...")
-            updateDetailedStatus("Waiting for wave 1...")
-            print("⏸️ Playback stopped due to restart - waiting for next game")
+            clearSpawnIdMappings()
+            statusUpdateQueue.macroStatus = "Game restarted - waiting for game start..."
+            statusUpdateQueue.detailedStatus = "Waiting for game start..."
+            --print("⏸️ Playback stopped due to restart - waiting for next game")
         end
         
-        -- Stop recording if active
         if isRecording and recordingHasStarted then
             local actionCount = #macro
             stopRecording()
+            unitTrackedLevels = {}
             
-            -- IMPORTANT: Also clear unitTrackedLevels here
-            unitTrackedLevels = {}  -- ADD THIS LINE
+            statusUpdateQueue.macroStatus = "Recording saved - Ready"
+            statusUpdateQueue.detailedStatus = string.format("Saved %d actions (game restarted)", actionCount)
             
-            MacroStatusLabel:Set("Status: Recording saved - Ready")
-            updateDetailedStatus(string.format("Saved %d actions (game restarted)", actionCount))
+            task.defer(function()
+                Rayfield:Notify({
+                    Title = "Recording Stopped",
+                    Content = string.format("Game restarted - saved %d actions", actionCount),
+                    Duration = 3
+                })
+            end)
             
-            Rayfield:Notify({
-                Title = "Recording Stopped",
-                Content = string.format("Game restarted - saved %d actions", actionCount),
-                Duration = 3
-            })
-            
-            print("🛑 Recording stopped and saved due to restart")
-            
-            -- Reset recording state but keep toggle on
+            --print("🛑 Recording stopped and saved due to restart")
             recordingHasStarted = false
             
-            -- Show waiting message
-            MacroStatusLabel:Set("Status: Recording enabled - Waiting for game to start...")
-            updateDetailedStatus("Waiting for wave 1 to restart recording...")
+            statusUpdateQueue.macroStatus = "Recording enabled - Waiting for game to start..."
+            statusUpdateQueue.detailedStatus = "Waiting for game start to restart recording..."
         end
         
         lastWave = 0
@@ -1068,9 +1332,8 @@ WaveManager:ListenToChange("Wave", function(wave)
     
     lastWave = wave
     
-    -- Start game tracking on wave 1
     if wave == 1 and not gameInProgress then
-        print("🎮 Wave 1 detected - Starting game tracking")
+        --print("🎮 Wave 1 detected - Starting game tracking")
         startGameTracking()
     end
 end)
@@ -1082,71 +1345,180 @@ WaveManager:ConnectOnClientEvent(function(endData)
     lastWave = 0
 end)
 
--- ============================================
--- FILE OPERATIONS
--- ============================================
-
-local function ensureMacroFolders()
-    if not isfolder("LixHub") then
-        makefolder("LixHub")
-    end
-    if not isfolder("LixHub/Macros") then
-        makefolder("LixHub/Macros")
-    end
-    if not isfolder("LixHub/Macros/AUV") then
-        makefolder("LixHub/Macros/AUV")
-    end
-end
-
-local function getMacroFilename(name)
-    return "LixHub/Macros/AUV/" .. name .. ".json"
-end
-
-local function saveMacroToFile(name)
-    ensureMacroFolders()
-    local data = macroManager[name]
-    if not data then return end
+task.spawn(function()
+    local lastGameEndState = false
     
-    local json = Services.HttpService:JSONEncode(data)
-    writefile(getMacroFilename(name), json)
-end
-
-local function loadMacroFromFile(name)
-    local filePath = getMacroFilename(name)
-    if not isfile(filePath) then return nil end
-    
-    local json = readfile(filePath)
-    local data = Services.HttpService:JSONDecode(json)
-    macroManager[name] = data
-    return data
-end
-
-local function loadAllMacros()
-    ensureMacroFolders()
-    macroManager = {}
-    for _, file in ipairs(listfiles("LixHub/Macros/AUV/")) do
-        if file:match("%.json$") then
-            local name = file:match("([^/\\]+)%.json$")
-            loadMacroFromFile(name)
+    while true do
+        task.wait(0.5)
+        
+        local success, waveEndScreen = pcall(function()
+            return game:GetService("Players").LocalPlayer.PlayerGui.DefenseScreenFolder.WaveEndScreen
+        end)
+        
+        if success and waveEndScreen then
+            local waveEnd = waveEndScreen:FindFirstChild("WaveEnd")
+            local isVisible = waveEnd and waveEnd.Visible or false
+            
+            -- Game just ended (transitioned from hidden to visible)
+            if isVisible and not lastGameEndState then
+                lastGameEndState = true
+                
+                task.spawn(function()
+                    task.wait(1) -- Delay to ensure UI is ready
+                    
+                    -- Priority 1: Auto Retry (highest priority)
+                    if State.AutoRetry then
+                        print("Auto Retry enabled - Clicking Replay...")
+                        local success = pcall(function()
+                            local replayButton = game:GetService("Players").LocalPlayer.PlayerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Buttons.Replay
+                            
+                            if replayButton then
+                                for _, connection in pairs(getconnections(replayButton.MouseButton1Down)) do
+                                    connection:Fire()
+                                end
+                            end
+                        end)
+                        
+                        if success then
+                            notify("Auto Retry", "Replaying...", 3)
+                        end
+                        return
+                    end
+                    
+                    -- Priority 2: Auto Next
+                    if State.AutoNext then
+                        print("Auto Next enabled - Clicking Next...")
+                        local success = pcall(function()
+                            local nextButton = game:GetService("Players").LocalPlayer.PlayerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Buttons.Next
+                            
+                            if nextButton then
+                                for _, connection in pairs(getconnections(nextButton.MouseButton1Down)) do
+                                    connection:Fire()
+                                end
+                            end
+                        end)
+                        
+                        if success then
+                            notify("Auto Next", "Going to next level...", 3)
+                        end
+                        return
+                    end
+                    
+                    -- Priority 3: Auto Lobby (lowest priority)
+                    if State.AutoLobby then
+                        print("Auto Lobby enabled - Clicking Lobby...")
+                        local success = pcall(function()
+                            local lobbyButton = game:GetService("Players").LocalPlayer.PlayerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Buttons.Lobby
+                            
+                            if lobbyButton then
+                                for _, connection in pairs(getconnections(lobbyButton.MouseButton1Down)) do
+                                    connection:Fire()
+                                end
+                            end
+                        end)
+                        
+                        if success then
+                            notify("Auto Lobby", "Returning to lobby...", 3)
+                        end
+                        return
+                    end
+                end)
+            end
+            
+            -- Game ended screen is no longer visible
+            if not isVisible and lastGameEndState then
+                lastGameEndState = false
+            end
         end
     end
+end)
 end
 
-local function deleteMacroFile(name)
-    if isfile(getMacroFilename(name)) then
-        delfile(getMacroFilename(name))
+
+local AutoRetryToggle = GameTab:CreateToggle({
+    Name = "Auto Retry",
+    CurrentValue = false,
+    Flag = "AutoRetry",
+    Callback = function(Value)
+        State.AutoRetry = Value
+    end,
+})
+
+local AutoNextToggle = GameTab:CreateToggle({
+    Name = "Auto Next",
+    CurrentValue = false,
+    Flag = "AutoNext",
+    Callback = function(Value)
+        State.AutoNext = Value
+    end,
+})
+
+local AutoLobbyToggle = GameTab:CreateToggle({
+    Name = "Auto Lobby",
+    CurrentValue = false,
+    Flag = "AutoLobby",
+    Callback = function(Value)
+        State.AutoLobby = Value
+    end,
+})
+
+local AutoGameSpeedToggle = GameTab:CreateToggle({
+    Name = "Auto Game Speed",
+    CurrentValue = false,
+    Flag = "AutoGameSpeed",
+    Callback = function(Value)
+        State.AutoGameSpeed = Value
+    end,
+})
+
+local GameSpeedSelector = GameTab:CreateDropdown({
+    Name = "Game Speed Selector",
+    Options = {"1x", "2x", "3x"},
+    CurrentOption = {"1x"},
+    MultipleOptions = false,
+    Flag = "GameSpeed",
+    Info = "Select the game speed value",
+    Callback = function(Options)
+        local selected = Options[1]
+        if selected == "1x" then
+            State.GameSpeed = 1
+        elseif selected == "2x" then
+            State.GameSpeed = 2
+        elseif selected == "3x" then
+            State.GameSpeed = 3
+        end
+    end,
+})
+
+local function applyGameSpeed(speed)
+    local speedStr = tostring(speed)
+    
+    local success = pcall(function()
+        local speedButton = game:GetService("Players").LocalPlayer.PlayerGui.DefenseScreenFolder.WaveScreen.WaveTop.Speed.Buttons[speedStr]
+        
+        if speedButton then
+            for _, connection in pairs(getconnections(speedButton.MouseButton1Down)) do
+                connection:Fire()
+            end
+            print(string.format("Applied game speed: %sx", speedStr))
+        end
+    end)
+    
+    if not success then
+        warn("Failed to apply game speed")
     end
-    macroManager[name] = nil
 end
 
-local function getMacroList()
-    local list = {}
-    for name in pairs(macroManager) do
-        table.insert(list, name)
+-- Apply game speed continuously when enabled
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        if State.AutoGameSpeed and State.GameSpeed then
+            applyGameSpeed(State.GameSpeed)
+        end
     end
-    table.sort(list)
-    return list
-end
+end)
 
 local MacroDropdown = MacroTab:CreateDropdown({
     Name = "Select Macro",
@@ -1158,7 +1530,7 @@ local MacroDropdown = MacroTab:CreateDropdown({
         currentMacroName = name
         if name and macroManager[name] then
             macro = macroManager[name]
-            print("Selected:", name, "with", #macro, "actions")
+            --print("Selected:", name, "with", #macro, "actions")
         end
     end,
 })
@@ -1227,63 +1599,8 @@ local function startRecordingNow()
     trackedUnits = {}
     
     updateStatusWithDetails("Recording...")
-    print("Recording started")
+    --print("Recording started")
 end
-
-local RecordToggle = MacroTab:CreateToggle({
-    Name = "Record Macro",
-    CurrentValue = false,
-    Flag = "RecordMacro",
-    Callback = function(Value)
-        isRecording = Value
-
-        if Value then
-            -- Check if macro is selected
-            if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({
-                    Title = "Recording Error",
-                    Content = "Please select a macro first!",
-                    Duration = 3
-                })
-                isRecording = false
-                return
-            end
-
-            -- Don't start recording immediately - wait for game to start
-            recordingHasStarted = false
-            MacroStatusLabel:Set("Status: Recording enabled - Waiting for game to start...")
-            updateDetailedStatus("Recording enabled - Waiting for wave 1...")
-            
-            Rayfield:Notify({
-                Title = "Recording Ready",
-                Content = "Recording will start when game begins (Wave 1)",
-                Duration = 3
-            })
-            
-            print("Recording enabled - waiting for game to start")
-            
-        else
-            -- Stop recording
-            if recordingHasStarted then
-                stopRecording()
-                Rayfield:Notify({
-                    Title = "Recording Stopped",
-                    Content = string.format("Saved %d actions", #macro),
-                    Duration = 3
-                })
-            else
-                isRecording = false
-                MacroStatusLabel:Set("Status: Ready")
-                updateDetailedStatus("Ready")
-                Rayfield:Notify({
-                    Title = "Recording Disabled",
-                    Content = "Recording toggle turned off",
-                    Duration = 2
-                })
-            end
-        end
-    end
-})
 
 local function autoPlaybackLoop()
     if playbackLoopRunning then
@@ -1292,19 +1609,19 @@ local function autoPlaybackLoop()
     end
     
     playbackLoopRunning = true
-    print("=== PLAYBACK LOOP STARTED (INFINITE) ===")
+    --print("=== PLAYBACK LOOP STARTED (INFINITE) ===")
     
     while isAutoLoopEnabled and isPlaybacking do
         -- Wait until we're in an active game (not lobby, not intermission)
         while (isInLobby() or not isGameActive()) and isAutoLoopEnabled and isPlaybacking do
-            MacroStatusLabel:Set("Status: Playback - Waiting for game to start...")
+            updateMacroStatus("Status: Playback - Waiting for game to start...")
             updateDetailedStatus("Waiting for game to start...")
             task.wait(0.5)
         end
         
         -- Check if playback was disabled while waiting
         if not isAutoLoopEnabled or not isPlaybacking then 
-            print("Playback disabled, stopping loop")
+            --print("Playback disabled, stopping loop")
             break 
         end
         
@@ -1315,7 +1632,7 @@ local function autoPlaybackLoop()
         end
         
         if not currentMacroName or currentMacroName == "" then
-            MacroStatusLabel:Set("Status: Error - No macro selected!")
+            updateMacroStatus("Status: Error - No macro selected!")
             updateDetailedStatus("Error - No macro selected!")
             Rayfield:Notify({
                 Title = "Playback Error",
@@ -1327,7 +1644,7 @@ local function autoPlaybackLoop()
         
         local loadedMacro = loadMacroFromFile(currentMacroName)
         if not loadedMacro or #loadedMacro == 0 then
-            MacroStatusLabel:Set("Status: Error - Failed to load macro!")
+            updateMacroStatus("Status: Error - Failed to load macro!")
             updateDetailedStatus("Error - Failed to load macro!")
             Rayfield:Notify({
                 Title = "Playback Error",
@@ -1341,7 +1658,7 @@ local function autoPlaybackLoop()
         
         clearSpawnIdMappings()
         
-        MacroStatusLabel:Set("Status: Playback - Executing (" .. #macro .. " actions)...")
+        updateMacroStatus("Status: Playback - Executing (" .. #macro .. " actions)...")
         updateDetailedStatus("Starting playback: " .. currentMacroName)
         Rayfield:Notify({
             Title = "Playback Started",
@@ -1356,7 +1673,7 @@ local function autoPlaybackLoop()
             -- Only update status if we're still in playback mode
             if isPlaybacking and isAutoLoopEnabled then
                 if completed then
-                    MacroStatusLabel:Set("Status: Macro completed - waiting for next game...")
+                    updateMacroStatus("Status: Macro completed - waiting for next game...")
                     updateDetailedStatus("Macro completed successfully - waiting for next game")
                     Rayfield:Notify({
                         Title = "Playback Complete",
@@ -1364,7 +1681,7 @@ local function autoPlaybackLoop()
                         Duration = 3
                     })
                 else
-                    MacroStatusLabel:Set("Status: Game ended - waiting for next game...")
+                    updateMacroStatus("Status: Game ended - waiting for next game...")
                     updateDetailedStatus("Game ended mid-macro - waiting for next game")
                     Rayfield:Notify({
                         Title = "Game Ended",
@@ -1382,7 +1699,7 @@ local function autoPlaybackLoop()
         
         -- If game ended, wait a bit for cleanup
         if not isGameActive() then
-            print("Game ended - waiting for playback thread to finish cleanup...")
+            --print("Game ended - waiting for playback thread to finish cleanup...")
             task.wait(1) -- Give playback thread time to clean up
         end
         
@@ -1392,15 +1709,15 @@ local function autoPlaybackLoop()
         task.wait(2)
     end
     
-    MacroStatusLabel:Set("Status: Playback Stopped")
+    updateMacroStatus("Status: Playback Stopped")
     updateDetailedStatus("Playback loop ended")
     isPlaybacking = false
     playbackLoopRunning = false
-    print("=== PLAYBACK LOOP ENDED ===")
+    --print("=== PLAYBACK LOOP ENDED ===")
 end
 
 local PlayToggle = MacroTab:CreateToggle({
-    Name = "Playback Macro (Infinite Loop)",
+    Name = "Playback Macro",
     CurrentValue = false,
     Flag = "PlayBackMacro",
     Callback = function(Value)
@@ -1434,7 +1751,7 @@ local PlayToggle = MacroTab:CreateToggle({
 
             -- CRITICAL: Check if already running BEFORE setting flags
             if playbackLoopRunning then
-                print("⚠️ Playback loop already running, ignoring duplicate start")
+                --print("⚠️ Playback loop already running, ignoring duplicate start")
                 return
             end
 
@@ -1450,9 +1767,7 @@ local PlayToggle = MacroTab:CreateToggle({
                         Content = "Restarting game for accurate playback...",
                         Duration = 4
                     })
-                    pcall(function()
                         restartMatch()
-                    end)
                     -- Reset game state after requesting restart
                     gameInProgress = false
                     gameStartTime = 0
@@ -1466,10 +1781,10 @@ local PlayToggle = MacroTab:CreateToggle({
             isAutoLoopEnabled = true
             isPlaybacking = true
             
-            MacroStatusLabel:Set("Status: Playback Enabled - Waiting for game...")
+            updateMacroStatus("Status: Playback Enabled - Waiting for game...")
             Rayfield:Notify({
                 Title = "Playback Enabled",
-                Content = "Macro will loop infinitely. Loaded: " .. currentMacroName,
+                Content = "Loaded: " .. currentMacroName,
                 Duration = 4
             })
 
@@ -1494,10 +1809,10 @@ local PlayToggle = MacroTab:CreateToggle({
                 playbackLoopRunning = false
             end
             
-            MacroStatusLabel:Set("Status: Playback Disabled")
+            updateMacroStatus("Status: Playback Disabled")
             Rayfield:Notify({
                 Title = "Playback Disabled",
-                Content = "Stopped infinite playback loop",
+                Content = "Stopped playback",
                 Duration = 3
             })
         end
@@ -1534,10 +1849,10 @@ local ExportButton = MacroTab:CreateButton({
             setclipboard(json)
             notify("Export Success", string.format("Copied %s (%d actions)", currentMacroName, #macroData))
         else
-            print("=== MACRO JSON ===")
-            print(json)
-            print("=== END ===")
-            notify("Export", "JSON printed to console")
+            --print("=== MACRO JSON ===")
+            --print(json)
+            --print("=== END ===")
+            --notify("Export", "JSON printed to console")
         end
     end,
 })
@@ -1616,7 +1931,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
         
         local unitList = {}
         for unitName, count in pairs(unitCounts) do
-            table.insert(unitList, string.format("%s x%d", unitName, count))
+            table.insert(unitList, string.format("%s", unitName))
         end
         
         if #unitList > 0 then
@@ -1624,7 +1939,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
             local displayText = table.concat(unitList, ", ")
             
             notify("Macro Units", displayText)
-            print("=== MACRO UNITS ===")
+            --print("=== MACRO UNITS ===")
             for _, line in ipairs(unitList) do
                 print(line)
             end
@@ -1661,9 +1976,9 @@ task.spawn(function()
         if loadedMacro then
             macro = loadedMacro
             macroManager[currentMacroName] = loadedMacro
-            print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
+            --print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
         else
-            print("Could not load saved macro:", savedMacroName)
+            --print("Could not load saved macro:", savedMacroName)
         end
     end
     
@@ -1680,14 +1995,12 @@ task.spawn(function()
             -- Check if we need to restart mid-game
             local currentWave = WaveManager and WaveManager.Data.Wave or 0
             if not isInLobby() and currentWave >= 1 then
-                print("Mid-Round detected on restore, requesting restart...")
-                pcall(function()
+                --print("Mid-Round detected on restore, requesting restart...")
                     restartMatch()
-                end)
             end
             
             task.spawn(autoPlaybackLoop)
-            MacroStatusLabel:Set("Status: Playback restored - waiting for game")
+            updateMacroStatus("Status: Playback restored - waiting for game")
             
             Rayfield:Notify({
                 Title = "Playback Restored",
@@ -1695,9 +2008,9 @@ task.spawn(function()
                 Duration = 3
             })
             
-            print(string.format("Playback restored: %s (%d actions)", currentMacroName, #macro))
+            --print(string.format("Playback restored: %s (%d actions)", currentMacroName, #macro))
         else
-            print("Playback loop already running, skipping restore")
+            --print("Playback loop already running, skipping restore")
         end
     end
 end)
