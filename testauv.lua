@@ -1,4 +1,4 @@
---pipi4
+--pipi5
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1387,7 +1387,7 @@ end
                     local replayButton = waveEnd.Buttons:FindFirstChild("Replay")
                     
                     if replayButton then
-                        for _, connection in pairs(getconnections(replayButton.MouseButton1Down)) do
+                        for _, connection in pairs(getconnections(replayButton.Activated)) do
                             connection:Fire()
                         end
                     end
@@ -1403,7 +1403,7 @@ end
                     local nextButton = waveEnd.Buttons:FindFirstChild("Next")
                     
                     if nextButton then
-                        for _, connection in pairs(getconnections(nextButton.MouseButton1Down)) do
+                        for _, connection in pairs(getconnections(nextButton.Activated)) do
                             connection:Fire()
                         end
                     end
@@ -1419,7 +1419,7 @@ end
                     local lobbyButton = waveEnd.Buttons:FindFirstChild("Lobby")
                     
                     if lobbyButton then
-                        for _, connection in pairs(getconnections(lobbyButton.MouseButton1Down)) do
+                        for _, connection in pairs(getconnections(lobbyButton.Activated)) do
                             connection:Fire()
                         end
                     end
@@ -1440,8 +1440,18 @@ end
     end)
     end
 
+     AutoRetryToggle = GameTab:CreateToggle({
+        Name = "Auto Start",
+        CurrentValue = false,
+        Flag = "AutoStart",
+        Callback = function(Value)
+            if Value then
+                game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Start", true)
+            end
+        end,
+    })
 
-    local AutoRetryToggle = GameTab:CreateToggle({
+     AutoRetryToggle = GameTab:CreateToggle({
         Name = "Auto Retry",
         CurrentValue = false,
         Flag = "AutoRetry",
@@ -1450,7 +1460,7 @@ end
         end,
     })
 
-    local AutoNextToggle = GameTab:CreateToggle({
+     AutoNextToggle = GameTab:CreateToggle({
         Name = "Auto Next",
         CurrentValue = false,
         Flag = "AutoNext",
@@ -1459,7 +1469,7 @@ end
         end,
     })
 
-    local AutoLobbyToggle = GameTab:CreateToggle({
+     AutoLobbyToggle = GameTab:CreateToggle({
         Name = "Auto Lobby",
         CurrentValue = false,
         Flag = "AutoLobby",
@@ -1468,65 +1478,27 @@ end
         end,
     })
 
-    local AutoGameSpeedToggle = GameTab:CreateToggle({
+         AutoLobbyToggle = GameTab:CreateToggle({
+        Name = "Auto Skip Waves",
+        CurrentValue = false,
+        Flag = "AutoSkipWaves",
+        Callback = function(Value)
+            if Value then
+                game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto-Skip Waves", true)
+            end
+        end,
+    })
+
+     AutoGameSpeedToggle = GameTab:CreateToggle({
         Name = "Auto Game Speed",
         CurrentValue = false,
         Flag = "AutoGameSpeed",
         Callback = function(Value)
-            State.AutoGameSpeed = Value
-        end,
-    })
-
-    local GameSpeedSelector = GameTab:CreateDropdown({
-        Name = "Game Speed Selector",
-        Options = {"1x", "2x", "3x"},
-        CurrentOption = {"1x"},
-        MultipleOptions = false,
-        Flag = "GameSpeed",
-        Info = "Select the game speed value",
-        Callback = function(Options)
-            local selected = Options[1]
-            if selected == "1x" then
-                State.GameSpeed = 1
-            elseif selected == "2x" then
-                State.GameSpeed = 2
-            elseif selected == "3x" then
-                State.GameSpeed = 3
+            if Value then
+                game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Speed",true)
             end
         end,
     })
-
-    local function applyGameSpeed(speed)
-        local speedStr = tostring(speed)
-        
-        local success = pcall(function()
-            local speedButton = game:GetService("Players").LocalPlayer.PlayerGui.DefenseScreenFolder.WaveScreen.WaveTop.Speed.Buttons[speedStr]
-            
-            if speedButton then
-                for _, connection in pairs(getconnections(speedButton.Activated)) do
-                    connection:Fire()
-                end
-                print(string.format("Applied game speed: %sx", speedStr))
-            end
-        end)
-        
-        if not success then
-            warn("Failed to apply game speed")
-        end
-    end
-
-    -- Apply game speed continuously when enabled
-    task.spawn(function()
-        while true do
-            task.wait(0.5)
-            
-            if State.AutoGameSpeed and State.GameSpeed then
-                if not isInLobby() then
-                applyGameSpeed(State.GameSpeed)
-                end
-            end
-        end
-    end)
 
     local MacroDropdown = MacroTab:CreateDropdown({
         Name = "Select Macro",
