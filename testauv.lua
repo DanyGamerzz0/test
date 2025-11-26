@@ -1,4 +1,4 @@
---pipi3
+--pipi4
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -124,13 +124,21 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
     -- ============================================
     -- REPLICA & DATA MODULE SETUP
     -- ============================================
-    if not isInLobby() then
-    local MainSharedFolder = Services.ReplicatedStorage:WaitForChild("MainSharedFolder")
-    local ReplicaModule = require(MainSharedFolder.Modules.ReplicaModule)
-    local ReplicaStore = ReplicaModule.ReplicaStore
-    local DataModule = MainSharedFolder.Modules.DataModule
-    local WaveManager = ReplicaStore.Get("WaveManagerReplica")
-    end
+local MainSharedFolder
+local ReplicaModule
+local ReplicaStore
+local DataModule
+local WaveManager
+
+if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
+    MainSharedFolder = Services.ReplicatedStorage:FindFirstChild("MainSharedFolder")
+    ReplicaModule = require(MainSharedFolder.Modules.ReplicaModule)
+    ReplicaStore = ReplicaModule.ReplicaStore
+    DataModule = MainSharedFolder.Modules.DataModule
+    WaveManager = ReplicaStore.Get("WaveManagerReplica")
+    print("✓ Replicas loaded")
+end
+
 
     -- ============================================
     -- STATE MANAGEMENT
