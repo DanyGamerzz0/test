@@ -1,4 +1,4 @@
---pipi9
+--pipi10
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -130,6 +130,7 @@ local ReplicaStore
 local DataModule
 local WaveManager
 
+if game.PlaceId ~= 17899227840 then
 if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
     MainSharedFolder = Services.ReplicatedStorage:FindFirstChild("MainSharedFolder")
     
@@ -171,7 +172,7 @@ if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
 else
     warn("[-] MainSharedFolder not found in ReplicatedStorage")
 end
-
+end
 
     -- ============================================
     -- STATE MANAGEMENT
