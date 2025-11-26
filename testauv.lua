@@ -1,4 +1,4 @@
---pipi10
+--pipi11
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -18,10 +18,6 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
     }
 
     local LocalPlayer = Services.Players.LocalPlayer
-
-    -- ============================================
-    -- RAYFIELD UI SETUP
-    -- ============================================
 
     local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
@@ -1428,62 +1424,76 @@ end
             
             task.wait(1) -- Delay to ensure UI is fully ready
             
-            -- Priority 1: Auto Retry (highest priority)
-            if State.AutoRetry then
-                print("Auto Retry enabled - Clicking Replay...")
-                local success = pcall(function()
-                    local replayButton = waveEnd.Buttons:FindFirstChild("Replay")
-                    
-                    if replayButton then
-                        for _, connection in pairs(getconnections(replayButton.Activated)) do
-                            connection:Fire()
-                        end
-                    end
-                end)
-                
-                if success then
-                    notify("Auto Retry", "Replaying...", 3)
-                end
-            -- Priority 2: Auto Next
-            elseif State.AutoNext then
-                print("Auto Next enabled - Clicking Next...")
-                local success = pcall(function()
-                    local nextButton = waveEnd.Buttons:FindFirstChild("Next")
-                    
-                    if nextButton then
-                        for _, connection in pairs(getconnections(nextButton.Activated)) do
-                            connection:Fire()
-                        end
-                    end
-                end)
-                
-                if success then
-                    notify("Auto Next", "Going to next level...", 3)
-                end
-            -- Priority 3: Auto Lobby (lowest priority)
-            elseif State.AutoLobby then
-                print("Auto Lobby enabled - Clicking Lobby...")
-                local success = pcall(function()
-                    local lobbyButton = waveEnd.Buttons:FindFirstChild("Lobby")
-                    
-                    if lobbyButton then
-                        for _, connection in pairs(getconnections(lobbyButton.Activated)) do
-                            connection:Fire()
-                        end
-                    end
-                end)
-                
-                if success then
-                    notify("Auto Lobby", "Returning to lobby...", 3)
-                end
+if State.AutoRetry then
+    print("Auto Retry enabled - Clicking Replay...")
+    local success = pcall(function()
+        local replayButton = waveEnd.Buttons:FindFirstChild("Replay")
+        
+        if replayButton then
+            for _, connection in pairs(getconnections(replayButton.Activated)) do
+                connection:Fire()
             end
-            
-            -- Wait for WaveEndScreen to be destroyed (when leaving screen)
-            repeat
-                task.wait(0.5)
-            until waveEndScreen.Visible == false
-            
-            print("waiting for next game...")
+        end
+    end)
+    
+    if success then
+        notify("Auto Retry", "Replaying...", 3)
+        
+        -- Reset game state immediately
+        gameInProgress = false
+        gameStartTime = 0
+        clearSpawnIdMappings()
+        
+        if isPlaybacking and isAutoLoopEnabled then
+            updateMacroStatus("Auto Retry - Waiting for next game...")
+            updateDetailedStatus("Game restarted - waiting for wave 1...")
+        end
+    end
+    
+-- Priority 2: Auto Next
+elseif State.AutoNext then
+    print("Auto Next enabled - Clicking Next...")
+    local success = pcall(function()
+        local nextButton = waveEnd.Buttons:FindFirstChild("Next")
+        
+        if nextButton then
+            for _, connection in pairs(getconnections(nextButton.Activated)) do
+                connection:Fire()
+            end
+        end
+    end)
+    
+    if success then
+        notify("Auto Next", "Going to next level...", 3)
+        
+        -- Reset game state
+        gameInProgress = false
+        gameStartTime = 0
+        clearSpawnIdMappings()
+    end
+    
+-- Priority 3: Auto Lobby (lowest priority)
+elseif State.AutoLobby then
+    print("Auto Lobby enabled - Clicking Lobby...")
+    local success = pcall(function()
+        local lobbyButton = waveEnd.Buttons:FindFirstChild("Lobby")
+        
+        if lobbyButton then
+            for _, connection in pairs(getconnections(lobbyButton.Activated)) do
+                connection:Fire()
+            end
+        end
+    end)
+    
+    if success then
+        notify("Auto Lobby", "Returning to lobby...", 3)
+        
+        -- Reset game state
+        gameInProgress = false
+        gameStartTime = 0
+        clearSpawnIdMappings()
+    end
+end
         end
     end)
     end
