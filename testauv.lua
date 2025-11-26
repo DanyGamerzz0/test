@@ -1,4 +1,4 @@
---pipi6
+--pipi7
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1459,9 +1459,7 @@ end
         CurrentValue = false,
         Flag = "AutoStart",
         Callback = function(Value)
-            if Value then
-                game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Start", true)
-            end
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Start", Value)
         end,
     })
 
@@ -1497,9 +1495,7 @@ end
         CurrentValue = false,
         Flag = "AutoSkipWaves",
         Callback = function(Value)
-            if Value then
-                game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto-Skip Waves", true)
-            end
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto-Skip Waves", Value)
         end,
     })
 
@@ -1508,9 +1504,7 @@ end
         CurrentValue = false,
         Flag = "AutoGameSpeed",
         Callback = function(Value)
-            if Value then
-                game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Speed",true)
-            end
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Speed", Value)
         end,
     })
 
