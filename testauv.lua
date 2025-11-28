@@ -1,5 +1,4 @@
---polilililepes2
-if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+    if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
     end
@@ -1529,9 +1528,6 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo, gameDurat
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         
         -- FIX: Format duration properly
-        local minutes = math.floor(gameDuration / 60)
-        local seconds = math.floor(gameDuration % 60)
-        local formattedTime = string.format("%02d:%02d", minutes, seconds)
         
         -- FIX: Format rewards text properly
         local rewardsText = ""
@@ -1561,7 +1557,7 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo, gameDurat
         -- Build fields array
         local fields = {
             { name = "Player", value = playerName, inline = true },
-            { name = "Duration", value = formattedTime, inline = true },
+            { name = "Duration", value = gameDuration, inline = true },
             { name = "Waves Completed", value = tostring(currentWave), inline = true },
             { name = "Rewards", value = rewardsText, inline = false },
         }
