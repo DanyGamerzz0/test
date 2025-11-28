@@ -1,4 +1,4 @@
---poliperes2
+--polilililepes2
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1454,12 +1454,16 @@ local function captureGameInfo()
     local gameInfo = {
         Act = nil,
         Map = nil,
-        Mode = nil
+        Mode = nil,
+        Duration = nil
     }
     
     local success = pcall(function()
         local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
-        local infoFrame = playerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Info
+        local waveEnd = playerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd
+        
+        -- Capture game info
+        local infoFrame = waveEnd.Info
         
         -- Capture Act
         local actLabel = infoFrame:FindFirstChild("Act")
@@ -1477,6 +1481,19 @@ local function captureGameInfo()
         local modeLabel = infoFrame:FindFirstChild("Mode")
         if modeLabel and modeLabel:IsA("TextLabel") then
             gameInfo.Mode = modeLabel.Text
+        end
+        
+        -- ✅ Capture Duration from UI
+        local statsFrame = waveEnd:FindFirstChild("Stats")
+        if statsFrame then
+            local playTime = statsFrame:FindFirstChild("PlayTime")
+            if playTime then
+                local valueLabel = playTime:FindFirstChild("Value")
+                if valueLabel and valueLabel:IsA("TextLabel") then
+                    gameInfo.Duration = valueLabel.Text
+                    print(string.format("✅ Captured duration from UI: %s", gameInfo.Duration))
+                end
+            end
         end
     end)
     
@@ -1669,19 +1686,15 @@ end
         -- Game just ended!
         print("Game ended - WaveEndScreen is now visible")
         
-        task.wait(2.5) -- Delay to ensure UI is fully ready
-
-        local gameDuration = 0
-if gameStartTime > 0 then
-    gameDuration = tick() - gameStartTime
-else
-    warn("⚠️ gameStartTime was not set properly!")
-end
+        task.wait(2) -- Delay to ensure UI is fully ready
 
         local rewards = captureGameRewards()
         local gameInfo = captureGameInfo()
         lastGameRewards = rewards
         local gameResult = false
+
+        local gameDuration = gameInfo.Duration or "00:00"
+
 local success = pcall(function()
     local winFrame = waveEnd:FindFirstChild("Win")
     local lostFrame = waveEnd:FindFirstChild("Lost")
