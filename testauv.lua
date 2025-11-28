@@ -1,4 +1,5 @@
-    if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+--pipierson
+if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
     end
@@ -1474,7 +1475,7 @@ local function sendWebhook(messageType, rewards, gameResult)
     
     local success, response = pcall(function()
         return requestFunc({
-            Url = State.WebhookURL,
+            Url = ValidWebhook,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = payload
