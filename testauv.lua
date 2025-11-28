@@ -1,4 +1,4 @@
---piperson5.0
+--pipiperson5.1
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1256,6 +1256,7 @@ end
         gameInProgress = true
         gameStartTime = tick()
         hasSentWebhook = false
+        print("hassentwebhook is false")
         
         print("✓ GAME STARTED - Tracking initialized")
         
@@ -1716,6 +1717,7 @@ if not success then
 end
         sendWebhook("game_end", rewards, gameResult, gameInfo, gameDuration)
         hasSentWebhook = true
+        print("hassentwebhook is true")
 
         task.wait(0.5)
         
