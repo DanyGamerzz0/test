@@ -1,4 +1,4 @@
---pipiperson2
+--pipiperson3.5
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1257,7 +1257,7 @@ end
         gameStartTime = tick()
         hasSentWebhook = false
         
-        --print("✓ GAME STARTED - Tracking initialized")
+        print("✓ GAME STARTED - Tracking initialized")
         
         -- Auto-start recording if enabled
         if isRecording and not recordingHasStarted then
@@ -1452,43 +1452,45 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo)
     elseif messageType == "game_end" then
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        
+        -- FIX: Format duration properly
         local gameDuration = tick() - gameStartTime
         local minutes = math.floor(gameDuration / 60)
         local seconds = math.floor(gameDuration % 60)
         local formattedTime = string.format("%02d:%02d", minutes, seconds)
         
-        -- Format rewards text
+        -- FIX: Format rewards text properly
         local rewardsText = ""
         
         if next(rewards) then
-
-            rewardsText = rewardsText .. string.format("+%s %s\n", amount, rewardType)
-            
+            for rewardType, amount in pairs(rewards) do
+                rewardsText = rewardsText .. string.format("+%s %s\n", amount, rewardType)
+            end
             rewardsText = rewardsText:gsub("\n$", "") -- Remove trailing newline
         else
             rewardsText = "No rewards captured"
         end
         
         -- Determine title and color based on game result
-        local titleText = "Stage Completed!"
-        local embedColor = 0x57F287 -- Green
+        local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
+        local embedColor = gameResult and 0x57F287 or 0xED4245
         
-        if gameResult then
-            titleText = "Stage Finished!"
-            embedColor = 0x57F287
-        else
-            titleText = "Stage Failed!"
-            embedColor = 0xED4245 -- Red
-        end
-
+        -- Build description with game info
         local TitleSubText = "Unknown Stage"
-        if gameInfo then
-            if gameInfo.Act and gameInfo.Map and gameInfo.Mode then
-                TitleSubText = gameInfo.Map.." "..gameInfo.Act.." ".."("..gameInfo.Mode..") - "..gameResult
-            end
+        if gameInfo and gameInfo.Act and gameInfo.Map and gameInfo.Mode then
+            local resultText = gameResult and "Victory" or "Defeat"
+            TitleSubText = string.format("%s %s (%s) - %s", gameInfo.Map, gameInfo.Act, gameInfo.Mode, resultText)
         end
         
         local currentWave = WaveManager and WaveManager.Data.Wave or lastWave or 0
+        
+        -- Build fields array
+        local fields = {
+            { name = "Player", value = playerName, inline = true },
+            { name = "Duration", value = formattedTime, inline = true },
+            { name = "Waves Completed", value = tostring(currentWave), inline = true },
+            { name = "Rewards", value = rewardsText, inline = false },
+        }
         
         data = {
             username = "LixHub",
@@ -1496,12 +1498,7 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo)
                 title = titleText,
                 description = TitleSubText,
                 color = embedColor,
-                fields = {
-                    { name = "Player", value = playerName, inline = true },
-                    { name = "Duration", value = formattedTime, inline = true },
-                    { name = "Waves Completed", value = tostring(currentWave), inline = true },
-                    { name = "Rewards", value = rewardsText, inline = false },
-                },
+                fields = fields,
                 footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
             }}
@@ -1510,7 +1507,6 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo)
     
     local payload = Services.HttpService:JSONEncode(data)
     
-    -- Try different executor HTTP functions
     local requestFunc = syn and syn.request or request or http_request or 
                       (fluxus and fluxus.request) or getgenv().request
     
@@ -1529,7 +1525,6 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo)
     end)
     
     if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-        --print("✅ Webhook sent successfully")
         notify("Webhook", "Webhook successfully sent!")
     else
         warn("Webhook failed:", response and response.StatusCode or "No response")
@@ -1616,9 +1611,10 @@ end
         -- Game just ended!
         print("Game ended - WaveEndScreen is now visible")
         
-        task.wait(1.5) -- Delay to ensure UI is fully ready
+        task.wait(2.5) -- Delay to ensure UI is fully ready
 
         local rewards = captureGameRewards()
+        local gameInfo = captureGameInfo()
         lastGameRewards = rewards
         local gameResult = false
 local success = pcall(function()
@@ -1635,7 +1631,7 @@ end)
 if not success then
     warn("⚠️ Failed to determine game result, defaulting to defeat")
 end
-        sendWebhook("game_end", rewards, gameResult)
+        sendWebhook("game_end", rewards, gameResult, gameInfo)
         hasSentWebhook = true
 
         task.wait(0.5)
