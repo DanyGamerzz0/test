@@ -1,4 +1,4 @@
---pipierson
+--pipiperson1
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -127,6 +127,7 @@ local DataModule
 local WaveManager
 local lastGameRewards = {}
 local ValidWebhook = nil
+local hasSentWebhook = false
 
 local Config = {
     DISCORD_USER_ID = nil,
@@ -1254,6 +1255,7 @@ end
         
         gameInProgress = true
         gameStartTime = tick()
+        hasSentWebhook = false
         
         --print("✓ GAME STARTED - Tracking initialized")
         
@@ -1390,7 +1392,44 @@ end
     return rewards
 end
 
-local function sendWebhook(messageType, rewards, gameResult)
+local function captureGameInfo()
+    local gameInfo = {
+        Act = nil,
+        Map = nil,
+        Mode = nil
+    }
+    
+    local success = pcall(function()
+        local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
+        local infoFrame = playerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Info
+        
+        -- Capture Act
+        local actLabel = infoFrame:FindFirstChild("Act")
+        if actLabel and actLabel:IsA("TextLabel") then
+            gameInfo.Act = actLabel.Text
+        end
+        
+        -- Capture Map
+        local mapLabel = infoFrame:FindFirstChild("Map")
+        if mapLabel and mapLabel:IsA("TextLabel") then
+            gameInfo.Map = mapLabel.Text
+        end
+        
+        -- Capture Mode
+        local modeLabel = infoFrame:FindFirstChild("Mode")
+        if modeLabel and modeLabel:IsA("TextLabel") then
+            gameInfo.Mode = modeLabel.Text
+        end
+    end)
+    
+    if not success then
+        warn("⚠️ Failed to capture game info")
+    end
+    
+    return gameInfo
+end
+
+local function sendWebhook(messageType, rewards, gameResult, gameInfo)
     if not ValidWebhook or ValidWebhook == "" then
         return
     end
@@ -1441,6 +1480,12 @@ local function sendWebhook(messageType, rewards, gameResult)
             titleText = "Stage Failed!"
             embedColor = 0xED4245 -- Red
         end
+
+        local TitleSubText = "Unknown Stage"
+        if gameInfo then
+            if gameInfo.Act and gameInfo.Map and gameInfo.Mode then
+                TitleSubText = gameInfo.Map.." "..gameInfo.Act.." ".."("..gameInfo.Mode..") - "..gameResult
+        end
         
         local currentWave = WaveManager and WaveManager.Data.Wave or lastWave or 0
         
@@ -1448,7 +1493,7 @@ local function sendWebhook(messageType, rewards, gameResult)
             username = "LixHub",
             embeds = {{
                 title = titleText,
-                description = string.format("Game %s", gameResult and "Victory" or "Defeat"),
+                description = TitleSubText,
                 color = embedColor,
                 fields = {
                     { name = "Player", value = playerName, inline = true },
@@ -1484,7 +1529,7 @@ local function sendWebhook(messageType, rewards, gameResult)
     
     if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
         --print("✅ Webhook sent successfully")
-        notify("Webhook", "Game summary sent!")
+        notify("Webhook", "Webhook successfully sent!")
     else
         warn("Webhook failed:", response and response.StatusCode or "No response")
     end
@@ -1551,9 +1596,8 @@ end
     local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
     local defenseScreenFolder = playerGui:WaitForChild("DefenseScreenFolder")
     
-    local debounce = false -- Add debounce flag
-    
     while true do
+        if hasSentWebhook then return end
         -- Wait for WaveEndScreen to be created
         local waveEndScreen = defenseScreenFolder:WaitForChild("WaveEndScreen")
         
@@ -1567,14 +1611,6 @@ end
         end
         
         waitForVisible()
-        
-        -- Check debounce before proceeding
-        if debounce then
-            task.wait(0.5)
-            continue
-        end
-        
-        debounce = true -- Set debounce
         
         -- Game just ended!
         print("Game ended - WaveEndScreen is now visible")
@@ -1599,6 +1635,7 @@ if not success then
     warn("⚠️ Failed to determine game result, defaulting to defeat")
 end
         sendWebhook("game_end", rewards, gameResult)
+        hasSentWebhook = true
 
         task.wait(0.5)
         
@@ -1672,10 +1709,6 @@ end
                 clearSpawnIdMappings()
             end
         end
-        
-        -- Wait for screen to close before resetting debounce
-        task.wait(2)
-        debounce = false
     end
 end)
 end
