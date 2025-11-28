@@ -1,4 +1,4 @@
---pipiperson1
+--pipiperson2
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1485,6 +1485,7 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo)
         if gameInfo then
             if gameInfo.Act and gameInfo.Map and gameInfo.Mode then
                 TitleSubText = gameInfo.Map.." "..gameInfo.Act.." ".."("..gameInfo.Mode..") - "..gameResult
+            end
         end
         
         local currentWave = WaveManager and WaveManager.Data.Wave or lastWave or 0
