@@ -1,4 +1,4 @@
---pipiperson4.5
+--piperson5.0
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1356,26 +1356,52 @@ end
     local function captureGameRewards()
     local rewards = {}
     
-    local success = pcall(function()
+    print("🔍 Starting reward capture...")
+    
+    local success, err = pcall(function()
         local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
-        local rewardsFrame = playerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Rewards
+        local waveEndScreen = playerGui:FindFirstChild("DefenseScreenFolder")
         
-        -- Wait for rewards to actually populate
+        if not waveEndScreen then
+            warn("DefenseScreenFolder not found")
+            return
+        end
+        
+        waveEndScreen = waveEndScreen:FindFirstChild("WaveEndScreen")
+        if not waveEndScreen then
+            warn("WaveEndScreen not found")
+            return
+        end
+        
+        local waveEnd = waveEndScreen:FindFirstChild("WaveEnd")
+        if not waveEnd then
+            warn("WaveEnd not found")
+            return
+        end
+        
+        local rewardsFrame = waveEnd:FindFirstChild("Rewards")
+        if not rewardsFrame then
+            warn("Rewards frame not found")
+            return
+        end
+        
+        print("📁 Rewards frame found, checking children...")
+        
+        -- Wait for rewards to populate
         local maxWait = 5
         local waited = 0
+        
         while waited < maxWait do
-            local hasRewards = false
+            local childCount = 0
             for _, child in ipairs(rewardsFrame:GetChildren()) do
                 if child:IsA("Frame") and child.Name ~= "UIListLayout" then
-                    local button = child:FindFirstChild("Button")
-                    if button and button:FindFirstChild("Quantity") then
-                        hasRewards = true
-                        break
-                    end
+                    childCount = childCount + 1
                 end
             end
             
-            if hasRewards then
+            print(string.format("Found %d reward frames", childCount))
+            
+            if childCount > 0 then
                 break
             end
             
@@ -1383,9 +1409,11 @@ end
             waited = waited + 0.5
         end
         
-        -- Now capture rewards
+        -- Capture rewards
         for _, rewardFrame in ipairs(rewardsFrame:GetChildren()) do
             if rewardFrame:IsA("Frame") and rewardFrame.Name ~= "UIListLayout" then
+                print(string.format("Processing reward frame: %s", rewardFrame.Name))
+                
                 local button = rewardFrame:FindFirstChild("Button")
                 
                 if button then
@@ -1396,21 +1424,47 @@ end
                         local rewardType = titleLabel.Text
                         local rewardAmount = quantityLabel.Text
                         
+                        print(string.format("  Found: %s = %s", rewardType, rewardAmount))
+                        
                         local cleanAmount = tonumber(rewardAmount:gsub("[^%d]", "")) or 0
                         
                         if cleanAmount > 0 then
                             rewards[rewardType] = cleanAmount
-                            print(string.format("📊 Captured: %s = %d", rewardType, cleanAmount))
+                            print(string.format("✅ Captured: %s = %d", rewardType, cleanAmount))
                         end
+                    else
+                        print(string.format("  Missing Quantity or Title in %s", rewardFrame.Name))
                     end
+                else
+                    print(string.format("  No Button found in %s", rewardFrame.Name))
                 end
             end
         end
     end)
     
-    if not success or next(rewards) == nil then
-        warn("⚠️ Failed to capture rewards")
+    if not success then
+        warn("❌ Error capturing rewards:", err)
         return {}
+    end
+    
+    if next(rewards) == nil then
+        warn("⚠️ No rewards captured - rewards table is empty")
+        
+        -- Debug: Print the entire structure
+        pcall(function()
+            local rewardsFrame = game:GetService("Players").LocalPlayer.PlayerGui
+                .DefenseScreenFolder.WaveEndScreen.WaveEnd.Rewards
+            
+            print("🔍 Rewards frame structure:")
+            for _, child in ipairs(rewardsFrame:GetChildren()) do
+                print(string.format("  - %s (%s)", child.Name, child.ClassName))
+                if child:IsA("Frame") then
+                    for _, subChild in ipairs(child:GetChildren()) do
+                        print(string.format("    - %s (%s)", subChild.Name, subChild.ClassName))
+                    end
+                end
+            end
+        end)
     end
     
     return rewards
@@ -1554,7 +1608,6 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo, gameDurat
     end
 end
 
-    if not isInLobby() then
     WaveManager:ListenToChange("Wave", function(wave)
         --print(string.format("🌊 Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
         
@@ -1738,7 +1791,6 @@ end
         end
     end
 end)
-end
 
      AutoStartToggle = GameTab:CreateToggle({
         Name = "Auto Start",
