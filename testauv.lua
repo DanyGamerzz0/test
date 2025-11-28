@@ -1,4 +1,4 @@
---pipiperson3.5
+--pipiperson4.5
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1360,7 +1360,30 @@ end
         local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
         local rewardsFrame = playerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Rewards
         
-        -- Iterate through all reward frames (Coins, Gems, etc.)
+        -- Wait for rewards to actually populate
+        local maxWait = 5
+        local waited = 0
+        while waited < maxWait do
+            local hasRewards = false
+            for _, child in ipairs(rewardsFrame:GetChildren()) do
+                if child:IsA("Frame") and child.Name ~= "UIListLayout" then
+                    local button = child:FindFirstChild("Button")
+                    if button and button:FindFirstChild("Quantity") then
+                        hasRewards = true
+                        break
+                    end
+                end
+            end
+            
+            if hasRewards then
+                break
+            end
+            
+            task.wait(0.5)
+            waited = waited + 0.5
+        end
+        
+        -- Now capture rewards
         for _, rewardFrame in ipairs(rewardsFrame:GetChildren()) do
             if rewardFrame:IsA("Frame") and rewardFrame.Name ~= "UIListLayout" then
                 local button = rewardFrame:FindFirstChild("Button")
@@ -1373,18 +1396,19 @@ end
                         local rewardType = titleLabel.Text
                         local rewardAmount = quantityLabel.Text
                         
-                        -- Clean up the amount (remove +, commas, etc.)
                         local cleanAmount = tonumber(rewardAmount:gsub("[^%d]", "")) or 0
                         
-                        rewards[rewardType] = cleanAmount
-                        print(string.format("📊 Captured: %s = %d", rewardType, cleanAmount))
+                        if cleanAmount > 0 then
+                            rewards[rewardType] = cleanAmount
+                            print(string.format("📊 Captured: %s = %d", rewardType, cleanAmount))
+                        end
                     end
                 end
             end
         end
     end)
     
-    if not success then
+    if not success or next(rewards) == nil then
         warn("⚠️ Failed to capture rewards")
         return {}
     end
@@ -1429,7 +1453,7 @@ local function captureGameInfo()
     return gameInfo
 end
 
-local function sendWebhook(messageType, rewards, gameResult, gameInfo)
+local function sendWebhook(messageType, rewards, gameResult, gameInfo, gameDuration)
     if not ValidWebhook or ValidWebhook == "" then
         return
     end
@@ -1454,7 +1478,6 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo)
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         
         -- FIX: Format duration properly
-        local gameDuration = tick() - gameStartTime
         local minutes = math.floor(gameDuration / 60)
         local seconds = math.floor(gameDuration % 60)
         local formattedTime = string.format("%02d:%02d", minutes, seconds)
@@ -1613,6 +1636,13 @@ end
         
         task.wait(2.5) -- Delay to ensure UI is fully ready
 
+        local gameDuration = 0
+if gameStartTime > 0 then
+    gameDuration = tick() - gameStartTime
+else
+    warn("⚠️ gameStartTime was not set properly!")
+end
+
         local rewards = captureGameRewards()
         local gameInfo = captureGameInfo()
         lastGameRewards = rewards
@@ -1631,7 +1661,7 @@ end)
 if not success then
     warn("⚠️ Failed to determine game result, defaulting to defeat")
 end
-        sendWebhook("game_end", rewards, gameResult, gameInfo)
+        sendWebhook("game_end", rewards, gameResult, gameInfo, gameDuration)
         hasSentWebhook = true
 
         task.wait(0.5)
