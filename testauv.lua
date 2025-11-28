@@ -1,5 +1,4 @@
---pipi12
-if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+    if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
     end
@@ -22,7 +21,6 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
     local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
     local script_version = "V0.01"
-
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Ultra Verse",
     Icon = 0,
@@ -102,6 +100,7 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
 
     local MacroTab = Window:CreateTab("Macro", "tv")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
+    local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
     local MacroStatusLabel = MacroTab:CreateLabel("Status: Ready")
     local detailedStatusLabel = MacroTab:CreateLabel("Details: Ready")
@@ -125,6 +124,13 @@ local ReplicaModule
 local ReplicaStore
 local DataModule
 local WaveManager
+local lastGameRewards = {}
+local ValidWebhook = nil
+
+local Config = {
+    DISCORD_USER_ID = nil,
+}
+
 
 if game.PlaceId ~= 17899227840 then
 if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
@@ -181,6 +187,7 @@ end
         AutoLobby = false,
         AutoGameSpeed = false,
         GameSpeed = 0,
+        SendStageCompletedWebhook = false,
     }
     local lastWave = 0
     local isAutoLoopEnabled =  false
@@ -1342,6 +1349,146 @@ end
     -- ============================================
     -- WAVE MANAGER LISTENERS
     -- ============================================
+
+    local function captureGameRewards()
+    local rewards = {}
+    
+    local success = pcall(function()
+        local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
+        local rewardsFrame = playerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Rewards
+        
+        -- Iterate through all reward frames (Coins, Gems, etc.)
+        for _, rewardFrame in ipairs(rewardsFrame:GetChildren()) do
+            if rewardFrame:IsA("Frame") and rewardFrame.Name ~= "UIListLayout" then
+                local button = rewardFrame:FindFirstChild("Button")
+                
+                if button then
+                    local quantityLabel = button:FindFirstChild("Quantity")
+                    local titleLabel = button:FindFirstChild("Title")
+                    
+                    if quantityLabel and titleLabel then
+                        local rewardType = titleLabel.Text
+                        local rewardAmount = quantityLabel.Text
+                        
+                        -- Clean up the amount (remove +, commas, etc.)
+                        local cleanAmount = tonumber(rewardAmount:gsub("[^%d]", "")) or 0
+                        
+                        rewards[rewardType] = cleanAmount
+                        print(string.format("📊 Captured: %s = %d", rewardType, cleanAmount))
+                    end
+                end
+            end
+        end
+    end)
+    
+    if not success then
+        warn("⚠️ Failed to capture rewards")
+        return {}
+    end
+    
+    return rewards
+end
+
+local function sendWebhook(messageType, rewards, gameResult)
+    if not State.WebhookEnabled or not State.WebhookURL or State.WebhookURL == "" then
+        return
+    end
+
+    local data
+
+    if messageType == "test" then
+        data = {
+            username = "LixHub Bot",
+            content = string.format("<@%s>", Config.DISCORD_USER_ID or ""),
+            embeds = {{
+                title = "LixHub Notification",
+                description = "Test webhook sent successfully",
+                color = 0x5865F2,
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+
+    elseif messageType == "game_end" then
+        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        local gameDuration = tick() - gameStartTime
+        local minutes = math.floor(gameDuration / 60)
+        local seconds = math.floor(gameDuration % 60)
+        local formattedTime = string.format("%02d:%02d", minutes, seconds)
+        
+        -- Format rewards text
+        local rewardsText = ""
+        
+        if next(rewards) then
+
+            rewardsText = rewardsText .. string.format("+%s %s\n", amount, rewardType)
+            
+            rewardsText = rewardsText:gsub("\n$", "") -- Remove trailing newline
+        else
+            rewardsText = "No rewards captured"
+        end
+        
+        -- Determine title and color based on game result
+        local titleText = "Stage Completed!"
+        local embedColor = 0x57F287 -- Green
+        
+        if gameResult then
+            titleText = "Stage Finished!"
+            embedColor = 0x57F287
+        else
+            titleText = "Stage Failed!"
+            embedColor = 0xED4245 -- Red
+        end
+        
+        local currentWave = WaveManager and WaveManager.Data.Wave or lastWave or 0
+        
+        data = {
+            username = "LixHub",
+            embeds = {{
+                title = titleText,
+                description = string.format("Game %s", gameResult and "Victory" or "Defeat"),
+                color = embedColor,
+                fields = {
+                    { name = "Player", value = playerName, inline = true },
+                    { name = "Duration", value = formattedTime, inline = true },
+                    { name = "Waves Completed", value = tostring(currentWave), inline = true },
+                    { name = "Rewards", value = rewardsText, inline = false },
+                },
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = timestamp
+            }}
+        }
+    end
+    
+    local payload = Services.HttpService:JSONEncode(data)
+    
+    -- Try different executor HTTP functions
+    local requestFunc = syn and syn.request or request or http_request or 
+                      (fluxus and fluxus.request) or getgenv().request
+    
+    if not requestFunc then
+        warn("No HTTP function found! Your executor might not support HTTP requests.")
+        return
+    end
+    
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = State.WebhookURL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = payload
+        })
+    end)
+    
+    if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
+        --print("✅ Webhook sent successfully")
+        notify("Webhook", "Game summary sent!")
+    else
+        warn("Webhook failed:", response and response.StatusCode or "No response")
+    end
+end
+
     if not isInLobby() then
     WaveManager:ListenToChange("Wave", function(wave)
         --print(string.format("🌊 Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
@@ -1431,7 +1578,28 @@ end
         -- Game just ended!
         print("Game ended - WaveEndScreen is now visible")
         
-        task.wait(1) -- Delay to ensure UI is fully ready
+        task.wait(1.5) -- Delay to ensure UI is fully ready
+
+        local rewards = captureGameRewards()
+        lastGameRewards = rewards
+        local gameResult = false
+local success = pcall(function()
+    local winFrame = waveEnd:FindFirstChild("Win")
+    local lostFrame = waveEnd:FindFirstChild("Lost")
+    
+    if winFrame and winFrame.Visible then
+        gameResult = true
+    elseif lostFrame and lostFrame.Visible then
+        gameResult = false
+    end
+end)
+
+if not success then
+    warn("⚠️ Failed to determine game result, defaulting to defeat")
+end
+        sendWebhook("game_end", rewards, gameResult)
+
+        task.wait(0.5)
         
         if State.AutoRetry then
             print("Auto Retry enabled - Clicking Replay...")
@@ -1562,6 +1730,61 @@ end
         Flag = "AutoGameSpeed",
         Callback = function(Value)
             game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Speed", Value)
+        end,
+    })
+
+WebhookInput = WebhookTab:CreateInput({
+        Name = "Input Webhook",
+        CurrentValue = "",
+        PlaceholderText = "Input Webhook...",
+        RemoveTextAfterFocusLost = false,
+        Flag = "WebhookInput",
+        Callback = function(Text)
+            local trimmed = Text:match("^%s*(.-)%s*$")
+
+            if trimmed == "" then
+                ValidWebhook = nil
+                return
+            end
+
+            local valid = trimmed:match("^https://")
+
+            if valid then
+                ValidWebhook = trimmed
+            else
+                ValidWebhook = nil
+            end
+        end,
+    })
+
+    UserIDInput = WebhookTab:CreateInput({
+        Name = "Input Discord ID (mention rares)",
+        CurrentValue = "",
+        PlaceholderText = "Input Discord ID...",
+        RemoveTextAfterFocusLost = false,
+        Flag = "WebhookInputUserID",
+        Callback = function(Text)
+            Config.DISCORD_USER_ID = tostring(Text):match("^%s*(.-)%s*$")
+        end,
+    })
+
+    WebhookToggle = WebhookTab:CreateToggle({
+        Name = "Send On Stage Finished",
+        CurrentValue = false,
+        Flag = "SendWebhookOnStageFinished",
+        Callback = function(Value)
+            State.SendStageCompletedWebhook = Value
+        end,
+    })
+
+    local TestWebhookButton = WebhookTab:CreateButton({
+        Name = "Test webhook",
+        Callback = function()
+            if ValidWebhook then
+                sendWebhook("test")
+            else
+                notify(nil,"Error: No webhook URL set!")
+            end
         end,
     })
 
