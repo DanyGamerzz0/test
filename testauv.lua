@@ -1,4 +1,4 @@
---pipiperson5.1
+--lospiperos1
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -387,8 +387,6 @@ end
                     -- We're mid-game! Start recording immediately
                     --print(string.format("🎮 Mid-game detected (Wave %d) - Starting recording NOW", currentWave))
                     
-                    gameInProgress = true
-                    gameStartTime = tick()
                     recordingHasStarted = true
                     
                     -- Clean up tracking tables
@@ -1302,7 +1300,6 @@ end
         print(string.format("Game ended (%s)", resultText))
         
         gameInProgress = false
-        gameStartTime = 0
         
         local wasRecording = isRecording and recordingHasStarted
         local wasPlaybacking = isPlaybacking and isAutoLoopEnabled
@@ -1354,37 +1351,14 @@ end
     -- WAVE MANAGER LISTENERS
     -- ============================================
 
-    local function captureGameRewards()
+local function captureGameRewards()
     local rewards = {}
     
     print("🔍 Starting reward capture...")
     
     local success, err = pcall(function()
         local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
-        local waveEndScreen = playerGui:FindFirstChild("DefenseScreenFolder")
-        
-        if not waveEndScreen then
-            warn("DefenseScreenFolder not found")
-            return
-        end
-        
-        waveEndScreen = waveEndScreen:FindFirstChild("WaveEndScreen")
-        if not waveEndScreen then
-            warn("WaveEndScreen not found")
-            return
-        end
-        
-        local waveEnd = waveEndScreen:FindFirstChild("WaveEnd")
-        if not waveEnd then
-            warn("WaveEnd not found")
-            return
-        end
-        
-        local rewardsFrame = waveEnd:FindFirstChild("Rewards")
-        if not rewardsFrame then
-            warn("Rewards frame not found")
-            return
-        end
+        local rewardsFrame = playerGui.DefenseScreenFolder.WaveEndScreen.WaveEnd.Rewards
         
         print("📁 Rewards frame found, checking children...")
         
@@ -1422,19 +1396,33 @@ end
                     local titleLabel = button:FindFirstChild("Title")
                     
                     if quantityLabel and titleLabel then
-                        local rewardType = titleLabel.Text
-                        local rewardAmount = quantityLabel.Text
+                        local rewardType = titleLabel.Text or "Unknown"
+                        local rewardAmount = quantityLabel.Text or "0"
                         
-                        print(string.format("  Found: %s = %s", rewardType, rewardAmount))
+                        print(string.format("  Raw values - Type: '%s', Amount: '%s'", rewardType, rewardAmount))
                         
-                        local cleanAmount = tonumber(rewardAmount:gsub("[^%d]", "")) or 0
+                        -- ✅ More robust cleaning
+                        local cleanAmount = 0
+                        
+                        -- Try to extract just the numbers
+                        local numberStr = tostring(rewardAmount):gsub("[^%d]", "")
+                        
+                        if numberStr ~= "" then
+                            cleanAmount = tonumber(numberStr) or 0
+                        end
+                        
+                        print(string.format("  Cleaned amount: %d", cleanAmount))
                         
                         if cleanAmount > 0 then
                             rewards[rewardType] = cleanAmount
                             print(string.format("✅ Captured: %s = %d", rewardType, cleanAmount))
+                        else
+                            print(string.format("⚠️ Skipped %s (amount was 0 or invalid)", rewardType))
                         end
                     else
                         print(string.format("  Missing Quantity or Title in %s", rewardFrame.Name))
+                        if quantityLabel then print("    Has Quantity") end
+                        if titleLabel then print("    Has Title") end
                     end
                 else
                     print(string.format("  No Button found in %s", rewardFrame.Name))
@@ -1450,22 +1438,13 @@ end
     
     if next(rewards) == nil then
         warn("⚠️ No rewards captured - rewards table is empty")
-        
-        -- Debug: Print the entire structure
-        pcall(function()
-            local rewardsFrame = game:GetService("Players").LocalPlayer.PlayerGui
-                .DefenseScreenFolder.WaveEndScreen.WaveEnd.Rewards
-            
-            print("🔍 Rewards frame structure:")
-            for _, child in ipairs(rewardsFrame:GetChildren()) do
-                print(string.format("  - %s (%s)", child.Name, child.ClassName))
-                if child:IsA("Frame") then
-                    for _, subChild in ipairs(child:GetChildren()) do
-                        print(string.format("    - %s (%s)", subChild.Name, subChild.ClassName))
-                    end
-                end
-            end
-        end)
+    else
+        print(string.format("✅ Successfully captured %d reward types", 
+            (function()
+                local count = 0
+                for _ in pairs(rewards) do count = count + 1 end
+                return count
+            end)()))
     end
     
     return rewards
