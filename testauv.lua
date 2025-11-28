@@ -1390,7 +1390,7 @@ end
 end
 
 local function sendWebhook(messageType, rewards, gameResult)
-    if not State.WebhookEnabled or not State.WebhookURL or State.WebhookURL == "" then
+    if not ValidWebhook or ValidWebhook == "" then
         return
     end
 
