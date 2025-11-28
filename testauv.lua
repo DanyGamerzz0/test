@@ -1,4 +1,4 @@
---lospiperos1
+--poliperes2
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1649,7 +1649,9 @@ end
     local defenseScreenFolder = playerGui:WaitForChild("DefenseScreenFolder")
     
     while true do
-        if hasSentWebhook then return end
+        while hasSentWebhook do
+            task.wait(1)
+        end
         -- Wait for WaveEndScreen to be created
         local waveEndScreen = defenseScreenFolder:WaitForChild("WaveEndScreen")
         
