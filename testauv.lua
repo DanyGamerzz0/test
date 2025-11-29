@@ -1,5 +1,4 @@
---pipi5.1
-if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+    if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
     end
@@ -24,7 +23,7 @@ local Services = {
 
     local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-    local script_version = "V0.01"
+    local script_version = "V0.02"
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Ultra Verse",
     Icon = 0,
@@ -201,6 +200,7 @@ end
         enableLimitFPS = false,
         SelectedFPS = 60,
         streamerModeEnabled = false,
+        ChallengeBug = false,
 
     }
     local lastWave = 0
@@ -1725,6 +1725,42 @@ end
         print("hassentwebhook is true")
 
         task.wait(0.5)
+
+        if State.ChallengeBug then
+    print("Secret Feature enabled - Clicking Restart...")
+    local success = pcall(function()
+        local settingsFrame = LocalPlayer.PlayerGui.MainScreenFolder.SharedSideScreen.Frames.SettingsFrame.Selected.Scroll
+        
+        -- Search for the Match frame with "Restart" title
+        for _, frame in ipairs(settingsFrame:GetChildren()) do
+            if frame.Name == "Match" and frame:IsA("Frame") then
+                local title = frame:FindFirstChild("Title")
+                if title and title:IsA("TextLabel") and title.Text:find("Restart") then
+                    local actionButton = frame:FindFirstChild("Action")
+                    if actionButton and actionButton:IsA("ImageButton") then
+                        for _, connection in pairs(getconnections(actionButton.MouseButton1Down)) do
+                            connection:Fire()
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+    
+    if success then
+        notify("Secret Feature", "Restarting match...", 3)
+        
+        -- Reset game state immediately
+        gameInProgress = false
+        gameStartTime = 0
+        clearSpawnIdMappings()
+        
+        if isPlaybacking and isAutoLoopEnabled then
+            updateMacroStatus("Secret Feature - Waiting for next game...")
+            updateDetailedStatus("Match restarted - waiting for wave 1...")
+        end
+    end
         
         if State.AutoRetry then
             print("Auto Retry enabled - Clicking Replay...")
@@ -2187,6 +2223,15 @@ AutoStartToggle = GameTab:CreateToggle({
         Flag = "AutoGameSpeed",
         Callback = function(Value)
             game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Auto Match Speed", Value)
+        end,
+    })
+
+      ChallengeBugToggle = GameTab:CreateToggle({
+        Name = "Secret Feature",
+        CurrentValue = false,
+        Flag = "ChallengeBug",
+        Callback = function(Value)
+            State.ChallengeBug = Value
         end,
     })
 
