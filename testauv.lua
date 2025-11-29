@@ -1,4 +1,4 @@
---pipi4.5
+--5.0
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -9,13 +9,15 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
         return
     end
 
-    local Services = {
-        HttpService = game:GetService("HttpService"),
-        Players = game:GetService("Players"),
-        Workspace = game:GetService("Workspace"),
-        ReplicatedStorage = game:GetService("ReplicatedStorage"),
-        RunService = game:GetService("RunService")
-    }
+local Services = {
+    HttpService = game:GetService("HttpService"),
+    Players = game:GetService("Players"),
+    TeleportService = game:GetService("TeleportService"),
+    Lighting = game:GetService("Lighting"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Workspace = game:GetService("Workspace"),
+    VIRTUAL_USER = game:GetService("VirtualUser"),
+}
 
     local LocalPlayer = Services.Players.LocalPlayer
 
@@ -1865,18 +1867,15 @@ local function enableLowPerformanceMode()
                 obj.Enabled = false
             end
         end
---Remotes.SettingEvent:FireServer(unpack({"Abilities VFX", false}))
---Remotes.SettingEvent:FireServer(unpack({"Hide Cosmetic", true}))
---Remotes.SettingEvent:FireServer(unpack({"Low Graphic Quality", true}))
---Remotes.SettingEvent:FireServer(unpack({"HeadBar", false}))
---Remotes.SettingEvent:FireServer(unpack({"Display Players Units", false}))
---Remotes.SettingEvent:FireServer(unpack({"DisibleGachaChat", true}))
---Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
---Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = false
---Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Disable VFX",true)
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Disable Damage Indicators",true)
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Disable Synergy Effect",true)
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Image Replacement",true)
     else
-        --Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = true
-        --Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = true
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Disable VFX",false)
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Disable Damage Indicators",false)
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Disable Synergy Effect",false)
+            game:GetService("ReplicatedStorage"):WaitForChild("MainSharedFolder"):WaitForChild("Remotes"):WaitForChild("Settings"):FireServer("Image Replacement",false)
         Services.Lighting.Brightness = 1.51
         Services.Lighting.GlobalShadows = true
         Services.Lighting.Technology = Enum.Technology.Future
@@ -2076,18 +2075,23 @@ local function StreamerMode()
         streamerLabel.Parent = originalNumbers.Parent
     end
 
-    -- ✅ Get player's actual level and title
+    -- ✅ Extract player's level from the UI text
     local playerLevel = "1"
+    pcall(function()
+        local levelText = originalNumbers.Text -- e.g., "Level 14 [59.32K/368.91K]"
+        local levelMatch = levelText:match("Level (%d+)")
+        if levelMatch then
+            playerLevel = levelMatch
+        end
+    end)
+
+    -- ✅ Get player's actual title
     local playerTitle = ""
-    
     pcall(function()
         local playerReplicas = ReplicaStore.GetAll("PlayerReplica")
         
         for _, replica in pairs(playerReplicas) do
             if replica.Tags.Player == Services.Players.LocalPlayer then
-                playerLevel = tostring(replica.Data.Level or "1")
-                
-                -- Get equipped title
                 local titleEquipped = replica.Data.TitleEquipped
                 if titleEquipped then
                     local InfoModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule)
