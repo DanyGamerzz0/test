@@ -1,4 +1,4 @@
---5.0
+--pipi5.1
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -17,6 +17,7 @@ local Services = {
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
     Workspace = game:GetService("Workspace"),
     VIRTUAL_USER = game:GetService("VirtualUser"),
+    RunService = game:GetService("RunService"),
 }
 
     local LocalPlayer = Services.Players.LocalPlayer
