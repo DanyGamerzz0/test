@@ -1,4 +1,5 @@
-    if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+--pipi1
+if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
     end
@@ -387,6 +388,7 @@ end
                     --print(string.format("🎮 Mid-game detected (Wave %d) - Starting recording NOW", currentWave))
                     
                     recordingHasStarted = true
+                    gameStartTime = tick()
                     
                     -- Clean up tracking tables
                     recordingUnitCounter = {}
@@ -1538,7 +1540,7 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo, gameDurat
             end
             rewardsText = rewardsText:gsub("\n$", "") -- Remove trailing newline
         else
-            rewardsText = "No rewards captured"
+            rewardsText = "No rewards obtained"
         end
         
         -- Determine title and color based on game result
