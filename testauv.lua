@@ -1,4 +1,4 @@
---pipi3
+--pipi4.5
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -99,6 +99,7 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
     }
     })
 
+    local LobbyTab = Window:CreateTab("Lobby", "tv")
     local MacroTab = Window:CreateTab("Macro", "tv")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
