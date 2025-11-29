@@ -1,4 +1,4 @@
---pipi2
+--pipi3
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -1610,7 +1610,7 @@ local function sendWebhook(messageType, rewards, gameResult, gameInfo, gameDurat
         warn("Webhook failed:", response and response.StatusCode or "No response")
     end
 end
-
+    if game.PlaceId ~= 17899227840 then
     WaveManager:ListenToChange("Wave", function(wave)
         --print(string.format("🌊 Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
         
@@ -1667,6 +1667,7 @@ end
         end
         lastWave = 0
     end)
+end
     task.spawn(function()
     local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
     local defenseScreenFolder = playerGui:WaitForChild("DefenseScreenFolder")
