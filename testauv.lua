@@ -1,4 +1,5 @@
-    if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+--pipipapatripleT1
+if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
     end
@@ -638,38 +639,43 @@ end
     end
 
     local function findLatestPlacedUnit(targetCFrame, tolerance, excludeUnitIDs)
-        tolerance = tolerance or 5
-        excludeUnitIDs = excludeUnitIDs or {}
+    tolerance = tolerance or 5
+    excludeUnitIDs = excludeUnitIDs or {}
+    
+    local unitReplicas = getUnitReplicaFolder()
+    if not unitReplicas then return nil, nil end
+    
+    local unitsFolder = Services.Workspace:FindFirstChild("Map")
+    if unitsFolder then
+        unitsFolder = unitsFolder:FindFirstChild("Units")
+    end
+    
+    if not unitsFolder then
+        warn("⚠️ workspace.Map.Units folder not found!")
+        return nil, nil
+    end
+    
+    local candidates = {}
+    
+    -- Go through all unit replicas
+    for _, unitReplica in pairs(unitReplicas) do
+        local unitID = unitReplica.Id
         
-        local unitReplicas = getUnitReplicaFolder()
-        if not unitReplicas then return nil, nil end
-        
-        local unitsFolder = Services.Workspace:FindFirstChild("Map")
-        if unitsFolder then
-            unitsFolder = unitsFolder:FindFirstChild("Units")
+        -- Skip if already mapped or excluded
+        if excludeUnitIDs[unitID] then
+            continue
         end
         
-        if not unitsFolder then
-            warn("⚠️ workspace.Map.Units folder not found!")
-            return nil, nil
-        end
+        local unitName = unitReplica.Data.Name
         
-        local candidates = {}
-        
-        -- Go through all unit replicas
-        for _, unitReplica in pairs(unitReplicas) do
-            local unitID = unitReplica.Id
-            
-            -- Skip if already mapped or excluded
-            if excludeUnitIDs[unitID] then
-                continue
-            end
-            
-            local unitName = unitReplica.Data.Name
-            
-            -- Find the MODEL in workspace that matches this replica
-            for _, unitModel in pairs(unitsFolder:GetChildren()) do
-                if unitModel.Name == unitName and unitModel:IsA("Model") then
+        -- FIXED: Search for models that START with the unit name
+        -- This handles cases like "Shadow Monarch (Evolved)" where the model might be named differently
+        for _, unitModel in pairs(unitsFolder:GetChildren()) do
+            if unitModel:IsA("Model") then
+                -- Check if model name matches or starts with unit name
+                local modelNameMatch = unitModel.Name == unitName or unitModel.Name:find("^" .. unitName:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%1"))
+                
+                if modelNameMatch then
                     local unitCFrame = unitModel:GetPivot()
                     local distance = (unitCFrame.Position - targetCFrame.Position).Magnitude
                     
@@ -680,19 +686,25 @@ end
                             unitName = unitName,
                             distance = distance
                         })
+                        print(string.format("  Found candidate: %s (ID=%d, distance=%.2f)", unitName, unitID, distance))
                         break -- Only match one model per replica
                     end
                 end
             end
         end
-        
-        if #candidates == 0 then return nil, nil end
-        
-        -- Return the closest match
-        table.sort(candidates, function(a, b) return a.distance < b.distance end)
-        
-        return candidates[1].unitID, candidates[1].unitName
     end
+    
+    if #candidates == 0 then 
+        print("  No candidates found!")
+        return nil, nil 
+    end
+    
+    -- Return the closest match
+    table.sort(candidates, function(a, b) return a.distance < b.distance end)
+    
+    print(string.format("✅ Selected: %s (ID=%d)", candidates[1].unitName, candidates[1].unitID))
+    return candidates[1].unitID, candidates[1].unitName
+end
 
     local function restartMatch()
         local success, result = pcall(function()
@@ -759,71 +771,77 @@ end
         local lastLevel = unitTrackedLevels[unitID] or oldLevel or 0
         newLevel = tonumber(newLevel) or 0
         
-        print(string.format("🔔 Upgrade detected: %s (ID=%d) L%d->L%d", unitTag, unitID, lastLevel, newLevel))
+        print(string.format("🔔 Level change detected: %s (ID=%d) L%d->L%d", unitTag, unitID, lastLevel, newLevel))
         
         -- Check if level actually increased
         if newLevel > lastLevel then
-            -- Find matching pending upgrade - FIXED: Better matching logic
-            local foundPending = nil
-            local pendingIndex = nil
+            -- FIXED: Find ALL matching pending upgrades for this unit ID
+            local matchingPendings = {}
             
-            -- Search from most recent to oldest
-            for i = #pendingUpgrades, 1, -1 do
-                local pending = pendingUpgrades[i]
-                
-                -- Match criteria:
-                -- 1. Same unit ID
-                -- 2. Not already validated
-                -- 3. Start level matches what we tracked
-                -- 4. Not too old (within 3 seconds)
-                local age = tick() - pending.timestamp
-                
-                if pending.unitID == unitID and 
-                   not pending.validated and
-                   pending.startLevel == lastLevel and
-                   age < 3.0 then
-                    foundPending = pending
-                    pendingIndex = i
-                    print(string.format("✅ Found matching pending upgrade (age: %.2fs)", age))
-                    break
+            for i, pending in ipairs(pendingUpgrades) do
+                if pending.unitID == unitID and not pending.validated then
+                    table.insert(matchingPendings, {index = i, pending = pending})
                 end
             end
             
-            if foundPending then
-                -- VALIDATED UPGRADE
-                local gameRelativeTime = foundPending.timestamp - gameStartTime
-                local upgradeAmount = newLevel - foundPending.startLevel
+            if #matchingPendings > 0 then
+                -- Calculate total upgrade amount
+                local totalUpgrades = newLevel - lastLevel
                 
-                local record = {
-                    Type = "upgrade_unit",
-                    Unit = foundPending.unitTag,
-                    Time = string.format("%.2f", gameRelativeTime)
-                }
+                print(string.format("  Found %d pending upgrade(s), total levels gained: %d", #matchingPendings, totalUpgrades))
                 
-                if upgradeAmount > 1 then
-                    record.Amount = upgradeAmount
-                    local totalCost = calculateTotalUpgradeCost(foundPending.unitName, foundPending.startLevel, upgradeAmount)
+                -- OPTION 1: Record as single multi-upgrade
+                if #matchingPendings > 1 then
+                    -- Use the FIRST pending upgrade's timestamp
+                    local firstPending = matchingPendings[1].pending
+                    local gameRelativeTime = firstPending.timestamp - gameStartTime
+                    
+                    local record = {
+                        Type = "upgrade_unit",
+                        Unit = firstPending.unitTag,
+                        Time = string.format("%.2f", gameRelativeTime),
+                        Amount = totalUpgrades
+                    }
+                    
+                    local totalCost = calculateTotalUpgradeCost(firstPending.unitName, lastLevel, totalUpgrades)
                     if totalCost then
                         record.UpgradeCost = totalCost
                     end
-                else
-                    if foundPending.upgradeCost then
-                        record.UpgradeCost = foundPending.upgradeCost
+                    
+                    table.insert(macro, record)
+                    print(string.format("✅ Recorded multi-upgrade: %s (L%d->L%d, Cost=%d)", 
+                        firstPending.unitTag, lastLevel, newLevel, record.UpgradeCost or 0))
+                    
+                    -- Mark all as validated
+                    for _, item in ipairs(matchingPendings) do
+                        pendingUpgrades[item.index].validated = true
                     end
+                    
+                else
+                    -- Single upgrade
+                    local pending = matchingPendings[1].pending
+                    local gameRelativeTime = pending.timestamp - gameStartTime
+                    
+                    local record = {
+                        Type = "upgrade_unit",
+                        Unit = pending.unitTag,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    }
+                    
+                    if pending.upgradeCost then
+                        record.UpgradeCost = pending.upgradeCost
+                    end
+                    
+                    table.insert(macro, record)
+                    print(string.format("✅ Recorded upgrade: %s (L%d->L%d, Cost=%d)", 
+                        pending.unitTag, lastLevel, newLevel, record.UpgradeCost or 0))
+                    
+                    pendingUpgrades[matchingPendings[1].index].validated = true
                 end
                 
-                table.insert(macro, record)
-                
-                print(string.format("✅ Recorded upgrade: %s (L%d->L%d, Cost=%d)", 
-                    foundPending.unitTag, foundPending.startLevel, newLevel, record.UpgradeCost or 0))
-                
-                -- Mark as validated and remove from pending
-                foundPending.validated = true
-                table.remove(pendingUpgrades, pendingIndex)
             else
-                -- AUTO-UPGRADE (not from player action)
-                print(string.format("🚫 Auto-upgrade detected: %s (L%d->L%d) - skipping (no matching pending upgrade)", 
-                    unitTag, lastLevel, newLevel))
+                -- NO PENDING UPGRADES - This shouldn't happen anymore
+                print(string.format("⚠️ Level increased but no pending upgrades found for %s", unitTag))
             end
             
             -- Update tracked level
@@ -850,131 +868,130 @@ end
     -- ============================================
 
     local mt = getrawmetatable(game)
-    setreadonly(mt, false)
-    local originalNamecall = mt.__namecall
+setreadonly(mt, false)
+local originalNamecall = mt.__namecall
 
-    local generalHook = newcclosure(function(self, ...)
-        local args = {...}
-        local method = getnamecallmethod()
-        
-        if not checkcaller() and isRecording and recordingHasStarted then
-            task.spawn(function()
-                local timestamp = tick()
-                local gameRelativeTime = timestamp - gameStartTime
+local generalHook = newcclosure(function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+    
+    if not checkcaller() and isRecording and recordingHasStarted then
+        task.spawn(function()
+            local timestamp = tick()
+            local gameRelativeTime = timestamp - gameStartTime
+            
+            -- PLACEMENT HOOK
+            if method == "InvokeServer" and self.Name == "UnitPlace" then
+                local uuid = args[1]
+                local cframe = args[2]
                 
-                -- PLACEMENT HOOK
-                if method == "InvokeServer" and self.Name == "UnitPlace" then
-        local uuid = args[1]
-        local cframe = args[2]
-        
-        --print(string.format("📝 Recording placement: UUID=%s at (%.1f, %.1f, %.1f)", 
-            --uuid, cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
-        
-        task.wait(0.5)
-        
-        -- BUILD PROPER EXCLUDE LIST - all units we've already mapped
-        local excludeIDs = {}
-        for mappedUnitID, _ in pairs(recordingUnitIDToTag) do
-            excludeIDs[mappedUnitID] = true
-            --print(string.format("  Excluding already-mapped unit ID: %d", mappedUnitID))
-        end
-        
-        local unitID, unitName = findLatestPlacedUnit(cframe, 5, excludeIDs)
-        
-        if unitID and unitName then
-            -- Double-check we haven't already mapped this unit
-            if recordingUnitIDToTag[unitID] then
-                warn(string.format("⚠️ Unit ID %d was already mapped! Skipping duplicate.", unitID))
-                return
-            end
-            
-            -- Increment counter for this unit type
-            recordingUnitCounter[unitName] = (recordingUnitCounter[unitName] or 0) + 1
-            local unitNumber = recordingUnitCounter[unitName]
-            local unitTag = string.format("%s #%d", unitName, unitNumber)
-            
-            -- Track this unit
-            recordingUnitIDToTag[unitID] = unitTag
-            
-            local placementCost = getUnitPlacementCost(unitName)
-            
-            -- Record to macro
-            local record = {
-                Type = "spawn_unit",
-                Unit = unitTag,
-                UUID = uuid,
-                Time = string.format("%.2f", gameRelativeTime),
-                Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
-            }
-            
-            if placementCost then
-                record.PlacementCost = placementCost
-            end
-            
-            table.insert(macro, record)
-            
-            -- START TRACKING UPGRADES FOR THIS UNIT
-            startTrackingUnitUpgrades(unitID, unitTag, unitName)
-            
-            --print(string.format("✓ Recorded: %s (ID=%d, Cost=%d)", 
-                --unitTag, unitID, placementCost or 0))
-        else
-            warn("❌ Failed to find placed unit!")
-        end
+                print(string.format("📝 Placement detected at (%.1f, %.1f, %.1f)", 
+                    cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
                 
-                -- UPGRADE/SELL HOOK
-                elseif method == "FireServer" and self.Name == "Replica_ReplicaSignal" then
-    local unitID = args[1]
-    local action = args[2]
-    
-    local unitTag = recordingUnitIDToTag[unitID]
-    if not unitTag then return end
-    
-    local unitName = unitTag:match("^(.+) #%d+$")
-    
-    if action == "Upgrade" then
-        local currentLevel = getUnitUpgradeLevel(unitID)
-        local upgradeCost = getUnitUpgradeCost(unitName, currentLevel)
-        
-        -- FIXED: Add the pending upgrade BEFORE the remote fires
-        local pendingUpgrade = {
-            unitID = unitID,
-            unitTag = unitTag,
-            unitName = unitName,
-            startLevel = currentLevel,
-            expectedEndLevel = currentLevel + 1,
-            upgradeCost = upgradeCost,
-            timestamp = timestamp,
-            validated = false
-        }
-        
-        table.insert(pendingUpgrades, pendingUpgrade)
-        
-        print(string.format("⏳ Upgrade fired: %s (ID=%d, L%d->L%d, Cost=%d) [Pending #%d]", 
-            unitTag, unitID, currentLevel, currentLevel + 1, upgradeCost or 0, #pendingUpgrades))
-        
-    elseif action == "Sell" then
-        table.insert(macro, {
-            Type = "sell_unit",
-            Unit = unitTag,
-            Time = string.format("%.2f", gameRelativeTime)
-        })
-        
-        print(string.format("✓ Recorded sell: %s (ID=%d)", unitTag, unitID))
-        
-        -- STOP TRACKING THIS UNIT'S UPGRADES
-        stopTrackingUnitUpgrades(unitID)
-        recordingUnitIDToTag[unitID] = nil
+                task.wait(0.5)
+                
+                -- BUILD PROPER EXCLUDE LIST
+                local excludeIDs = {}
+                for mappedUnitID, _ in pairs(recordingUnitIDToTag) do
+                    excludeIDs[mappedUnitID] = true
+                end
+                
+                local unitID, unitName = findLatestPlacedUnit(cframe, 5, excludeIDs)
+                
+                if unitID and unitName then
+                    -- Double-check we haven't already mapped this unit
+                    if recordingUnitIDToTag[unitID] then
+                        warn(string.format("⚠️ Unit ID %d was already mapped! Skipping duplicate.", unitID))
+                        return
+                    end
+                    
+                    -- Increment counter for this unit type
+                    recordingUnitCounter[unitName] = (recordingUnitCounter[unitName] or 0) + 1
+                    local unitNumber = recordingUnitCounter[unitName]
+                    local unitTag = string.format("%s #%d", unitName, unitNumber)
+                    
+                    -- Track this unit
+                    recordingUnitIDToTag[unitID] = unitTag
+                    
+                    local placementCost = getUnitPlacementCost(unitName)
+                    
+                    -- Record to macro
+                    local record = {
+                        Type = "spawn_unit",
+                        Unit = unitTag,
+                        UUID = uuid,
+                        Time = string.format("%.2f", gameRelativeTime),
+                        Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
+                    }
+                    
+                    if placementCost then
+                        record.PlacementCost = placementCost
+                    end
+                    
+                    table.insert(macro, record)
+                    
+                    -- START TRACKING UPGRADES FOR THIS UNIT
+                    startTrackingUnitUpgrades(unitID, unitTag, unitName)
+                    
+                    print(string.format("✓ Recorded: %s (ID=%d, Cost=%d)", 
+                        unitTag, unitID, placementCost or 0))
+                else
+                    warn("❌ Failed to find placed unit!")
+                end
+            
+            -- UPGRADE/SELL HOOK
+            elseif method == "FireServer" and self.Name == "Replica_ReplicaSignal" then
+                local unitID = args[1]
+                local action = args[2]
+                
+                local unitTag = recordingUnitIDToTag[unitID]
+                if not unitTag then return end
+                
+                local unitName = unitTag:match("^(.+) #%d+$")
+                
+                if action == "Upgrade" then
+                    local currentLevel = getUnitUpgradeLevel(unitID)
+                    local upgradeCost = getUnitUpgradeCost(unitName, currentLevel)
+                    
+                    -- Add pending upgrade
+                    local pendingUpgrade = {
+                        unitID = unitID,
+                        unitTag = unitTag,
+                        unitName = unitName,
+                        startLevel = currentLevel,
+                        expectedEndLevel = currentLevel + 1,
+                        upgradeCost = upgradeCost,
+                        timestamp = timestamp,
+                        validated = false
+                    }
+                    
+                    table.insert(pendingUpgrades, pendingUpgrade)
+                    
+                    print(string.format("⏳ Upgrade fired: %s (ID=%d, L%d->L%d, Cost=%d) [Pending #%d]", 
+                        unitTag, unitID, currentLevel, currentLevel + 1, upgradeCost or 0, #pendingUpgrades))
+                    
+                elseif action == "Sell" then
+                    table.insert(macro, {
+                        Type = "sell_unit",
+                        Unit = unitTag,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    })
+                    
+                    print(string.format("✓ Recorded sell: %s (ID=%d)", unitTag, unitID))
+                    
+                    -- STOP TRACKING THIS UNIT'S UPGRADES
+                    stopTrackingUnitUpgrades(unitID)
+                    recordingUnitIDToTag[unitID] = nil
+                end
+            end
+        end)
     end
-end
-            end)
-        end
-        
-        return originalNamecall(self, ...)
-    end)
+    
+    return originalNamecall(self, ...)
+end)
 
-    mt.__namecall = generalHook
-    setreadonly(mt, true)
+mt.__namecall = generalHook
+setreadonly(mt, true)
 
     -- ============================================
     -- UPGRADE VALIDATION (Heartbeat Monitor)
@@ -983,21 +1000,30 @@ end
     -- Expire unvalidated upgrades
 task.spawn(function()
     while true do
-        task.wait(0.3) -- Check more frequently
+        task.wait(1.0) -- Check every second
         
         if isRecording and recordingHasStarted then
             local currentTime = tick()
+            local cleaned = 0
             
-            -- Clean up old unvalidated upgrades
+            -- Remove validated or expired upgrades
             for i = #pendingUpgrades, 1, -1 do
                 local pending = pendingUpgrades[i]
                 local age = currentTime - pending.timestamp
                 
-                if not pending.validated and age > 3.0 then
-                    print(string.format("🚫 Expired upgrade: %s (age: %.2fs, likely auto-upgrade)", 
-                        pending.unitTag, age))
+                -- Remove if validated OR too old (5 seconds)
+                if pending.validated or age > 5.0 then
+                    if not pending.validated then
+                        print(string.format("🧹 Removing expired pending: %s (age: %.2fs)", 
+                            pending.unitTag, age))
+                    end
                     table.remove(pendingUpgrades, i)
+                    cleaned = cleaned + 1
                 end
+            end
+            
+            if cleaned > 0 then
+                print(string.format("🧹 Cleaned %d pending upgrade(s), %d remaining", cleaned, #pendingUpgrades))
             end
         else
             -- Clear all pending when not recording
