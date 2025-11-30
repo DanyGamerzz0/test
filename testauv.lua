@@ -1,4 +1,4 @@
---pipipapatripleT1
+--triple3
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
@@ -642,8 +642,15 @@ end
     tolerance = tolerance or 5
     excludeUnitIDs = excludeUnitIDs or {}
     
+    print("=== SEARCHING FOR PLACED UNIT ===")
+    print(string.format("Target Position: (%.1f, %.1f, %.1f)", targetCFrame.Position.X, targetCFrame.Position.Y, targetCFrame.Position.Z))
+    print(string.format("Tolerance: %d studs", tolerance))
+    
     local unitReplicas = getUnitReplicaFolder()
-    if not unitReplicas then return nil, nil end
+    if not unitReplicas then 
+        warn("❌ No unit replicas found!")
+        return nil, nil 
+    end
     
     local unitsFolder = Services.Workspace:FindFirstChild("Map")
     if unitsFolder then
@@ -655,54 +662,85 @@ end
         return nil, nil
     end
     
+    print(string.format("📊 Total unit replicas: %d", #unitReplicas))
+    print(string.format("📊 Total models in Units folder: %d", #unitsFolder:GetChildren()))
+    
     local candidates = {}
+    local checkedReplicas = 0
     
     -- Go through all unit replicas
     for _, unitReplica in pairs(unitReplicas) do
         local unitID = unitReplica.Id
+        local unitName = unitReplica.Data.Name
         
         -- Skip if already mapped or excluded
         if excludeUnitIDs[unitID] then
+            print(string.format("  ⏭️ Skipping excluded unit: %s (ID=%d)", unitName, unitID))
             continue
         end
         
-        local unitName = unitReplica.Data.Name
+        checkedReplicas = checkedReplicas + 1
+        print(string.format("  🔍 Checking replica: %s (ID=%d)", unitName, unitID))
         
-        -- FIXED: Search for models that START with the unit name
-        -- This handles cases like "Shadow Monarch (Evolved)" where the model might be named differently
+        -- Search for models that match this unit
+        local foundModel = false
         for _, unitModel in pairs(unitsFolder:GetChildren()) do
             if unitModel:IsA("Model") then
-                -- Check if model name matches or starts with unit name
-                local modelNameMatch = unitModel.Name == unitName or unitModel.Name:find("^" .. unitName:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%1"))
+                local modelName = unitModel.Name
                 
-                if modelNameMatch then
+                -- Try exact match first
+                if modelName == unitName then
                     local unitCFrame = unitModel:GetPivot()
                     local distance = (unitCFrame.Position - targetCFrame.Position).Magnitude
                     
-                    -- Check if this model is close to target position
+                    print(string.format("    ✓ Model match: '%s' at (%.1f, %.1f, %.1f), distance: %.2f", 
+                        modelName, unitCFrame.Position.X, unitCFrame.Position.Y, unitCFrame.Position.Z, distance))
+                    
                     if distance <= tolerance then
                         table.insert(candidates, {
                             unitID = unitID,
                             unitName = unitName,
                             distance = distance
                         })
-                        print(string.format("  Found candidate: %s (ID=%d, distance=%.2f)", unitName, unitID, distance))
-                        break -- Only match one model per replica
+                        print(string.format("      ✅ CANDIDATE ADDED! (within tolerance)"))
+                        foundModel = true
+                        break
+                    else
+                        print(string.format("      ❌ Too far (tolerance: %d)", tolerance))
                     end
                 end
             end
         end
+        
+        if not foundModel then
+            print(string.format("    ❌ No matching model found for: %s", unitName))
+        end
     end
     
+    print(string.format("📊 Checked %d replicas, found %d candidates", checkedReplicas, #candidates))
+    
     if #candidates == 0 then 
-        print("  No candidates found!")
+        print("❌ No candidates found!")
+        print("🔍 Let me show you what models ARE near the target position:")
+        
+        for _, unitModel in pairs(unitsFolder:GetChildren()) do
+            if unitModel:IsA("Model") then
+                local unitCFrame = unitModel:GetPivot()
+                local distance = (unitCFrame.Position - targetCFrame.Position).Magnitude
+                
+                if distance <= tolerance * 2 then -- Check double the tolerance
+                    print(string.format("  📍 Nearby model: '%s' at distance %.2f", unitModel.Name, distance))
+                end
+            end
+        end
+        
         return nil, nil 
     end
     
     -- Return the closest match
     table.sort(candidates, function(a, b) return a.distance < b.distance end)
     
-    print(string.format("✅ Selected: %s (ID=%d)", candidates[1].unitName, candidates[1].unitID))
+    print(string.format("✅ Selected: %s (ID=%d, distance=%.2f)", candidates[1].unitName, candidates[1].unitID, candidates[1].distance))
     return candidates[1].unitID, candidates[1].unitName
 end
 
