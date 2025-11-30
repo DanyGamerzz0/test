@@ -728,95 +728,112 @@ end
     end
 
     local function startTrackingUnitUpgrades(unitID, unitTag, unitName)
-        -- If already tracking this unit, don't add duplicate listener
-        if unitUpgradeListeners[unitID] then
-            return
-        end
-        
-        local unit = getUnitByID(unitID)
-        if not unit then
-            return
-        end
-        
-        -- Initialize the tracked level
-        local currentLevel = getUnitUpgradeLevel(unitID)
-        unitTrackedLevels[unitID] = currentLevel
-        
-        --print(string.format("👀 Started tracking upgrades for %s (ID=%d, StartLevel=%d)", unitTag, unitID, currentLevel))
-        
-        -- Listen to changes in the Upgrade field
-        local connection = unit:ListenToChange("Upgrade", function(newLevel, oldLevel)
-            -- Only run during recording
-            if not isRecording or not recordingHasStarted or not gameInProgress then
-                return
-            end
-            
-            -- Safety check
-            if not recordingUnitIDToTag[unitID] then
-                return
-            end
-            
-            local lastLevel = unitTrackedLevels[unitID] or oldLevel or 0
-            newLevel = tonumber(newLevel) or 0
-            
-            -- Check if level actually increased
-            if newLevel > lastLevel then
-                -- Find matching pending upgrade
-                local foundPending = nil
-                for i = #pendingUpgrades, 1, -1 do
-                    local pending = pendingUpgrades[i]
-                    
-                    if pending.unitID == unitID and 
-                    not pending.validated and
-                    pending.startLevel == lastLevel then
-                        foundPending = pending
-                        break
-                    end
-                end
-                
-                if foundPending then
-                    -- VALIDATED UPGRADE
-                    local gameRelativeTime = foundPending.timestamp - gameStartTime
-                    local upgradeAmount = newLevel - foundPending.startLevel
-                    
-                    local record = {
-                        Type = "upgrade_unit",
-                        Unit = foundPending.unitTag,
-                        Time = string.format("%.2f", gameRelativeTime)
-                    }
-                    
-                    if upgradeAmount > 1 then
-                        record.Amount = upgradeAmount
-                        local totalCost = calculateTotalUpgradeCost(foundPending.unitName, foundPending.startLevel, upgradeAmount)
-                        if totalCost then
-                            record.UpgradeCost = totalCost
-                        end
-                    else
-                        if foundPending.upgradeCost then
-                            record.UpgradeCost = foundPending.upgradeCost
-                        end
-                    end
-                    
-                    table.insert(macro, record)
-                    
-                    --print(string.format("✅ Validated upgrade: %s (L%d->L%d, Cost=%d)", 
-                        --foundPending.unitTag, foundPending.startLevel, newLevel, record.UpgradeCost or 0))
-                    
-                    foundPending.validated = true
-                else
-                    -- AUTO-UPGRADE (not from player action)
-                    --print(string.format("🚫 Auto-upgrade: %s (L%d->L%d) - skipping", 
-                        --unitTag, lastLevel, newLevel))
-                end
-                
-                -- Update tracked level
-                unitTrackedLevels[unitID] = newLevel
-            end
-        end)
-        
-        -- Store the connection so we can disconnect it later
-        unitUpgradeListeners[unitID] = connection
+    -- If already tracking this unit, don't add duplicate listener
+    if unitUpgradeListeners[unitID] then
+        return
     end
+    
+    local unit = getUnitByID(unitID)
+    if not unit then
+        return
+    end
+    
+    -- Initialize the tracked level
+    local currentLevel = getUnitUpgradeLevel(unitID)
+    unitTrackedLevels[unitID] = currentLevel
+    
+    print(string.format("👀 Started tracking upgrades for %s (ID=%d, StartLevel=%d)", unitTag, unitID, currentLevel))
+    
+    -- Listen to changes in the Upgrade field
+    local connection = unit:ListenToChange("Upgrade", function(newLevel, oldLevel)
+        -- Only run during recording
+        if not isRecording or not recordingHasStarted or not gameInProgress then
+            return
+        end
+        
+        -- Safety check
+        if not recordingUnitIDToTag[unitID] then
+            return
+        end
+        
+        local lastLevel = unitTrackedLevels[unitID] or oldLevel or 0
+        newLevel = tonumber(newLevel) or 0
+        
+        print(string.format("🔔 Upgrade detected: %s (ID=%d) L%d->L%d", unitTag, unitID, lastLevel, newLevel))
+        
+        -- Check if level actually increased
+        if newLevel > lastLevel then
+            -- Find matching pending upgrade - FIXED: Better matching logic
+            local foundPending = nil
+            local pendingIndex = nil
+            
+            -- Search from most recent to oldest
+            for i = #pendingUpgrades, 1, -1 do
+                local pending = pendingUpgrades[i]
+                
+                -- Match criteria:
+                -- 1. Same unit ID
+                -- 2. Not already validated
+                -- 3. Start level matches what we tracked
+                -- 4. Not too old (within 3 seconds)
+                local age = tick() - pending.timestamp
+                
+                if pending.unitID == unitID and 
+                   not pending.validated and
+                   pending.startLevel == lastLevel and
+                   age < 3.0 then
+                    foundPending = pending
+                    pendingIndex = i
+                    print(string.format("✅ Found matching pending upgrade (age: %.2fs)", age))
+                    break
+                end
+            end
+            
+            if foundPending then
+                -- VALIDATED UPGRADE
+                local gameRelativeTime = foundPending.timestamp - gameStartTime
+                local upgradeAmount = newLevel - foundPending.startLevel
+                
+                local record = {
+                    Type = "upgrade_unit",
+                    Unit = foundPending.unitTag,
+                    Time = string.format("%.2f", gameRelativeTime)
+                }
+                
+                if upgradeAmount > 1 then
+                    record.Amount = upgradeAmount
+                    local totalCost = calculateTotalUpgradeCost(foundPending.unitName, foundPending.startLevel, upgradeAmount)
+                    if totalCost then
+                        record.UpgradeCost = totalCost
+                    end
+                else
+                    if foundPending.upgradeCost then
+                        record.UpgradeCost = foundPending.upgradeCost
+                    end
+                end
+                
+                table.insert(macro, record)
+                
+                print(string.format("✅ Recorded upgrade: %s (L%d->L%d, Cost=%d)", 
+                    foundPending.unitTag, foundPending.startLevel, newLevel, record.UpgradeCost or 0))
+                
+                -- Mark as validated and remove from pending
+                foundPending.validated = true
+                table.remove(pendingUpgrades, pendingIndex)
+            else
+                -- AUTO-UPGRADE (not from player action)
+                print(string.format("🚫 Auto-upgrade detected: %s (L%d->L%d) - skipping (no matching pending upgrade)", 
+                    unitTag, lastLevel, newLevel))
+            end
+            
+            -- Update tracked level
+            unitTrackedLevels[unitID] = newLevel
+        end
+    end)
+    
+    -- Store the connection so we can disconnect it later
+    unitUpgradeListeners[unitID] = connection
+end
 
     local function stopTrackingUnitUpgrades(unitID)
         local connection = unitUpgradeListeners[unitID]
@@ -907,46 +924,49 @@ end
                 
                 -- UPGRADE/SELL HOOK
                 elseif method == "FireServer" and self.Name == "Replica_ReplicaSignal" then
-                    local unitID = args[1]
-                    local action = args[2]
-                    
-                    local unitTag = recordingUnitIDToTag[unitID]
-                    if not unitTag then return end
-                    
-                    local unitName = unitTag:match("^(.+) #%d+$")
-                    
-                    if action == "Upgrade" then
-                        local currentLevel = getUnitUpgradeLevel(unitID)
-                        local upgradeCost = getUnitUpgradeCost(unitName, currentLevel)
-                        
-                        table.insert(pendingUpgrades, {
-                            unitID = unitID,
-                            unitTag = unitTag,
-                            unitName = unitName,
-                            startLevel = currentLevel,
-                            expectedEndLevel = currentLevel + 1,
-                            upgradeCost = upgradeCost,
-                            timestamp = timestamp,
-                            validated = false
-                        })
-                        
-                        --print(string.format("⏳ Upgrade fired: %s (ID=%d, L%d->L%d, Cost=%d)", 
-                            --unitTag, unitID, currentLevel, currentLevel + 1, upgradeCost or 0))
-                        
-                    elseif action == "Sell" then
-                        table.insert(macro, {
-                            Type = "sell_unit",
-                            Unit = unitTag,
-                            Time = string.format("%.2f", gameRelativeTime)
-                        })
-                        
-                        --print(string.format("✓ Recorded sell: %s (ID=%d)", unitTag, unitID))
-                        
-                        -- STOP TRACKING THIS UNIT'S UPGRADES
-                        stopTrackingUnitUpgrades(unitID)
-                        recordingUnitIDToTag[unitID] = nil
-                    end
-                end
+    local unitID = args[1]
+    local action = args[2]
+    
+    local unitTag = recordingUnitIDToTag[unitID]
+    if not unitTag then return end
+    
+    local unitName = unitTag:match("^(.+) #%d+$")
+    
+    if action == "Upgrade" then
+        local currentLevel = getUnitUpgradeLevel(unitID)
+        local upgradeCost = getUnitUpgradeCost(unitName, currentLevel)
+        
+        -- FIXED: Add the pending upgrade BEFORE the remote fires
+        local pendingUpgrade = {
+            unitID = unitID,
+            unitTag = unitTag,
+            unitName = unitName,
+            startLevel = currentLevel,
+            expectedEndLevel = currentLevel + 1,
+            upgradeCost = upgradeCost,
+            timestamp = timestamp,
+            validated = false
+        }
+        
+        table.insert(pendingUpgrades, pendingUpgrade)
+        
+        print(string.format("⏳ Upgrade fired: %s (ID=%d, L%d->L%d, Cost=%d) [Pending #%d]", 
+            unitTag, unitID, currentLevel, currentLevel + 1, upgradeCost or 0, #pendingUpgrades))
+        
+    elseif action == "Sell" then
+        table.insert(macro, {
+            Type = "sell_unit",
+            Unit = unitTag,
+            Time = string.format("%.2f", gameRelativeTime)
+        })
+        
+        print(string.format("✓ Recorded sell: %s (ID=%d)", unitTag, unitID))
+        
+        -- STOP TRACKING THIS UNIT'S UPGRADES
+        stopTrackingUnitUpgrades(unitID)
+        recordingUnitIDToTag[unitID] = nil
+    end
+end
             end)
         end
         
@@ -961,29 +981,33 @@ end
     -- ============================================
 
     -- Expire unvalidated upgrades
-    task.spawn(function()
-        while true do
-            task.wait(0.5)
+task.spawn(function()
+    while true do
+        task.wait(0.3) -- Check more frequently
+        
+        if isRecording and recordingHasStarted then
+            local currentTime = tick()
             
-            if isRecording and recordingHasStarted then
-                local currentTime = tick()
+            -- Clean up old unvalidated upgrades
+            for i = #pendingUpgrades, 1, -1 do
+                local pending = pendingUpgrades[i]
+                local age = currentTime - pending.timestamp
                 
-                for i = #pendingUpgrades, 1, -1 do
-                    local pending = pendingUpgrades[i]
-                    local age = currentTime - pending.timestamp
-                    
-                    if not pending.validated and age > UPGRADE_VALIDATION_TIMEOUT then
-                        --print(string.format("🚫 Expired upgrade: %s (likely auto-upgrade)", pending.unitTag))
-                        --table.remove(pendingUpgrades, i)
-                    end
-                end
-            else
-                if #pendingUpgrades > 0 then
-                    pendingUpgrades = {}
+                if not pending.validated and age > 3.0 then
+                    print(string.format("🚫 Expired upgrade: %s (age: %.2fs, likely auto-upgrade)", 
+                        pending.unitTag, age))
+                    table.remove(pendingUpgrades, i)
                 end
             end
+        else
+            -- Clear all pending when not recording
+            if #pendingUpgrades > 0 then
+                print(string.format("🧹 Clearing %d pending upgrades (not recording)", #pendingUpgrades))
+                pendingUpgrades = {}
+            end
         end
-    end)
+    end
+end)
 
     -- ============================================
     -- MACRO PLAYBACK
