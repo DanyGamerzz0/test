@@ -1,5 +1,4 @@
---triple3
-if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+    if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
         game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
         return
     end
@@ -905,7 +904,7 @@ end
     -- MACRO RECORDING - REMOTE HOOKS
     -- ============================================
 
-    local mt = getrawmetatable(game)
+local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local originalNamecall = mt.__namecall
 
@@ -923,23 +922,74 @@ local generalHook = newcclosure(function(self, ...)
                 local uuid = args[1]
                 local cframe = args[2]
                 
+                -- ✅ Capture immediately
+                local capturedUUID = tostring(uuid)
+                local capturedPosition = cframe.Position
+                local capturedCFrame = CFrame.new(capturedPosition.X, capturedPosition.Y, capturedPosition.Z)
+                
                 print(string.format("📝 Placement detected at (%.1f, %.1f, %.1f)", 
-                    cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
+                    capturedPosition.X, capturedPosition.Y, capturedPosition.Z))
                 
-                task.wait(0.5)
+                -- ✅ STEP 1: Find the UnitCircle at the placement position
+                local unitsFolder = Services.Workspace:FindFirstChild("Map")
+                if unitsFolder then
+                    unitsFolder = unitsFolder:FindFirstChild("Units")
+                end
                 
-                -- BUILD PROPER EXCLUDE LIST
+                if not unitsFolder then
+                    warn("❌ No Units folder!")
+                    return
+                end
+                
+                local unitCircle = nil
+                local maxAttempts = 20
+                
+                for attempt = 1, maxAttempts do
+                    task.wait(0.2)
+                    
+                    -- Search for UnitCircle near placement position
+                    for _, obj in pairs(unitsFolder:GetChildren()) do
+                        if obj.Name == "UnitCircle" and obj:IsA("BasePart") then
+                            local distance = (obj.Position - capturedPosition).Magnitude
+                            
+                            if distance <= 5 then -- UnitCircle should be very close
+                                unitCircle = obj
+                                print(string.format("✅ Found UnitCircle at distance %.2f", distance))
+                                break
+                            end
+                        end
+                    end
+                    
+                    if unitCircle then break end
+                end
+                
+                if not unitCircle then
+                    warn("❌ Failed to find UnitCircle!")
+                    return
+                end
+                
+                -- ✅ STEP 2: Now find the actual unit model near this UnitCircle
                 local excludeIDs = {}
                 for mappedUnitID, _ in pairs(recordingUnitIDToTag) do
                     excludeIDs[mappedUnitID] = true
                 end
                 
-                local unitID, unitName = findLatestPlacedUnit(cframe, 5, excludeIDs)
+                -- Use the UnitCircle's position to search for the unit
+                local unitCirclePos = unitCircle.Position
+                local searchCFrame = CFrame.new(unitCirclePos)
+                
+                local unitID, unitName = nil, nil
+                
+                for attempt = 1, 15 do
+                    task.wait(0.3)
+                    unitID, unitName = findLatestPlacedUnit(searchCFrame, 10, excludeIDs)
+                    if unitID then break end
+                end
                 
                 if unitID and unitName then
-                    -- Double-check we haven't already mapped this unit
+                    -- Check if already mapped (shouldn't happen but safety check)
                     if recordingUnitIDToTag[unitID] then
-                        warn(string.format("⚠️ Unit ID %d was already mapped! Skipping duplicate.", unitID))
+                        warn(string.format("⚠️ Unit ID %d already mapped! Skipping.", unitID))
                         return
                     end
                     
@@ -953,13 +1003,13 @@ local generalHook = newcclosure(function(self, ...)
                     
                     local placementCost = getUnitPlacementCost(unitName)
                     
-                    -- Record to macro
+                    -- Record to macro using ORIGINAL captured position
                     local record = {
                         Type = "spawn_unit",
                         Unit = unitTag,
-                        UUID = uuid,
+                        UUID = capturedUUID,
                         Time = string.format("%.2f", gameRelativeTime),
-                        Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
+                        Position = {capturedPosition.X, capturedPosition.Y, capturedPosition.Z}
                     }
                     
                     if placementCost then
@@ -968,13 +1018,13 @@ local generalHook = newcclosure(function(self, ...)
                     
                     table.insert(macro, record)
                     
-                    -- START TRACKING UPGRADES FOR THIS UNIT
+                    -- START TRACKING UPGRADES
                     startTrackingUnitUpgrades(unitID, unitTag, unitName)
                     
                     print(string.format("✓ Recorded: %s (ID=%d, Cost=%d)", 
                         unitTag, unitID, placementCost or 0))
                 else
-                    warn("❌ Failed to find placed unit!")
+                    warn("❌ Failed to find unit model near UnitCircle!")
                 end
             
             -- UPGRADE/SELL HOOK
