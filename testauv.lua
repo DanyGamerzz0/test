@@ -2506,6 +2506,14 @@ section = JoinerTab:CreateSection("Story Joiner")
         end,
     })
 
+        local loadingRetries = {
+        story = 0,
+        legend = 0,
+        raid = 0,
+        ignoreWorlds = 0,
+        portal = 0
+    }
+
 local function loadAllStoryStagesWithRetry()
     loadingRetries.story = loadingRetries.story + 1
     
