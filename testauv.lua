@@ -133,6 +133,17 @@ local lastGameRewards = {}
 local ValidWebhook = nil
 local hasSentWebhook = false
 
+        local loadingRetries = {
+        story = 0,
+        legend = 0,
+        raid = 0,
+        ignoreWorlds = 0,
+        portal = 0
+    }
+
+    local maxRetries = 20 -- Maximum number of retry attempts
+    local retryDelay = 2
+
 local Config = {
     DISCORD_USER_ID = nil,
 }
@@ -206,6 +217,7 @@ end
 
 
         AutoJoinStory = false,
+        StoryStageSelected = "",
         StoryActSelected = "",
         StoryDifficultySelected = "",
         LegendActSelected = "",
@@ -2347,33 +2359,32 @@ section = JoinerTab:CreateSection("Story Joiner")
     })
 
     local StoryStageDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Stage",
+        Name = "Select Story Stage",
         Options = {},
         CurrentOption = {},
         MultipleOptions = false,
         Flag = "StageStorySelector",
         Callback = function(Option)
-           print("Selected "..Option[1])
+           State.StoryStageSelected = Option[1]
         end,
     })
 
      ChapterDropdown869 = JoinerTab:CreateDropdown({
-        Name = "Select Story Act",
-        Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+        Name = "Select Story Chapter",
+        Options = {"Chapter 1", "Chapter 2", "Chapter 3", "Chapter 4", "Chapter 5", "Chapter 6", "Infinite"},
         CurrentOption = {},
         MultipleOptions = false,
         Flag = "StoryActSelector",
         Callback = function(Option)
             local selectedOption = type(Option) == "table" and Option[1] or Option
             if selectedOption == "Infinite" then
-                State.StoryActSelected = "_infinite"
+                State.StoryActSelected = "7"
             else
                 local num = selectedOption:match("%d+")
                 if num then
-                    State.StoryActSelected = "_level_" .. num
+                    State.StoryActSelected = num
                 end
             end
-            print("Selected "..Option[1])
         end,
     })
 
@@ -2397,7 +2408,7 @@ section = JoinerTab:CreateSection("Story Joiner")
     section = JoinerTab:CreateSection("Legend Stage Joiner")
 
     AutoJoinLegendToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Legend",
+        Name = "Auto Join Ultra Stage",
         CurrentValue = false,
         Flag = "AutoJoinLegend",
         Callback = function(Value)
@@ -2406,19 +2417,19 @@ section = JoinerTab:CreateSection("Story Joiner")
     })
 
     local LegendStageDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Legend Stage",
+        Name = "Select Ultra Stage",
         Options = {},
         CurrentOption = {},
         MultipleOptions = false,
         Flag = "LegendWorldSelector",
         Callback = function(Option)
-           print("Selected "..Option[1])
+           State.LegendStageSelected = Option[1]
         end,
     })
 
     LegendChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Legend Stage Act",
-        Options = {"Act 1", "Act 2", "Act 3"},
+        Name = "Select Legend Stage Chapter",
+        Options = {"Chapter 1", "Chapter 2", "Chapter 3"},
         CurrentOption = {},
         MultipleOptions = false,
         Flag = "LegendActSelector",
@@ -2427,9 +2438,8 @@ section = JoinerTab:CreateSection("Story Joiner")
             
             local num = selectedOption:match("%d+")
             if num then
-                State.LegendActSelected = "_" .. num
+                State.LegendActSelected = num
             end
-            print("Selected "..Option[1])
         end,
     })
 
@@ -2451,13 +2461,13 @@ section = JoinerTab:CreateSection("Story Joiner")
         MultipleOptions = false,
         Flag = "RaidWorldSelector",
         Callback = function(Option)
-           print("Selected "..Option[1])
+           State.RaidStageSelected = Option[1]
         end,
     })
 
     RaidChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Raid Stage Act",
-        Options = {"Act 1", "Act 2", "Act 3","Act 4","Act 5"},
+        Name = "Select Raid Stage Chapter",
+        Options = {"Chapter 1", "Chapter 2", "Chapter 3","Chapter 4","Chapter 5","Chapter 6"},
         CurrentOption = {},
         MultipleOptions = false,
         Flag = "RaidActSelector",
@@ -2466,9 +2476,8 @@ section = JoinerTab:CreateSection("Story Joiner")
             
             local num = selectedOption:match("%d+")
             if num then
-                State.RaidActSelected = "_" .. num
+                State.RaidActSelected = num
             end
-            print("Selected "..Option[1])
         end,
     })
 
@@ -2505,17 +2514,6 @@ section = JoinerTab:CreateSection("Story Joiner")
             State.ReturnToLobbyOnNewChallenge = Value
         end,
     })
-
-        local loadingRetries = {
-        story = 0,
-        legend = 0,
-        raid = 0,
-        ignoreWorlds = 0,
-        portal = 0
-    }
-
-    local maxRetries = 20 -- Maximum number of retry attempts
-    local retryDelay = 2
 
 local function isGameDataLoaded()
     return Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") and
