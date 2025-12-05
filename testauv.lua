@@ -102,6 +102,7 @@ local Services = {
     })
 
     local LobbyTab = Window:CreateTab("Lobby", "tv")
+    local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
     local MacroTab = Window:CreateTab("Macro", "tv")
     local GameTab = Window:CreateTab("Game", "gamepad-2")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -201,6 +202,18 @@ end
         SelectedFPS = 60,
         streamerModeEnabled = false,
         ChallengeBug = false,
+
+
+
+        AutoJoinStory = false,
+        StoryActSelected = "",
+        StoryDifficultySelected = "",
+        LegendActSelected = "",
+        AutoJoinRaid = false,
+        RaidActSelected = "",
+        AutoJoinChallenge = false,
+        IgnoreWorlds = {},
+        ReturnToLobbyOnNewChallenge = false,
 
     }
     local lastWave = 0
@@ -595,6 +608,137 @@ end
         
         if isPlaybacking and isAutoLoopEnabled then
             task.wait(1)
+        end
+    end
+
+    local function setProcessingState(action)
+    AutoJoinState.isProcessing = true
+    AutoJoinState.currentAction = action
+    AutoJoinState.lastActionTime = tick()
+
+   notify("Auto Join", action)
+end
+
+ local function clearProcessingState()
+        AutoJoinState.isProcessing = false
+        AutoJoinState.currentAction = nil
+    end
+
+    local function joinChallenge()
+    local challengeData = getChallengeData()
+    
+    if not challengeData then
+        print("No challenge data available")
+        return false
+    end
+
+    -- Check if we should ignore this challenge based on world
+    if checkIgnoreWorlds(challengeData) then
+        print("Skipping challenge due to ignored world")
+        State.challengeJoinAttempts = 0 -- Reset counter for skipped challenges
+        return false
+    end
+
+    -- Check if challenge has desired rewards
+    if not checkChallengeRewards(challengeData) then
+        print("Challenge doesn't contain desired rewards, skipping")
+        State.challengeJoinAttempts = 0 -- Reset counter for skipped challenges
+        return false
+    end
+
+    -- Attempt to join the challenge
+    print("Challenge passed all filters, attempting to join...")
+    print("Challenge type:", challengeData.current_challenge)
+    print("Challenge level:", challengeData.current_level_id)
+
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
+        task.wait(0.5)
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
+    end)
+
+    if success then
+        notify("Challenge Joiner", string.format("Joining challenge: %s", challengeData.current_challenge or "Unknown"))
+        State.challengeJoinAttempts = 0 -- Reset on success
+        return true
+    else
+        notify("Challenge Joiner", "Failed to join challenge")
+        return false
+    end
+end
+
+local function canPerformAction()
+        return tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown
+    end
+
+    local function checkAndExecuteHighestPriority()
+        if not isInLobby() then return end
+        if AutoJoinState.isProcessing then return end
+        if not canPerformAction() then return end
+
+        if State.AutoJoinChallenge then
+       -- local challengeData = getChallengeData()
+        if challengeData then
+            setProcessingState("Challenge Auto Join")
+            
+            local joinSuccess = true --joinChallenge()
+            
+            if joinSuccess then
+                print("Successfully initiated challenge join!")
+                State.challengeJoinAttempts = 0 -- Reset counter on success
+            else
+                State.challengeJoinAttempts = State.challengeJoinAttempts + 1
+                print(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
+                
+                if State.challengeJoinAttempts >= State.maxChallengeAttempts then
+                    notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
+                    print("Max challenge attempts reached, falling through to other join options")
+                    State.challengeJoinAttempts = 0 -- Reset counter
+                    -- Don't return here - let it fall through to next priority
+                else
+                    -- Still have attempts left, wait and return to try again
+                    task.delay(5, clearProcessingState)
+                    return
+                end
+            end
+            
+            task.delay(5, clearProcessingState)
+            if joinSuccess or State.challengeJoinAttempts >= State.maxChallengeAttempts then
+                return -- Only return if successful or max attempts reached
+            end
+        end
+    end
+
+        -- STORY
+        if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
+            setProcessingState("Story Auto Join")
+
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = 1,Ultramode = false,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = 1,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+
+
+            task.delay(5, clearProcessingState)
+            return
+        end
+
+          if State.AutoJoinLegend and State.LegendStageSelected and State.LegendActSelected then
+            setProcessingState("Ultra Stage Auto Join")
+
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = 1,Ultramode = true,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = 1,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+
+
+            task.delay(5, clearProcessingState)
+            return
+        end
+
+        if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
+            setProcessingState("Raid Auto Join")
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Raid",AreaNumber = 1})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = "6",Ultramode = false,Hardmode = true,Owner = game:GetService("Players"):WaitForChild("rzonales"),FriendsOnly = false,WorldNumber = 11,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
+
+            task.delay(5, clearProcessingState)
+            return
         end
     end
 
@@ -2191,6 +2335,339 @@ end
     end,
 })
 
+section = JoinerTab:CreateSection("Story Joiner")
+
+     AutoJoinStoryToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Story",
+        CurrentValue = false,
+        Flag = "AutoJoinStory",
+        Callback = function(Value)
+            State.AutoJoinStory = Value
+        end,
+    })
+
+    local StoryStageDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Stage",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "StageStorySelector",
+        Callback = function(Option)
+           print("Selected "..Option[1])
+        end,
+    })
+
+     ChapterDropdown869 = JoinerTab:CreateDropdown({
+        Name = "Select Story Act",
+        Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "StoryActSelector",
+        Callback = function(Option)
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            if selectedOption == "Infinite" then
+                State.StoryActSelected = "_infinite"
+            else
+                local num = selectedOption:match("%d+")
+                if num then
+                    State.StoryActSelected = "_level_" .. num
+                end
+            end
+            print("Selected "..Option[1])
+        end,
+    })
+
+     ChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Story Difficulty",
+        Options = {"Normal","Hard"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "StoryDifficultySelector",
+        Callback = function(Option)
+            local selectedOption = Option[1]
+            if selectedOption == "Normal" then
+                State.StoryDifficultySelected = "Normal"
+            elseif selectedOption == "Hard" then
+                State.StoryDifficultySelected = "Hard"
+            end
+            print("Selected "..Option[1])
+        end,
+    })
+
+    section = JoinerTab:CreateSection("Legend Stage Joiner")
+
+    AutoJoinLegendToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Legend",
+        CurrentValue = false,
+        Flag = "AutoJoinLegend",
+        Callback = function(Value)
+            State.AutoJoinLegendStage = Value
+        end,
+    })
+
+    local LegendStageDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Legend Stage",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "LegendWorldSelector",
+        Callback = function(Option)
+           print("Selected "..Option[1])
+        end,
+    })
+
+    LegendChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Legend Stage Act",
+        Options = {"Act 1", "Act 2", "Act 3"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "LegendActSelector",
+        Callback = function(Option)
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.LegendActSelected = "_" .. num
+            end
+            print("Selected "..Option[1])
+        end,
+    })
+
+    section = JoinerTab:CreateSection("Raid Joiner")
+
+    AutoJoinRaidToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Raid",
+        CurrentValue = false,
+        Flag = "AutoJoinRaid",
+        Callback = function(Value)
+            State.AutoJoinRaid = Value
+        end,
+    })
+
+    local RaidStageDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Raid Stage",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "RaidWorldSelector",
+        Callback = function(Option)
+           print("Selected "..Option[1])
+        end,
+    })
+
+    RaidChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Raid Stage Act",
+        Options = {"Act 1", "Act 2", "Act 3","Act 4","Act 5"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "RaidActSelector",
+        Callback = function(Option)
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.RaidActSelected = "_" .. num
+            end
+            print("Selected "..Option[1])
+        end,
+    })
+
+    section = JoinerTab:CreateSection("Challenge Joiner")
+
+    AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Challenge",
+        CurrentValue = false,
+        Flag = "AutoJoinChallenge",
+        Callback = function(Value)
+            State.AutoJoinChallenge = Value
+        end,
+    })
+
+    local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
+        Name = "Ignore Worlds",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "IgnoreWorldsSelector",
+        Info = "Skip challenges based on these worlds",
+        Callback = function(Options)
+            State.IgnoreWorlds = Options or {}
+            print("Ignore worlds updated:", table.concat(State.IgnoreWorlds, ", "))
+        end,
+    })
+
+    ReturnToLobbyToggle = JoinerTab:CreateToggle({
+        Name = "Return to Lobby on New Challenge",
+        CurrentValue = false,
+        Flag = "ReturnToLobbyOnNewChallenge",
+        Info = "Return to lobby when new challenge appears instead of using retry/next",
+        Callback = function(Value)
+            State.ReturnToLobbyOnNewChallenge = Value
+        end,
+    })
+
+local function loadAllStoryStagesWithRetry()
+    loadingRetries.story = loadingRetries.story + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllStoryStagesWithRetry)
+        else
+            warn("Failed to load story stages after", maxRetries, "attempts - giving up")
+            StoryStageDropdown:Refresh({"Failed to load - check console"})
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local InfoModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule)
+        
+        if not InfoModule or not InfoModule.Maps then
+            error("InfoModule or Maps not found")
+        end
+
+        local displayNames = {}
+        
+        -- Filter for non-event, non-raid stages (story stages)
+        for _, worldInfo in ipairs(InfoModule.Maps) do
+            if type(worldInfo) == "table" and worldInfo.Name then
+                -- Story stages are those without Event or Raid flags
+                if not worldInfo.Event and not worldInfo.Raid then
+                    table.insert(displayNames, worldInfo.Name)
+                end
+            end
+        end
+        
+        if #displayNames == 0 then
+            error("No story stages found")
+        end
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        StoryStageDropdown:Refresh(result)
+        print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
+    else
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllStoryStagesWithRetry)
+        else
+            warn("Failed to load story stages after", maxRetries, "attempts:", result)
+            StoryStageDropdown:Refresh({"Failed to load - check console"})
+        end
+    end
+end
+
+local function loadAllLegendStagesWithRetry()
+    loadingRetries.legend = loadingRetries.legend + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.legend <= maxRetries then
+            print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllLegendStagesWithRetry)
+        else
+            warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
+            LegendStageDropdown:Refresh({"Failed to load - check console"})
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local InfoModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule)
+        
+        if not InfoModule or not InfoModule.Maps then
+            error("InfoModule or Maps not found")
+        end
+
+        local displayNames = {}
+        
+        -- Filter for event stages (legend stages)
+        for _, worldInfo in ipairs(InfoModule.Maps) do
+            if type(worldInfo) == "table" and worldInfo.Name and worldInfo.Event then
+                table.insert(displayNames, worldInfo.Name)
+            end
+        end
+        
+        if #displayNames == 0 then
+            error("No legend stages found")
+        end
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        LegendStageDropdown:Refresh(result)
+        print(string.format("Successfully loaded %d legend stages (attempt %d)", #result, loadingRetries.legend))
+    else
+        if loadingRetries.legend <= maxRetries then
+            print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllLegendStagesWithRetry)
+        else
+            warn("Failed to load legend stages after", maxRetries, "attempts:", result)
+            LegendStageDropdown:Refresh({"Failed to load - check console"})
+        end
+    end
+end
+
+local function loadAllRaidStagesWithRetry()
+    loadingRetries.raid = loadingRetries.raid + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.raid <= maxRetries then
+            print(string.format("Raid stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.raid, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllRaidStagesWithRetry)
+        else
+            warn("Failed to load raid stages after", maxRetries, "attempts - giving up")
+            RaidStageDropdown:Refresh({"Failed to load - check console"})
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local InfoModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule)
+        
+        if not InfoModule or not InfoModule.Maps then
+            error("InfoModule or Maps not found")
+        end
+
+        local displayNames = {}
+        
+        -- Filter for raid stages
+        for _, worldInfo in ipairs(InfoModule.Maps) do
+            if type(worldInfo) == "table" and worldInfo.Name and worldInfo.Raid then
+                table.insert(displayNames, worldInfo.Name)
+            end
+        end
+        
+        if #displayNames == 0 then
+            error("No raid stages found")
+        end
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        RaidStageDropdown:Refresh(result)
+        print(string.format("Successfully loaded %d raid stages (attempt %d)", #result, loadingRetries.raid))
+    else
+        if loadingRetries.raid <= maxRetries then
+            print(string.format("Raid stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.raid, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllRaidStagesWithRetry)
+        else
+            warn("Failed to load raid stages after", maxRetries, "attempts:", result)
+            RaidStageDropdown:Refresh({"Failed to load - check console"})
+        end
+    end
+end
+
 local function updateFPSLimit()
     if State.enableLimitFPS and State.SelectedFPS > 0 then
         setfpscap(tonumber(State.SelectedFPS))
@@ -2862,10 +3339,21 @@ WebhookInput = WebhookTab:CreateInput({
     -- ============================================
 
 
+      task.spawn(function()
+        while true do
+            task.wait(0.5)
+            --checkAndExecuteHighestPriority()
+        end
+    end)
+
 
     ensureMacroFolders()
     loadAllMacros()
     MacroDropdown:Refresh(getMacroList())
+
+    task.spawn(loadAllStoryStagesWithRetry)
+    task.spawn(loadAllLegendStagesWithRetry)
+    task.spawn(loadAllRaidStagesWithRetry)
 
     Rayfield:LoadConfiguration()
     Rayfield:SetVisibility(false)
