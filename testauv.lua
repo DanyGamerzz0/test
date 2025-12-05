@@ -2514,6 +2514,12 @@ section = JoinerTab:CreateSection("Story Joiner")
         portal = 0
     }
 
+    local function isGameDataLoaded()
+    return Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") and
+        Services.ReplicatedStorage.MainSharedFolder:FindFirstChild("Modules") and
+        Services.ReplicatedStorage.MainSharedFolder.Modules:FindFirstChild("InfoModule")
+end
+
 local function loadAllStoryStagesWithRetry()
     loadingRetries.story = loadingRetries.story + 1
     
