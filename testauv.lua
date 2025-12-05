@@ -2517,10 +2517,11 @@ section = JoinerTab:CreateSection("Story Joiner")
     local maxRetries = 20 -- Maximum number of retry attempts
     local retryDelay = 2
 
-    local function isGameDataLoaded()
+local function isGameDataLoaded()
     return Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") and
         Services.ReplicatedStorage.MainSharedFolder:FindFirstChild("Modules") and
-        Services.ReplicatedStorage.MainSharedFolder.Modules:FindFirstChild("InfoModule")
+        Services.ReplicatedStorage.MainSharedFolder.Modules:FindFirstChild("InfoModule") and
+        Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule:FindFirstChild("Worlds")
 end
 
 local function loadAllStoryStagesWithRetry()
@@ -2539,16 +2540,16 @@ local function loadAllStoryStagesWithRetry()
     end
     
     local success, result = pcall(function()
-        local InfoModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule)
+        local WorldsModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule.Worlds)
         
-        if not InfoModule or not InfoModule.Maps then
-            error("InfoModule or Maps not found")
+        if not WorldsModule or not WorldsModule.Maps then
+            error("WorldsModule or Maps not found")
         end
 
         local displayNames = {}
         
         -- Filter for non-event, non-raid stages (story stages)
-        for _, worldInfo in ipairs(InfoModule.Maps) do
+        for _, worldInfo in ipairs(WorldsModule.Maps) do
             if type(worldInfo) == "table" and worldInfo.Name then
                 -- Story stages are those without Event or Raid flags
                 if not worldInfo.Event and not worldInfo.Raid then
@@ -2595,16 +2596,16 @@ local function loadAllLegendStagesWithRetry()
     end
     
     local success, result = pcall(function()
-        local InfoModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule)
+        local WorldsModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule.Worlds)
         
-        if not InfoModule or not InfoModule.Maps then
-            error("InfoModule or Maps not found")
+        if not WorldsModule or not WorldsModule.Maps then
+            error("WorldsModule or Maps not found")
         end
 
         local displayNames = {}
         
         -- Filter for event stages (legend stages)
-        for _, worldInfo in ipairs(InfoModule.Maps) do
+        for _, worldInfo in ipairs(WorldsModule.Maps) do
             if type(worldInfo) == "table" and worldInfo.Name and worldInfo.Event then
                 table.insert(displayNames, worldInfo.Name)
             end
@@ -2648,16 +2649,16 @@ local function loadAllRaidStagesWithRetry()
     end
     
     local success, result = pcall(function()
-        local InfoModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule)
+        local WorldsModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule.Worlds)
         
-        if not InfoModule or not InfoModule.Maps then
-            error("InfoModule or Maps not found")
+        if not WorldsModule or not WorldsModule.Maps then
+            error("WorldsModule or Maps not found")
         end
 
         local displayNames = {}
         
         -- Filter for raid stages
-        for _, worldInfo in ipairs(InfoModule.Maps) do
+        for _, worldInfo in ipairs(WorldsModule.Maps) do
             if type(worldInfo) == "table" and worldInfo.Name and worldInfo.Raid then
                 table.insert(displayNames, worldInfo.Name)
             end
