@@ -2535,6 +2535,7 @@ local function loadAllStoryStagesWithRetry()
         else
             warn("Failed to load story stages after", maxRetries, "attempts - giving up")
             StoryStageDropdown:Refresh({"Failed to load - check console"})
+            LegendStageDropdown:Refresh({"Failed to load - check console"})
         end
         return
     end
@@ -2567,6 +2568,7 @@ local function loadAllStoryStagesWithRetry()
     
     if success and result and #result > 0 then
         StoryStageDropdown:Refresh(result)
+        LegendStageDropdown:Refresh(result)  -- Same worlds for legend dropdown
         print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
     else
         if loadingRetries.story <= maxRetries then
@@ -2576,21 +2578,24 @@ local function loadAllStoryStagesWithRetry()
         else
             warn("Failed to load story stages after", maxRetries, "attempts:", result)
             StoryStageDropdown:Refresh({"Failed to load - check console"})
+            LegendStageDropdown:Refresh({"Failed to load - check console"})
         end
     end
 end
 
-local function loadAllLegendStagesWithRetry()
-    loadingRetries.legend = loadingRetries.legend + 1
+-- New function to load story stages into Ignore Worlds dropdown
+local function loadIgnoreWorldsWithRetry()
+    loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds or 0
+    loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds + 1
     
     if not isGameDataLoaded() then
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
+        if loadingRetries.ignoreWorlds <= maxRetries then
+            print(string.format("Ignore worlds loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.ignoreWorlds, maxRetries))
             task.wait(retryDelay)
-            task.spawn(loadAllLegendStagesWithRetry)
+            task.spawn(loadIgnoreWorldsWithRetry)
         else
-            warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
-            LegendStageDropdown:Refresh({"Failed to load - check console"})
+            warn("Failed to load ignore worlds after", maxRetries, "attempts - giving up")
+            IgnoreWorldsDropdown:Refresh({"Failed to load - check console"})
         end
         return
     end
@@ -2604,31 +2609,34 @@ local function loadAllLegendStagesWithRetry()
 
         local displayNames = {}
         
-        -- Filter for event stages (legend stages)
+        -- Filter for non-event, non-raid stages (story stages)
         for _, worldInfo in ipairs(WorldsModule.Maps) do
-            if type(worldInfo) == "table" and worldInfo.Name and worldInfo.Event then
-                table.insert(displayNames, worldInfo.Name)
+            if type(worldInfo) == "table" and worldInfo.Name then
+                -- Story stages are those without Event or Raid flags
+                if not worldInfo.Event and not worldInfo.Raid then
+                    table.insert(displayNames, worldInfo.Name)
+                end
             end
         end
         
         if #displayNames == 0 then
-            error("No legend stages found")
+            error("No story stages found")
         end
         
         return displayNames
     end)
     
     if success and result and #result > 0 then
-        LegendStageDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d legend stages (attempt %d)", #result, loadingRetries.legend))
+        IgnoreWorldsDropdown:Refresh(result)
+        print(string.format("Successfully loaded %d worlds for ignore list (attempt %d)", #result, loadingRetries.ignoreWorlds))
     else
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
+        if loadingRetries.ignoreWorlds <= maxRetries then
+            print(string.format("Ignore worlds loading failed (attempt %d/%d): %s - retrying...", loadingRetries.ignoreWorlds, maxRetries, tostring(result)))
             task.wait(retryDelay)
-            task.spawn(loadAllLegendStagesWithRetry)
+            task.spawn(loadIgnoreWorldsWithRetry)
         else
-            warn("Failed to load legend stages after", maxRetries, "attempts:", result)
-            LegendStageDropdown:Refresh({"Failed to load - check console"})
+            warn("Failed to load ignore worlds after", maxRetries, "attempts:", result)
+            IgnoreWorldsDropdown:Refresh({"Failed to load - check console"})
         end
     end
 end
@@ -3370,7 +3378,7 @@ WebhookInput = WebhookTab:CreateInput({
     MacroDropdown:Refresh(getMacroList())
 
     task.spawn(loadAllStoryStagesWithRetry)
-    task.spawn(loadAllLegendStagesWithRetry)
+    task.spawn(loadIgnoreWorldsWithRetry)
     task.spawn(loadAllRaidStagesWithRetry)
 
     Rayfield:LoadConfiguration()
