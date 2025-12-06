@@ -165,8 +165,8 @@ if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
         local Modules = MainSharedFolder:FindFirstChild("Modules")
 
 
-         if Modules:FindFirstChild("ChallengeModule") then
-        ChallengeModule = require(Modules.ChallengeModule)
+         if game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler") then
+        ChallengeModule = require(game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler"))
         print("✓ ChallengeModule loaded")
     else
         warn("[-] ChallengeModule not found")
