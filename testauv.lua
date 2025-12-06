@@ -2389,7 +2389,7 @@ section = JoinerTab:CreateSection("Story Joiner")
         end,
     })
 
-local StoryStageDropdown = SomeTab:CreateDropdown({
+local StoryStageDropdown = JoinerTab:CreateDropdown({
     Name = "Story Stage",
     Options = {},
     CurrentOption = {"Namak Planet"},
@@ -2453,7 +2453,7 @@ local StoryStageDropdown = SomeTab:CreateDropdown({
         end,
     })
 
-local LegendStageDropdown = SomeTab:CreateDropdown({
+local LegendStageDropdown = JoinerTab:CreateDropdown({
     Name = "Legend Stage",
     Options = {},
     CurrentOption = {"Namak Planet"},
@@ -2497,7 +2497,7 @@ local LegendStageDropdown = SomeTab:CreateDropdown({
         end,
     })
 
-local RaidStageDropdown = SomeTab:CreateDropdown({
+local RaidStageDropdown = JoinerTab:CreateDropdown({
     Name = "Raid Stage",
     Options = {},
     CurrentOption = {},
