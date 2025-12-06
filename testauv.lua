@@ -141,6 +141,13 @@ local hasSentWebhook = false
         portal = 0
     }
 
+     local AutoJoinState = {
+        isProcessing = false,
+        currentAction = nil,
+        lastActionTime = 0,
+        actionCooldown = 2
+    }
+
     local maxRetries = 20 -- Maximum number of retry attempts
     local retryDelay = 2
 
