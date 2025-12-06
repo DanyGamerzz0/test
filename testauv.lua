@@ -232,6 +232,7 @@ end
         SelectedStoryStageIndex = "",
 
 
+        AutoJoinLegendStage = false,
         SelectedLegendStageIndex = "",
         SelectedLegendStageName = "",
         LegendActSelected = "",
@@ -741,29 +742,29 @@ local function canPerformAction()
     end
 
         -- STORY
-        if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
+        if State.AutoJoinStory and State.SelectedStoryStageIndex and State.StoryDifficultySelected and State.StoryActSelected then
             setProcessingState("Story Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = State.StoryActSelected,Ultramode = false,Hardmode = State.StoryDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedStoryStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tonumber(State.StoryActSelected),Ultramode = false,Hardmode = State.StoryDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedStoryStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
 
 
             task.delay(5, clearProcessingState)
             return
         end
 
-          if State.AutoJoinLegend and State.LegendStageSelected and State.LegendActSelected then
+          if State.AutoJoinLegendStage and State.SelectedLegendStageIndex and State.LegendDifficultySelected and State.LegendActSelected then
             setProcessingState("Ultra Stage Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.LegendActSelected),Ultramode = true,Hardmode = State.LegendDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedLegendStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tonumber(State.LegendActSelected),Ultramode = true,Hardmode = State.LegendDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedLegendStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
 
 
             task.delay(5, clearProcessingState)
             return
         end
 
-        if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
+        if State.AutoJoinRaid and State.SelectedRaidStageIndex and State.RaidDifficultySelected and State.RaidActSelected then
             setProcessingState("Raid Auto Join")
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Raid",AreaNumber = 1})
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.RaidActSelected),Ultramode = false,Hardmode = State.RaidDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedRaidStageIndex,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
