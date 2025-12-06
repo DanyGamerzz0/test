@@ -158,12 +158,20 @@ local Config = {
 }
 
 local Modules = Services.ReplicatedStorage:FindFirstChild("MainSharedFolder"):FindFirstChild("Modules")
+local InfoModuleFolder = Modules:FindFirstChild("InfoModule")
 
  if Modules:FindFirstChild("ChallengeModule") then
         ChallengeModule = require(Modules.ChallengeModule)
         print("✓ ChallengeModule loaded")
     else
         warn("[-] ChallengeModule not found")
+    end
+
+    if InfoModuleFolder and InfoModuleFolder:FindFirstChild("Worlds") then
+        WorldsModule = require(InfoModuleFolder.Worlds)
+        print("✓ WorldsModule loaded")
+    else
+        warn("[-] WorldsModule not found")
     end
 
 if game.PlaceId ~= 17899227840 then
@@ -681,8 +689,8 @@ local function getCurrentChallengeData(challengeType)
     
     -- Get the world/map name
     local worldName = "Unknown"
-    if InfoModule and InfoModule.Worlds and InfoModule.Worlds.Maps then
-        local worldInfo = InfoModule.Worlds.Maps[challengeData.WorldNumber]
+    if WorldsModule and WorldsModule.Maps then
+        local worldInfo = WorldsModule.Maps[challengeData.WorldNumber]
         if worldInfo then
             worldName = worldInfo.Name
         end
