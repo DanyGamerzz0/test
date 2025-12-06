@@ -23,7 +23,7 @@ local Services = {
 
     local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-    local script_version = "V0.02"
+    local script_version = "V0.03"
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Ultra Verse",
     Icon = 0,
@@ -729,6 +729,37 @@ end
 
 local function getWeeklyChallenge()
     return getCurrentChallengeData("Weekly")
+end
+
+local function shouldReturnToLobbyForNewChallenge()
+    if not State.ReturnToLobbyOnNewChallenge or not State.AutoJoinChallenge then
+        return false
+    end
+    
+    if not State.SelectedChallenges or #State.SelectedChallenges == 0 then
+        return false
+    end
+    
+    local currentTime = os.date("*t")
+    local currentMinute = currentTime.min
+    
+    -- Check if any selected challenge has a new spawn time
+    for _, challengeName in ipairs(State.SelectedChallenges) do
+        if challengeName == "15 Minute" then
+            -- 15-minute challenges spawn at :00, :15, :30, :45
+            if currentMinute == 0 or currentMinute == 15 or currentMinute == 30 or currentMinute == 45 then
+                return true
+            end
+        elseif challengeName == "30 Minute" then
+            -- 30-minute challenges spawn at :00, :30
+            if currentMinute == 0 or currentMinute == 30 then
+                return true
+            end
+        end
+        -- Daily and Weekly don't trigger auto-lobby
+    end
+    
+    return false
 end
 
     local function joinChallenge()
@@ -2123,6 +2154,26 @@ end
 
         task.wait(0.5)
 
+        if shouldReturnToLobbyForNewChallenge() then
+            notify("Auto Challenge","New challenge available - Returning to lobby...")
+            local success = pcall(function()
+                local lobbyButton = waveEnd.Buttons:FindFirstChild("Lobby")
+                
+                if lobbyButton then
+                    for _, connection in pairs(getconnections(lobbyButton.Activated)) do
+                        connection:Fire()
+                    end
+                end
+            end)
+            
+            if success then
+                -- Reset game state
+                gameInProgress = false
+                gameStartTime = 0
+                clearSpawnIdMappings()
+            end
+        end
+
         if State.ChallengeBug then
     print("Secret Feature enabled - Clicking Restart...")
     local success = pcall(function()
@@ -2704,61 +2755,6 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
             State.ReturnToLobbyOnNewChallenge = Value
         end,
     })
-
-local CheckAllChallengesButton = JoinerTab:CreateButton({
-    Name = "Debug: Print Current Challenges",
-    Callback = function()
-        print("\n=== 15 MINUTE CHALLENGE ===")
-        local c15 = get15MinuteChallenge()
-        if c15 then
-            print("Map:", c15.WorldName)
-            print("Chapter:", c15.Chapter)
-            print("Modifier:", c15.Modifier)
-            print("Rewards:")
-            for _, reward in ipairs(c15.Rewards) do
-                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
-            end
-        end
-        
-        print("\n=== 30 MINUTE CHALLENGE ===")
-        local c30 = get30MinuteChallenge()
-        if c30 then
-            print("Map:", c30.WorldName)
-            print("Chapter:", c30.Chapter)
-            print("Modifier:", c30.Modifier)
-            print("Rewards:")
-            for _, reward in ipairs(c30.Rewards) do
-                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
-            end
-        end
-        
-        print("\n=== DAILY CHALLENGE ===")
-        local daily = getDailyChallenge()
-        if daily then
-            print("Map:", daily.WorldName)
-            print("Chapter:", daily.Chapter)
-            print("Modifier:", daily.Modifier)
-            print("Rewards:")
-            for _, reward in ipairs(daily.Rewards) do
-                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
-            end
-        end
-        
-        print("\n=== WEEKLY CHALLENGE ===")
-        local weekly = getWeeklyChallenge()
-        if weekly then
-            print("Map:", weekly.WorldName)
-            print("Chapter:", weekly.Chapter)
-            print("Modifier:", weekly.Modifier)
-            print("Rewards:")
-            for _, reward in ipairs(weekly.Rewards) do
-                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
-            end
-        end
-        
-        notify("Debug", "Challenge info printed to console")
-    end,
-})
 
 local function isGameDataLoaded()
     return Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") and
