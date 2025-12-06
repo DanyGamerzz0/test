@@ -220,8 +220,14 @@ end
         StoryStageSelected = "",
         StoryActSelected = "",
         StoryDifficultySelected = "",
+        SelectedStoryStageName = "",
+        SelectedStoryStageIndex = "",
+        SelectedLegendStageIndex = "",
+        SelectedLegendStageName = "",
         LegendActSelected = "",
         AutoJoinRaid = false,
+        SelectedRaidStageName = "",
+        SelectedRaidStageIndex = "",
         RaidActSelected = "",
         AutoJoinChallenge = false,
         IgnoreWorlds = {},
@@ -708,7 +714,6 @@ local function canPerformAction()
                     State.challengeJoinAttempts = 0 -- Reset counter
                     -- Don't return here - let it fall through to next priority
                 else
-                    -- Still have attempts left, wait and return to try again
                     task.delay(5, clearProcessingState)
                     return
                 end
@@ -716,7 +721,7 @@ local function canPerformAction()
             
             task.delay(5, clearProcessingState)
             if joinSuccess or State.challengeJoinAttempts >= State.maxChallengeAttempts then
-                return -- Only return if successful or max attempts reached
+                return
             end
         end
     end
@@ -726,7 +731,7 @@ local function canPerformAction()
             setProcessingState("Story Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = 1,Ultramode = false,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = 1,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = State.StoryActSelected,Ultramode = false,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedStoryStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
 
 
             task.delay(5, clearProcessingState)
@@ -737,7 +742,7 @@ local function canPerformAction()
             setProcessingState("Ultra Stage Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = 1,Ultramode = true,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = 1,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = State.LegendActSelected,Ultramode = true,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedLegendStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
 
 
             task.delay(5, clearProcessingState)
@@ -747,7 +752,7 @@ local function canPerformAction()
         if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
             setProcessingState("Raid Auto Join")
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Raid",AreaNumber = 1})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = "6",Ultramode = false,Hardmode = true,Owner = game:GetService("Players"):WaitForChild("rzonales"),FriendsOnly = false,WorldNumber = 11,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.RaidActSelected),Ultramode = false,Hardmode = true,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedRaidStageIndex,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
 
             task.delay(5, clearProcessingState)
             return
@@ -2347,6 +2352,32 @@ end
     end,
 })
 
+local function getWorldIndexByName(worldName)
+    local success, result = pcall(function()
+        local WorldsModule = require(Services.ReplicatedStorage.MainSharedFolder.Modules.InfoModule.Worlds)
+        
+        if not WorldsModule or not WorldsModule.Maps then
+            return nil
+        end
+        
+        -- Find the index of the world in the Maps array
+        for index, worldInfo in ipairs(WorldsModule.Maps) do
+            if worldInfo.Name == worldName then
+                return index
+            end
+        end
+        
+        return nil
+    end)
+    
+    if success and result then
+        return result
+    else
+        warn("Failed to get world index for:", worldName)
+        return nil
+    end
+end
+
 section = JoinerTab:CreateSection("Story Joiner")
 
      AutoJoinStoryToggle = JoinerTab:CreateToggle({
@@ -2358,16 +2389,22 @@ section = JoinerTab:CreateSection("Story Joiner")
         end,
     })
 
-    local StoryStageDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Story Stage",
-        Options = {},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "StageStorySelector",
-        Callback = function(Option)
-           State.StoryStageSelected = Option[1]
-        end,
-    })
+local StoryStageDropdown = SomeTab:CreateDropdown({
+    Name = "Story Stage",
+    Options = {},
+    CurrentOption = {"Namak Planet"},
+    Flag = "StoryStageSelector",
+    Callback = function(Option)
+        local worldIndex = getWorldIndexByName(Option[1])
+        if worldIndex then
+            State.SelectedStoryStageIndex = worldIndex
+            State.SelectedStoryStageName = Option[1]
+            print(string.format("Selected story stage: %s (Index: %d)", Option[1], worldIndex))
+        else
+            warn("Could not find index for selected world:", Option[1])
+        end
+    end,
+})
 
      ChapterDropdown869 = JoinerTab:CreateDropdown({
         Name = "Select Story Chapter",
@@ -2405,7 +2442,7 @@ section = JoinerTab:CreateSection("Story Joiner")
         end,
     })
 
-    section = JoinerTab:CreateSection("Legend Stage Joiner")
+    section = JoinerTab:CreateSection("Ultra Stage Joiner")
 
     AutoJoinLegendToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Ultra Stage",
@@ -2416,16 +2453,22 @@ section = JoinerTab:CreateSection("Story Joiner")
         end,
     })
 
-    local LegendStageDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Ultra Stage",
-        Options = {},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "LegendWorldSelector",
-        Callback = function(Option)
-           State.LegendStageSelected = Option[1]
-        end,
-    })
+local LegendStageDropdown = SomeTab:CreateDropdown({
+    Name = "Legend Stage",
+    Options = {},
+    CurrentOption = {"Namak Planet"},
+    Flag = "LegendStageSelector",
+    Callback = function(Option)
+        local worldIndex = getWorldIndexByName(Option[1])
+        if worldIndex then
+            State.SelectedLegendStageIndex = worldIndex
+            State.SelectedLegendStageName = Option[1]
+            print(string.format("Selected legend stage: %s (Index: %d)", Option[1], worldIndex))
+        else
+            warn("Could not find index for selected world:", Option[1])
+        end
+    end,
+})
 
     LegendChapterDropdown = JoinerTab:CreateDropdown({
         Name = "Select Legend Stage Chapter",
@@ -2454,16 +2497,22 @@ section = JoinerTab:CreateSection("Story Joiner")
         end,
     })
 
-    local RaidStageDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Raid Stage",
-        Options = {},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "RaidWorldSelector",
-        Callback = function(Option)
-           State.RaidStageSelected = Option[1]
-        end,
-    })
+local RaidStageDropdown = SomeTab:CreateDropdown({
+    Name = "Raid Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "RaidStageSelector",
+    Callback = function(Option)
+        local worldIndex = getWorldIndexByName(Option[1])
+        if worldIndex then
+            State.SelectedRaidStageIndex = worldIndex
+            State.SelectedRaidStageName = Option[1]
+            print(string.format("Selected raid stage: %s (Index: %d)", Option[1], worldIndex))
+        else
+            warn("Could not find index for selected world:", Option[1])
+        end
+    end,
+})
 
     RaidChapterDropdown = JoinerTab:CreateDropdown({
         Name = "Select Raid Stage Chapter",
@@ -3366,7 +3415,7 @@ WebhookInput = WebhookTab:CreateInput({
       task.spawn(function()
         while true do
             task.wait(0.5)
-            --checkAndExecuteHighestPriority()
+            checkAndExecuteHighestPriority()
         end
     end)
 
