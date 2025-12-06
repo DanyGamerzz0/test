@@ -133,6 +133,7 @@ local lastGameRewards = {}
 local ValidWebhook = nil
 local hasSentWebhook = false
 local ChallengeModule = nil
+local InfoModule = nil
 
         local loadingRetries = {
         story = 0,
@@ -156,13 +157,14 @@ local Config = {
     DISCORD_USER_ID = nil,
 }
 
-if game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler") then
-        ChallengeModule = require(game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler"))
+local Modules = MainSharedFolder:FindFirstChild("Modules")
+
+ if Modules:FindFirstChild("ChallengeModule") then
+        ChallengeModule = require(Modules.ChallengeModule)
         print("✓ ChallengeModule loaded")
     else
         warn("[-] ChallengeModule not found")
     end
-
 
 if game.PlaceId ~= 17899227840 then
 if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
@@ -171,9 +173,6 @@ if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
     if MainSharedFolder:FindFirstChild("Modules") then
         local Modules = MainSharedFolder:FindFirstChild("Modules")
 
-
-         
-        
         if Modules:FindFirstChild("ReplicaModule") then
             ReplicaModule = require(Modules.ReplicaModule)
             
@@ -668,42 +667,60 @@ end
         AutoJoinState.currentAction = nil
     end
 
-    local function getChallengeData(challengeMinutes)
-    if not ChallengeModule or not ChallengeModule.Types then
+local function getCurrentChallengeData(challengeType)
+    if not ChallengeModule then
         warn("ChallengeModule not loaded")
         return nil
     end
     
-    -- Find challenge by time
-    for challengeName, challengeData in pairs(ChallengeModule.Types) do
-        if challengeData.Time == challengeMinutes then
-            return {
-                Name = challengeName,
-                Map = challengeData.Level or challengeData.World,  -- The world/map name
-                Rewards = challengeData.Rewards,  -- Reward table
-                Modifier = challengeData.Modifier or challengeData.Effect,  -- Challenge modifier/effect
-                RawData = challengeData  -- Full data if you need anything else
-            }
+    local challengeData = ChallengeModule:GetChallenge(challengeType)
+    
+    if not challengeData then
+        return nil
+    end
+    
+    -- Get the world/map name
+    local worldName = "Unknown"
+    if InfoModule and InfoModule.Worlds and InfoModule.Worlds.Maps then
+        local worldInfo = InfoModule.Worlds.Maps[challengeData.WorldNumber]
+        if worldInfo then
+            worldName = worldInfo.Name
         end
     end
     
-    return nil
+    -- Get the modifier name
+    local modifierName = "Unknown"
+    if ChallengeModule.Modifiers and ChallengeModule.Modifiers[challengeData.Modifier] then
+        modifierName = ChallengeModule.Modifiers[challengeData.Modifier].Name
+    end
+    
+    return {
+        Type = challengeData.Type,
+        WorldNumber = challengeData.WorldNumber,
+        WorldName = worldName,
+        Chapter = challengeData.Chapter,
+        Modifier = modifierName,
+        ModifierIndex = challengeData.Modifier,
+        Rewards = challengeData.Rewards[challengeData.Chapter] or {},
+        GUID = challengeData.GUID,
+        RawData = challengeData
+    }
 end
 
 local function get15MinuteChallenge()
-    return getChallengeData(15)
+    return getCurrentChallengeData("15-Minutes")
 end
 
 local function get30MinuteChallenge()
-    return getChallengeData(30)
+    return getCurrentChallengeData("30-Minutes")
 end
 
 local function getDailyChallenge()
-    return getChallengeData(1440)  -- 24 hours
+    return getCurrentChallengeData("Daily")
 end
 
 local function getWeeklyChallenge()
-    return getChallengeData(10080)  -- 7 days
+    return getCurrentChallengeData("Weekly")
 end
 
     local function joinChallenge()
@@ -2671,39 +2688,55 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-    local CheckAllChallengesButton = JoinerTab:CreateButton({
-    Name = "Debug: Print All Challenge Info",
+local CheckAllChallengesButton = JoinerTab:CreateButton({
+    Name = "Debug: Print Current Challenges",
     Callback = function()
-        print("=== 15 MINUTE CHALLENGE ===")
+        print("\n=== 15 MINUTE CHALLENGE ===")
         local c15 = get15MinuteChallenge()
         if c15 then
-            print("Map:", c15.Map)
+            print("Map:", c15.WorldName)
+            print("Chapter:", c15.Chapter)
             print("Modifier:", c15.Modifier)
-            print("Rewards:", Services.HttpService:JSONEncode(c15.Rewards))
+            print("Rewards:")
+            for _, reward in ipairs(c15.Rewards) do
+                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
+            end
         end
         
         print("\n=== 30 MINUTE CHALLENGE ===")
         local c30 = get30MinuteChallenge()
         if c30 then
-            print("Map:", c30.Map)
+            print("Map:", c30.WorldName)
+            print("Chapter:", c30.Chapter)
             print("Modifier:", c30.Modifier)
-            print("Rewards:", Services.HttpService:JSONEncode(c30.Rewards))
+            print("Rewards:")
+            for _, reward in ipairs(c30.Rewards) do
+                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
+            end
         end
         
         print("\n=== DAILY CHALLENGE ===")
         local daily = getDailyChallenge()
         if daily then
-            print("Map:", daily.Map)
+            print("Map:", daily.WorldName)
+            print("Chapter:", daily.Chapter)
             print("Modifier:", daily.Modifier)
-            print("Rewards:", Services.HttpService:JSONEncode(daily.Rewards))
+            print("Rewards:")
+            for _, reward in ipairs(daily.Rewards) do
+                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
+            end
         end
         
         print("\n=== WEEKLY CHALLENGE ===")
         local weekly = getWeeklyChallenge()
         if weekly then
-            print("Map:", weekly.Map)
+            print("Map:", weekly.WorldName)
+            print("Chapter:", weekly.Chapter)
             print("Modifier:", weekly.Modifier)
-            print("Rewards:", Services.HttpService:JSONEncode(weekly.Rewards))
+            print("Rewards:")
+            for _, reward in ipairs(weekly.Rewards) do
+                print(string.format("  - %s %s x%s", reward.Type, reward.Name, tostring(reward.Qt)))
+            end
         end
         
         notify("Debug", "Challenge info printed to console")
