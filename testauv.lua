@@ -737,26 +737,27 @@ end
         return false
     end
     
-    -- Map user-friendly names to challenge types
+    -- Map user-friendly names to challenge types and their AreaNumbers
     local challengeTypeMap = {
-        ["15 Minute"] = "15-Minutes",
-        ["30 Minute"] = "30-Minutes",
-        ["Daily"] = "Daily",
-        ["Weekly"] = "Weekly"
+        ["15 Minute"] = {type = "15-Minutes", areaNumber = 1},
+        ["30 Minute"] = {type = "30-Minutes", areaNumber = 6},
+        ["Daily"] = {type = "Daily", areaNumber = 7},
+        ["Weekly"] = {type = "Weekly", areaNumber = 8}
     }
     
     -- Check each selected challenge in priority order
     for _, selectedName in ipairs(State.SelectedChallenges) do
-        local challengeType = challengeTypeMap[selectedName]
+        local challengeInfo = challengeTypeMap[selectedName]
         
-        if challengeType then
-            local challengeData = getCurrentChallengeData(challengeType)
+        if challengeInfo then
+            local challengeData = getCurrentChallengeData(challengeInfo.type)
             
             if challengeData then
                 print(string.format("=== %s CHALLENGE ===", selectedName:upper()))
                 print("Map:", challengeData.WorldName)
                 print("Chapter:", challengeData.Chapter)
                 print("Modifier:", challengeData.Modifier)
+                print("AreaNumber:", challengeInfo.areaNumber)
                 
                 -- Check if we should ignore this world
                 local shouldIgnore = false
@@ -774,13 +775,11 @@ end
                     continue -- Try next challenge
                 end
                 
-                -- Attempt to join this challenge
-                print(string.format("Attempting to join %s challenge...", selectedName))
+                -- Attempt to join this challenge with the correct AreaNumber
+                print(string.format("Attempting to join %s challenge with AreaNumber %d...", selectedName, challengeInfo.areaNumber))
                 
                 local success = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
-                    task.wait(0.5)
-                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
+                    game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Challenge",AreaNumber = challengeInfo.areaNumber})
                 end)
                 
                 if success then
