@@ -132,6 +132,7 @@ local WaveManager
 local lastGameRewards = {}
 local ValidWebhook = nil
 local hasSentWebhook = false
+local ChallengeModule = nil
 
         local loadingRetries = {
         story = 0,
@@ -162,6 +163,14 @@ if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
     
     if MainSharedFolder:FindFirstChild("Modules") then
         local Modules = MainSharedFolder:FindFirstChild("Modules")
+
+
+         if Modules:FindFirstChild("ChallengeModule") then
+        ChallengeModule = require(Modules.ChallengeModule)
+        print("✓ ChallengeModule loaded")
+    else
+        warn("[-] ChallengeModule not found")
+    end
         
         if Modules:FindFirstChild("ReplicaModule") then
             ReplicaModule = require(Modules.ReplicaModule)
@@ -657,6 +666,44 @@ end
         AutoJoinState.currentAction = nil
     end
 
+    local function getChallengeData(challengeMinutes)
+    if not ChallengeModule or not ChallengeModule.Types then
+        warn("ChallengeModule not loaded")
+        return nil
+    end
+    
+    -- Find challenge by time
+    for challengeName, challengeData in pairs(ChallengeModule.Types) do
+        if challengeData.Time == challengeMinutes then
+            return {
+                Name = challengeName,
+                Map = challengeData.Level or challengeData.World,  -- The world/map name
+                Rewards = challengeData.Rewards,  -- Reward table
+                Modifier = challengeData.Modifier or challengeData.Effect,  -- Challenge modifier/effect
+                RawData = challengeData  -- Full data if you need anything else
+            }
+        end
+    end
+    
+    return nil
+end
+
+local function get15MinuteChallenge()
+    return getChallengeData(15)
+end
+
+local function get30MinuteChallenge()
+    return getChallengeData(30)
+end
+
+local function getDailyChallenge()
+    return getChallengeData(1440)  -- 24 hours
+end
+
+local function getWeeklyChallenge()
+    return getChallengeData(10080)  -- 7 days
+end
+
     local function joinChallenge()
     local challengeData = getChallengeData()
     
@@ -742,7 +789,7 @@ local function canPerformAction()
     end
 
         -- STORY
-        if State.AutoJoinStory and State.SelectedStoryStageIndex and State.StoryDifficultySelected and State.StoryActSelected then
+        if State.AutoJoinStory and State.SelectedStoryStageIndex and State.StoryActSelected then
             setProcessingState("Story Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
@@ -753,7 +800,7 @@ local function canPerformAction()
             return
         end
 
-          if State.AutoJoinLegendStage and State.SelectedLegendStageIndex and State.LegendDifficultySelected and State.LegendActSelected then
+          if State.AutoJoinLegendStage and State.SelectedLegendStageIndex and State.LegendActSelected then
             setProcessingState("Ultra Stage Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
@@ -764,7 +811,7 @@ local function canPerformAction()
             return
         end
 
-        if State.AutoJoinRaid and State.SelectedRaidStageIndex and State.RaidDifficultySelected and State.RaidActSelected then
+        if State.AutoJoinRaid and State.SelectedRaidStageIndex and State.RaidActSelected then
             setProcessingState("Raid Auto Join")
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Raid",AreaNumber = 1})
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.RaidActSelected),Ultramode = false,Hardmode = State.RaidDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedRaidStageIndex,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
@@ -2621,6 +2668,45 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
             State.ReturnToLobbyOnNewChallenge = Value
         end,
     })
+
+    local CheckAllChallengesButton = JoinerTab:CreateButton({
+    Name = "Debug: Print All Challenge Info",
+    Callback = function()
+        print("=== 15 MINUTE CHALLENGE ===")
+        local c15 = get15MinuteChallenge()
+        if c15 then
+            print("Map:", c15.Map)
+            print("Modifier:", c15.Modifier)
+            print("Rewards:", Services.HttpService:JSONEncode(c15.Rewards))
+        end
+        
+        print("\n=== 30 MINUTE CHALLENGE ===")
+        local c30 = get30MinuteChallenge()
+        if c30 then
+            print("Map:", c30.Map)
+            print("Modifier:", c30.Modifier)
+            print("Rewards:", Services.HttpService:JSONEncode(c30.Rewards))
+        end
+        
+        print("\n=== DAILY CHALLENGE ===")
+        local daily = getDailyChallenge()
+        if daily then
+            print("Map:", daily.Map)
+            print("Modifier:", daily.Modifier)
+            print("Rewards:", Services.HttpService:JSONEncode(daily.Rewards))
+        end
+        
+        print("\n=== WEEKLY CHALLENGE ===")
+        local weekly = getWeeklyChallenge()
+        if weekly then
+            print("Map:", weekly.Map)
+            print("Modifier:", weekly.Modifier)
+            print("Rewards:", Services.HttpService:JSONEncode(weekly.Rewards))
+        end
+        
+        notify("Debug", "Challenge info printed to console")
+    end,
+})
 
 local function isGameDataLoaded()
     return Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") and
