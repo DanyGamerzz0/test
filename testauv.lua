@@ -157,7 +157,7 @@ local Config = {
     DISCORD_USER_ID = nil,
 }
 
-local Modules = MainSharedFolder:FindFirstChild("Modules")
+local Modules = Services.ReplicatedStorage:FindFirstChild("MainSharedFolder"):FindFirstChild("Modules")
 
  if Modules:FindFirstChild("ChallengeModule") then
         ChallengeModule = require(Modules.ChallengeModule)
