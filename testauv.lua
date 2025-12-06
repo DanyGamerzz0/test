@@ -219,6 +219,7 @@ end
         enableLimitFPS = false,
         SelectedFPS = 60,
         streamerModeEnabled = false,
+        SelectedChallenges = {},
         ChallengeBug = false,
 
 
@@ -226,16 +227,22 @@ end
         AutoJoinStory = false,
         StoryStageSelected = "",
         StoryActSelected = "",
-        StoryDifficultySelected = "",
+        StoryDifficultySelected = false,
         SelectedStoryStageName = "",
         SelectedStoryStageIndex = "",
+
+
         SelectedLegendStageIndex = "",
         SelectedLegendStageName = "",
         LegendActSelected = "",
+        LegendDifficultySelected = false,
+
         AutoJoinRaid = false,
         SelectedRaidStageName = "",
         SelectedRaidStageIndex = "",
         RaidActSelected = "",
+        RaidDifficultySelected = false,
+
         AutoJoinChallenge = false,
         IgnoreWorlds = {},
         ReturnToLobbyOnNewChallenge = false,
@@ -738,7 +745,7 @@ local function canPerformAction()
             setProcessingState("Story Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = State.StoryActSelected,Ultramode = false,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedStoryStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = State.StoryActSelected,Ultramode = false,Hardmode = State.StoryDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedStoryStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
 
 
             task.delay(5, clearProcessingState)
@@ -749,7 +756,7 @@ local function canPerformAction()
             setProcessingState("Ultra Stage Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = State.LegendActSelected,Ultramode = true,Hardmode = false,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedLegendStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.LegendActSelected),Ultramode = true,Hardmode = State.LegendDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedLegendStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
 
 
             task.delay(5, clearProcessingState)
@@ -759,7 +766,7 @@ local function canPerformAction()
         if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
             setProcessingState("Raid Auto Join")
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Raid",AreaNumber = 1})
-            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.RaidActSelected),Ultramode = false,Hardmode = true,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedRaidStageIndex,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.RaidActSelected),Ultramode = false,Hardmode = State.RaidDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedRaidStageIndex,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
 
             task.delay(5, clearProcessingState)
             return
@@ -2399,7 +2406,7 @@ section = JoinerTab:CreateSection("Story Joiner")
 local StoryStageDropdown = JoinerTab:CreateDropdown({
     Name = "Story Stage",
     Options = {},
-    CurrentOption = {"Namak Planet"},
+    CurrentOption = {},
     Flag = "StoryStageSelector",
     Callback = function(Option)
         local worldIndex = getWorldIndexByName(Option[1])
@@ -2439,11 +2446,10 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
         MultipleOptions = false,
         Flag = "StoryDifficultySelector",
         Callback = function(Option)
-            local selectedOption = Option[1]
-            if selectedOption == "Normal" then
-                State.StoryDifficultySelected = "Normal"
-            elseif selectedOption == "Hard" then
-                State.StoryDifficultySelected = "Hard"
+            if Option[1] == "Normal" then
+                State.StoryDifficultySelected = false
+            elseif Option[1] == "Hard" then
+                State.StoryDifficultySelected = true
             end
             print("Selected "..Option[1])
         end,
@@ -2461,9 +2467,9 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
     })
 
 local LegendStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Legend Stage",
+    Name = "Select Ultra Stage",
     Options = {},
-    CurrentOption = {"Namak Planet"},
+    CurrentOption = {},
     Flag = "LegendStageSelector",
     Callback = function(Option)
         local worldIndex = getWorldIndexByName(Option[1])
@@ -2478,7 +2484,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
 })
 
     LegendChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Legend Stage Chapter",
+        Name = "Select Ultra Stage Chapter",
         Options = {"Chapter 1", "Chapter 2", "Chapter 3"},
         CurrentOption = {},
         MultipleOptions = false,
@@ -2490,6 +2496,22 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
             if num then
                 State.LegendActSelected = num
             end
+        end,
+    })
+
+         ChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Ultra Stage Difficulty",
+        Options = {"Normal","Hard"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "LegendDifficultySelector",
+        Callback = function(Option)
+            if Option[1] == "Normal" then
+                State.LegendDifficultySelected = false
+            elseif Option[1] == "Hard" then
+                State.LegendDifficultySelected = true
+            end
+            print("Selected "..Option[1])
         end,
     })
 
@@ -2505,7 +2527,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
     })
 
 local RaidStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Raid Stage",
+    Name = "Select Raid Stage",
     Options = {},
     CurrentOption = {},
     Flag = "RaidStageSelector",
@@ -2537,6 +2559,22 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
+         ChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Raid Difficulty",
+        Options = {"Normal","Hard"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "RaidDifficultySelector",
+        Callback = function(Option)
+            if Option[1] == "Normal" then
+                State.RaidDifficultySelected = false
+            elseif Option[1] == "Hard" then
+                State.RaidDifficultySelected = true
+            end
+            print("Selected "..Option[1])
+        end,
+    })
+
     section = JoinerTab:CreateSection("Challenge Joiner")
 
     AutoJoinChallengeToggle = JoinerTab:CreateToggle({
@@ -2545,6 +2583,18 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         Flag = "AutoJoinChallenge",
         Callback = function(Value)
             State.AutoJoinChallenge = Value
+        end,
+    })
+
+    local ChallengeSelectionDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Challenge",
+        Options = {"15 Minute","30 Minute","Daily","Weekly"},
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "ChallengeSelectionDropdown",
+        Info = "Will do all challenges that are selected",
+        Callback = function(Options)
+            State.SelectedChallenges = Options or {}
         end,
     })
 
@@ -2557,7 +2607,6 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         Info = "Skip challenges based on these worlds",
         Callback = function(Options)
             State.IgnoreWorlds = Options or {}
-            print("Ignore worlds updated:", table.concat(State.IgnoreWorlds, ", "))
         end,
     })
 
@@ -2566,6 +2615,7 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         CurrentValue = false,
         Flag = "ReturnToLobbyOnNewChallenge",
         Info = "Return to lobby when new challenge appears instead of using retry/next",
+        TextScaled = true,
         Callback = function(Value)
             State.ReturnToLobbyOnNewChallenge = Value
         end,
