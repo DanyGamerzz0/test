@@ -732,46 +732,72 @@ local function getWeeklyChallenge()
 end
 
     local function joinChallenge()
-    local challengeData = getChallengeData()
+    if not State.SelectedChallenges or #State.SelectedChallenges == 0 then
+        print("No challenges selected")
+        return false
+    end
     
-    if not challengeData then
-        print("No challenge data available")
-        return false
+    -- Map user-friendly names to challenge types
+    local challengeTypeMap = {
+        ["15 Minute"] = "15-Minutes",
+        ["30 Minute"] = "30-Minutes",
+        ["Daily"] = "Daily",
+        ["Weekly"] = "Weekly"
+    }
+    
+    -- Check each selected challenge in priority order
+    for _, selectedName in ipairs(State.SelectedChallenges) do
+        local challengeType = challengeTypeMap[selectedName]
+        
+        if challengeType then
+            local challengeData = getCurrentChallengeData(challengeType)
+            
+            if challengeData then
+                print(string.format("=== %s CHALLENGE ===", selectedName:upper()))
+                print("Map:", challengeData.WorldName)
+                print("Chapter:", challengeData.Chapter)
+                print("Modifier:", challengeData.Modifier)
+                
+                -- Check if we should ignore this world
+                local shouldIgnore = false
+                if State.IgnoreWorlds then
+                    for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
+                        if challengeData.WorldName == ignoredWorld then
+                            shouldIgnore = true
+                            print(string.format("Skipping %s challenge (world: %s is ignored)", selectedName, challengeData.WorldName))
+                            break
+                        end
+                    end
+                end
+                
+                if shouldIgnore then
+                    continue -- Try next challenge
+                end
+                
+                -- Attempt to join this challenge
+                print(string.format("Attempting to join %s challenge...", selectedName))
+                
+                local success = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
+                    task.wait(0.5)
+                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
+                end)
+                
+                if success then
+                    notify("Challenge Joiner", string.format("Joining %s challenge: %s (Ch.%d, %s)", 
+                        selectedName, challengeData.WorldName, challengeData.Chapter, challengeData.Modifier))
+                    return true
+                else
+                    warn(string.format("Failed to join %s challenge", selectedName))
+                end
+            else
+                warn(string.format("Could not get data for %s challenge", selectedName))
+            end
+        end
     end
-
-    -- Check if we should ignore this challenge based on world
-    if checkIgnoreWorlds(challengeData) then
-        print("Skipping challenge due to ignored world")
-        State.challengeJoinAttempts = 0 -- Reset counter for skipped challenges
-        return false
-    end
-
-    -- Check if challenge has desired rewards
-    if not checkChallengeRewards(challengeData) then
-        print("Challenge doesn't contain desired rewards, skipping")
-        State.challengeJoinAttempts = 0 -- Reset counter for skipped challenges
-        return false
-    end
-
-    -- Attempt to join the challenge
-    print("Challenge passed all filters, attempting to join...")
-    print("Challenge type:", challengeData.current_challenge)
-    print("Challenge level:", challengeData.current_level_id)
-
-    local success = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
-        task.wait(0.5)
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
-    end)
-
-    if success then
-        notify("Challenge Joiner", string.format("Joining challenge: %s", challengeData.current_challenge or "Unknown"))
-        State.challengeJoinAttempts = 0 -- Reset on success
-        return true
-    else
-        notify("Challenge Joiner", "Failed to join challenge")
-        return false
-    end
+    
+    print("No suitable challenges found")
+    return false
 end
 
 local function canPerformAction()
@@ -783,35 +809,19 @@ local function canPerformAction()
         if AutoJoinState.isProcessing then return end
         if not canPerformAction() then return end
 
-        if State.AutoJoinChallenge then
-       -- local challengeData = getChallengeData()
-        if challengeData then
-            setProcessingState("Challenge Auto Join")
-            
-            local joinSuccess = true --joinChallenge()
-            
-            if joinSuccess then
-                print("Successfully initiated challenge join!")
-                State.challengeJoinAttempts = 0 -- Reset counter on success
-            else
-                State.challengeJoinAttempts = State.challengeJoinAttempts + 1
-                print(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
-                
-                if State.challengeJoinAttempts >= State.maxChallengeAttempts then
-                    notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
-                    print("Max challenge attempts reached, falling through to other join options")
-                    State.challengeJoinAttempts = 0 -- Reset counter
-                    -- Don't return here - let it fall through to next priority
-                else
-                    task.delay(5, clearProcessingState)
-                    return
-                end
-            end
-            
+        if State.AutoJoinChallenge and State.SelectedChallenges and #State.SelectedChallenges > 0 then
+        setProcessingState("Challenge Auto Join")
+        
+        local joinSuccess = joinChallenge()
+        
+        if joinSuccess then
+            print("Successfully initiated challenge join!")
             task.delay(5, clearProcessingState)
-            if joinSuccess or State.challengeJoinAttempts >= State.maxChallengeAttempts then
-                return
-            end
+            return
+        else
+            print("Challenge join failed - falling through to other options")
+            clearProcessingState()
+            -- Don't return - let it fall through to next priority
         end
     end
 
