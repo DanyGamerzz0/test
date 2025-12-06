@@ -156,6 +156,13 @@ local Config = {
     DISCORD_USER_ID = nil,
 }
 
+if game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler") then
+        ChallengeModule = require(game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler"))
+        print("✓ ChallengeModule loaded")
+    else
+        warn("[-] ChallengeModule not found")
+    end
+
 
 if game.PlaceId ~= 17899227840 then
 if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
@@ -165,12 +172,7 @@ if Services.ReplicatedStorage:FindFirstChild("MainSharedFolder") then
         local Modules = MainSharedFolder:FindFirstChild("Modules")
 
 
-         if game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler") then
-        ChallengeModule = require(game:GetService("Players").LocalPlayer.PlayerScripts.LobbyPlayerFolder:FindFirstChild("ChallengeHandler"))
-        print("✓ ChallengeModule loaded")
-    else
-        warn("[-] ChallengeModule not found")
-    end
+         
         
         if Modules:FindFirstChild("ReplicaModule") then
             ReplicaModule = require(Modules.ReplicaModule)
