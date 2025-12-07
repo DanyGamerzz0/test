@@ -848,6 +848,8 @@ end)
                 
                 local success = pcall(function()
                     game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Challenge",AreaNumber = challengeInfo.areaNumber})
+                    task.wait(0.3)
+                    game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Start",{AreaNumber = challengeInfo.areaNumber,AreaType = "Challenge"})
                 end)
                 
                 if success then
@@ -897,8 +899,10 @@ local function canPerformAction()
             setProcessingState("Story Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
+            task.wait(0.3)
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tonumber(State.StoryActSelected),Ultramode = false,Hardmode = State.StoryDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedStoryStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
-
+            task.wait(0.3)
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Start",{AreaNumber = 4,AreaType = "Story"})
 
             task.delay(5, clearProcessingState)
             return
@@ -908,8 +912,10 @@ local function canPerformAction()
             setProcessingState("Ultra Stage Auto Join")
 
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Story",AreaNumber = 4})
+            task.wait(0.3)
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tonumber(State.LegendActSelected),Ultramode = true,Hardmode = State.LegendDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedLegendStageIndex,AreaType = "Story",Timer = 27,AreaNumber = 4,Players = {}})
-
+            task.wait(0.3)
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Start",{AreaNumber = 4,AreaType = "Story"})
 
             task.delay(5, clearProcessingState)
             return
@@ -918,7 +924,10 @@ local function canPerformAction()
         if State.AutoJoinRaid and State.SelectedRaidStageIndex and State.RaidActSelected then
             setProcessingState("Raid Auto Join")
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Join",{AreaType = "Raid",AreaNumber = 1})
+            task.wait(0.3)
             game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Update",{Chapter = tostring(State.RaidActSelected),Ultramode = false,Hardmode = State.RaidDifficultySelected,Owner = game:GetService("Players"):WaitForChild(Services.Players.LocalPlayer.Name),FriendsOnly = false,WorldNumber = State.SelectedRaidStageIndex,AreaType = "Raid",Timer = 1,AreaNumber = 1,Players = {}})
+            task.wait(0.3)
+            game:GetService("ReplicatedStorage"):WaitForChild("LobbyFolder"):WaitForChild("Remotes"):WaitForChild("Play"):FireServer("Start",{AreaNumber = 1,AreaType = "Raid"})
 
             task.delay(5, clearProcessingState)
             return
