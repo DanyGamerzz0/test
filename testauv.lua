@@ -239,6 +239,7 @@ end
         streamerModeEnabled = false,
         SelectedChallenges = {},
         ChallengeBug = false,
+        NewChallengeDetected = false,
 
 
 
@@ -267,6 +268,7 @@ end
         ReturnToLobbyOnNewChallenge = false,
 
     }
+    local lastChallengeResetTime = 0
     local lastWave = 0
     local isAutoLoopEnabled =  false
     local playbackLoopRunning = false
@@ -731,36 +733,75 @@ local function getWeeklyChallenge()
     return getCurrentChallengeData("Weekly")
 end
 
-local function shouldReturnToLobbyForNewChallenge()
-    if not State.ReturnToLobbyOnNewChallenge or not State.AutoJoinChallenge then
-        return false
-    end
+local function checkChallengeResetTime()
+    local currentTime = os.time()
+    local currentDate = os.date("!*t", currentTime) -- UTC time
     
-    if not State.SelectedChallenges or #State.SelectedChallenges == 0 then
-        return false
-    end
+    -- Check if we just passed a reset time (within first 10 seconds)
+    local isResetTime = false
     
-    local currentTime = os.date("*t")
-    local currentMinute = currentTime.min
-    
-    -- Check if any selected challenge has a new spawn time
     for _, challengeName in ipairs(State.SelectedChallenges) do
         if challengeName == "15 Minute" then
-            -- 15-minute challenges spawn at :00, :15, :30, :45
-            if currentMinute == 0 or currentMinute == 15 or currentMinute == 30 or currentMinute == 45 then
-                return true
-            end
+            -- 15-minute challenges reset at :00, :15, :30, :45
+            isResetTime = (currentDate.min == 0 or currentDate.min == 15 or currentDate.min == 30 or currentDate.min == 45) and currentDate.sec < 10
+            if isResetTime then break end
         elseif challengeName == "30 Minute" then
-            -- 30-minute challenges spawn at :00, :30
-            if currentMinute == 0 or currentMinute == 30 then
-                return true
-            end
+            -- 30-minute challenges reset at :00, :30
+            isResetTime = (currentDate.min == 0 or currentDate.min == 30) and currentDate.sec < 10
+            if isResetTime then break end
         end
-        -- Daily and Weekly don't trigger auto-lobby
     end
     
-    return false
+    if isResetTime then
+        -- If we haven't detected this reset yet
+        if currentTime - lastChallengeResetTime > 600 then -- At least 10 minutes since last reset
+            lastChallengeResetTime = currentTime
+            
+            print(string.format("Challenge reset time detected: %02d:%02d UTC", currentDate.hour, currentDate.min))
+            
+            -- Set flag that new challenge was detected
+            State.NewChallengeDetected = true
+            
+            -- Get the new challenge data for logging
+            task.spawn(function()
+                task.wait(0.5) -- Small delay to ensure challenge data is updated
+                
+                for _, challengeName in ipairs(State.SelectedChallenges) do
+                    local challenge = nil
+                    
+                    if challengeName == "15 Minute" then
+                        challenge = get15MinuteChallenge()
+                    elseif challengeName == "30 Minute" then
+                        challenge = get30MinuteChallenge()
+                    elseif challengeName == "Daily" then
+                        challenge = getDailyChallenge()
+                    elseif challengeName == "Weekly" then
+                        challenge = getWeeklyChallenge()
+                    end
+                    
+                    if challenge then
+                        notify("Challenge System", string.format("New %s challenge: %s", challengeName, challenge.WorldName))
+                        print(string.format("New %s challenge details:", challengeName))
+                        print("  Map:", challenge.WorldName)
+                        print("  Chapter:", challenge.Chapter)
+                        print("  Modifier:", challenge.Modifier)
+                    end
+                end
+            end)
+            
+            notify("Challenge Reset", string.format("Challenge reset detected at %02d:%02d UTC", currentDate.hour, currentDate.min))
+        end
+    end
 end
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.ReturnToLobbyOnNewChallenge and State.AutoJoinChallenge and State.SelectedChallenges and #State.SelectedChallenges > 0 then
+            checkChallengeResetTime()
+        end
+    end
+end)
 
     local function joinChallenge()
     if not State.SelectedChallenges or #State.SelectedChallenges == 0 then
@@ -2154,8 +2195,8 @@ end
 
         task.wait(0.5)
 
-        if shouldReturnToLobbyForNewChallenge() then
-            notify("Auto Challenge","New challenge available - Returning to lobby...")
+        if State.NewChallengeDetected then
+            print("New challenge detected during game - Returning to lobby...")
             local success = pcall(function()
                 local lobbyButton = waveEnd.Buttons:FindFirstChild("Lobby")
                 
@@ -2167,10 +2208,15 @@ end
             end)
             
             if success then
+                notify("New Challenge", "Returning to lobby for new challenge...", 3)
+                
                 -- Reset game state
                 gameInProgress = false
                 gameStartTime = 0
                 clearSpawnIdMappings()
+                
+                -- Reset flag after using it
+                State.NewChallengeDetected = false
             end
         end
 
@@ -2194,8 +2240,6 @@ end
             end
         end
     end)
-end
-    
     if success then
         notify("Secret Feature", "Restarting match...", 3)
         
@@ -2209,6 +2253,7 @@ end
             updateDetailedStatus("Match restarted - waiting for wave 1...")
         end
     end
+end
         
         if State.AutoRetry then
             print("Auto Retry enabled - Clicking Replay...")
