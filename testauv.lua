@@ -773,10 +773,6 @@ local function checkChallengeResetTime()
                         challenge = get15MinuteChallenge()
                     elseif challengeName == "30 Minute" then
                         challenge = get30MinuteChallenge()
-                    elseif challengeName == "Daily" then
-                        challenge = getDailyChallenge()
-                    elseif challengeName == "Weekly" then
-                        challenge = getWeeklyChallenge()
                     end
                     
                     if challenge then
@@ -3151,14 +3147,14 @@ AutoStartToggle = GameTab:CreateToggle({
         end,
     })
 
-      ChallengeBugToggle = GameTab:CreateToggle({
+     --[[ ChallengeBugToggle = GameTab:CreateToggle({
         Name = "Secret Feature",
         CurrentValue = false,
         Flag = "ChallengeBug",
         Callback = function(Value)
             State.ChallengeBug = Value
         end,
-    })
+    })--]]
 
 WebhookInput = WebhookTab:CreateInput({
         Name = "Input Webhook",
