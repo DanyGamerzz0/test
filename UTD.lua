@@ -1835,7 +1835,7 @@ task.spawn(function()
         task.wait(0.5)
         
         -- Only run if we're in lobby and auto-start is enabled
-        if State.AutoStartGame and isInLobby() then
+        if State.AutoStartGame and not isInLobby() then
             -- Check if we're NOT in a game (Wave should be 0 or nil)
             local currentWave = workspace:GetAttribute("Wave") or 0
             local matchFinished = workspace:GetAttribute("MatchFinished")
