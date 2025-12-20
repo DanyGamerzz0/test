@@ -127,6 +127,8 @@ local PathState = {
     BlessingPriorities = {}
 }
 
+local pathSliders = {}
+
 local State = {
     AutoStartGame = false,
     AutoRetry = false,
@@ -1078,7 +1080,7 @@ local AutoPathToggle = AutoPathTab:CreateToggle({
     end,
 })
 
-AutoPathTab:CreateButton({
+AutoPathButton = AutoPathTab:CreateButton({
     Name = "Reset priority to default",
     Callback = function()
         for _, slider in ipairs(pathSliders) do
