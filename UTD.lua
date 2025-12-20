@@ -1259,12 +1259,11 @@ task.spawn(function()
                     -- Select the best card
                     selectBestCard()
                     
-                    -- Wait for screen to close
-                    while pathsUI.Enabled do
-                        task.wait(0.5)
-                    end
+                    -- Don't wait for screen to close - just add a small delay
+                    -- This allows follow-up blessings to be detected immediately
+                    task.wait(1)
                     
-                    print("Path selection completed")
+                    print("Card selected - checking for follow-ups...")
                 end
             end
         end
