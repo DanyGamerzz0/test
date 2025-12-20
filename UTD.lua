@@ -143,6 +143,7 @@ end
 
 
 local TowerService = nil
+local BlessingService = nil
 
 task.spawn(function()
     -- Wait for game to load
@@ -157,8 +158,18 @@ task.spawn(function()
             :WaitForChild("Services")
             :WaitForChild("TowerService")
             :WaitForChild("RF")
+
+        BlessingService = game:GetService("ReplicatedStorage")
+            :WaitForChild("Packages", 10)
+            :WaitForChild("_Index")
+            :WaitForChild("sleitnick_knit@1.7.0")
+            :WaitForChild("knit")
+            :WaitForChild("Services")
+            :WaitForChild("BlessingService")
+            :WaitForChild("RE")
         
         print("TowerService initialized")
+        print("BlessingService initialized")
     end)
 end)
 
@@ -1097,6 +1108,131 @@ local function loadPathPriorities()
     return data or {}
 end
 
+local function getCardOptions()
+    local cards = {}
+    
+    local success = pcall(function()
+        local cardsFolder = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.Paths.PathSelection.Cards
+        
+        for i, cardFrame in ipairs(cardsFolder:GetChildren()) do
+            if cardFrame:IsA("Frame") then
+                local titleLabel = cardFrame:FindFirstChild("Title")
+                local topTitleLabel = cardFrame:FindFirstChild("TopTitle")
+                
+                if titleLabel and topTitleLabel then
+                    local blessingName = titleLabel.Text
+                    local pathName = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
+                    
+                    -- Build the key to match our saved priorities
+                    local sliderKey = string.format("[%s] %s", pathName, blessingName)
+                    
+                    -- Get priority (default to 0 if not set)
+                    local priority = PathState.BlessingPriorities[sliderKey] or 0
+                    
+                    table.insert(cards, {
+                        index = i,
+                        blessingName = blessingName,
+                        pathName = pathName,
+                        sliderKey = sliderKey,
+                        priority = priority
+                    })
+                    
+                    print(string.format("Card %d: %s (Priority: %d)", i, sliderKey, priority))
+                end
+            end
+        end
+    end)
+    
+    if not success then
+        warn("Failed to get card options")
+        return {}
+    end
+    
+    return cards
+end
+
+local function selectBestCard()
+    if not BlessingService then
+        warn("BlessingService not initialized")
+        return false
+    end
+    
+    local cards = getCardOptions()
+    
+    if #cards == 0 then
+        warn("No cards found")
+        return false
+    end
+    
+    -- Sort by priority (highest first)
+    table.sort(cards, function(a, b)
+        return a.priority > b.priority
+    end)
+    
+    local bestCard = cards[1]
+    
+    -- Check if highest priority is 0 (meaning no priorities set)
+    if bestCard.priority == 0 then
+        print("All cards have 0 priority - selecting first card by default")
+    else
+        print(string.format("selecting card: %s with priority %d", bestCard.sliderKey, bestCard.priority))
+    end
+    
+    -- Fire the remote with the card index
+    local success = pcall(function()
+        BlessingService:WaitForChild("GetNewPath"):FireServer(bestCard.index)
+    end)
+    
+    if success then
+        print(string.format("✓ Selected card %d: %s", bestCard.index, bestCard.blessingName))
+        
+        Rayfield:Notify({
+            Title = "Auto Path",
+            Content = string.format("Selected: %s", bestCard.blessingName),
+            Duration = 3
+        })
+        
+        return true
+    else
+        warn("Failed to select card")
+        return false
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        if State.AutoSelectPath then
+            local pathsUI = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("GameUI")
+            
+            if pathsUI then
+                pathsUI = pathsUI:FindFirstChild("Paths")
+                
+                if pathsUI and pathsUI.Enabled then
+                    -- Path selection is visible
+                    print("Path selection screen detected")
+                    
+                    -- Wait a moment for cards to fully load
+                    task.wait(0.5)
+                    
+                    -- Select the best card
+                    selectBestCard()
+                    
+                    -- Wait for screen to close
+                    while pathsUI.Enabled do
+                        task.wait(0.5)
+                    end
+                    
+                    print("Path selection completed")
+                end
+            end
+        end
+    end
+end)
+
+--[[--------------------------------------------------------------]]
+
 local AutoPathToggle = AutoPathTab:CreateToggle({
     Name = "Auto Select Path",
     CurrentValue = false,
@@ -1180,7 +1316,7 @@ local function loadPathSliders()
             
             local slider = AutoPathTab:CreateSlider({
                 Name = sliderKey,
-                Range = {0, 100},
+                Range = {0, 999},
                 Increment = 1,
                 CurrentValue = savedValue,
                 Flag = "PathPriority_" .. pathName .. "_" .. blessing.name:gsub("%s", ""),
