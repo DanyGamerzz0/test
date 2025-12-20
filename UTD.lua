@@ -1147,6 +1147,8 @@ local function getCardOptions()
                 local blessingName = titleLabel.Text
                 local pathName = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
 
+                pathName = pathName:gsub("%[%[", ""):gsub("%]%]", "")
+
                 local blessingNameNoSpaces = blessingName:gsub("%s", "")
 
                 local sliderKey = string.format("[%s] %s", pathName, blessingNameNoSpaces)
