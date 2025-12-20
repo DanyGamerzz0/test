@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
