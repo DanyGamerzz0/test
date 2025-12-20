@@ -1195,23 +1195,31 @@ local function selectBestCard()
         print(string.format("selecting card: %s with priority %d", bestCard.sliderKey, bestCard.priority))
     end
     
-    -- Fire the remote with the card index
+    -- Determine which remote to use based on card count
+    -- 5+ cards = Path selection (GetNewPath)
+    -- 3 or less = Blessing selection (GetNewBlessing)
+    local remoteName = #cards >= 5 and "GetNewPath" or "GetNewBlessing"
+    local remoteType = #cards >= 5 and "Path" or "Blessing"
+    
+    print(string.format("Detected %d cards - using %s remote", #cards, remoteType))
+    
+    -- Fire the appropriate remote
     local success = pcall(function()
-        BlessingService:WaitForChild("GetNewPath"):FireServer(bestCard.index)
+        BlessingService:WaitForChild(remoteName):FireServer(bestCard.index)
     end)
     
     if success then
-        print(string.format("✓ Selected card %d: %s", bestCard.index, bestCard.blessingName))
+        print(string.format("✓ Selected card %d: %s (via %s)", bestCard.index, bestCard.blessingName, remoteName))
         
         Rayfield:Notify({
-            Title = "Auto Path",
+            Title = "Auto " .. remoteType,
             Content = string.format("Selected: %s", bestCard.blessingName),
             Duration = 3
         })
         
         return true
     else
-        warn("Failed to select card")
+        warn(string.format("Failed to select card via %s", remoteName))
         return false
     end
 end
