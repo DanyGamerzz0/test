@@ -1088,7 +1088,7 @@ local function savePathPriorities()
     
     local json = game:GetService("HttpService"):JSONEncode(PathState.BlessingPriorities)
     writefile(fileName, json)
-    print("✓ Saved path priorities")
+    --print("✓ Saved path priorities")
 end
 
 -- Function to load path priorities from file
@@ -1310,6 +1310,10 @@ local function loadPathSliders()
     
     -- Load saved priorities (empty table if file doesn't exist)
     local savedPriorities = configExists and loadPathPriorities() or {}
+
+    for key, value in pairs(savedPriorities) do
+        PathState.BlessingPriorities[key] = value
+    end
     
     -- Store paths and their blessings
     local pathsData = {}
@@ -1381,6 +1385,8 @@ local function loadPathSliders()
                 savedPriorities[sliderKey] = sliderValue
                 currentPriority = currentPriority - 1
             end
+
+             PathState.BlessingPriorities[sliderKey] = sliderValue
             
             local slider = AutoPathTab:CreateSlider({
                 Name = sliderKey,
@@ -1396,7 +1402,6 @@ local function loadPathSliders()
             })
             
             -- Initialize PathState
-            PathState.BlessingPriorities[sliderKey] = sliderValue
             
             -- Store slider reference
             table.insert(pathSliders, slider)
