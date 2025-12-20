@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1358,12 +1358,21 @@ local function loadPathSliders()
             
             if success and pathData.Blessings then
                 local pathName = pathModule.Name
-                pathsData[pathName] = {}
+                pathsData[pathName] = {
+                    blessings = {},
+                    resonanceName = nil
+                }
+                
+                -- Get Resonance name (this is "Shared Bonds", "Future Wealth", etc.)
+                if pathData.Resonance and pathData.Resonance.Name then
+                    pathsData[pathName].resonanceName = pathData.Resonance.Name
+                    print(string.format("Found Resonance: %s -> '%s'", pathName, pathData.Resonance.Name))
+                end
                 
                 -- Collect all blessings from all rarities
                 for rarity, blessings in pairs(pathData.Blessings) do
                     for blessingName, blessingData in pairs(blessings) do
-                        table.insert(pathsData[pathName], {
+                        table.insert(pathsData[pathName].blessings, {
                             name = blessingName,
                             rarity = rarity
                         })
@@ -1371,7 +1380,7 @@ local function loadPathSliders()
                 end
                 
                 -- Sort blessings alphabetically
-                table.sort(pathsData[pathName], function(a, b)
+                table.sort(pathsData[pathName].blessings, function(a, b)
                     return a.name < b.name
                 end)
             end
@@ -1388,48 +1397,56 @@ local function loadPathSliders()
     -- Only calculate incremental priorities if config doesn't exist
     local currentPriority = nil
     if not configExists then
-        -- Count total: paths + blessings
-        local totalItems = #sortedPaths
-        for _, blessings in pairs(pathsData) do
-            totalItems = totalItems + #blessings
+        -- Count total: resonance names + blessings
+        local totalItems = 0
+        for _, pathInfo in pairs(pathsData) do
+            if pathInfo.resonanceName then
+                totalItems = totalItems + 1 -- For resonance name
+            end
+            totalItems = totalItems + #pathInfo.blessings
         end
         currentPriority = totalItems
-        print("Generating incremental values")
+        print("generating incremental values")
     else
         print("Loading priorities from config file")
     end
     
     -- Create sections and sliders for each path
     for _, pathName in ipairs(sortedPaths) do
-        local blessings = pathsData[pathName]
+        local pathInfo = pathsData[pathName]
         
-        -- CREATE PATH SLIDER
-        local pathSliderKey = pathName:gsub("[^%w]", "")
-        
-        local sliderValue
-        if configExists then
-            sliderValue = savedPriorities[pathSliderKey] or 0
-        else
-            sliderValue = currentPriority
-            savedPriorities[pathSliderKey] = sliderValue
-            currentPriority = currentPriority - 1
-        end
+        -- CREATE RESONANCE SLIDER (e.g., "Shared Bonds")
+        if pathInfo.resonanceName then
+            local resonanceKey = pathInfo.resonanceName:gsub("[^%w]", "")
+            
+            local sliderValue
+            if configExists then
+                sliderValue = savedPriorities[resonanceKey] or 0
+            else
+                sliderValue = currentPriority
+                savedPriorities[resonanceKey] = sliderValue
+                currentPriority = currentPriority - 1
+            end
 
-        PathState.BlessingPriorities[pathSliderKey] = sliderValue
+            PathState.BlessingPriorities[resonanceKey] = sliderValue
+            
+            local slider = AutoPathTab:CreateSlider({
+                Name = resonanceKey,
+                Range = {0, 100},
+                Increment = 1,
+                CurrentValue = sliderValue,
+                Flag = "PathPriority_Resonance_" .. resonanceKey,
+                Callback = function(Value)
+                    PathState.BlessingPriorities[resonanceKey] = Value
+                    savePathPriorities()
+                end,
+            })
+            
+            table.insert(pathSliders, slider)
+        end
         
-        local slider = AutoPathTab:CreateSlider({
-            Name = pathSliderKey,
-            Range = {0, 100},
-            Increment = 1,
-            CurrentValue = sliderValue,
-            Flag = "PathPriority_Path_" .. pathSliderKey,
-            Callback = function(Value)
-                PathState.BlessingPriorities[pathSliderKey] = Value
-                savePathPriorities()
-            end,
-        })
-        
-        table.insert(pathSliders, slider)
+        -- CREATE BLESSING SLIDERS
+        local blessings = pathInfo.blessings
         
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
