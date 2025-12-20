@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1142,21 +1142,21 @@ local function getCardOptions()
                 local blessingName = titleLabel.Text
                 local pathNameRaw = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
 
+                -- Extract just the path name (strip brackets)
                 local pathName = pathNameRaw:gsub("%[%[", ""):gsub("%]%]", "")
-
-                -- pathNameRaw is ALREADY "[[Lovers]]" from the UI
-                -- Just remove spaces from blessing name
+                
+                -- Remove spaces from blessing name
                 local blessingNameNoSpaces = blessingName:gsub("%s", "")
 
-                -- Build key using the raw path name (already has [[ ]])
-                local sliderKey = string.format("[%s] %s", pathName, blessingNameNoSpaces)
+                -- Just use the blessing name directly as the key!
+                local sliderKey = blessingNameNoSpaces
                 
                 local priority = PathState.BlessingPriorities[sliderKey] or 0
                 
                 table.insert(cards, {
                     index = cardIndex,
                     blessingName = blessingName,
-                    pathName = pathNameRaw,
+                    pathName = pathName,
                     sliderKey = sliderKey,
                     priority = priority
                 })
@@ -1379,7 +1379,7 @@ local function loadPathSliders()
         
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
-            local sliderKey = string.format("[%s] %s", pathName, blessing.name:gsub("%s", ""))
+            local sliderKey = blessing.name:gsub("%s", "")
             
             local sliderValue
             if configExists then
