@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1429,9 +1429,10 @@ local function loadPathSliders()
             end
 
             PathState.BlessingPriorities[resonanceKey] = sliderValue
+            local displayName = string.format("[%s] %s", pathName, pathInfo.resonanceName)
             
             local slider = AutoPathTab:CreateSlider({
-                Name = resonanceKey,
+                Name = displayName,
                 Range = {0, 100},
                 Increment = 1,
                 CurrentValue = sliderValue,
@@ -1463,9 +1464,11 @@ local function loadPathSliders()
             end
 
             PathState.BlessingPriorities[sliderKey] = sliderValue
+
+            local displayName = string.format("[%s] %s", pathName, blessing.name)
             
             local slider = AutoPathTab:CreateSlider({
-                Name = sliderKey,
+                Name = displayName,
                 Range = {0, 100},
                 Increment = 1,
                 CurrentValue = sliderValue,
