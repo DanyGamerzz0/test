@@ -1283,27 +1283,16 @@ local AutoPathToggle = AutoPathTab:CreateToggle({
 })
 
 AutoPathTab:CreateButton({
-    Name = "Reset to Incremental Defaults",
+    Name = "Reset to default",
     Callback = function()
         local totalSliders = #pathSliders
         local currentPriority = totalSliders
         
-        -- Reset each slider to incremental value
         for _, slider in ipairs(pathSliders) do
             slider:Set(currentPriority)
             currentPriority = currentPriority - 1
         end
-        
-        -- Save the new defaults
         savePathPriorities()
-        
-        Rayfield:Notify({
-            Title = "Reset Complete",
-            Content = string.format("Reset %d blessings to incremental defaults", totalSliders),
-            Duration = 3
-        })
-        
-        print("✓ Reset all priorities to incremental defaults")
     end,
 })
 
@@ -1314,8 +1303,13 @@ AutoPathTab:CreateDivider()
 local function loadPathSliders()
     local PathsFolder = game:GetService("ReplicatedStorage").Shared.Data.Paths
     
-    -- Load saved priorities first
-    local savedPriorities = loadPathPriorities()
+    -- Check if config file exists
+    local playerName = game:GetService("Players").LocalPlayer.Name
+    local configPath = string.format("LixHub/%s_PathSettings_UTD.json", playerName)
+    local configExists = isfile(configPath)
+    
+    -- Load saved priorities (empty table if file doesn't exist)
+    local savedPriorities = configExists and loadPathPriorities() or {}
     
     -- Store paths and their blessings
     local pathsData = {}
@@ -1355,13 +1349,19 @@ local function loadPathSliders()
     end
     table.sort(sortedPaths)
     
-    -- Count total blessings for incremental priorities
-    local totalBlessings = 0
-    for _, blessings in pairs(pathsData) do
-        totalBlessings = totalBlessings + #blessings
+    -- Only calculate incremental priorities if config doesn't exist
+    local currentPriority = nil
+    if not configExists then
+        -- Count total blessings for incremental priorities
+        local totalBlessings = 0
+        for _, blessings in pairs(pathsData) do
+            totalBlessings = totalBlessings + #blessings
+        end
+        currentPriority = totalBlessings
+        print("generating incremental values")
+    else
+        print("Loading priorities from config file")
     end
-    
-    local currentPriority = totalBlessings
     
     -- Create sections and sliders for each path
     for _, pathName in ipairs(sortedPaths) do
@@ -1371,49 +1371,48 @@ local function loadPathSliders()
         for _, blessing in ipairs(blessings) do
             local sliderKey = string.format("[%s] %s", pathName, blessing.name)
             
-            -- Get saved value OR use incremental default
-            local defaultValue = currentPriority
-            local savedValue = savedPriorities[sliderKey]
-            
-            -- If no saved value exists, use the incremental default
-            if savedValue == nil then
-                savedValue = defaultValue
+            local sliderValue
+            if configExists then
+                -- Config exists - use saved value (default to 0 if somehow missing)
+                sliderValue = savedPriorities[sliderKey] or 0
+            else
+                -- First time - use incremental value
+                sliderValue = currentPriority
+                savedPriorities[sliderKey] = sliderValue
+                currentPriority = currentPriority - 1
             end
             
             local slider = AutoPathTab:CreateSlider({
                 Name = sliderKey,
-                Range = {0, 999},
+                Range = {0, 100},
                 Increment = 1,
-                CurrentValue = savedValue,
+                CurrentValue = sliderValue,
                 Flag = "PathPriority_" .. pathName .. "_" .. blessing.name:gsub("%s", ""),
                 Callback = function(Value)
                     PathState.BlessingPriorities[sliderKey] = Value
                     savePathPriorities() -- Auto-save on change
-                    print(string.format("Set priority for %s: %d", sliderKey, Value))
+                    --print(string.format("Set priority for %s: %d", sliderKey, Value))
                 end,
             })
             
-            -- Initialize PathState with saved value
-            PathState.BlessingPriorities[sliderKey] = savedValue
+            -- Initialize PathState
+            PathState.BlessingPriorities[sliderKey] = sliderValue
             
             -- Store slider reference
             table.insert(pathSliders, slider)
-            
-            -- Decrement for next blessing
-            currentPriority = currentPriority - 1
         end
         
         -- Add divider between paths
         AutoPathTab:CreateDivider()
     end
     
-    -- Auto-save the default priorities if this is first run
-    if next(savedPriorities) == nil then
+    -- Save the incremental defaults if this was first run
+    if not configExists then
         savePathPriorities()
-        print("✓ Saved default incremental priorities")
+        --print("✓ Saved default values")
     end
     
-    print("✓ Loaded path sliders successfully")
+    print("Loaded path sliders successfully")
 end
 
 task.spawn(function()
