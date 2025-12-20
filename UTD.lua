@@ -1110,6 +1110,12 @@ end
 
 local function getCardOptions()
     local cards = {}
+
+      print("=== DEBUG: PathState.BlessingPriorities ===")
+    for key, value in pairs(PathState.BlessingPriorities) do
+        print(string.format("  %s = %d", key, value))
+    end
+    print("=== END DEBUG ===")
     
     local success = pcall(function()
         local cardsFolder = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.Paths.PathSelection.Cards
