@@ -89,6 +89,7 @@ local Window = Rayfield:CreateWindow({
    }
 })
 local LobbyTab = Window:CreateTab("Lobby", "tv")
+local AutoPathTab = Window:CreateTab("Auto Path", "target")
 local Tab = Window:CreateTab("Macro", "tv")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -121,11 +122,17 @@ local Services = {
     RunService = game:GetService("RunService"),
 }
 
+local PathState = {
+    AutoSelectPath = false,
+    BlessingPriorities = {}
+}
+
 local State = {
     AutoStartGame = false,
     AutoRetry = false,
     AutoNext = false,
     AutoLobby = false,
+    AutoSelectPath = false,
 }
 
 local function isInLobby()
@@ -1060,6 +1067,100 @@ local function stopRecording()
     
     return macro
 end
+
+local AutoPathToggle = AutoPathTab:CreateToggle({
+    Name = "Auto Select Path",
+    CurrentValue = false,
+    Flag = "AutoSelectPath",
+    Callback = function(Value)
+        State.AutoSelectPath = Value
+        PathState.AutoSelectPath = Value
+    end,
+})
+
+AutoPathTab:CreateDivider()
+
+local function loadPathSliders()
+    local PathsFolder = game:GetService("ReplicatedStorage").Shared.Data.Paths
+    
+    -- Store paths and their blessings
+    local pathsData = {}
+    
+    for _, pathModule in ipairs(PathsFolder:GetChildren()) do
+        if pathModule:IsA("ModuleScript") then
+            local success, pathData = pcall(function()
+                return require(pathModule)
+            end)
+            
+            if success and pathData.Blessings then
+                local pathName = pathModule.Name
+                pathsData[pathName] = {}
+                
+                -- Collect all blessings from all rarities
+                for rarity, blessings in pairs(pathData.Blessings) do
+                    for blessingName, blessingData in pairs(blessings) do
+                        table.insert(pathsData[pathName], {
+                            name = blessingName,
+                            rarity = rarity
+                        })
+                    end
+                end
+                
+                -- Sort blessings alphabetically
+                table.sort(pathsData[pathName], function(a, b)
+                    return a.name < b.name
+                end)
+            end
+        end
+    end
+    
+    -- Sort paths alphabetically
+    local sortedPaths = {}
+    for pathName in pairs(pathsData) do
+        table.insert(sortedPaths, pathName)
+    end
+    table.sort(sortedPaths)
+    
+    -- Create sections and sliders for each path
+    for _, pathName in ipairs(sortedPaths) do
+        local blessings = pathsData[pathName]
+        
+        -- Create label for path name
+        AutoPathTab:CreateLabel(string.format("━━━ %s ━━━", pathName))
+        
+        -- Create slider for each blessing
+        for _, blessing in ipairs(blessings) do
+            local sliderKey = string.format("[%s] %s", pathName, blessing.name)
+            
+            AutoPathTab:CreateSlider({
+                Name = sliderKey,
+                Range = {0, 100},
+                Increment = 1,
+                CurrentValue = 0,
+                Flag = "PathPriority_" .. pathName .. "_" .. blessing.name:gsub("%s", ""),
+                Callback = function(Value)
+                    PathState.BlessingPriorities[sliderKey] = Value
+                    print(string.format("Set priority for %s: %d", sliderKey, Value))
+                end,
+            })
+        end
+        
+        -- Add divider between paths
+        AutoPathTab:CreateDivider()
+    end
+    
+    print("✓ Loaded path sliders successfully")
+end
+
+task.spawn(function()
+    task.wait(2)
+    
+    local success, err = pcall(loadPathSliders)
+    if not success then
+        warn("Failed to load path sliders:", err)
+        AutoPathTab:CreateLabel("⚠️ Failed to load paths")
+    end
+end)
 
  AutoStartToggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
