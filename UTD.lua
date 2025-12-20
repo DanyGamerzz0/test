@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1142,12 +1142,14 @@ local function getCardOptions()
                 local blessingName = titleLabel.Text
                 local pathNameRaw = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
 
+                local pathName = pathNameRaw:gsub("%[%[", ""):gsub("%]%]", "")
+
                 -- pathNameRaw is ALREADY "[[Lovers]]" from the UI
                 -- Just remove spaces from blessing name
                 local blessingNameNoSpaces = blessingName:gsub("%s", "")
 
                 -- Build key using the raw path name (already has [[ ]])
-                local sliderKey = string.format("%s %s", pathNameRaw, blessingNameNoSpaces)
+                local sliderKey = string.format("[%s] %s", pathName, blessingNameNoSpaces)
                 
                 local priority = PathState.BlessingPriorities[sliderKey] or 0
                 
@@ -1377,7 +1379,7 @@ local function loadPathSliders()
         
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
-            local sliderKey = string.format("[[%s]] %s", pathName, blessing.name)
+            local sliderKey = string.format("[%s] %s", pathName, blessing.name:gsub("%s", ""))
             
             local sliderValue
             if configExists then
