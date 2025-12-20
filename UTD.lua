@@ -1283,14 +1283,27 @@ local AutoPathToggle = AutoPathTab:CreateToggle({
 })
 
 AutoPathTab:CreateButton({
-    Name = "Reset priority to default",
+    Name = "Reset to Incremental Defaults",
     Callback = function()
+        local totalSliders = #pathSliders
+        local currentPriority = totalSliders
+        
+        -- Reset each slider to incremental value
         for _, slider in ipairs(pathSliders) do
-            slider:Set(0)
+            slider:Set(currentPriority)
+            currentPriority = currentPriority - 1
         end
-        -- Clear the stored priorities
-        PathState.BlessingPriorities = {}
-        savePathPriorities() -- Save the reset
+        
+        -- Save the new defaults
+        savePathPriorities()
+        
+        Rayfield:Notify({
+            Title = "Reset Complete",
+            Content = string.format("Reset %d blessings to incremental defaults", totalSliders),
+            Duration = 3
+        })
+        
+        print("✓ Reset all priorities to incremental defaults")
     end,
 })
 
@@ -1342,6 +1355,14 @@ local function loadPathSliders()
     end
     table.sort(sortedPaths)
     
+    -- Count total blessings for incremental priorities
+    local totalBlessings = 0
+    for _, blessings in pairs(pathsData) do
+        totalBlessings = totalBlessings + #blessings
+    end
+    
+    local currentPriority = totalBlessings
+    
     -- Create sections and sliders for each path
     for _, pathName in ipairs(sortedPaths) do
         local blessings = pathsData[pathName]
@@ -1350,8 +1371,14 @@ local function loadPathSliders()
         for _, blessing in ipairs(blessings) do
             local sliderKey = string.format("[%s] %s", pathName, blessing.name)
             
-            -- Get saved value or default to 0
-            local savedValue = savedPriorities[sliderKey] or 0
+            -- Get saved value OR use incremental default
+            local defaultValue = currentPriority
+            local savedValue = savedPriorities[sliderKey]
+            
+            -- If no saved value exists, use the incremental default
+            if savedValue == nil then
+                savedValue = defaultValue
+            end
             
             local slider = AutoPathTab:CreateSlider({
                 Name = sliderKey,
@@ -1371,10 +1398,19 @@ local function loadPathSliders()
             
             -- Store slider reference
             table.insert(pathSliders, slider)
+            
+            -- Decrement for next blessing
+            currentPriority = currentPriority - 1
         end
         
         -- Add divider between paths
         AutoPathTab:CreateDivider()
+    end
+    
+    -- Auto-save the default priorities if this is first run
+    if next(savedPriorities) == nil then
+        savePathPriorities()
+        print("✓ Saved default incremental priorities")
     end
     
     print("✓ Loaded path sliders successfully")
