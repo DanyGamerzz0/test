@@ -1160,6 +1160,10 @@ local function getCardOptions()
                     sliderKey = sliderKey,
                     priority = priority
                 })
+
+                print(string.format("Card %d: %s (Priority: %d)", cardIndex, sliderKey, priority))
+                print(string.format("  -> Looking for key: '%s'", sliderKey))
+                print(string.format("  -> Found in PathState: %s", tostring(PathState.BlessingPriorities[sliderKey])))
                 
                 print(string.format("Card %d: %s (Priority: %d)", cardIndex, sliderKey, priority))
             end
