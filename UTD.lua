@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.011"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1139,23 +1139,55 @@ local function getCardOptions()
             local topTitleLabel = cardFrame:FindFirstChild("TopTitle")
             
             if titleLabel and topTitleLabel then
-                local blessingName = titleLabel.Text
+                local uiBlessingName = titleLabel.Text
                 
-                -- Remove ALL special characters and spaces
-                -- Keep only letters and numbers
-                local sliderKey = blessingName:gsub("[^%w]", "")
+                -- Remove ALL special characters and spaces from UI name
+                local uiCleanName = uiBlessingName:gsub("[^%w]", ""):lower()
                 
-                local priority = PathState.BlessingPriorities[sliderKey] or 0
+                print(string.format("Card %d: UI='%s' -> Clean='%s'", cardIndex, uiBlessingName, uiCleanName))
+                
+                -- Try to find a matching slider key by checking if UI name contains the slider key
+                local matchedKey = nil
+                local highestPriority = 0
+                
+                for sliderKey, priority in pairs(PathState.BlessingPriorities) do
+                    local cleanSliderKey = sliderKey:lower()
+                    
+                    -- Check if the UI blessing name contains this slider key
+                    if uiCleanName:find(cleanSliderKey, 1, true) then
+                        print(string.format("  MATCH FOUND: '%s' contains '%s' (Priority: %d)", 
+                            uiCleanName, cleanSliderKey, priority))
+                        
+                        -- Use the highest priority match if multiple keys match
+                        if priority > highestPriority then
+                            matchedKey = sliderKey
+                            highestPriority = priority
+                        end
+                    end
+                end
+                
+                -- If no match found, create a new slider key from UI name
+                if not matchedKey then
+                    matchedKey = uiBlessingName:gsub("[^%w]", "")
+                    print(string.format("  NO MATCH - Creating new key: '%s'", matchedKey))
+                    
+                    -- Initialize with 0 priority
+                    if not PathState.BlessingPriorities[matchedKey] then
+                        PathState.BlessingPriorities[matchedKey] = 0
+                    end
+                    highestPriority = 0
+                end
                 
                 table.insert(cards, {
                     index = cardIndex,
-                    blessingName = blessingName,
+                    blessingName = uiBlessingName,
                     pathName = "",
-                    sliderKey = sliderKey,
-                    priority = priority
+                    sliderKey = matchedKey,
+                    priority = highestPriority
                 })
 
-                print(string.format("Card %d: %s -> %s (Priority: %d)", cardIndex, blessingName, sliderKey, priority))
+                print(string.format("Card %d: %s -> %s (Priority: %d)", 
+                    cardIndex, uiBlessingName, matchedKey, highestPriority))
             end
         end
     end)
