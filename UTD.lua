@@ -1149,9 +1149,7 @@ local function getCardOptions()
 
                 pathName = pathName:gsub("%[%[", ""):gsub("%]%]", "")
 
-                local blessingNameNoSpaces = blessingName:gsub("%s", "")
-
-                local sliderKey = string.format("[%s] %s", pathName, blessingNameNoSpaces)
+                local sliderKey = string.format("[%s] %s", pathName, blessingName)
                 
                 -- Get priority (default to 0 if not set)
                 local priority = PathState.BlessingPriorities[sliderKey] or 0
