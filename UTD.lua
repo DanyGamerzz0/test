@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.06"
+local script_version = "V0.01"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1373,6 +1373,7 @@ local function loadPathSliders()
         
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
+            print(string.format("Module blessing name: '%s'", blessing.name))
             local sliderKey = blessing.name:gsub("[^%w]", "")
             
             local sliderValue
