@@ -1229,6 +1229,21 @@ task.spawn(function()
         task.wait(0.5)
         
         if State.AutoSelectPath then
+            -- Wait for BlessingService to be ready
+            if not BlessingService then
+                print("Waiting for BlessingService to initialize...")
+                local timeout = 0
+                while not BlessingService and timeout < 20 do
+                    task.wait(0.5)
+                    timeout = timeout + 1
+                end
+                
+                if not BlessingService then
+                    warn("BlessingService failed to initialize after 10 seconds")
+                    continue
+                end
+            end
+            
             local pathsUI = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("GameUI")
             
             if pathsUI then
