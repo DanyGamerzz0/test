@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1140,28 +1140,22 @@ local function getCardOptions()
             
             if titleLabel and topTitleLabel then
                 local blessingName = titleLabel.Text
-                local pathNameRaw = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
-
-                -- Extract just the path name (strip brackets)
-                local pathName = pathNameRaw:gsub("%[%[", ""):gsub("%]%]", "")
                 
-                -- Remove spaces from blessing name
-                local blessingNameNoSpaces = blessingName:gsub("%s", "")
-
-                -- Just use the blessing name directly as the key!
-                local sliderKey = blessingNameNoSpaces
+                -- Remove ALL special characters and spaces
+                -- Keep only letters and numbers
+                local sliderKey = blessingName:gsub("[^%w]", "")
                 
                 local priority = PathState.BlessingPriorities[sliderKey] or 0
                 
                 table.insert(cards, {
                     index = cardIndex,
                     blessingName = blessingName,
-                    pathName = pathName,
+                    pathName = "",
                     sliderKey = sliderKey,
                     priority = priority
                 })
 
-                print(string.format("Card %d: %s (Priority: %d)", cardIndex, sliderKey, priority))
+                print(string.format("Card %d: %s -> %s (Priority: %d)", cardIndex, blessingName, sliderKey, priority))
             end
         end
     end)
@@ -1379,7 +1373,7 @@ local function loadPathSliders()
         
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
-            local sliderKey = blessing.name:gsub("%s", "")
+            local sliderKey = blessing.name:gsub("[^%w]", "")
             
             local sliderValue
             if configExists then
