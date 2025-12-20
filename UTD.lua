@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1111,7 +1111,7 @@ end
 local function getCardOptions()
     local cards = {}
 
-      print("=== DEBUG: PathState.BlessingPriorities ===")
+    print("=== DEBUG: PathState.BlessingPriorities ===")
     for key, value in pairs(PathState.BlessingPriorities) do
         print(string.format("  %s = %d", key, value))
     end
@@ -1120,52 +1120,43 @@ local function getCardOptions()
     local success = pcall(function()
         local cardsFolder = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.Paths.PathSelection.Cards
         
-        -- First, collect all Frame children and sort them by position or layout order
         local frameChildren = {}
         for _, child in ipairs(cardsFolder:GetChildren()) do
-            if child:IsA("Frame") and child.Name:match("^Card") then -- Only get objects named "Card..."
+            if child:IsA("Frame") and child.Name:match("^Card") then
                 table.insert(frameChildren, child)
             end
         end
         
-        -- Sort by LayoutOrder or AbsolutePosition.X (depending on how the UI is arranged)
         table.sort(frameChildren, function(a, b)
-            -- Try LayoutOrder first
             if a.LayoutOrder ~= b.LayoutOrder then
                 return a.LayoutOrder < b.LayoutOrder
             end
-            -- Fallback to position
             return a.AbsolutePosition.X < b.AbsolutePosition.X
         end)
         
-        -- Now assign correct indices (1, 2, 3...)
         for cardIndex, cardFrame in ipairs(frameChildren) do
             local titleLabel = cardFrame:FindFirstChild("Title")
             local topTitleLabel = cardFrame:FindFirstChild("TopTitle")
             
             if titleLabel and topTitleLabel then
                 local blessingName = titleLabel.Text
-                local pathName = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
+                local pathNameRaw = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
 
-                pathName = pathName:gsub("%[%[", ""):gsub("%]%]", "")
+                -- DON'T remove the double brackets! Keep them for matching
+                local pathName = pathNameRaw
 
-                local sliderKey = string.format("[%s] %s", pathName, blessingName)
+                local sliderKey = string.format("%s %s", pathName, blessingName)
                 
-                -- Get priority (default to 0 if not set)
                 local priority = PathState.BlessingPriorities[sliderKey] or 0
                 
                 table.insert(cards, {
-                    index = cardIndex, -- Use our calculated index instead of the loop variable
+                    index = cardIndex,
                     blessingName = blessingName,
                     pathName = pathName,
                     sliderKey = sliderKey,
                     priority = priority
                 })
 
-                print(string.format("Card %d: %s (Priority: %d)", cardIndex, sliderKey, priority))
-                print(string.format("  -> Looking for key: '%s'", sliderKey))
-                print(string.format("  -> Found in PathState: %s", tostring(PathState.BlessingPriorities[sliderKey])))
-                
                 print(string.format("Card %d: %s (Priority: %d)", cardIndex, sliderKey, priority))
             end
         end
@@ -1384,7 +1375,7 @@ local function loadPathSliders()
         
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
-            local sliderKey = string.format("[%s] %s", pathName, blessing.name)
+            local sliderKey = string.format("[[%s]] %s", pathName, blessing.name)
             
             local sliderValue
             if configExists then
