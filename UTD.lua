@@ -1078,6 +1078,21 @@ local AutoPathToggle = AutoPathTab:CreateToggle({
     end,
 })
 
+AutoPathTab:CreateButton({
+    Name = "Reset priority to default",
+    Callback = function()
+        for _, slider in ipairs(pathSliders) do
+            slider:Set(0)
+        end
+        
+        PathState.BlessingPriorities = {}
+        
+        print("✓ Reset all path priorities to 0")
+    end,
+})
+
+Label = AutoPathTab:CreateLabel("tip: use the search icon")
+
 AutoPathTab:CreateDivider()
 
 local function loadPathSliders()
@@ -1125,14 +1140,11 @@ local function loadPathSliders()
     for _, pathName in ipairs(sortedPaths) do
         local blessings = pathsData[pathName]
         
-        -- Create label for path name
-        AutoPathTab:CreateLabel(string.format("━━━ %s ━━━", pathName))
-        
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
             local sliderKey = string.format("[%s] %s", pathName, blessing.name)
             
-            AutoPathTab:CreateSlider({
+            local slider = AutoPathTab:CreateSlider({
                 Name = sliderKey,
                 Range = {0, 100},
                 Increment = 1,
@@ -1143,6 +1155,9 @@ local function loadPathSliders()
                     print(string.format("Set priority for %s: %d", sliderKey, Value))
                 end,
             })
+            
+            -- Store slider reference
+            table.insert(pathSliders, slider)
         end
         
         -- Add divider between paths
