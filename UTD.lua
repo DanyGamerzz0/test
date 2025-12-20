@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.011"
+local script_version = "V0.01"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1388,13 +1388,13 @@ local function loadPathSliders()
     -- Only calculate incremental priorities if config doesn't exist
     local currentPriority = nil
     if not configExists then
-        -- Count total blessings for incremental priorities
-        local totalBlessings = 0
+        -- Count total: paths + blessings
+        local totalItems = #sortedPaths
         for _, blessings in pairs(pathsData) do
-            totalBlessings = totalBlessings + #blessings
+            totalItems = totalItems + #blessings
         end
-        currentPriority = totalBlessings
-        print("generating incremental values")
+        currentPriority = totalItems
+        print("Generating incremental values")
     else
         print("Loading priorities from config file")
     end
@@ -1403,6 +1403,34 @@ local function loadPathSliders()
     for _, pathName in ipairs(sortedPaths) do
         local blessings = pathsData[pathName]
         
+        -- CREATE PATH SLIDER
+        local pathSliderKey = pathName:gsub("[^%w]", "")
+        
+        local sliderValue
+        if configExists then
+            sliderValue = savedPriorities[pathSliderKey] or 0
+        else
+            sliderValue = currentPriority
+            savedPriorities[pathSliderKey] = sliderValue
+            currentPriority = currentPriority - 1
+        end
+
+        PathState.BlessingPriorities[pathSliderKey] = sliderValue
+        
+        local slider = AutoPathTab:CreateSlider({
+            Name = pathSliderKey,
+            Range = {0, 100},
+            Increment = 1,
+            CurrentValue = sliderValue,
+            Flag = "PathPriority_Path_" .. pathSliderKey,
+            Callback = function(Value)
+                PathState.BlessingPriorities[pathSliderKey] = Value
+                savePathPriorities()
+            end,
+        })
+        
+        table.insert(pathSliders, slider)
+        
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
             print(string.format("Module blessing name: '%s'", blessing.name))
@@ -1410,16 +1438,14 @@ local function loadPathSliders()
             
             local sliderValue
             if configExists then
-                -- Config exists - use saved value (default to 0 if somehow missing)
                 sliderValue = savedPriorities[sliderKey] or 0
             else
-                -- First time - use incremental value
                 sliderValue = currentPriority
                 savedPriorities[sliderKey] = sliderValue
                 currentPriority = currentPriority - 1
             end
 
-             PathState.BlessingPriorities[sliderKey] = sliderValue
+            PathState.BlessingPriorities[sliderKey] = sliderValue
             
             local slider = AutoPathTab:CreateSlider({
                 Name = sliderKey,
@@ -1429,14 +1455,10 @@ local function loadPathSliders()
                 Flag = "PathPriority_" .. pathName .. "_" .. blessing.name:gsub("%s", ""),
                 Callback = function(Value)
                     PathState.BlessingPriorities[sliderKey] = Value
-                    savePathPriorities() -- Auto-save on change
-                    --print(string.format("Set priority for %s: %d", sliderKey, Value))
+                    savePathPriorities()
                 end,
             })
             
-            -- Initialize PathState
-            
-            -- Store slider reference
             table.insert(pathSliders, slider)
         end
         
@@ -1447,7 +1469,6 @@ local function loadPathSliders()
     -- Save the incremental defaults if this was first run
     if not configExists then
         savePathPriorities()
-        --print("✓ Saved default values")
     end
     
     print("Loaded path sliders successfully")
