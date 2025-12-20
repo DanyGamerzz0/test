@@ -3,7 +3,7 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
     return
 end
 
-if game.PlaceId ~= 133410800847665 and game.PlaceId ~= 106402284955512 then
+if game.PlaceId ~= 133410800847665 and game.PlaceId ~= 106402284955512 and game.PlaceId ~= 100391355714091 then
     game:GetService("Players").LocalPlayer:Kick("GAME NOT SUPPORTED!")
     return
 end
@@ -1114,31 +1114,48 @@ local function getCardOptions()
     local success = pcall(function()
         local cardsFolder = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.Paths.PathSelection.Cards
         
-        for i, cardFrame in ipairs(cardsFolder:GetChildren()) do
-            if cardFrame:IsA("Frame") then
-                local titleLabel = cardFrame:FindFirstChild("Title")
-                local topTitleLabel = cardFrame:FindFirstChild("TopTitle")
+        -- First, collect all Frame children and sort them by position or layout order
+        local frameChildren = {}
+        for _, child in ipairs(cardsFolder:GetChildren()) do
+            if child:IsA("Frame") and child.Name:match("^Card") then -- Only get objects named "Card..."
+                table.insert(frameChildren, child)
+            end
+        end
+        
+        -- Sort by LayoutOrder or AbsolutePosition.X (depending on how the UI is arranged)
+        table.sort(frameChildren, function(a, b)
+            -- Try LayoutOrder first
+            if a.LayoutOrder ~= b.LayoutOrder then
+                return a.LayoutOrder < b.LayoutOrder
+            end
+            -- Fallback to position
+            return a.AbsolutePosition.X < b.AbsolutePosition.X
+        end)
+        
+        -- Now assign correct indices (1, 2, 3...)
+        for cardIndex, cardFrame in ipairs(frameChildren) do
+            local titleLabel = cardFrame:FindFirstChild("Title")
+            local topTitleLabel = cardFrame:FindFirstChild("TopTitle")
+            
+            if titleLabel and topTitleLabel then
+                local blessingName = titleLabel.Text
+                local pathName = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
                 
-                if titleLabel and topTitleLabel then
-                    local blessingName = titleLabel.Text
-                    local pathName = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
-                    
-                    -- Build the key to match our saved priorities
-                    local sliderKey = string.format("[%s] %s", pathName, blessingName)
-                    
-                    -- Get priority (default to 0 if not set)
-                    local priority = PathState.BlessingPriorities[sliderKey] or 0
-                    
-                    table.insert(cards, {
-                        index = i,
-                        blessingName = blessingName,
-                        pathName = pathName,
-                        sliderKey = sliderKey,
-                        priority = priority
-                    })
-                    
-                    print(string.format("Card %d: %s (Priority: %d)", i, sliderKey, priority))
-                end
+                -- Build the key to match our saved priorities
+                local sliderKey = string.format("[%s] %s", pathName, blessingName)
+                
+                -- Get priority (default to 0 if not set)
+                local priority = PathState.BlessingPriorities[sliderKey] or 0
+                
+                table.insert(cards, {
+                    index = cardIndex, -- Use our calculated index instead of the loop variable
+                    blessingName = blessingName,
+                    pathName = pathName,
+                    sliderKey = sliderKey,
+                    priority = priority
+                })
+                
+                print(string.format("Card %d: %s (Priority: %d)", cardIndex, sliderKey, priority))
             end
         end
     end)
