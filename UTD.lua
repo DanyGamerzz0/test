@@ -1070,6 +1070,33 @@ local function stopRecording()
     return macro
 end
 
+local function savePathPriorities()
+    ensureMacroFolders()
+    local playerName = game:GetService("Players").LocalPlayer.Name
+    local fileName = string.format("LixHub/%s_PathSettings_UTD.json", playerName)
+    
+    local json = game:GetService("HttpService"):JSONEncode(PathState.BlessingPriorities)
+    writefile(fileName, json)
+    print("✓ Saved path priorities")
+end
+
+-- Function to load path priorities from file
+local function loadPathPriorities()
+    ensureMacroFolders()
+    local playerName = game:GetService("Players").LocalPlayer.Name
+    local filePath = string.format("LixHub/%s_PathSettings_UTD.json", playerName)
+    
+    if not isfile(filePath) then
+        return {}
+    end
+    
+    local json = readfile(filePath)
+    local data = game:GetService("HttpService"):JSONDecode(json)
+    
+    print("✓ Loaded path priorities")
+    return data or {}
+end
+
 local AutoPathToggle = AutoPathTab:CreateToggle({
     Name = "Auto Select Path",
     CurrentValue = false,
@@ -1080,16 +1107,15 @@ local AutoPathToggle = AutoPathTab:CreateToggle({
     end,
 })
 
-AutoPathButton = AutoPathTab:CreateButton({
+AutoPathTab:CreateButton({
     Name = "Reset priority to default",
     Callback = function()
         for _, slider in ipairs(pathSliders) do
             slider:Set(0)
         end
-        
+        -- Clear the stored priorities
         PathState.BlessingPriorities = {}
-        
-        print("✓ Reset all path priorities to 0")
+        savePathPriorities() -- Save the reset
     end,
 })
 
@@ -1099,6 +1125,9 @@ AutoPathTab:CreateDivider()
 
 local function loadPathSliders()
     local PathsFolder = game:GetService("ReplicatedStorage").Shared.Data.Paths
+    
+    -- Load saved priorities first
+    local savedPriorities = loadPathPriorities()
     
     -- Store paths and their blessings
     local pathsData = {}
@@ -1146,17 +1175,24 @@ local function loadPathSliders()
         for _, blessing in ipairs(blessings) do
             local sliderKey = string.format("[%s] %s", pathName, blessing.name)
             
+            -- Get saved value or default to 0
+            local savedValue = savedPriorities[sliderKey] or 0
+            
             local slider = AutoPathTab:CreateSlider({
                 Name = sliderKey,
                 Range = {0, 100},
                 Increment = 1,
-                CurrentValue = 0,
+                CurrentValue = savedValue,
                 Flag = "PathPriority_" .. pathName .. "_" .. blessing.name:gsub("%s", ""),
                 Callback = function(Value)
                     PathState.BlessingPriorities[sliderKey] = Value
+                    savePathPriorities() -- Auto-save on change
                     print(string.format("Set priority for %s: %d", sliderKey, Value))
                 end,
             })
+            
+            -- Initialize PathState with saved value
+            PathState.BlessingPriorities[sliderKey] = savedValue
             
             -- Store slider reference
             table.insert(pathSliders, slider)
