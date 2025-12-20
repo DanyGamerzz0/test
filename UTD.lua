@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1142,16 +1142,20 @@ local function getCardOptions()
                 local blessingName = titleLabel.Text
                 local pathNameRaw = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
 
-                -- DON'T remove the double brackets! Keep them for matching
-                local pathName = pathNameRaw
+                -- Remove double brackets and clean path name
+                local pathName = pathNameRaw:gsub("%[%[", ""):gsub("%]%]", "")
+                
+                -- CRITICAL: Remove ALL spaces from blessing name to match module data
+                local blessingNameNoSpaces = blessingName:gsub("%s", "")
 
-                local sliderKey = string.format("%s %s", pathName, blessingName)
+                -- Create key with double brackets and no spaces (matches slider format)
+                local sliderKey = string.format("[[%s]] %s", pathName, blessingNameNoSpaces)
                 
                 local priority = PathState.BlessingPriorities[sliderKey] or 0
                 
                 table.insert(cards, {
                     index = cardIndex,
-                    blessingName = blessingName,
+                    blessingName = blessingName, -- Keep original for display
                     pathName = pathName,
                     sliderKey = sliderKey,
                     priority = priority
