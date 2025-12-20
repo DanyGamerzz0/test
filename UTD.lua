@@ -1146,9 +1146,10 @@ local function getCardOptions()
             if titleLabel and topTitleLabel then
                 local blessingName = titleLabel.Text
                 local pathName = topTitleLabel:FindFirstChild("Text") and topTitleLabel.Text.Text or "Unknown"
-                
-                -- Build the key to match our saved priorities
-                local sliderKey = string.format("[%s] %s", pathName, blessingName)
+
+                local blessingNameNoSpaces = blessingName:gsub("%s", "")
+
+                local sliderKey = string.format("[%s] %s", pathName, blessingNameNoSpaces)
                 
                 -- Get priority (default to 0 if not set)
                 local priority = PathState.BlessingPriorities[sliderKey] or 0
