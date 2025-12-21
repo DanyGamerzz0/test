@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.999"
+local script_version = "V0.09999"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2040,8 +2040,9 @@ local function StreamerMode()
          streamerLabel = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("GameUI"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")
     else
         originalNumbers = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("Level")
-        Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")
+        streamerLabel = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")  -- ADDED streamerLabel =
     end
+    
     if not streamerLabel then
         streamerLabel = originalNumbers:Clone()
         streamerLabel.Name = "streamerlabel"
@@ -2067,9 +2068,9 @@ local function StreamerMode()
         billboard:FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
         billboard:FindFirstChild("PlayerName"):FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
         billboard:FindFirstChild("Title").Text = "LIXHUB USER"
-        billboard:FindFirstChild("LevelAmount").Text = "999"
+        billboard:FindFirstChild("LevelAmount").Text = "Lv. 999"
         billboard:FindFirstChild("Title"):FindFirstChild("Title").Text = "LIXHUB USER"
-        billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = "999"
+        billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = "Lv. 999"
 
         originalNumbers.Visible = false
         streamerLabel.Visible = true
