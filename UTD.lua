@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.099"
+local script_version = "V0.999"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2065,15 +2065,21 @@ local function StreamerMode()
 
     if State.streamerModeEnabled then
         billboard:FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
+        billboard:FindFirstChild("PlayerName"):FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
         billboard:FindFirstChild("Title").Text = "LIXHUB USER"
         billboard:FindFirstChild("LevelAmount").Text = "999"
+        billboard:FindFirstChild("Title"):FindFirstChild("Title").Text = "LIXHUB USER"
+        billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = "999"
 
         originalNumbers.Visible = false
         streamerLabel.Visible = true
     else
         billboard:FindFirstChild("PlayerName").Text = Services.Players.LocalPlayer.Name
-        billboard:FindFirstChild("LevelAmount").Text = playerLevel
+        billboard:FindFirstChild("PlayerName"):FindFirstChild("PlayerName").Text = Services.Players.LocalPlayer.Name
         billboard:FindFirstChild("Title").Text = playerTitle
+        billboard:FindFirstChild("LevelAmount").Text = playerLevel
+        billboard:FindFirstChild("Title"):FindFirstChild("Title").Text = playerTitle
+        billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = playerLevel
 
         originalNumbers.Visible = true
         streamerLabel.Visible = false
