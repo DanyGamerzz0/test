@@ -113,6 +113,7 @@ local ignoreTiming = false
 local ValidWebhook = nil
 local beforeRewardData = nil
 local afterRewardData = nil
+local hasRecentlyRestarted = false
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -1458,7 +1459,7 @@ elseif type(afterVal) == "number" and beforeVal == nil then
     return rewards
 end
 
-local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
+local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, waveReached)
     if not ValidWebhook or ValidWebhook == "" then
         return
     end
@@ -1558,7 +1559,7 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
             gameInfo.MapName, gameInfo.Act, gameInfo.Category)
     end
     
-    local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
+    local currentWave = waveReached or lastWave or 0
     
     -- Calculate time elapsed
     local timeElapsed = "Unknown"
@@ -1584,7 +1585,7 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
     data = {
         username = "LixHub",
         embeds = {{
-            title = "🔄 Match Restarted",
+            title = "Match Restarted",
             description = description,
             color = 0xFFA500, -- Orange color
             fields = {
@@ -2211,7 +2212,7 @@ GameSection = GameTab:CreateSection("🎮 Game 🎮")
         end,
     })
 
-    local Dropdown = Tab:CreateDropdown({
+    local Dropdown = GameTab:CreateDropdown({
    Name = "Select Game Speed",
    Options = {"1","1.5"},
    CurrentOption = {},
@@ -3050,11 +3051,13 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     --print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
     
     -- Detect restart (wave goes back to 0 or lower)
-    if wave < lastWave and gameInProgress then
+    if wave < lastWave and gameInProgress and not hasRecentlyRestarted then
         --print("Wave reset detected")
 
+        hasRecentlyRestarted = true
+
          if State.SendMatchRestartedWebhook then
-            sendWebhook("match_restart", nil, currentGameInfo)
+            sendWebhook("match_restart", nil, currentGameInfo, lastWave)
         end
         
         -- Handle recording restart
@@ -3086,6 +3089,11 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         end
         
         lastWave = 0
+
+        task.spawn(function()
+            task.wait(5)
+            hasRecentlyRestarted = false
+        end)
         return
     end
     
@@ -3356,6 +3364,97 @@ ensureMacroFolders()
 loadAllMacros()
 MacroDropdown:Refresh(getMacroList())
 Rayfield:LoadConfiguration()
+
+Rayfield:TopNotify({
+        Title = "UI is hidden",
+        Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+        Image = "eye-off", -- Lucide icon name
+        IconColor = Color3.fromRGB(100, 150, 255),
+        Duration = 5
+    })
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "RayfieldToggle"
+    screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+    screenGui.ResetOnSpawn = false
+
+    -- Create the circular image button
+    local toggleButton = Instance.new("ImageButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Parent = screenGui
+    toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Position = UDim2.new(0, 50, 0, 50)
+    toggleButton.Size = UDim2.new(0, 50, 0, 50)
+    toggleButton.Image = "rbxassetid://139436994731049" -- Put your logo image ID here like "rbxassetid://123456789"
+    toggleButton.ScaleType = Enum.ScaleType.Fit
+
+    -- Make it circular
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = toggleButton
+
+    -- Rayfield visibility state
+    local rayfieldVisible = true
+
+    -- Toggle function
+    local function toggleRayfield()
+        rayfieldVisible = not rayfieldVisible
+        
+        if Rayfield then
+            Rayfield:SetVisibility(rayfieldVisible)
+        end
+    end
+
+    -- Dragging variables
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+
+    -- Mouse input handling
+    toggleButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = toggleButton.Position
+            
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    connection:Disconnect()
+                end
+            end)
+        end
+    end)
+
+    toggleButton.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    -- Click to toggle
+    local clickStartPos = nil
+    toggleButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            clickStartPos = input.Position
+        end
+    end)
+
+    toggleButton.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if clickStartPos then
+                local deltaMove = input.Position - clickStartPos
+                local moveDistance = math.sqrt(deltaMove.X^2 + deltaMove.Y^2)
+                
+                if moveDistance < 10 then
+                    toggleRayfield()
+                end
+            end
+        end
+    end)
 
 task.spawn(function()
         task.wait(2)
