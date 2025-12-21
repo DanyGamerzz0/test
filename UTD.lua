@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.06"
+local script_version = "V0.07"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -113,6 +113,12 @@ local ignoreTiming = false
 local ValidWebhook = nil
 local beforeRewardData = nil
 local afterRewardData = nil
+local currentGameInfo = {
+    MapName = nil,
+    Act = nil,
+    Category = nil,
+    StartTime = nil
+}
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -1381,16 +1387,33 @@ local function getRewards(before, after, path)
 
         -- NEW ITEM (Relics / Units / Crafting)
         if beforeVal == nil then
-            if type(afterVal) == "table" then
-                -- Relic
-                if afterVal.ID and afterVal.Type and afterVal.Rarity then
-                    -- Use ID + Type to differentiate same relics with different types
-                    local relicName = afterVal.ID or "Unknown"
-                    local relicType = afterVal.Type or "Unknown"
-                    local rewardKey = string.format("%s (%s) (%s)", relicName, relicType, afterVal.Rarity)
-                    rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
-                end
-            end
+    if type(afterVal) == "table" then
+        -- Relic
+        if afterVal.ID and afterVal.Type and afterVal.Rarity then
+            -- Use ID + Type to differentiate same relics with different types
+            local relicName = afterVal.ID or "Unknown"
+            local relicType = afterVal.Type or "Unknown"
+            local rewardKey = string.format("%s (%s) (%s)", relicName, relicType, afterVal.Rarity)
+            rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
+        -- Unit Drop (has UnitId)
+        elseif afterVal.UnitId then
+            local unitName = afterVal.UnitId or "Unknown Unit"
+            local rewardKey = string.format("🎉 NEW UNIT: %s", unitName)
+            rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
+            -- Mark that we got a unit drop for ping purposes
+            rewards["__UNIT_DROP__"] = true
+        end
+    end
+-- NEW CRAFTING/UNIQUE ITEM (number added where there was nil before)
+elseif type(afterVal) == "number" and beforeVal == nil then
+    local itemName = currentPath:match("%.([^%.]+)$") or currentPath
+    if currentPath:match("CraftingItems%.") then
+        local rewardKey = string.format("Crafting: %s", itemName)
+        rewards[rewardKey] = (rewards[rewardKey] or 0) + afterVal
+    elseif currentPath:match("UniqueItems%.") then
+        local rewardKey = string.format("Unique: %s", itemName)
+        rewards[rewardKey] = (rewards[rewardKey] or 0) + afterVal
+    end
 
         -- NUMBER DELTA (currency / pass exp / experience)
         elseif type(afterVal) == "number" and type(beforeVal) == "number" then
@@ -1444,8 +1467,11 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
     elseif messageType == "game_end" then
         -- Calculate rewards
         local rewards = {}
+        local hasUnitDrop = false
         if beforeRewardData and afterRewardData then
             rewards = getRewards(beforeRewardData, afterRewardData)
+            hasUnitDrop = rewards["__UNIT_DROP__"]
+            rewards["__UNIT_DROP__"] = nil
         end
 
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
@@ -1470,9 +1496,10 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
         
         -- Build description with game info
         local TitleSubText = "Unknown Stage"
-        if gameInfo and gameInfo.Act and gameInfo.Map and gameInfo.Mode then
+            if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
             local resultText = gameResult and "Victory" or "Defeat"
-            TitleSubText = string.format("%s %s (%s) - %s", gameInfo.Map, gameInfo.Act, gameInfo.Mode, resultText)
+            TitleSubText = string.format("%s Act %s (%s) - %s", 
+            gameInfo.MapName, gameInfo.Act, gameInfo.Category, resultText)
         end
         
         local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
@@ -1487,6 +1514,7 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
         
         data = {
             username = "LixHub",
+            content = hasUnitDrop and string.format("<@%s>", Config.DISCORD_USER_ID or "") or nil,
             embeds = {{
                 title = titleText,
                 description = TitleSubText,
@@ -2475,8 +2503,16 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         beforeRewardData = deepCopy(RequestData:InvokeServer())
         print("✅ Took BEFORE reward snapshot")
         gameStartTime = tick()
+
+        currentGameInfo = {
+        MapName = workspace:GetAttribute("MapName") or "Unknown",
+        Act = workspace:GetAttribute("Act") or "Unknown",
+        Category = workspace:GetAttribute("Category") or "Unknown",
+        StartTime = tick()
+    }
         
-        print(string.format("✓ GAME STARTED (Wave %d)", wave))
+        print(string.format("✓ GAME STARTED (Wave %d) - %s Act %s (%s)", 
+        wave, currentGameInfo.MapName, currentGameInfo.Act, currentGameInfo.Category))
         
         -- Auto-start recording if enabled
         if isRecording and not recordingHasStarted then
@@ -2520,12 +2556,21 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
         print("✅ Took AFTER reward snapshot")
 
         if State.SendStageCompletedWebhook then
-            local gameResult = true -- You can determine win/loss from game state
-            local gameInfo = nil -- Add your game info if available
-            local gameDuration = "Unknown" -- Calculate duration if you track gameStartTime
-            
-            sendWebhook("game_end", gameResult, gameInfo, gameDuration)
+        -- Determine victory or loss based on health
+        local currentHealth = workspace:GetAttribute("Health") or 0
+        local gameResult = currentHealth > 0
+        
+        -- Calculate game duration
+        local gameDuration = "Unknown"
+        if currentGameInfo.StartTime then
+            local duration = tick() - currentGameInfo.StartTime
+            local minutes = math.floor(duration / 60)
+            local seconds = math.floor(duration % 60)
+            gameDuration = string.format("%dm %ds", minutes, seconds)
         end
+        
+        sendWebhook("game_end", gameResult, currentGameInfo, gameDuration)
+    end
         
         gameInProgress = false
         gameStartTime = 0
