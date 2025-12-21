@@ -158,6 +158,7 @@ local State = {
     SelectedGameSpeed = 1,
     AutoRestartMatch = false,
     AutoRestartMatchWave = 0,
+    SendMatchRestartedWebhook = false,
 }
 
         local loadingRetries = {
@@ -1537,6 +1538,65 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
                 timestamp = timestamp
             }}
         }
+    
+
+    elseif messageType == "match_restart" then
+    -- Calculate rewards up to the restart point
+    local rewards = {}
+    if beforeRewardData and RequestData then
+        local currentRewardData = deepCopy(RequestData:InvokeServer())
+        rewards = getRewards(beforeRewardData, currentRewardData)
+    end
+    
+    local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    
+    -- Build description
+    local description = "Unknown Stage"
+    if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
+        description = string.format("%s Act %s (%s)", 
+            gameInfo.MapName, gameInfo.Act, gameInfo.Category)
+    end
+    
+    local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
+    
+    -- Calculate time elapsed
+    local timeElapsed = "Unknown"
+    if gameInfo and gameInfo.StartTime then
+        local duration = tick() - gameInfo.StartTime
+        local minutes = math.floor(duration / 60)
+        local seconds = math.floor(duration % 60)
+        timeElapsed = string.format("%dm %ds", minutes, seconds)
+    end
+    
+    -- Format rewards text
+    local rewardsText = ""
+    if next(rewards) then
+        for rewardType, amount in pairs(rewards) do
+            local sign = amount > 0 and "+" or ""
+            rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
+        end
+        rewardsText = rewardsText:gsub("\n$", "") -- Remove trailing newline
+    else
+        rewardsText = "No rewards obtained"
+    end
+    
+    data = {
+        username = "LixHub",
+        embeds = {{
+            title = "🔄 Match Restarted",
+            description = description,
+            color = 0xFFA500, -- Orange color
+            fields = {
+                { name = "Player", value = playerName, inline = true },
+                { name = "Time Played", value = timeElapsed, inline = true },
+                { name = "Wave Reached", value = tostring(currentWave), inline = true },
+                { name = "Rewards", value = rewardsText, inline = false },
+            },
+            footer = { text = "discord.gg/cYKnXE2Nf8" },
+            timestamp = timestamp
+        }}
+    }
     end
     
     local payload = Services.HttpService:JSONEncode(data)
@@ -2147,6 +2207,7 @@ GameSection = GameTab:CreateSection("🎮 Game 🎮")
         CurrentValue = false,
         Flag = "AutoGameSpeed",
         Callback = function(Value)
+            State.AutoGameSpeed = Value
         end,
     })
 
@@ -2963,6 +3024,15 @@ WebhookInput = WebhookTab:CreateInput({
         end,
     })
 
+    WebhookToggle = WebhookTab:CreateToggle({
+        Name = "Send On Match Restarted",
+        CurrentValue = false,
+        Flag = "SendWebhookOnMatchRestarted",
+        Callback = function(Value)
+            State.SendMatchRestartedWebhook = Value
+        end,
+    })
+
      TestWebhookButton = WebhookTab:CreateButton({
         Name = "Test webhook",
         Callback = function()
@@ -2982,6 +3052,10 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     -- Detect restart (wave goes back to 0 or lower)
     if wave < lastWave and gameInProgress then
         --print("Wave reset detected")
+
+         if State.SendMatchRestartedWebhook then
+            sendWebhook("match_restart", nil, currentGameInfo)
+        end
         
         -- Handle recording restart
         if isRecording and recordingHasStarted then
