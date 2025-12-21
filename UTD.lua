@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.07"
+local script_version = "V0.09"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -90,8 +90,8 @@ local Window = Rayfield:CreateWindow({
 })
 local LobbyTab = Window:CreateTab("Lobby", "tv")
 local AutoPathTab = Window:CreateTab("Auto Path", "target")
-local Tab = Window:CreateTab("Macro", "tv")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
+local Tab = Window:CreateTab("Macro", "tv")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 local StatusLabel = Tab:CreateLabel("Status: Ready")
@@ -145,6 +145,13 @@ local State = {
     AutoLobby = false,
     AutoSelectPath = false,
     SendStageCompletedWebhook = false,
+    streamerModeEnabled = false,
+    SelectedFPS = 60,
+    enableLimitFPS = false,
+    enableAutoExecute = false,
+    enableBlackScreen = false,
+    enableLowPerformanceMode = false,
+    AntiAfkKickEnabled = false,
 }
 
         local loadingRetries = {
@@ -1757,6 +1764,329 @@ task.spawn(function()
         AutoPathTab:CreateLabel("⚠️ Failed to load paths")
     end
 end)
+
+GameSection = GameTab:CreateSection("👥 Player 👥")
+
+   Slider = GameTab:CreateSlider({
+   Name = "Max Camera Zoom Distance",
+   Range = {5, 100},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 35,
+   Flag = "CameraZoomDistanceSelector",
+   Callback = function(Value)
+        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+   end,
+})
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Info = "Prevents roblox kick message.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
+
+local function enableLowPerformanceMode()
+    if State.enableLowPerformanceMode then
+        Services.Lighting.Brightness = 1
+        Services.Lighting.GlobalShadows = false
+        Services.Lighting.Technology = Enum.Technology.Compatibility
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 0
+        Services.Lighting.EnvironmentSpecularScale = 0
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                if obj.Transparency < 1 then
+                    obj.Transparency = 1
+                end
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = false
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = false
+            end
+        end
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("LowGraphics",true)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("DamageNumbers",false)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("VFX",false)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnableAnimations",false)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnemyInfo",false)
+    else
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("LowGraphics",false)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("DamageNumbers",true)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("VFX",true)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnableAnimations",true)
+game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnemyInfo",true)
+
+        Services.Lighting.Brightness = 1.51
+        Services.Lighting.GlobalShadows = true
+        Services.Lighting.Technology = Enum.Technology.Future
+        Services.Lighting.ShadowSoftness = 0
+        Services.Lighting.EnvironmentDiffuseScale = 1
+        Services.Lighting.EnvironmentSpecularScale = 1
+
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = true
+            end
+        end
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 0
+            end
+        end
+        
+        for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
+                gui.Enabled = true
+            end
+        end
+        
+        for _, obj in pairs(Services.Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or
+            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = true
+            end
+        end
+    end
+end
+
+Toggle = GameTab:CreateToggle({
+    Name = "Low Performance Mode",
+    CurrentValue = false,
+    Flag = "enableLowPerformanceMode",
+    Callback = function(Value)
+        State.enableLowPerformanceMode = Value
+        enableLowPerformanceMode()
+    end,
+})
+
+local function enableBlackScreen()
+    local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
+    
+    if State.enableBlackScreen then
+        if existingGui then return end
+        
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "BlackScreenGui"
+        screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+        screenGui.IgnoreGuiInset = true
+        screenGui.DisplayOrder = math.huge
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 36)
+        frame.Position = UDim2.new(0, 0, 0, -36)
+        frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        frame.BorderSizePixel = 0
+        frame.Parent = screenGui
+        frame.ZIndex = 999999
+
+        local toggleButtonFrame = Instance.new("Frame")
+        toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
+        toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
+        toggleButtonFrame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
+        toggleButtonFrame.BackgroundTransparency = 0.5
+        toggleButtonFrame.Parent = screenGui
+        toggleButtonFrame.ZIndex = 1000000
+
+        local toggleButtonFrameUICorner =  Instance.new("UICorner")
+        toggleButtonFrameUICorner.CornerRadius = UDim.new(1,0)
+        toggleButtonFrameUICorner.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitle = Instance.new("TextLabel")
+        toggleButtonFrameTitle.ZIndex = math.huge
+        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameTitle.BackgroundTransparency = 1
+        toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameTitle.Text = "Toggle Screen"
+        toggleButtonFrameTitle.TextSize = 15
+        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
+        toggleButtonFrameTitle.Parent = toggleButtonFrame
+
+        local toggleButtonFrameTitleStroke = Instance.new("UIStroke")
+        toggleButtonFrameTitleStroke.Parent = toggleButtonFrameTitle
+
+        local toggleButtonFrameButton = Instance.new("TextButton")
+        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameButton.BackgroundTransparency = 1
+        toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameButton.Text = ""
+        toggleButtonFrameButton.ZIndex = math.huge
+        toggleButtonFrameButton.Parent = toggleButtonFrame
+
+        toggleButtonFrameButton.MouseButton1Click:Connect(function()
+            frame.Visible = not frame.Visible
+        end)
+    else
+        if existingGui then
+            existingGui:Destroy()
+        end
+    end
+end
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Black Screen",
+    CurrentValue = false,
+    Flag = "enableBlackScreen",
+    Callback = function(Value)
+        State.enableBlackScreen = Value
+        enableBlackScreen()
+    end,
+})
+
+ Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Execute Script",
+    CurrentValue = false,
+    Flag = "enableAutoExecute",
+    Info = "This auto executes and persists through teleports until you disable it or leave the game.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.enableAutoExecute = Value
+        if State.enableAutoExecute then
+            if queue_on_teleport then
+                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+            else
+                warn("queue_on_teleport not supported by this executor")
+            end
+        else
+            if queue_on_teleport then
+                queue_on_teleport("") -- Empty string clears queue in most executors
+            end
+        end
+    end,
+})
+
+local function updateFPSLimit()
+    if State.enableLimitFPS and State.SelectedFPS > 0 then
+        setfpscap(tonumber(State.SelectedFPS))
+    else
+        setfpscap(0)
+    end
+end
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Limit FPS",
+    CurrentValue = false,
+    Flag = "enableLimitFPS",
+    Callback = function(Value)
+        State.enableLimitFPS = Value
+        updateFPSLimit()
+    end,
+})
+
+ Slider = GameTab:CreateSlider({
+   Name = "Limit FPS To",
+   Range = {0, 240},
+   Increment = 1,
+   Suffix = " FPS",
+   CurrentValue = 60,
+   Flag = "FPSSelector",
+   Callback = function(Value)
+        State.SelectedFPS = Value
+        updateFPSLimit()
+   end,
+})
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Streamer Mode (hide name/level/title)",
+    CurrentValue = false,
+    Flag = "StreamerMode",
+    Callback = function(Value)
+        State.streamerModeEnabled = Value
+    end,
+})
+
+local function StreamerMode()
+    local head = Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not head then return end
+
+    local billboard = head:WaitForChild("BillboardGui")
+    if not billboard then print("no billboard") return end
+
+    local originalNumbers = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("GameUI"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("Level")
+    if not originalNumbers then print("no originalnumbers") return end
+
+    local streamerLabel = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("GameUI"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")
+    if not streamerLabel then
+        streamerLabel = originalNumbers:Clone()
+        streamerLabel.Name = "streamerlabel"
+        streamerLabel.Text = "Level 999 - Protected by Lixhub"
+        streamerLabel.Visible = false
+        streamerLabel.Parent = originalNumbers.Parent
+    end
+
+    -- ✅ Extract player's level from the UI text
+    local playerLevel = "1"
+    pcall(function()
+        local levelText = originalNumbers.Text -- e.g., "Level 14 [59.32K/368.91K]"
+        local levelMatch = levelText:match("Level (%d+)")
+        if levelMatch then
+            playerLevel = levelMatch
+        end
+    end)
+
+    -- ✅ Get player's actual title
+    local playerTitle = ""
+
+    if State.streamerModeEnabled then
+        billboard:FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
+        billboard:FindFirstChild("Title").Text = "LIXHUB USER"
+        billboard:FindFirstChild("LevelAmount").Text = "999"
+
+        originalNumbers.Visible = false
+        streamerLabel.Visible = true
+    else
+        billboard:FindFirstChild("PlayerName").Text = Services.Players.LocalPlayer.Name
+        billboard:FindFirstChild("LevelAmount").Text = playerLevel
+        billboard:FindFirstChild("Title").Text = playerTitle
+
+        originalNumbers.Visible = true
+        streamerLabel.Visible = false
+    end
+end
+
+    task.spawn(function()
+        while true do
+            task.wait(0.1)
+            StreamerMode()
+        end
+    end)
+
+if State.enableLowPerformanceMode then
+    enableLowPerformanceMode()
+end
+
+GameSection = GameTab:CreateSection("🎮 Game 🎮")
 
  AutoStartToggle = GameTab:CreateToggle({
     Name = "Auto Start Game",
