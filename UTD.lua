@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2396,11 +2396,6 @@ WebhookInput = WebhookTab:CreateInput({
 
 workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
-
-    if wave == 1 and not gameInProgress then
-        beforeRewardData = deepCopy(RequestData:InvokeServer())
-        print("✅ Took BEFORE reward snapshot (Wave 1)")
-    end
     
     print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
     
@@ -2445,6 +2440,8 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     -- Game just started (wave 1+)
     if wave >= 1 and not gameInProgress then
         gameInProgress = true
+        beforeRewardData = deepCopy(RequestData:InvokeServer())
+        print("✅ Took BEFORE reward snapshot")
         gameStartTime = tick()
         
         print(string.format("✓ GAME STARTED (Wave %d)", wave))
