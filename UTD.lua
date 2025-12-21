@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1384,9 +1384,10 @@ local function getRewards(before, after, path)
             if type(afterVal) == "table" then
                 -- Relic
                 if afterVal.ID and afterVal.Type and afterVal.Rarity then
-                    -- Use the ID as the relic name
+                    -- Use ID + Type to differentiate same relics with different types
                     local relicName = afterVal.ID or "Unknown"
-                    local rewardKey = string.format("%s (%s)", relicName, afterVal.Rarity)
+                    local relicType = afterVal.Type or "Unknown"
+                    local rewardKey = string.format("%s (%s) (%s)", relicName, relicType, afterVal.Rarity)
                     rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
                 end
             end
