@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1398,6 +1398,14 @@ local function getRewards(before, after, path)
             if delta ~= 0 then
                 -- Extract the reward name (e.g., "Currency.Gems" -> "Gems")
                 local rewardName = currentPath:match("%.([^%.]+)$") or currentPath
+                
+                -- Rename specific rewards for cleaner display
+                if rewardName == "PassEXP" then
+                    rewardName = "Battlepass XP"
+                elseif rewardName == "Experience" then
+                    rewardName = "XP"
+                end
+                
                 rewards[rewardName] = (rewards[rewardName] or 0) + delta
             end
 
