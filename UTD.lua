@@ -1555,7 +1555,7 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
     -- Build description
     local description = "Unknown Stage"
     if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
-        description = string.format("%s Act %s (%s)", 
+        description = string.format("%s Act %s (%s) - Match restarted", 
             gameInfo.MapName, gameInfo.Act, gameInfo.Category)
     end
     
@@ -1585,7 +1585,7 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
     data = {
         username = "LixHub",
         embeds = {{
-            title = "Match Restarted",
+            title = "Stage Completed!",
             description = description,
             color = 0xFFA500, -- Orange color
             fields = {
@@ -2029,6 +2029,13 @@ end
         State.enableBlackScreen = Value
         enableBlackScreen()
     end,
+})
+
+ Button = LobbyTab:CreateButton({
+   Name = "Return to lobby",
+   Callback = function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+   end,
 })
 
  Toggle = LobbyTab:CreateToggle({
