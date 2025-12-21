@@ -3085,23 +3085,26 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         
         -- Handle recording restart
         if isRecording and recordingHasStarted then
-            local actionCount = #macro
-            stopRecording()
-            
-            Rayfield:Notify({
-                Title = "Recording Stopped",
-                Content = string.format("Game restarted - saved %d actions", actionCount),
-                Duration = 3
-            })
-            
-            print("Recording stopped and saved due to restart")
-            recordingHasStarted = false
-            macro = {}
-            clearSpawnIdMappings()
-            
-            updateMacroStatus("Recording enabled - Waiting for game to start...")
-            updateDetailedStatus("Waiting for wave 1 to restart recording...")
-        end
+    local actionCount = #macro
+    stopRecording()
+    
+    Rayfield:Notify({
+        Title = "Recording Stopped",
+        Content = string.format("Game restarted - saved %d actions", actionCount),
+        Duration = 3
+    })
+    
+    print("Recording stopped and saved due to restart")
+end
+
+        if isRecording then
+    recordingHasStarted = false
+    macro = {}
+    clearSpawnIdMappings()
+    
+    updateMacroStatus("Recording enabled - Waiting for wave 1...")
+    updateDetailedStatus("Waiting for wave 1 to restart recording...")
+end
         
         -- Handle playback restart
         if isPlaybackEnabled and playbackLoopRunning then
@@ -3116,7 +3119,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         lastWave = 0
 
         task.spawn(function()
-            task.wait(5)
+            task.wait(2)
             hasRecentlyRestarted = false
         end)
         return
@@ -3159,6 +3162,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         if isRecording and not recordingHasStarted then
             print("Starting recording now")
             recordingHasStarted = true
+            gameStartTime = tick()
             
             -- Reset tracking
             recordingUnitCounter = {}
