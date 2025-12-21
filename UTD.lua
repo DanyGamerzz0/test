@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1351,15 +1351,15 @@ local function deepCopy(tbl, seen)
 end
 
 local function isTrackedPath(path)
-    return
-        path:match("^Currency%.") or
-        path == "Battlepass.PassEXP" or
-        path == "Stats.Experience" or
-        path:match("^Relics%.") or
-        path:match("^Units%.Inventory%.") or
-        path:match("^Items%.CraftingItems%.") or
-        path:match("^Items%.UniqueItems%.")
-end
+        return
+            path:match("^Currency%.") or
+            path == "Battlepass.PassEXP" or
+            path == "Stats.Experience" or
+            path:match("^Relics%.[^%.]+$") or
+            path:match("^Units%.Inventory%.%[.+%]$") or
+            path:match("^Items%.CraftingItems%.") or
+            path:match("^Items%.UniqueItems%.")
+    end
 
 local function getRewards(before, after, path)
     path = path or ""
@@ -1384,25 +1384,11 @@ local function getRewards(before, after, path)
             if type(afterVal) == "table" then
                 -- Relic
                 if afterVal.ID and afterVal.Type and afterVal.Rarity then
-                    local rewardKey = string.format("Relic: %s (%s)", afterVal.Type, afterVal.Rarity)
-                    rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
-
-                -- Unit
-                elseif afterVal.UnitId or afterVal.UnitID then
-                    local unitId = tostring(afterVal.UnitId or afterVal.UnitID)
-                    local rewardKey = "Unit: " .. unitId
-                    rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
-
-                -- Crafting/Unique item
-                else
-                    local itemName = currentPath:match("%.([^%.]+)$") or "Unknown"
-                    local rewardKey = "Item: " .. itemName
+                    -- Use the ID as the relic name
+                    local relicName = afterVal.ID or "Unknown"
+                    local rewardKey = string.format("%s (%s)", relicName, afterVal.Rarity)
                     rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
                 end
-
-            elseif type(afterVal) == "number" then
-                local itemName = currentPath:match("%.([^%.]+)$") or currentPath
-                rewards[itemName] = (rewards[itemName] or 0) + afterVal
             end
 
         -- NUMBER DELTA (currency / pass exp / experience)
