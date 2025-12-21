@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.04"
+local script_version = "V0.01"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -110,6 +110,9 @@ local lastWave = 0
 local isPlaybackEnabled = false
 local playbackLoopRunning = false
 local ignoreTiming = false
+local ValidWebhook = nil
+local beforeRewardData = nil
+local afterRewardData = nil
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -135,6 +138,29 @@ local State = {
     AutoNext = false,
     AutoLobby = false,
     AutoSelectPath = false,
+    SendStageCompletedWebhook = false,
+}
+
+        local loadingRetries = {
+        story = 0,
+        legend = 0,
+        raid = 0,
+        ignoreWorlds = 0,
+        portal = 0
+    }
+
+     local AutoJoinState = {
+        isProcessing = false,
+        currentAction = nil,
+        lastActionTime = 0,
+        actionCooldown = 2
+    }
+
+    local maxRetries = 20
+    local retryDelay = 2
+
+local Config = {
+    DISCORD_USER_ID = nil,
 }
 
 local function isInLobby()
@@ -144,6 +170,7 @@ end
 
 local TowerService = nil
 local BlessingService = nil
+local RequestData = nil
 
 task.spawn(function()
     -- Wait for game to load
@@ -167,9 +194,17 @@ task.spawn(function()
             :WaitForChild("Services")
             :WaitForChild("BlessingService")
             :WaitForChild("RE")
+
+        RequestData = game:GetService("ReplicatedStorage")
+            :WaitForChild("Packages", 10)
+            :WaitForChild("_Index")
+            :WaitForChild("sleitnick_knit@1.7.0")
+            :WaitForChild("knit")
+            :WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RF"):WaitForChild("RequestData")
         
         print("TowerService initialized")
         print("BlessingService initialized")
+        print("RequestData initialized")
     end)
 end)
 
@@ -1302,6 +1337,165 @@ task.spawn(function()
     end
 end)
 
+local function deepCopy(tbl, seen)
+    if type(tbl) ~= "table" then return tbl end
+    seen = seen or {}
+    if seen[tbl] then return seen[tbl] end
+
+    local copy = {}
+    seen[tbl] = copy
+    for k, v in pairs(tbl) do
+        copy[k] = deepCopy(v, seen)
+    end
+    return copy
+end
+
+local function isTrackedPath(path)
+    return
+        path:match("^Currency%.") or
+        path == "Battlepass.PassEXP" or
+        path == "Stats.Experience"
+end
+
+local function getRewards(before, after, path)
+    path = path or ""
+    local rewards = {}
+
+    for k, afterVal in pairs(after) do
+        local beforeVal = before and before[k]
+        local currentPath = path == "" and tostring(k) or path .. "." .. tostring(k)
+
+        if not isTrackedPath(currentPath) then
+            if type(afterVal) == "table" and type(beforeVal) == "table" then
+                local nestedRewards = getRewards(beforeVal, afterVal, currentPath)
+                for rewardKey, rewardVal in pairs(nestedRewards) do
+                    rewards[rewardKey] = (rewards[rewardKey] or 0) + rewardVal
+                end
+            end
+            continue
+        end
+
+        -- NUMBER DELTA (currency / pass exp / experience)
+        if type(afterVal) == "number" and type(beforeVal) == "number" then
+            local delta = afterVal - beforeVal
+            if delta ~= 0 then
+                -- Extract the reward name (e.g., "Currency.Gems" -> "Gems")
+                local rewardName = currentPath:match("%.([^%.]+)$") or currentPath
+                rewards[rewardName] = (rewards[rewardName] or 0) + delta
+            end
+        end
+    end
+
+    return rewards
+end
+
+local function sendWebhook(messageType, gameResult, gameInfo, gameDuration)
+    if not ValidWebhook or ValidWebhook == "" then
+        return
+    end
+
+    local data
+
+    if messageType == "test" then
+        data = {
+            username = "LixHub Bot",
+            content = string.format("<@%s>", Config.DISCORD_USER_ID or ""),
+            embeds = {{
+                title = "LixHub Notification",
+                description = "Test webhook sent successfully",
+                color = 0x5865F2,
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+
+    elseif messageType == "game_end" then
+        -- Calculate rewards
+        local rewards = {}
+        if beforeRewardData and afterRewardData then
+            rewards = getRewards(beforeRewardData, afterRewardData)
+        end
+
+        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        
+        -- Format rewards text
+        local rewardsText = ""
+        
+        if next(rewards) then
+            for rewardType, amount in pairs(rewards) do
+                local sign = amount > 0 and "+" or ""
+                rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
+            end
+            rewardsText = rewardsText:gsub("\n$", "") -- Remove trailing newline
+        else
+            rewardsText = "No rewards obtained"
+        end
+        
+        -- Determine title and color based on game result
+        local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
+        local embedColor = gameResult and 0x57F287 or 0xED4245
+        
+        -- Build description with game info
+        local TitleSubText = "Unknown Stage"
+        if gameInfo and gameInfo.Act and gameInfo.Map and gameInfo.Mode then
+            local resultText = gameResult and "Victory" or "Defeat"
+            TitleSubText = string.format("%s %s (%s) - %s", gameInfo.Map, gameInfo.Act, gameInfo.Mode, resultText)
+        end
+        
+        local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
+        
+        -- Build fields array
+        local fields = {
+            { name = "Player", value = playerName, inline = true },
+            { name = "Duration", value = gameDuration or "Unknown", inline = true },
+            { name = "Waves Completed", value = tostring(currentWave), inline = true },
+            { name = "Rewards", value = rewardsText, inline = false },
+        }
+        
+        data = {
+            username = "LixHub",
+            embeds = {{
+                title = titleText,
+                description = TitleSubText,
+                color = embedColor,
+                fields = fields,
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = timestamp
+            }}
+        }
+    end
+    
+    local payload = Services.HttpService:JSONEncode(data)
+    
+    local requestFunc = syn and syn.request or request or http_request or 
+                      (fluxus and fluxus.request) or getgenv().request
+    
+    if not requestFunc then
+        warn("No HTTP function found! Your executor might not support HTTP requests.")
+        return
+    end
+    
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = ValidWebhook,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = payload
+        })
+    end)
+    
+    if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
+        Rayfield:Notify({
+            Title = "Webhook Sent",
+            Content = "Successfully sent to Discord!",
+            Duration = 2
+        })
+    else
+        warn("Webhook failed:", response and response.StatusCode or "No response")
+    end
+end
+
 --[[--------------------------------------------------------------]]
 
 local AutoPathToggle = AutoPathTab:CreateToggle({
@@ -2145,8 +2339,68 @@ Tab:CreateButton({
     end,
 })
 
+WebhookInput = WebhookTab:CreateInput({
+        Name = "Input Webhook",
+        CurrentValue = "",
+        PlaceholderText = "Input Webhook...",
+        RemoveTextAfterFocusLost = false,
+        Flag = "WebhookInput",
+        Callback = function(Text)
+            local trimmed = Text:match("^%s*(.-)%s*$")
+
+            if trimmed == "" then
+                ValidWebhook = nil
+                return
+            end
+
+            local valid = trimmed:match("^https://")
+
+            if valid then
+                ValidWebhook = trimmed
+            else
+                ValidWebhook = nil
+            end
+        end,
+    })
+
+    UserIDInput = WebhookTab:CreateInput({
+        Name = "Input Discord ID (mention rares)",
+        CurrentValue = "",
+        PlaceholderText = "Input Discord ID...",
+        RemoveTextAfterFocusLost = false,
+        Flag = "WebhookInputUserID",
+        Callback = function(Text)
+            Config.DISCORD_USER_ID = tostring(Text):match("^%s*(.-)%s*$")
+        end,
+    })
+
+    WebhookToggle = WebhookTab:CreateToggle({
+        Name = "Send On Stage Finished",
+        CurrentValue = false,
+        Flag = "SendWebhookOnStageFinished",
+        Callback = function(Value)
+            State.SendStageCompletedWebhook = Value
+        end,
+    })
+
+     TestWebhookButton = WebhookTab:CreateButton({
+        Name = "Test webhook",
+        Callback = function()
+            if ValidWebhook then
+                sendWebhook("test")
+            else
+                notify(nil,"Error: No webhook URL set!")
+            end
+        end,
+    })
+
 workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
+
+    if wave == 1 and not gameInProgress then
+        beforeRewardData = deepCopy(RequestData:InvokeServer())
+        print("✅ Took BEFORE reward snapshot (Wave 1)")
+    end
     
     print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
     
@@ -2232,6 +2486,17 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
     
     if matchFinished and gameInProgress then
         print("Game ended")
+
+        afterRewardData = deepCopy(RequestData:InvokeServer())
+        print("✅ Took AFTER reward snapshot")
+
+        if State.SendStageCompletedWebhook then
+            local gameResult = true -- You can determine win/loss from game state
+            local gameInfo = nil -- Add your game info if available
+            local gameDuration = "Unknown" -- Calculate duration if you track gameStartTime
+            
+            sendWebhook("game_end", gameResult, gameInfo, gameDuration)
+        end
         
         gameInProgress = false
         gameStartTime = 0
