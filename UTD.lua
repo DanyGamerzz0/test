@@ -152,6 +152,12 @@ local State = {
     enableBlackScreen = false,
     enableLowPerformanceMode = false,
     AntiAfkKickEnabled = false,
+    AutoSkipWaves = false,
+    AutoSkipUntilWave = 0,
+    AutoGameSpeed = false,
+    SelectedGameSpeed = 1,
+    AutoRestartMatch = false,
+    AutoRestartMatchWave = 0,
 }
 
         local loadingRetries = {
@@ -1159,11 +1165,11 @@ end
 local function getCardOptions()
     local cards = {}
 
-    print("=== DEBUG: PathState.BlessingPriorities ===")
-    for key, value in pairs(PathState.BlessingPriorities) do
-        print(string.format("  %s = %d", key, value))
-    end
-    print("=== END DEBUG ===")
+    --print("=== DEBUG: PathState.BlessingPriorities ===")
+    --for key, value in pairs(PathState.BlessingPriorities) do
+        --print(string.format("  %s = %d", key, value))
+    --end
+    --print("=== END DEBUG ===")
     
     local success = pcall(function()
         local cardsFolder = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.Paths.PathSelection.Cards
@@ -1192,7 +1198,7 @@ local function getCardOptions()
                 -- Remove ALL special characters and spaces from UI name
                 local uiCleanName = uiBlessingName:gsub("[^%w]", ""):lower()
                 
-                print(string.format("Card %d: UI='%s' -> Clean='%s'", cardIndex, uiBlessingName, uiCleanName))
+                --print(string.format("Card %d: UI='%s' -> Clean='%s'", cardIndex, uiBlessingName, uiCleanName))
                 
                 -- Try to find a matching slider key by checking if UI name contains the slider key
                 local matchedKey = nil
@@ -1203,8 +1209,8 @@ local function getCardOptions()
                     
                     -- Check if the UI blessing name contains this slider key
                     if uiCleanName:find(cleanSliderKey, 1, true) then
-                        print(string.format("  MATCH FOUND: '%s' contains '%s' (Priority: %d)", 
-                            uiCleanName, cleanSliderKey, priority))
+                        --print(string.format("  MATCH FOUND: '%s' contains '%s' (Priority: %d)", 
+                            --uiCleanName, cleanSliderKey, priority))
                         
                         -- Use the highest priority match if multiple keys match
                         if priority > highestPriority then
@@ -1217,7 +1223,7 @@ local function getCardOptions()
                 -- If no match found, create a new slider key from UI name
                 if not matchedKey then
                     matchedKey = uiBlessingName:gsub("[^%w]", "")
-                    print(string.format("  NO MATCH - Creating new key: '%s'", matchedKey))
+                    --print(string.format("  NO MATCH - Creating new key: '%s'", matchedKey))
                     
                     -- Initialize with 0 priority
                     if not PathState.BlessingPriorities[matchedKey] then
@@ -1234,8 +1240,8 @@ local function getCardOptions()
                     priority = highestPriority
                 })
 
-                print(string.format("Card %d: %s -> %s (Priority: %d)", 
-                    cardIndex, uiBlessingName, matchedKey, highestPriority))
+                --print(string.format("Card %d: %s -> %s (Priority: %d)", 
+                    --cardIndex, uiBlessingName, matchedKey, highestPriority))
             end
         end
     end)
@@ -1270,7 +1276,7 @@ local function selectBestCard()
     
     -- Check if highest priority is 0 (meaning no priorities set)
     if bestCard.priority == 0 then
-        print("All cards have 0 priority - selecting first card by default")
+        --print("All cards have 0 priority - selecting first card by default")
     else
         print(string.format("selecting card: %s with priority %d", bestCard.sliderKey, bestCard.priority))
     end
@@ -1281,7 +1287,7 @@ local function selectBestCard()
     local remoteName = #cards >= 5 and "GetNewPath" or "GetNewBlessing"
     local remoteType = #cards >= 5 and "Path" or "Blessing"
     
-    print(string.format("Detected %d cards - using %s remote", #cards, remoteType))
+    --print(string.format("Detected %d cards - using %s remote", #cards, remoteType))
     
     -- Fire the appropriate remote
     local success = pcall(function()
@@ -1289,7 +1295,7 @@ local function selectBestCard()
     end)
     
     if success then
-        print(string.format("✓ Selected card %d: %s (via %s)", bestCard.index, bestCard.blessingName, remoteName))
+        --print(string.format("✓ Selected card %d: %s (via %s)", bestCard.index, bestCard.blessingName, remoteName))
         
         Rayfield:Notify({
             Title = "Auto " .. remoteType,
@@ -1331,7 +1337,7 @@ task.spawn(function()
                 
                 if pathsUI and pathsUI.Enabled then
                     -- Path selection is visible
-                    print("Path selection screen detected")
+                    --print("Path selection screen detected")
                     
                     -- Wait a moment for cards to fully load
                     task.wait(0.5)
@@ -1343,7 +1349,7 @@ task.spawn(function()
                     -- This allows follow-up blessings to be detected immediately
                     task.wait(1)
                     
-                    print("Card selected - checking for follow-ups...")
+                    --print("Card selected - checking for follow-ups...")
                 end
             end
         end
@@ -1627,7 +1633,7 @@ local function loadPathSliders()
                 -- Get Resonance name (this is "Shared Bonds", "Future Wealth", etc.)
                 if pathData.Resonance and pathData.Resonance.Name then
                     pathsData[pathName].resonanceName = pathData.Resonance.Name
-                    print(string.format("Found Resonance: %s -> '%s'", pathName, pathData.Resonance.Name))
+                    --(string.format("Found Resonance: %s -> '%s'", pathName, pathData.Resonance.Name))
                 end
                 
                 -- Collect all blessings from all rarities
@@ -1712,7 +1718,7 @@ local function loadPathSliders()
         
         -- Create slider for each blessing
         for _, blessing in ipairs(blessings) do
-            print(string.format("Module blessing name: '%s'", blessing.name))
+            --print(string.format("Module blessing name: '%s'", blessing.name))
             local sliderKey = blessing.name:gsub("[^%w]", "")
             
             local sliderValue
@@ -1752,7 +1758,7 @@ local function loadPathSliders()
         savePathPriorities()
     end
     
-    print("Loaded path sliders successfully")
+    --print("Loaded path sliders successfully")
 end
 
 task.spawn(function()
@@ -2136,6 +2142,182 @@ GameSection = GameTab:CreateSection("🎮 Game 🎮")
     end,
 })
 
+        AutoGameSpeedToggle = GameTab:CreateToggle({
+        Name = "Auto Game Speed",
+        CurrentValue = false,
+        Flag = "AutoGameSpeed",
+        Callback = function(Value)
+        end,
+    })
+
+    local Dropdown = Tab:CreateDropdown({
+   Name = "Select Game Speed",
+   Options = {"1","1.5"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "SelectGameSpeed",
+   Callback = function(Options)
+        local selected = type(Options) == "table" and Options[1] or Options
+        State.SelectedGameSpeed = tonumber(selected)
+   end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        
+        if State.AutoGameSpeed and State.SelectedGameSpeed then
+            local currentSpeed = Services.Workspace:GetAttribute("Speed")
+            
+            if currentSpeed and currentSpeed ~= State.SelectedGameSpeed then
+                    game:GetService("ReplicatedStorage")
+                        :WaitForChild("Packages")
+                        :WaitForChild("_Index")
+                        :WaitForChild("sleitnick_knit@1.7.0")
+                        :WaitForChild("knit")
+                        :WaitForChild("Services")
+                        :WaitForChild("WaveService")
+                        :WaitForChild("RE")
+                        :WaitForChild("SetSpeed")
+                        :FireServer(State.SelectedGameSpeed)
+            end
+        end
+    end
+end)
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Auto Skip Waves",
+    CurrentValue = false,
+    Flag = "AutoSkipWaves",
+    Callback = function(Value)
+        State.AutoSkipWaves = Value
+    end,
+    })
+
+    Slider = GameTab:CreateSlider({
+    Name = "Auto Skip Until Wave",
+    Range = {0, 300},
+    Increment = 1,
+    Suffix = "wave",
+    CurrentValue = 0,
+    Flag = "Slider1",
+    Info = "0 = disable",
+    Callback = function(Value)
+        State.AutoSkipUntilWave = Value
+        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("AutoSkip",Value)
+    end,
+    })
+
+task.spawn(function()
+    local lastAutoSkipState = nil
+    
+    while true do
+        task.wait(1)
+        
+        if State.AutoSkipWaves then
+            local waveNum = Services.Workspace:GetAttribute("Wave") or 0
+            local skipLimit = State.AutoSkipUntilWave
+            
+            local shouldAutoSkip = false
+            
+            if skipLimit == 0 then
+                -- 0 = always skip
+                shouldAutoSkip = true
+            elseif waveNum > 0 and waveNum <= skipLimit then
+                -- Skip until we reach the target wave
+                shouldAutoSkip = true
+            end
+            
+            -- Only send remote if state changed
+            if shouldAutoSkip ~= lastAutoSkipState then
+                pcall(function()
+                    game:GetService("ReplicatedStorage")
+                        :WaitForChild("Packages")
+                        :WaitForChild("_Index")
+                        :WaitForChild("sleitnick_knit@1.7.0")
+                        :WaitForChild("knit")
+                        :WaitForChild("Services")
+                        :WaitForChild("DataService")
+                        :WaitForChild("RE")
+                        :WaitForChild("SetSetting")
+                        :FireServer("AutoSkip", shouldAutoSkip)
+                end)
+                
+                lastAutoSkipState = shouldAutoSkip
+                --print(string.format("Auto Skip: %s (Wave %d / Target %d)", shouldAutoSkip and "ON" or "OFF", waveNum, skipLimit))
+            end
+        else
+            lastAutoSkipState = nil
+        end
+    end
+end)
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Auto Restart Match",
+    CurrentValue = false,
+    Flag = "AutoRestartMatch",
+    Callback = function(Value)
+        State.AutoRestartMatch = Value
+    end,
+    })
+
+    Slider = GameTab:CreateSlider({
+    Name = "Restart Match on Wave",
+    Range = {0, 300},
+    Increment = 1,
+    Suffix = "wave",
+    CurrentValue = 0,
+    Flag = "AutoRestartMatchWave",
+    Info = "0 = disable",
+    Callback = function(Value)
+        State.AutoRestartMatchWave = Value
+    end,
+    })
+
+    task.spawn(function()
+    local hasRestarted = false
+    
+    while true do
+        task.wait(1)
+        
+        if State.AutoRestartMatch and State.AutoRestartMatchWave > 0 then
+            local currentWave = Services.Workspace:GetAttribute("Wave") or 0
+            local matchFinished = Services.Workspace:GetAttribute("MatchFinished")
+            
+            if currentWave >= State.AutoRestartMatchWave and not matchFinished and not hasRestarted then
+                local success = pcall(function()
+                    game:GetService("ReplicatedStorage")
+                        :WaitForChild("Packages")
+                        :WaitForChild("_Index")
+                        :WaitForChild("sleitnick_knit@1.7.0")
+                        :WaitForChild("knit")
+                        :WaitForChild("Services")
+                        :WaitForChild("WaveService")
+                        :WaitForChild("RE")
+                        :WaitForChild("MidMatchVote")
+                        :FireServer()
+                end)
+                
+                if success then
+                    hasRestarted = true
+                    --print(string.format("✅ Auto Restart: Restarted match at wave %d", currentWave))
+                    
+                    Rayfield:Notify({
+                        Title = "Auto Restart",
+                        Content = string.format("Restarted at wave %d", currentWave),
+                        Duration = 3
+                    })
+                else
+                    --warn("⚠️ Failed to restart match")
+                end
+            end
+            if currentWave == 1 then
+                hasRestarted = false
+            end
+        end
+    end
+end)
+
 local MacroDropdown = Tab:CreateDropdown({
     Name = "Select Macro",
     Options = {},
@@ -2240,7 +2422,7 @@ local function restartMatch()
     local success, result = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("MidMatchVote"):FireServer()
         
-        print("Restart button pressed")
+        --print("Restart button pressed")
         return true
     end)
     
@@ -2566,7 +2748,7 @@ local PlaybackToggle = Tab:CreateToggle({
             updateMacroStatus("Playback Disabled")
             Rayfield:Notify({
                 Title = "Playback Disabled",
-                Content = "Stopped infinite playback loop",
+                Content = "Stopped playback loop",
                 Duration = 3
             })
         end
@@ -2616,9 +2798,7 @@ Tab:CreateButton({
                 Duration = 3
             })
         else
-            print("=== MACRO JSON ===")
             print(json)
-            print("=== END ===")
             Rayfield:Notify({
                 Title = "Exported",
                 Content = "JSON printed to console",
@@ -2725,13 +2905,11 @@ Tab:CreateButton({
         
         local displayText = table.concat(unitList, ", ")
         
-        print("=== MACRO UNITS ===")
         print(string.format("Macro: %s", currentMacroName))
         print(string.format("Total actions: %d", #macroData))
         for _, line in ipairs(unitList) do
             print("  " .. line)
         end
-        print("=== END ===")
         
         Rayfield:Notify({
             Title = "Macro Units",
@@ -2799,11 +2977,11 @@ WebhookInput = WebhookTab:CreateInput({
 workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
     
-    print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
+    --print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
     
     -- Detect restart (wave goes back to 0 or lower)
     if wave < lastWave and gameInProgress then
-        print("Wave reset detected")
+        --print("Wave reset detected")
         
         -- Handle recording restart
         if isRecording and recordingHasStarted then
@@ -2847,7 +3025,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     currentGameInfo = {
         MapName = workspace:GetAttribute("MapName") or "Unknown",
         Act = workspace:GetAttribute("Act") or "Unknown",
-        Category = workspace:GetAttribute("Category") or "Unknown",
+        Category = workspace:GetAttribute("DifficultyName") or "Unknown",
         StartTime = tick()
     }
     
@@ -2861,7 +3039,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         
         if RequestData then
             beforeRewardData = deepCopy(RequestData:InvokeServer())
-            print("✅ Took BEFORE reward snapshot")
+            --print("✅ Took BEFORE reward snapshot")
         else
             warn("⚠️ RequestData not initialized - rewards won't be tracked")
         end
@@ -2909,7 +3087,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
         print("Game ended")
 
         afterRewardData = deepCopy(RequestData:InvokeServer())
-        print("✅ Took AFTER reward snapshot")
+        --print("✅ Took AFTER reward snapshot")
 
         if State.SendStageCompletedWebhook then
         -- Determine victory or loss based on health
