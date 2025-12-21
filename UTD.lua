@@ -160,6 +160,8 @@ local State = {
     AutoRestartMatch = false,
     AutoRestartMatchWave = 0,
     SendMatchRestartedWebhook = false,
+    AutoSellAllUnits = false,
+    AutoSellAllUnitsWave = 0,
 }
 
         local loadingRetries = {
@@ -2382,6 +2384,73 @@ end)
             end
             if currentWave == 1 then
                 hasRestarted = false
+            end
+        end
+    end
+end)
+
+ Toggle = GameTab:CreateToggle({
+    Name = "Auto Sell All Units",
+    CurrentValue = false,
+    Flag = "AutoSellAllUnits",
+    Callback = function(Value)
+        State.AutoSellAllUnits = Value
+    end,
+    })
+
+    Slider = GameTab:CreateSlider({
+    Name = "Sell All Units on Wave",
+    Range = {0, 300},
+    Increment = 1,
+    Suffix = "wave",
+    CurrentValue = 0,
+    Flag = "AutoSellAllUnitsWave",
+    Info = "0 = disable",
+    Callback = function(Value)
+        State.AutoSellAllUnitsWave = Value
+    end,
+    })
+
+    task.spawn(function()
+    local hasSold = false
+    
+    while true do
+        task.wait(1)
+        
+        if State.AutoSellAllUnits and State.AutoSellAllUnitsWave > 0 then
+            local currentWave = Services.Workspace:GetAttribute("Wave") or 0
+            local matchFinished = Services.Workspace:GetAttribute("MatchFinished")
+            
+            -- Trigger sell when we reach the target wave
+            if currentWave >= State.AutoSellAllUnitsWave and not matchFinished and not hasSold then
+                local success = pcall(function()
+                    local button = Services.Players.LocalPlayer.PlayerGui.GameUI.HUD.RightFrame.Manager.Actions.SellAllButton.TextButton
+                    
+                    -- Fire all MouseButton1Down connections
+                    for _, conn in pairs(getconnections(button.MouseButton1Down)) do
+                        if conn.Enabled then
+                            conn:Fire()
+                        end
+                    end
+                end)
+                
+                if success then
+                    hasSold = true
+                    --print(string.format("Auto Sell: Sold all units at wave %d", currentWave))
+                    
+                    Rayfield:Notify({
+                        Title = "Auto Sell",
+                        Content = string.format("Sold all units at wave %d", currentWave),
+                        Duration = 3
+                    })
+                else
+                    warn("⚠️ Failed to sell all units")
+                end
+            end
+            
+            -- Reset the flag when wave goes back to 1 (new game)
+            if currentWave == 1 then
+                hasSold = false
             end
         end
     end
