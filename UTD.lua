@@ -3068,13 +3068,19 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     --print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
     
     -- Detect restart (wave goes back to 0 or lower)
-    if wave < lastWave and gameInProgress and not hasRecentlyRestarted then
+    if wave < lastWave and not hasRecentlyRestarted then
         --print("Wave reset detected")
 
         hasRecentlyRestarted = true
 
          if State.SendMatchRestartedWebhook then
             sendWebhook("match_restart", nil, currentGameInfo, lastWave)
+        end
+
+        if gameInProgress then
+            print("Resetting game state due to restart")
+            gameInProgress = false
+            gameStartTime = 0
         end
         
         -- Handle recording restart
@@ -3384,6 +3390,7 @@ ensureMacroFolders()
 loadAllMacros()
 MacroDropdown:Refresh(getMacroList())
 Rayfield:LoadConfiguration()
+Rayfield:SetVisibility(false)
 
 Rayfield:TopNotify({
         Title = "UI is hidden",
