@@ -2515,49 +2515,54 @@ local RecordToggle = Tab:CreateToggle({
                     Content = "Please select a macro first!",
                     Duration = 3
                 })
+                RecordToggle:Set(false) -- Turn toggle back off
                 return
             end
             
-            isRecording = true
-            
             local currentWave = workspace:GetAttribute("Wave") or 0
+            local matchFinished = workspace:GetAttribute("MatchFinished")
             
             print(string.format("Recording enabled - Current wave: %d", currentWave))
             
-            -- If we're mid-game, start recording immediately
-            if currentWave >= 1 and not workspace:GetAttribute("MatchFinished") then
+            -- If we're mid-game, restart it
+            if currentWave >= 1 and not matchFinished then
+                print("Mid-game detected - restarting match...")
+                
+                -- Set recording flag BEFORE restarting
+                isRecording = true
+                recordingHasStarted = false -- Will start when wave 1 begins
+                
                 Rayfield:Notify({
                     Title = "Mid-Game Detected",
                     Content = "Restarting game for accurate recording...",
                     Duration = 4
                 })
+                
+                -- Restart the match
                 restartMatch()
-                -- Reset state
-                recordingHasStarted = false
+                
                 updateMacroStatus("Recording enabled - Restarting game...")
-            elseif currentWave >= 1 then
+                updateDetailedStatus("Waiting for restart to complete...")
                 
-                gameInProgress = true
-                gameStartTime = tick()
-                recordingHasStarted = true
+            -- If game is over, just wait for next game
+            elseif matchFinished then
+                isRecording = true
+                recordingHasStarted = false
                 
-                -- Reset tracking
-                recordingUnitCounter = {}
-                recordingUUIDToTag = {}
-                macro = {}
-                
-                startUpgradePolling()
-                
-                updateMacroStatus("Recording... (Started mid-game)")
-                updateDetailedStatus(string.format("Recording in progress - %s (Wave %d)", currentMacroName, currentWave))
+                updateMacroStatus("Recording enabled - Waiting for game to start...")
+                updateDetailedStatus("Waiting for wave 1...")
                 
                 Rayfield:Notify({
-                    Title = "Recording Started!",
-                    Content = string.format("Mid-game recording: %s (Wave %d)", currentMacroName, currentWave),
-                    Duration = 4
+                    Title = "Recording Ready",
+                    Content = "Recording will start when game begins (Wave 1)",
+                    Duration = 3
                 })
+                
+                print("Recording enabled - waiting for next game")
+                
+            -- We're in lobby (wave 0) - wait for wave 1
             else
-                -- We're in lobby - wait for wave 1
+                isRecording = true
                 recordingHasStarted = false
                 
                 updateMacroStatus("Recording enabled - Waiting for game to start...")
@@ -2582,6 +2587,11 @@ local RecordToggle = Tab:CreateToggle({
                     Content = string.format("Saved %d actions", actionCount),
                     Duration = 3
                 })
+            else
+                -- Recording was enabled but never started
+                isRecording = false
+                updateMacroStatus("Ready")
+                updateDetailedStatus("Recording cancelled")
             end
             
             isRecording = false
@@ -3080,6 +3090,8 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
             
             print("Recording stopped and saved due to restart")
             recordingHasStarted = false
+            macro = {}
+            clearSpawnIdMappings()
             
             updateMacroStatus("Recording enabled - Waiting for game to start...")
             updateDetailedStatus("Waiting for wave 1 to restart recording...")
@@ -3139,6 +3151,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         
         -- Auto-start recording if enabled
         if isRecording and not recordingHasStarted then
+            print("Starting recording now")
             recordingHasStarted = true
             
             -- Reset tracking
