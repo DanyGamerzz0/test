@@ -3068,14 +3068,14 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     --print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
     
     -- Detect restart (wave goes back to 0 or lower)
-    if wave < lastWave and not hasRecentlyRestarted then
+    if wave < lastWave then
         --print("Wave reset detected")
 
-        hasRecentlyRestarted = true
-
-         if State.SendMatchRestartedWebhook then
+         if State.SendMatchRestartedWebhook and not hasRecentlyRestarted then
             sendWebhook("match_restart", nil, currentGameInfo, lastWave)
         end
+
+        hasRecentlyRestarted = true
 
         if gameInProgress then
             print("Resetting game state due to restart")
@@ -3270,6 +3270,8 @@ task.spawn(function()
             
             if currentWave == 0 and not matchFinished then
                 print("Auto Start Game enabled - Voting to start...")
+
+                task.wait(2)
                 
                 local success = pcall(function()
                     game:GetService("ReplicatedStorage")
