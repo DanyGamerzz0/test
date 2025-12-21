@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.1"
+local script_version = "V0.01"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1370,8 +1370,8 @@ local function isTrackedPath(path)
             path == "Stats.Experience" or
             path:match("^Relics%.[^%.]+$") or
             path:match("^Units%.Inventory%.%[.+%]$") or
-            path:match("^Items%.CraftingItems%.") or
-            path:match("^Items%.UniqueItems%.")
+            path:match("^Items%.CraftingItems") or
+            path:match("^Items%.UniqueItems")
     end
 
 local function getRewards(before, after, path)
@@ -2080,7 +2080,7 @@ local function StreamerMode()
         billboard:FindFirstChild("Title").Text = playerTitle
         billboard:FindFirstChild("LevelAmount").Text = "Lv. " .. playerLevel
         billboard:FindFirstChild("Title"):FindFirstChild("Title").Text = playerTitle
-        billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = playerLevel
+        billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = "Lv. " .. playerLevel
 
         originalNumbers.Visible = true
         streamerLabel.Visible = false
@@ -2841,17 +2841,31 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     
     -- Game just started (wave 1+)
     if wave >= 1 and not gameInProgress then
-        gameInProgress = true
-        beforeRewardData = deepCopy(RequestData:InvokeServer())
-        print("✅ Took BEFORE reward snapshot")
-        gameStartTime = tick()
+    gameInProgress = true
+    gameStartTime = tick()
 
-        currentGameInfo = {
+    currentGameInfo = {
         MapName = workspace:GetAttribute("MapName") or "Unknown",
         Act = workspace:GetAttribute("Act") or "Unknown",
         Category = workspace:GetAttribute("Category") or "Unknown",
         StartTime = tick()
     }
+    
+    -- Wait for RequestData to initialize before capturing rewards
+    task.spawn(function()
+        local timeout = 0
+        while not RequestData and timeout < 20 do
+            task.wait(0.5)
+            timeout = timeout + 1
+        end
+        
+        if RequestData then
+            beforeRewardData = deepCopy(RequestData:InvokeServer())
+            print("✅ Took BEFORE reward snapshot")
+        else
+            warn("⚠️ RequestData not initialized - rewards won't be tracked")
+        end
+    end)
         
         print(string.format("✓ GAME STARTED (Wave %d) - %s Act %s (%s)", 
         wave, currentGameInfo.MapName, currentGameInfo.Act, currentGameInfo.Category))
