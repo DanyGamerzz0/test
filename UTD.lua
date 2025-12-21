@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.09999"
+local script_version = "V0.1"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2078,7 +2078,7 @@ local function StreamerMode()
         billboard:FindFirstChild("PlayerName").Text = Services.Players.LocalPlayer.Name
         billboard:FindFirstChild("PlayerName"):FindFirstChild("PlayerName").Text = Services.Players.LocalPlayer.Name
         billboard:FindFirstChild("Title").Text = playerTitle
-        billboard:FindFirstChild("LevelAmount").Text = playerLevel
+        billboard:FindFirstChild("LevelAmount").Text = "Lv. " .. playerLevel
         billboard:FindFirstChild("Title"):FindFirstChild("Title").Text = playerTitle
         billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = playerLevel
 
