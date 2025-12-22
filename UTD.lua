@@ -1678,7 +1678,7 @@ local function setProcessingState(action)
     AutoJoinState.currentAction = action
     AutoJoinState.lastActionTime = tick()
 
-   notify("Auto Join", action)
+   notify(action, "Joining...")
 end
 
  local function clearProcessingState()
@@ -1686,7 +1686,105 @@ end
         AutoJoinState.currentAction = nil
 end
 
+local function activatePodUI(podName)
+    -- Find the pod in workspace
+    local podsFolder = workspace:FindFirstChild("Pods")
+    if not podsFolder then
+        warn("Pods folder not found in workspace")
+        return false
+    end
+    
+    local pod = podsFolder:FindFirstChild(podName)
+    if not pod then
+        warn(string.format("Pod '%s' not found", podName))
+        return false
+    end
+    
+    -- Find the TouchPart
+    local touchPart = nil
+    for _, child in pairs(pod:GetDescendants()) do
+        if child.Name == "TouchPart" and child:IsA("BasePart") then
+            touchPart = child
+            break
+        end
+    end
+    
+    if not touchPart then
+        warn(string.format("TouchPart not found in pod '%s'", podName))
+        return false
+    end
+    
+    -- Teleport player to TouchPart
+    local player = Services.Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        warn("Character not found")
+        return false
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        warn("HumanoidRootPart not found")
+        return false
+    end
+    
+    print(string.format("Teleporting to %s pod TouchPart...", podName))
+    
+    -- Teleport to TouchPart position
+    humanoidRootPart.CFrame = touchPart.CFrame
+    
+    -- Wait for UI to activate
+    local lobbyUi = player.PlayerGui:WaitForChild("LobbyUi", 5)
+    if not lobbyUi then
+        warn("LobbyUi not found")
+        return false
+    end
+    
+    local startPod = lobbyUi:WaitForChild("StartPod", 5)
+    if not startPod then
+        warn("StartPod not found")
+        return false
+    end
+    
+    -- Wait for StartPod to be enabled
+    local timeout = 0
+    while not startPod.Enabled and timeout < 30 do
+        task.wait(0.1)
+        timeout = timeout + 1
+    end
+    
+    if not startPod.Enabled then
+        warn("StartPod UI did not activate after touching pod")
+        return false
+    end
+    
+    print(string.format("✓ Successfully activated %s pod UI", podName))
+    return true
+end
+
 local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, difficultyPercent)
+    -- Step 0: Activate the correct pod UI based on game mode
+    local podName = nil
+    if gameMode == "Virtual" then
+        podName = "VirtualRealm"
+    elseif gameMode == "Challenge" then
+        podName = "Challenge"
+    elseif gameMode == "Story" then
+        podName = "Story"
+    elseif gameMode == "Legend" then
+        podName = "Story" -- Legend stages also use Story pod
+    end
+    
+    if podName then
+        print(string.format("Activating %s pod UI...", podName))
+        local activated = activatePodUI(podName)
+        if not activated then
+            warn("Failed to activate pod UI")
+            return false
+        end
+        task.wait(0.5)
+    end
+    
     local PlayerGui = game:GetService("Players").LocalPlayer.PlayerGui
     local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
     
@@ -1725,7 +1823,13 @@ local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, dif
         return false
     end
     
-    -- Step 3: Find and select the world
+    -- For Challenge mode, we stop here as challenges work differently
+    if gameMode == "Challenge" then
+        print("Challenge mode selected - implement challenge-specific logic here")
+        return handleChallengeSelection()
+    end
+    
+    -- Step 3: Find and select the world (for Story/Legend/Virtual)
     local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
     local foundWorld = false
     
@@ -1826,6 +1930,68 @@ local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, dif
     return true
 end
 
+local function handleChallengeSelection()
+    -- This function handles the challenge-specific UI
+    local PlayerGui = Services.Players.LocalPlayer.PlayerGui
+    local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
+    
+    -- Wait for challenges UI to load
+    task.wait(1)
+    
+    -- Featured Challenge (The Hunt)
+    if State.AutoJoinFeaturedChallenge then
+        print("Attempting to join Featured Challenge (The Hunt)...")
+        -- Add featured challenge logic here
+        -- You'll need to inspect the UI structure for featured challenges
+        return true
+    end
+    
+    -- Regular challenges
+    if State.AutoJoinChallenge and #State.SelectedChallenges > 0 then
+        print("Attempting to join selected challenges...")
+        
+        local challengesFrame = LobbyUi.WorldsFrame.Worlds.Content.Challenges
+        if not challengesFrame then
+            warn("Challenges frame not found")
+            return false
+        end
+        
+        -- Iterate through available challenges
+        for _, challengeCard in pairs(challengesFrame:GetDescendants()) do
+            if challengeCard:IsA("Frame") and challengeCard.Name:match("Challenge") then
+                -- Check if this challenge matches our selection criteria
+                -- You'll need to add logic here to:
+                -- 1. Check challenge duration (30 Minute / Daily)
+                -- 2. Check rewards match SelectedChallengeRewards
+                -- 3. Check world is not in IgnoreWorlds
+                -- 4. Check modifier is not in IgnoreModifier
+                
+                -- If all checks pass, click the challenge button
+                local hitbox = challengeCard:FindFirstChild("Hitbox")
+                if hitbox then
+                    for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
+                        if conn.Enabled then
+                            conn:Fire()
+                            task.wait(0.5)
+                            
+                            -- Click start button
+                            local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+                            for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                                if startConn.Enabled then
+                                    startConn:Fire()
+                                end
+                            end
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
@@ -1887,7 +2053,7 @@ local function checkAndExecuteHighestPriority()
         setProcessingState("Virtual Stage Auto Join")
         
         local success = autoJoinGameViaUI(
-            "Virtual",
+            "Virtual",  -- Changed from "VirtualRealm"
             State.VirtualStageSelected,
             tonumber(State.VirtualStageActSelected),
             State.VirtualStageDifficultySelected,
@@ -1900,6 +2066,22 @@ local function checkAndExecuteHighestPriority()
             return
         else
             print("Virtual stage join failed via UI")
+            clearProcessingState()
+        end
+    end
+    
+    -- Priority 4: Challenge Auto Join (add this new section)
+    if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
+        setProcessingState("Challenge Auto Join")
+        
+        local success = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
+        
+        if success then
+            print("Successfully initiated challenge join!")
+            task.delay(5, clearProcessingState)
+            return
+        else
+            print("Challenge join failed")
             clearProcessingState()
         end
     end
