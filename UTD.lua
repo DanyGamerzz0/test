@@ -1814,9 +1814,18 @@ local function challengeMatchesFilters(challengeData)
     -- STEP 2: Check if any modifier is in ignore list (applies to ALL challenges)
     if #State.IgnoreModifier > 0 then
         for _, modifierName in pairs(modifiers) do
+            -- modifierName here is the MODULE name (e.g., "HalfHourPlacementDecrease")
+            -- We need to check against what the user selected (ChallengeTag like "Unit Place Amount Decrease")
+            
+            -- Convert module name to display tag for comparison
+            local modifierDisplayTag = ModifierModuleToTag[modifierName] or modifierName
+            
+            print(string.format("Checking modifier: Module='%s', Tag='%s'", modifierName, modifierDisplayTag))
+            
             for _, ignoredModifier in ipairs(State.IgnoreModifier) do
-                if modifierName == ignoredModifier then
-                    print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierName))
+                -- ignoredModifier is the display name (ChallengeTag) from dropdown
+                if modifierDisplayTag == ignoredModifier then
+                    print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierDisplayTag))
                     return false
                 end
             end
@@ -2042,24 +2051,52 @@ local function handleChallengeSelection()
                                     
                                     local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
                                     if actsContainer then
+                                        -- Get all act buttons and sort by position
+                                        local actButtons = {}
                                         for _, actButton in pairs(actsContainer:GetChildren()) do
                                             if actButton:FindFirstChild("Container") then
-                                                local actNum = actButton.Container:FindFirstChild("ActNumber")
-                                                if actNum and actNum.Text == "Act " .. tostring(bestChallenge.data.Act) then
-                                                    print(string.format("✓ Found Act %d button", bestChallenge.data.Act))
-                                                    
-                                                    local actHitbox = actButton:FindFirstChild("Hitbox")
-                                                    if actHitbox then
-                                                        for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
-                                                            if actConn.Enabled then
-                                                                actConn:Fire()
-                                                            end
-                                                        end
-                                                        task.wait(0.3)
-                                                        break
+                                                table.insert(actButtons, actButton)
+                                            end
+                                        end
+                                        
+                                        -- Sort by LayoutOrder or position
+                                        table.sort(actButtons, function(a, b)
+                                            if a.LayoutOrder ~= b.LayoutOrder then
+                                                return a.LayoutOrder < b.LayoutOrder
+                                            end
+                                            return a.AbsolutePosition.X < b.AbsolutePosition.X
+                                        end)
+                                        
+                                        -- Log what we found
+                                        print("=== ACT BUTTONS DEBUG ===")
+                                        for i, actButton in ipairs(actButtons) do
+                                            local actNum = actButton.Container:FindFirstChild("ActNumber")
+                                            if actNum then
+                                                print(string.format("Position %d: ActNumber.Text = '%s'", i, actNum.Text))
+                                            end
+                                        end
+                                        print("=== END DEBUG ===")
+                                        
+                                        -- Use the bestChallenge.index to select the right act
+                                        -- The index from getCurrentChallenges() corresponds to position in UI
+                                        local targetActButton = actButtons[bestChallenge.index]
+                                        
+                                        if targetActButton then
+                                            local actNum = targetActButton.Container:FindFirstChild("ActNumber")
+                                            print(string.format("✓ Selecting act at position %d (ActNumber: '%s')", 
+                                                bestChallenge.index, actNum and actNum.Text or "unknown"))
+                                            
+                                            local actHitbox = targetActButton:FindFirstChild("Hitbox")
+                                            if actHitbox then
+                                                for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
+                                                    if actConn.Enabled then
+                                                        actConn:Fire()
                                                     end
                                                 end
+                                                task.wait(0.3)
                                             end
+                                        else
+                                            warn(string.format("Could not find act button at position %d", bestChallenge.index))
                                         end
                                     end
                                 end
