@@ -2012,7 +2012,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
 section = JoinerTab:CreateSection("Challenge Joiner")
 
         AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Featured Challenge",
+        Name = "Auto Join Featured Challenge (The Hunt)",
         CurrentValue = false,
         Flag = "AutoJoinFeaturedChallenge",
         Callback = function(Value)
