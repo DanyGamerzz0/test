@@ -4013,6 +4013,7 @@ MacroDropdown:Refresh(getMacroList())
 task.spawn(loadAllStoryStagesWithRetry)
 task.spawn(loadAllLegendStagesWithRetry)
 task.spawn(loadAllVirtualStagesWithRetry)
+task.spawn(loadAllChallengeModifiersWithRetry)
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
