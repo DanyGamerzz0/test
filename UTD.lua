@@ -1802,24 +1802,15 @@ local function checkAndExecuteHighestPriority()
         if AutoJoinState.isProcessing then return end
         if not canPerformAction() then return end
 
-        if State.AutoJoinStory and State.SelectedStoryStageIndex and State.StoryActSelected then
+        if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
         setProcessingState("Story Auto Join")
-    
-    -- Get the stage name from dropdown
-    local storyStage = StoryStageDropdown.CurrentOption
-    if type(storyStage) == "table" then
-        storyStage = storyStage[1]
-    end
-    
-    -- Get difficulty meter value
-    local difficultyMeter = StorySlider.CurrentValue or 100
     
     -- Call the UI-based join function
     local success = autoJoinGameViaUI(
-        storyStage,                      -- World name
+        State.StoryStageSelected,                      -- World name
         tonumber(State.StoryActSelected), -- Act number
         State.StoryDifficultySelected,   -- Difficulty ("Easy" or "Hard")
-        difficultyMeter                  -- Difficulty meter %
+        difficultyState.StoryDifficultyMeterSelectedMeter                  -- Difficulty meter %
     )
     
     if success then
