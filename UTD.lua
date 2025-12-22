@@ -168,9 +168,9 @@ local State = {
         local loadingRetries = {
         story = 0,
         legend = 0,
-        raid = 0,
+        portal = 0,
         ignoreWorlds = 0,
-        portal = 0
+        modifiers = 0,
     }
 
      local AutoJoinState = {
@@ -1889,7 +1889,7 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-    Slider = JoinerTab:CreateSlider({
+    StorySlider = JoinerTab:CreateSlider({
    Name = "Select Difficulty Meter",
    Range = {75, 1000},
    Increment = 1,
@@ -1936,7 +1936,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-     Slider = JoinerTab:CreateSlider({
+     LegendSlider = JoinerTab:CreateSlider({
    Name = "Select Difficulty Meter",
    Range = {75, 1000},
    Increment = 1,
@@ -1949,7 +1949,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
 
    section = JoinerTab:CreateSection("Virtual Stage Joiner")
 
-    AutoJoinLegendToggle = JoinerTab:CreateToggle({
+    AutoJoinVirtualToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Virtual Stage",
         CurrentValue = false,
         Flag = "AutoJoinVirtualStage",
@@ -1958,7 +1958,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-local LegendStageDropdown = JoinerTab:CreateDropdown({
+local VirtualStageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Virtual Stage",
     Options = {},
     CurrentOption = {},
@@ -1967,7 +1967,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-    LegendChapterDropdown = JoinerTab:CreateDropdown({
+    VirtualChapterDropdown = JoinerTab:CreateDropdown({
         Name = "Select Virtual Stage Chapter",
         Options = {"Act 1", "Act 2", "Act 3"},
         CurrentOption = {},
@@ -1983,7 +1983,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-    ChapterDropdown = JoinerTab:CreateDropdown({
+    VirtualDifficultyDropdown = JoinerTab:CreateDropdown({
         Name = "Select Virtual Difficulty",
         Options = {"Easy","Hard"},
         CurrentOption = {},
@@ -1998,7 +1998,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-     Slider = JoinerTab:CreateSlider({
+     VirtualSlider = JoinerTab:CreateSlider({
    Name = "Select Difficulty Meter",
    Range = {75, 1000},
    Increment = 1,
@@ -2149,7 +2149,11 @@ local function loadAllStoryStagesWithRetry()
         if StoryStageDropdown then
             StoryStageDropdown:Refresh(result)
         end
+        if IgnoreWorldsDropdown then 
+            IgnoreWorldsDropdown:Refresh(result)
+        end
         print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
+        print(string.format("Successfully loaded %d ignore world stages (attempt %d)", #result, loadingRetries.story))
     else
         if loadingRetries.story <= maxRetries then
             print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
@@ -2297,6 +2301,79 @@ local function loadAllVirtualStagesWithRetry()
             warn("Failed to load virtual stages after", maxRetries, "attempts:", result)
             if VirtualStageDropdown then
                 VirtualStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+    end
+end
+
+local function loadAllChallengeModifiersWithRetry()
+    loadingRetries.modifiers = (loadingRetries.modifiers or 0) + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.modifiers <= maxRetries then
+            print(string.format("Challenge modifiers loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.modifiers, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllChallengeModifiersWithRetry)
+        else
+            warn("Failed to load challenge modifiers after", maxRetries, "attempts - giving up")
+            if IgnoreModifierDropdown then
+                IgnoreModifierDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local ChallengesFolder = Services.ReplicatedStorage.Shared.Data.Challenges
+        
+        if not ChallengesFolder then
+            error("Challenges folder not found")
+        end
+
+        local challengeTags = {}
+        local seenTags = {} -- To avoid duplicates
+        
+        -- Get all module scripts that contain "HalfHour" in name
+        for _, challengeModule in ipairs(ChallengesFolder:GetChildren()) do
+            if challengeModule:IsA("ModuleScript") and string.find(challengeModule.Name, "HalfHour") then
+                local challengeSuccess, challengeData = pcall(function()
+                    return require(challengeModule)
+                end)
+                
+                if challengeSuccess and challengeData and challengeData.ChallengeTag then
+                    -- Only add if we haven't seen this tag before
+                    if not seenTags[challengeData.ChallengeTag] then
+                        table.insert(challengeTags, challengeData.ChallengeTag)
+                        seenTags[challengeData.ChallengeTag] = true
+                    end
+                end
+            end
+        end
+        
+        if #challengeTags == 0 then
+            error("No challenge modifiers found")
+        end
+        
+        -- Sort alphabetically
+        table.sort(challengeTags)
+        
+        return challengeTags
+    end)
+    
+    if success and result and #result > 0 then
+        if IgnoreModifierDropdown then
+            IgnoreModifierDropdown:Refresh(result)
+        end
+        print(string.format("Successfully loaded %d challenge modifiers (attempt %d)", #result, loadingRetries.modifiers))
+    else
+        if loadingRetries.modifiers <= maxRetries then
+            print(string.format("Challenge modifiers loading failed (attempt %d/%d): %s - retrying...", loadingRetries.modifiers, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllChallengeModifiersWithRetry)
+        else
+            warn("Failed to load challenge modifiers after", maxRetries, "attempts:", result)
+            if IgnoreModifierDropdown then
+                IgnoreModifierDropdown:Refresh({"Failed to load - check console"})
             end
         end
     end
