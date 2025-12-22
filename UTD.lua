@@ -2088,6 +2088,220 @@ section = JoinerTab:CreateSection("Challenge Joiner")
         end,
     })
 
+local function isGameDataLoaded()
+    local success = pcall(function()
+        return Services.ReplicatedStorage:FindFirstChild("Shared") and
+               Services.ReplicatedStorage.Shared:FindFirstChild("Data")
+    end)
+    return success
+end
+
+local function loadAllStoryStagesWithRetry()
+    loadingRetries.story = loadingRetries.story + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllStoryStagesWithRetry)
+        else
+            warn("Failed to load story stages after", maxRetries, "attempts - giving up")
+            if StoryStageDropdown then
+                StoryStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local WavesFolder = Services.ReplicatedStorage.Shared.Data.Waves
+        
+        if not WavesFolder then
+            error("Waves folder not found")
+        end
+
+        local displayNames = {}
+        
+        -- Get all module scripts (stages)
+        for _, stageModule in ipairs(WavesFolder:GetChildren()) do
+            if stageModule:IsA("ModuleScript") then
+                local stageSuccess, stageData = pcall(function()
+                    return require(stageModule)
+                end)
+                
+                if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
+                    table.insert(displayNames, stageData.Information.Name)
+                end
+            end
+        end
+        
+        if #displayNames == 0 then
+            error("No story stages found")
+        end
+        
+        -- Sort alphabetically
+        table.sort(displayNames)
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        if StoryStageDropdown then
+            StoryStageDropdown:Refresh(result)
+        end
+        print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
+    else
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllStoryStagesWithRetry)
+        else
+            warn("Failed to load story stages after", maxRetries, "attempts:", result)
+            if StoryStageDropdown then
+                StoryStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+    end
+end
+
+-- LEGEND STAGES LOADER
+local function loadAllLegendStagesWithRetry()
+    loadingRetries.legend = loadingRetries.legend + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.legend <= maxRetries then
+            print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllLegendStagesWithRetry)
+        else
+            warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
+            if LegendStageDropdown then
+                LegendStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local LegendFolder = Services.ReplicatedStorage.Shared.Data.LegendStages
+        
+        if not LegendFolder then
+            error("LegendStages folder not found")
+        end
+
+        local displayNames = {}
+        
+        -- Get all module scripts (stages)
+        for _, stageModule in ipairs(LegendFolder:GetChildren()) do
+            if stageModule:IsA("ModuleScript") then
+                local stageSuccess, stageData = pcall(function()
+                    return require(stageModule)
+                end)
+                
+                if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
+                    table.insert(displayNames, stageData.Information.Name)
+                end
+            end
+        end
+        
+        if #displayNames == 0 then
+            error("No legend stages found")
+        end
+        
+        -- Sort alphabetically
+        table.sort(displayNames)
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        if LegendStageDropdown then
+            LegendStageDropdown:Refresh(result)
+        end
+        print(string.format("Successfully loaded %d legend stages (attempt %d)", #result, loadingRetries.legend))
+    else
+        if loadingRetries.legend <= maxRetries then
+            print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllLegendStagesWithRetry)
+        else
+            warn("Failed to load legend stages after", maxRetries, "attempts:", result)
+            if LegendStageDropdown then
+                LegendStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+    end
+end
+
+-- VIRTUAL STAGES LOADER
+local function loadAllVirtualStagesWithRetry()
+    loadingRetries.portal = loadingRetries.portal + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.portal <= maxRetries then
+            print(string.format("Virtual stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.portal, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllVirtualStagesWithRetry)
+        else
+            warn("Failed to load virtual stages after", maxRetries, "attempts - giving up")
+            if VirtualStageDropdown then
+                VirtualStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local VirtualFolder = Services.ReplicatedStorage.Shared.Data.VirtualRealm
+        
+        if not VirtualFolder then
+            error("VirtualRealm folder not found")
+        end
+
+        local displayNames = {}
+        
+        -- Get all module scripts (stages)
+        for _, stageModule in ipairs(VirtualFolder:GetChildren()) do
+            if stageModule:IsA("ModuleScript") then
+                local stageSuccess, stageData = pcall(function()
+                    return require(stageModule)
+                end)
+                
+                if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
+                    table.insert(displayNames, stageData.Information.Name)
+                end
+            end
+        end
+        
+        if #displayNames == 0 then
+            error("No virtual stages found")
+        end
+        
+        -- Sort alphabetically
+        table.sort(displayNames)
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        if VirtualStageDropdown then
+            VirtualStageDropdown:Refresh(result)
+        end
+        print(string.format("Successfully loaded %d virtual stages (attempt %d)", #result, loadingRetries.portal))
+    else
+        if loadingRetries.portal <= maxRetries then
+            print(string.format("Virtual stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.portal, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllVirtualStagesWithRetry)
+        else
+            warn("Failed to load virtual stages after", maxRetries, "attempts:", result)
+            if VirtualStageDropdown then
+                VirtualStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+    end
+end
+
 GameSection = GameTab:CreateSection("👥 Player 👥")
 
    Slider = GameTab:CreateSlider({
@@ -3718,6 +3932,11 @@ end)
 ensureMacroFolders()
 loadAllMacros()
 MacroDropdown:Refresh(getMacroList())
+
+task.spawn(loadAllStoryStagesWithRetry)
+task.spawn(loadAllLegendStagesWithRetry)
+task.spawn(loadAllVirtualStagesWithRetry)
+
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
 
