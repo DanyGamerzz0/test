@@ -223,6 +223,7 @@ end
 local TowerService = nil
 local BlessingService = nil
 local RequestData = nil
+local ChallengeController = nil
 
 task.spawn(function()
     -- Wait for game to load
@@ -253,10 +254,14 @@ task.spawn(function()
             :WaitForChild("sleitnick_knit@1.7.0")
             :WaitForChild("knit")
             :WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RF"):WaitForChild("RequestData")
+
+        local Knit = require(Services.ReplicatedStorage.Packages.knit)
+        ChallengeController = Knit.GetController("ChallengeController")
         
         print("TowerService initialized")
         print("BlessingService initialized")
         print("RequestData initialized")
+        print("ChallengeController initialized")
     end)
 end)
 
@@ -1762,6 +1767,119 @@ local function activatePodUI(podName)
     return true
 end
 
+local function getCurrentChallengesData()
+    if not ChallengeController then
+        warn("ChallengeController not initialized")
+        return nil
+    end
+    
+    local success, challenges = pcall(function()
+        return ChallengeController:GetCurrentChallenges()
+    end)
+    
+    if success and challenges then
+        return challenges
+    end
+    
+    return nil
+end
+
+local function challengeMatchesFilters(challengeData)
+    local challengeMapModule = challengeData.Map -- This is the MODULE name (e.g., "FinalValley")
+    local act = challengeData.Act
+    local modifiers = challengeData.Modifiers or {}
+    local reward = challengeData.Reward
+    
+    print(string.format("Checking challenge: Map='%s', Act=%d, Reward=%s", challengeMapModule, act, reward))
+    
+    -- Check if map is in ignore list
+    for _, ignoredMapUI in ipairs(State.IgnoreWorlds) do
+        -- Convert UI name to module name
+        local ignoredMapModule = UINameToModuleName[ignoredMapUI]
+        
+        if ignoredMapModule and challengeMapModule == ignoredMapModule then
+            print(string.format("❌ Skipping - Map '%s' (UI: '%s') is in ignore list", 
+                challengeMapModule, ignoredMapUI))
+            return false
+        end
+    end
+    
+    -- Check if any modifier is in ignore list
+    for modifierIndex, modifierName in pairs(modifiers) do
+        for _, ignoredModifier in ipairs(State.IgnoreModifier) do
+            if modifierName == ignoredModifier then
+                print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierName))
+                return false
+            end
+        end
+    end
+    
+    -- Check if reward matches
+    if #State.SelectedChallengeRewards > 0 then
+        local rewardMatches = false
+        
+        local rewardMapping = {
+            ["Fragments"] = "Fragments",
+            ["Gems"] = "Gems",
+            ["Stats"] = "Stat Rerolls",
+            ["Rerolls"] = "Trait Rerolls",
+            ["Daily"] = "Daily",
+        }
+        
+        local friendlyReward = rewardMapping[reward] or reward
+        
+        for _, selectedReward in ipairs(State.SelectedChallengeRewards) do
+            if friendlyReward == selectedReward then
+                rewardMatches = true
+                break
+            end
+        end
+        
+        if not rewardMatches then
+            print(string.format("❌ Skipping - Reward '%s' not in selected rewards", friendlyReward))
+            return false
+        end
+    end
+    
+    print("✓ Challenge passed all filters!")
+    return true
+end
+
+local function findBestChallenge(challengesData, challengeType)
+    local bestChallenge = nil
+    local bestScore = -1
+    
+    for challengeIndex, challengeData in pairs(challengesData) do
+        -- Skip non-numeric indices
+        if type(challengeIndex) ~= "number" then
+            continue
+        end
+        
+        print(string.format("=== Evaluating Challenge %d ===", challengeIndex))
+        
+        -- Check if it matches our filters
+        if challengeMatchesFilters(challengeData) then
+            -- Score this challenge (higher = better)
+            local score = 0
+            
+            -- Prefer higher acts (more rewards)
+            score = score + (challengeData.Act or 0) * 10
+            
+            -- Could add more scoring criteria here
+            
+            if score > bestScore then
+                bestScore = score
+                bestChallenge = {
+                    index = challengeIndex,
+                    data = challengeData
+                }
+            end
+        end
+    end
+    
+    return bestChallenge
+end
+
 local function handleChallengeSelection()
     local PlayerGui = Services.Players.LocalPlayer.PlayerGui
     local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
@@ -1769,10 +1887,10 @@ local function handleChallengeSelection()
     -- Wait for challenges UI to load
     task.wait(1)
     
-    print("=== Challenge Selection Debug ===")
+    print("=== Challenge Selection Started ===")
     print("Featured Challenge:", State.AutoJoinFeaturedChallenge)
     print("Regular Challenge:", State.AutoJoinChallenge)
-    print("Selected Challenges:", table.concat(State.SelectedChallenges or {}, ", "))
+    print("Selected Types:", table.concat(State.SelectedChallenges or {}, ", "))
     
     -- Get the worlds frame where challenges are displayed
     local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
@@ -1781,122 +1899,263 @@ local function handleChallengeSelection()
         return false
     end
     
-    -- Scan all challenge cards
-    for _, challengeCard in pairs(worldsFrame:GetChildren()) do
-        if challengeCard:FindFirstChild("Container") then
-            local container = challengeCard.Container
-            local leftInfo = container:FindFirstChild("LeftInfo")
-            
-            if leftInfo then
-                local questName = leftInfo:FindFirstChild("QuestName")
-                if not questName then continue end
+    -- Priority 1: Featured Challenge (simple - no filtering needed)
+    if State.AutoJoinFeaturedChallenge then
+        print("Looking for Featured Challenge...")
+        
+        for _, challengeCard in pairs(worldsFrame:GetChildren()) do
+            if challengeCard:FindFirstChild("Container") then
+                local container = challengeCard.Container
+                local leftInfo = container:FindFirstChild("LeftInfo")
                 
-                local challengeName = questName.Text
-                print(string.format("Found challenge: '%s'", challengeName))
-                
-                -- Check if this is Featured Challenge
-                if State.AutoJoinFeaturedChallenge and challengeName == "Featured Challenge" then
-                    print("✓ Matched Featured Challenge!")
-                    
-                    -- Click the challenge
-                    local hitbox = challengeCard:FindFirstChild("Hitbox")
-                    if hitbox then
-                        for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
-                            if conn.Enabled then
-                                conn:Fire()
-                            end
-                        end
-                        task.wait(0.5)
+                if leftInfo then
+                    local questName = leftInfo:FindFirstChild("QuestName")
+                    if questName and questName.Text == "Featured Challenge" then
+                        print("✓ Found Featured Challenge!")
                         
-                        -- Click start button
-                        local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                        for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
-                            if startConn.Enabled then
-                                startConn:Fire()
+                        -- Click the challenge
+                        local hitbox = challengeCard:FindFirstChild("Hitbox")
+                        if hitbox then
+                            for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
+                                if conn.Enabled then
+                                    conn:Fire()
+                                end
                             end
+                            task.wait(0.3)
+                            
+                            -- Click select button
+                            local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
+                            for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
+                                if selectConn.Enabled then
+                                    selectConn:Fire()
+                                end
+                            end
+                            task.wait(0.3)
+                            
+                            -- Click start button
+                            local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+                            for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                                if startConn.Enabled then
+                                    startConn:Fire()
+                                end
+                            end
+                            
+                            print("✓ Successfully joined Featured Challenge")
+                            return true
                         end
-                        
-                        print("✓ Successfully joined Featured Challenge")
-                        return true
                     end
                 end
-                
-                -- Check if this is Half Hourly challenge
-                if State.AutoJoinChallenge then
-                    for _, selectedType in ipairs(State.SelectedChallenges) do
-                        local matchFound = false
+            end
+        end
+    end
+    
+    -- Priority 2: Regular Challenges (with filtering)
+    if State.AutoJoinChallenge and #State.SelectedChallenges > 0 then
+        print("Looking for regular challenges with filtering...")
+        
+        -- Get challenge data from ChallengeController
+        local challengesData = getCurrentChallengesData()
+        
+        if not challengesData then
+            warn("Could not get challenges data from ChallengeController")
+            -- Fall back to UI-only selection (no filtering)
+            print("Falling back to UI-only selection (no filtering)")
+            
+            for _, challengeCard in pairs(worldsFrame:GetChildren()) do
+                if challengeCard:FindFirstChild("Container") then
+                    local container = challengeCard.Container
+                    local leftInfo = container:FindFirstChild("LeftInfo")
+                    
+                    if leftInfo then
+                        local questName = leftInfo:FindFirstChild("QuestName")
+                        if not questName then continue end
                         
-                        if selectedType == "Half Hourly" and challengeName:match("Half Hourly") then
-                            matchFound = true
-                            print("✓ Matched Half Hourly Challenge!")
-                        elseif selectedType == "Daily" and challengeName == "Daily" then
-                            matchFound = true
-                            print("✓ Matched Daily Challenge!")
-                        end
+                        local challengeName = questName.Text
                         
-                        if matchFound then
-                            -- TODO: Add filtering logic here for:
-                            -- - State.IgnoreWorlds (check world name)
-                            -- - State.IgnoreModifier (check modifier)
-                            -- - State.SelectedChallengeRewards (check rewards)
+                        for _, selectedType in ipairs(State.SelectedChallenges) do
+                            local matchFound = false
                             
-                            -- For now, just select the first matching challenge
-                            local hitbox = challengeCard:FindFirstChild("Hitbox")
-                            if hitbox then
-                                for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
-                                    if conn.Enabled then
-                                        conn:Fire()
-                                    end
-                                end
-                                task.wait(0.5)
+                            if selectedType == "Half Hourly" and challengeName:match("Half Hourly") then
+                                matchFound = true
+                            elseif selectedType == "Daily" and challengeName == "Daily" then
+                                matchFound = true
+                            end
+                            
+                            if matchFound then
+                                print(string.format("✓ Found matching challenge: %s", challengeName))
                                 
-                                -- For Half Hourly challenges, we need to select an act
-                                if challengeName:match("Half Hourly") then
-                                    print("Half Hourly detected - selecting first available act...")
+                                local hitbox = challengeCard:FindFirstChild("Hitbox")
+                                if hitbox then
+                                    for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
+                                        if conn.Enabled then
+                                            conn:Fire()
+                                        end
+                                    end
+                                    task.wait(0.5)
                                     
-                                    -- Wait for acts container to appear
-                                    task.wait(0.3)
-                                    
-                                    local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
-                                    if actsContainer then
-                                        -- Get first act
-                                        for _, actButton in pairs(actsContainer:GetChildren()) do
-                                            if actButton:FindFirstChild("Container") then
-                                                -- Click first act
-                                                local actHitbox = actButton:FindFirstChild("Hitbox")
-                                                if actHitbox then
-                                                    for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
-                                                        if actConn.Enabled then
-                                                            actConn:Fire()
+                                    -- For Half Hourly, select first act
+                                    if challengeName:match("Half Hourly") then
+                                        task.wait(0.3)
+                                        
+                                        local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
+                                        if actsContainer then
+                                            for _, actButton in pairs(actsContainer:GetChildren()) do
+                                                if actButton:FindFirstChild("Container") then
+                                                    local actHitbox = actButton:FindFirstChild("Hitbox")
+                                                    if actHitbox then
+                                                        for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
+                                                            if actConn.Enabled then
+                                                                actConn:Fire()
+                                                            end
                                                         end
+                                                        task.wait(0.3)
+                                                        break
                                                     end
-                                                    task.wait(0.3)
-                                                    break
                                                 end
                                             end
                                         end
+                                    end
+                                    
+                                    -- Click select
+                                    local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
+                                    for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
+                                        if selectConn.Enabled then
+                                            selectConn:Fire()
+                                        end
+                                    end
+                                    task.wait(0.3)
+                                    
+                                    -- Click start
+                                    local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+                                    for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                                        if startConn.Enabled then
+                                            startConn:Fire()
+                                        end
+                                    end
+                                    
+                                    return true
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            print("✓ Got challenges data from ChallengeController")
+            
+            -- Determine challenge type to look for
+            for _, selectedType in ipairs(State.SelectedChallenges) do
+                local challengeType = selectedType == "Half Hourly" and "HalfHour" or "Daily"
+                local dataKey = challengeType == "HalfHour" and "HalfHour" or "Daily"
+                
+                print(string.format("Looking for %s challenges...", selectedType))
+                
+                -- Get challenges of this type
+                local typeChallenges = challengesData[dataKey]
+                if not typeChallenges then
+                    print(string.format("No %s challenges found in data", selectedType))
+                    continue
+                end
+                
+                -- Find best challenge that matches filters
+                local bestChallenge = findBestChallenge(typeChallenges, challengeType)
+                
+                if not bestChallenge then
+                    print(string.format("No %s challenges match the filters", selectedType))
+                    continue
+                end
+                
+                print(string.format("✓ Found best challenge: Index %d, Map=%s, Act=%d", 
+                    bestChallenge.index, bestChallenge.data.Map, bestChallenge.data.Act))
+                
+                -- Now find this challenge in the UI
+                local challengeUIName = selectedType == "Half Hourly" and "Half Hourly Challenge" or "Daily"
+                
+                for _, challengeCard in pairs(worldsFrame:GetChildren()) do
+                    if challengeCard:FindFirstChild("Container") then
+                        local container = challengeCard.Container
+                        local leftInfo = container:FindFirstChild("LeftInfo")
+                        
+                        if leftInfo then
+                            local questName = leftInfo:FindFirstChild("QuestName")
+                            if not questName then continue end
+                            
+                            local challengeName = questName.Text
+                            
+                            -- Check if this is the right challenge type
+                            local isMatch = false
+                            if selectedType == "Half Hourly" and challengeName:match("Half Hourly") then
+                                isMatch = true
+                            elseif selectedType == "Daily" and challengeName == "Daily" then
+                                isMatch = true
+                            end
+                            
+                            if isMatch then
+                                print(string.format("✓ Found UI challenge card: %s", challengeName))
+                                
+                                -- Click the challenge
+                                local hitbox = challengeCard:FindFirstChild("Hitbox")
+                                if hitbox then
+                                    for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
+                                        if conn.Enabled then
+                                            conn:Fire()
+                                        end
+                                    end
+                                    task.wait(0.5)
+                                    
+                                    -- For Half Hourly, select the specific act
+                                    if selectedType == "Half Hourly" then
+                                        print(string.format("Selecting Act %d...", bestChallenge.data.Act))
                                         
-                                        -- Click select button
-                                        local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
-                                        for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
-                                            if selectConn.Enabled then
-                                                selectConn:Fire()
+                                        task.wait(0.3)
+                                        
+                                        local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
+                                        if actsContainer then
+                                            -- Find the act button
+                                            for _, actButton in pairs(actsContainer:GetChildren()) do
+                                                if actButton:FindFirstChild("Container") then
+                                                    local actNum = actButton.Container:FindFirstChild("ActNumber")
+                                                    if actNum and actNum.Text == "Act " .. tostring(bestChallenge.data.Act) then
+                                                        print(string.format("✓ Found Act %d button", bestChallenge.data.Act))
+                                                        
+                                                        local actHitbox = actButton:FindFirstChild("Hitbox")
+                                                        if actHitbox then
+                                                            for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
+                                                                if actConn.Enabled then
+                                                                    actConn:Fire()
+                                                                end
+                                                            end
+                                                            task.wait(0.3)
+                                                            break
+                                                        end
+                                                    end
+                                                end
                                             end
                                         end
-                                        task.wait(0.3)
                                     end
-                                end
-                                
-                                -- Click start button
-                                local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                                for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
-                                    if startConn.Enabled then
-                                        startConn:Fire()
+                                    
+                                    -- Click select button
+                                    local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
+                                    for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
+                                        if selectConn.Enabled then
+                                            selectConn:Fire()
+                                        end
                                     end
+                                    task.wait(0.3)
+                                    
+                                    -- Click start button
+                                    local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+                                    for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                                        if startConn.Enabled then
+                                            startConn:Fire()
+                                        end
+                                    end
+                                    
+                                    print(string.format("✓ Successfully joined %s challenge (Map: %s, Act: %d)", 
+                                        selectedType, bestChallenge.data.Map, bestChallenge.data.Act))
+                                    
+                                    return true
                                 end
-                                
-                                print(string.format("✓ Successfully joined %s", challengeName))
-                                return true
                             end
                         end
                     end
@@ -1905,7 +2164,7 @@ local function handleChallengeSelection()
         end
     end
     
-    warn("No matching challenge found")
+    warn("No matching challenges found")
     return false
 end
 
@@ -2642,6 +2901,47 @@ local function isGameDataLoaded()
                Services.ReplicatedStorage.Shared:FindFirstChild("Data")
     end)
     return success
+end
+
+local function buildMapLookup()
+    print("Building map name lookup...")
+    
+    local success, result = pcall(function()
+        local WavesFolder = Services.ReplicatedStorage.Shared.Data.Waves
+        
+        if not WavesFolder then
+            warn("Waves folder not found")
+            return false
+        end
+        
+        local count = 0
+        
+        -- For each module in Waves folder
+        for _, stageModule in ipairs(WavesFolder:GetChildren()) do
+            if stageModule:IsA("ModuleScript") then
+                local stageSuccess, stageData = pcall(function()
+                    return require(stageModule)
+                end)
+                
+                if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
+                    -- UI Name -> Module Name
+                    -- Example: "Ninja Village" -> "FinalValley"
+                    local uiName = stageData.Information.Name
+                    local moduleName = stageModule.Name
+                    
+                    UINameToModuleName[uiName] = moduleName
+                    
+                    count = count + 1
+                    print(string.format("  '%s' -> '%s'", uiName, moduleName))
+                end
+            end
+        end
+        
+        print(string.format("✓ Built lookup with %d entries", count))
+        return true
+    end)
+    
+    return success and result
 end
 
 local function loadAllStoryStagesWithRetry()
@@ -4468,6 +4768,20 @@ task.spawn(function()
         while true do
         task.wait(0.5)
         checkAndExecuteHighestPriority()
+    end
+end)
+
+task.spawn(function()
+    local timeout = 0
+    while not isGameDataLoaded() and timeout < 20 do
+        task.wait(0.5)
+        timeout = timeout + 1
+    end
+    
+    if isGameDataLoaded() then
+        buildMapLookup()
+    else
+        warn("Game data not loaded - map filtering may not work")
     end
 end)
 
