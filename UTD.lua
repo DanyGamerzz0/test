@@ -89,6 +89,7 @@ local Window = Rayfield:CreateWindow({
    }
 })
 local LobbyTab = Window:CreateTab("Lobby", "tv")
+local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local AutoPathTab = Window:CreateTab("Auto Path", "target")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local Tab = Window:CreateTab("Macro", "tv")
@@ -1833,6 +1834,259 @@ task.spawn(function()
         AutoPathTab:CreateLabel("⚠️ Failed to load paths")
     end
 end)
+
+section = JoinerTab:CreateSection("Story Joiner")
+
+     AutoJoinStoryToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Story",
+        CurrentValue = false,
+        Flag = "AutoJoinStory",
+        Callback = function(Value)
+            State.AutoJoinStory = Value
+        end,
+    })
+
+local StoryStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Story Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "StoryStageSelector",
+    Callback = function(Option)
+    end,
+})
+
+     ChapterDropdown869 = JoinerTab:CreateDropdown({
+        Name = "Select Story Act",
+        Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "StoryActSelector",
+        Callback = function(Option)
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            if selectedOption == "Infinite" then
+                State.StoryActSelected = "Infinite"
+            else
+                local num = selectedOption:match("%d+")
+                if num then
+                    State.StoryActSelected = num
+                end
+            end
+        end,
+    })
+
+     ChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Story Difficulty",
+        Options = {"Easy","Hard"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "StoryDifficultySelector",
+        Callback = function(Option)
+            if Option[1] == "Easy" then
+                State.StoryDifficultySelected = "Easy"
+            elseif Option[1] == "Hard" then
+                State.StoryDifficultySelected = "Hard"
+            end
+        end,
+    })
+
+    Slider = JoinerTab:CreateSlider({
+   Name = "Select Difficulty Meter",
+   Range = {75, 1000},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 100,
+   Flag = "StoryDifficultyMeterSelector",
+   Callback = function(Value)
+   end,
+})
+
+    section = JoinerTab:CreateSection("Legend Stage Joiner")
+
+    AutoJoinLegendToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Legend Stage",
+        CurrentValue = false,
+        Flag = "AutoJoinLegendStage",
+        Callback = function(Value)
+            State.AutoJoinLegendStage = Value
+        end,
+    })
+
+local LegendStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Legend Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "LegendStageSelector",
+    Callback = function(Option)
+    end,
+})
+
+    LegendChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Legend Stage Chapter",
+        Options = {"Act 1", "Act 2", "Act 3"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "LegendStageActSelector",
+        Callback = function(Option)
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.LegendActSelected = num
+            end
+        end,
+    })
+
+     Slider = JoinerTab:CreateSlider({
+   Name = "Select Difficulty Meter",
+   Range = {75, 1000},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 100,
+   Flag = "LegendStageDifficultyMeterSelector",
+   Callback = function(Value)
+   end,
+})
+
+   section = JoinerTab:CreateSection("Virtual Stage Joiner")
+
+    AutoJoinLegendToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Virtual Stage",
+        CurrentValue = false,
+        Flag = "AutoJoinVirtualStage",
+        Callback = function(Value)
+            State.AutoJoinLegendStage = Value
+        end,
+    })
+
+local LegendStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Virtual Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "VirtualStageSelector",
+    Callback = function(Option)
+    end,
+})
+
+    LegendChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Virtual Stage Chapter",
+        Options = {"Act 1", "Act 2", "Act 3"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "VirtualStageActSelector",
+        Callback = function(Option)
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.LegendActSelected = num
+            end
+        end,
+    })
+
+    ChapterDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Virtual Difficulty",
+        Options = {"Easy","Hard"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "VirtualStageDifficultySelector",
+        Callback = function(Option)
+            if Option[1] == "Easy" then
+                State.StoryDifficultySelected = "Easy"
+            elseif Option[1] == "Hard" then
+                State.StoryDifficultySelected = "Hard"
+            end
+        end,
+    })
+
+     Slider = JoinerTab:CreateSlider({
+   Name = "Select Difficulty Meter",
+   Range = {75, 1000},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 100,
+   Flag = "VirtualStageDifficultyMeterSelector",
+   Callback = function(Value)
+   end,
+})
+
+section = JoinerTab:CreateSection("Challenge Joiner")
+
+        AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Featured Challenge",
+        CurrentValue = false,
+        Flag = "AutoJoinFeaturedChallenge",
+        Callback = function(Value)
+            State.AutoJoinFeaturedChallenge = Value
+        end,
+    })
+
+        AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Challenge",
+        CurrentValue = false,
+        Flag = "AutoJoinChallenge",
+        Callback = function(Value)
+            State.AutoJoinChallenge = Value
+        end,
+    })
+
+        ChallengeSelectionDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Challenge",
+        Options = {"30 Minute","Daily"},
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "ChallengeSelectionDropdown",
+        Info = "Will do all challenges that are selected",
+        Callback = function(Options)
+            State.SelectedChallenges = Options or {}
+        end,
+    })
+
+    local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
+        Name = "Ignore Worlds",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "IgnoreWorldsSelector",
+        Info = "Skip challenges based on these worlds",
+        Callback = function(Options)
+            State.IgnoreWorlds = Options or {}
+        end,
+    })
+
+    local IgnoreModifierDropdown = JoinerTab:CreateDropdown({
+        Name = "Ignore Modifier",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "IgnoreModifierSelector",
+        Info = "Skip challenges based on these modifiers",
+        Callback = function(Options)
+            State.IgnoreModifier = Options or {}
+        end,
+    })
+
+        SelectChallengeRewardsDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Challenge Rewards",
+        Options = {"Fragments","Gems","Stat Rerolls","Trait Rerolls"},
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "SelectedChallengeRewards",
+        Info = "Only join challenges that contain one or more of these rewards",
+        Callback = function(Options)
+            State.SelectedChallengeRewards = Options or {}
+        end,
+    })
+
+    ReturnToLobbyToggle = JoinerTab:CreateToggle({
+        Name = "Return to Lobby on New Challenge",
+        CurrentValue = false,
+        Flag = "ReturnToLobbyOnNewChallenge",
+        Info = "Return to lobby when new challenge appears instead of using retry/next",
+        TextScaled = true,
+        Callback = function(Value)
+            State.ReturnToLobbyOnNewChallenge = Value
+        end,
+    })
 
 GameSection = GameTab:CreateSection("👥 Player 👥")
 
