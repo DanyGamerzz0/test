@@ -121,6 +121,7 @@ local currentGameInfo = {
     Category = nil,
     StartTime = nil
 }
+local UINameToModuleName = {}
 
 local Services = {
     HttpService = game:GetService("HttpService"),
