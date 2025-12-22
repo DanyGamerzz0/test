@@ -255,14 +255,18 @@ task.spawn(function()
             :WaitForChild("knit")
             :WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RF"):WaitForChild("RequestData")
 
-        local Knit = require(Services.ReplicatedStorage.Packages.knit)
-        ChallengeController = Knit.GetController("ChallengeController")
-        
         print("TowerService initialized")
         print("BlessingService initialized")
         print("RequestData initialized")
         print("ChallengeController initialized")
     end)
+end)
+
+task.spawn(function()
+    task.wait(2)
+    local Knit = require(Services.ReplicatedStorage.Packages.knit)
+    ChallengeController = Knit.GetController("ChallengeController")
+    print("ChallengeController initialized")
 end)
 
 -- ============================================
