@@ -1762,6 +1762,153 @@ local function activatePodUI(podName)
     return true
 end
 
+local function handleChallengeSelection()
+    local PlayerGui = Services.Players.LocalPlayer.PlayerGui
+    local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
+    
+    -- Wait for challenges UI to load
+    task.wait(1)
+    
+    print("=== Challenge Selection Debug ===")
+    print("Featured Challenge:", State.AutoJoinFeaturedChallenge)
+    print("Regular Challenge:", State.AutoJoinChallenge)
+    print("Selected Challenges:", table.concat(State.SelectedChallenges or {}, ", "))
+    
+    -- Get the worlds frame where challenges are displayed
+    local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
+    if not worldsFrame then
+        warn("Worlds frame not found")
+        return false
+    end
+    
+    -- Scan all challenge cards
+    for _, challengeCard in pairs(worldsFrame:GetChildren()) do
+        if challengeCard:FindFirstChild("Container") then
+            local container = challengeCard.Container
+            local leftInfo = container:FindFirstChild("LeftInfo")
+            
+            if leftInfo then
+                local questName = leftInfo:FindFirstChild("QuestName")
+                if not questName then continue end
+                
+                local challengeName = questName.Text
+                print(string.format("Found challenge: '%s'", challengeName))
+                
+                -- Check if this is Featured Challenge
+                if State.AutoJoinFeaturedChallenge and challengeName == "Featured Challenge" then
+                    print("✓ Matched Featured Challenge!")
+                    
+                    -- Click the challenge
+                    local hitbox = challengeCard:FindFirstChild("Hitbox")
+                    if hitbox then
+                        for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
+                            if conn.Enabled then
+                                conn:Fire()
+                            end
+                        end
+                        task.wait(0.5)
+                        
+                        -- Click start button
+                        local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+                        for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                            if startConn.Enabled then
+                                startConn:Fire()
+                            end
+                        end
+                        
+                        print("✓ Successfully joined Featured Challenge")
+                        return true
+                    end
+                end
+                
+                -- Check if this is Half Hourly challenge
+                if State.AutoJoinChallenge then
+                    for _, selectedType in ipairs(State.SelectedChallenges) do
+                        local matchFound = false
+                        
+                        if selectedType == "Half Hourly" and challengeName:match("Half Hourly") then
+                            matchFound = true
+                            print("✓ Matched Half Hourly Challenge!")
+                        elseif selectedType == "Daily" and challengeName == "Daily" then
+                            matchFound = true
+                            print("✓ Matched Daily Challenge!")
+                        end
+                        
+                        if matchFound then
+                            -- TODO: Add filtering logic here for:
+                            -- - State.IgnoreWorlds (check world name)
+                            -- - State.IgnoreModifier (check modifier)
+                            -- - State.SelectedChallengeRewards (check rewards)
+                            
+                            -- For now, just select the first matching challenge
+                            local hitbox = challengeCard:FindFirstChild("Hitbox")
+                            if hitbox then
+                                for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
+                                    if conn.Enabled then
+                                        conn:Fire()
+                                    end
+                                end
+                                task.wait(0.5)
+                                
+                                -- For Half Hourly challenges, we need to select an act
+                                if challengeName:match("Half Hourly") then
+                                    print("Half Hourly detected - selecting first available act...")
+                                    
+                                    -- Wait for acts container to appear
+                                    task.wait(0.3)
+                                    
+                                    local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
+                                    if actsContainer then
+                                        -- Get first act
+                                        for _, actButton in pairs(actsContainer:GetChildren()) do
+                                            if actButton:FindFirstChild("Container") then
+                                                -- Click first act
+                                                local actHitbox = actButton:FindFirstChild("Hitbox")
+                                                if actHitbox then
+                                                    for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
+                                                        if actConn.Enabled then
+                                                            actConn:Fire()
+                                                        end
+                                                    end
+                                                    task.wait(0.3)
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        
+                                        -- Click select button
+                                        local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
+                                        for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
+                                            if selectConn.Enabled then
+                                                selectConn:Fire()
+                                            end
+                                        end
+                                        task.wait(0.3)
+                                    end
+                                end
+                                
+                                -- Click start button
+                                local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+                                for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                                    if startConn.Enabled then
+                                        startConn:Fire()
+                                    end
+                                end
+                                
+                                print(string.format("✓ Successfully joined %s", challengeName))
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    warn("No matching challenge found")
+    return false
+end
+
 local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, difficultyPercent)
     -- Step 0: Activate the correct pod UI based on game mode
     local podName = nil
@@ -1797,35 +1944,34 @@ local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, dif
     end
     task.wait(0.5)
     
-    -- Step 2: Select the game mode (Story, Legend, Virtual, Challenge)
-    local worldMode = LobbyUi.WorldsFrame.Worlds.WorldMode
-    local modeButton = nil
-    
-    if gameMode == "Story" then
-        modeButton = worldMode:FindFirstChild("Story")
-    elseif gameMode == "Legend" then
-        modeButton = worldMode:FindFirstChild("Legend")
-    elseif gameMode == "Virtual" then
-        modeButton = worldMode:FindFirstChild("Virtual")
-    elseif gameMode == "Challenge" then
-        modeButton = worldMode:FindFirstChild("Challenge")
-    end
-    
-    if modeButton and modeButton:FindFirstChild("Hitbox") then
-        for _, conn in pairs(getconnections(modeButton.Hitbox.MouseButton1Down)) do
-            if conn.Enabled then
-                conn:Fire()
-            end
+    -- Step 2: For Virtual and Challenge, skip mode selection (no mode button exists)
+    -- For Story and Legend, select the game mode
+    if gameMode == "Story" or gameMode == "Legend" then
+        local worldMode = LobbyUi.WorldsFrame.Worlds.WorldMode
+        local modeButton = nil
+        
+        if gameMode == "Story" then
+            modeButton = worldMode:FindFirstChild("Story")
+        elseif gameMode == "Legend" then
+            modeButton = worldMode:FindFirstChild("Legend")
         end
-        task.wait(0.5)
-    else
-        warn("Game mode button not found:", gameMode)
-        return false
+        
+        if modeButton and modeButton:FindFirstChild("Hitbox") then
+            for _, conn in pairs(getconnections(modeButton.Hitbox.MouseButton1Down)) do
+                if conn.Enabled then
+                    conn:Fire()
+                end
+            end
+            task.wait(0.5)
+        else
+            warn("Game mode button not found:", gameMode)
+            return false
+        end
     end
     
-    -- For Challenge mode, we stop here as challenges work differently
+    -- For Challenge mode, handle challenge selection
     if gameMode == "Challenge" then
-        print("Challenge mode selected - implement challenge-specific logic here")
+        print("Challenge mode selected - handling challenge selection")
         return handleChallengeSelection()
     end
     
@@ -1928,68 +2074,6 @@ local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, dif
     end
     
     return true
-end
-
-local function handleChallengeSelection()
-    -- This function handles the challenge-specific UI
-    local PlayerGui = Services.Players.LocalPlayer.PlayerGui
-    local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
-    
-    -- Wait for challenges UI to load
-    task.wait(1)
-    
-    -- Featured Challenge (The Hunt)
-    if State.AutoJoinFeaturedChallenge then
-        print("Attempting to join Featured Challenge (The Hunt)...")
-        -- Add featured challenge logic here
-        -- You'll need to inspect the UI structure for featured challenges
-        return true
-    end
-    
-    -- Regular challenges
-    if State.AutoJoinChallenge and #State.SelectedChallenges > 0 then
-        print("Attempting to join selected challenges...")
-        
-        local challengesFrame = LobbyUi.WorldsFrame.Worlds.Content.Challenges
-        if not challengesFrame then
-            warn("Challenges frame not found")
-            return false
-        end
-        
-        -- Iterate through available challenges
-        for _, challengeCard in pairs(challengesFrame:GetDescendants()) do
-            if challengeCard:IsA("Frame") and challengeCard.Name:match("Challenge") then
-                -- Check if this challenge matches our selection criteria
-                -- You'll need to add logic here to:
-                -- 1. Check challenge duration (30 Minute / Daily)
-                -- 2. Check rewards match SelectedChallengeRewards
-                -- 3. Check world is not in IgnoreWorlds
-                -- 4. Check modifier is not in IgnoreModifier
-                
-                -- If all checks pass, click the challenge button
-                local hitbox = challengeCard:FindFirstChild("Hitbox")
-                if hitbox then
-                    for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
-                        if conn.Enabled then
-                            conn:Fire()
-                            task.wait(0.5)
-                            
-                            -- Click start button
-                            local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                            for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
-                                if startConn.Enabled then
-                                    startConn:Fire()
-                                end
-                            end
-                            return true
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return false
 end
 
 local function checkAndExecuteHighestPriority()
@@ -2495,7 +2579,7 @@ section = JoinerTab:CreateSection("Challenge Joiner")
 
         ChallengeSelectionDropdown = JoinerTab:CreateDropdown({
         Name = "Select Challenge",
-        Options = {"30 Minute","Daily"},
+        Options = {"Half Hourly","Daily"},
         CurrentOption = {},
         MultipleOptions = true,
         Flag = "ChallengeSelectionDropdown",
