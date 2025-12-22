@@ -1691,7 +1691,6 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
     
     -- Step 1: Open the create game menu
-    notify("Opening create game menu...")
     local createButton = LobbyUi.StartPod.Main.Buttons.Create.Hitbox
     for _, conn in pairs(getconnections(createButton.MouseButton1Down)) do
         if conn.Enabled then
@@ -1701,7 +1700,6 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     task.wait(0.5)
     
     -- Step 2: Find and select the world
-    notify("Selecting world:", worldName)
     local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
     local foundWorld = false
     
@@ -1727,7 +1725,6 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     task.wait(0.3)
     
     -- Step 3: Select the act
-    notify("Selecting act:", actNumber)
     local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
     local foundAct = false
     
@@ -1753,7 +1750,6 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     task.wait(0.3)
     
     -- Step 4: Set difficulty
-    notify("Setting difficulty:", difficulty)
     local difficultiesContainer = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.DifficultiesContainer
     local difficultyButton = difficultiesContainer:FindFirstChild(difficulty)
     
@@ -1770,7 +1766,6 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     task.wait(0.3)
     
     -- Step 5: Set difficulty meter percentage
-    notify("Setting difficulty meter:", difficultyPercent .. "%")
     local modulationFrame = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.Modulation
     
     for _, child in pairs(modulationFrame:GetDescendants()) do
@@ -1785,15 +1780,12 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     task.wait(0.3)
     
     -- Step 6: Create the lobby
-    notify("Creating lobby...")
     local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
     for _, conn in pairs(getconnections(selectButton.MouseButton1Down)) do
         if conn.Enabled then
             conn:Fire()
         end
     end
-    
-    notify("Auto-join complete!")
     return true
 end
 
@@ -1801,6 +1793,12 @@ local function checkAndExecuteHighestPriority()
         if not isInLobby() then return end
         if AutoJoinState.isProcessing then return end
         if not canPerformAction() then return end
+    
+    if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi") then
+        if (Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("PartyFrame") and Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("PartyFrame").Enabled) or (Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("WorldsFrame") and Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("WorldsFrame").Enabled) then
+            return
+        end
+    end
 
         if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
         setProcessingState("Story Auto Join")
@@ -4119,7 +4117,7 @@ end)
 
 task.spawn(function()
         while true do
-        task.wait(5)
+        task.wait(0.5)
         checkAndExecuteHighestPriority()
     end
 end)
