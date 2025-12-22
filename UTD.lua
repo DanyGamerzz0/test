@@ -1686,7 +1686,7 @@ end
         AutoJoinState.currentAction = nil
 end
 
-local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPercent)
+local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, difficultyPercent)
     local PlayerGui = game:GetService("Players").LocalPlayer.PlayerGui
     local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
     
@@ -1699,7 +1699,33 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     end
     task.wait(0.5)
     
-    -- Step 2: Find and select the world
+    -- Step 2: Select the game mode (Story, Legend, Virtual, Challenge)
+    local worldMode = LobbyUi.WorldsFrame.Worlds.WorldMode
+    local modeButton = nil
+    
+    if gameMode == "Story" then
+        modeButton = worldMode:FindFirstChild("Story")
+    elseif gameMode == "Legend" then
+        modeButton = worldMode:FindFirstChild("Legend")
+    elseif gameMode == "Virtual" then
+        modeButton = worldMode:FindFirstChild("Virtual")
+    elseif gameMode == "Challenge" then
+        modeButton = worldMode:FindFirstChild("Challenge")
+    end
+    
+    if modeButton and modeButton:FindFirstChild("Hitbox") then
+        for _, conn in pairs(getconnections(modeButton.Hitbox.MouseButton1Down)) do
+            if conn.Enabled then
+                conn:Fire()
+            end
+        end
+        task.wait(0.5)
+    else
+        warn("Game mode button not found:", gameMode)
+        return false
+    end
+    
+    -- Step 3: Find and select the world
     local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
     local foundWorld = false
     
@@ -1724,7 +1750,7 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     end
     task.wait(0.3)
     
-    -- Step 3: Select the act
+    -- Step 4: Select the act
     local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
     local foundAct = false
     
@@ -1749,23 +1775,24 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     end
     task.wait(0.3)
     
-    -- Step 4: Set difficulty
-    local difficultiesContainer = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.DifficultiesContainer
-    local difficultyButton = difficultiesContainer:FindFirstChild(difficulty)
-    
-    if difficultyButton then
-        for _, conn in pairs(getconnections(difficultyButton.TextButton.MouseButton1Down)) do
-            if conn.Enabled then
-                conn:Fire()
+    -- Step 5: Set difficulty (if applicable - Legend stages might not have this)
+    if difficulty then
+        local difficultiesContainer = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.DifficultiesContainer
+        local difficultyButton = difficultiesContainer:FindFirstChild(difficulty)
+        
+        if difficultyButton then
+            for _, conn in pairs(getconnections(difficultyButton.TextButton.MouseButton1Down)) do
+                if conn.Enabled then
+                    conn:Fire()
+                end
             end
+            task.wait(0.3)
+        else
+            warn("Difficulty not found:", difficulty)
         end
-    else
-        warn("Difficulty not found:", difficulty)
-        return false
     end
-    task.wait(0.3)
     
-    -- Step 5: Set difficulty meter percentage
+    -- Step 6: Set difficulty meter percentage
     local modulationFrame = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.Modulation
     
     for _, child in pairs(modulationFrame:GetDescendants()) do
@@ -1779,45 +1806,101 @@ local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPer
     end
     task.wait(0.3)
     
-    -- Step 6: Create the lobby
+    -- Step 7: Create the lobby
     local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
     for _, conn in pairs(getconnections(selectButton.MouseButton1Down)) do
         if conn.Enabled then
             conn:Fire()
         end
     end
+    task.wait(0.3)
+    
+    -- Step 8: Start game
+    local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+    for _, conn in pairs(getconnections(startButton.MouseButton1Down)) do
+        if conn.Enabled then
+            conn:Fire()
+        end
+    end
+    
     return true
 end
 
 local function checkAndExecuteHighestPriority()
-        if not isInLobby() then return end
-        if AutoJoinState.isProcessing then return end
-        if not canPerformAction() then return end
+    if not isInLobby() then return end
+    if AutoJoinState.isProcessing then return end
+    if not canPerformAction() then return end
     
+    -- Check if lobby creation UI is already open
     if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi") then
         if (Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("PartyFrame") and Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("PartyFrame").Enabled) or (Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("WorldsFrame") and Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("WorldsFrame").Enabled) then
             return
         end
     end
 
-        if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
+    -- Priority 1: Story Auto Join
+    if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
         setProcessingState("Story Auto Join")
+        
+        local success = autoJoinGameViaUI(
+            "Story",
+            State.StoryStageSelected,
+            tonumber(State.StoryActSelected),
+            State.StoryDifficultySelected,
+            State.StoryDifficultyMeterSelected
+        )
+        
+        if success then
+            print("Successfully initiated story join via UI!")
+            task.delay(5, clearProcessingState)
+            return
+        else
+            print("Story join failed via UI")
+            clearProcessingState()
+        end
+    end
     
-    -- Call the UI-based join function
-    local success = autoJoinGameViaUI(
-        State.StoryStageSelected,                      -- World name
-        tonumber(State.StoryActSelected), -- Act number
-        State.StoryDifficultySelected,   -- Difficulty ("Easy" or "Hard")
-        State.StoryDifficultyMeterSelected                  -- Difficulty meter %
-    )
+    -- Priority 2: Legend Stage Auto Join
+    if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and State.LegendStageDifficultyMeterSelected then
+        setProcessingState("Legend Stage Auto Join")
+        
+        local success = autoJoinGameViaUI(
+            "Legend",
+            State.LegendStageSelected,
+            tonumber(State.LegendStageActSelected),
+            nil, -- Legend stages don't have Easy/Hard/Nightmare selection
+            State.LegendStageDifficultyMeterSelected
+        )
+        
+        if success then
+            print("Successfully initiated legend stage join via UI!")
+            task.delay(5, clearProcessingState)
+            return
+        else
+            print("Legend stage join failed via UI")
+            clearProcessingState()
+        end
+    end
     
-    if success then
-        print("Successfully initiated story join via UI!")
-        task.delay(5, clearProcessingState)
-        return
-    else
-        print("Story join failed via UI")
-        clearProcessingState()
+    -- Priority 3: Virtual Stage Auto Join (for later)
+    if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
+        setProcessingState("Virtual Stage Auto Join")
+        
+        local success = autoJoinGameViaUI(
+            "Virtual",
+            State.VirtualStageSelected,
+            tonumber(State.VirtualStageActSelected),
+            State.VirtualStageDifficultySelected,
+            State.VirtualStageDifficultyMeterSelected
+        )
+        
+        if success then
+            print("Successfully initiated virtual stage join via UI!")
+            task.delay(5, clearProcessingState)
+            return
+        else
+            print("Virtual stage join failed via UI")
+            clearProcessingState()
         end
     end
 end
