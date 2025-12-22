@@ -163,6 +163,34 @@ local State = {
     SendMatchRestartedWebhook = false,
     AutoSellAllUnits = false,
     AutoSellAllUnitsWave = 0,
+
+    AutoJoinStory = false,
+    StoryStageSelected = nil,
+    StoryActSelected = nil,
+    StoryDifficultySelected = nil,
+    StoryDifficultyMeterSelected = 100,
+
+    -- Legend
+    AutoJoinLegendStage = false,
+    LegendStageSelected = nil,
+    LegendStageActSelected = nil,
+    LegendStageDifficultyMeterSelected = 100,
+
+    -- Virtual
+    AutoJoinVirtualStage = false,
+    VirtualStageSelected = nil,
+    VirtualStageActSelected = nil,
+    VirtualStageDifficultySelected = nil,
+    VirtualStageDifficultyMeterSelected = 100,
+
+    -- Challenge
+    AutoJoinFeaturedChallenge = false,
+    AutoJoinChallenge = false,
+    SelectedChallenges = {},
+    IgnoreWorlds = {},
+    IgnoreModifier = {},
+    SelectedChallengeRewards = {},
+    ReturnToLobbyOnNewChallenge = false,
 }
 
         local loadingRetries = {
@@ -1633,6 +1661,178 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
     end
 end
 
+local function notify(title, content)
+        Rayfield:Notify({
+            Title = title,
+            Content = content,
+            Duration = 3
+        })
+end
+
+local function canPerformAction()
+        return tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown
+end
+
+local function setProcessingState(action)
+    AutoJoinState.isProcessing = true
+    AutoJoinState.currentAction = action
+    AutoJoinState.lastActionTime = tick()
+
+   notify("Auto Join", action)
+end
+
+ local function clearProcessingState()
+        AutoJoinState.isProcessing = false
+        AutoJoinState.currentAction = nil
+end
+
+local function autoJoinGameViaUI(worldName, actNumber, difficulty, difficultyPercent)
+    local PlayerGui = game:GetService("Players").LocalPlayer.PlayerGui
+    local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
+    
+    -- Step 1: Open the create game menu
+    notify("Opening create game menu...")
+    local createButton = LobbyUi.StartPod.Main.Buttons.Create.Hitbox
+    for _, conn in pairs(getconnections(createButton.MouseButton1Down)) do
+        if conn.Enabled then
+            conn:Fire()
+        end
+    end
+    task.wait(0.5)
+    
+    -- Step 2: Find and select the world
+    notify("Selecting world:", worldName)
+    local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
+    local foundWorld = false
+    
+    for _, worldButton in pairs(worldsFrame:GetChildren()) do
+        if worldButton:FindFirstChild("Container") then
+            local questName = worldButton.Container.LeftInfo.QuestName
+            if questName.Text == worldName then
+                for _, conn in pairs(getconnections(worldButton.Hitbox.MouseButton1Down)) do
+                    if conn.Enabled then
+                        conn:Fire()
+                    end
+                end
+                foundWorld = true
+                break
+            end
+        end
+    end
+    
+    if not foundWorld then
+        warn("World not found:", worldName)
+        return false
+    end
+    task.wait(0.3)
+    
+    -- Step 3: Select the act
+    notify("Selecting act:", actNumber)
+    local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
+    local foundAct = false
+    
+    for _, actButton in pairs(actsContainer:GetChildren()) do
+        if actButton:FindFirstChild("Container") then
+            local actNum = actButton.Container.ActNumber
+            if actNum.Text == "Act " .. tostring(actNumber) then
+                for _, conn in pairs(getconnections(actButton.Hitbox.MouseButton1Down)) do
+                    if conn.Enabled then
+                        conn:Fire()
+                    end
+                end
+                foundAct = true
+                break
+            end
+        end
+    end
+    
+    if not foundAct then
+        warn("Act not found:", actNumber)
+        return false
+    end
+    task.wait(0.3)
+    
+    -- Step 4: Set difficulty
+    notify("Setting difficulty:", difficulty)
+    local difficultiesContainer = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.DifficultiesContainer
+    local difficultyButton = difficultiesContainer:FindFirstChild(difficulty)
+    
+    if difficultyButton then
+        for _, conn in pairs(getconnections(difficultyButton.TextButton.MouseButton1Down)) do
+            if conn.Enabled then
+                conn:Fire()
+            end
+        end
+    else
+        warn("Difficulty not found:", difficulty)
+        return false
+    end
+    task.wait(0.3)
+    
+    -- Step 5: Set difficulty meter percentage
+    notify("Setting difficulty meter:", difficultyPercent .. "%")
+    local modulationFrame = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.Modulation
+    
+    for _, child in pairs(modulationFrame:GetDescendants()) do
+        if child:IsA("TextBox") then
+            child.Text = tostring(difficultyPercent)
+            for _, conn in pairs(getconnections(child.FocusLost)) do
+                conn:Fire()
+            end
+            break
+        end
+    end
+    task.wait(0.3)
+    
+    -- Step 6: Create the lobby
+    notify("Creating lobby...")
+    local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
+    for _, conn in pairs(getconnections(selectButton.MouseButton1Down)) do
+        if conn.Enabled then
+            conn:Fire()
+        end
+    end
+    
+    notify("Auto-join complete!")
+    return true
+end
+
+local function checkAndExecuteHighestPriority()
+        if not isInLobby() then return end
+        if AutoJoinState.isProcessing then return end
+        if not canPerformAction() then return end
+
+        if State.AutoJoinStory and State.SelectedStoryStageIndex and State.StoryActSelected then
+        setProcessingState("Story Auto Join")
+    
+    -- Get the stage name from dropdown
+    local storyStage = StoryStageDropdown.CurrentOption
+    if type(storyStage) == "table" then
+        storyStage = storyStage[1]
+    end
+    
+    -- Get difficulty meter value
+    local difficultyMeter = StorySlider.CurrentValue or 100
+    
+    -- Call the UI-based join function
+    local success = autoJoinGameViaUI(
+        storyStage,                      -- World name
+        tonumber(State.StoryActSelected), -- Act number
+        State.StoryDifficultySelected,   -- Difficulty ("Easy" or "Hard")
+        difficultyMeter                  -- Difficulty meter %
+    )
+    
+    if success then
+        print("Successfully initiated story join via UI!")
+        task.delay(5, clearProcessingState)
+        return
+    else
+        print("Story join failed via UI")
+        clearProcessingState()
+        end
+    end
+end
+
 --[[--------------------------------------------------------------]]
 
 local AutoPathToggle = AutoPathTab:CreateToggle({
@@ -1852,6 +2052,7 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
     CurrentOption = {},
     Flag = "StoryStageSelector",
     Callback = function(Option)
+        State.StoryStageSelected = Option[1]
     end,
 })
 
@@ -1876,7 +2077,7 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
 
      ChapterDropdown = JoinerTab:CreateDropdown({
         Name = "Select Story Difficulty",
-        Options = {"Easy","Hard"},
+        Options = {"Easy","Hard","Nightmare"},
         CurrentOption = {},
         MultipleOptions = false,
         Flag = "StoryDifficultySelector",
@@ -1885,6 +2086,8 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
                 State.StoryDifficultySelected = "Easy"
             elseif Option[1] == "Hard" then
                 State.StoryDifficultySelected = "Hard"
+            elseif Option[1] == "Nightmare" then
+                State.StoryDifficultySelected = "Nightmare"
             end
         end,
     })
@@ -1897,6 +2100,7 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
    CurrentValue = 100,
    Flag = "StoryDifficultyMeterSelector",
    Callback = function(Value)
+    State.StoryDifficultyMeterSelected = Value
    end,
 })
 
@@ -1917,11 +2121,12 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
     CurrentOption = {},
     Flag = "LegendStageSelector",
     Callback = function(Option)
+        State.LegendStageSelected = Option[1]
     end,
 })
 
     LegendChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Legend Stage Chapter",
+        Name = "Select Legend Stage Act",
         Options = {"Act 1", "Act 2", "Act 3"},
         CurrentOption = {},
         MultipleOptions = false,
@@ -1931,7 +2136,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
             
             local num = selectedOption:match("%d+")
             if num then
-                State.LegendActSelected = num
+                State.LegendStageActSelected = num
             end
         end,
     })
@@ -1944,6 +2149,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
    CurrentValue = 100,
    Flag = "LegendStageDifficultyMeterSelector",
    Callback = function(Value)
+    State.LegendStageDifficultyMeterSelected = Value
    end,
 })
 
@@ -1954,7 +2160,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         CurrentValue = false,
         Flag = "AutoJoinVirtualStage",
         Callback = function(Value)
-            State.AutoJoinLegendStage = Value
+            State.AutoJoinVirtualStage = Value
         end,
     })
 
@@ -1963,12 +2169,13 @@ local VirtualStageDropdown = JoinerTab:CreateDropdown({
     Options = {},
     CurrentOption = {},
     Flag = "VirtualStageSelector",
-    Callback = function(Option)
+    Callback = function(Options)
+        State.VirtualStageSelected = Options[1]
     end,
 })
 
     VirtualChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Virtual Stage Chapter",
+        Name = "Select Virtual Stage Act",
         Options = {"Act 1", "Act 2", "Act 3"},
         CurrentOption = {},
         MultipleOptions = false,
@@ -1978,22 +2185,24 @@ local VirtualStageDropdown = JoinerTab:CreateDropdown({
             
             local num = selectedOption:match("%d+")
             if num then
-                State.LegendActSelected = num
+                State.VirtualStageActSelected = num
             end
         end,
     })
 
     VirtualDifficultyDropdown = JoinerTab:CreateDropdown({
         Name = "Select Virtual Difficulty",
-        Options = {"Easy","Hard"},
+        Options = {"Easy","Hard","Nightmare"},
         CurrentOption = {},
         MultipleOptions = false,
         Flag = "VirtualStageDifficultySelector",
         Callback = function(Option)
             if Option[1] == "Easy" then
-                State.StoryDifficultySelected = "Easy"
+                State.VirtualStageDifficultySelected = "Easy"
             elseif Option[1] == "Hard" then
-                State.StoryDifficultySelected = "Hard"
+                State.VirtualStageDifficultySelected = "Hard"
+            elseif Option[1] == "Nightmare" then
+                State.VirtualStageDifficultySelected = "Nightmare"
             end
         end,
     })
@@ -2006,6 +2215,7 @@ local VirtualStageDropdown = JoinerTab:CreateDropdown({
    CurrentValue = 100,
    Flag = "VirtualStageDifficultyMeterSelector",
    Callback = function(Value)
+    State.VirtualStageDifficultyMeterSelected = Value
    end,
 })
 
@@ -3913,6 +4123,13 @@ task.spawn(function()
                 end
             end
         end
+    end
+end)
+
+task.spawn(function()
+        while true do
+        task.wait(5)
+        checkAndExecuteHighestPriority()
     end
 end)
 
