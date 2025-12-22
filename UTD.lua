@@ -1810,7 +1810,7 @@ local function checkAndExecuteHighestPriority()
         State.StoryStageSelected,                      -- World name
         tonumber(State.StoryActSelected), -- Act number
         State.StoryDifficultySelected,   -- Difficulty ("Easy" or "Hard")
-        difficultyState.StoryDifficultyMeterSelectedMeter                  -- Difficulty meter %
+        State.StoryDifficultyMeterSelectedMeter                  -- Difficulty meter %
     )
     
     if success then
