@@ -2191,6 +2191,29 @@ local function handleChallengeSelection()
     end
     
     warn("No matching challenges found")
+
+    pcall(function()
+        local closeButton = LobbyUi.WorldsFrame.Worlds.TopBar.CloseFrame
+        if closeButton then
+            for _, conn in pairs(getconnections(closeButton.MouseButton1Down)) do
+                if conn.Enabled then
+                    conn:Fire()
+                end
+            end
+        end
+        
+        task.wait(0.3)
+        
+        local quitButton = LobbyUi.StartPod.Main.Buttons.Container.Leave.Hitbox
+        if quitButton then
+            for _, conn in pairs(getconnections(quitButton.MouseButton1Down)) do
+                if conn.Enabled then
+                    conn:Fire()
+                end
+            end
+        end
+    end)
+    
     return false, "none"
 end
 
@@ -2289,17 +2312,37 @@ local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, dif
     local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
     local foundAct = false
     
-    for _, actButton in pairs(actsContainer:GetChildren()) do
-        if actButton:FindFirstChild("Container") then
-            local actNum = actButton.Container.ActNumber
-            if actNum.Text == "Act " .. tostring(actNumber) then
-                for _, conn in pairs(getconnections(actButton.Hitbox.MouseButton1Down)) do
-                    if conn.Enabled then
-                        conn:Fire()
+    if actNumber == "Infinite" or tostring(actNumber) == "Infinite" then
+        print("Looking for Infinite act...")
+        for _, actButton in pairs(actsContainer:GetChildren()) do
+            if actButton:FindFirstChild("Container") then
+                local actNum = actButton.Container.ActNumber
+                if actNum.Text == "∞" or actNum.Text:lower():find("infinite") then
+                    for _, conn in pairs(getconnections(actButton.Hitbox.MouseButton1Down)) do
+                        if conn.Enabled then
+                            conn:Fire()
+                        end
                     end
+                    foundAct = true
+                    print("✓ Found Infinite act")
+                    break
                 end
-                foundAct = true
-                break
+            end
+        end
+    else
+        -- Regular numbered acts
+        for _, actButton in pairs(actsContainer:GetChildren()) do
+            if actButton:FindFirstChild("Container") then
+                local actNum = actButton.Container.ActNumber
+                if actNum.Text == "Act " .. tostring(actNumber) then
+                    for _, conn in pairs(getconnections(actButton.Hitbox.MouseButton1Down)) do
+                        if conn.Enabled then
+                            conn:Fire()
+                        end
+                    end
+                    foundAct = true
+                    break
+                end
             end
         end
     end
@@ -4940,6 +4983,7 @@ task.spawn(function()
         print("Match finished detected")
         task.wait(1) -- Small delay before voting
 
+        -- Priority 1: New challenges available
         if State.NewChallengesAvailable and State.ReturnToLobbyOnNewChallenge then
             print("New challenges available - Returning to Lobby...")
             
@@ -4963,81 +5007,135 @@ task.spawn(function()
                     Duration = 3
                 })
                 print("✓ Returned to lobby for new challenges")
-                
-                -- Reset the flag
                 State.NewChallengesAvailable = false
             end
         
-        elseif State.AutoRetry then  -- Changed from "if" to "elseif"
-            print("Auto Retry enabled - Voting Replay...")
-            local success = pcall(function()
-                game:GetService("ReplicatedStorage")
-                    :WaitForChild("Packages")
-                    :WaitForChild("_Index")
-                    :WaitForChild("sleitnick_knit@1.7.0")
-                    :WaitForChild("knit")
-                    :WaitForChild("Services")
-                    :WaitForChild("WaveService")
-                    :WaitForChild("RE")
-                    :WaitForChild("VoteReplay")
-                    :FireServer()
-            end)
+        else
+            -- Try enabled features in order: Retry -> Next -> Lobby
+            local actionTaken = false
             
-            if success then
-                Rayfield:Notify({
-                    Title = "Auto Retry",
-                    Content = "Voting for Replay...",
-                    Duration = 2
-                })
-                print("Voted for Replay stage")
-            end
+            -- Build list of enabled actions
+            local actions = {}
+            if State.AutoRetry then table.insert(actions, "retry") end
+            if State.AutoNext then table.insert(actions, "next") end
+            if State.AutoLobby then table.insert(actions, "lobby") end
             
-        elseif State.AutoNext then
-            print("Auto Next enabled - Voting Next Map...")
-            local success = pcall(function()
-                game:GetService("ReplicatedStorage")
-                    :WaitForChild("Packages")
-                    :WaitForChild("_Index")
-                    :WaitForChild("sleitnick_knit@1.7.0")
-                    :WaitForChild("knit")
-                    :WaitForChild("Services")
-                    :WaitForChild("WaveService")
-                    :WaitForChild("RE")
-                    :WaitForChild("NextMap")
-                    :FireServer()
-            end)
-            
-            if success then
-                Rayfield:Notify({
-                    Title = "Auto Next",
-                    Content = "Voting for Next Stage...",
-                    Duration = 2
-                })
-                print("Voted for next stage")
-            end
-            
-        elseif State.AutoLobby then
-            print("Auto Lobby enabled - Returning to Lobby...")
-            local success = pcall(function()
-                game:GetService("ReplicatedStorage")
-                    :WaitForChild("Packages")
-                    :WaitForChild("_Index")
-                    :WaitForChild("sleitnick_knit@1.7.0")
-                    :WaitForChild("knit")
-                    :WaitForChild("Services")
-                    :WaitForChild("WaveService")
-                    :WaitForChild("RE")
-                    :WaitForChild("ToLobby")
-                    :FireServer()
-            end)
-            
-            if success then
-                Rayfield:Notify({
-                    Title = "Auto Lobby",
-                    Content = "Returning to Lobby...",
-                    Duration = 2
-                })
-                print("Returning to Lobby")
+            if #actions == 0 then
+                print("No auto actions enabled")
+            else
+                -- Try each action in order
+                for _, action in ipairs(actions) do
+                    local success = false
+                    
+                    if action == "retry" then
+                        print("Trying Auto Retry...")
+                        success = pcall(function()
+                            game:GetService("ReplicatedStorage")
+                                :WaitForChild("Packages")
+                                :WaitForChild("_Index")
+                                :WaitForChild("sleitnick_knit@1.7.0")
+                                :WaitForChild("knit")
+                                :WaitForChild("Services")
+                                :WaitForChild("WaveService")
+                                :WaitForChild("RE")
+                                :WaitForChild("VoteReplay")
+                                :FireServer()
+                        end)
+                        
+                        if success then
+                            Rayfield:Notify({
+                                Title = "Auto Retry",
+                                Content = "Voting for Replay...",
+                                Duration = 2
+                            })
+                            print("✓ Voted for Replay")
+                            
+                            -- Wait to see if game starts
+                            local waited = 0
+                            while waited < 15 and workspace:GetAttribute("Wave") == 0 do
+                                task.wait(1)
+                                waited = waited + 1
+                            end
+                            
+                            if workspace:GetAttribute("Wave") >= 1 then
+                                print("✓ Retry worked - game started")
+                                actionTaken = true
+                                break
+                            else
+                                warn("⚠️ Retry vote didn't start game - trying next action")
+                            end
+                        end
+                        
+                    elseif action == "next" then
+                        print("Trying Auto Next...")
+                        success = pcall(function()
+                            game:GetService("ReplicatedStorage")
+                                :WaitForChild("Packages")
+                                :WaitForChild("_Index")
+                                :WaitForChild("sleitnick_knit@1.7.0")
+                                :WaitForChild("knit")
+                                :WaitForChild("Services")
+                                :WaitForChild("WaveService")
+                                :WaitForChild("RE")
+                                :WaitForChild("NextMap")
+                                :FireServer()
+                        end)
+                        
+                        if success then
+                            Rayfield:Notify({
+                                Title = "Auto Next",
+                                Content = "Voting for Next Stage...",
+                                Duration = 2
+                            })
+                            print("✓ Voted for Next")
+                            
+                            -- Wait to see if game starts
+                            local waited = 0
+                            while waited < 15 and workspace:GetAttribute("Wave") == 0 do
+                                task.wait(1)
+                                waited = waited + 1
+                            end
+                            
+                            if workspace:GetAttribute("Wave") >= 1 then
+                                print("✓ Next worked - game started")
+                                actionTaken = true
+                                break
+                            else
+                                warn("⚠️ Next vote didn't start game - trying next action")
+                            end
+                        end
+                        
+                    elseif action == "lobby" then
+                        print("Trying Auto Lobby...")
+                        success = pcall(function()
+                            game:GetService("ReplicatedStorage")
+                                :WaitForChild("Packages")
+                                :WaitForChild("_Index")
+                                :WaitForChild("sleitnick_knit@1.7.0")
+                                :WaitForChild("knit")
+                                :WaitForChild("Services")
+                                :WaitForChild("WaveService")
+                                :WaitForChild("RE")
+                                :WaitForChild("ToLobby")
+                                :FireServer()
+                        end)
+                        
+                        if success then
+                            Rayfield:Notify({
+                                Title = "Auto Lobby",
+                                Content = "Returning to Lobby...",
+                                Duration = 2
+                            })
+                            print("✓ Returned to Lobby")
+                            actionTaken = true
+                            break
+                        end
+                    end
+                end
+                
+                if not actionTaken then
+                    warn("⚠️ All enabled actions failed")
+                end
             end
         end
         
