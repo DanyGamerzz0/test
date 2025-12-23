@@ -633,7 +633,7 @@ local function startTrackingUnitChanges(uuid, unitTag, unitName)
     local unit = getUnitByUUID(uuid)
     if not unit then return end
     
-    print(string.format("Started tracking: %s (UUID=%s)", unitTag, uuid))
+    --print(string.format("Started tracking: %s (UUID=%s)", unitTag, uuid))
     
     -- Find unit data in garbage collection
     local unitData = findUnitDataInGC(uuid)
@@ -646,8 +646,8 @@ local function startTrackingUnitChanges(uuid, unitTag, unitName)
             lastUpgradeLevel = unitData.Upgrade or 1
         }
         
-        print(string.format("Tracking %s - Current upgrade level: %d", 
-            unitTag, unitData.Upgrade or 1))
+        --print(string.format("Tracking %s - Current upgrade level: %d", 
+            --unitTag, unitData.Upgrade or 1))
     else
         --warn(string.format("⚠️ Could not find GC data for %s", unitTag))
         unitChangeListeners[uuid] = { unitTag = unitTag }
@@ -657,7 +657,7 @@ end
 local function stopTrackingUnitChanges(uuid)
     if unitChangeListeners[uuid] then
         unitChangeListeners[uuid] = nil
-        print(string.format("Stopped tracking UUID: %s", uuid))
+        --print(string.format("Stopped tracking UUID: %s", uuid))
     end
 end
 
@@ -677,8 +677,8 @@ local function startUpgradePolling()
                     
                     if currentLevel and lastLevel and currentLevel > lastLevel then
                         -- Upgrade detected!
-                        print(string.format("UPGRADE DETECTED: %s went from level %d -> %d", 
-                            listener.unitTag, lastLevel, currentLevel))
+                        --print(string.format("UPGRADE DETECTED: %s went from level %d -> %d", 
+                            --listener.unitTag, lastLevel, currentLevel))
                         
                         -- Update tracked level
                         listener.lastUpgradeLevel = currentLevel
@@ -1365,7 +1365,7 @@ task.spawn(function()
         if State.AutoSelectPath then
             -- Wait for BlessingService to be ready
             if not BlessingService then
-                print("Waiting for BlessingService to initialize...")
+                --print("Waiting for BlessingService to initialize...")
                 local timeout = 0
                 while not BlessingService and timeout < 20 do
                     task.wait(0.5)
@@ -1743,7 +1743,7 @@ local function activatePodUI(podName)
         return false
     end
     
-    print(string.format("Teleporting to %s pod TouchPart...", podName))
+    --print(string.format("Teleporting to %s pod TouchPart...", podName))
     
     -- Teleport to TouchPart position
     humanoidRootPart.CFrame = touchPart.CFrame
@@ -1773,7 +1773,7 @@ local function activatePodUI(podName)
         return false
     end
     
-    print(string.format("✓ Successfully activated %s pod UI", podName))
+    --print(string.format("✓ Successfully activated %s pod UI", podName))
     return true
 end
 
@@ -1800,14 +1800,14 @@ local function challengeMatchesFilters(challengeData)
     local modifiers = challengeData.Modifiers or {}
     local reward = challengeData.Reward
     
-    print(string.format("Checking challenge: Map='%s', Act=%d, Reward=%s, Modifiers=%s", 
-        challengeMapModule, act, reward, table.concat(modifiers, ", ")))
+    --print(string.format("Checking challenge: Map='%s', Act=%d, Reward=%s, Modifiers=%s", 
+        --challengeMapModule, act, reward, table.concat(modifiers, ", ")))
 
-        print("=== ModifierModuleToTag Contents ===")
+        --print("=== ModifierModuleToTag Contents ===")
     for moduleName, displayTag in pairs(ModifierModuleToTag) do
-        print(string.format("  '%s' -> '%s'", moduleName, displayTag))
+        --print(string.format("  '%s' -> '%s'", moduleName, displayTag))
     end
-    print("=== END DEBUG ===")
+    --print("=== END DEBUG ===")
     
     -- STEP 1: Check if map is in ignore list (applies to ALL challenges)
     if #State.IgnoreWorlds > 0 then
@@ -1815,8 +1815,8 @@ local function challengeMatchesFilters(challengeData)
             local ignoredMapModule = UINameToModuleName[ignoredMapUI]
             
             if ignoredMapModule and challengeMapModule == ignoredMapModule then
-                print(string.format("❌ Skipping - Map '%s' (UI: '%s') is in ignore list", 
-                    challengeMapModule, ignoredMapUI))
+                --print(string.format("❌ Skipping - Map '%s' (UI: '%s') is in ignore list", 
+                    --challengeMapModule, ignoredMapUI))
                 return false
             end
         end
@@ -1837,12 +1837,12 @@ local function challengeMatchesFilters(challengeData)
                 --continue
             --end
             
-            print(string.format("Checking modifier: Module='%s'", modifierName))
+            --print(string.format("Checking modifier: Module='%s'", modifierName))
             
             for _, ignoredModifier in ipairs(State.IgnoreModifier) do
                 -- ignoredModifier is the display name (ChallengeTag) from dropdown
                 if modifierName == ignoredModifier then
-                    print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierName))
+                    --print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierName))
                     return false
                 end
             end
@@ -1873,18 +1873,18 @@ local function challengeMatchesFilters(challengeData)
         end
         
         if not rewardMatches then
-            print(string.format("❌ Skipping - Reward '%s' not in selected rewards", friendlyReward))
+            --print(string.format("❌ Skipping - Reward '%s' not in selected rewards", friendlyReward))
             return false
         end
     else
         -- NO REWARDS SELECTED - This means user doesn't want to filter by rewards at all
         -- So we should REJECT challenges unless they explicitly want to run any challenge
         -- For now, let's reject if no rewards are selected
-        print("❌ Skipping - No rewards selected (filter active but empty)")
+        --print("❌ Skipping - No rewards selected (filter active but empty)")
         return false
     end
     
-    print("✓ Challenge passed all filters!")
+    --print("✓ Challenge passed all filters!")
     return true
 end
 
@@ -1898,7 +1898,7 @@ local function findBestChallenge(challengesData, challengeType)
             continue
         end
         
-        print(string.format("=== Evaluating Challenge %d ===", challengeIndex))
+        --print(string.format("=== Evaluating Challenge %d ===", challengeIndex))
         
         -- Check if it matches our filters
         if challengeMatchesFilters(challengeData) then
@@ -1941,7 +1941,7 @@ local function waitForChallengeError(timeout)
                         
                         -- Check for "already beaten" message
                         if text:lower():find("already beaten") or text:lower():find("already completed") then
-                            print("✓ Detected challenge completion error:", text)
+                            --print("✓ Detected challenge completion error:", text)
                             return true
                         end
                     end
@@ -1967,12 +1967,12 @@ local function handleChallengeSelection()
     
     task.wait(1)
     
-    print("=== Challenge Selection Started ===")
-    print("Featured Challenge:", State.AutoJoinFeaturedChallenge)
-    print("Regular Challenge:", State.AutoJoinChallenge)
-    print("Selected Rewards:", table.concat(State.SelectedChallengeRewards or {}, ", "))
-    print("Ignored Worlds:", table.concat(State.IgnoreWorlds or {}, ", "))
-    print("Ignored Modifiers:", table.concat(State.IgnoreModifier or {}, ", "))
+    --print("=== Challenge Selection Started ===")
+    --print("Featured Challenge:", State.AutoJoinFeaturedChallenge)
+    --print("Regular Challenge:", State.AutoJoinChallenge)
+    --print("Selected Rewards:", table.concat(State.SelectedChallengeRewards or {}, ", "))
+    --print("Ignored Worlds:", table.concat(State.IgnoreWorlds or {}, ", "))
+    --print("Ignored Modifiers:", table.concat(State.IgnoreModifier or {}, ", "))
     
     local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
     if not worldsFrame then
@@ -1982,7 +1982,7 @@ local function handleChallengeSelection()
     
     -- Priority 1: Regular Challenges with filtering
     if State.AutoJoinChallenge then
-        print("Looking for Half Hourly challenges with filtering...")
+        --print("Looking for Half Hourly challenges with filtering...")
         
         local challengesData = getCurrentChallengesData()
         
@@ -1990,7 +1990,7 @@ local function handleChallengeSelection()
             warn("Could not get challenges data from ChallengeController")
             -- Don't return yet, try Featured Challenge
         else
-            print("✓ Got challenges data from ChallengeController")
+            --print("✓ Got challenges data from ChallengeController")
             
             local typeChallenges = challengesData["HalfHour"]
             if typeChallenges then
@@ -1998,8 +1998,8 @@ local function handleChallengeSelection()
                 local bestChallenge = findBestChallenge(typeChallenges, "HalfHour")
                 
                 if bestChallenge then
-                    print(string.format("✓ Found best challenge: Index %d, Map=%s, Act=%d, Reward=%s", 
-                        bestChallenge.index, bestChallenge.data.Map, bestChallenge.data.Act, bestChallenge.data.Reward))
+                    --print(string.format("✓ Found best challenge: Index %d, Map=%s, Act=%d, Reward=%s", 
+                        --bestChallenge.index, bestChallenge.data.Map, bestChallenge.data.Act, bestChallenge.data.Reward))
                     
                     -- Find this challenge in the UI
                     for _, challengeCard in pairs(worldsFrame:GetChildren()) do
@@ -2015,7 +2015,7 @@ local function handleChallengeSelection()
                                 
                                 -- Check if this is Half Hourly challenge
                                 if challengeName:match("Half Hourly") then
-                                    print(string.format("✓ Found UI challenge card: %s", challengeName))
+                                    --print(string.format("✓ Found UI challenge card: %s", challengeName))
                                     
                                     local hitbox = challengeCard:FindFirstChild("Hitbox")
                                     if hitbox then
@@ -2027,7 +2027,7 @@ local function handleChallengeSelection()
                                         task.wait(0.5)
                                         
                                         -- Select the specific act
-                                        print(string.format("Selecting Act %d...", bestChallenge.data.Act))
+                                        --print(string.format("Selecting Act %d...", bestChallenge.data.Act))
                                         task.wait(0.3)
                                         
                                         local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
@@ -2052,8 +2052,8 @@ local function handleChallengeSelection()
                                             
                                             if targetActButton then
                                                 local actNum = targetActButton.Container:FindFirstChild("ActNumber")
-                                                print(string.format("✓ Selecting act at position %d (ActNumber: '%s')", 
-                                                    bestChallenge.index, actNum and actNum.Text or "unknown"))
+                                                --print(string.format("✓ Selecting act at position %d (ActNumber: '%s')", 
+                                                    --bestChallenge.index, actNum and actNum.Text or "unknown"))
                                                 
                                                 local actHitbox = targetActButton:FindFirstChild("Hitbox")
                                                 if actHitbox then
@@ -2119,7 +2119,7 @@ local function handleChallengeSelection()
                                         
                                         -- Click start button
                                         local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                                        for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                                        for _, startConn in pairs(getconnections(startButton.MouseButton1Up)) do
                                             if startConn.Enabled then
                                                 startConn:Fire()
                                             end
@@ -2175,7 +2175,7 @@ local function handleChallengeSelection()
                             task.wait(0.3)
                             
                             local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                            for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                            for _, startConn in pairs(getconnections(startButton.MouseButton1Up)) do
                                 if startConn.Enabled then
                                     startConn:Fire()
                                 end
@@ -2395,7 +2395,7 @@ local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, dif
     
     -- Step 8: Start game
     local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-    for _, conn in pairs(getconnections(startButton.MouseButton1Down)) do
+    for _, conn in pairs(getconnections(startButton.MouseButton1Up)) do
         if conn.Enabled then
             conn:Fire()
         end
@@ -5043,67 +5043,52 @@ task.spawn(function()
                         end)
                         
                         if success then
-                            Rayfield:Notify({
-                                Title = "Auto Retry",
-                                Content = "Voting for Replay...",
-                                Duration = 2
-                            })
-                            print("✓ Voted for Replay")
-                            
-                            -- Wait to see if game starts
-                            local waited = 0
-                            while waited < 15 and workspace:GetAttribute("Wave") == 0 do
-                                task.wait(1)
-                                waited = waited + 1
-                            end
-                            
-                            if workspace:GetAttribute("Wave") >= 1 then
-                                print("✓ Retry worked - game started")
-                                actionTaken = true
-                                break
-                            else
-                                warn("⚠️ Retry vote didn't start game - trying next action")
-                            end
-                        end
+    Rayfield:Notify({
+        Title = "Auto Retry",
+        Content = "Voting for Replay...",
+        Duration = 2
+    })
+    print("✓ Voted for Replay")
+    
+    -- Wait to see if MatchFinished becomes false (game restarted)
+    local waited = 0
+    while waited < 15 and workspace:GetAttribute("MatchFinished") do
+        task.wait(1)
+        waited = waited + 1
+    end
+    
+    if not workspace:GetAttribute("MatchFinished") then
+        print("✓ Retry worked - game restarted")
+        actionTaken = true
+        break
+    else
+        warn("⚠️ Retry vote didn't start game - trying next action")
+    end
+end
                         
-                    elseif action == "next" then
-                        print("Trying Auto Next...")
-                        success = pcall(function()
-                            game:GetService("ReplicatedStorage")
-                                :WaitForChild("Packages")
-                                :WaitForChild("_Index")
-                                :WaitForChild("sleitnick_knit@1.7.0")
-                                :WaitForChild("knit")
-                                :WaitForChild("Services")
-                                :WaitForChild("WaveService")
-                                :WaitForChild("RE")
-                                :WaitForChild("NextMap")
-                                :FireServer()
-                        end)
-                        
-                        if success then
-                            Rayfield:Notify({
-                                Title = "Auto Next",
-                                Content = "Voting for Next Stage...",
-                                Duration = 2
-                            })
-                            print("✓ Voted for Next")
-                            
-                            -- Wait to see if game starts
-                            local waited = 0
-                            while waited < 15 and workspace:GetAttribute("Wave") == 0 do
-                                task.wait(1)
-                                waited = waited + 1
-                            end
-                            
-                            if workspace:GetAttribute("Wave") >= 1 then
-                                print("✓ Next worked - game started")
-                                actionTaken = true
-                                break
-                            else
-                                warn("⚠️ Next vote didn't start game - trying next action")
-                            end
-                        end
+                    if success then
+    Rayfield:Notify({
+        Title = "Auto Next",
+        Content = "Voting for Next Stage...",
+        Duration = 2
+    })
+    print("✓ Voted for Next")
+    
+    -- Wait to see if MatchFinished becomes false (game restarted)
+    local waited = 0
+    while waited < 15 and workspace:GetAttribute("MatchFinished") do
+        task.wait(1)
+        waited = waited + 1
+    end
+    
+    if not workspace:GetAttribute("MatchFinished") then
+        print("✓ Next worked - game restarted")
+        actionTaken = true
+        break
+    else
+        warn("⚠️ Next vote didn't start game - trying next action")
+    end
+end
                         
                     elseif action == "lobby" then
                         print("Trying Auto Lobby...")
