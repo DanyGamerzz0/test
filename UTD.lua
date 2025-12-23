@@ -2366,7 +2366,32 @@ local function checkAndExecuteHighestPriority()
         end
     end
 
-    -- Priority 1: Story Auto Join
+        -- Priority 1: Challenge Auto Join (add this new section)
+    if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
+        local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
+
+        if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
+        -- Still in cooldown
+        return -- Don't try again yet
+    end
+
+        setProcessingState("Challenge Auto Join")
+        
+        local success = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
+        
+        if success then
+            print("Successfully initiated challenge join!")
+            State.LastFailedChallengeAttempt = 0
+            task.delay(5, clearProcessingState)
+            return
+        else
+            print("Challenge join failed")
+            State.LastFailedChallengeAttempt = tick()
+            clearProcessingState()
+        end
+    end
+
+    -- Priority 2: Story Auto Join
     if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
         setProcessingState("Story Auto Join")
         
@@ -2388,7 +2413,7 @@ local function checkAndExecuteHighestPriority()
         end
     end
     
-    -- Priority 2: Legend Stage Auto Join
+    -- Priority 3: Legend Stage Auto Join
     if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and State.LegendStageDifficultyMeterSelected then
         setProcessingState("Legend Stage Auto Join")
         
@@ -2410,7 +2435,7 @@ local function checkAndExecuteHighestPriority()
         end
     end
     
-    -- Priority 3: Virtual Stage Auto Join (for later)
+    -- Priority 4: Virtual Stage Auto Join (for later)
     if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
         setProcessingState("Virtual Stage Auto Join")
         
@@ -2428,31 +2453,6 @@ local function checkAndExecuteHighestPriority()
             return
         else
             print("Virtual stage join failed via UI")
-            clearProcessingState()
-        end
-    end
-    
-    -- Priority 4: Challenge Auto Join (add this new section)
-    if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
-        local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
-
-        if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
-        -- Still in cooldown
-        return -- Don't try again yet
-    end
-
-        setProcessingState("Challenge Auto Join")
-        
-        local success = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
-        
-        if success then
-            print("Successfully initiated challenge join!")
-            State.LastFailedChallengeAttempt = 0
-            task.delay(5, clearProcessingState)
-            return
-        else
-            print("Challenge join failed")
-            State.LastFailedChallengeAttempt = tick()
             clearProcessingState()
         end
     end
