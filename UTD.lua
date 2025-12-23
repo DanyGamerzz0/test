@@ -1976,10 +1976,173 @@ local function handleChallengeSelection()
     local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
     if not worldsFrame then
         warn("Worlds frame not found")
-        return false
+        return false, "none"
     end
     
-    -- Priority 1: Featured Challenge
+    -- Priority 1: Regular Challenges with filtering
+    if State.AutoJoinChallenge then
+        print("Looking for Half Hourly challenges with filtering...")
+        
+        local challengesData = getCurrentChallengesData()
+        
+        if not challengesData then
+            warn("Could not get challenges data from ChallengeController")
+            -- Don't return yet, try Featured Challenge
+        else
+            print("✓ Got challenges data from ChallengeController")
+            
+            local typeChallenges = challengesData["HalfHour"]
+            if typeChallenges then
+                -- Find best challenge that matches filters
+                local bestChallenge = findBestChallenge(typeChallenges, "HalfHour")
+                
+                if bestChallenge then
+                    print(string.format("✓ Found best challenge: Index %d, Map=%s, Act=%d, Reward=%s", 
+                        bestChallenge.index, bestChallenge.data.Map, bestChallenge.data.Act, bestChallenge.data.Reward))
+                    
+                    -- Find this challenge in the UI
+                    for _, challengeCard in pairs(worldsFrame:GetChildren()) do
+                        if challengeCard:FindFirstChild("Container") then
+                            local container = challengeCard.Container
+                            local leftInfo = container:FindFirstChild("LeftInfo")
+                            
+                            if leftInfo then
+                                local questName = leftInfo:FindFirstChild("QuestName")
+                                if not questName then continue end
+                                
+                                local challengeName = questName.Text
+                                
+                                -- Check if this is Half Hourly challenge
+                                if challengeName:match("Half Hourly") then
+                                    print(string.format("✓ Found UI challenge card: %s", challengeName))
+                                    
+                                    local hitbox = challengeCard:FindFirstChild("Hitbox")
+                                    if hitbox then
+                                        for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
+                                            if conn.Enabled then
+                                                conn:Fire()
+                                            end
+                                        end
+                                        task.wait(0.5)
+                                        
+                                        -- Select the specific act
+                                        print(string.format("Selecting Act %d...", bestChallenge.data.Act))
+                                        task.wait(0.3)
+                                        
+                                        local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
+                                        if actsContainer then
+                                            -- Get all act buttons and sort by position
+                                            local actButtons = {}
+                                            for _, actButton in pairs(actsContainer:GetChildren()) do
+                                                if actButton:FindFirstChild("Container") then
+                                                    table.insert(actButtons, actButton)
+                                                end
+                                            end
+                                            
+                                            -- Sort by LayoutOrder or position
+                                            table.sort(actButtons, function(a, b)
+                                                if a.LayoutOrder ~= b.LayoutOrder then
+                                                    return a.LayoutOrder < b.LayoutOrder
+                                                end
+                                                return a.AbsolutePosition.X < b.AbsolutePosition.X
+                                            end)
+                                            
+                                            local targetActButton = actButtons[bestChallenge.index]
+                                            
+                                            if targetActButton then
+                                                local actNum = targetActButton.Container:FindFirstChild("ActNumber")
+                                                print(string.format("✓ Selecting act at position %d (ActNumber: '%s')", 
+                                                    bestChallenge.index, actNum and actNum.Text or "unknown"))
+                                                
+                                                local actHitbox = targetActButton:FindFirstChild("Hitbox")
+                                                if actHitbox then
+                                                    for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
+                                                        if actConn.Enabled then
+                                                            actConn:Fire()
+                                                        end
+                                                    end
+                                                    task.wait(0.3)
+                                                end
+                                            else
+                                                warn(string.format("Could not find act button at position %d", bestChallenge.index))
+                                            end
+                                        end
+                                        
+                                        -- Click select button
+                                        local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
+                                        for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
+                                            if selectConn.Enabled then
+                                                selectConn:Fire()
+                                            end
+                                        end
+                                        
+                                        -- Check for error
+                                        task.wait(0.5)
+                                        if waitForChallengeError(2) then
+                                            print("⚠️ Challenge already completed - closing menu")
+                                            
+                                            Rayfield:Notify({
+                                                Title = "Challenge Completed",
+                                                Content = "Already beat this challenge - trying next",
+                                                Duration = 3
+                                            })
+                                            
+                                            -- Close the worlds frame
+                                            pcall(function()
+                                                local closeButton = LobbyUi.WorldsFrame.Worlds.TopBar.CloseFrame
+                                                if closeButton then
+                                                    for _, conn in pairs(getconnections(closeButton.MouseButton1Down)) do
+                                                        if conn.Enabled then
+                                                            conn:Fire()
+                                                        end
+                                                    end
+                                                end
+                                                
+                                                task.wait(0.3)
+                                                
+                                                local quitButton = LobbyUi.StartPod.Main.Buttons.Container.Leave.Hitbox
+                                                if quitButton then
+                                                    for _, conn in pairs(getconnections(quitButton.MouseButton1Down)) do
+                                                        if conn.Enabled then
+                                                            conn:Fire()
+                                                        end
+                                                    end
+                                                end
+                                            end)
+                                            
+                                            return false, "regular" -- Exit so other auto-joiners can work
+                                        end
+                                        
+                                        -- No error, continue to start
+                                        task.wait(0.3)
+                                        
+                                        -- Click start button
+                                        local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+                                        for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
+                                            if startConn.Enabled then
+                                                startConn:Fire()
+                                            end
+                                        end
+                                        
+                                        print(string.format("✓ Successfully joined Half Hourly challenge (Map: %s, Act: %d, Reward: %s)", 
+                                            bestChallenge.data.Map, bestChallenge.data.Act, bestChallenge.data.Reward))
+                                        
+                                        return true, "regular"
+                                    end
+                                end
+                            end
+                        end
+                    end
+                else
+                    print("No Half Hourly challenges match the filters")
+                end
+            else
+                print("No Half Hourly challenges found in data")
+            end
+        end
+    end
+    
+    -- Priority 2: Featured Challenge (fallback)
     if State.AutoJoinFeaturedChallenge then
         print("Looking for Featured Challenge...")
         
@@ -2018,7 +2181,7 @@ local function handleChallengeSelection()
                             end
                             
                             print("✓ Successfully joined Featured Challenge")
-                            return true
+                            return true, "featured"
                         end
                     end
                 end
@@ -2026,165 +2189,8 @@ local function handleChallengeSelection()
         end
     end
     
-    -- Priority 2: Regular Challenges with filtering
-    if State.AutoJoinChallenge then
-    print("Looking for Half Hourly challenges with filtering...")
-    
-    local challengesData = getCurrentChallengesData()
-    
-    if not challengesData then
-        warn("Could not get challenges data from ChallengeController")
-        return false
-    end
-    
-    print("✓ Got challenges data from ChallengeController")
-    
-    local typeChallenges = challengesData["HalfHour"]
-    if not typeChallenges then
-        print("No Half Hourly challenges found in data")
-        return false
-    end
-    
-    -- Find best challenge that matches filters
-    local bestChallenge = findBestChallenge(typeChallenges, "HalfHour")
-    
-    if not bestChallenge then
-        print("No Half Hourly challenges match the filters")
-        return false
-    end
-    
-    print(string.format("✓ Found best challenge: Index %d, Map=%s, Act=%d, Reward=%s", 
-        bestChallenge.index, bestChallenge.data.Map, bestChallenge.data.Act, bestChallenge.data.Reward))
-    
-    -- Find this challenge in the UI
-    for _, challengeCard in pairs(worldsFrame:GetChildren()) do
-        if challengeCard:FindFirstChild("Container") then
-            local container = challengeCard.Container
-            local leftInfo = container:FindFirstChild("LeftInfo")
-            
-            if leftInfo then
-                local questName = leftInfo:FindFirstChild("QuestName")
-                if not questName then continue end
-                
-                local challengeName = questName.Text
-                
-                -- Check if this is Half Hourly challenge
-                if challengeName:match("Half Hourly") then
-                    print(string.format("✓ Found UI challenge card: %s", challengeName))
-                    
-                    local hitbox = challengeCard:FindFirstChild("Hitbox")
-                    if hitbox then
-                        for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
-                            if conn.Enabled then
-                                conn:Fire()
-                            end
-                        end
-                        task.wait(0.5)
-                        
-                        -- Select the specific act
-                        print(string.format("Selecting Act %d...", bestChallenge.data.Act))
-                        task.wait(0.3)
-                        
-                        local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
-                        if actsContainer then
-                            -- Get all act buttons and sort by position
-                            local actButtons = {}
-                            for _, actButton in pairs(actsContainer:GetChildren()) do
-                                if actButton:FindFirstChild("Container") then
-                                    table.insert(actButtons, actButton)
-                                end
-                            end
-                            
-                            -- Sort by LayoutOrder or position
-                            table.sort(actButtons, function(a, b)
-                                if a.LayoutOrder ~= b.LayoutOrder then
-                                    return a.LayoutOrder < b.LayoutOrder
-                                end
-                                return a.AbsolutePosition.X < b.AbsolutePosition.X
-                            end)
-                            
-                            local targetActButton = actButtons[bestChallenge.index]
-                            
-                            if targetActButton then
-                                local actNum = targetActButton.Container:FindFirstChild("ActNumber")
-                                print(string.format("✓ Selecting act at position %d (ActNumber: '%s')", 
-                                    bestChallenge.index, actNum and actNum.Text or "unknown"))
-                                
-                                local actHitbox = targetActButton:FindFirstChild("Hitbox")
-                                if actHitbox then
-                                    for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
-                                        if actConn.Enabled then
-                                            actConn:Fire()
-                                        end
-                                    end
-                                    task.wait(0.3)
-                                end
-                            else
-                                warn(string.format("Could not find act button at position %d", bestChallenge.index))
-                            end
-                        end
-                        
-                        -- Click select button
-                        local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
-                        for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
-                            if selectConn.Enabled then
-                                selectConn:Fire()
-                            end
-                        end
-                        task.wait(0.5)
-                        if waitForChallengeError(2) then
-    print("⚠️ Challenge already completed - closing menu")
-    
-    Rayfield:Notify({
-        Title = "Challenge Completed",
-        Content = "Already beat this challenge - trying next",
-        Duration = 3
-    })
-    
-    -- Close the worlds frame
-    pcall(function()
-        -- Method 1: Try to find close button
-        local closeButton = LobbyUi.WorldsFrame.Worlds.TopBar.CloseFrame
-        if closeButton then
-            for _, conn in pairs(getconnections(closeButton.MouseButton1Down)) do
-                if conn.Enabled then
-                    conn:Fire()
-                end
-            end
-        end
-        local quitButton = LobbyUi.StartPod.Main.Buttons.Container.Leave.Hitbox
-        if closeButton then
-            for _, conn in pairs(getconnections(quitButton.MouseButton1Down)) do
-                if conn.Enabled then
-                    conn:Fire()
-                end
-            end
-        end
-    end)
-    
-    return false -- Exit so other auto-joiners can work
-end
-                        
-                        -- Click start button
-                        local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                        for _, startConn in pairs(getconnections(startButton.MouseButton1Down)) do
-                            if startConn.Enabled then
-                                startConn:Fire()
-                            end
-                        end
-                        
-                        print(string.format("✓ Successfully joined Half Hourly challenge (Map: %s, Act: %d, Reward: %s)", 
-                            bestChallenge.data.Map, bestChallenge.data.Act, bestChallenge.data.Reward))
-                        
-                        return true
-                    end
-                end
-            end
-        end
-    end
-end
     warn("No matching challenges found")
-    return false
+    return false, "none"
 end
 
 local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, difficultyPercent)
@@ -2368,28 +2374,44 @@ local function checkAndExecuteHighestPriority()
 
         -- Priority 1: Challenge Auto Join (add this new section)
     if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
+        local regularChallengeOnCooldown = false
+
+        if State.AutoJoinChallenge then
         local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
-
+        
         if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
-        -- Still in cooldown
-        return -- Don't try again yet
-    end
-
-        setProcessingState("Challenge Auto Join")
-        
-        local success = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
-        
-        if success then
-            print("Successfully initiated challenge join!")
-            State.LastFailedChallengeAttempt = 0
-            task.delay(5, clearProcessingState)
-            return
-        else
-            print("Challenge join failed")
-            State.LastFailedChallengeAttempt = tick()
-            clearProcessingState()
+            regularChallengeOnCooldown = true
+            print("Regular challenge on cooldown")
         end
     end
+    
+    -- Skip if regular is on cooldown AND featured is not enabled
+    if regularChallengeOnCooldown and not State.AutoJoinFeaturedChallenge then
+        return
+    end
+    
+    setProcessingState("Challenge Auto Join")
+    
+    local success, challengeType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
+    
+    if success then
+        print("Successfully initiated challenge join!")
+        State.LastFailedChallengeAttempt = 0 -- Reset cooldown
+        task.delay(5, clearProcessingState)
+        return
+    else
+        print(string.format("Challenge join failed (Type: %s)", challengeType or "unknown"))
+        
+        -- ONLY set cooldown if regular challenge failed
+        -- Featured never gets cooldown
+        if challengeType == "regular" then
+            State.LastFailedChallengeAttempt = tick()
+            print("Regular challenge cooldown set (5 minutes)")
+        end
+        
+        clearProcessingState()
+    end
+end
 
     -- Priority 2: Story Auto Join
     if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
