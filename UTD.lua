@@ -3175,12 +3175,12 @@ local function loadAllChallengeModifiersWithRetry()
             error("Challenges folder not found")
         end
 
-        local challengeModifiers = {} -- Store both display name and module name
-        local seenTags = {} -- To avoid duplicates
+        local challengeModifiers = {}
+        local seenTags = {}
         
-        -- Get all module scripts
+        -- Get all module scripts that contain "HalfHour" in name (Half Hourly challenges only)
         for _, challengeModule in ipairs(ChallengesFolder:GetChildren()) do
-            if challengeModule:IsA("ModuleScript") then
+            if challengeModule:IsA("ModuleScript") and string.find(challengeModule.Name, "HalfHour") then
                 local challengeSuccess, challengeData = pcall(function()
                     return require(challengeModule)
                 end)
@@ -3215,10 +3215,11 @@ local function loadAllChallengeModifiersWithRetry()
             -- Store the mapping at script level
             ModifierMapping = result
 
+            -- Build reverse lookup table
             ModifierModuleToTag = {}
-        for _, modifier in ipairs(result) do
-            ModifierModuleToTag[modifier.ModuleName] = modifier.DisplayName
-        end
+            for _, modifier in ipairs(result) do
+                ModifierModuleToTag[modifier.ModuleName] = modifier.DisplayName
+            end
             
             -- Extract just the display names for the dropdown
             local displayNames = {}
