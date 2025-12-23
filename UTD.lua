@@ -195,7 +195,7 @@ local State = {
     SelectedChallengeRewards = {},
     ReturnToLobbyOnNewChallenge = false,
     LastFailedChallengeAttempt = 0,
-    ChallengeJoinCooldown = 30,
+    ChallengeJoinCooldown = 60,
 }
 
         local loadingRetries = {
@@ -2373,45 +2373,81 @@ local function checkAndExecuteHighestPriority()
     end
 
         -- Priority 1: Challenge Auto Join (add this new section)
-    if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
-        local regularChallengeOnCooldown = false
+if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
+    local regularChallengeOnCooldown = false
 
-        if State.AutoJoinChallenge then
-            local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
-            
-            if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
-                regularChallengeOnCooldown = true
-            end
+    if State.AutoJoinChallenge then
+        local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
+        
+        if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
+            regularChallengeOnCooldown = true
+            print("Regular challenge on cooldown")
         end
+    end
+    
+    -- OPTION 1: Try Regular Challenge (if not on cooldown)
+    if State.AutoJoinChallenge and not regularChallengeOnCooldown then
+        print("Attempting regular challenge...")
         
-        -- Skip ENTIRELY if regular is on cooldown AND featured is not enabled
-        if regularChallengeOnCooldown and not State.AutoJoinFeaturedChallenge then
-            -- Don't return here - let other auto-joiners work
-            -- Just skip challenge joining for now
-        else
-    
-    setProcessingState("Challenge Auto Join")
-    
-    local success, challengeType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
-    
-    if success then
-        print("Successfully initiated challenge join!")
-        State.LastFailedChallengeAttempt = 0 -- Reset cooldown
-        task.delay(5, clearProcessingState)
-        return
-    else
-        print(string.format("Challenge join failed (Type: %s)", challengeType or "unknown"))
+        setProcessingState("Challenge Auto Join")
         
-        -- ONLY set cooldown if regular challenge failed
-        -- Featured never gets cooldown
-        if challengeType == "regular" then
+        local success, challengeType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
+        
+        if success then
+            print("Successfully joined regular challenge!")
+            State.LastFailedChallengeAttempt = 0 -- Reset cooldown
+            task.delay(5, clearProcessingState)
+            return
+        elseif challengeType == "regular" then
+            -- Regular challenge failed/completed
+            print("Regular challenge failed - setting cooldown")
             State.LastFailedChallengeAttempt = tick()
-            print("Regular challenge cooldown set (5 minutes)")
+            
+            -- NOW try Featured as fallback (if enabled)
+            if State.AutoJoinFeaturedChallenge then
+                print("Falling back to Featured Challenge...")
+                task.wait(0.5) -- Small delay before trying Featured
+                
+                local featuredSuccess, featuredType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
+                
+                if featuredSuccess then
+                    print("Successfully joined Featured Challenge!")
+                    task.delay(5, clearProcessingState)
+                    return
+                end
+            end
+            
+            clearProcessingState()
+            return -- Exit so other auto-joiners can work
         end
         
         clearProcessingState()
     end
-end
+    
+    -- OPTION 2: Try Featured Challenge only (if regular is on cooldown OR not enabled)
+    if State.AutoJoinFeaturedChallenge then
+        print("Attempting Featured Challenge...")
+        
+        setProcessingState("Challenge Auto Join")
+        
+        -- Need to FORCE handleChallengeSelection to ONLY try Featured
+        -- Temporarily disable AutoJoinChallenge
+        local tempRegularState = State.AutoJoinChallenge
+        State.AutoJoinChallenge = false
+        
+        local success, challengeType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
+        
+        -- Restore state
+        State.AutoJoinChallenge = tempRegularState
+        
+        if success then
+            print("Successfully joined Featured Challenge!")
+            task.delay(5, clearProcessingState)
+            return
+        end
+        
+        clearProcessingState()
+    end
 end
 
     -- Priority 2: Story Auto Join
