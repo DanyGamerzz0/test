@@ -196,6 +196,7 @@ local State = {
     ReturnToLobbyOnNewChallenge = false,
     LastFailedChallengeAttempt = 0,
     ChallengeJoinCooldown = 60,
+    NewChallengesAvailable = false,
 }
 
         local loadingRetries = {
@@ -4890,6 +4891,46 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    local lastCheckMinute = -1
+    
+    while true do
+        task.wait(5) -- Check every 5 seconds
+        
+        if State.ReturnToLobbyOnNewChallenge then
+            local currentTime = os.date("*t")
+            local currentMinute = currentTime.min
+            
+            -- Check if we just hit XX:00 or XX:30
+            if (currentMinute == 0 or currentMinute == 30) and currentMinute ~= lastCheckMinute then
+                lastCheckMinute = currentMinute
+                
+                --print(string.format("🔔 New challenges spawned at %02d:%02d", currentTime.hour, currentMinute))
+                
+                -- Set the flag
+                State.NewChallengesAvailable = true
+                
+                Rayfield:Notify({
+                    Title = "New Challenges Available",
+                    Content = "Will return to lobby when game ends",
+                    Duration = 4
+                })
+            end
+            
+            -- Reset lastCheckMinute after minute 1 or 31
+            if currentMinute > 1 and currentMinute < 30 then
+                lastCheckMinute = -1
+            elseif currentMinute > 31 then
+                lastCheckMinute = -1
+            end
+        else
+            -- Reset when feature is disabled
+            lastCheckMinute = -1
+            State.NewChallengesAvailable = false
+        end
+    end
+end)
+
+task.spawn(function()
     while true do
         -- Wait for MatchFinished to become true
         while not workspace:GetAttribute("MatchFinished") do
@@ -4898,8 +4939,36 @@ task.spawn(function()
         
         print("Match finished detected")
         task.wait(1) -- Small delay before voting
+
+        if State.NewChallengesAvailable and State.ReturnToLobbyOnNewChallenge then
+            print("New challenges available - Returning to Lobby...")
+            
+            local success = pcall(function()
+                game:GetService("ReplicatedStorage")
+                    :WaitForChild("Packages")
+                    :WaitForChild("_Index")
+                    :WaitForChild("sleitnick_knit@1.7.0")
+                    :WaitForChild("knit")
+                    :WaitForChild("Services")
+                    :WaitForChild("WaveService")
+                    :WaitForChild("RE")
+                    :WaitForChild("ToLobby")
+                    :FireServer()
+            end)
+            
+            if success then
+                Rayfield:Notify({
+                    Title = "Returned to Lobby",
+                    Content = "Ready to join new challenges",
+                    Duration = 3
+                })
+                print("✓ Returned to lobby for new challenges")
+                
+                -- Reset the flag
+                State.NewChallengesAvailable = false
+            end
         
-        if State.AutoRetry then
+        elseif State.AutoRetry then  -- Changed from "if" to "elseif"
             print("Auto Retry enabled - Voting Replay...")
             local success = pcall(function()
                 game:GetService("ReplicatedStorage")
