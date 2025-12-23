@@ -2144,21 +2144,19 @@ local function handleChallengeSelection()
     -- Close the worlds frame
     pcall(function()
         -- Method 1: Try to find close button
-        local closeButton = LobbyUi.WorldsFrame:FindFirstChild("CloseButton")
+        local closeButton = LobbyUi.WorldsFrame.Worlds.TopBar.CloseFrame
         if closeButton then
             for _, conn in pairs(getconnections(closeButton.MouseButton1Down)) do
                 if conn.Enabled then
                     conn:Fire()
                 end
             end
-        else
-            -- Method 2: Fire the "Quit" button if it exists
-            local quitButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container:FindFirstChild("QuitButton")
-            if quitButton and quitButton:FindFirstChild("TextButton") then
-                for _, conn in pairs(getconnections(quitButton.TextButton.MouseButton1Down)) do
-                    if conn.Enabled then
-                        conn:Fire()
-                    end
+        end
+        local quitButton = LobbyUi.StartPod.Main.Buttons.Container.Leave.Hitbox
+        if closeButton then
+            for _, conn in pairs(getconnections(quitButton.MouseButton1Down)) do
+                if conn.Enabled then
+                    conn:Fire()
                 end
             end
         end
