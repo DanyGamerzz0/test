@@ -1818,7 +1818,13 @@ local function challengeMatchesFilters(challengeData)
             -- We need to check against what the user selected (ChallengeTag like "Unit Place Amount Decrease")
             
             -- Convert module name to display tag for comparison
-            local modifierDisplayTag = ModifierModuleToTag[modifierName] or modifierName
+            local modifierDisplayTag = ModifierModuleToTag[modifierName]
+            
+            -- If we don't have a mapping yet, skip this check (might still be loading)
+            if not modifierDisplayTag then
+                print(string.format("⚠️ No mapping found for modifier module: %s", modifierName))
+                continue
+            end
             
             print(string.format("Checking modifier: Module='%s', Tag='%s'", modifierName, modifierDisplayTag))
             
@@ -1864,6 +1870,12 @@ local function challengeMatchesFilters(challengeData)
             print(string.format("❌ Skipping - Reward '%s' not in selected rewards", friendlyReward))
             return false
         end
+    else
+        -- NO REWARDS SELECTED - This means user doesn't want to filter by rewards at all
+        -- So we should REJECT challenges unless they explicitly want to run any challenge
+        -- For now, let's reject if no rewards are selected
+        print("❌ Skipping - No rewards selected (filter active but empty)")
+        return false
     end
     
     print("✓ Challenge passed all filters!")
@@ -3149,7 +3161,8 @@ local function loadAllChallengeModifiersWithRetry()
         
         -- Get all module scripts that contain "HalfHour" in name
         for _, challengeModule in ipairs(ChallengesFolder:GetChildren()) do
-            if challengeModule:IsA("ModuleScript") and string.find(challengeModule.Name, "HalfHour") then
+            --and string.find(challengeModule.Name, "HalfHour")
+            if challengeModule:IsA("ModuleScript") then
                 local challengeSuccess, challengeData = pcall(function()
                     return require(challengeModule)
                 end)
