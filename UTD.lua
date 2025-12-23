@@ -2501,7 +2501,7 @@ end
         local success = autoJoinGameViaUI(
             "Story",
             State.StoryStageSelected,
-            tonumber(State.StoryActSelected),
+            State.StoryActSelected,
             State.StoryDifficultySelected,
             State.StoryDifficultyMeterSelected
         )
