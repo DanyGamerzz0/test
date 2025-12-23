@@ -3208,6 +3208,11 @@ local function loadAllChallengeModifiersWithRetry()
         if IgnoreModifierDropdown then
             -- Store the mapping at script level
             ModifierMapping = result
+
+            ModifierModuleToTag = {}
+        for _, modifier in ipairs(result) do
+            ModifierModuleToTag[modifier.ModuleName] = modifier.DisplayName
+        end
             
             -- Extract just the display names for the dropdown
             local displayNames = {}
