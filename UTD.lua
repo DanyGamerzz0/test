@@ -1835,12 +1835,12 @@ local function challengeMatchesFilters(challengeData)
                 --continue
             --end
             
-            print(string.format("Checking modifier: Module='%s', Tag='%s'", modifierName, modifierDisplayTag))
+            print(string.format("Checking modifier: Module='%s'", modifierName))
             
             for _, ignoredModifier in ipairs(State.IgnoreModifier) do
                 -- ignoredModifier is the display name (ChallengeTag) from dropdown
-                if modifierDisplayTag == ignoredModifier then
-                    print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierDisplayTag))
+                if modifierName == ignoredModifier then
+                    print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierName))
                     return false
                 end
             end
