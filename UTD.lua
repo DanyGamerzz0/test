@@ -1800,6 +1800,12 @@ local function challengeMatchesFilters(challengeData)
     
     print(string.format("Checking challenge: Map='%s', Act=%d, Reward=%s, Modifiers=%s", 
         challengeMapModule, act, reward, table.concat(modifiers, ", ")))
+
+        print("=== ModifierModuleToTag Contents ===")
+    for moduleName, displayTag in pairs(ModifierModuleToTag) do
+        print(string.format("  '%s' -> '%s'", moduleName, displayTag))
+    end
+    print("=== END DEBUG ===")
     
     -- STEP 1: Check if map is in ignore list (applies to ALL challenges)
     if #State.IgnoreWorlds > 0 then
@@ -1821,13 +1827,13 @@ local function challengeMatchesFilters(challengeData)
             -- We need to check against what the user selected (ChallengeTag like "Unit Place Amount Decrease")
             
             -- Convert module name to display tag for comparison
-            local modifierDisplayTag = ModifierModuleToTag[modifierName]
+            --local modifierDisplayTag = ModifierModuleToTag[modifierName]
             
             -- If we don't have a mapping yet, skip this check (might still be loading)
-            if not modifierDisplayTag then
-                print(string.format("⚠️ No mapping found for modifier module: %s", modifierName))
-                continue
-            end
+            --if not modifierDisplayTag then
+                --print(string.format("⚠️ No mapping found for modifier module: %s", modifierName))
+                --continue
+            --end
             
             print(string.format("Checking modifier: Module='%s', Tag='%s'", modifierName, modifierDisplayTag))
             
