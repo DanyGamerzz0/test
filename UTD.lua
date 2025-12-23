@@ -2377,18 +2377,18 @@ local function checkAndExecuteHighestPriority()
         local regularChallengeOnCooldown = false
 
         if State.AutoJoinChallenge then
-        local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
-        
-        if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
-            regularChallengeOnCooldown = true
-            print("Regular challenge on cooldown")
+            local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
+            
+            if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
+                regularChallengeOnCooldown = true
+            end
         end
-    end
-    
-    -- Skip if regular is on cooldown AND featured is not enabled
-    if regularChallengeOnCooldown and not State.AutoJoinFeaturedChallenge then
-        return
-    end
+        
+        -- Skip ENTIRELY if regular is on cooldown AND featured is not enabled
+        if regularChallengeOnCooldown and not State.AutoJoinFeaturedChallenge then
+            -- Don't return here - let other auto-joiners work
+            -- Just skip challenge joining for now
+        else
     
     setProcessingState("Challenge Auto Join")
     
@@ -2411,6 +2411,7 @@ local function checkAndExecuteHighestPriority()
         
         clearProcessingState()
     end
+end
 end
 
     -- Priority 2: Story Auto Join
