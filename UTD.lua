@@ -122,6 +122,9 @@ local currentGameInfo = {
     StartTime = nil
 }
 local UINameToModuleName = {}
+local ModifierModuleToTag = {}
+local ModifierMapping = {}
+local ModifierTagToModule = {}
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -2838,17 +2841,27 @@ section = JoinerTab:CreateSection("Challenge Joiner")
         end,
     })
 
-    local IgnoreModifierDropdown = JoinerTab:CreateDropdown({
-        Name = "Ignore Modifier",
-        Options = {},
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "IgnoreModifierSelector",
-        Info = "Skip challenges based on these modifiers",
-        Callback = function(Options)
-            State.IgnoreModifier = Options or {}
-        end,
-    })
+   local IgnoreModifierDropdown = JoinerTab:CreateDropdown({
+    Name = "Ignore Modifier",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "IgnoreModifierSelector",
+    Info = "Skip challenges based on these modifiers",
+    Callback = function(Options)
+        -- Convert display names to module names
+        local moduleNames = {}
+        for _, displayName in ipairs(Options or {}) do
+            for _, modifier in ipairs(ModifierMapping) do
+                if modifier.DisplayName == displayName then
+                    table.insert(moduleNames, modifier.ModuleName)
+                    break
+                end
+            end
+        end
+        State.IgnoreModifier = moduleNames
+    end,
+})
 
         SelectChallengeRewardsDropdown = JoinerTab:CreateDropdown({
         Name = "Select Challenge Rewards",
@@ -3156,12 +3169,11 @@ local function loadAllChallengeModifiersWithRetry()
             error("Challenges folder not found")
         end
 
-        local challengeTags = {}
+        local challengeModifiers = {} -- Store both display name and module name
         local seenTags = {} -- To avoid duplicates
         
-        -- Get all module scripts that contain "HalfHour" in name
+        -- Get all module scripts
         for _, challengeModule in ipairs(ChallengesFolder:GetChildren()) do
-            --and string.find(challengeModule.Name, "HalfHour")
             if challengeModule:IsA("ModuleScript") then
                 local challengeSuccess, challengeData = pcall(function()
                     return require(challengeModule)
@@ -3170,26 +3182,39 @@ local function loadAllChallengeModifiersWithRetry()
                 if challengeSuccess and challengeData and challengeData.ChallengeTag then
                     -- Only add if we haven't seen this tag before
                     if not seenTags[challengeData.ChallengeTag] then
-                        table.insert(challengeTags, challengeData.ChallengeTag)
+                        table.insert(challengeModifiers, {
+                            DisplayName = challengeData.ChallengeTag,
+                            ModuleName = challengeModule.Name
+                        })
                         seenTags[challengeData.ChallengeTag] = true
                     end
                 end
             end
         end
         
-        if #challengeTags == 0 then
+        if #challengeModifiers == 0 then
             error("No challenge modifiers found")
         end
         
-        -- Sort alphabetically
-        table.sort(challengeTags)
+        -- Sort alphabetically by display name
+        table.sort(challengeModifiers, function(a, b)
+            return a.DisplayName < b.DisplayName
+        end)
         
-        return challengeTags
+        return challengeModifiers
     end)
     
     if success and result and #result > 0 then
         if IgnoreModifierDropdown then
-            IgnoreModifierDropdown:Refresh(result)
+            -- Store the mapping at script level
+            ModifierMapping = result
+            
+            -- Extract just the display names for the dropdown
+            local displayNames = {}
+            for _, modifier in ipairs(result) do
+                table.insert(displayNames, modifier.DisplayName)
+            end
+            IgnoreModifierDropdown:Refresh(displayNames)
         end
         print(string.format("Successfully loaded %d challenge modifiers (attempt %d)", #result, loadingRetries.modifiers))
     else
