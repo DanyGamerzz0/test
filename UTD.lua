@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -4671,6 +4671,37 @@ local function autoPlaybackLoop()
             task.wait(0.5)
             continue
         end
+
+        local worldKey = getCurrentWorldKey()
+
+        if worldKey and worldMacroMappings[worldKey] then
+            local macroToLoad = worldMacroMappings[worldKey]
+            
+            if currentMacroName ~= macroToLoad then
+                print(string.format("🔄 Auto-switching macro: %s -> %s (worldKey: %s)", 
+                    currentMacroName or "None", macroToLoad, worldKey))
+                
+                currentMacroName = macroToLoad
+                
+                Rayfield:Notify({
+                    Title = "Auto-Switched Macro",
+                    Content = string.format("%s for %s", macroToLoad, worldKey),
+                    Duration = 3
+                })
+                
+                -- Update the main macro dropdown selection
+                MacroDropdown:Set(macroToLoad)
+            else
+                print(string.format("ℹ️ Using mapped macro: %s (worldKey: %s)", currentMacroName, worldKey))
+            end
+        else
+            if worldKey then
+                print(string.format("⚠️ No macro mapped for worldKey: %s - using manual selection: %s", 
+                    worldKey, currentMacroName or "None"))
+            else
+                print("⚠️ Could not determine worldKey - using manual selection")
+            end
+        end
         
         if not currentMacroName or currentMacroName == "" then
             updateMacroStatus("Error: No macro selected")
@@ -5161,40 +5192,6 @@ end
             print("Starting macro playback...")
             updateMacroStatus("Starting playback...")
             updateDetailedStatus("Starting playback...")
-        end
-    end
-end)
-
-workspace:GetAttributeChangedSignal("Wave"):Connect(function()
-    local wave = workspace:GetAttribute("Wave") or 0
-    
-    -- Only check on wave 1 (game start)
-    if wave == 0 and not gameInProgress then
-        local worldKey = getCurrentWorldKey()
-        
-        if worldKey and worldMacroMappings[worldKey] then
-            local macroToLoad = worldMacroMappings[worldKey]
-            
-            -- Only switch if playback is enabled and a different macro is needed
-            if isPlaybackEnabled and currentMacroName ~= macroToLoad then
-                print(string.format("🔄 Auto-switching macro: %s -> %s", currentMacroName or "None", macroToLoad))
-                
-                currentMacroName = macroToLoad
-                macro = loadMacroFromFile(macroToLoad)
-                
-                if macro then
-                    Rayfield:Notify({
-                        Title = "Auto-Switched Macro",
-                        Content = macroToLoad,
-                        Duration = 3
-                    })
-                    
-                    -- Update the main macro dropdown selection
-                    MacroDropdown:Set(macroToLoad)
-                else
-                    warn("Failed to load macro:", macroToLoad)
-                end
-            end
         end
     end
 end)
