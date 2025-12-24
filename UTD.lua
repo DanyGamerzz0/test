@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -3608,7 +3608,7 @@ local function createAutoSelectDropdowns()
     
     -- Virtual Stages Collapsible
     local VirtualCollapsible = Tab:CreateCollapsible({
-        Name = "Select Virtual Macro",
+        Name = "Select Virtual Stage Macro",
         DefaultExpanded = false,
         Flag = "VirtualMacroCollapsible"
     })
@@ -5169,7 +5169,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
     
     -- Only check on wave 1 (game start)
-    if wave == 1 and not gameInProgress then
+    if wave == 0 and not gameInProgress then
         local worldKey = getCurrentWorldKey()
         
         if worldKey and worldMacroMappings[worldKey] then
