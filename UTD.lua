@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -3490,19 +3490,8 @@ local function getCurrentWorldKey()
             return "challenge_featured"
         end
         
-        -- Regular challenge - use map name
-        if mapInternal then
-            return "challenge_" .. mapInternal:lower()
-        else
-            -- Fallback: convert UI name to module name using our lookup
-            local moduleName = UINameToModuleName[mapName]
-            if moduleName then
-                return "challenge_" .. moduleName:lower()
-            else
-                -- Last resort: use map name directly
-                return "challenge_" .. mapName:lower():gsub("%s+", "_")
-            end
-        end
+        -- Regular challenge - ALWAYS use UI mapName with underscores (to match dropdown keys)
+        return "challenge_" .. mapName:lower():gsub("%s+", "_")
     end
     
     -- For Legend stages - use internal module name if available
