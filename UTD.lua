@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -115,6 +115,7 @@ local ValidWebhook = nil
 local beforeRewardData = nil
 local afterRewardData = nil
 local hasRecentlyRestarted = false
+local currentPlaybackThread = nil
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -4234,13 +4235,14 @@ local function playMacro()
     local startTime = tick()
     
     for i, action in ipairs(macro) do
-        if not isPlaybackEnabled then
-            updateDetailedStatus("Playback cancelled")
-            return
-        end
-
-        if not gameInProgress then
+        -- CRITICAL: Check game state BEFORE every action
+        local matchFinished = workspace:GetAttribute("MatchFinished")
+        
+        if not isPlaybackEnabled or not gameInProgress or matchFinished then
+            print(string.format("⚠️ Stopping playback at action %d/%d (playback: %s, gameInProgress: %s, matchFinished: %s)", 
+                i, totalActions, tostring(isPlaybackEnabled), tostring(gameInProgress), tostring(matchFinished)))
             updateDetailedStatus("Game ended - stopped playback")
+            clearSpawnIdMappings()
             return
         end
         
@@ -4254,8 +4256,13 @@ local function playMacro()
             if waitTime > 1 then
                 local waitStart = tick()
                 while (tick() - waitStart) < waitTime do
-                    if not isPlaybackEnabled then
-                        updateDetailedStatus("Playback cancelled")
+                    -- Check game state during wait
+                    matchFinished = workspace:GetAttribute("MatchFinished")
+                    
+                    if not isPlaybackEnabled or not gameInProgress or matchFinished then
+                        print("⚠️ Game ended while waiting - stopping playback")
+                        updateDetailedStatus("Game ended - stopped playback")
+                        clearSpawnIdMappings()
                         return
                     end
                     
@@ -4272,14 +4279,18 @@ local function playMacro()
             end
         else
             -- In speed mode, just show we're ready for next action
-            if i > 1 then -- Don't show for first action
+            if i > 1 then
                 updateDetailedStatus(string.format("(%d/%d) Ready for next action", i, totalActions))
-                task.wait(0.1) -- Tiny delay to prevent spam
+                task.wait(0.1)
             end
         end
         
-        if not isPlaybackEnabled then
-            updateDetailedStatus("Playback cancelled")
+        -- Final check before executing action
+        matchFinished = workspace:GetAttribute("MatchFinished")
+        if not isPlaybackEnabled or not gameInProgress or matchFinished then
+            print("⚠️ Game ended before action execution - stopping playback")
+            updateDetailedStatus("Game ended - stopped playback")
+            clearSpawnIdMappings()
             return
         end
         
@@ -4349,8 +4360,12 @@ local function autoPlaybackLoop()
             Duration = 3
         })
         
+        -- Store the thread reference
+        currentPlaybackThread = coroutine.running()
         playMacro()
+        currentPlaybackThread = nil
         
+        -- Wait for game to end before looping
         while gameInProgress and isPlaybackEnabled do
             task.wait(0.5)
         end
