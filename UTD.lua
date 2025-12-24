@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1754,11 +1754,27 @@ local function activatePodUI(podName)
     for attempt = 1, 3 do
         --print(string.format("Attempt %d: Teleporting to %s pod TouchPart...", attempt, podName))
         
-        -- If this is a retry, teleport away first
+        -- If this is a retry, teleport to spawn location first
         if attempt > 1 then
-            -- Teleport 10 studs away from the pod
-            local awayPosition = touchPart.CFrame * CFrame.new(0, 0, 10)
-            humanoidRootPart.CFrame = awayPosition
+            local success = pcall(function()
+                local teleportLocation = workspace.Zones.TeleportLocations:FindFirstChild("Story")
+                if teleportLocation then
+                    humanoidRootPart.CFrame = teleportLocation.CFrame
+                    --print(string.format("Teleported to spawn location: %s", teleportLocationName))
+                else
+                    -- Fallback: teleport 10 studs away
+                    local awayPosition = touchPart.CFrame * CFrame.new(0, 0, 10)
+                    humanoidRootPart.CFrame = awayPosition
+                    --print("Spawn location not found - using fallback position")
+                end
+            end)
+            
+            if not success then
+                -- Fallback if pcall fails
+                local awayPosition = touchPart.CFrame * CFrame.new(0, 0, 10)
+                humanoidRootPart.CFrame = awayPosition
+            end
+            
             task.wait(0.5) -- Wait a moment before trying again
         end
         
