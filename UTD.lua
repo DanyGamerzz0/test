@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.06"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -125,7 +125,8 @@ local currentGameInfo = {
 local UINameToModuleName = {}
 local ModifierModuleToTag = {}
 local ModifierMapping = {}
-local ModifierTagToModule = {}
+local worldMacroMappings = {}
+local worldDropdowns = {}
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -3444,6 +3445,297 @@ local function loadAllChallengeModifiersWithRetry()
     end
 end
 
+local function saveWorldMappings()
+    ensureMacroFolders()
+    local playerName = game:GetService("Players").LocalPlayer.Name
+    local fileName = string.format("LixHub/%s_WorldMappings_UTD.json", playerName)
+    
+    local json = game:GetService("HttpService"):JSONEncode(worldMacroMappings)
+    writefile(fileName, json)
+    print("✓ Saved world macro mappings")
+end
+
+local function loadWorldMappings()
+    ensureMacroFolders()
+    local playerName = game:GetService("Players").LocalPlayer.Name
+    local filePath = string.format("LixHub/%s_WorldMappings_UTD.json", playerName)
+    
+    if not isfile(filePath) then
+        return {}
+    end
+    
+    local json = readfile(filePath)
+    local data = game:GetService("HttpService"):JSONDecode(json)
+    
+    print("✓ Loaded world macro mappings")
+    return data or {}
+end
+
+local function getCurrentWorldKey()
+    local mapName = workspace:GetAttribute("MapName")
+    local category = workspace:GetAttribute("DifficultyName")
+    
+    if not mapName then
+        return nil
+    end
+    
+    -- Convert display name to module name for Story stages
+    for uiName, moduleName in pairs(UINameToModuleName) do
+        if uiName == mapName then
+            if category == "Legend" then
+                return "legend_" .. moduleName:lower()
+            else
+                return "story_" .. moduleName:lower()
+            end
+        end
+    end
+    
+    -- For Virtual stages
+    if category and category:lower():find("virtual") then
+        return "virtual_" .. mapName:lower():gsub("%s+", "_")
+    end
+    
+    -- For Challenge stages
+    if category and category:lower():find("challenge") then
+        return "challenge_" .. mapName:lower():gsub("%s+", "_")
+    end
+    
+    return nil
+end
+
+local function refreshAllWorldDropdowns()
+    local macroList = {"None"}
+    for name in pairs(macroManager) do
+        table.insert(macroList, name)
+    end
+    table.sort(macroList)
+    
+    for worldKey, dropdown in pairs(worldDropdowns) do
+        dropdown:Refresh(macroList)
+    end
+    
+    print("✓ Refreshed all world macro dropdowns")
+end
+
+local function createAutoSelectDropdowns()
+    print("Creating auto-select dropdowns...")
+    
+    -- Get initial macro options
+    local initialMacroOptions = {"None"}
+    for macroName in pairs(macroManager) do
+        table.insert(initialMacroOptions, macroName)
+    end
+    table.sort(initialMacroOptions)
+    
+    -- Story Stages Collapsible
+    local StoryCollapsible = Tab:CreateCollapsible({
+        Name = "Select Story Stage Macro",
+        DefaultExpanded = false,
+        Flag = "StoryMacroCollapsible"
+    })
+    
+    -- Wait for story stages to load
+    task.wait(1)
+    
+    if StoryStageDropdown and StoryStageDropdown.Options then
+        for _, stageName in ipairs(StoryStageDropdown.Options) do
+            -- Get module name
+            local moduleName = UINameToModuleName[stageName]
+            if moduleName then
+                local worldKey = "story_" .. moduleName:lower()
+                local currentMapping = worldMacroMappings[worldKey] or "None"
+                
+                local dropdown = StoryCollapsible.Tab:CreateDropdown({
+                    Name = stageName,
+                    Options = initialMacroOptions,
+                    CurrentOption = {currentMapping},
+                    MultipleOptions = false,
+                    Flag = "WorldMacro_" .. worldKey,
+                    Callback = function(Option)
+                        local selectedMacro = type(Option) == "table" and Option[1] or Option
+                        
+                        if selectedMacro == "None" or selectedMacro == "" then
+                            worldMacroMappings[worldKey] = nil
+                            print("Cleared auto-select for", stageName)
+                        else
+                            worldMacroMappings[worldKey] = selectedMacro
+                            print("Set auto-select:", stageName, "->", selectedMacro)
+                        end
+                        
+                        saveWorldMappings()
+                    end,
+                })
+                
+                worldDropdowns[worldKey] = dropdown
+            end
+        end
+    end
+    
+    -- Legend Stages Collapsible
+    local LegendCollapsible = Tab:CreateCollapsible({
+        Name = "Select Legend Stage Macro",
+        DefaultExpanded = false,
+        Flag = "LegendMacroCollapsible"
+    })
+    
+    if LegendStageDropdown and LegendStageDropdown.Options then
+        for _, stageName in ipairs(LegendStageDropdown.Options) do
+            -- Get module name from ReplicatedStorage
+            local success, legendData = pcall(function()
+                local LegendFolder = Services.ReplicatedStorage.Shared.Data.LegendStages
+                for _, stageModule in ipairs(LegendFolder:GetChildren()) do
+                    if stageModule:IsA("ModuleScript") then
+                        local stageData = require(stageModule)
+                        if stageData.Information and stageData.Information.Name == stageName then
+                            return stageModule.Name
+                        end
+                    end
+                end
+                return nil
+            end)
+            
+            if success and legendData then
+                local worldKey = "legend_" .. legendData:lower()
+                local currentMapping = worldMacroMappings[worldKey] or "None"
+                
+                local dropdown = LegendCollapsible.Tab:CreateDropdown({
+                    Name = stageName,
+                    Options = initialMacroOptions,
+                    CurrentOption = {currentMapping},
+                    MultipleOptions = false,
+                    Flag = "WorldMacro_" .. worldKey,
+                    Callback = function(Option)
+                        local selectedMacro = type(Option) == "table" and Option[1] or Option
+                        
+                        if selectedMacro == "None" or selectedMacro == "" then
+                            worldMacroMappings[worldKey] = nil
+                            print("Cleared auto-select for", stageName, "(Legend)")
+                        else
+                            worldMacroMappings[worldKey] = selectedMacro
+                            print("Set auto-select:", stageName, "(Legend) ->", selectedMacro)
+                        end
+                        
+                        saveWorldMappings()
+                    end,
+                })
+                
+                worldDropdowns[worldKey] = dropdown
+            end
+        end
+    end
+    
+    -- Virtual Stages Collapsible
+    local VirtualCollapsible = Tab:CreateCollapsible({
+        Name = "Select Virtual Macro",
+        DefaultExpanded = false,
+        Flag = "VirtualMacroCollapsible"
+    })
+    
+    if VirtualStageDropdown and VirtualStageDropdown.Options then
+        for _, stageName in ipairs(VirtualStageDropdown.Options) do
+            local worldKey = "virtual_" .. stageName:lower():gsub("%s+", "_")
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            
+            local dropdown = VirtualCollapsible.Tab:CreateDropdown({
+                Name = stageName,
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
+                MultipleOptions = false,
+                Flag = "WorldMacro_" .. worldKey,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    
+                    if selectedMacro == "None" or selectedMacro == "" then
+                        worldMacroMappings[worldKey] = nil
+                        print("Cleared auto-select for", stageName, "(Virtual)")
+                    else
+                        worldMacroMappings[worldKey] = selectedMacro
+                        print("Set auto-select:", stageName, "(Virtual) ->", selectedMacro)
+                    end
+                    
+                    saveWorldMappings()
+                end,
+            })
+            
+            worldDropdowns[worldKey] = dropdown
+        end
+    end
+    
+    -- Featured Challenge Collapsible
+    local FeaturedChallengeCollapsible = Tab:CreateCollapsible({
+        Name = "Select Featured Challenge Macro",
+        DefaultExpanded = false,
+        Flag = "FeaturedChallengeMacroCollapsible"
+    })
+    
+    -- Add a single dropdown for Featured Challenge (The Hunt)
+    local worldKey = "challenge_featured"
+    local currentMapping = worldMacroMappings[worldKey] or "None"
+    
+    local dropdown = FeaturedChallengeCollapsible.Tab:CreateDropdown({
+        Name = "Frozen Stronghold",
+        Options = initialMacroOptions,
+        CurrentOption = {currentMapping},
+        MultipleOptions = false,
+        Flag = "WorldMacro_" .. worldKey,
+        Callback = function(Option)
+            local selectedMacro = type(Option) == "table" and Option[1] or Option
+            
+            if selectedMacro == "None" or selectedMacro == "" then
+                worldMacroMappings[worldKey] = nil
+                print("Cleared auto-select for Featured Challenge")
+            else
+                worldMacroMappings[worldKey] = selectedMacro
+                print("Set auto-select: Featured Challenge ->", selectedMacro)
+            end
+            
+            saveWorldMappings()
+        end,
+    })
+    
+    worldDropdowns[worldKey] = dropdown
+    
+    -- Regular Challenge Collapsible (for Half Hourly challenges with different maps)
+    local ChallengeCollapsible = Tab:CreateCollapsible({
+        Name = "Select Challenge Macro",
+        DefaultExpanded = false,
+        Flag = "ChallengeMacroCollapsible"
+    })
+    
+    -- Get all unique challenge maps from StoryStageDropdown (challenges use story maps)
+    if StoryStageDropdown and StoryStageDropdown.Options then
+        for _, stageName in ipairs(StoryStageDropdown.Options) do
+            local worldKey = "challenge_" .. stageName:lower():gsub("%s+", "_")
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            
+            local dropdown = ChallengeCollapsible.Tab:CreateDropdown({
+                Name = stageName,
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
+                MultipleOptions = false,
+                Flag = "WorldMacro_" .. worldKey,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    
+                    if selectedMacro == "None" or selectedMacro == "" then
+                        worldMacroMappings[worldKey] = nil
+                        print("Cleared auto-select for", stageName, "(Challenge)")
+                    else
+                        worldMacroMappings[worldKey] = selectedMacro
+                        print("Set auto-select:", stageName, "(Challenge) ->", selectedMacro)
+                    end
+                    
+                    saveWorldMappings()
+                end,
+            })
+            
+            worldDropdowns[worldKey] = dropdown
+        end
+    end
+    
+    print("✓ Created auto-select dropdowns")
+end
+
 GameSection = GameTab:CreateSection("👥 Player 👥")
 
    Slider = GameTab:CreateSlider({
@@ -4129,6 +4421,7 @@ Tab:CreateButton({
     Callback = function()
         loadAllMacros()
         MacroDropdown:Refresh(getMacroList())
+        refreshAllWorldDropdowns()
         
         Rayfield:Notify({
             Title = "Refreshed",
@@ -4890,6 +5183,40 @@ end
     end
 end)
 
+workspace:GetAttributeChangedSignal("Wave"):Connect(function()
+    local wave = workspace:GetAttribute("Wave") or 0
+    
+    -- Only check on wave 1 (game start)
+    if wave == 1 and not gameInProgress then
+        local worldKey = getCurrentWorldKey()
+        
+        if worldKey and worldMacroMappings[worldKey] then
+            local macroToLoad = worldMacroMappings[worldKey]
+            
+            -- Only switch if playback is enabled and a different macro is needed
+            if isPlaybackEnabled and currentMacroName ~= macroToLoad then
+                print(string.format("🔄 Auto-switching macro: %s -> %s", currentMacroName or "None", macroToLoad))
+                
+                currentMacroName = macroToLoad
+                macro = loadMacroFromFile(macroToLoad)
+                
+                if macro then
+                    Rayfield:Notify({
+                        Title = "Auto-Switched Macro",
+                        Content = macroToLoad,
+                        Duration = 3
+                    })
+                    
+                    -- Update the main macro dropdown selection
+                    MacroDropdown:Set(macroToLoad)
+                else
+                    warn("Failed to load macro:", macroToLoad)
+                end
+            end
+        end
+    end
+end)
+
 workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
     local matchFinished = workspace:GetAttribute("MatchFinished")
     
@@ -5237,12 +5564,18 @@ end)
 
 ensureMacroFolders()
 loadAllMacros()
+worldMacroMappings = loadWorldMappings()
 MacroDropdown:Refresh(getMacroList())
 
 task.spawn(loadAllStoryStagesWithRetry)
 task.spawn(loadAllLegendStagesWithRetry)
 task.spawn(loadAllVirtualStagesWithRetry)
 task.spawn(loadAllChallengeModifiersWithRetry)
+
+task.spawn(function()
+    task.wait(2)
+    createAutoSelectDropdowns()
+end)
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
