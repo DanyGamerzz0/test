@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -4947,6 +4947,10 @@ task.spawn(function()
             if (currentMinute == 0 or currentMinute == 30) and currentMinute ~= lastCheckMinute then
                 lastCheckMinute = currentMinute
                 
+                if Services.Workspace:GetAttribute("MatchFinished") then        
+            game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+                end
+
                 --print(string.format("🔔 New challenges spawned at %02d:%02d", currentTime.hour, currentMinute))
                 
                 -- Set the flag
