@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1736,7 +1736,7 @@ local function activatePodUI(podName)
         return false
     end
     
-    -- Teleport player to TouchPart
+    -- Get player references
     local player = Services.Players.LocalPlayer
     local character = player.Character
     if not character then
@@ -1750,38 +1750,64 @@ local function activatePodUI(podName)
         return false
     end
     
-    --print(string.format("Teleporting to %s pod TouchPart...", podName))
-    
-    -- Teleport to TouchPart position
-    humanoidRootPart.CFrame = touchPart.CFrame
-    
-    -- Wait for UI to activate
-    local lobbyUi = player.PlayerGui:WaitForChild("LobbyUi", 5)
-    if not lobbyUi then
-        warn("LobbyUi not found")
-        return false
+    -- Try up to 3 times to activate the pod
+    for attempt = 1, 3 do
+        --print(string.format("Attempt %d: Teleporting to %s pod TouchPart...", attempt, podName))
+        
+        -- If this is a retry, teleport away first
+        if attempt > 1 then
+            -- Teleport 10 studs away from the pod
+            local awayPosition = touchPart.CFrame * CFrame.new(0, 0, 10)
+            humanoidRootPart.CFrame = awayPosition
+            task.wait(0.5) -- Wait a moment before trying again
+        end
+        
+        -- Teleport to TouchPart position
+        humanoidRootPart.CFrame = touchPart.CFrame
+        
+        -- Wait for UI to activate
+        task.wait(1) -- Give it a moment to register the touch
+        
+        local lobbyUi = player.PlayerGui:FindFirstChild("LobbyUi")
+        if not lobbyUi then
+            warn("LobbyUi not found")
+            if attempt < 3 then
+                print("Retrying...")
+                continue
+            end
+            return false
+        end
+        
+        local startPod = lobbyUi:FindFirstChild("StartPod")
+        if not startPod then
+            warn("StartPod not found")
+            if attempt < 3 then
+                print("Retrying...")
+                continue
+            end
+            return false
+        end
+        
+        -- Wait for StartPod to be enabled
+        local timeout = 0
+        while not startPod.Enabled and timeout < 30 do
+            task.wait(0.1)
+            timeout = timeout + 1
+        end
+        
+        if startPod.Enabled then
+            print(string.format("✓ Successfully activated %s pod UI on attempt %d", podName, attempt))
+            return true
+        else
+            warn(string.format("StartPod UI did not activate on attempt %d", attempt))
+            if attempt < 3 then
+                print("Retrying...")
+            end
+        end
     end
     
-    local startPod = lobbyUi:WaitForChild("StartPod", 5)
-    if not startPod then
-        warn("StartPod not found")
-        return false
-    end
-    
-    -- Wait for StartPod to be enabled
-    local timeout = 0
-    while not startPod.Enabled and timeout < 30 do
-        task.wait(0.1)
-        timeout = timeout + 1
-    end
-    
-    if not startPod.Enabled then
-        warn("StartPod UI did not activate after touching pod")
-        return false
-    end
-    
-    --print(string.format("✓ Successfully activated %s pod UI", podName))
-    return true
+    --warn(string.format("Failed to activate pod UI after 3 attempts"))
+    return false
 end
 
 local function getCurrentChallengesData()
