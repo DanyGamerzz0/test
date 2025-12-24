@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -3472,32 +3472,55 @@ local function loadWorldMappings()
 end
 
 local function getCurrentWorldKey()
-    local mapName = workspace:GetAttribute("MapName")
-    local category = workspace:GetAttribute("DifficultyName")
+    local category = workspace:GetAttribute("Category")
+    local mapName = workspace:GetAttribute("MapName") -- UI display name
+    local mapInternal = workspace:GetAttribute("Map") -- Internal module name
     
-    if not mapName then
+    if not category or not mapName then
         return nil
     end
     
-    -- Convert display name to module name for Story stages
-    for uiName, moduleName in pairs(UINameToModuleName) do
-        if uiName == mapName then
-            if category == "Legend" then
-                return "legend_" .. moduleName:lower()
+    -- Normalize category to match our key format
+    local categoryLower = category:lower()
+    
+    -- For Story category (which includes challenges) - use challenge_ prefix
+    if categoryLower == "story" then
+        -- Check if it's featured challenge (Frozen Stronghold)
+        if mapName:lower():find("frozen") or mapName == "Frozen Stronghold" then
+            return "challenge_featured"
+        end
+        
+        -- Regular challenge - use map name
+        if mapInternal then
+            return "challenge_" .. mapInternal:lower()
+        else
+            -- Fallback: convert UI name to module name using our lookup
+            local moduleName = UINameToModuleName[mapName]
+            if moduleName then
+                return "challenge_" .. moduleName:lower()
             else
-                return "story_" .. moduleName:lower()
+                -- Last resort: use map name directly
+                return "challenge_" .. mapName:lower():gsub("%s+", "_")
+            end
+        end
+    end
+    
+    -- For Legend stages - use internal module name if available
+    if categoryLower == "legend" then
+        if mapInternal then
+            return "legend_" .. mapInternal:lower()
+        else
+            -- Fallback: convert UI name to module name using our lookup
+            local moduleName = UINameToModuleName[mapName]
+            if moduleName then
+                return "legend_" .. moduleName:lower()
             end
         end
     end
     
     -- For Virtual stages
-    if category and category:lower():find("virtual") then
+    if categoryLower:find("virtual") then
         return "virtual_" .. mapName:lower():gsub("%s+", "_")
-    end
-    
-    -- For Challenge stages
-    if category and category:lower():find("challenge") then
-        return "challenge_" .. mapName:lower():gsub("%s+", "_")
     end
     
     return nil
@@ -3526,50 +3549,9 @@ local function createAutoSelectDropdowns()
         table.insert(initialMacroOptions, macroName)
     end
     table.sort(initialMacroOptions)
-    
-    -- Story Stages Collapsible
-    local StoryCollapsible = Tab:CreateCollapsible({
-        Name = "Select Story Stage Macro",
-        DefaultExpanded = false,
-        Flag = "StoryMacroCollapsible"
-    })
-    
+        
     -- Wait for story stages to load
     task.wait(1)
-    
-    if StoryStageDropdown and StoryStageDropdown.Options then
-        for _, stageName in ipairs(StoryStageDropdown.Options) do
-            -- Get module name
-            local moduleName = UINameToModuleName[stageName]
-            if moduleName then
-                local worldKey = "story_" .. moduleName:lower()
-                local currentMapping = worldMacroMappings[worldKey] or "None"
-                
-                local dropdown = StoryCollapsible.Tab:CreateDropdown({
-                    Name = stageName,
-                    Options = initialMacroOptions,
-                    CurrentOption = {currentMapping},
-                    MultipleOptions = false,
-                    Flag = "WorldMacro_" .. worldKey,
-                    Callback = function(Option)
-                        local selectedMacro = type(Option) == "table" and Option[1] or Option
-                        
-                        if selectedMacro == "None" or selectedMacro == "" then
-                            worldMacroMappings[worldKey] = nil
-                            print("Cleared auto-select for", stageName)
-                        else
-                            worldMacroMappings[worldKey] = selectedMacro
-                            print("Set auto-select:", stageName, "->", selectedMacro)
-                        end
-                        
-                        saveWorldMappings()
-                    end,
-                })
-                
-                worldDropdowns[worldKey] = dropdown
-            end
-        end
-    end
     
     -- Legend Stages Collapsible
     local LegendCollapsible = Tab:CreateCollapsible({
