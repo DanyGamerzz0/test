@@ -1559,17 +1559,23 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
         local TitleSubText = "Unknown Stage"
             if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
             local resultText = gameResult and "Victory" or "Defeat"
-            TitleSubText = string.format("%s Act %s (%s) - %s", 
+            TitleSubText = string.format("%s - %s (%s) - %s", 
             gameInfo.MapName, gameInfo.Act, gameInfo.Category, resultText)
         end
         
         local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
+
+        local macroInfo = "None"
+    if isPlaybackEnabled and currentMacroName and currentMacroName ~= "" then
+        macroInfo = currentMacroName
+    end
         
         -- Build fields array
         local fields = {
             { name = "Player", value = playerName, inline = true },
             { name = "Duration", value = gameDuration or "Unknown", inline = true },
             { name = "Waves Completed", value = tostring(currentWave), inline = true },
+            { name = "Macro", value = macroInfo, inline = true },
             { name = "Rewards", value = rewardsText, inline = false },
         }
         
@@ -4744,7 +4750,7 @@ end
 
     currentGameInfo = {
         MapName = workspace:GetAttribute("MapName") or "Unknown",
-        Act = workspace:GetAttribute("Act") or "Unknown",
+        Act = workspace:GetAttribute("ActName") or "Unknown",
         Category = workspace:GetAttribute("DifficultyName") or "Unknown",
         StartTime = tick()
     }
