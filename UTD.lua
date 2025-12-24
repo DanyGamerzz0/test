@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -959,6 +959,14 @@ local function waitForMoney(requiredAmount, actionDescription)
     local lastUpdateTime = tick()
     
     while true do
+        -- CRITICAL: Check game state while waiting for money
+        local matchFinished = workspace:GetAttribute("MatchFinished")
+        
+        if not isPlaybackEnabled or not gameInProgress or matchFinished then
+            print("⚠️ Game ended while waiting for money - aborting wait")
+            return false -- Return false to signal we should stop
+        end
+        
         task.wait(1)
         
         currentMoney = getPlayerMoney()
@@ -971,7 +979,7 @@ local function waitForMoney(requiredAmount, actionDescription)
         end
         
         -- Update status every 3 seconds
-        if tick() - lastUpdateTime >= 3 then
+        if tick() - lastUpdateTime >= 1 then
             updateDetailedStatus(string.format("Waiting: ¥%d / ¥%d (%s)", currentMoney, requiredAmount, actionDescription))
             lastUpdateTime = tick()
         end
@@ -996,7 +1004,13 @@ local function executePlacementAction(action, actionIndex, totalActions)
         if currentMoney and currentMoney < placementCost then
             updateDetailedStatus(string.format("Waiting for ¥%d to place %s", placementCost, action.Unit))
         end
-        waitForMoney(placementCost, unitName)
+        
+        -- CHECK IF WAIT WAS ABORTED
+        local canContinue = waitForMoney(placementCost, unitName)
+        if not canContinue then
+            updateDetailedStatus("Game ended while waiting for money")
+            return false
+        end
     end
     
     local slot = getSlotForUnit(unitName)
@@ -1086,7 +1100,13 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
         if currentMoney and currentMoney < upgradeCost then
             updateDetailedStatus(string.format("Waiting for ¥%d to upgrade %s", upgradeCost, action.Unit))
         end
-        waitForMoney(upgradeCost, string.format("%s upgrade", action.Unit))
+        
+        -- CHECK IF WAIT WAS ABORTED
+        local canContinue = waitForMoney(upgradeCost, string.format("%s upgrade", action.Unit))
+        if not canContinue then
+            updateDetailedStatus("Game ended while waiting for money")
+            return false
+        end
     end
     
     updateDetailedStatus(string.format("Upgrading %s (Lv%d→%d)...", action.Unit, currentLevel, currentLevel + 1))
