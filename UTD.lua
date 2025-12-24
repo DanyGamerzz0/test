@@ -4238,6 +4238,11 @@ local function playMacro()
             updateDetailedStatus("Playback cancelled")
             return
         end
+
+        if not gameInProgress then
+            updateDetailedStatus("Game ended - stopped playback")
+            return
+        end
         
         -- IGNORE TIMING MODE: Skip all time-based waits
         if not ignoreTiming then
@@ -4837,6 +4842,18 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
         gameInProgress = false
         gameStartTime = 0
         lastWave = 0
+
+        if isPlaybackEnabled then
+            -- This will break the playMacro() loop immediately
+            local wasPlaying = playbackLoopRunning
+            
+            -- Clear all playback state
+            clearSpawnIdMappings()
+            
+            if wasPlaying then
+                print("Game ended mid-playback - resetting for next game")
+            end
+        end
         
         -- Auto-stop recording
         if isRecording and recordingHasStarted then
