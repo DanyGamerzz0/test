@@ -1973,16 +1973,7 @@ local function startGameViaAPI()
     print("Starting game via vote...")
     
     local success = pcall(function()
-        game:GetService("ReplicatedStorage")
-            :WaitForChild("Packages")
-            :WaitForChild("_Index")
-            :WaitForChild("sleitnick_knit@1.7.0")
-            :WaitForChild("knit")
-            :WaitForChild("Services")
-            :WaitForChild("WaveService")
-            :WaitForChild("RF")
-            :WaitForChild("Vote")
-            :InvokeServer(true)
+       game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable"):FireServer("*\000\000")
     end)
     
     if success then
