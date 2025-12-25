@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.09"
+    local script_version = "V0.1"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2863,26 +2863,42 @@ local function getPortalUUID(portalId)
     return nil
 end
 
-local function joinPortal(portalId)
-    if not portalId then return false end
-
-    print("Attempting to join portal with backend key:", portalId)
+local function joinPortal(portalKey)
+    if not portalKey then return false end
     
-    local portalUUID = getPortalUUID(portalId)
+    -- portalKey should now be the module key like "portal_christmas"
+    print("Attempting to join portal with module key:", portalKey)
+    
+    local portalUUID = getPortalUUID(portalKey)
     
     if not portalUUID then
         notify("Portal Joiner", "Failed to find portal UUID - do you own this portal?")
+        print("Failed to find UUID for portal key:", portalKey)
         return false
     end
     
+    print("Found portal UUID:", portalUUID, "for key:", portalKey)
+    
     local success = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("use_portal"):InvokeServer(portalUUID)
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("use_portal")
+            :InvokeServer(portalUUID)
     end)
     
     if success then
-        notify("Portal Joiner", string.format("Joining portal: %s", portalId))
+        notify("Portal Joiner", string.format("Joining portal: %s", portalKey))
         print("Successfully called use_portal with UUID:", portalUUID)
-        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer(portalUUID)
+        
+        task.wait(0.5)
+        
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_start_game")
+            :InvokeServer(portalUUID)
+            
         return true
     else
         notify("Portal Joiner", "Failed to join portal")
@@ -3612,7 +3628,6 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
             return
         end
         
-        -- Handle both table and string inputs safely
         local selectedDisplayName
         if type(Option) == "table" and Option[1] then
             selectedDisplayName = Option[1]
@@ -3623,19 +3638,39 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
             return
         end
         
-        -- Safely call the backend function
-        local success, backendPortalKey = pcall(function()
-            return getBackendPortalKeyFromDisplayName(selectedDisplayName)
+        -- NEW: Store both display name AND actual item name
+        local success, portalInfo = pcall(function()
+            local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
+            
+            for _, moduleScript in ipairs(TestingFolder:GetChildren()) do
+                if moduleScript:IsA("ModuleScript") then
+                    local moduleData = require(moduleScript)
+                    
+                    for levelKey, levelInfo in pairs(moduleData) do
+                        if type(levelInfo) == "table" and 
+                           levelInfo._portal_only_level == true and 
+                           levelInfo.name == selectedDisplayName then
+                            
+                            -- Return BOTH the id (ChristmasLevel) and the key (portal_christmas)
+                            return {
+                                id = levelInfo.id,          -- "ChristmasLevel"
+                                key = levelKey,             -- "portal_christmas"
+                                name = levelInfo.name       -- "Frozen Ruins - Base"
+                            }
+                        end
+                    end
+                end
+            end
+            return nil
         end)
         
-        if success and backendPortalKey then
-            State.SelectedPortal = backendPortalKey
-            print("Selected portal:", selectedDisplayName, "->", backendPortalKey)
+        if success and portalInfo then
+            State.SelectedPortal = portalInfo.key  -- Use the MODULE KEY, not the ID!
+            print("Selected portal:", selectedDisplayName)
+            print("  Backend ID:", portalInfo.id)
+            print("  Module Key (used for item lookup):", portalInfo.key)
         else
-            warn("Failed to get backend portal key for:", selectedDisplayName)
-            if not success then
-                warn("Error:", backendPortalKey)
-            end
+            warn("Failed to get portal info for:", selectedDisplayName)
         end
     end,
 })
@@ -4332,22 +4367,18 @@ local function loadPortalsWithRetry()
         
         local portalOptions = {}
         
-        -- Scan ALL modules in Testing folder
         for _, moduleScript in ipairs(testingFolder:GetChildren()) do
             if moduleScript:IsA("ModuleScript") then
-                print("Checking module for portals:", moduleScript.Name)
-                
                 local moduleSuccess, moduleData = pcall(require, moduleScript)
                 
                 if moduleSuccess and moduleData and type(moduleData) == "table" then
-                    -- Check each entry in the module for _portal_only_level flag
                     for levelKey, levelInfo in pairs(moduleData) do
                         if type(levelInfo) == "table" and 
                            levelInfo._portal_only_level == true and 
                            levelInfo.name and 
                            levelInfo.id then
                             table.insert(portalOptions, levelInfo.name)
-                            print("  ✓ Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Key:", levelKey)
+                            print("  ✓ Found portal:", levelInfo.name, "| Module Key:", levelKey, "| ID:", levelInfo.id)
                         end
                     end
                 else
@@ -4362,9 +4393,7 @@ local function loadPortalsWithRetry()
             error("No portals found with _portal_only_level flag in Testing folder")
         end
         
-        -- Sort alphabetically for consistent ordering
         table.sort(portalOptions)
-        
         return portalOptions
     end)
     
