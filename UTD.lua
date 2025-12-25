@@ -1739,27 +1739,68 @@ end
         AutoJoinState.currentAction = nil
 end
 
+local function getModuleNameFromUI(uiName, category)
+    -- For Story/Virtual - use UINameToModuleName lookup
+    if category == "Story" or category == "VirtualRealm" then
+        local moduleName = UINameToModuleName[uiName]
+        if moduleName then
+            return moduleName
+        else
+            warn(string.format("⚠️ No module name found for UI name: %s", uiName))
+            return uiName -- Fallback to UI name
+        end
+    end
+    
+    -- For Legend - need to look up in LegendStages folder
+    if category == "LegendStage" then
+        local success, moduleName = pcall(function()
+            local LegendFolder = Services.ReplicatedStorage.Shared.Data.LegendStages
+            for _, stageModule in ipairs(LegendFolder:GetChildren()) do
+                if stageModule:IsA("ModuleScript") then
+                    local stageData = require(stageModule)
+                    if stageData.Information and stageData.Information.Name == uiName then
+                        return stageModule.Name -- Return module name
+                    end
+                end
+            end
+            return nil
+        end)
+        
+        if success and moduleName then
+            return moduleName
+        else
+            warn(string.format("⚠️ No module name found for Legend stage: %s", uiName))
+            return uiName
+        end
+    end
+    
+    return uiName
+end
+
 local function convertDifficultyMeter(percentage)
     return percentage / 100
 end
 
-local function joinStoryViaAPI(mapName, act, difficulty, difficultyPercent)
+local function joinStoryViaAPI(mapUIName, act, difficulty, difficultyPercent)
     if not PodController then
         warn("PodController not initialized")
         return false
     end
     
+    -- ✅ CONVERT UI NAME TO MODULE NAME
+    local mapModuleName = getModuleNameFromUI(mapUIName, "Story")
+    
     local gameData = {
         Category = "Story",
-        Map = mapName,
+        Map = mapModuleName, -- ✅ Use module name, not UI name
         Act = tostring(act),
         Difficulty = difficulty,
         Modulation = convertDifficultyMeter(difficultyPercent),
         FriendsOnly = false
     }
     
-    print(string.format("Joining Story: %s Act %s (%s) - %d%%", 
-        mapName, act, difficulty, difficultyPercent))
+    print(string.format("Joining Story: %s (Module: %s) Act %s (%s) - %d%%", 
+        mapUIName, mapModuleName, act, difficulty, difficultyPercent))
     
     local success = pcall(function()
         PodController:RequestPod(gameData)
@@ -1774,23 +1815,26 @@ local function joinStoryViaAPI(mapName, act, difficulty, difficultyPercent)
     end
 end
 
-local function joinLegendViaAPI(mapName, act, difficultyPercent)
+local function joinLegendViaAPI(mapUIName, act, difficultyPercent)
     if not PodController then
         warn("PodController not initialized")
         return false
     end
     
+    -- ✅ CONVERT UI NAME TO MODULE NAME
+    local mapModuleName = getModuleNameFromUI(mapUIName, "LegendStage")
+    
     local gameData = {
         Category = "LegendStage",
-        Map = mapName,
+        Map = mapModuleName, -- ✅ Use module name, not UI name
         Act = tostring(act),
-        Difficulty = nil, -- Legend stages don't have Easy/Hard/Nightmare
+        Difficulty = nil,
         Modulation = convertDifficultyMeter(difficultyPercent),
         FriendsOnly = false
     }
     
-    print(string.format("Joining Legend: %s Act %s - %d%%", 
-        mapName, act, difficultyPercent))
+    print(string.format("Joining Legend: %s (Module: %s) Act %s - %d%%", 
+        mapUIName, mapModuleName, act, difficultyPercent))
     
     local success = pcall(function()
         PodController:RequestPod(gameData)
@@ -1805,23 +1849,26 @@ local function joinLegendViaAPI(mapName, act, difficultyPercent)
     end
 end
 
-local function joinVirtualViaAPI(mapName, act, difficulty, difficultyPercent)
+local function joinVirtualViaAPI(mapUIName, act, difficulty, difficultyPercent)
     if not PodController then
         warn("PodController not initialized")
         return false
     end
     
+    -- ✅ CONVERT UI NAME TO MODULE NAME
+    local mapModuleName = getModuleNameFromUI(mapUIName, "VirtualRealm")
+    
     local gameData = {
         Category = "VirtualRealm",
-        Map = mapName,
+        Map = mapModuleName, -- ✅ Use module name, not UI name
         Act = tostring(act),
         Difficulty = difficulty,
         Modulation = convertDifficultyMeter(difficultyPercent),
         FriendsOnly = false
     }
     
-    print(string.format("Joining Virtual: %s Act %s (%s) - %d%%", 
-        mapName, act, difficulty, difficultyPercent))
+    print(string.format("Joining Virtual: %s (Module: %s) Act %s (%s) - %d%%", 
+        mapUIName, mapModuleName, act, difficulty, difficultyPercent))
     
     local success = pcall(function()
         PodController:RequestPod(gameData)
