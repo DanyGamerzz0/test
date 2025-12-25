@@ -1973,7 +1973,10 @@ local function startGameViaAPI()
     print("Starting game via vote...")
     
     local success = pcall(function()
-       game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable"):FireServer("*\000\000")
+       local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+            for _, startConn in pairs(getconnections(startButton.MouseButton1Up)) do
+                if startConn.Enabled then startConn:Fire() end
+            end
     end)
     
     if success then
