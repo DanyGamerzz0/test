@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.05"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -232,6 +232,7 @@ local TowerService = nil
 local BlessingService = nil
 local RequestData = nil
 local ChallengeController = nil
+local PodController = nil
 
 task.spawn(function()
     -- Wait for game to load
@@ -267,6 +268,14 @@ task.spawn(function()
         print("BlessingService initialized")
         print("RequestData initialized")
         print("ChallengeController initialized")
+    end)
+end)
+
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        PodController = Knit.GetController("PodController")
+        print("PodController initialized")
     end)
 end)
 
@@ -1729,6 +1738,184 @@ end
         AutoJoinState.currentAction = nil
 end
 
+local function convertDifficultyMeter(percentage)
+    return percentage / 100
+end
+
+local function joinStoryViaAPI(mapName, act, difficulty, difficultyPercent)
+    if not PodController then
+        warn("PodController not initialized")
+        return false
+    end
+    
+    local gameData = {
+        Category = "Story",
+        Map = mapName,
+        Act = tostring(act),
+        Difficulty = difficulty,
+        Modulation = convertDifficultyMeter(difficultyPercent),
+        FriendsOnly = false
+    }
+    
+    print(string.format("Joining Story: %s Act %s (%s) - %d%%", 
+        mapName, act, difficulty, difficultyPercent))
+    
+    local success = pcall(function()
+        PodController:RequestPod(gameData)
+    end)
+    
+    if success then
+        print("✅ Story join request sent via API")
+        return true
+    else
+        warn("❌ Story join failed")
+        return false
+    end
+end
+
+local function joinLegendViaAPI(mapName, act, difficultyPercent)
+    if not PodController then
+        warn("PodController not initialized")
+        return false
+    end
+    
+    local gameData = {
+        Category = "LegendStage",
+        Map = mapName,
+        Act = tostring(act),
+        Difficulty = nil, -- Legend stages don't have Easy/Hard/Nightmare
+        Modulation = convertDifficultyMeter(difficultyPercent),
+        FriendsOnly = false
+    }
+    
+    print(string.format("Joining Legend: %s Act %s - %d%%", 
+        mapName, act, difficultyPercent))
+    
+    local success = pcall(function()
+        PodController:RequestPod(gameData)
+    end)
+    
+    if success then
+        print("✅ Legend join request sent via API")
+        return true
+    else
+        warn("❌ Legend join failed")
+        return false
+    end
+end
+
+local function joinVirtualViaAPI(mapName, act, difficulty, difficultyPercent)
+    if not PodController then
+        warn("PodController not initialized")
+        return false
+    end
+    
+    local gameData = {
+        Category = "VirtualRealm",
+        Map = mapName,
+        Act = tostring(act),
+        Difficulty = difficulty,
+        Modulation = convertDifficultyMeter(difficultyPercent),
+        FriendsOnly = false
+    }
+    
+    print(string.format("Joining Virtual: %s Act %s (%s) - %d%%", 
+        mapName, act, difficulty, difficultyPercent))
+    
+    local success = pcall(function()
+        PodController:RequestPod(gameData)
+    end)
+    
+    if success then
+        print("✅ Virtual join request sent via API")
+        return true
+    else
+        warn("❌ Virtual join failed")
+        return false
+    end
+end
+
+local function joinChallengeViaAPI(challengeType, challengeNumber)
+    if not PodController or not ChallengeController then
+        warn("Controllers not initialized")
+        return false
+    end
+    
+    -- Get current challenges data
+    local challenges = ChallengeController:GetCurrentChallenges()
+    
+    if not challenges or not challenges[challengeType] or not challenges[challengeType][challengeNumber] then
+        warn(string.format("Challenge not found: %s #%d", challengeType, challengeNumber))
+        return false
+    end
+    
+    local challengeData = challenges[challengeType][challengeNumber]
+    
+    local gameData = {
+        Category = "Challenge",
+        Challenge = {
+            Type = challengeType,
+            Number = challengeNumber
+        },
+        Map = challengeData.Map,
+        Act = tostring(challengeData.Act),
+        Difficulty = "Easy", -- Challenges default to Easy
+        Modulation = 1.0, -- Challenges default to 100%
+        FriendsOnly = false
+    }
+    
+    print(string.format("Joining Challenge: %s #%d (%s Act %s)", 
+        challengeType, challengeNumber, challengeData.Map, challengeData.Act))
+    
+    local success = pcall(function()
+        PodController:RequestPod(gameData)
+    end)
+    
+    if success then
+        print("✅ Challenge join request sent via API")
+        return true
+    else
+        warn("❌ Challenge join failed")
+        return false
+    end
+end
+
+local function joinFeaturedChallengeViaAPI()
+    if not PodController then
+        warn("PodController not initialized")
+        return false
+    end
+    
+    local Config = require(Services.ReplicatedStorage.Shared.Data.Config)
+    
+    local gameData = {
+        Category = "Challenge",
+        Challenge = {
+            Type = "Special",
+            Number = 1
+        },
+        Map = Config.CurrentFeaturedChallenge or "Frozen Stronghold",
+        Act = "1",
+        Difficulty = "Easy",
+        Modulation = 1.0,
+        FriendsOnly = false
+    }
+    
+    print("Joining Featured Challenge:", gameData.Map)
+    
+    local success = pcall(function()
+        PodController:RequestPod(gameData)
+    end)
+    
+    if success then
+        print("✅ Featured Challenge join request sent via API")
+        return true
+    else
+        warn("❌ Featured Challenge join failed")
+        return false
+    end
+end
+
 local function activatePodUI(podName)
     -- Find the pod in workspace
     local podsFolder = workspace:FindFirstChild("Pods")
@@ -2457,95 +2644,79 @@ local function checkAndExecuteHighestPriority()
     
     -- Check if lobby creation UI is already open
     if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi") then
-        if (Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("PartyFrame") and Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("PartyFrame").Enabled) or (Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("WorldsFrame") and Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("WorldsFrame").Enabled) then
+        local lobbyUi = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
+        if (lobbyUi:FindFirstChild("PartyFrame") and lobbyUi:FindFirstChild("PartyFrame").Enabled) or 
+           (lobbyUi:FindFirstChild("WorldsFrame") and lobbyUi:FindFirstChild("WorldsFrame").Enabled) then
             return
         end
     end
 
-        -- Priority 1: Challenge Auto Join (add this new section)
-if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
-    local regularChallengeOnCooldown = false
+    -- Priority 1: Challenge Auto Join
+    if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
+        local regularChallengeOnCooldown = false
 
-    if State.AutoJoinChallenge then
-        local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
-        
-        if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
-            regularChallengeOnCooldown = true
-            print("Regular challenge on cooldown")
-        end
-    end
-    
-    -- OPTION 1: Try Regular Challenge (if not on cooldown)
-    if State.AutoJoinChallenge and not regularChallengeOnCooldown then
-        print("Attempting regular challenge...")
-        
-        setProcessingState("Challenge Auto Join")
-        
-        local success, challengeType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
-        
-        if success then
-            print("Successfully joined regular challenge!")
-            State.LastFailedChallengeAttempt = 0 -- Reset cooldown
-            task.delay(5, clearProcessingState)
-            return
-        elseif challengeType == "regular" then
-            -- Regular challenge failed/completed
-            print("Regular challenge failed - setting cooldown")
-            State.LastFailedChallengeAttempt = tick()
+        if State.AutoJoinChallenge then
+            local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
             
-            -- NOW try Featured as fallback (if enabled)
-            if State.AutoJoinFeaturedChallenge then
-                print("Falling back to Featured Challenge...")
-                task.wait(0.5) -- Small delay before trying Featured
+            if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
+                regularChallengeOnCooldown = true
+            end
+        end
+        
+        -- Try Regular Challenge (if not on cooldown)
+        if State.AutoJoinChallenge and not regularChallengeOnCooldown then
+            setProcessingState("Challenge Auto Join")
+            
+            local challenges = getCurrentChallengesData()
+            
+            if challenges and challenges["HalfHour"] then
+                local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
                 
-                local featuredSuccess, featuredType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
-                
-                if featuredSuccess then
-                    print("Successfully joined Featured Challenge!")
-                    task.delay(5, clearProcessingState)
-                    return
+                if #matchingChallenges > 0 then
+                    for _, challenge in ipairs(matchingChallenges) do
+                        -- Use API method instead of UI
+                        local success = joinChallengeViaAPI("HalfHour", challenge.index)
+                        
+                        if success then
+                            print("✅ Successfully joined challenge via API!")
+                            State.LastFailedChallengeAttempt = 0
+                            task.delay(5, clearProcessingState)
+                            return
+                        end
+                        
+                        task.wait(1) -- Small delay between attempts
+                    end
+                    
+                    -- All failed
+                    State.LastFailedChallengeAttempt = tick()
                 end
             end
             
             clearProcessingState()
-            return -- Exit so other auto-joiners can work
         end
         
-        clearProcessingState()
-    end
-    
-    -- OPTION 2: Try Featured Challenge only (if regular is on cooldown OR not enabled)
-    if State.AutoJoinFeaturedChallenge then
-        print("Attempting Featured Challenge...")
-        
-        setProcessingState("Challenge Auto Join")
-        
-        -- Need to FORCE handleChallengeSelection to ONLY try Featured
-        -- Temporarily disable AutoJoinChallenge
-        local tempRegularState = State.AutoJoinChallenge
-        State.AutoJoinChallenge = false
-        
-        local success, challengeType = autoJoinGameViaUI("Challenge", nil, nil, nil, nil)
-        
-        -- Restore state
-        State.AutoJoinChallenge = tempRegularState
-        
-        if success then
-            print("Successfully joined Featured Challenge!")
-            task.delay(5, clearProcessingState)
-            return
+        -- Try Featured Challenge
+        if State.AutoJoinFeaturedChallenge then
+            setProcessingState("Featured Challenge Auto Join")
+            
+            local success = joinFeaturedChallengeViaAPI()
+            
+            if success then
+                print("✅ Successfully joined Featured Challenge via API!")
+                task.delay(5, clearProcessingState)
+                return
+            end
+            
+            clearProcessingState()
         end
-        
-        clearProcessingState()
     end
-end
 
     -- Priority 2: Story Auto Join
-    if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
+    if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and 
+       State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
         setProcessingState("Story Auto Join")
         
-        local success = autoJoinGameViaUI(
-            "Story",
+        local success = joinStoryViaAPI(
             State.StoryStageSelected,
             State.StoryActSelected,
             State.StoryDifficultySelected,
@@ -2553,43 +2724,40 @@ end
         )
         
         if success then
-            print("Successfully initiated story join via UI!")
+            print("✅ Successfully joined Story via API!")
             task.delay(5, clearProcessingState)
             return
         else
-            print("Story join failed via UI")
             clearProcessingState()
         end
     end
     
     -- Priority 3: Legend Stage Auto Join
-    if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and State.LegendStageDifficultyMeterSelected then
+    if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and 
+       State.LegendStageDifficultyMeterSelected then
         setProcessingState("Legend Stage Auto Join")
         
-        local success = autoJoinGameViaUI(
-            "Legend",
+        local success = joinLegendViaAPI(
             State.LegendStageSelected,
             tonumber(State.LegendStageActSelected),
-            nil, -- Legend stages don't have Easy/Hard/Nightmare selection
             State.LegendStageDifficultyMeterSelected
         )
         
         if success then
-            print("Successfully initiated legend stage join via UI!")
+            print("✅ Successfully joined Legend Stage via API!")
             task.delay(5, clearProcessingState)
             return
         else
-            print("Legend stage join failed via UI")
             clearProcessingState()
         end
     end
     
-    -- Priority 4: Virtual Stage Auto Join (for later)
-    if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
+    -- Priority 4: Virtual Stage Auto Join
+    if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and 
+       State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
         setProcessingState("Virtual Stage Auto Join")
         
-        local success = autoJoinGameViaUI(
-            "Virtual",  -- Changed from "VirtualRealm"
+        local success = joinVirtualViaAPI(
             State.VirtualStageSelected,
             tonumber(State.VirtualStageActSelected),
             State.VirtualStageDifficultySelected,
@@ -2597,11 +2765,10 @@ end
         )
         
         if success then
-            print("Successfully initiated virtual stage join via UI!")
+            print("✅ Successfully joined Virtual Stage via API!")
             task.delay(5, clearProcessingState)
             return
         else
-            print("Virtual stage join failed via UI")
             clearProcessingState()
         end
     end
@@ -4966,6 +5133,8 @@ Tab:CreateButton({
         })
     end,
 })
+
+Div2 = Tab:CreateDivider()
 
 WebhookInput = WebhookTab:CreateInput({
         Name = "Input Webhook",
