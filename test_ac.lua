@@ -1,4 +1,4 @@
-    -- 4
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -126,6 +126,10 @@ local currentChallenge = nil
 local macroHasPlayedThisGame = false
 local waveStartTimes = {}
 local trackedUnits = {}
+local statusUpdateQueue = {
+    macroStatus = nil,
+    detailedStatus = nil
+}
 
 local lastRecordedUpgrade = {}
 local recordingSpawnIdToPlacement = {} -- spawn_id -> "Shadow #1"
@@ -2836,6 +2840,8 @@ local function getPortalUUID(portalId)
         warn("ItemFrames not found in PlayerGui")
         return nil
     end
+
+    print("Searching for portal with identifier:", portalId)
     
     -- Search for the portal item by ID
     for _, child in ipairs(itemFrames:GetChildren()) do
@@ -2859,6 +2865,8 @@ end
 
 local function joinPortal(portalId)
     if not portalId then return false end
+
+    print("Attempting to join portal with backend key:", portalId)
     
     local portalUUID = getPortalUUID(portalId)
     
