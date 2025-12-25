@@ -1964,6 +1964,36 @@ local function joinFeaturedChallengeViaAPI()
     end
 end
 
+local function startGameViaAPI()
+    if not PodController then
+        warn("PodController not initialized")
+        return false
+    end
+    
+    print("Starting game via vote...")
+    
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("Packages")
+            :WaitForChild("_Index")
+            :WaitForChild("sleitnick_knit@1.7.0")
+            :WaitForChild("knit")
+            :WaitForChild("Services")
+            :WaitForChild("WaveService")
+            :WaitForChild("RF")
+            :WaitForChild("Vote")
+            :InvokeServer(true)
+    end)
+    
+    if success then
+        print("✅ Vote to start sent")
+        return true
+    else
+        warn("❌ Failed to vote start")
+        return false
+    end
+end
+
 local function activatePodUI(podName)
     -- Find the pod in workspace
     local podsFolder = workspace:FindFirstChild("Pods")
@@ -2713,113 +2743,121 @@ local function checkAndExecuteHighestPriority()
         
         -- Try Regular Challenge (if not on cooldown)
         if State.AutoJoinChallenge and not regularChallengeOnCooldown then
-            setProcessingState("Challenge Auto Join")
-            
-            local challenges = getCurrentChallengesData()
-            
-            if challenges and challenges["HalfHour"] then
-                local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
-                
-                if #matchingChallenges > 0 then
-                    for _, challenge in ipairs(matchingChallenges) do
-                        -- Use API method instead of UI
-                        local success = joinChallengeViaAPI("HalfHour", challenge.index)
-                        
-                        if success then
-                            print("✅ Successfully joined challenge via API!")
-                            State.LastFailedChallengeAttempt = 0
-                            task.delay(5, clearProcessingState)
-                            return
-                        end
-                        
-                        task.wait(1) -- Small delay between attempts
-                    end
-                    
-                    -- All failed
-                    State.LastFailedChallengeAttempt = tick()
-                end
-            end
-            
-            clearProcessingState()
-        end
+    setProcessingState("Challenge Auto Join")
+    
+    local challenges = getCurrentChallengesData()
+    
+    if challenges and challenges["HalfHour"] then
+        local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
         
-        -- Try Featured Challenge
-        if State.AutoJoinFeaturedChallenge then
-            setProcessingState("Featured Challenge Auto Join")
-            
-            local success = joinFeaturedChallengeViaAPI()
-            
-            if success then
-                print("✅ Successfully joined Featured Challenge via API!")
-                task.delay(5, clearProcessingState)
-                return
+        if #matchingChallenges > 0 then
+            for _, challenge in ipairs(matchingChallenges) do
+                local success = joinChallengeViaAPI("HalfHour", challenge.index)
+                
+                if success then
+                    print("✅ Successfully joined challenge via API!")
+                    State.LastFailedChallengeAttempt = 0
+                    task.wait(2) -- ✅ Wait for lobby
+                    startGameViaAPI() -- ✅ Start the game
+                    task.delay(5, clearProcessingState)
+                    return
+                end
+                
+                task.wait(1)
             end
             
-            clearProcessingState()
+            State.LastFailedChallengeAttempt = tick()
         end
     end
+    
+    clearProcessingState()
+end
+
+if State.AutoJoinFeaturedChallenge then
+    setProcessingState("Featured Challenge Auto Join")
+    
+    local success = joinFeaturedChallengeViaAPI()
+    
+    if success then
+        print("✅ Successfully joined Featured Challenge via API!")
+        task.wait(2)
+        startGameViaAPI() 
+        task.delay(5, clearProcessingState)
+        return
+    end
+    
+    clearProcessingState()
+end
+end
+
 
     -- Priority 2: Story Auto Join
     if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and 
-       State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
-        setProcessingState("Story Auto Join")
-        
-        local success = joinStoryViaAPI(
-            State.StoryStageSelected,
-            State.StoryActSelected,
-            State.StoryDifficultySelected,
-            State.StoryDifficultyMeterSelected
-        )
-        
-        if success then
-            print("✅ Successfully joined Story via API!")
-            task.delay(5, clearProcessingState)
-            return
-        else
-            clearProcessingState()
-        end
-    end
+   State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
+    setProcessingState("Story Auto Join")
     
-    -- Priority 3: Legend Stage Auto Join
-    if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and 
-       State.LegendStageDifficultyMeterSelected then
-        setProcessingState("Legend Stage Auto Join")
-        
-        local success = joinLegendViaAPI(
-            State.LegendStageSelected,
-            tonumber(State.LegendStageActSelected),
-            State.LegendStageDifficultyMeterSelected
-        )
-        
-        if success then
-            print("✅ Successfully joined Legend Stage via API!")
-            task.delay(5, clearProcessingState)
-            return
-        else
-            clearProcessingState()
-        end
-    end
+    local success = joinStoryViaAPI(
+        State.StoryStageSelected,
+        State.StoryActSelected,
+        State.StoryDifficultySelected,
+        State.StoryDifficultyMeterSelected
+    )
     
-    -- Priority 4: Virtual Stage Auto Join
-    if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and 
-       State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
-        setProcessingState("Virtual Stage Auto Join")
-        
-        local success = joinVirtualViaAPI(
-            State.VirtualStageSelected,
-            tonumber(State.VirtualStageActSelected),
-            State.VirtualStageDifficultySelected,
-            State.VirtualStageDifficultyMeterSelected
-        )
-        
-        if success then
-            print("✅ Successfully joined Virtual Stage via API!")
-            task.delay(5, clearProcessingState)
-            return
-        else
-            clearProcessingState()
-        end
+    if success then
+        print("✅ Successfully joined Story via API!")
+        task.wait(2) -- ✅ Wait for lobby to create
+        startGameViaAPI() -- ✅ Start the game
+        task.delay(5, clearProcessingState)
+        return
+    else
+        clearProcessingState()
     end
+end
+
+-- Priority 3: Legend Stage Auto Join
+if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and 
+   State.LegendStageDifficultyMeterSelected then
+    setProcessingState("Legend Stage Auto Join")
+    
+    local success = joinLegendViaAPI(
+        State.LegendStageSelected,
+        tonumber(State.LegendStageActSelected),
+        State.LegendStageDifficultyMeterSelected
+    )
+    
+    if success then
+        print("✅ Successfully joined Legend Stage via API!")
+        task.wait(2) -- ✅ Wait for lobby to create
+        startGameViaAPI() -- ✅ Start the game
+        task.delay(5, clearProcessingState)
+        return
+    else
+        clearProcessingState()
+    end
+end
+
+-- Priority 4: Virtual Stage Auto Join
+if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and 
+   State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
+    setProcessingState("Virtual Stage Auto Join")
+    
+    local success = joinVirtualViaAPI(
+        State.VirtualStageSelected,
+        tonumber(State.VirtualStageActSelected),
+        State.VirtualStageDifficultySelected,
+        State.VirtualStageDifficultyMeterSelected
+    )
+    
+    if success then
+        print("✅ Successfully joined Virtual Stage via API!")
+        task.wait(2) -- ✅ Wait for lobby to create
+        startGameViaAPI() -- ✅ Start the game
+        task.delay(5, clearProcessingState)
+        return
+    else
+        clearProcessingState()
+    end
+end
 end
 
 --[[--------------------------------------------------------------]]
