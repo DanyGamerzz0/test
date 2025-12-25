@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1899,6 +1899,13 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
     
     local challengeData = challenges[challengeType][challengeNumber]
     
+    -- ✅ NEW: Check if challenge is already completed
+    if challengeData.Completed == true then
+        print(string.format("⚠️ Challenge already completed: %s #%d (Map: %s Act %s)", 
+            challengeType, challengeNumber, challengeData.Map, challengeData.Act))
+        return "already_completed"
+    end
+    
     local gameData = {
         Category = "Challenge",
         Challenge = {
@@ -1907,8 +1914,8 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
         },
         Map = challengeData.Map,
         Act = tostring(challengeData.Act),
-        Difficulty = "Easy", -- Challenges default to Easy
-        Modulation = 1.0, -- Challenges default to 100%
+        Difficulty = "Easy",
+        Modulation = 1.0,
         FriendsOnly = false
     }
     
@@ -2743,23 +2750,39 @@ local function checkAndExecuteHighestPriority()
             for _, challenge in ipairs(matchingChallenges) do
                 local success = joinChallengeViaAPI("HalfHour", challenge.index)
                 
-                if success then
+                -- ✅ NEW: Check for three different return values
+                if success == true then
                     print("✅ Successfully joined challenge via API!")
                     State.LastFailedChallengeAttempt = 0
-                    task.wait(2) -- ✅ Wait for lobby
-                    startGameViaAPI() -- ✅ Start the game
+                    task.wait(2)
+                    startGameViaAPI()
                     task.delay(5, clearProcessingState)
                     return
+                elseif success == "already_completed" then
+                    print("⚠️ Challenge already completed - trying next one...")
+                    -- Continue to next challenge
+                else
+                    warn("❌ Failed to join challenge - trying next one...")
+                    -- Continue to next challenge
                 end
                 
                 task.wait(1)
             end
             
+            -- ✅ NEW: All matching challenges exhausted
+            print("⚠️ All matching Half Hourly challenges completed - moving to next priority")
+            State.LastFailedChallengeAttempt = tick()
+        else
+            print("⚠️ No Half Hourly challenges match filters - moving to next priority")
             State.LastFailedChallengeAttempt = tick()
         end
+    else
+        print("⚠️ No Half Hourly challenges available - moving to next priority")
+        State.LastFailedChallengeAttempt = tick()
     end
     
     clearProcessingState()
+    -- ✅ NEW: Don't return here - continue to next priority
 end
 
 if State.AutoJoinFeaturedChallenge then
@@ -2776,6 +2799,7 @@ if State.AutoJoinFeaturedChallenge then
     end
     
     clearProcessingState()
+    -- ✅ NEW: Don't return here - continue to next priority
 end
 end
 
