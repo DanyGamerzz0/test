@@ -5668,99 +5668,113 @@ task.spawn(function()
             else
                 -- Try each action in order
                 for _, action in ipairs(actions) do
-                    local success = false
-                    
-                    if action == "retry" then
-                        print("Trying Auto Retry...")
-                        success = pcall(function()
-                            game:GetService("ReplicatedStorage")
-                                :WaitForChild("Packages")
-                                :WaitForChild("_Index")
-                                :WaitForChild("sleitnick_knit@1.7.0")
-                                :WaitForChild("knit")
-                                :WaitForChild("Services")
-                                :WaitForChild("WaveService")
-                                :WaitForChild("RE")
-                                :WaitForChild("VoteReplay")
-                                :FireServer()
-                        end)
-                        
-                        if success then
-    Rayfield:Notify({
-        Title = "Auto Retry",
-        Content = "Voting for Replay...",
-        Duration = 2
-    })
-    print("✓ Voted for Replay")
+    local success = false
     
-    -- Wait to see if MatchFinished becomes false (game restarted)
-    local waited = 0
-    while waited < 15 and workspace:GetAttribute("MatchFinished") do
-        task.wait(1)
-        waited = waited + 1
+    if action == "retry" then
+        print("Trying Auto Retry...")
+        success = pcall(function()
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("Packages")
+                :WaitForChild("_Index")
+                :WaitForChild("sleitnick_knit@1.7.0")
+                :WaitForChild("knit")
+                :WaitForChild("Services")
+                :WaitForChild("WaveService")
+                :WaitForChild("RE")
+                :WaitForChild("VoteReplay")
+                :FireServer()
+        end)
+        
+        if success then
+            Rayfield:Notify({
+                Title = "Auto Retry",
+                Content = "Voting for Replay...",
+                Duration = 2
+            })
+            print("✓ Voted for Replay")
+            
+            -- Wait to see if MatchFinished becomes false (game restarted)
+            local waited = 0
+            while waited < 15 and workspace:GetAttribute("MatchFinished") do
+                task.wait(1)
+                waited = waited + 1
+            end
+            
+            if not workspace:GetAttribute("MatchFinished") then
+                print("✓ Retry worked - game restarted")
+                actionTaken = true
+                break
+            else
+                warn("⚠️ Retry vote didn't start game - trying next action")
+            end
+        end
+        
+    elseif action == "next" then  -- FIX: Changed from standalone "if" to "elseif"
+        print("Trying Auto Next...")
+        success = pcall(function()
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("Packages")
+                :WaitForChild("_Index")
+                :WaitForChild("sleitnick_knit@1.7.0")
+                :WaitForChild("knit")
+                :WaitForChild("Services")
+                :WaitForChild("WaveService")
+                :WaitForChild("RE")
+                :WaitForChild("VoteNext")
+                :FireServer()
+        end)
+        
+        if success then
+            Rayfield:Notify({
+                Title = "Auto Next",
+                Content = "Voting for Next Stage...",
+                Duration = 2
+            })
+            print("✓ Voted for Next")
+            
+            -- Wait to see if MatchFinished becomes false (game restarted)
+            local waited = 0
+            while waited < 15 and workspace:GetAttribute("MatchFinished") do
+                task.wait(1)
+                waited = waited + 1
+            end
+            
+            if not workspace:GetAttribute("MatchFinished") then
+                print("✓ Next worked - game restarted")
+                actionTaken = true
+                break
+            else
+                warn("⚠️ Next vote didn't start game - trying next action")
+            end
+        end
+        
+    elseif action == "lobby" then  -- FIX: Changed from standalone "if" to "elseif"
+        print("Trying Auto Lobby...")
+        success = pcall(function()
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("Packages")
+                :WaitForChild("_Index")
+                :WaitForChild("sleitnick_knit@1.7.0")
+                :WaitForChild("knit")
+                :WaitForChild("Services")
+                :WaitForChild("WaveService")
+                :WaitForChild("RE")
+                :WaitForChild("ToLobby")
+                :FireServer()
+        end)
+        
+        if success then
+            Rayfield:Notify({
+                Title = "Auto Lobby",
+                Content = "Returning to Lobby...",
+                Duration = 2
+            })
+            print("✓ Returned to Lobby")
+            actionTaken = true
+            break
+        end
     end
-    
-    if not workspace:GetAttribute("MatchFinished") then
-        print("✓ Retry worked - game restarted")
-        actionTaken = true
-        break
-    else
-        warn("⚠️ Retry vote didn't start game - trying next action")
-    end
-end
-                        
-                    if success then
-    Rayfield:Notify({
-        Title = "Auto Next",
-        Content = "Voting for Next Stage...",
-        Duration = 2
-    })
-    print("✓ Voted for Next")
-    
-    -- Wait to see if MatchFinished becomes false (game restarted)
-    local waited = 0
-    while waited < 15 and workspace:GetAttribute("MatchFinished") do
-        task.wait(1)
-        waited = waited + 1
-    end
-    
-    if not workspace:GetAttribute("MatchFinished") then
-        print("✓ Next worked - game restarted")
-        actionTaken = true
-        break
-    else
-        warn("⚠️ Next vote didn't start game - trying next action")
-    end
-end
-                        
-                    elseif action == "lobby" then
-                        print("Trying Auto Lobby...")
-                        success = pcall(function()
-                            game:GetService("ReplicatedStorage")
-                                :WaitForChild("Packages")
-                                :WaitForChild("_Index")
-                                :WaitForChild("sleitnick_knit@1.7.0")
-                                :WaitForChild("knit")
-                                :WaitForChild("Services")
-                                :WaitForChild("WaveService")
-                                :WaitForChild("RE")
-                                :WaitForChild("ToLobby")
-                                :FireServer()
-                        end)
-                        
-                        if success then
-                            Rayfield:Notify({
-                                Title = "Auto Lobby",
-                                Content = "Returning to Lobby...",
-                                Duration = 2
-                            })
-                            print("✓ Returned to Lobby")
-                            actionTaken = true
-                            break
-                        end
-                    end
-                end
-                
+end             
                 if not actionTaken then
                     warn("⚠️ All enabled actions failed")
                 end
