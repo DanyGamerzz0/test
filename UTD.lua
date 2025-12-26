@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2791,82 +2791,81 @@ local function checkAndExecuteHighestPriority()
 
     -- Priority 1: Challenge Auto Join
     if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
-        local regularChallengeOnCooldown = false
+    local regularChallengeOnCooldown = false
 
-        if State.AutoJoinChallenge then
-            local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
-            
-            if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
-                regularChallengeOnCooldown = true
-            end
+    if State.AutoJoinChallenge then
+        local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
+        
+        if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
+            regularChallengeOnCooldown = true
         end
-        
-        -- Try Regular Challenge (if not on cooldown)
-        if State.AutoJoinChallenge and not regularChallengeOnCooldown then
-    setProcessingState("Challenge Auto Join")
+    end
     
-    local challenges = getCurrentChallengesData()
+    local regularChallengeSucceeded = false  -- ✅ NEW: Track if regular challenge worked
     
-    if challenges and challenges["HalfHour"] then
-        local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
+    -- Try Regular Challenge (if not on cooldown)
+    if State.AutoJoinChallenge and not regularChallengeOnCooldown then
+        setProcessingState("Challenge Auto Join")
         
-        if #matchingChallenges > 0 then
-            for _, challenge in ipairs(matchingChallenges) do
-                local success = joinChallengeViaAPI("HalfHour", challenge.index)
-                
-                -- ✅ NEW: Check for three different return values
-                if success == true then
-                    print("✅ Successfully joined challenge via API!")
-                    State.LastFailedChallengeAttempt = 0
-                    task.wait(2)
-                    startGameViaAPI()
-                    task.delay(5, clearProcessingState)
-                    return
-                elseif success == "already_completed" then
-                    print("⚠️ Challenge already completed - trying next one...")
-                    -- Continue to next challenge
-                else
-                    warn("❌ Failed to join challenge - trying next one...")
-                    -- Continue to next challenge
+        local challenges = getCurrentChallengesData()
+        
+        if challenges and challenges["HalfHour"] then
+            local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
+            
+            if #matchingChallenges > 0 then
+                for _, challenge in ipairs(matchingChallenges) do
+                    local success = joinChallengeViaAPI("HalfHour", challenge.index)
+                    
+                    if success == true then
+                        print("✅ Successfully joined challenge via API!")
+                        State.LastFailedChallengeAttempt = 0
+                        task.wait(2)
+                        startGameViaAPI()
+                        task.delay(5, clearProcessingState)
+                        regularChallengeSucceeded = true  -- ✅ Mark as succeeded
+                        return  -- ✅ Exit immediately - don't try featured
+                    elseif success == "already_completed" then
+                        print("⚠️ Challenge already completed - trying next one...")
+                        continue
+                    else
+                        warn("❌ Failed to join challenge - trying next one...")
+                        continue
+                    end
+                    
+                    task.wait(1)
                 end
                 
-                task.wait(1)
+                print("⚠️ All matching Half Hourly challenges completed - moving to next priority")
+                State.LastFailedChallengeAttempt = tick()
+            else
+                print("⚠️ No Half Hourly challenges match filters - moving to next priority")
+                State.LastFailedChallengeAttempt = tick()
             end
-            
-            -- ✅ NEW: All matching challenges exhausted
-            print("⚠️ All matching Half Hourly challenges completed - moving to next priority")
-            State.LastFailedChallengeAttempt = tick()
         else
-            print("⚠️ No Half Hourly challenges match filters - moving to next priority")
+            print("⚠️ No Half Hourly challenges available - moving to next priority")
             State.LastFailedChallengeAttempt = tick()
         end
-    else
-        print("⚠️ No Half Hourly challenges available - moving to next priority")
-        State.LastFailedChallengeAttempt = tick()
+        
+        clearProcessingState()
     end
     
-    clearProcessingState()
-    -- ✅ NEW: Don't return here - continue to next priority
-end
-
-if State.AutoJoinFeaturedChallenge then
-    setProcessingState("Featured Challenge Auto Join")
-    
-    local success = joinFeaturedChallengeViaAPI()
-    
-    if success then
-        print("✅ Successfully joined Featured Challenge via API!")
-        task.wait(2)
-        startGameViaAPI() 
-        task.delay(5, clearProcessingState)
-        return
+    -- ✅ Only try Featured Challenge if Regular Challenge failed or is disabled
+    if State.AutoJoinFeaturedChallenge and not regularChallengeSucceeded then
+        setProcessingState("Featured Challenge Auto Join")
+        
+        local success = joinFeaturedChallengeViaAPI()
+        
+        if success then
+            print("✅ Successfully joined Featured Challenge via API!")
+            task.wait(2)
+            startGameViaAPI() 
+            task.delay(5, clearProcessingState)
+            return
+        end
+        
+        clearProcessingState()
     end
-    
-    clearProcessingState()
-    -- ✅ NEW: Don't return here - continue to next priority
 end
-end
-
 
     -- Priority 2: Story Auto Join
     if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and 
@@ -5576,7 +5575,7 @@ task.spawn(function()
         task.wait(0.5)
         
         -- Only run if we're in lobby and auto-start is enabled
-        if State.AutoStartGame and not isInLobby() then
+        if State.AutoStartGame then
             -- Check if we're NOT in a game (Wave should be 0 or nil)
             local currentWave = workspace:GetAttribute("Wave") or 0
             local matchFinished = workspace:GetAttribute("MatchFinished")
