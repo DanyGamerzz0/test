@@ -1,4 +1,4 @@
-    -- 24
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -3541,7 +3541,7 @@ end
 
     local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
 
-    local AutoJoinGateToggle = JoinerTab:CreateToggle({
+     AutoJoinGateToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Gate",
         CurrentValue = false,
         Flag = "AutoJoinGate",
@@ -3576,7 +3576,7 @@ end
         end,
     })
 
-    local AutoNextGateToggle = JoinerTab:CreateToggle({
+     AutoNextGateToggle = JoinerTab:CreateToggle({
     Name = "Auto Next Gate",
     CurrentValue = false,
     Flag = "AutoNextGate",
@@ -3782,7 +3782,7 @@ section = JoinerTab:CreateSection("Boss Rush Joiner")
    end,
 })
 
-local AutoSelectCardToggle = CardPriorityTab:CreateToggle({
+ AutoSelectCardToggle = CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
     CurrentValue = false,
     Flag = "AutoSelectCard",
@@ -4333,6 +4333,207 @@ task.spawn(setupCardSelectionMonitoring)
         end
     end
 
+    local function getPortalDataFromGC(portalUUID)
+    for _, obj in ipairs(getgc(true)) do
+        if type(obj) == "table" then
+            -- Check if table has this UUID as a key
+            if obj[portalUUID] and type(obj[portalUUID]) == "table" then
+                return obj[portalUUID]
+            end
+            
+            -- Check if this table IS the portal data (has matching uuid field)
+            if obj.uuid == portalUUID or obj._uuid == portalUUID then
+                return obj
+            end
+        end
+    end
+    return nil
+end
+
+local function getAllAvailablePortalsWithTiers(portalId)
+    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+    if not itemsGui then 
+        print("Items GUI not found")
+        return {} 
+    end
+
+    local itemFrames = itemsGui:FindFirstChild("grid")
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+    if not itemFrames then 
+        print("ItemFrames not found")
+        return {} 
+    end
+
+    local portals = {}
+
+    for _, child in ipairs(itemFrames:GetChildren()) do
+        if child.Name == portalId and child.Visible then
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
+            if uuidValue and uuidValue:IsA("StringValue") then
+                local uuid = uuidValue.Value
+                
+                -- Get portal data from GC
+                local portalData = getPortalDataFromGC(uuid)
+                
+                local portalInfo = {
+                    uuid = uuid,
+                    tier = 0,
+                    maxTries = 3,
+                    currentTries = 0,
+                    hasTiers = false,
+                    valid = true
+                }
+                
+                if portalData then
+                    -- Extract tier information
+                    if portalData._unique_portal_data then
+                        local uniqueData = portalData._unique_portal_data
+                        portalInfo.tier = uniqueData.portal_depth or 0
+                        portalInfo.hasTiers = (uniqueData.portal_depth or 0) > 0
+                    end
+                    
+                    -- Extract try information
+                    portalInfo.maxTries = portalData._portal_max_tries or 3
+                    portalInfo.currentTries = portalData._portal_tries or 0
+                    
+                    print(string.format("Found portal: UUID=%s, Tier=%d, Tries=%d/%d", 
+                        uuid, portalInfo.tier, portalInfo.currentTries, portalInfo.maxTries))
+                else
+                    print("Warning: Could not find GC data for portal UUID:", uuid)
+                end
+                
+                table.insert(portals, portalInfo)
+            end
+        end
+    end
+    
+    return portals
+end
+
+local function getFilteredAndSortedPortals(portalId)
+    local allPortals = getAllAvailablePortalsWithTiers(portalId)
+    
+    if #allPortals == 0 then
+        print("No portals found with ID:", portalId)
+        return {}
+    end
+    
+    -- Filter by tier range
+    local filteredPortals = {}
+    for _, portal in ipairs(allPortals) do
+        if portal.tier >= State.MinimumPortalTier and portal.tier <= State.MaximumPortalTier then
+            table.insert(filteredPortals, portal)
+        else
+            print(string.format("Filtered out portal (tier %d outside range %d-%d)", 
+                portal.tier, State.MinimumPortalTier, State.MaximumPortalTier))
+        end
+    end
+    
+    if #filteredPortals == 0 then
+        print("No portals match tier filter criteria")
+        return {}
+    end
+    
+    -- Sort by tier based on priority
+    if State.PortalTierPriority == "Highest" then
+        table.sort(filteredPortals, function(a, b)
+            return a.tier > b.tier
+        end)
+        print("Sorted portals by HIGHEST tier first")
+    elseif State.PortalTierPriority == "Lowest" then
+        table.sort(filteredPortals, function(a, b)
+            return a.tier < b.tier
+        end)
+        print("Sorted portals by LOWEST tier first")
+    else
+        print("Using ANY tier (no sorting)")
+    end
+    
+    return filteredPortals
+end
+
+local function autoNextPortalEnhanced()
+    if not State.AutoNextPortal or not State.SelectedPortal or State.SelectedPortal == "" then
+        return false
+    end
+    
+    print("Auto Next Portal enabled - Finding portals with ID:", State.SelectedPortal)
+    
+    task.wait(1)
+    
+    local maxAttempts = 10 -- Increased attempts since we're being smarter about selection
+    
+    for attempt = 1, maxAttempts do
+        -- Get fresh list of portals with tier info
+        local availablePortals = getFilteredAndSortedPortals(State.SelectedPortal)
+        
+        if #availablePortals == 0 then
+            print("No more valid portals available")
+            notify("Auto Next Portal", "No valid portals available", 3)
+            break
+        end
+        
+        -- Select the first portal from our sorted/filtered list
+        local selectedPortal = availablePortals[1]
+        
+        local tierText = selectedPortal.hasTiers and string.format(" (Tier %d)", selectedPortal.tier) or ""
+        print(string.format("Attempt %d/%d - Trying portal%s: %s", 
+            attempt, maxAttempts, tierText, selectedPortal.uuid))
+        
+        notify("Auto Next Portal", 
+            string.format("Attempting%s portal (%d/%d)", tierText, attempt, maxAttempts), 
+            2)
+        
+        -- Try to join this portal
+        local success = pcall(function()
+            local args = {"replay_portal", selectedPortal.uuid}
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+                :WaitForChild("set_game_finished_vote")
+                :InvokeServer(unpack(args))
+        end)
+        
+        if not success then
+            print("Failed to invoke portal join for UUID:", selectedPortal.uuid)
+        end
+        
+        -- Wait to see if teleport happens
+        task.wait(3)
+        
+        -- Still here? Portal didn't work, hide it and try next
+        print("Portal didn't work, marking as invalid and trying next one...")
+        
+        -- Hide the failed portal in UI
+        local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+        if itemsGui then
+            local itemFrames = itemsGui:FindFirstChild("grid")
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end  
+            if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+            
+            if itemFrames then
+                for _, child in ipairs(itemFrames:GetChildren()) do
+                    if child.Name == State.SelectedPortal then
+                        local uuid = child:FindFirstChild("_uuid_or_id")
+                        if uuid and uuid.Value == selectedPortal.uuid then
+                            child.Visible = false
+                            print("Hidden failed portal from UI")
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- If we reach here, none of the portals worked
+    notify("Auto Next Portal", "No valid portals could be joined", 3)
+    return false
+end
+
     local function getPortalTierFromGC(portalLevelId)
     local success, portalData = pcall(function()
         for _, obj in pairs(getgc(true)) do
@@ -4359,6 +4560,32 @@ task.spawn(setupCardSelectionMonitoring)
     
     return nil
 end
+
+    local ShowPortalInfoButton = JoinerTab:CreateButton({
+    Name = "Show Available Portals Info",
+    Callback = function()
+        if not State.SelectedPortal or State.SelectedPortal == "" then
+            notify("Portal Info", "No portal selected", 3)
+            return
+        end
+        
+        local portals = getAllAvailablePortalsWithTiers(State.SelectedPortal)
+        
+        if #portals == 0 then
+            notify("Portal Info", "No portals available", 3)
+            return
+        end
+        
+        local infoText = string.format("Found %d portals:\n", #portals)
+        for i, portal in ipairs(portals) do
+            local tierText = portal.hasTiers and string.format("Tier %d", portal.tier) or "No tier"
+            infoText = infoText .. string.format("%d. %s (Tries: %d/%d)\n", 
+                i, tierText, portal.currentTries, portal.maxTries)
+        end
+        
+        notify("Portal Info", infoText, 8)
+    end,
+})
 
 local function loadPortalsWithRetry()
     loadingRetries.portal = loadingRetries.portal or 0
@@ -7330,30 +7557,6 @@ end)
             end
         end,
     })
-
-    local function getAllPortalUUIDs(portalId)
-    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-    if not itemsGui then return {} end
-
-    local itemFrames = itemsGui:FindFirstChild("grid")
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
-    if not itemFrames then return {} end
-
-    local results = {}
-
-    for _, child in ipairs(itemFrames:GetChildren()) do
-        if child.Name == portalId then
-            local uuidValue = child:FindFirstChild("_uuid_or_id")
-            if uuidValue and uuidValue:IsA("StringValue") then
-                table.insert(results, uuidValue.Value)
-            end
-        end
-    end
-    
-    return results
-end
 
     -- ========== REMOTE EVENT CONNECTIONS ==========
     local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
