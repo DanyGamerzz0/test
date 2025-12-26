@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1728,14 +1728,15 @@ local function getCurrentWorldKey()
     
     -- For Story category (which includes challenges) - use challenge_ prefix
     if categoryLower == "story" then
-        -- Check if it's featured challenge (Frozen Stronghold)
-        if mapName:lower():find("frozen") or mapName == "Frozen Stronghold" then
-            return "challenge_featured"
-        end
-        
         -- Regular challenge - ALWAYS use UI mapName with underscores (to match dropdown keys)
         return "challenge_" .. mapName:lower():gsub("%s+", "_")
     end
+
+    if categoryLower == "featured" then
+        if mapName:lower():find("frozen") or mapName == "Frozen Stronghold" then
+        return "challenge_featured"
+    end
+end
     
     -- For Legend stages - use internal module name if available
     if categoryLower == "legend" then
@@ -2087,7 +2088,7 @@ local function startGameViaAPI()
     
     print("Starting game via vote...")
     
-    --game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("*\000\000"))
+    game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("*\000\000"))
     
     if success then
         print("✅ Vote to start sent")
