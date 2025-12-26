@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1944,7 +1944,7 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
     
     local challengeData = challenges[challengeType][challengeNumber]
     
-    -- ✅ NEW: Check if challenge is already completed
+    -- ✅ Check if challenge is already completed in data
     if challengeData.Completed == true then
         print(string.format("⚠️ Challenge already completed: %s #%d (Map: %s Act %s)", 
             challengeType, challengeNumber, challengeData.Map, challengeData.Act))
@@ -1973,6 +1973,33 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
     
     if success then
         print("✅ Challenge join request sent via API")
+        
+        -- ✅ Wait and check for "already beaten" error popup
+        task.wait(1)
+        
+        local errorDetected = waitForChallengeError(3)
+        
+        if errorDetected then
+            print("⚠️ 'Already beaten' error detected - challenge completed")
+            
+            -- Close error popup
+            pcall(function()
+                local LobbyUi = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
+                if LobbyUi then
+                    local closeButton = LobbyUi.Messages.Middle.MessageList.Error.CloseButton
+                    if closeButton then
+                        for _, conn in pairs(getconnections(closeButton.MouseButton1Down)) do
+                            if conn.Enabled then conn:Fire() end
+                        end
+                    end
+                end
+            end)
+            
+            task.wait(0.3)
+            
+            return "already_completed"
+        end
+        
         return true
     else
         warn("❌ Challenge join failed")
@@ -2033,124 +2060,6 @@ local function startGameViaAPI()
         warn("❌ Failed to vote start")
         return false
     end
-end
-
-local function activatePodUI(podName)
-    -- Find the pod in workspace
-    local podsFolder = workspace:FindFirstChild("Pods")
-    if not podsFolder then
-        warn("Pods folder not found in workspace")
-        return false
-    end
-    
-    local pod = podsFolder:FindFirstChild(podName)
-    if not pod then
-        warn(string.format("Pod '%s' not found", podName))
-        return false
-    end
-    
-    -- Find the TouchPart
-    local touchPart = nil
-    for _, child in pairs(pod:GetDescendants()) do
-        if child.Name == "TouchPart" and child:IsA("BasePart") then
-            touchPart = child
-            break
-        end
-    end
-    
-    if not touchPart then
-        warn(string.format("TouchPart not found in pod '%s'", podName))
-        return false
-    end
-    
-    -- Get player references
-    local player = Services.Players.LocalPlayer
-    local character = player.Character
-    if not character then
-        warn("Character not found")
-        return false
-    end
-    
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then
-        warn("HumanoidRootPart not found")
-        return false
-    end
-    
-    -- Try up to 3 times to activate the pod
-    for attempt = 1, 3 do
-        --print(string.format("Attempt %d: Teleporting to %s pod TouchPart...", attempt, podName))
-        
-        -- If this is a retry, teleport to spawn location first
-        if attempt > 1 then
-            local success = pcall(function()
-                local teleportLocation = workspace.Zones.TeleportLocations:FindFirstChild("Story")
-                if teleportLocation then
-                    humanoidRootPart.CFrame = teleportLocation.CFrame
-                    --print(string.format("Teleported to spawn location: %s", teleportLocationName))
-                else
-                    -- Fallback: teleport 10 studs away
-                    local awayPosition = touchPart.CFrame * CFrame.new(0, 0, 10)
-                    humanoidRootPart.CFrame = awayPosition
-                    --print("Spawn location not found - using fallback position")
-                end
-            end)
-            
-            if not success then
-                -- Fallback if pcall fails
-                local awayPosition = touchPart.CFrame * CFrame.new(0, 0, 10)
-                humanoidRootPart.CFrame = awayPosition
-            end
-            
-            task.wait(0.5) -- Wait a moment before trying again
-        end
-        
-        -- Teleport to TouchPart position
-        humanoidRootPart.CFrame = touchPart.CFrame
-        
-        -- Wait for UI to activate
-        task.wait(1) -- Give it a moment to register the touch
-        
-        local lobbyUi = player.PlayerGui:FindFirstChild("LobbyUi")
-        if not lobbyUi then
-            warn("LobbyUi not found")
-            if attempt < 3 then
-                print("Retrying...")
-                continue
-            end
-            return false
-        end
-        
-        local startPod = lobbyUi:FindFirstChild("StartPod")
-        if not startPod then
-            warn("StartPod not found")
-            if attempt < 3 then
-                print("Retrying...")
-                continue
-            end
-            return false
-        end
-        
-        -- Wait for StartPod to be enabled
-        local timeout = 0
-        while not startPod.Enabled and timeout < 30 do
-            task.wait(0.1)
-            timeout = timeout + 1
-        end
-        
-        if startPod.Enabled then
-            print(string.format("✓ Successfully activated %s pod UI on attempt %d", podName, attempt))
-            return true
-        else
-            warn(string.format("StartPod UI did not activate on attempt %d", attempt))
-            if attempt < 3 then
-                print("Retrying...")
-            end
-        end
-    end
-    
-    --warn(string.format("Failed to activate pod UI after 3 attempts"))
-    return false
 end
 
 local function getCurrentChallengesData()
@@ -2335,427 +2244,6 @@ local function findAllMatchingChallenges(challengesData, challengeType)
     return matchingChallenges
 end
 
-local function tryJoinChallengeByIndex(challenge, worldsFrame, LobbyUi)
-    -- Find the Half Hourly challenge card in UI
-    for _, challengeCard in pairs(worldsFrame:GetChildren()) do
-        if challengeCard:FindFirstChild("Container") then
-            local container = challengeCard.Container
-            local leftInfo = container:FindFirstChild("LeftInfo")
-            
-            if leftInfo then
-                local questName = leftInfo:FindFirstChild("QuestName")
-                if not questName then continue end
-                
-                local challengeName = questName.Text
-                
-                -- Check if this is Half Hourly challenge
-                if challengeName:match("Half Hourly") then
-                    -- Click the challenge card
-                    local hitbox = challengeCard:FindFirstChild("Hitbox")
-                    if hitbox then
-                        for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
-                            if conn.Enabled then conn:Fire() end
-                        end
-                        task.wait(0.5)
-                        
-                        -- Select the specific act
-                        local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
-                        if actsContainer then
-                            local actButtons = {}
-                            for _, actButton in pairs(actsContainer:GetChildren()) do
-                                if actButton:FindFirstChild("Container") then
-                                    table.insert(actButtons, actButton)
-                                end
-                            end
-                            
-                            table.sort(actButtons, function(a, b)
-                                if a.LayoutOrder ~= b.LayoutOrder then
-                                    return a.LayoutOrder < b.LayoutOrder
-                                end
-                                return a.AbsolutePosition.X < b.AbsolutePosition.X
-                            end)
-                            
-                            local targetActButton = actButtons[challenge.index]
-                            
-                            if targetActButton then
-                                local actHitbox = targetActButton:FindFirstChild("Hitbox")
-                                if actHitbox then
-                                    for _, actConn in pairs(getconnections(actHitbox.MouseButton1Down)) do
-                                        if actConn.Enabled then actConn:Fire() end
-                                    end
-                                    task.wait(0.3)
-                                end
-                            end
-                        end
-                        
-                        -- Click select button
-                        local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
-                        for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
-                            if selectConn.Enabled then selectConn:Fire() end
-                        end
-                        
-                        -- ✅ Check for "already completed" error
-                        task.wait(0.5)
-                        if waitForChallengeError(2) then
-                            print("⚠️ Challenge already completed")
-                            
-                            -- Close error popup
-                            pcall(function()
-                                local closeButton = LobbyUi.WorldsFrame.Worlds.TopBar.CloseFrame
-                                if closeButton then
-                                    for _, conn in pairs(getconnections(closeButton.MouseButton1Down)) do
-                                        if conn.Enabled then conn:Fire() end
-                                    end
-                                end
-                                task.wait(0.3)
-                            end)
-                            
-                            return "already_completed" -- ✅ Signal to try next challenge
-                        end
-                        
-                        -- No error - continue to start
-                        task.wait(0.3)
-                        
-                        -- Click start button
-                        local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                        for _, startConn in pairs(getconnections(startButton.MouseButton1Up)) do
-                            if startConn.Enabled then startConn:Fire() end
-                        end
-                        
-                        print(string.format("✓ Successfully joined Half Hourly challenge (Map: %s, Act: %d, Reward: %s)", 
-                            challenge.data.Map, challenge.data.Act, challenge.data.Reward))
-                        
-                        return true
-                    end
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
-local function handleChallengeSelection()
-    local PlayerGui = Services.Players.LocalPlayer.PlayerGui
-    local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
-    
-    task.wait(1)
-    
-    local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
-    if not worldsFrame then
-        warn("Worlds frame not found")
-        return false, "none"
-    end
-    
-    -- Priority 1: Regular Challenges with filtering
-    if State.AutoJoinChallenge then
-        print("Looking for Half Hourly challenges with filtering...")
-        
-        local challengesData = getCurrentChallengesData()
-        
-        if not challengesData then
-            warn("Could not get challenges data from ChallengeController")
-        else
-            print("✓ Got challenges data from ChallengeController")
-            
-            local typeChallenges = challengesData["HalfHour"]
-            if typeChallenges then
-                -- ✅ NEW: Get ALL matching challenges (not just best one)
-                local matchingChallenges = findAllMatchingChallenges(typeChallenges, "HalfHour")
-                
-                if #matchingChallenges > 0 then
-                    print(string.format("Found %d matching challenges", #matchingChallenges))
-                    
-                    -- ✅ Try each matching challenge in order
-                    for attemptNum, challenge in ipairs(matchingChallenges) do
-                        print(string.format("Attempting challenge %d/%d: Index %d, Map=%s, Act=%d, Reward=%s", 
-                            attemptNum, #matchingChallenges, challenge.index, 
-                            challenge.data.Map, challenge.data.Act, challenge.data.Reward))
-                        
-                        -- Find and click this challenge in the UI
-                        local success = tryJoinChallengeByIndex(challenge, worldsFrame, LobbyUi)
-                        
-                        if success == "already_completed" then
-                            print("Challenge already completed - trying next one...")
-                            continue -- ✅ Try the next matching challenge
-                        elseif success == true then
-                            print("✅ Successfully joined challenge!")
-                            return true, "regular"
-                        else
-                            warn("Failed to join challenge - trying next one...")
-                            continue
-                        end
-                    end
-                    
-                    -- ✅ All matching challenges exhausted
-                    print("All matching Half Hourly challenges already completed")
-                else
-                    print("No Half Hourly challenges match the filters")
-                end
-            else
-                print("No Half Hourly challenges found in data")
-            end
-        end
-    end
-    
-    -- Priority 2: Featured Challenge (fallback)
-    if State.AutoJoinFeaturedChallenge then
-        print("Looking for Featured Challenge...")
-        
-        for _, challengeCard in pairs(worldsFrame:GetChildren()) do
-            if challengeCard:FindFirstChild("Container") then
-                local container = challengeCard.Container
-                local leftInfo = container:FindFirstChild("LeftInfo")
-                
-                if leftInfo then
-                    local questName = leftInfo:FindFirstChild("QuestName")
-                    if questName and questName.Text == "Featured Challenge" then
-                        print("✓ Found Featured Challenge!")
-                        
-                        local hitbox = challengeCard:FindFirstChild("Hitbox")
-                        if hitbox then
-                            for _, conn in pairs(getconnections(hitbox.MouseButton1Down)) do
-                                if conn.Enabled then
-                                    conn:Fire()
-                                end
-                            end
-                            task.wait(0.3)
-                            
-                            local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
-                            for _, selectConn in pairs(getconnections(selectButton.MouseButton1Down)) do
-                                if selectConn.Enabled then
-                                    selectConn:Fire()
-                                end
-                            end
-                            task.wait(0.3)
-                            
-                            local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-                            for _, startConn in pairs(getconnections(startButton.MouseButton1Up)) do
-                                if startConn.Enabled then
-                                    startConn:Fire()
-                                end
-                            end
-                            
-                            print("✓ Successfully joined Featured Challenge")
-                            return true, "featured"
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    warn("No matching challenges found")
-
-    pcall(function()
-        local closeButton = LobbyUi.WorldsFrame.Worlds.TopBar.CloseFrame
-        if closeButton then
-            for _, conn in pairs(getconnections(closeButton.MouseButton1Down)) do
-                if conn.Enabled then conn:Fire() end
-            end
-        end
-        
-        task.wait(0.3)
-        
-        local quitButton = LobbyUi.StartPod.Main.Buttons.Container.Leave.Hitbox
-        if quitButton then
-            for _, conn in pairs(getconnections(quitButton.MouseButton1Down)) do
-                if conn.Enabled then conn:Fire() end
-            end
-        end
-    end)
-    
-    warn("No matching challenges available to join")
-    return false, "none"
-end
-
-local function autoJoinGameViaUI(gameMode, worldName, actNumber, difficulty, difficultyPercent)
-    -- Step 0: Activate the correct pod UI based on game mode
-    local podName = nil
-    if gameMode == "Virtual" then
-        podName = "VirtualRealm"
-    elseif gameMode == "Challenge" then
-        podName = "Challenge"
-    elseif gameMode == "Story" then
-        podName = "Story"
-    elseif gameMode == "Legend" then
-        podName = "Story" -- Legend stages also use Story pod
-    end
-    
-    if podName then
-        print(string.format("Activating %s pod UI...", podName))
-        local activated = activatePodUI(podName)
-        if not activated then
-            warn("Failed to activate pod UI")
-            return false
-        end
-        task.wait(0.5)
-    end
-    
-    local PlayerGui = game:GetService("Players").LocalPlayer.PlayerGui
-    local LobbyUi = PlayerGui:WaitForChild("LobbyUi")
-    
-    -- Step 1: Open the create game menu
-    local createButton = LobbyUi.StartPod.Main.Buttons.Create.Hitbox
-    for _, conn in pairs(getconnections(createButton.MouseButton1Down)) do
-        if conn.Enabled then
-            conn:Fire()
-        end
-    end
-    task.wait(0.5)
-    
-    -- Step 2: For Virtual and Challenge, skip mode selection (no mode button exists)
-    -- For Story and Legend, select the game mode
-    if gameMode == "Story" or gameMode == "Legend" then
-        local worldMode = LobbyUi.WorldsFrame.Worlds.WorldMode
-        local modeButton = nil
-        
-        if gameMode == "Story" then
-            modeButton = worldMode:FindFirstChild("Story")
-        elseif gameMode == "Legend" then
-            modeButton = worldMode:FindFirstChild("Legend")
-        end
-        
-        if modeButton and modeButton:FindFirstChild("Hitbox") then
-            for _, conn in pairs(getconnections(modeButton.Hitbox.MouseButton1Down)) do
-                if conn.Enabled then
-                    conn:Fire()
-                end
-            end
-            task.wait(0.5)
-        else
-            warn("Game mode button not found:", gameMode)
-            return false
-        end
-    end
-    
-    -- For Challenge mode, handle challenge selection
-    if gameMode == "Challenge" then
-        print("Challenge mode selected - handling challenge selection")
-        return handleChallengeSelection()
-    end
-    
-    -- Step 3: Find and select the world (for Story/Legend/Virtual)
-    local worldsFrame = LobbyUi.WorldsFrame.Worlds.Content.Worlds.frame
-    local foundWorld = false
-    
-    for _, worldButton in pairs(worldsFrame:GetChildren()) do
-        if worldButton:FindFirstChild("Container") then
-            local questName = worldButton.Container.LeftInfo.QuestName
-            if questName.Text == worldName then
-                for _, conn in pairs(getconnections(worldButton.Hitbox.MouseButton1Down)) do
-                    if conn.Enabled then
-                        conn:Fire()
-                    end
-                end
-                foundWorld = true
-                break
-            end
-        end
-    end
-    
-    if not foundWorld then
-        warn("World not found:", worldName)
-        return false
-    end
-    task.wait(0.3)
-    
-    -- Step 4: Select the act
-    local actsContainer = LobbyUi.WorldsFrame.Worlds.Content.Acts.Container
-    local foundAct = false
-    
-    if actNumber == "Infinite" or tostring(actNumber) == "Infinite" then
-        print("Looking for Infinite act...")
-        for _, actButton in pairs(actsContainer:GetChildren()) do
-            if actButton:FindFirstChild("Container") then
-                local actNum = actButton.Container.ActNumber
-                if actNum.Text == "∞" or actNum.Text:lower():find("infinite") then
-                    for _, conn in pairs(getconnections(actButton.Hitbox.MouseButton1Down)) do
-                        if conn.Enabled then
-                            conn:Fire()
-                        end
-                    end
-                    foundAct = true
-                    print("✓ Found Infinite act")
-                    break
-                end
-            end
-        end
-    else
-        -- Regular numbered acts
-        for _, actButton in pairs(actsContainer:GetChildren()) do
-            if actButton:FindFirstChild("Container") then
-                local actNum = actButton.Container.ActNumber
-                if actNum.Text == "Act " .. tostring(actNumber) then
-                    for _, conn in pairs(getconnections(actButton.Hitbox.MouseButton1Down)) do
-                        if conn.Enabled then
-                            conn:Fire()
-                        end
-                    end
-                    foundAct = true
-                    break
-                end
-            end
-        end
-    end
-    
-    if not foundAct then
-        warn("Act not found:", actNumber)
-        return false
-    end
-    task.wait(0.3)
-    
-    -- Step 5: Set difficulty (if applicable - Legend stages might not have this)
-    if difficulty then
-        local difficultiesContainer = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.DifficultiesContainer
-        local difficultyButton = difficultiesContainer:FindFirstChild(difficulty)
-        
-        if difficultyButton then
-            for _, conn in pairs(getconnections(difficultyButton.TextButton.MouseButton1Down)) do
-                if conn.Enabled then
-                    conn:Fire()
-                end
-            end
-            task.wait(0.3)
-        else
-            warn("Difficulty not found:", difficulty)
-        end
-    end
-    
-    -- Step 6: Set difficulty meter percentage
-    local modulationFrame = LobbyUi.WorldsFrame.Worlds.Content.Description.Content.Main.Container.BottomInfo.Modulation
-    
-    for _, child in pairs(modulationFrame:GetDescendants()) do
-        if child:IsA("TextBox") then
-            child.Text = tostring(difficultyPercent)
-            for _, conn in pairs(getconnections(child.FocusLost)) do
-                conn:Fire()
-            end
-            break
-        end
-    end
-    task.wait(0.3)
-    
-    -- Step 7: Create the lobby
-    local selectButton = LobbyUi.WorldsFrame.Worlds.Content.Description.Actions.Container.SelectButton.TextButton
-    for _, conn in pairs(getconnections(selectButton.MouseButton1Down)) do
-        if conn.Enabled then
-            conn:Fire()
-        end
-    end
-    task.wait(0.3)
-    
-    -- Step 8: Start game
-    local startButton = LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-    for _, conn in pairs(getconnections(startButton.MouseButton1Up)) do
-        if conn.Enabled then
-            conn:Fire()
-        end
-    end
-    
-    return true
-end
-
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
@@ -2771,68 +2259,71 @@ local function checkAndExecuteHighestPriority()
         end
     end
 
-    -- Priority 1: Challenge Auto Join
-    if (State.AutoJoinFeaturedChallenge or State.AutoJoinChallenge) then
-    local regularChallengeOnCooldown = false
-
+    -- Priority 1: Regular Challenge Auto Join
     if State.AutoJoinChallenge then
+        local regularChallengeOnCooldown = false
         local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
         
         if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
             regularChallengeOnCooldown = true
         end
-    end
-    
-    -- ✅ Try Regular Challenge first (if enabled and not on cooldown)
-    if State.AutoJoinChallenge and not regularChallengeOnCooldown then
-        setProcessingState("Challenge Auto Join")
         
-        local challenges = getCurrentChallengesData()
-        
-        if challenges and challenges["HalfHour"] then
-            local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
+        if not regularChallengeOnCooldown then
+            setProcessingState("Challenge Auto Join")
             
-            if #matchingChallenges > 0 then
-                for _, challenge in ipairs(matchingChallenges) do
-                    local success = joinChallengeViaAPI("HalfHour", challenge.index)
+            local challenges = getCurrentChallengesData()
+            
+            if challenges and challenges["HalfHour"] then
+                local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
+                
+                if #matchingChallenges > 0 then
+                    print(string.format("Found %d matching challenges", #matchingChallenges))
                     
-                    if success == true then
-                        print("✅ Successfully joined challenge via API!")
-                        State.LastFailedChallengeAttempt = 0
-                        task.wait(2)
-                        startGameViaAPI()
+                    -- ✅ Try each matching challenge in order
+                    local joinedSuccessfully = false
+                    
+                    for attemptNum, challenge in ipairs(matchingChallenges) do
+                        print(string.format("Attempting challenge %d/%d: Index %d, Map=%s, Act=%d, Reward=%s", 
+                            attemptNum, #matchingChallenges, challenge.index, 
+                            challenge.data.Map, challenge.data.Act, challenge.data.Reward))
                         
-                        -- ✅ Wait before clearing, then return
-                        task.wait(5)
-                        clearProcessingState()
-                        return  -- ✅ EXIT immediately after success
-                    elseif success == "already_completed" then
-                        print("⚠️ Challenge already completed - trying next one...")
-                        continue
-                    else
-                        warn("❌ Failed to join challenge - trying next one...")
-                        continue
+                        local success = joinChallengeViaAPI("HalfHour", challenge.index)
+                        
+                        if success == true then
+                            print("✅ Successfully joined challenge via API!")
+                            State.LastFailedChallengeAttempt = 0
+                            task.wait(2)
+                            startGameViaAPI()
+                            task.wait(5)
+                            clearProcessingState()
+                            return  -- ✅ EXIT - successfully joined
+                        elseif success == "already_completed" then
+                            print("⚠️ Challenge already completed - trying next one...")
+                            continue  -- ✅ Try next matching challenge
+                        else
+                            warn("❌ Failed to join challenge - trying next one...")
+                            continue  -- ✅ Try next matching challenge
+                        end
                     end
                     
-                    task.wait(1)
+                    -- If we got here, all challenges failed
+                    print("⚠️ All matching Half Hourly challenges completed or failed")
+                    State.LastFailedChallengeAttempt = tick()
+                else
+                    print("⚠️ No Half Hourly challenges match filters")
+                    State.LastFailedChallengeAttempt = tick()
                 end
-                
-                print("⚠️ All matching Half Hourly challenges completed")
-                State.LastFailedChallengeAttempt = tick()
             else
-                print("⚠️ No Half Hourly challenges match filters")
+                print("⚠️ No Half Hourly challenges available")
                 State.LastFailedChallengeAttempt = tick()
             end
-        else
-            print("⚠️ No Half Hourly challenges available")
-            State.LastFailedChallengeAttempt = tick()
+            
+            clearProcessingState()
+            -- ✅ Fall through to next priority (Featured Challenge, Story, etc.)
         end
-        
-        clearProcessingState()
-        -- ✅ Don't return here - let featured run as fallback
     end
     
-    -- ✅ Only try Featured Challenge if Regular Challenge didn't succeed
+    -- Priority 2: Featured Challenge Auto Join
     if State.AutoJoinFeaturedChallenge then
         setProcessingState("Featured Challenge Auto Join")
         
@@ -2842,84 +2333,85 @@ local function checkAndExecuteHighestPriority()
             print("✅ Successfully joined Featured Challenge via API!")
             task.wait(2)
             startGameViaAPI()
-            
-            -- ✅ Wait before clearing, then return
             task.wait(5)
             clearProcessingState()
-            return
+            return  -- ✅ EXIT - successfully joined
         end
         
         clearProcessingState()
+        -- ✅ Fall through to next priority
     end
-end
 
-    -- Priority 2: Story Auto Join
+    -- Priority 3: Story Auto Join
     if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and 
-   State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
-    setProcessingState("Story Auto Join")
-    
-    local success = joinStoryViaAPI(
-        State.StoryStageSelected,
-        State.StoryActSelected,
-        State.StoryDifficultySelected,
-        State.StoryDifficultyMeterSelected
-    )
-    
-    if success then
-        print("✅ Successfully joined Story via API!")
-        task.wait(2) -- ✅ Wait for lobby to create
-        startGameViaAPI() -- ✅ Start the game
-        task.delay(5, clearProcessingState)
-        return
-    else
-        clearProcessingState()
+       State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
+        setProcessingState("Story Auto Join")
+        
+        local success = joinStoryViaAPI(
+            State.StoryStageSelected,
+            State.StoryActSelected,
+            State.StoryDifficultySelected,
+            State.StoryDifficultyMeterSelected
+        )
+        
+        if success then
+            print("✅ Successfully joined Story via API!")
+            task.wait(2)
+            startGameViaAPI()
+            task.wait(5)
+            clearProcessingState()
+            return  -- ✅ EXIT - successfully joined
+        else
+            clearProcessingState()
+        end
     end
-end
 
--- Priority 3: Legend Stage Auto Join
-if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and 
-   State.LegendStageDifficultyMeterSelected then
-    setProcessingState("Legend Stage Auto Join")
-    
-    local success = joinLegendViaAPI(
-        State.LegendStageSelected,
-        tonumber(State.LegendStageActSelected),
-        State.LegendStageDifficultyMeterSelected
-    )
-    
-    if success then
-        print("✅ Successfully joined Legend Stage via API!")
-        task.wait(2) -- ✅ Wait for lobby to create
-        startGameViaAPI() -- ✅ Start the game
-        task.delay(5, clearProcessingState)
-        return
-    else
-        clearProcessingState()
+    -- Priority 4: Legend Stage Auto Join
+    if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and 
+       State.LegendStageDifficultyMeterSelected then
+        setProcessingState("Legend Stage Auto Join")
+        
+        local success = joinLegendViaAPI(
+            State.LegendStageSelected,
+            tonumber(State.LegendStageActSelected),
+            State.LegendStageDifficultyMeterSelected
+        )
+        
+        if success then
+            print("✅ Successfully joined Legend Stage via API!")
+            task.wait(2)
+            startGameViaAPI()
+            task.wait(5)
+            clearProcessingState()
+            return  -- ✅ EXIT - successfully joined
+        else
+            clearProcessingState()
+        end
     end
-end
 
--- Priority 4: Virtual Stage Auto Join
-if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and 
-   State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
-    setProcessingState("Virtual Stage Auto Join")
-    
-    local success = joinVirtualViaAPI(
-        State.VirtualStageSelected,
-        tonumber(State.VirtualStageActSelected),
-        State.VirtualStageDifficultySelected,
-        State.VirtualStageDifficultyMeterSelected
-    )
-    
-    if success then
-        print("✅ Successfully joined Virtual Stage via API!")
-        task.wait(2) -- ✅ Wait for lobby to create
-        startGameViaAPI() -- ✅ Start the game
-        task.delay(5, clearProcessingState)
-        return
-    else
-        clearProcessingState()
+    -- Priority 5: Virtual Stage Auto Join
+    if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and 
+       State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
+        setProcessingState("Virtual Stage Auto Join")
+        
+        local success = joinVirtualViaAPI(
+            State.VirtualStageSelected,
+            tonumber(State.VirtualStageActSelected),
+            State.VirtualStageDifficultySelected,
+            State.VirtualStageDifficultyMeterSelected
+        )
+        
+        if success then
+            print("✅ Successfully joined Virtual Stage via API!")
+            task.wait(2)
+            startGameViaAPI()
+            task.wait(5)
+            clearProcessingState()
+            return  -- ✅ EXIT - successfully joined
+        else
+            clearProcessingState()
+        end
     end
-end
 end
 
 --[[--------------------------------------------------------------]]
