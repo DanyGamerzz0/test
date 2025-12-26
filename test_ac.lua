@@ -1,4 +1,4 @@
-    -- 2
+    -- 24
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -124,14 +124,7 @@ local isRecordingLoopRunning = false
 local recordingHasStarted = false
 local currentChallenge = nil
 local macroHasPlayedThisGame = false
-local waveStartTimes = {}
 local trackedUnits = {}
-local statusUpdateQueue = {
-    macroStatus = nil,
-    detailedStatus = nil
-}
-
-local lastRecordedUpgrade = {}
 local recordingSpawnIdToPlacement = {} -- spawn_id -> "Shadow #1"
 local recordingPlacementCounter = {} -- "Shadow" -> 3 (how many placed so far)
 local recordingUnitNameToSpawnId = {}
@@ -1641,8 +1634,6 @@ local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionC
     return false
 end
 
-    local playbackWaveStartTimes = {}
-
     -- ========== EXISTING FUNCTIONS (keep all your existing functions) ==========
 
     local function getItemDisplayName(itemName)
@@ -2214,7 +2205,6 @@ end
             
             waveNum.Changed:Connect(function(newWave)
                 if isRecording and recordingHasStarted then
-                    waveStartTimes[newWave] = tick()
                     print(string.format("Wave %d started during recording", newWave))
                 end
             end)
@@ -3638,7 +3628,9 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
             return
         end
         
-        -- NEW: Store both display name AND actual item name
+        -- Remove tier suffix if present (e.g., "Christmas Portal (Tier 3)" -> "Christmas Portal")
+        local baseName = selectedDisplayName:match("^(.+) %(Tier %d+%)$") or selectedDisplayName
+        
         local success, portalInfo = pcall(function()
             local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
             
@@ -3649,13 +3641,12 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
                     for levelKey, levelInfo in pairs(moduleData) do
                         if type(levelInfo) == "table" and 
                            levelInfo._portal_only_level == true and 
-                           levelInfo.name == selectedDisplayName then
+                           levelInfo.name == baseName then
                             
-                            -- Return BOTH the id (ChristmasLevel) and the key (portal_christmas)
                             return {
-                                id = levelInfo.id,          -- "ChristmasLevel"
-                                key = levelKey,             -- "portal_christmas"
-                                name = levelInfo.name       -- "Frozen Ruins - Base"
+                                id = levelInfo.id,
+                                key = levelKey,
+                                name = levelInfo.name
                             }
                         end
                     end
@@ -3665,7 +3656,7 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
         end)
         
         if success and portalInfo then
-            State.SelectedPortal = portalInfo.key  -- Use the MODULE KEY, not the ID!
+            State.SelectedPortal = portalInfo.key
             print("Selected portal:", selectedDisplayName)
             print("  Backend ID:", portalInfo.id)
             print("  Module Key (used for item lookup):", portalInfo.key)
@@ -4342,6 +4333,33 @@ task.spawn(setupCardSelectionMonitoring)
         end
     end
 
+    local function getPortalTierFromGC(portalLevelId)
+    local success, portalData = pcall(function()
+        for _, obj in pairs(getgc(true)) do
+            if type(obj) == "table" and obj._unique_portal_data then
+                local uniqueData = obj._unique_portal_data
+                if uniqueData.level_id == portalLevelId then
+                    return {
+                        tier = uniqueData.portal_depth or 0,
+                        maxTries = obj._portal_max_tries or 0,
+                        currentTries = obj._portal_tries or 0,
+                        hasTiers = (uniqueData.portal_depth or 0) > 0
+                    }
+                end
+            end
+        end
+        return nil
+    end)
+    
+    if success and portalData then
+        print(string.format("Found portal data for %s: Tier %d, Tries: %d/%d", 
+            portalLevelId, portalData.tier, portalData.currentTries, portalData.maxTries))
+        return portalData
+    end
+    
+    return nil
+end
+
 local function loadPortalsWithRetry()
     loadingRetries.portal = loadingRetries.portal or 0
     loadingRetries.portal = loadingRetries.portal + 1
@@ -4377,8 +4395,17 @@ local function loadPortalsWithRetry()
                            levelInfo._portal_only_level == true and 
                            levelInfo.name and 
                            levelInfo.id then
-                            table.insert(portalOptions, levelInfo.name)
-                            print("  ✓ Found portal:", levelInfo.name, "| Module Key:", levelKey, "| ID:", levelInfo.id)
+                            
+                            -- Get tier info from GC if available
+                            local portalGCData = getPortalTierFromGC(levelInfo.id)
+                            local displayName = levelInfo.name
+                            
+                            if portalGCData and portalGCData.hasTiers then
+                                displayName = string.format("%s (Tier %d)", levelInfo.name, portalGCData.tier)
+                            end
+                            
+                            table.insert(portalOptions, displayName)
+                            print("  ✓ Found portal:", displayName, "| Module Key:", levelKey, "| ID:", levelInfo.id)
                         end
                     end
                 else
