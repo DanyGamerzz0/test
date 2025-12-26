@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.06"
+local script_version = "V0.07"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2801,9 +2801,7 @@ local function checkAndExecuteHighestPriority()
         end
     end
     
-    local regularChallengeSucceeded = false  -- ✅ NEW: Track if regular challenge worked
-    
-    -- Try Regular Challenge (if not on cooldown)
+    -- ✅ Try Regular Challenge first (if enabled and not on cooldown)
     if State.AutoJoinChallenge and not regularChallengeOnCooldown then
         setProcessingState("Challenge Auto Join")
         
@@ -2821,9 +2819,11 @@ local function checkAndExecuteHighestPriority()
                         State.LastFailedChallengeAttempt = 0
                         task.wait(2)
                         startGameViaAPI()
-                        task.delay(5, clearProcessingState)
-                        regularChallengeSucceeded = true  -- ✅ Mark as succeeded
-                        return  -- ✅ Exit immediately - don't try featured
+                        
+                        -- ✅ Wait before clearing, then return
+                        task.wait(5)
+                        clearProcessingState()
+                        return  -- ✅ EXIT immediately after success
                     elseif success == "already_completed" then
                         print("⚠️ Challenge already completed - trying next one...")
                         continue
@@ -2835,22 +2835,23 @@ local function checkAndExecuteHighestPriority()
                     task.wait(1)
                 end
                 
-                print("⚠️ All matching Half Hourly challenges completed - moving to next priority")
+                print("⚠️ All matching Half Hourly challenges completed")
                 State.LastFailedChallengeAttempt = tick()
             else
-                print("⚠️ No Half Hourly challenges match filters - moving to next priority")
+                print("⚠️ No Half Hourly challenges match filters")
                 State.LastFailedChallengeAttempt = tick()
             end
         else
-            print("⚠️ No Half Hourly challenges available - moving to next priority")
+            print("⚠️ No Half Hourly challenges available")
             State.LastFailedChallengeAttempt = tick()
         end
         
         clearProcessingState()
+        -- ✅ Don't return here - let featured run as fallback
     end
     
-    -- ✅ Only try Featured Challenge if Regular Challenge failed or is disabled
-    if State.AutoJoinFeaturedChallenge and not regularChallengeSucceeded then
+    -- ✅ Only try Featured Challenge if Regular Challenge didn't succeed
+    if State.AutoJoinFeaturedChallenge then
         setProcessingState("Featured Challenge Auto Join")
         
         local success = joinFeaturedChallengeViaAPI()
@@ -2858,8 +2859,11 @@ local function checkAndExecuteHighestPriority()
         if success then
             print("✅ Successfully joined Featured Challenge via API!")
             task.wait(2)
-            startGameViaAPI() 
-            task.delay(5, clearProcessingState)
+            startGameViaAPI()
+            
+            -- ✅ Wait before clearing, then return
+            task.wait(5)
+            clearProcessingState()
             return
         end
         
@@ -5580,7 +5584,7 @@ task.spawn(function()
             local currentWave = workspace:GetAttribute("Wave") or 0
             local matchFinished = workspace:GetAttribute("MatchFinished")
             
-            if currentWave == 0 and not matchFinished then
+            if currentWave == 0 then
                 print("Auto Start Game enabled - Voting to start...")
 
                 -- ✅ NEW: Check and switch macro BEFORE starting
@@ -5602,6 +5606,11 @@ task.spawn(function()
                         :WaitForChild("RF")
                         :WaitForChild("Vote")
                         :InvokeServer(true)
+
+                        local skipButton = Services.Players.LocalPlayer.PlayerGui.GameUI.HUD.Vote.Button.TextButton
+                        for _, startConn in pairs(getconnections(skipButton.MouseButton1Up)) do
+                            if startConn.Enabled then startConn:Fire() end
+                        end
                 end)
                 
                 if success then
