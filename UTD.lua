@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1928,6 +1928,44 @@ local function joinVirtualViaAPI(mapUIName, act, difficulty, difficultyPercent)
     end
 end
 
+local function waitForChallengeError(timeout)
+    local startTime = tick()
+    timeout = timeout or 3 -- Default 3 second timeout
+    
+    while tick() - startTime < timeout do
+        local success, errorDetected = pcall(function()
+            local messageList = Services.Players.LocalPlayer.PlayerGui.LobbyUi.Messages.Middle.MessageList
+            local errorFrame = messageList:FindFirstChild("Error")
+            
+            if errorFrame then
+                local messageText = errorFrame:FindFirstChild("Frame")
+                if messageText then
+                    messageText = messageText:FindFirstChild("MessageText")
+                    if messageText then
+                        local text = messageText.Text
+                        
+                        -- Check for "already beaten" message
+                        if text:lower():find("already beaten") or text:lower():find("already completed") then
+                            --print("✓ Detected challenge completion error:", text)
+                            return true
+                        end
+                    end
+                end
+            end
+            
+            return false
+        end)
+        
+        if success and errorDetected then
+            return true
+        end
+        
+        task.wait(0.1)
+    end
+    
+    return false
+end
+
 local function joinChallengeViaAPI(challengeType, challengeNumber)
     if not PodController or not ChallengeController then
         warn("Controllers not initialized")
@@ -2171,44 +2209,6 @@ local function challengeMatchesFilters(challengeData)
     
     --print("✓ Challenge passed all filters!")
     return true
-end
-
-local function waitForChallengeError(timeout)
-    local startTime = tick()
-    timeout = timeout or 3 -- Default 3 second timeout
-    
-    while tick() - startTime < timeout do
-        local success, errorDetected = pcall(function()
-            local messageList = Services.Players.LocalPlayer.PlayerGui.LobbyUi.Messages.Middle.MessageList
-            local errorFrame = messageList:FindFirstChild("Error")
-            
-            if errorFrame then
-                local messageText = errorFrame:FindFirstChild("Frame")
-                if messageText then
-                    messageText = messageText:FindFirstChild("MessageText")
-                    if messageText then
-                        local text = messageText.Text
-                        
-                        -- Check for "already beaten" message
-                        if text:lower():find("already beaten") or text:lower():find("already completed") then
-                            --print("✓ Detected challenge completion error:", text)
-                            return true
-                        end
-                    end
-                end
-            end
-            
-            return false
-        end)
-        
-        if success and errorDetected then
-            return true
-        end
-        
-        task.wait(0.1)
-    end
-    
-    return false
 end
 
 local function findAllMatchingChallenges(challengesData, challengeType)
