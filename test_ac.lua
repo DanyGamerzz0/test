@@ -1,4 +1,4 @@
-    -- 22
+    -- 23
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -3699,19 +3699,6 @@ local function getAllAvailablePortalsWithTiersForDropdown()
     return portalOptions
 end
 
- RefreshPortalTiersButton = JoinerTab:CreateButton({
-    Name = "Refresh Portal Tiers",
-    Callback = function()
-        local portalsWithTiers = getAllAvailablePortalsWithTiersForDropdown()
-        if #portalsWithTiers > 0 then
-            SelectPortalDropdown:Refresh(portalsWithTiers)
-            notify("Portal Refresh", string.format("Updated dropdown with %d portals", #portalsWithTiers))
-        else
-            notify("Portal Refresh", "No portals found in inventory")
-        end
-    end,
-})
-
 local SelectPortalDropdown = JoinerTab:CreateDropdown({
     Name = "Select Portal to join",
     Options = {},
@@ -3768,6 +3755,19 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
             print("  Module Key (used for item lookup):", portalInfo.key)
         else
             warn("Failed to get portal info for:", selectedDisplayName)
+        end
+    end,
+})
+
+ RefreshPortalTiersButton = JoinerTab:CreateButton({
+    Name = "Refresh Portal Tiers",
+    Callback = function()
+        local portalsWithTiers = getAllAvailablePortalsWithTiersForDropdown()
+        if #portalsWithTiers > 0 then
+            SelectPortalDropdown:Refresh(portalsWithTiers)
+            notify("Portal Refresh", string.format("Updated dropdown with %d portals", #portalsWithTiers))
+        else
+            notify("Portal Refresh", "No portals found in inventory")
         end
     end,
 })
