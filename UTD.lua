@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1714,6 +1714,50 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
     end
 end
 
+local function getCurrentWorldKey()
+    local category = workspace:GetAttribute("Category")
+    local mapName = workspace:GetAttribute("MapName") -- UI display name
+    local mapInternal = workspace:GetAttribute("Map") -- Internal module name
+    
+    if not category or not mapName then
+        return nil
+    end
+    
+    -- Normalize category to match our key format
+    local categoryLower = category:lower()
+    
+    -- For Story category (which includes challenges) - use challenge_ prefix
+    if categoryLower == "story" then
+        -- Check if it's featured challenge (Frozen Stronghold)
+        if mapName:lower():find("frozen") or mapName == "Frozen Stronghold" then
+            return "challenge_featured"
+        end
+        
+        -- Regular challenge - ALWAYS use UI mapName with underscores (to match dropdown keys)
+        return "challenge_" .. mapName:lower():gsub("%s+", "_")
+    end
+    
+    -- For Legend stages - use internal module name if available
+    if categoryLower == "legend" then
+        if mapInternal then
+            return "legend_" .. mapInternal:lower()
+        else
+            -- Fallback: convert UI name to module name using our lookup
+            local moduleName = UINameToModuleName[mapName]
+            if moduleName then
+                return "legend_" .. moduleName:lower()
+            end
+        end
+    end
+    
+    -- For Virtual stages
+    if categoryLower:find("virtual") then
+        return "virtual_" .. mapName:lower():gsub("%s+", "_")
+    end
+    
+    return nil
+end
+
 local function checkAndSwitchMacroForCurrentWorld()
     -- Only switch if playback is enabled
     if not isPlaybackEnabled then
@@ -2779,6 +2823,7 @@ local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     if not canPerformAction() then return end
+    if not ChallengeController or not PodController then return end
     
     -- Check if lobby creation UI is already open
     if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi") then
@@ -3778,50 +3823,6 @@ local function loadWorldMappings()
     
     print("✓ Loaded world macro mappings")
     return data or {}
-end
-
-local function getCurrentWorldKey()
-    local category = workspace:GetAttribute("Category")
-    local mapName = workspace:GetAttribute("MapName") -- UI display name
-    local mapInternal = workspace:GetAttribute("Map") -- Internal module name
-    
-    if not category or not mapName then
-        return nil
-    end
-    
-    -- Normalize category to match our key format
-    local categoryLower = category:lower()
-    
-    -- For Story category (which includes challenges) - use challenge_ prefix
-    if categoryLower == "story" then
-        -- Check if it's featured challenge (Frozen Stronghold)
-        if mapName:lower():find("frozen") or mapName == "Frozen Stronghold" then
-            return "challenge_featured"
-        end
-        
-        -- Regular challenge - ALWAYS use UI mapName with underscores (to match dropdown keys)
-        return "challenge_" .. mapName:lower():gsub("%s+", "_")
-    end
-    
-    -- For Legend stages - use internal module name if available
-    if categoryLower == "legend" then
-        if mapInternal then
-            return "legend_" .. mapInternal:lower()
-        else
-            -- Fallback: convert UI name to module name using our lookup
-            local moduleName = UINameToModuleName[mapName]
-            if moduleName then
-                return "legend_" .. moduleName:lower()
-            end
-        end
-    end
-    
-    -- For Virtual stages
-    if categoryLower:find("virtual") then
-        return "virtual_" .. mapName:lower():gsub("%s+", "_")
-    end
-    
-    return nil
 end
 
 local function refreshAllWorldDropdowns()
