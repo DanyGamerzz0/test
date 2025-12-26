@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1757,70 +1757,6 @@ end
     end
     
     return nil
-end
-
-local function checkAndSwitchMacroForCurrentWorld()
-    -- Only switch if playback is enabled
-    if not isPlaybackEnabled then
-        return false
-    end
-    
-    -- Try to get world info from workspace attributes
-    local category = workspace:GetAttribute("Category")
-    local mapName = workspace:GetAttribute("MapName")
-    
-    if not category or not mapName then
-        print("⚠️ Could not determine current world - no auto-switch")
-        return false
-    end
-    
-    local worldKey = getCurrentWorldKey()
-    
-    if not worldKey then
-        print("⚠️ Could not generate worldKey - no auto-switch")
-        return false
-    end
-    
-    -- Check if we have a macro mapped for this world
-    if worldMacroMappings[worldKey] then
-        local macroToLoad = worldMacroMappings[worldKey]
-        
-        -- Only switch if it's different from current
-        if currentMacroName ~= macroToLoad then
-            print(string.format("🔄 Pre-game macro switch: %s -> %s (worldKey: %s)", 
-                currentMacroName or "None", macroToLoad, worldKey))
-            
-            currentMacroName = macroToLoad
-            
-            -- Update the dropdown to reflect the change
-            MacroDropdown:Set(macroToLoad)
-            
-            Rayfield:Notify({
-                Title = "Macro Auto-Selected",
-                Content = string.format("%s for %s", macroToLoad, mapName),
-                Duration = 3
-            })
-            
-            return true
-        else
-            print(string.format("ℹ️ Correct macro already selected: %s", currentMacroName))
-            return true
-        end
-    else
-        warn(string.format("⚠️ No macro mapped for %s - using manual selection: %s", 
-            worldKey, currentMacroName or "None"))
-        
-        -- Optionally warn the user
-        if currentMacroName == "" or not currentMacroName then
-            Rayfield:Notify({
-                Title = "No Macro Selected",
-                Content = string.format("No macro mapped for %s", mapName),
-                Duration = 4
-            })
-        end
-        
-        return false
-    end
 end
 
 local function notify(title, content)
@@ -4656,6 +4592,70 @@ local MacroDropdown = Tab:CreateDropdown({
         end
     end,
 })
+
+local function checkAndSwitchMacroForCurrentWorld()
+    -- Only switch if playback is enabled
+    if not isPlaybackEnabled then
+        return false
+    end
+    
+    -- Try to get world info from workspace attributes
+    local category = workspace:GetAttribute("Category")
+    local mapName = workspace:GetAttribute("MapName")
+    
+    if not category or not mapName then
+        print("⚠️ Could not determine current world - no auto-switch")
+        return false
+    end
+    
+    local worldKey = getCurrentWorldKey()
+    
+    if not worldKey then
+        print("⚠️ Could not generate worldKey - no auto-switch")
+        return false
+    end
+    
+    -- Check if we have a macro mapped for this world
+    if worldMacroMappings[worldKey] then
+        local macroToLoad = worldMacroMappings[worldKey]
+        
+        -- Only switch if it's different from current
+        if currentMacroName ~= macroToLoad then
+            print(string.format("🔄 Pre-game macro switch: %s -> %s (worldKey: %s)", 
+                currentMacroName or "None", macroToLoad, worldKey))
+            
+            currentMacroName = macroToLoad
+            
+            -- Update the dropdown to reflect the change
+            MacroDropdown:Set(macroToLoad)
+            
+            Rayfield:Notify({
+                Title = "Macro Auto-Selected",
+                Content = string.format("%s for %s", macroToLoad, mapName),
+                Duration = 3
+            })
+            
+            return true
+        else
+            print(string.format("ℹ️ Correct macro already selected: %s", currentMacroName))
+            return true
+        end
+    else
+        warn(string.format("⚠️ No macro mapped for %s - using manual selection: %s", 
+            worldKey, currentMacroName or "None"))
+        
+        -- Optionally warn the user
+        if currentMacroName == "" or not currentMacroName then
+            Rayfield:Notify({
+                Title = "No Macro Selected",
+                Content = string.format("No macro mapped for %s", mapName),
+                Duration = 4
+            })
+        end
+        
+        return false
+    end
+end
 
 local MacroInput = Tab:CreateInput({
     Name = "Create New Macro",
