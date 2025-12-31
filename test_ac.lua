@@ -1,4 +1,4 @@
-    -- 23
+    -- 2
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.1"
+    local script_version = "V0.11"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2243,36 +2243,6 @@ end
         return nil
     end
 
-local function getBackendPortalKeyFromDisplayName(selectedDisplayName)
-    local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
-    
-    if not TestingFolder then
-        return nil
-    end
-    
-    -- Scan ALL modules in Testing folder for portals
-    for _, moduleScript in ipairs(TestingFolder:GetChildren()) do
-        if moduleScript:IsA("ModuleScript") then
-            local success, moduleData = pcall(require, moduleScript)
-            
-            if success and moduleData and type(moduleData) == "table" then
-                -- Check each entry for _portal_only_level flag
-                for levelKey, levelInfo in pairs(moduleData) do
-                    if type(levelInfo) == "table" and 
-                       levelInfo._portal_only_level == true and 
-                       levelInfo.name == selectedDisplayName then
-                        print("Found portal backend key:", levelKey, "for", selectedDisplayName)
-                        return levelKey -- Returns "portal_tengen", "portal_halloween_secret", etc.
-                    end
-                end
-            end
-        end
-    end
-    
-    print("Could not find backend key for portal:", selectedDisplayName)
-    return nil
-end
-
     local function getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
         local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
@@ -2853,21 +2823,22 @@ local function getPortalUUID(portalId)
     return nil
 end
 
-local function joinPortal(portalKey)
-    if not portalKey then return false end
+local function joinPortal(portalId)
+    if not portalId then return false end
     
-    -- portalKey should now be the module key like "portal_christmas"
-    print("Attempting to join portal with module key:", portalKey)
+    print("Attempting to join portal with ID:", portalId)
     
-    local portalUUID = getPortalUUID(portalKey)
+    -- Get UUID from inventory
+    local ownedPortals = getOwnedPortalsFromInventory()
+    local portalUUID = ownedPortals[portalId]
     
     if not portalUUID then
-        notify("Portal Joiner", "Failed to find portal UUID - do you own this portal?")
-        print("Failed to find UUID for portal key:", portalKey)
+        notify("Portal Joiner", "Portal not found in inventory - do you own this portal?")
+        print("Failed to find UUID for portal ID:", portalId)
         return false
     end
     
-    print("Found portal UUID:", portalUUID, "for key:", portalKey)
+    print("Found portal UUID:", portalUUID, "for ID:", portalId)
     
     local success = pcall(function()
         game:GetService("ReplicatedStorage")
@@ -2878,7 +2849,7 @@ local function joinPortal(portalKey)
     end)
     
     if success then
-        notify("Portal Joiner", string.format("Joining portal: %s", portalKey))
+        notify("Portal Joiner", string.format("Joining portal: %s", portalId))
         print("Successfully called use_portal with UUID:", portalUUID)
         
         task.wait(0.5)
@@ -3606,97 +3577,91 @@ section = JoinerTab:CreateSection("Portal Joiner")
    end,
 })
 
-    local function getPortalDataFromGC(portalUUID)
-    for _, obj in ipairs(getgc(true)) do
-        if type(obj) == "table" then
-            -- Check if table has this UUID as a key
-            if obj[portalUUID] and type(obj[portalUUID]) == "table" then
-                return obj[portalUUID]
-            end
-            
-            -- Check if this table IS the portal data (has matching uuid field)
-            if obj.uuid == portalUUID or obj._uuid == portalUUID then
-                return obj
-            end
-        end
-    end
-    return nil
-end
-
--- Add this new helper function to get portals with tiers for dropdown
-local function getAllAvailablePortalsWithTiersForDropdown()
+local function getAllPortalDataFromModules()
+    local portalData = {} -- {id = {name, id, moduleName}}
+    
     local testingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
-    if not testingFolder then return {} end
+    if not testingFolder then return portalData end
     
-    local portalDataMap = {}
-    
-    -- Collect portal data from modules
     for _, moduleScript in ipairs(testingFolder:GetChildren()) do
         if moduleScript:IsA("ModuleScript") then
-            local moduleSuccess, moduleData = pcall(require, moduleScript)
+            local success, moduleData = pcall(require, moduleScript)
             
-            if moduleSuccess and moduleData and type(moduleData) == "table" then
+            if success and moduleData and type(moduleData) == "table" then
                 for levelKey, levelInfo in pairs(moduleData) do
                     if type(levelInfo) == "table" and 
                        levelInfo._portal_only_level == true and 
-                       levelInfo.name and 
-                       levelInfo.id then
+                       levelInfo.id and 
+                       levelInfo.name then
                         
-                        portalDataMap[levelKey] = {
+                        portalData[levelInfo.id] = {
                             name = levelInfo.name,
                             id = levelInfo.id,
-                            key = levelKey
+                            moduleName = moduleScript.Name
                         }
+                        
+                        print("Found portal:", levelInfo.name, "| ID:", levelInfo.id)
                     end
                 end
             end
         end
     end
     
-    local portalOptions = {}
+    return portalData
+end
+
+local function getOwnedPortalsFromInventory()
+    local ownedPortals = {} -- {id = uuid}
     
-    -- Get tier information from player's inventory
-    for moduleKey, portalInfo in pairs(portalDataMap) do
-        local displayName = portalInfo.name
-        local foundTiers = {}
-        
-        local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-        if itemsGui then
-            local itemFrames = itemsGui:FindFirstChild("grid")
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+    if not itemsGui then 
+        print("Items GUI not found")
+        return ownedPortals 
+    end
+
+    local itemFrames = itemsGui:FindFirstChild("grid")
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+    
+    if not itemFrames then 
+        print("ItemFrames not found")
+        return ownedPortals 
+    end
+
+    -- Scan through all inventory items
+    for _, child in ipairs(itemFrames:GetChildren()) do
+        if child.Visible then
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
             
-            if itemFrames then
-                for _, child in ipairs(itemFrames:GetChildren()) do
-                    if child.Name == moduleKey and child.Visible then
-                        local uuidValue = child:FindFirstChild("_uuid_or_id")
-                        if uuidValue and uuidValue:IsA("StringValue") then
-                            local portalGCData = getPortalDataFromGC(uuidValue.Value)
-                            if portalGCData and portalGCData._unique_portal_data then
-                                local tier = portalGCData._unique_portal_data.portal_depth or 0
-                                if tier > 0 and not table.find(foundTiers, tier) then
-                                    table.insert(foundTiers, tier)
-                                end
-                            end
-                        end
-                    end
-                end
+            if itemIndex and uuidValue and uuidValue:IsA("StringValue") then
+                ownedPortals[itemIndex] = uuidValue.Value
+                print("Found owned portal in inventory:", itemIndex, "| UUID:", uuidValue.Value)
             end
-        end
-        
-        if #foundTiers > 0 then
-            table.sort(foundTiers)
-            for _, tier in ipairs(foundTiers) do
-                table.insert(portalOptions, string.format("%s (Tier %d)", displayName, tier))
-            end
-        else
-            table.insert(portalOptions, displayName)
         end
     end
     
-    table.sort(portalOptions)
-    return portalOptions
+    return ownedPortals
+end
+
+local function buildPortalDropdownOptions()
+    local portalModuleData = getAllPortalDataFromModules()
+    local ownedPortals = getOwnedPortalsFromInventory()
+    
+    local dropdownOptions = {}
+    
+    for portalId, uuid in pairs(ownedPortals) do
+        local moduleInfo = portalModuleData[portalId]
+        
+        if moduleInfo then
+            table.insert(dropdownOptions, moduleInfo.name)
+            print("Added to dropdown:", moduleInfo.name, "(Owned)")
+        end
+    end
+    
+    table.sort(dropdownOptions)
+    return dropdownOptions
 end
 
 local SelectPortalDropdown = JoinerTab:CreateDropdown({
@@ -3721,51 +3686,30 @@ local SelectPortalDropdown = JoinerTab:CreateDropdown({
             return
         end
         
-        -- Remove tier suffix if present (e.g., "Christmas Portal (Tier 3)" -> "Christmas Portal")
-        local baseName = selectedDisplayName:match("^(.+) %(Tier %d+%)$") or selectedDisplayName
+        -- Find the portal ID from display name
+        local portalModuleData = getAllPortalDataFromModules()
         
-        local success, portalInfo = pcall(function()
-            local TestingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
-            
-            for _, moduleScript in ipairs(TestingFolder:GetChildren()) do
-                if moduleScript:IsA("ModuleScript") then
-                    local moduleData = require(moduleScript)
-                    
-                    for levelKey, levelInfo in pairs(moduleData) do
-                        if type(levelInfo) == "table" and 
-                           levelInfo._portal_only_level == true and 
-                           levelInfo.name == baseName then
-                            
-                            return {
-                                id = levelInfo.id,
-                                key = levelKey,
-                                name = levelInfo.name
-                            }
-                        end
-                    end
-                end
+        for portalId, moduleInfo in pairs(portalModuleData) do
+            if moduleInfo.name == selectedDisplayName then
+                State.SelectedPortal = portalId
+                print("Selected portal:", selectedDisplayName, "| ID:", portalId)
+                return
             end
-            return nil
-        end)
-        
-        if success and portalInfo then
-            State.SelectedPortal = portalInfo.key
-            print("Selected portal:", selectedDisplayName)
-            print("  Backend ID:", portalInfo.id)
-            print("  Module Key (used for item lookup):", portalInfo.key)
-        else
-            warn("Failed to get portal info for:", selectedDisplayName)
         end
+        
+        warn("Could not find portal ID for:", selectedDisplayName)
     end,
 })
 
- RefreshPortalTiersButton = JoinerTab:CreateButton({
-    Name = "Refresh Portal Tiers",
+
+
+RefreshPortalsButton = JoinerTab:CreateButton({
+    Name = "Refresh Portal List",
     Callback = function()
-        local portalsWithTiers = getAllAvailablePortalsWithTiersForDropdown()
-        if #portalsWithTiers > 0 then
-            SelectPortalDropdown:Refresh(portalsWithTiers)
-            notify("Portal Refresh", string.format("Updated dropdown with %d portals", #portalsWithTiers))
+        local options = buildPortalDropdownOptions()
+        if #options > 0 then
+            SelectPortalDropdown:Refresh(options)
+            notify("Portal Refresh", string.format("Found %d owned portals", #options))
         else
             notify("Portal Refresh", "No portals found in inventory")
         end
@@ -4439,403 +4383,52 @@ task.spawn(setupCardSelectionMonitoring)
         end
     end
 
-local function getAllAvailablePortalsWithTiers(portalId)
-    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-    if not itemsGui then 
-        print("Items GUI not found")
-        return {} 
-    end
-
-    local itemFrames = itemsGui:FindFirstChild("grid")
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
-    if not itemFrames then 
-        print("ItemFrames not found")
-        return {} 
-    end
-
-    local portals = {}
-
-    for _, child in ipairs(itemFrames:GetChildren()) do
-        if child.Name == portalId and child.Visible then
-            local uuidValue = child:FindFirstChild("_uuid_or_id")
-            if uuidValue and uuidValue:IsA("StringValue") then
-                local uuid = uuidValue.Value
-                
-                -- Get portal data from GC
-                local portalData = getPortalDataFromGC(uuid)
-                
-                local portalInfo = {
-                    uuid = uuid,
-                    tier = 0,
-                    maxTries = 3,
-                    currentTries = 0,
-                    hasTiers = false,
-                    valid = true
-                }
-                
-                if portalData then
-                    -- Extract tier information
-                    if portalData._unique_portal_data then
-                        local uniqueData = portalData._unique_portal_data
-                        portalInfo.tier = uniqueData.portal_depth or 0
-                        portalInfo.hasTiers = (uniqueData.portal_depth or 0) > 0
-                    end
-                    
-                    -- Extract try information
-                    portalInfo.maxTries = portalData._portal_max_tries or 3
-                    portalInfo.currentTries = portalData._portal_tries or 0
-                    
-                    print(string.format("Found portal: UUID=%s, Tier=%d, Tries=%d/%d", 
-                        uuid, portalInfo.tier, portalInfo.currentTries, portalInfo.maxTries))
-                else
-                    print("Warning: Could not find GC data for portal UUID:", uuid)
-                end
-                
-                table.insert(portals, portalInfo)
-            end
-        end
-    end
-    
-    return portals
-end
-
-local function getFilteredAndSortedPortals(portalId)
-    local allPortals = getAllAvailablePortalsWithTiers(portalId)
-    
-    if #allPortals == 0 then
-        print("No portals found with ID:", portalId)
-        return {}
-    end
-    
-    -- Filter by tier range
-    local filteredPortals = {}
-    for _, portal in ipairs(allPortals) do
-        if portal.tier >= State.MinimumPortalTier and portal.tier <= State.MaximumPortalTier then
-            table.insert(filteredPortals, portal)
-        else
-            print(string.format("Filtered out portal (tier %d outside range %d-%d)", 
-                portal.tier, State.MinimumPortalTier, State.MaximumPortalTier))
-        end
-    end
-    
-    if #filteredPortals == 0 then
-        print("No portals match tier filter criteria")
-        return {}
-    end
-    
-    -- Sort by tier based on priority
-    if State.PortalTierPriority == "Highest" then
-        table.sort(filteredPortals, function(a, b)
-            return a.tier > b.tier
-        end)
-        print("Sorted portals by HIGHEST tier first")
-    elseif State.PortalTierPriority == "Lowest" then
-        table.sort(filteredPortals, function(a, b)
-            return a.tier < b.tier
-        end)
-        print("Sorted portals by LOWEST tier first")
-    else
-        print("Using ANY tier (no sorting)")
-    end
-    
-    return filteredPortals
-end
-
-local function autoNextPortalEnhanced()
+local function autoNextPortal()
     if not State.AutoNextPortal or not State.SelectedPortal or State.SelectedPortal == "" then
         return false
     end
     
-    print("Auto Next Portal enabled - Finding portals with ID:", State.SelectedPortal)
-    
+    print("Auto Next Portal - Looking for portal ID:", State.SelectedPortal)
     task.wait(1)
     
-    local maxAttempts = 10 -- Increased attempts since we're being smarter about selection
+    local ownedPortals = getOwnedPortalsFromInventory()
+    local portalUUID = ownedPortals[State.SelectedPortal]
     
-    for attempt = 1, maxAttempts do
-        -- Get fresh list of portals with tier info
-        local availablePortals = getFilteredAndSortedPortals(State.SelectedPortal)
-        
-        if #availablePortals == 0 then
-            print("No more valid portals available")
-            notify("Auto Next Portal", "No valid portals available", 3)
-            break
-        end
-        
-        -- Select the first portal from our sorted/filtered list
-        local selectedPortal = availablePortals[1]
-        
-        local tierText = selectedPortal.hasTiers and string.format(" (Tier %d)", selectedPortal.tier) or ""
-        print(string.format("Attempt %d/%d - Trying portal%s: %s", 
-            attempt, maxAttempts, tierText, selectedPortal.uuid))
-        
-        notify("Auto Next Portal", 
-            string.format("Attempting%s portal (%d/%d)", tierText, attempt, maxAttempts), 
-            2)
-        
-        -- Try to join this portal
-        local success = pcall(function()
-            local args = {"replay_portal", selectedPortal.uuid}
-            game:GetService("ReplicatedStorage")
-                :WaitForChild("endpoints")
-                :WaitForChild("client_to_server")
-                :WaitForChild("set_game_finished_vote")
-                :InvokeServer(unpack(args))
-        end)
-        
-        if not success then
-            print("Failed to invoke portal join for UUID:", selectedPortal.uuid)
-        end
-        
-        -- Wait to see if teleport happens
-        task.wait(3)
-        
-        -- Still here? Portal didn't work, hide it and try next
-        print("Portal didn't work, marking as invalid and trying next one...")
-        
-        -- Hide the failed portal in UI
-        local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-        if itemsGui then
-            local itemFrames = itemsGui:FindFirstChild("grid")
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end  
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
-            
-            if itemFrames then
-                for _, child in ipairs(itemFrames:GetChildren()) do
-                    if child.Name == State.SelectedPortal then
-                        local uuid = child:FindFirstChild("_uuid_or_id")
-                        if uuid and uuid.Value == selectedPortal.uuid then
-                            child.Visible = false
-                            print("Hidden failed portal from UI")
-                            break
-                        end
-                    end
-                end
-            end
-        end
+    if not portalUUID then
+        notify("Auto Next Portal", "Portal not found in inventory", 3)
+        return false
     end
     
-    -- If we reach here, none of the portals worked
-    notify("Auto Next Portal", "No valid portals could be joined", 3)
-    return false
-end
-
-    local function getPortalTierFromGC(portalLevelId)
-    local success, portalData = pcall(function()
-        for _, obj in pairs(getgc(true)) do
-            if type(obj) == "table" and obj._unique_portal_data then
-                local uniqueData = obj._unique_portal_data
-                if uniqueData.level_id == portalLevelId then
-                    return {
-                        tier = uniqueData.portal_depth or 0,
-                        maxTries = obj._portal_max_tries or 0,
-                        currentTries = obj._portal_tries or 0,
-                        hasTiers = (uniqueData.portal_depth or 0) > 0
-                    }
-                end
-            end
-        end
-        return nil
+    print("Found portal UUID for auto-next:", portalUUID)
+    
+    local success = pcall(function()
+        local args = {"replay_portal", portalUUID}
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("set_game_finished_vote")
+            :InvokeServer(unpack(args))
     end)
     
-    if success and portalData then
-        print(string.format("Found portal data for %s: Tier %d, Tries: %d/%d", 
-            portalLevelId, portalData.tier, portalData.currentTries, portalData.maxTries))
-        return portalData
-    end
-    
-    return nil
-end
-
-    local ShowPortalInfoButton = JoinerTab:CreateButton({
-    Name = "Show Available Portals Info",
-    Callback = function()
-        if not State.SelectedPortal or State.SelectedPortal == "" then
-            notify("Portal Info", "No portal selected", 3)
-            return
-        end
-        
-        local portals = getAllAvailablePortalsWithTiers(State.SelectedPortal)
-        
-        if #portals == 0 then
-            notify("Portal Info", "No portals available", 3)
-            return
-        end
-        
-        local infoText = string.format("Found %d portals:\n", #portals)
-        for i, portal in ipairs(portals) do
-            local tierText = portal.hasTiers and string.format("Tier %d", portal.tier) or "No tier"
-            infoText = infoText .. string.format("%d. %s (Tries: %d/%d)\n", 
-                i, tierText, portal.currentTries, portal.maxTries)
-        end
-        
-        notify("Portal Info", infoText, 8)
-    end,
-})
-
-local function loadPortalsWithRetry()
-    loadingRetries.portal = loadingRetries.portal or 0
-    loadingRetries.portal = loadingRetries.portal + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.portal <= maxRetries then
-            print(string.format("Portals loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.portal, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadPortalsWithRetry)
-        else
-            warn("Failed to load portals after", maxRetries, "attempts - giving up")
-            SelectPortalDropdown:Refresh({"Failed to load - check console"})
-        end
-        return
-    end
-    
-    local success, result = pcall(function()
-        local testingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
-        
-        if not testingFolder then
-            error("Testing folder not found in ReplicatedStorage")
-        end
-        
-        local portalDataMap = {} -- Store portal info keyed by module key
-        
-        -- First pass: Collect all portal data from modules
-        for _, moduleScript in ipairs(testingFolder:GetChildren()) do
-            if moduleScript:IsA("ModuleScript") then
-                local moduleSuccess, moduleData = pcall(require, moduleScript)
-                
-                if moduleSuccess and moduleData and type(moduleData) == "table" then
-                    for levelKey, levelInfo in pairs(moduleData) do
-                        if type(levelInfo) == "table" and 
-                           levelInfo._portal_only_level == true and 
-                           levelInfo.name and 
-                           levelInfo.id then
-                            
-                            portalDataMap[levelKey] = {
-                                name = levelInfo.name,
-                                id = levelInfo.id,
-                                key = levelKey
-                            }
-                            
-                            print("  ✓ Found portal in modules:", levelInfo.name, "| Module Key:", levelKey, "| ID:", levelInfo.id)
-                        end
-                    end
-                else
-                    if not moduleSuccess then
-                        warn("  Failed to require module:", moduleScript.Name, "-", moduleData)
-                    end
-                end
-            end
-        end
-        
-        if not next(portalDataMap) then
-            error("No portals found with _portal_only_level flag in Testing folder")
-        end
-        
-        -- Second pass: Try to get tier information from player's inventory (if they own portals)
-        local portalOptionsWithTiers = {}
-        
-        task.spawn(function()
-            task.wait(0.5) -- Small delay to ensure player GUI is loaded
-            
-            for moduleKey, portalInfo in pairs(portalDataMap) do
-                local displayName = portalInfo.name
-                local foundTiers = {}
-                
-                -- Try to find this portal in player's inventory to get tier info
-                local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-                if itemsGui then
-                    local itemFrames = itemsGui:FindFirstChild("grid")
-                    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
-                    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
-                    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
-                    
-                    if itemFrames then
-                        for _, child in ipairs(itemFrames:GetChildren()) do
-                            if child.Name == moduleKey then
-                                local uuidValue = child:FindFirstChild("_uuid_or_id")
-                                if uuidValue and uuidValue:IsA("StringValue") then
-                                    -- Try to get tier from GC
-                                    local portalGCData = getPortalDataFromGC(uuidValue.Value)
-                                    if portalGCData and portalGCData._unique_portal_data then
-                                        local tier = portalGCData._unique_portal_data.portal_depth or 0
-                                        if tier > 0 then
-                                            table.insert(foundTiers, tier)
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-                
-                -- Create display names based on tiers found
-                if #foundTiers > 0 then
-                    -- Sort tiers
-                    table.sort(foundTiers)
-                    
-                    -- Remove duplicates
-                    local uniqueTiers = {}
-                    local seen = {}
-                    for _, tier in ipairs(foundTiers) do
-                        if not seen[tier] then
-                            table.insert(uniqueTiers, tier)
-                            seen[tier] = true
-                        end
-                    end
-                    
-                    -- Add entry for each tier
-                    for _, tier in ipairs(uniqueTiers) do
-                        local displayWithTier = string.format("%s (Tier %d)", displayName, tier)
-                        table.insert(portalOptionsWithTiers, displayWithTier)
-                        print("  ✓ Added portal with tier:", displayWithTier)
-                    end
-                else
-                    -- No tier info found, just add base name
-                    table.insert(portalOptionsWithTiers, displayName)
-                    print("  ✓ Added portal without tier:", displayName)
-                end
-            end
-            
-            -- Sort the options
-            table.sort(portalOptionsWithTiers)
-            
-            return portalOptionsWithTiers
-        end)
-        
-        -- For initial load, return base names without tiers
-        local portalOptions = {}
-        for _, portalInfo in pairs(portalDataMap) do
-            table.insert(portalOptions, portalInfo.name)
-        end
-        table.sort(portalOptions)
-        
-        return portalOptions
-    end)
-    
-    if success and result and #result > 0 then
-        SelectPortalDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d portals (attempt %d)", #result, loadingRetries.portal))
-        
-        -- After a short delay, refresh with tier information if available
-        task.delay(2, function()
-            local portalsWithTiers = getAllAvailablePortalsWithTiersForDropdown()
-            if #portalsWithTiers > 0 then
-                SelectPortalDropdown:Refresh(portalsWithTiers)
-                print(string.format("Refreshed dropdown with %d portals including tier info", #portalsWithTiers))
-            end
-        end)
+    if success then
+        notify("Auto Next Portal", "Replaying portal", 3)
+        return true
     else
-        if loadingRetries.portal <= maxRetries then
-            print(string.format("Portals loading failed (attempt %d/%d): %s - retrying...", loadingRetries.portal, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadPortalsWithRetry)
-        else
-            warn("Failed to load portals after", maxRetries, "attempts:", result)
-            SelectPortalDropdown:Refresh({"Failed to load - check console"})
-        end
+        notify("Auto Next Portal", "Failed to replay portal", 3)
+        return false
+    end
+end
+
+-- Load portals function (simplified - no more retry logic needed)
+local function loadPortals()
+    local options = buildPortalDropdownOptions()
+    
+    if #options > 0 then
+        SelectPortalDropdown:Refresh(options)
+        print(string.format("Successfully loaded %d portals", #options))
+    else
+        print("No owned portals found")
+        SelectPortalDropdown:Refresh({"No portals found"})
     end
 end
 
@@ -6692,7 +6285,16 @@ local function createAutoSelectDropdowns()
         
         for _, portalName in ipairs(SelectPortalDropdown.Options) do
             -- Get backend key for this portal
-            local backendKey = getBackendPortalKeyFromDisplayName(portalName)
+            local backendKey = nil
+            local portalModuleData = getAllPortalDataFromModules()
+
+            for portalId, moduleInfo in pairs(portalModuleData) do
+                if moduleInfo.name == portalName then
+                    backendKey = portalId
+                    break
+                end
+            end
+
             if not backendKey then
                 warn("Could not get backend key for portal:", portalName)
                 continue
@@ -7907,59 +7509,10 @@ end)
         end
 
        if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
-    print("Auto Next Portal enabled - Trying portals with ID:", State.SelectedPortal)
-    
-    task.wait(1)
-    
-    local maxAttempts = 5
-    
-    for attempt = 1, maxAttempts do
-
-        local uuids = getAllPortalUUIDs(State.SelectedPortal)
-        local portalUUID = uuids[2]
-        
-        if not portalUUID then
-            print("No more portals found with ID:", State.SelectedPortal)
-            notify("Auto Next Portal", "No portals available", 3)
-            break
-        end
-        
-        print(string.format("Attempt %d/%d - Trying portal UUID: %s", attempt, maxAttempts, portalUUID))
-        
-        pcall(function()
-            local args = {"replay_portal",portalUUID}
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer(unpack(args))
-        end)
-        
-        -- Wait a few seconds - if portal is valid, we'll teleport
-        task.wait(3)
-        
-        -- Still here? Portal didn't work, hide it and try next
-        print("Portal didn't work, trying next one...")
-        local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-        if itemsGui then
-            local itemFrames = itemsGui:FindFirstChild("grid")
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end  
-            if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
-            
-            if itemFrames then
-                for _, child in ipairs(itemFrames:GetChildren()) do
-                    if child.Name == State.SelectedPortal then
-                        local uuid = child:FindFirstChild("_uuid") or child:FindFirstChild("id")
-                        if uuid and uuid.Value == portalUUID then
-                            child.Visible = false
-                            break
-                        end
-                    end
-                end
-            end
-        end
+    if autoNextPortal() then
+        return -- Successfully replayed portal
     end
-    
-    -- If we reach here, none of the portals worked
-    notify("Auto Next Portal", "No valid portals available", 3)
-    return
+    -- If failed, fall through to other auto-vote options
 end
 
 if State.AutoNextInfinityCastle then
@@ -8105,7 +7658,7 @@ task.delay(1, function()
     task.spawn(loadLegendStagesWithRetry) 
     task.spawn(loadRaidStagesWithRetry)
     task.spawn(loadIgnoreWorldsWithRetry)
-    task.spawn(loadPortalsWithRetry)
+    task.spawn(loadPortals)
     
     -- Wait for ALL dropdowns to load FIRST
     task.wait(3) -- Increased wait time
