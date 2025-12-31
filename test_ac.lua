@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.12"
+    local script_version = "V0.13"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2823,6 +2823,51 @@ local function getPortalUUID(portalId)
     return nil
 end
 
+local function getOwnedPortalsFromInventory()
+    local ownedPortals = {} -- {id = uuid}
+
+    local portalNameToIdMap = {
+        ["portal_christmas"] = "ChristmasLevel",
+        -- Add more mappings here if there are other mismatched portals
+    }
+    
+    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+    if not itemsGui then 
+        print("Items GUI not found")
+        return ownedPortals 
+    end
+
+    local itemFrames = itemsGui:FindFirstChild("grid")
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+    
+    if not itemFrames then 
+        print("ItemFrames not found")
+        return ownedPortals 
+    end
+
+    -- Scan through all inventory items
+    for _, child in ipairs(itemFrames:GetChildren()) do
+        local inventoryName = child.Name  -- "portal_christmas"
+        
+        -- Only process items that contain "portal" in their name
+        if inventoryName and inventoryName:lower():find("portal") then
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
+
+            if uuidValue and uuidValue:IsA("StringValue") then
+                -- Check if there's a manual mapping first
+                local actualPortalId = portalNameToIdMap[inventoryName] or inventoryName
+                
+                ownedPortals[actualPortalId] = uuidValue.Value
+                print("Found owned portal:", inventoryName, "| Mapped to ID:", actualPortalId, "| UUID:", uuidValue.Value)
+            end
+        end
+    end
+    
+    return ownedPortals
+end
+
 local function joinPortal(portalId)
     if not portalId then return false end
     
@@ -3583,6 +3628,7 @@ local function getAllPortalDataFromModules()
     local testingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
     if not testingFolder then return portalData end
     
+    -- Scan all modules in the Testing folder
     for _, moduleScript in ipairs(testingFolder:GetChildren()) do
         if moduleScript:IsA("ModuleScript") then
             local success, moduleData = pcall(require, moduleScript)
@@ -3600,7 +3646,7 @@ local function getAllPortalDataFromModules()
                             moduleName = moduleScript.Name
                         }
                         
-                        print("Found portal:", levelInfo.name, "| ID:", levelInfo.id)
+                        print("Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Module:", moduleScript.Name)
                     end
                 end
             end
@@ -3608,39 +3654,6 @@ local function getAllPortalDataFromModules()
     end
     
     return portalData
-end
-
-local function getOwnedPortalsFromInventory()
-    local ownedPortals = {} -- {id = uuid}
-    
-    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-    if not itemsGui then 
-        print("Items GUI not found")
-        return ownedPortals 
-    end
-
-    local itemFrames = itemsGui:FindFirstChild("grid")
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
-    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
-    
-    if not itemFrames then 
-        print("ItemFrames not found")
-        return ownedPortals 
-    end
-
-    -- Scan through all inventory items
-    for _, child in ipairs(itemFrames:GetChildren()) do
-            local portalId = child.Name  -- "portal_tengen" is the child's Name
-            local uuidValue = child:FindFirstChild("_uuid_or_id")
-
-            if portalId and uuidValue and uuidValue:IsA("StringValue") then
-                ownedPortals[portalId] = uuidValue.Value
-                print("Found owned portal:", portalId, "| UUID:", uuidValue.Value)
-        end
-    end
-    
-    return ownedPortals
 end
 
 local function buildPortalDropdownOptions()
