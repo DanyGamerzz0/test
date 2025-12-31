@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.13"
+    local script_version = "V0.15"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -240,7 +240,9 @@ local playbackDisplayNameInstances = {}
         AutoJoinBossRush = false,
         AutoJoinBossRushSelectionMode = false,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
+        AutoSelectPortalReward = false,
     }
+
 
     local currentCardData = nil
 
@@ -3736,6 +3738,16 @@ RefreshPortalsButton = JoinerTab:CreateButton({
    end,
 })
 
+Toggle = JoinerTab:CreateToggle({
+   Name = "Auto Select Portal Reward",
+   CurrentValue = false,
+   Flag = "AutoSelectPortalReward",
+   Info = "Automatically picks a portal reward after completing a portal",
+   Callback = function(Value)
+        State.AutoSelectPortalReward = Value
+   end,
+})
+
     task.spawn(function()
         while true do
             task.wait(2)
@@ -4399,7 +4411,17 @@ local function autoNextPortal()
         return false
     end
     
-    print("Auto Next Portal - Looking for portal ID:", State.SelectedPortal)
+    -- IMPORTANT: We need to look for the INVENTORY name, not the module ID
+    -- So we need to reverse-map: ChristmasLevel -> portal_christmas
+    local portalIdToInventoryName = {
+        ["ChristmasLevel"] = "portal_christmas",
+        ["portal_christmas_secret"] = "portal_christmas_secret",
+        -- Add more reverse mappings as needed
+    }
+    
+    local inventoryName = portalIdToInventoryName[State.SelectedPortal] or State.SelectedPortal
+    
+    print("Auto Next Portal - Looking for portal ID:", State.SelectedPortal, "| Inventory name:", inventoryName)
     task.wait(1)
     
     local ownedPortals = getOwnedPortalsFromInventory()
@@ -7344,6 +7366,33 @@ end)
         end,
     })
 
+    local function autoSelectPortalReward()
+    if not State.AutoSelectPortalReward then
+        return false
+    end
+    
+    local rewardSlot = 1
+    
+    print("Auto Select Portal Reward - Selecting slot:", rewardSlot)
+    
+    local success = pcall(function()
+        local args = {rewardSlot}
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("RequestPortal")
+            :InvokeServer(unpack(args))
+    end)
+    
+    if success then
+        notify("Auto Portal Reward", string.format("Selected reward slot %d", rewardSlot), 3)
+        return true
+    else
+        notify("Auto Portal Reward", "Failed to select reward", 3)
+        return false
+    end
+end
+
     -- ========== REMOTE EVENT CONNECTIONS ==========
     local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
     local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
@@ -7518,6 +7567,15 @@ end)
             
             return
         end
+
+        if State.AutoSelectPortalReward then
+        print("Auto Select Portal Reward is enabled - selecting reward first...")
+        local rewardSelected = autoSelectPortalReward()
+        
+        if rewardSelected then
+            task.wait(1) -- Wait for reward selection to process
+        end
+    end
 
        if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
     if autoNextPortal() then
