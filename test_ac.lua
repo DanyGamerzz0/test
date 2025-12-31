@@ -13,7 +13,7 @@
         return
     end
 
-    local script_version = "V0.11"
+    local script_version = "V0.12"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3631,14 +3631,12 @@ local function getOwnedPortalsFromInventory()
 
     -- Scan through all inventory items
     for _, child in ipairs(itemFrames:GetChildren()) do
-        if child.Visible then
-            local itemIndex = child:GetAttribute("ITEMINDEX")
+            local portalId = child.Name  -- "portal_tengen" is the child's Name
             local uuidValue = child:FindFirstChild("_uuid_or_id")
-            
-            if itemIndex and uuidValue and uuidValue:IsA("StringValue") then
-                ownedPortals[itemIndex] = uuidValue.Value
-                print("Found owned portal in inventory:", itemIndex, "| UUID:", uuidValue.Value)
-            end
+
+            if portalId and uuidValue and uuidValue:IsA("StringValue") then
+                ownedPortals[portalId] = uuidValue.Value
+                print("Found owned portal:", portalId, "| UUID:", uuidValue.Value)
         end
     end
     
