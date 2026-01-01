@@ -1,4 +1,8 @@
-    -- 2
+   if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+    game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
+    return
+end
+
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -13,7 +17,7 @@
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.16"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7366,17 +7370,123 @@ end)
         end,
     })
 
-    local function autoSelectPortalReward()
+    local function getPortalTierFromTooltip()
+    local success, tier = pcall(function()
+        local tooltipGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("TooltipDisplay")
+        if not tooltipGui then return nil end
+        
+        local frame = tooltipGui:FindFirstChild("Frame")
+        if not frame then return nil end
+        
+        -- Navigate to the tier display element
+        local children = frame:GetChildren()
+        if not children[12] then return nil end
+        
+        local innerFrame = children[12]:FindFirstChild("Frame")
+        if not innerFrame then return nil end
+        
+        local innerChildren = innerFrame:GetChildren()
+        if not innerChildren[5] then return nil end
+        
+        -- Extract tier number from text (e.g., "Tier: 4" -> 4)
+        local tierText = innerChildren[5].Text
+        local tierNumber = tonumber(tierText:match("%d+"))
+        
+        return tierNumber
+    end)
+    
+    return success and tier or nil
+end
+
+   local function autoSelectPortalReward()
     if not State.AutoSelectPortalReward then
         return false
     end
     
-    local rewardSlot = 1
+    print("Auto Select Portal Reward - Checking 3 portal options...")
     
-    print("Auto Select Portal Reward - Selecting slot:", rewardSlot)
+    local cameraFolder = workspace.Camera:GetChildren()[2]
+    if not cameraFolder then
+        notify("Auto Portal Reward", "Portal folder not found", 3)
+        return false
+    end
     
+    local portals = {}
+    
+    -- Collect all 3 portals with their info
+    for _, portalModel in pairs(cameraFolder:GetChildren()) do
+        if portalModel:IsA("Model") then
+            local num = portalModel:GetAttribute("Num")
+            if num then
+                table.insert(portals, {
+                    model = portalModel,
+                    num = num
+                })
+            end
+        end
+    end
+    
+    if #portals == 0 then
+        notify("Auto Portal Reward", "No portals found", 3)
+        return false
+    end
+    
+    -- Sort portals by position (left to right: 1, 2, 3)
+    table.sort(portals, function(a, b)
+        return a.num < b.num
+    end)
+    
+    local mouse = Services.Players.LocalPlayer:GetMouse()
+    local highestTier = 0
+    local bestPortalNum = nil
+    
+    -- Check each portal's tier
+    for _, portalData in ipairs(portals) do
+        local success = pcall(function()
+            -- Get a part from the portal to hover over
+            local hoverPart = portalData.model.PrimaryPart or portalData.model:FindFirstChildWhichIsA("BasePart")
+            
+            if hoverPart then
+                -- Move mouse over the portal
+                local camera = workspace.CurrentCamera
+                local screenPoint, onScreen = camera:WorldToScreenPoint(hoverPart.Position)
+                
+                if onScreen then
+                    -- Simulate mouse hover by moving to position
+                    mousemoveabs(screenPoint.X, screenPoint.Y)
+                    
+                    task.wait(0.3) -- Wait for tooltip to appear
+                    
+                    -- Read tier from tooltip
+                    local tier = getPortalTierFromTooltip()
+                    
+                    if tier then
+                        print(string.format("Portal %d: Tier %d", portalData.num, tier))
+                        
+                        if tier > highestTier then
+                            highestTier = tier
+                            bestPortalNum = portalData.num
+                        end
+                    end
+                end
+            end
+        end)
+        
+        if not success then
+            warn("Failed to check portal", portalData.num)
+        end
+    end
+    
+    if not bestPortalNum then
+        notify("Auto Portal Reward", "Could not determine best portal", 3)
+        return false
+    end
+    
+    print(string.format("Best portal: #%d with Tier %d", bestPortalNum, highestTier))
+    
+    -- Select the best portal using its Num attribute
     local success = pcall(function()
-        local args = {rewardSlot}
+        local args = {bestPortalNum}
         game:GetService("ReplicatedStorage")
             :WaitForChild("endpoints")
             :WaitForChild("client_to_server")
@@ -7385,10 +7495,10 @@ end)
     end)
     
     if success then
-        notify("Auto Portal Reward", string.format("Selected reward slot %d", rewardSlot), 3)
+        notify("Auto Portal Reward", string.format("Selected Portal #%d (Tier %d)", bestPortalNum, highestTier), 3)
         return true
     else
-        notify("Auto Portal Reward", "Failed to select reward", 3)
+        notify("Auto Portal Reward", "Failed to select portal", 3)
         return false
     end
 end
