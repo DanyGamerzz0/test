@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.17"
+    local script_version = "V0.18"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7402,12 +7402,12 @@ local function autoSelectPortalReward()
     
     -- Get the folder containing the portals
     local cameraChildren = workspace.Camera:GetChildren()
-    if not cameraChildren[2] then
+    if not cameraChildren then
         notify("Auto Portal Reward", "Portal container not found", 3)
         return false
     end
     
-    local portalContainer = cameraChildren[2]
+    local portalContainer = cameraChildren
     local portals = {}
     
     -- Collect all 3 portals with their info
