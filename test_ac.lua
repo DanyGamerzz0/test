@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.16"
+    local script_version = "V0.17"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7370,7 +7370,7 @@ end)
         end,
     })
 
-    local function getPortalTierFromTooltip()
+local function getPortalTierFromTooltip()
     local success, tier = pcall(function()
         local tooltipGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("TooltipDisplay")
         if not tooltipGui then return nil end
@@ -7378,50 +7378,48 @@ end)
         local frame = tooltipGui:FindFirstChild("Frame")
         if not frame then return nil end
         
-        -- Navigate to the tier display element
-        local children = frame:GetChildren()
-        if not children[12] then return nil end
+        -- Find the TextLabel that contains "Tier:"
+        for _, child in pairs(frame:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Text:find("Tier:") then
+                -- Extract tier number from text (e.g., "Tier: 3" -> 3)
+                local tierNumber = tonumber(child.Text:match("%d+"))
+                return tierNumber
+            end
+        end
         
-        local innerFrame = children[12]:FindFirstChild("Frame")
-        if not innerFrame then return nil end
-        
-        local innerChildren = innerFrame:GetChildren()
-        if not innerChildren[5] then return nil end
-        
-        -- Extract tier number from text (e.g., "Tier: 4" -> 4)
-        local tierText = innerChildren[5].Text
-        local tierNumber = tonumber(tierText:match("%d+"))
-        
-        return tierNumber
+        return nil
     end)
     
     return success and tier or nil
 end
 
-   local function autoSelectPortalReward()
+local function autoSelectPortalReward()
     if not State.AutoSelectPortalReward then
         return false
     end
     
     print("Auto Select Portal Reward - Checking 3 portal options...")
     
-    local cameraFolder = workspace.Camera:GetChildren()[2]
-    if not cameraFolder then
-        notify("Auto Portal Reward", "Portal folder not found", 3)
+    -- Get the folder containing the portals
+    local cameraChildren = workspace.Camera:GetChildren()
+    if not cameraChildren[2] then
+        notify("Auto Portal Reward", "Portal container not found", 3)
         return false
     end
     
+    local portalContainer = cameraChildren[2]
     local portals = {}
     
     -- Collect all 3 portals with their info
-    for _, portalModel in pairs(cameraFolder:GetChildren()) do
-        if portalModel:IsA("Model") then
-            local num = portalModel:GetAttribute("Num")
+    for _, child in pairs(portalContainer:GetChildren()) do
+        if child:IsA("Model") and child.Name:find("Portal") then
+            local num = child:GetAttribute("Num")
             if num then
                 table.insert(portals, {
-                    model = portalModel,
+                    model = child,
                     num = num
                 })
+                print(string.format("Found portal with Num: %d", num))
             end
         end
     end
@@ -7431,12 +7429,11 @@ end
         return false
     end
     
-    -- Sort portals by position (left to right: 1, 2, 3)
+    -- Sort portals by Num (1=left, 2=middle, 3=right)
     table.sort(portals, function(a, b)
         return a.num < b.num
     end)
     
-    local mouse = Services.Players.LocalPlayer:GetMouse()
     local highestTier = 0
     local bestPortalNum = nil
     
@@ -7455,26 +7452,31 @@ end
                     -- Simulate mouse hover by moving to position
                     mousemoveabs(screenPoint.X, screenPoint.Y)
                     
-                    task.wait(0.3) -- Wait for tooltip to appear
+                    task.wait(0.4) -- Wait for tooltip to appear
                     
                     -- Read tier from tooltip
                     local tier = getPortalTierFromTooltip()
                     
                     if tier then
-                        print(string.format("Portal %d: Tier %d", portalData.num, tier))
+                        print(string.format("Portal #%d: Tier %d", portalData.num, tier))
                         
                         if tier > highestTier then
                             highestTier = tier
                             bestPortalNum = portalData.num
                         end
+                    else
+                        print(string.format("Portal #%d: Could not read tier", portalData.num))
                     end
                 end
             end
         end)
         
         if not success then
-            warn("Failed to check portal", portalData.num)
+            warn("Failed to check portal #" .. portalData.num)
         end
+        
+        -- Small delay between checking portals
+        task.wait(0.2)
     end
     
     if not bestPortalNum then
