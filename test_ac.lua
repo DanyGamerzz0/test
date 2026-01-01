@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.2"
+    local script_version = "V0.21"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -245,6 +245,7 @@ local playbackDisplayNameInstances = {}
         AutoJoinBossRushSelectionMode = false,
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
         AutoSelectPortalReward = false,
+        PortalRewardTierFilter = {},
     }
 
 
@@ -3750,6 +3751,26 @@ Toggle = JoinerTab:CreateToggle({
    Callback = function(Value)
         State.AutoSelectPortalReward = Value
    end,
+})
+
+local PortalTierFilterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Reward Tiers",
+    Options = {"Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5", "Tier 6", "Tier 7", "Tier 8", "Tier 9", "Tier 10", "Tier 11"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "PortalRewardTierFilter",
+    Info = "Only pick portals with these tiers.",
+    Callback = function(Options)
+        State.PortalRewardTierFilter = {}
+        
+        -- Convert "Tier X" strings to numbers
+        for _, option in ipairs(Options) do
+            local tierNum = tonumber(option:match("%d+"))
+            if tierNum then
+                table.insert(State.PortalRewardTierFilter, tierNum)
+            end
+        end
+    end,
 })
 
     task.spawn(function()
@@ -7401,7 +7422,7 @@ local function autoSelectPortalReward()
     print("Auto Select Portal Reward - Waiting for all 3 portals to spawn...")
     
     -- Wait for all 3 portals to be present with timeout
-    local maxWaitTime = 5 -- 10 seconds timeout
+    local maxWaitTime = 10 -- 10 seconds timeout
     local waitStart = tick()
     local portals = {}
     
@@ -7441,6 +7462,7 @@ local function autoSelectPortalReward()
         return a.num < b.num
     end)
     
+    local portalTiers = {} -- Store {num = tier}
     local highestTier = 0
     local bestPortalNum = nil
     
@@ -7466,10 +7488,10 @@ local function autoSelectPortalReward()
                     
                     if tier then
                         print(string.format("Portal #%d: Tier %d", portalData.num, tier))
+                        portalTiers[portalData.num] = tier
                         
                         if tier > highestTier then
                             highestTier = tier
-                            bestPortalNum = portalData.num
                         end
                     else
                         print(string.format("Portal #%d: Could not read tier", portalData.num))
@@ -7486,12 +7508,65 @@ local function autoSelectPortalReward()
         task.wait(0.2)
     end
     
+    -- Check if we have any valid portal tiers
+    if next(portalTiers) == nil then
+        notify("Auto Portal Reward", "Could not determine portal tiers", 3)
+        return false
+    end
+    
+    -- Filter portals based on selected tiers
+    local acceptablePortals = {}
+    local hasFilter = #State.PortalRewardTierFilter > 0
+    
+    if hasFilter then
+        
+        for portalNum, tier in pairs(portalTiers) do
+            -- Check if this tier is in our filter
+            for _, allowedTier in ipairs(State.PortalRewardTierFilter) do
+                if tier == allowedTier then
+                    table.insert(acceptablePortals, {num = portalNum, tier = tier})
+                    break
+                end
+            end
+        end
+        
+        if #acceptablePortals == 0 then
+            notify("Auto Portal Reward", string.format("No portals match filter - selecting highest tier (%d)", highestTier), 3)
+            
+            -- Fall back to highest tier portal
+            for portalNum, tier in pairs(portalTiers) do
+                if tier == highestTier then
+                    bestPortalNum = portalNum
+                    break
+                end
+            end
+        else
+            -- Find the highest tier among acceptable portals
+            local highestAcceptableTier = 0
+            for _, portalData in ipairs(acceptablePortals) do
+                if portalData.tier > highestAcceptableTier then
+                    highestAcceptableTier = portalData.tier
+                    bestPortalNum = portalData.num
+                end
+            end
+            
+        end
+    else
+        -- No filter - pick highest tier
+        for portalNum, tier in pairs(portalTiers) do
+            if tier == highestTier then
+                bestPortalNum = portalNum
+                break
+            end
+        end
+    end
+    
     if not bestPortalNum then
         notify("Auto Portal Reward", "Could not determine best portal", 3)
         return false
     end
     
-    print(string.format("Best portal: #%d with Tier %d", bestPortalNum, highestTier))
+    local selectedTier = portalTiers[bestPortalNum]
     
     -- Select the best portal using its Num attribute
     local success = pcall(function()
@@ -7504,7 +7579,8 @@ local function autoSelectPortalReward()
     end)
     
     if success then
-        notify("Auto Portal Reward", string.format("Selected Portal #%d (Tier %d)", bestPortalNum, highestTier), 3)
+        local filterInfo = hasFilter and " (filtered)" or " (highest)"
+        notify("Auto Portal Reward", string.format("Selected Portal #%d (Tier %d)%s", bestPortalNum, selectedTier, filterInfo), 3)
         return true
     else
         notify("Auto Portal Reward", "Failed to select portal", 3)
