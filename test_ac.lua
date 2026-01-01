@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7406,12 +7406,11 @@ local function autoSelectPortalReward()
         notify("Auto Portal Reward", "Portal container not found", 3)
         return false
     end
-    
-    local portalContainer = cameraChildren
+
     local portals = {}
     
     -- Collect all 3 portals with their info
-    for _, child in pairs(portalContainer:GetChildren()) do
+    for _, child in pairs(workspace.Camera:GetChildren()) do
         if child:IsA("Model") and child.Name:find("Portal") then
             local num = child:GetAttribute("Num")
             if num then
