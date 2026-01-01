@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.19"
+    local script_version = "V0.2"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7398,35 +7398,43 @@ local function autoSelectPortalReward()
         return false
     end
     
-    print("Auto Select Portal Reward - Checking 3 portal options...")
+    print("Auto Select Portal Reward - Waiting for all 3 portals to spawn...")
     
-    -- Get the folder containing the portals
-    local cameraChildren = workspace.Camera:GetChildren()
-    if not cameraChildren then
-        notify("Auto Portal Reward", "Portal container not found", 3)
-        return false
-    end
-
+    -- Wait for all 3 portals to be present with timeout
+    local maxWaitTime = 5 -- 10 seconds timeout
+    local waitStart = tick()
     local portals = {}
     
-    -- Collect all 3 portals with their info
-    for _, child in pairs(workspace.Camera:GetChildren()) do
-        if child:IsA("Model") and child.Name:find("Portal") then
-            local num = child:GetAttribute("Num")
-            if num then
-                table.insert(portals, {
-                    model = child,
-                    num = num
-                })
-                print(string.format("Found portal with Num: %d", num))
+    while #portals < 3 and (tick() - waitStart) < maxWaitTime do
+        portals = {}
+        
+        -- Collect all portals with their info
+        for _, child in pairs(workspace.Camera:GetChildren()) do
+            if child:IsA("Model") and child.Name:find("Portal") then
+                local num = child:GetAttribute("Num")
+                if num then
+                    table.insert(portals, {
+                        model = child,
+                        num = num
+                    })
+                end
             end
+        end
+        
+        if #portals < 3 then
+            print(string.format("Found %d/3 portals, waiting...", #portals))
+            task.wait(0.5)
         end
     end
     
-    if #portals == 0 then
-        notify("Auto Portal Reward", "No portals found", 3)
+    -- Check if we timed out
+    if #portals < 3 then
+        notify("Auto Portal Reward", string.format("Timeout: Only found %d/3 portals", #portals), 3)
+        print(string.format("Portal spawn timeout - only found %d portals", #portals))
         return false
     end
+    
+    print(string.format("All 3 portals found! Proceeding with selection..."))
     
     -- Sort portals by Num (1=left, 2=middle, 3=right)
     table.sort(portals, function(a, b)
