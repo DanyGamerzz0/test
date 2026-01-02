@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.16"
+local script_version = "V0.17"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1966,7 +1966,7 @@ local function joinRaidViaAPI(mapUIName, act)
         Category = "Raid",
         Map = mapModuleName,
         Act = actValue, -- ✅ Can be "1", "2", "3", "4", "5", or "Boss Rush"
-        Difficulty = nil,
+        Difficulty = "Nightmare",
         Modulation = 1.0,
         FriendsOnly = false
     }
