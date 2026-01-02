@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.25"
+    local script_version = "V0.11"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
