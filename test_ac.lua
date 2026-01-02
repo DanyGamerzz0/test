@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.21"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7391,202 +7391,155 @@ end)
         end,
     })
 
-local function getPortalTierFromTooltip()
-    local success, tier = pcall(function()
-        local tooltipGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("TooltipDisplay")
-        if not tooltipGui then return nil end
-        
-        local frame = tooltipGui:FindFirstChild("Frame")
-        if not frame then return nil end
-        
-        -- Find the TextLabel that contains "Tier:"
-        for _, child in pairs(frame:GetDescendants()) do
-            if child:IsA("TextLabel") and child.Text:find("Tier:") then
-                -- Extract tier number from text (e.g., "Tier: 3" -> 3)
-                local tierNumber = tonumber(child.Text:match("%d+"))
-                return tierNumber
-            end
-        end
-        
-        return nil
-    end)
-    
-    return success and tier or nil
+local function getPortalDepth(portalData)
+    if portalData and 
+       portalData._unique_item_data and 
+       portalData._unique_item_data._unique_portal_data and
+       portalData._unique_item_data._unique_portal_data.portal_depth then
+        return portalData._unique_item_data._unique_portal_data.portal_depth
+    end
+    return 0
 end
 
-local function autoSelectPortalReward()
+local function autoPickPortalOnRemote(portalsArray)
     if not State.AutoSelectPortalReward then
+        print("Auto Select Portal Reward is disabled")
         return false
     end
     
-    print("Auto Select Portal Reward - Waiting for all 3 portals to spawn...")
-    
-    -- Wait for all 3 portals to be present with timeout
-    local maxWaitTime = 10 -- 10 seconds timeout
-    local waitStart = tick()
-    local portals = {}
-    
-    while #portals < 3 and (tick() - waitStart) < maxWaitTime do
-        portals = {}
-        
-        -- Collect all portals with their info
-        for _, child in pairs(workspace.Camera:GetChildren()) do
-            if child:IsA("Model") and child.Name:find("Portal") then
-                local num = child:GetAttribute("Num")
-                if num then
-                    table.insert(portals, {
-                        model = child,
-                        num = num
-                    })
-                end
-            end
-        end
-        
-        if #portals < 3 then
-            print(string.format("Found %d/3 portals, waiting...", #portals))
-            task.wait(0.5)
-        end
-    end
-    
-    -- Check if we timed out
-    if #portals < 3 then
-        notify("Auto Portal Reward", string.format("Timeout: Only found %d/3 portals", #portals), 3)
-        print(string.format("Portal spawn timeout - only found %d portals", #portals))
+    if not portalsArray or #portalsArray == 0 then
+        print("No portals data received")
         return false
     end
     
-    print(string.format("All 3 portals found! Proceeding with selection..."))
+    print(string.format("Auto Pick Portal - Analyzing %d portals", #portalsArray))
     
-    -- Sort portals by Num (1=left, 2=middle, 3=right)
-    table.sort(portals, function(a, b)
-        return a.num < b.num
-    end)
-    
-    local portalTiers = {} -- Store {num = tier}
-    local highestTier = 0
-    local bestPortalNum = nil
-    
-    -- Check each portal's tier
-    for _, portalData in ipairs(portals) do
-        local success = pcall(function()
-            -- Get a part from the portal to hover over
-            local hoverPart = portalData.model.PrimaryPart or portalData.model:FindFirstChildWhichIsA("BasePart")
-            
-            if hoverPart then
-                -- Move mouse over the portal
-                local camera = workspace.CurrentCamera
-                local screenPoint, onScreen = camera:WorldToScreenPoint(hoverPart.Position)
-                
-                if onScreen then
-                    -- Simulate mouse hover by moving to position
-                    mousemoveabs(screenPoint.X, screenPoint.Y)
-                    
-                    task.wait(0.4) -- Wait for tooltip to appear
-                    
-                    -- Read tier from tooltip
-                    local tier = getPortalTierFromTooltip()
-                    
-                    if tier then
-                        print(string.format("Portal #%d: Tier %d", portalData.num, tier))
-                        portalTiers[portalData.num] = tier
-                        
-                        if tier > highestTier then
-                            highestTier = tier
-                        end
-                    else
-                        print(string.format("Portal #%d: Could not read tier", portalData.num))
-                    end
-                end
-            end
-        end)
-        
-        if not success then
-            warn("Failed to check portal #" .. portalData.num)
-        end
-        
-        -- Small delay between checking portals
-        task.wait(0.2)
-    end
-    
-    -- Check if we have any valid portal tiers
-    if next(portalTiers) == nil then
-        notify("Auto Portal Reward", "Could not determine portal tiers", 3)
-        return false
-    end
-    
-    -- Filter portals based on selected tiers
-    local acceptablePortals = {}
+    -- Apply tier filter if set
     local hasFilter = #State.PortalRewardTierFilter > 0
+    local acceptablePortals = {}
     
-    if hasFilter then
+    for i, portalData in ipairs(portalsArray) do
+        local depth = getPortalDepth(portalData)
+        local rewardScale = portalData._unique_item_data._unique_portal_data._portal_reward_scale or 0
         
-        for portalNum, tier in pairs(portalTiers) do
-            -- Check if this tier is in our filter
+        print(string.format("Portal %d: Tier (Depth) = %d, Reward Scale = %.2f", 
+            i, depth, rewardScale))
+        
+        -- Check if tier matches filter
+        if hasFilter then
             for _, allowedTier in ipairs(State.PortalRewardTierFilter) do
-                if tier == allowedTier then
-                    table.insert(acceptablePortals, {num = portalNum, tier = tier})
-                    break
-                end
-            end
-        end
-        
-        if #acceptablePortals == 0 then
-            notify("Auto Portal Reward", string.format("No portals match filter - selecting highest tier (%d)", highestTier), 3)
-            
-            -- Fall back to highest tier portal
-            for portalNum, tier in pairs(portalTiers) do
-                if tier == highestTier then
-                    bestPortalNum = portalNum
+                if depth == allowedTier then
+                    table.insert(acceptablePortals, {
+                        index = i, -- 1=right, 2=middle, 3=left
+                        uuid = portalData.uuid,
+                        tier = depth,
+                        rewardScale = rewardScale
+                    })
                     break
                 end
             end
         else
-            -- Find the highest tier among acceptable portals
-            local highestAcceptableTier = 0
-            for _, portalData in ipairs(acceptablePortals) do
-                if portalData.tier > highestAcceptableTier then
-                    highestAcceptableTier = portalData.tier
-                    bestPortalNum = portalData.num
-                end
-            end
-            
-        end
-    else
-        -- No filter - pick highest tier
-        for portalNum, tier in pairs(portalTiers) do
-            if tier == highestTier then
-                bestPortalNum = portalNum
-                break
-            end
+            -- No filter - accept all
+            table.insert(acceptablePortals, {
+                index = i,
+                uuid = portalData.uuid,
+                tier = depth,
+                rewardScale = rewardScale
+            })
         end
     end
     
-    if not bestPortalNum then
-        notify("Auto Portal Reward", "Could not determine best portal", 3)
+    if #acceptablePortals == 0 then
+        if hasFilter then
+            notify("Auto Portal Pick", "No portals match tier filter", 3)
+        end
+        print("No acceptable portals found")
         return false
     end
     
-    local selectedTier = portalTiers[bestPortalNum]
+    -- Find highest tier among acceptable portals
+    local bestPortal = acceptablePortals[1]
+    for _, portal in ipairs(acceptablePortals) do
+        if portal.tier > bestPortal.tier then
+            bestPortal = portal
+        end
+    end
     
-    -- Select the best portal using its Num attribute
+    print(string.format("Selected Portal %d (UUID: %s, Tier: %d, Reward Scale: %.2f)", 
+        bestPortal.index,
+        bestPortal.uuid,
+        bestPortal.tier,
+        bestPortal.rewardScale
+    ))
+    
+    -- Find the portal's Num attribute from workspace.Camera
+    local portalNum = nil
+    local cameraFolder = workspace:FindFirstChild("Camera")
+    
+    if cameraFolder then
+        local portalCount = 0
+        for _, child in ipairs(cameraFolder:GetChildren()) do
+            if child.Name == "Christmas Portal" then
+                portalCount = portalCount + 1
+                
+                -- Match by index: 1=right (first), 2=middle (second), 3=left (third)
+                if portalCount == bestPortal.index then
+                    portalNum = child:GetAttribute("Num")
+                    print(string.format("Found portal Num: %s for index %d", tostring(portalNum), bestPortal.index))
+                    break
+                end
+            end
+        end
+    end
+    
+    if not portalNum then
+        notify("Auto Portal Pick", "Failed to find portal Num attribute", 3)
+        warn("Could not find Num attribute for portal index:", bestPortal.index)
+        return false
+    end
+    
+    -- Small delay to ensure UI is ready
+    task.wait(0.5)
+    
+    -- Fire the portal selection remote with Num instead of UUID
     local success = pcall(function()
-        local args = {bestPortalNum}
-        game:GetService("ReplicatedStorage")
-            :WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-            :WaitForChild("RequestPortal")
-            :InvokeServer(unpack(args))
+        local ChoosePortal = Services.ReplicatedStorage.endpoints.client_to_server.ChoosePortal
+        ChoosePortal:InvokeServer(portalNum) -- Use Num instead of UUID
     end)
     
     if success then
-        local filterInfo = hasFilter and " (filtered)" or " (highest)"
-        notify("Auto Portal Reward", string.format("Selected Portal #%d (Tier %d)%s", bestPortalNum, selectedTier, filterInfo), 3)
+        local filterInfo = hasFilter and " (filtered)" or ""
+        notify("Auto Portal Pick", 
+            string.format("Selected Portal %d (Tier %d)%s", 
+                bestPortal.index, 
+                bestPortal.tier,
+                filterInfo
+            ), 
+            3
+        )
         return true
     else
-        notify("Auto Portal Reward", "Failed to select portal", 3)
+        notify("Auto Portal Pick", "Failed to select portal", 3)
         return false
     end
 end
+
+task.spawn(function()
+    local Select_Portals = Services.ReplicatedStorage.endpoints.server_to_client.Select_Portals
+    
+    Select_Portals.OnClientEvent:Connect(function(portalsArray)
+        print("Select_Portals remote fired!")
+        
+        if State.AutoSelectPortalReward then
+            -- Auto-pick immediately when remote fires
+            task.spawn(function()
+                autoPickPortalOnRemote(portalsArray)
+            end)
+        end
+    end)
+    
+    print("Hooked into Select_Portals remote - ready to auto-pick portals")
+end)
 
     -- ========== REMOTE EVENT CONNECTIONS ==========
     local itemAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("normal_item_added")
@@ -7762,16 +7715,6 @@ end
             
             return
         end
-
-        if State.AutoSelectPortalReward then
-        print("Auto Select Portal Reward is enabled - selecting reward first...")
-        local rewardSelected = autoSelectPortalReward()
-        
-        if rewardSelected then
-            task.wait(1) -- Wait for reward selection to process
-        end
-    end
-
        if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
     if autoNextPortal() then
         return -- Successfully replayed portal
