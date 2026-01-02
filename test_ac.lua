@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.24"
+    local script_version = "V0.25"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -164,6 +164,7 @@ local playbackDisplayNameInstances = {}
     local currentMapName = "Unknown Map"
     local gameResult = "Unknown"
     local itemNameCache = {}
+    local storedPortalData = nil
 
     local Config = {
         DISCORD_USER_ID = nil,
@@ -7401,24 +7402,19 @@ local function getPortalDepth(portalData)
     return 0
 end
 
-local function autoPickPortalOnRemote(portalsArray)
-    if not State.AutoSelectPortalReward then
-        print("Auto Select Portal Reward is disabled")
+local function pickBestPortalFromStoredData()
+    if not storedPortalData or #storedPortalData == 0 then
+        print("No stored portal data available")
         return false
     end
     
-    if not portalsArray or #portalsArray == 0 then
-        print("No portals data received")
-        return false
-    end
-    
-    print(string.format("Auto Pick Portal - Analyzing %d portals", #portalsArray))
+    print(string.format("Picking best portal from %d stored portals", #storedPortalData))
     
     -- Apply tier filter if set
     local hasFilter = #State.PortalRewardTierFilter > 0
     local acceptablePortals = {}
     
-    for i, portalData in ipairs(portalsArray) do
+    for i, portalData in ipairs(storedPortalData) do
         local depth = getPortalDepth(portalData)
         local rewardScale = portalData._unique_item_data._unique_portal_data._portal_reward_scale or 0
         
@@ -7430,8 +7426,7 @@ local function autoPickPortalOnRemote(portalsArray)
             for _, allowedTier in ipairs(State.PortalRewardTierFilter) do
                 if depth == allowedTier then
                     table.insert(acceptablePortals, {
-                        index = i, -- 1=right, 2=middle, 3=left (this IS the Num!)
-                        uuid = portalData.uuid,
+                        index = i,
                         tier = depth,
                         rewardScale = rewardScale
                     })
@@ -7442,7 +7437,6 @@ local function autoPickPortalOnRemote(portalsArray)
             -- No filter - accept all
             table.insert(acceptablePortals, {
                 index = i,
-                uuid = portalData.uuid,
                 tier = depth,
                 rewardScale = rewardScale
             })
@@ -7457,13 +7451,12 @@ local function autoPickPortalOnRemote(portalsArray)
         end
         
         -- Find highest tier among all portals
-        for i, portalData in ipairs(portalsArray) do
+        for i, portalData in ipairs(storedPortalData) do
             local depth = getPortalDepth(portalData)
             local rewardScale = portalData._unique_item_data._unique_portal_data._portal_reward_scale or 0
             
             table.insert(acceptablePortals, {
                 index = i,
-                uuid = portalData.uuid,
                 tier = depth,
                 rewardScale = rewardScale
             })
@@ -7481,7 +7474,6 @@ local function autoPickPortalOnRemote(portalsArray)
         if portal.tier > bestPortal.tier then
             bestPortal = portal
         elseif portal.tier == bestPortal.tier and portal.rewardScale > bestPortal.rewardScale then
-            -- If same tier, pick higher reward scale
             bestPortal = portal
         end
     end
@@ -7495,13 +7487,10 @@ local function autoPickPortalOnRemote(portalsArray)
     -- The index IS the Num we need (1=right, 2=middle, 3=left)
     local portalNum = bestPortal.index
     
-    -- Small delay to ensure UI is ready
-    task.wait(0.5)
-    
-    -- Fire the portal selection remote with Num
+    -- Fire the portal selection remote
     local success = pcall(function()
-        local ChoosePortal = Services.ReplicatedStorage.endpoints.client_to_server.ChoosePortal
-        ChoosePortal:InvokeServer(portalNum)
+        Services.ReplicatedStorage.endpoints.client_to_server.RequestPortal:InvokeServer(portalNum)
+        print("Fired ChoosePortal remote with Num:", portalNum)
     end)
     
     if success then
@@ -7514,6 +7503,9 @@ local function autoPickPortalOnRemote(portalsArray)
             ), 
             3
         )
+        
+        -- Clear stored data after use
+        storedPortalData = nil
         return true
     else
         notify("Auto Portal Pick", "Failed to select portal", 3)
@@ -7528,14 +7520,20 @@ task.spawn(function()
         print("Select_Portals remote fired!")
         
         if State.AutoSelectPortalReward then
-            -- Auto-pick immediately when remote fires
-            task.spawn(function()
-                autoPickPortalOnRemote(portalsArray)
-            end)
+            -- Store portal data for later use
+            storedPortalData = portalsArray
+            print("Stored portal data for auto-selection at game end")
+            
+            -- Log portal info
+            for i, portalData in ipairs(portalsArray) do
+                local depth = getPortalDepth(portalData)
+                local rewardScale = portalData._unique_item_data._unique_portal_data._portal_reward_scale or 0
+                print(string.format("Portal %d: Tier (Depth) = %d, Reward Scale = %.2f", i, depth, rewardScale))
+            end
         end
     end)
     
-    print("Hooked into Select_Portals remote - ready to auto-pick portals")
+    print("Hooked into Select_Portals remote - ready to store portal data")
 end)
 
     -- ========== REMOTE EVENT CONNECTIONS ==========
@@ -7690,6 +7688,11 @@ end)
             -- Handle auto voting logic with priority system
     task.spawn(function()
         task.wait(1) -- Small delay to ensure game state is stable
+
+        if State.AutoSelectPortalReward and storedPortalData then
+        pickBestPortalFromStoredData()
+        task.wait(0.5) -- Small delay after portal selection
+    end
         
         if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected then
             notify("Auto Challenge", "New challenge detected - returning to lobby instead of using auto vote settings")
