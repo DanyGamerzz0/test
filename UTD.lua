@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.15"
+local script_version = "V0.16"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1956,8 +1956,8 @@ local function joinRaidViaAPI(mapUIName, act)
     
     -- ✅ Handle Boss Rush act
     local actValue = act
-    if act == "BossRush" then
-        actValue = "BossRush"
+    if act == "BossRush" or act == "Boss Rush" then
+        actValue = "Boss Rush"
     else
         actValue = tostring(act)
     end
@@ -1965,7 +1965,7 @@ local function joinRaidViaAPI(mapUIName, act)
     local gameData = {
         Category = "Raid",
         Map = mapModuleName,
-        Act = actValue, -- ✅ Can be "1", "2", "3", "4", "5", or "BossRush"
+        Act = actValue, -- ✅ Can be "1", "2", "3", "4", "5", or "Boss Rush"
         Difficulty = nil,
         Modulation = 1.0,
         FriendsOnly = false
@@ -2303,11 +2303,20 @@ local function findAllMatchingChallenges(challengesData, challengeType)
     return matchingChallenges
 end
 
+local function isGameDataLoaded()
+    local success = pcall(function()
+        return Services.ReplicatedStorage:FindFirstChild("Shared") and
+               Services.ReplicatedStorage.Shared:FindFirstChild("Data")
+    end)
+    return success
+end
+
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     if not canPerformAction() then return end
     if not ChallengeController or not PodController then return end
+    if not isGameDataLoaded() then return end
     
     -- Check if lobby creation UI is already open
     if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi") then
@@ -2879,6 +2888,8 @@ local VirtualStageDropdown = JoinerTab:CreateDropdown({
    end,
 })
 
+section = JoinerTab:CreateSection("Raid Joiner")
+
 AutoJoinRaidToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
     CurrentValue = false,
@@ -2994,14 +3005,6 @@ section = JoinerTab:CreateSection("Challenge Joiner")
             State.ReturnToLobbyOnNewChallenge = Value
         end,
     })
-
-local function isGameDataLoaded()
-    local success = pcall(function()
-        return Services.ReplicatedStorage:FindFirstChild("Shared") and
-               Services.ReplicatedStorage.Shared:FindFirstChild("Data")
-    end)
-    return success
-end
 
 local function buildMapLookup()
     print("Building map name lookup...")
