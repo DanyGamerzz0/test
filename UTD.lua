@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -199,6 +199,11 @@ local State = {
     LastFailedChallengeAttempt = 0,
     ChallengeJoinCooldown = 60,
     NewChallengesAvailable = false,
+
+    -- Raid
+    AutoJoinRaid = false,
+    RaidStageSelected = nil,
+    RaidActSelected = nil,
 }
 
         local loadingRetries = {
@@ -207,6 +212,7 @@ local State = {
         portal = 0,
         ignoreWorlds = 0,
         modifiers = 0,
+        raid = 0,
     }
 
      local AutoJoinState = {
@@ -1755,7 +1761,18 @@ end
     if categoryLower:find("virtual") then
         return "virtual_" .. mapName:lower():gsub("%s+", "_")
     end
-    
+
+        if categoryLower == "raid" then
+        if mapInternal then
+            return "raid_" .. mapInternal:lower()
+        else
+            -- Fallback: convert UI name to module name using our lookup
+            local moduleName = UINameToModuleName[mapName]
+            if moduleName then
+                return "raid_" .. moduleName:lower()
+            end
+        end
+    end
     return nil
 end
 
@@ -1786,7 +1803,7 @@ end
 
 local function getModuleNameFromUI(uiName, category)
     -- For Story/Virtual - use UINameToModuleName lookup
-    if category == "Story" or category == "VirtualRealm" then
+    if category == "Story" or category == "VirtualRealm" or category == "Raid" then
         local moduleName = UINameToModuleName[uiName]
         if moduleName then
             return moduleName
@@ -1924,6 +1941,48 @@ local function joinVirtualViaAPI(mapUIName, act, difficulty, difficultyPercent)
         return true
     else
         warn("❌ Virtual join failed")
+        return false
+    end
+end
+
+local function joinRaidViaAPI(mapUIName, act)
+    if not PodController then
+        warn("PodController not initialized")
+        return false
+    end
+    
+    -- ✅ CONVERT UI NAME TO MODULE NAME
+    local mapModuleName = getModuleNameFromUI(mapUIName, "Raid")
+    
+    -- ✅ Handle Boss Rush act
+    local actValue = act
+    if act == "BossRush" then
+        actValue = "BossRush"
+    else
+        actValue = tostring(act)
+    end
+    
+    local gameData = {
+        Category = "Raid",
+        Map = mapModuleName,
+        Act = actValue, -- ✅ Can be "1", "2", "3", "4", "5", or "BossRush"
+        Difficulty = nil,
+        Modulation = 1.0,
+        FriendsOnly = false
+    }
+    
+    print(string.format("Joining Raid: %s (Module: %s) Act %s", 
+        mapUIName, mapModuleName, actValue))
+    
+    local success = pcall(function()
+        PodController:RequestPod(gameData)
+    end)
+    
+    if success then
+        print("✅ Raid join request sent via API")
+        return true
+    else
+        warn("❌ Raid join failed")
         return false
     end
 end
@@ -2412,6 +2471,26 @@ local function checkAndExecuteHighestPriority()
             clearProcessingState()
         end
     end
+
+    if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
+        setProcessingState("Raid Stage Auto Join")
+        
+        local success = joinRaidViaAPI(
+            State.RaidStageSelected,
+            tonumber(State.RaidActSelected)
+        )
+        
+        if success then
+            print("✅ Successfully joined Raid via API!")
+            task.wait(2)
+            startGameViaAPI()
+            task.wait(5)
+            clearProcessingState()
+            return  -- ✅ EXIT - successfully joined
+        else
+            clearProcessingState()
+        end
+    end
 end
 
 --[[--------------------------------------------------------------]]
@@ -2798,6 +2877,45 @@ local VirtualStageDropdown = JoinerTab:CreateDropdown({
    Callback = function(Value)
     State.VirtualStageDifficultyMeterSelected = Value
    end,
+})
+
+AutoJoinRaidToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Raid",
+    CurrentValue = false,
+    Flag = "AutoJoinRaid",
+    Callback = function(Value)
+        State.AutoJoinRaid = Value
+    end,
+})
+
+local RaidStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "RaidStageSelector",
+    Callback = function(Option)
+        State.RaidStageSelected = Option[1]
+    end,
+})
+
+RaidChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Act",
+    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Boss Rush"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RaidStageActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        
+        if selectedOption == "Boss Rush" then
+            State.RaidActSelected = "BossRush"
+        else
+            local num = selectedOption:match("%d+")
+            if num then
+                State.RaidActSelected = num
+            end
+        end
+    end,
 })
 
 section = JoinerTab:CreateSection("Challenge Joiner")
@@ -3228,6 +3346,79 @@ local function loadAllChallengeModifiersWithRetry()
     end
 end
 
+local function loadAllRaidStagesWithRetry()
+    loadingRetries.raid = loadingRetries.raid + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.raid <= maxRetries then
+            print(string.format("Raid stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.raid, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadAllRaidStagesWithRetry)
+        else
+            warn("Failed to load raid stages after", maxRetries, "attempts - giving up")
+            if RaidStageDropdown then
+                RaidStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local RaidFolder = Services.ReplicatedStorage.Shared.Data.Raids
+        
+        if not RaidFolder then
+            error("Raids folder not found")
+        end
+
+        local displayNames = {}
+        
+        -- Get all module scripts (raids)
+        for _, raidModule in ipairs(RaidFolder:GetChildren()) do
+            if raidModule:IsA("ModuleScript") then
+                local raidSuccess, raidData = pcall(function()
+                    return require(raidModule)
+                end)
+                
+                if raidSuccess and raidData and raidData.Information and raidData.Information.Name then
+                    -- Store both UI name and module name
+                    local uiName = raidData.Information.Name
+                    local moduleName = raidModule.Name
+                    
+                    UINameToModuleName[uiName] = moduleName
+                    table.insert(displayNames, uiName)
+                end
+            end
+        end
+        
+        if #displayNames == 0 then
+            error("No raid stages found")
+        end
+        
+        -- Sort alphabetically
+        table.sort(displayNames)
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        if RaidStageDropdown then
+            RaidStageDropdown:Refresh(result)
+        end
+        print(string.format("Successfully loaded %d raid stages (attempt %d)", #result, loadingRetries.raid))
+    else
+        if loadingRetries.raid <= maxRetries then
+            print(string.format("Raid stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.raid, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadAllRaidStagesWithRetry)
+        else
+            warn("Failed to load raid stages after", maxRetries, "attempts:", result)
+            if RaidStageDropdown then
+                RaidStageDropdown:Refresh({"Failed to load - check console"})
+            end
+        end
+    end
+end
+
 local function saveWorldMappings()
     ensureMacroFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
@@ -3442,7 +3633,58 @@ local function createAutoSelectDropdowns()
             worldDropdowns[worldKey] = dropdown
         end
     end
-    
+
+    local RaidCollapsible = Tab:CreateCollapsible({
+    Name = "Select Raid Stage Macro",
+    DefaultExpanded = false,
+    Flag = "RaidMacroCollapsible"
+})
+
+if RaidStageDropdown and RaidStageDropdown.Options then
+    for _, stageName in ipairs(RaidStageDropdown.Options) do
+        -- Get module name from ReplicatedStorage
+        local success, raidData = pcall(function()
+            local RaidFolder = Services.ReplicatedStorage.Shared.Data.Raids
+            for _, stageModule in ipairs(RaidFolder:GetChildren()) do
+                if stageModule:IsA("ModuleScript") then
+                    local stageData = require(stageModule)
+                    if stageData.Information and stageData.Information.Name == stageName then
+                        return stageModule.Name
+                    end
+                end
+            end
+            return nil
+        end)
+        
+        if success and raidData then
+            local worldKey = "raid_" .. raidData:lower()
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            
+            local dropdown = RaidCollapsible.Tab:CreateDropdown({
+                Name = stageName,
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
+                MultipleOptions = false,
+                Flag = "WorldMacro_" .. worldKey,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    
+                    if selectedMacro == "None" or selectedMacro == "" then
+                        worldMacroMappings[worldKey] = nil
+                        print("Cleared auto-select for", stageName, "(Raid)")
+                    else
+                        worldMacroMappings[worldKey] = selectedMacro
+                        print("Set auto-select:", stageName, "(Raid) ->", selectedMacro)
+                    end
+                    
+                    saveWorldMappings()
+                end,
+            })
+            
+            worldDropdowns[worldKey] = dropdown
+        end
+    end
+end 
     print("✓ Created auto-select dropdowns")
 end
 
@@ -5369,6 +5611,7 @@ task.spawn(loadAllStoryStagesWithRetry)
 task.spawn(loadAllLegendStagesWithRetry)
 task.spawn(loadAllVirtualStagesWithRetry)
 task.spawn(loadAllChallengeModifiersWithRetry)
+task.spawn(loadAllRaidStagesWithRetry)
 
 task.spawn(function()
     task.wait(2)
