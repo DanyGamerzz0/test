@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.18"
+local script_version = "V0.19"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1957,7 +1957,7 @@ local function joinRaidViaAPI(mapUIName, act)
     -- ✅ Handle Boss Rush act
     local actValue = act
     if act == "BossRush" or act == "Boss Rush" then
-        actValue = "BossRush"
+        actValue = "Boss Rush"
     else
         actValue = tostring(act)
     end
@@ -2489,7 +2489,7 @@ local function checkAndExecuteHighestPriority()
         
         local success = joinRaidViaAPI(
             State.RaidStageSelected,
-            tonumber(State.RaidActSelected)
+            State.RaidActSelected
         )
         
         if success then
