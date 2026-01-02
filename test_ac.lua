@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.23"
+    local script_version = "V0.24"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7414,41 +7414,6 @@ local function autoPickPortalOnRemote(portalsArray)
     
     print(string.format("Auto Pick Portal - Analyzing %d portals", #portalsArray))
     
-    -- First, collect all portal Num attributes from workspace
-    local portalNums = {} -- Array: [1] = right portal Num, [2] = middle, [3] = left
-    local cameraFolder = workspace:FindFirstChild("Camera")
-    
-    if cameraFolder then
-        local portals = {}
-        
-        -- Collect all "Christmas Portal" objects
-        for _, child in ipairs(cameraFolder:GetChildren()) do
-            if child.Name == "Christmas Portal" then
-                table.insert(portals, child)
-            end
-        end
-        
-        -- Sort portals by their Num attribute to establish order
-        table.sort(portals, function(a, b)
-            local numA = a:GetAttribute("Num") or 0
-            local numB = b:GetAttribute("Num") or 0
-            return numA < numB
-        end)
-        
-        -- Store the Num attributes in order
-        for i, portal in ipairs(portals) do
-            local num = portal:GetAttribute("Num")
-            portalNums[i] = num
-            print(string.format("Portal position %d: Num = %s", i, tostring(num)))
-        end
-    end
-    
-    if #portalNums == 0 then
-        notify("Auto Portal Pick", "Could not find portal Num attributes", 3)
-        warn("No portal Num attributes found in workspace.Camera")
-        return false
-    end
-    
     -- Apply tier filter if set
     local hasFilter = #State.PortalRewardTierFilter > 0
     local acceptablePortals = {}
@@ -7465,7 +7430,7 @@ local function autoPickPortalOnRemote(portalsArray)
             for _, allowedTier in ipairs(State.PortalRewardTierFilter) do
                 if depth == allowedTier then
                     table.insert(acceptablePortals, {
-                        index = i, -- 1=right, 2=middle, 3=left
+                        index = i, -- 1=right, 2=middle, 3=left (this IS the Num!)
                         uuid = portalData.uuid,
                         tier = depth,
                         rewardScale = rewardScale
@@ -7521,23 +7486,14 @@ local function autoPickPortalOnRemote(portalsArray)
         end
     end
     
-    print(string.format("Selected Portal %d (UUID: %s, Tier: %d, Reward Scale: %.2f)", 
+    print(string.format("Selected Portal %d (Tier: %d, Reward Scale: %.2f)", 
         bestPortal.index,
-        bestPortal.uuid,
         bestPortal.tier,
         bestPortal.rewardScale
     ))
     
-    -- Get the Num for this portal position
-    local portalNum = portalNums[bestPortal.index]
-    
-    if not portalNum then
-        notify("Auto Portal Pick", string.format("Could not find Num for portal index: %d", bestPortal.index), 3)
-        warn("Could not find Num attribute for portal index:", bestPortal.index)
-        return false
-    end
-    
-    print(string.format("Using portal Num: %s for index %d", tostring(portalNum), bestPortal.index))
+    -- The index IS the Num we need (1=right, 2=middle, 3=left)
+    local portalNum = bestPortal.index
     
     -- Small delay to ensure UI is ready
     task.wait(0.5)
@@ -7549,7 +7505,7 @@ local function autoPickPortalOnRemote(portalsArray)
     end)
     
     if success then
-        local filterInfo = hasFilter and (#State.PortalRewardTierFilter > 0 and " (filtered)" or " (highest tier)") or ""
+        local filterInfo = hasFilter and " (filtered)" or " (highest tier)"
         notify("Auto Portal Pick", 
             string.format("Selected Portal %d (Tier %d)%s", 
                 bestPortal.index, 
