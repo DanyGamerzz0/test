@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.22"
+    local script_version = "V0.23"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7414,6 +7414,41 @@ local function autoPickPortalOnRemote(portalsArray)
     
     print(string.format("Auto Pick Portal - Analyzing %d portals", #portalsArray))
     
+    -- First, collect all portal Num attributes from workspace
+    local portalNums = {} -- Array: [1] = right portal Num, [2] = middle, [3] = left
+    local cameraFolder = workspace:FindFirstChild("Camera")
+    
+    if cameraFolder then
+        local portals = {}
+        
+        -- Collect all "Christmas Portal" objects
+        for _, child in ipairs(cameraFolder:GetChildren()) do
+            if child.Name == "Christmas Portal" then
+                table.insert(portals, child)
+            end
+        end
+        
+        -- Sort portals by their Num attribute to establish order
+        table.sort(portals, function(a, b)
+            local numA = a:GetAttribute("Num") or 0
+            local numB = b:GetAttribute("Num") or 0
+            return numA < numB
+        end)
+        
+        -- Store the Num attributes in order
+        for i, portal in ipairs(portals) do
+            local num = portal:GetAttribute("Num")
+            portalNums[i] = num
+            print(string.format("Portal position %d: Num = %s", i, tostring(num)))
+        end
+    end
+    
+    if #portalNums == 0 then
+        notify("Auto Portal Pick", "Could not find portal Num attributes", 3)
+        warn("No portal Num attributes found in workspace.Camera")
+        return false
+    end
+    
     -- Apply tier filter if set
     local hasFilter = #State.PortalRewardTierFilter > 0
     local acceptablePortals = {}
@@ -7449,11 +7484,29 @@ local function autoPickPortalOnRemote(portalsArray)
         end
     end
     
+    -- If no portals match filter, fall back to highest tier
     if #acceptablePortals == 0 then
         if hasFilter then
-            notify("Auto Portal Pick", "No portals match tier filter", 3)
+            print("No portals match filter - falling back to highest tier")
+            notify("Auto Portal Pick", "No match - picking highest tier", 3)
         end
-        print("No acceptable portals found")
+        
+        -- Find highest tier among all portals
+        for i, portalData in ipairs(portalsArray) do
+            local depth = getPortalDepth(portalData)
+            local rewardScale = portalData._unique_item_data._unique_portal_data._portal_reward_scale or 0
+            
+            table.insert(acceptablePortals, {
+                index = i,
+                uuid = portalData.uuid,
+                tier = depth,
+                rewardScale = rewardScale
+            })
+        end
+    end
+    
+    if #acceptablePortals == 0 then
+        print("No portals available")
         return false
     end
     
@@ -7461,6 +7514,9 @@ local function autoPickPortalOnRemote(portalsArray)
     local bestPortal = acceptablePortals[1]
     for _, portal in ipairs(acceptablePortals) do
         if portal.tier > bestPortal.tier then
+            bestPortal = portal
+        elseif portal.tier == bestPortal.tier and portal.rewardScale > bestPortal.rewardScale then
+            -- If same tier, pick higher reward scale
             bestPortal = portal
         end
     end
@@ -7472,43 +7528,28 @@ local function autoPickPortalOnRemote(portalsArray)
         bestPortal.rewardScale
     ))
     
-    -- Find the portal's Num attribute from workspace.Camera
-    local portalNum = nil
-    local cameraFolder = workspace:FindFirstChild("Camera")
-    
-    if cameraFolder then
-        local portalCount = 0
-        for _, child in ipairs(cameraFolder:GetChildren()) do
-            if child.Name == "Christmas Portal" then
-                portalCount = portalCount + 1
-                
-                -- Match by index: 1=right (first), 2=middle (second), 3=left (third)
-                if portalCount == bestPortal.index then
-                    portalNum = child:GetAttribute("Num")
-                    print(string.format("Found portal Num: %s for index %d", tostring(portalNum), bestPortal.index))
-                    break
-                end
-            end
-        end
-    end
+    -- Get the Num for this portal position
+    local portalNum = portalNums[bestPortal.index]
     
     if not portalNum then
-        notify("Auto Portal Pick", "Failed to find portal Num attribute", 3)
+        notify("Auto Portal Pick", string.format("Could not find Num for portal index: %d", bestPortal.index), 3)
         warn("Could not find Num attribute for portal index:", bestPortal.index)
         return false
     end
     
+    print(string.format("Using portal Num: %s for index %d", tostring(portalNum), bestPortal.index))
+    
     -- Small delay to ensure UI is ready
     task.wait(0.5)
     
-    -- Fire the portal selection remote with Num instead of UUID
+    -- Fire the portal selection remote with Num
     local success = pcall(function()
         local ChoosePortal = Services.ReplicatedStorage.endpoints.client_to_server.ChoosePortal
-        ChoosePortal:InvokeServer(portalNum) -- Use Num instead of UUID
+        ChoosePortal:InvokeServer(portalNum)
     end)
     
     if success then
-        local filterInfo = hasFilter and " (filtered)" or ""
+        local filterInfo = hasFilter and (#State.PortalRewardTierFilter > 0 and " (filtered)" or " (highest tier)") or ""
         notify("Auto Portal Pick", 
             string.format("Selected Portal %d (Tier %d)%s", 
                 bestPortal.index, 
