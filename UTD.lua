@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.17"
+local script_version = "V0.18"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1957,7 +1957,7 @@ local function joinRaidViaAPI(mapUIName, act)
     -- ✅ Handle Boss Rush act
     local actValue = act
     if act == "BossRush" or act == "Boss Rush" then
-        actValue = "Boss Rush"
+        actValue = "BossRush"
     else
         actValue = tostring(act)
     end
@@ -1970,6 +1970,9 @@ local function joinRaidViaAPI(mapUIName, act)
         Modulation = 1.0,
         FriendsOnly = false
     }
+
+    print(mapModuleName)
+    print(actValue)
     
     print(string.format("Joining Raid: %s (Module: %s) Act %s", 
         mapUIName, mapModuleName, actValue))
