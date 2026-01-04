@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -4689,7 +4689,7 @@ local RecordToggle = Tab:CreateToggle({
                     
                     updateMacroStatus("Recording from Wave " .. currentWave)
                     updateDetailedStatus("Recording in progress (no restart)")
-                end else
+                else
                     updateMacroStatus("Recording enabled - Restarting game...")
                     updateDetailedStatus("Waiting for restart to complete...")
                 end
