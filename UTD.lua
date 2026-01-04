@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.19"
+local script_version = "V0.2"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2149,17 +2149,115 @@ local function startGameViaAPI()
         return false
     end
     
-    print("Starting game via vote...")
+    print("Starting game via start button...")
     
-    game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring(",\000"))
+    local success = pcall(function()
+        local startButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+        
+        for _, conn in pairs(getconnections(startButton.MouseButton1Up)) do
+            if conn.Enabled then
+                conn:Fire()
+            end
+        end
+    end)
     
     if success then
-        print("✅ Vote to start sent")
+        print("✅ Clicked start button")
         return true
     else
-        warn("❌ Failed to vote start")
+        warn("❌ Failed to click start button")
         return false
     end
+end
+
+local function waitForJoinSuccess(timeout)
+    local startTime = tick()
+    timeout = timeout or 10
+    
+    while tick() - startTime < timeout do
+        -- Check if PartyFrame is visible (successfully joined but not started)
+        local success, partyFrameVisible = pcall(function()
+            local partyFrame = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
+            if partyFrame then
+                partyFrame = partyFrame:FindFirstChild("PartyFrame")
+                if partyFrame then
+                    return partyFrame.Enabled
+                end
+            end
+            return false
+        end)
+        
+        if success and partyFrameVisible then
+            print("✓ Join successful - PartyFrame visible")
+            return true
+        end
+        
+        task.wait(0.5)
+    end
+    
+    return false
+end
+
+local function tryStartGameWithRetry(maxRetries)
+    maxRetries = maxRetries or 3
+    
+    for attempt = 1, maxRetries do
+        print(string.format("Attempting to start game (attempt %d/%d)", attempt, maxRetries))
+        
+        startGameViaAPI()
+        
+        -- Wait to see if we get teleported or PartyFrame closes
+        local waitStart = tick()
+        while tick() - waitStart < 5 do
+            -- Check if we got teleported (no longer in lobby)
+            if not isInLobby() then
+                print("✓ Successfully started - teleported to game")
+                return true
+            end
+            
+            -- Check if PartyFrame closed
+            local success, partyFrameVisible = pcall(function()
+                local partyFrame = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
+                if partyFrame then
+                    partyFrame = partyFrame:FindFirstChild("PartyFrame")
+                    if partyFrame then
+                        return partyFrame.Enabled
+                    end
+                end
+                return false
+            end)
+            
+            if success and not partyFrameVisible then
+                print("✓ PartyFrame closed - game starting")
+                return true
+            end
+            
+            task.wait(0.5)
+        end
+        
+        -- Check if PartyFrame is still visible (need to retry)
+        local success, partyFrameVisible = pcall(function()
+            local partyFrame = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
+            if partyFrame then
+                partyFrame = partyFrame:FindFirstChild("PartyFrame")
+                if partyFrame then
+                    return partyFrame.Enabled
+                end
+            end
+            return false
+        end)
+        
+        if not success or not partyFrameVisible then
+            print("✓ Game started or PartyFrame closed")
+            return true
+        end
+        
+        print(string.format("⚠️ Start attempt %d failed - PartyFrame still visible", attempt))
+        task.wait(1)
+    end
+    
+    warn("❌ Failed to start game after", maxRetries, "attempts")
+    return false
 end
 
 local function getCurrentChallengesData()
@@ -2350,9 +2448,6 @@ local function checkAndExecuteHighestPriority()
                 if #matchingChallenges > 0 then
                     print(string.format("Found %d matching challenges", #matchingChallenges))
                     
-                    -- ✅ Try each matching challenge in order
-                    local joinedSuccessfully = false
-                    
                     for attemptNum, challenge in ipairs(matchingChallenges) do
                         print(string.format("Attempting challenge %d/%d: Index %d, Map=%s, Act=%d, Reward=%s", 
                             attemptNum, #matchingChallenges, challenge.index, 
@@ -2363,21 +2458,23 @@ local function checkAndExecuteHighestPriority()
                         if success == true then
                             print("✅ Successfully joined challenge via API!")
                             State.LastFailedChallengeAttempt = 0
-                            task.wait(2)
-                            startGameViaAPI()
-                            task.wait(5)
-                            clearProcessingState()
-                            return  -- ✅ EXIT - successfully joined
+                            
+                            if waitForJoinSuccess(10) then
+                                if tryStartGameWithRetry(3) then
+                                    task.wait(3)
+                                    clearProcessingState()
+                                    return
+                                end
+                            end
                         elseif success == "already_completed" then
                             print("⚠️ Challenge already completed - trying next one...")
-                            continue  -- ✅ Try next matching challenge
+                            continue
                         else
                             warn("❌ Failed to join challenge - trying next one...")
-                            continue  -- ✅ Try next matching challenge
+                            continue
                         end
                     end
                     
-                    -- If we got here, all challenges failed
                     print("⚠️ All matching Half Hourly challenges completed or failed")
                     State.LastFailedChallengeAttempt = tick()
                 else
@@ -2390,7 +2487,6 @@ local function checkAndExecuteHighestPriority()
             end
             
             clearProcessingState()
-            -- ✅ Fall through to next priority (Featured Challenge, Story, etc.)
         end
     end
     
@@ -2402,15 +2498,17 @@ local function checkAndExecuteHighestPriority()
         
         if success then
             print("✅ Successfully joined Featured Challenge via API!")
-            task.wait(2)
-            startGameViaAPI()
-            task.wait(5)
-            clearProcessingState()
-            return  -- ✅ EXIT - successfully joined
+            
+            if waitForJoinSuccess(10) then
+                if tryStartGameWithRetry(3) then
+                    task.wait(3)
+                    clearProcessingState()
+                    return
+                end
+            end
         end
         
         clearProcessingState()
-        -- ✅ Fall through to next priority
     end
 
     -- Priority 3: Story Auto Join
@@ -2427,11 +2525,14 @@ local function checkAndExecuteHighestPriority()
         
         if success then
             print("✅ Successfully joined Story via API!")
-            task.wait(2)
-            startGameViaAPI()
-            task.wait(5)
-            clearProcessingState()
-            return  -- ✅ EXIT - successfully joined
+            
+            if waitForJoinSuccess(10) then
+                if tryStartGameWithRetry(3) then
+                    task.wait(3)
+                    clearProcessingState()
+                    return
+                end
+            end
         else
             clearProcessingState()
         end
@@ -2450,11 +2551,14 @@ local function checkAndExecuteHighestPriority()
         
         if success then
             print("✅ Successfully joined Legend Stage via API!")
-            task.wait(2)
-            startGameViaAPI()
-            task.wait(5)
-            clearProcessingState()
-            return  -- ✅ EXIT - successfully joined
+            
+            if waitForJoinSuccess(10) then
+                if tryStartGameWithRetry(3) then
+                    task.wait(3)
+                    clearProcessingState()
+                    return
+                end
+            end
         else
             clearProcessingState()
         end
@@ -2474,16 +2578,20 @@ local function checkAndExecuteHighestPriority()
         
         if success then
             print("✅ Successfully joined Virtual Stage via API!")
-            task.wait(2)
-            startGameViaAPI()
-            task.wait(5)
-            clearProcessingState()
-            return  -- ✅ EXIT - successfully joined
+            
+            if waitForJoinSuccess(10) then
+                if tryStartGameWithRetry(3) then
+                    task.wait(3)
+                    clearProcessingState()
+                    return
+                end
+            end
         else
             clearProcessingState()
         end
     end
 
+    -- Priority 6: Raid Auto Join
     if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
         setProcessingState("Raid Stage Auto Join")
         
@@ -2494,11 +2602,14 @@ local function checkAndExecuteHighestPriority()
         
         if success then
             print("✅ Successfully joined Raid via API!")
-            task.wait(2)
-            startGameViaAPI()
-            task.wait(5)
-            clearProcessingState()
-            return  -- ✅ EXIT - successfully joined
+            
+            if waitForJoinSuccess(10) then
+                if tryStartGameWithRetry(3) then
+                    task.wait(3)
+                    clearProcessingState()
+                    return
+                end
+            end
         else
             clearProcessingState()
         end
@@ -4509,7 +4620,7 @@ local RecordToggle = Tab:CreateToggle({
                     Content = "Please select a macro first!",
                     Duration = 3
                 })
-                RecordToggle:Set(false) -- Turn toggle back off
+                RecordToggle:Set(false)
                 return
             end
             
@@ -4518,25 +4629,70 @@ local RecordToggle = Tab:CreateToggle({
             
             print(string.format("Recording enabled - Current wave: %d", currentWave))
             
-            -- If we're mid-game, restart it
+            -- If we're mid-game, try to restart it
             if currentWave >= 1 and not matchFinished then
-                print("Mid-game detected - restarting match...")
+                print("Mid-game detected - attempting restart...")
                 
-                -- Set recording flag BEFORE restarting
                 isRecording = true
-                recordingHasStarted = false -- Will start when wave 1 begins
+                recordingHasStarted = false
                 
                 Rayfield:Notify({
                     Title = "Mid-Game Detected",
-                    Content = "Restarting game for accurate recording...",
-                    Duration = 4
+                    Content = "Attempting to restart game...",
+                    Duration = 3
                 })
                 
-                -- Restart the match
-                restartMatch()
+                -- Try restarting with timeout
+                local restartSuccess = false
+                for attempt = 1, 3 do
+                    print(string.format("Restart attempt %d/3", attempt))
+                    
+                    restartMatch()
+                    
+                    -- Wait to see if wave goes back to 0
+                    local waitStart = tick()
+                    while tick() - waitStart < 5 do
+                        local wave = workspace:GetAttribute("Wave") or 0
+                        if wave == 0 then
+                            restartSuccess = true
+                            print("✓ Restart successful")
+                            break
+                        end
+                        task.wait(0.5)
+                    end
+                    
+                    if restartSuccess then
+                        break
+                    end
+                    
+                    if attempt < 3 then
+                        print(string.format("⚠️ Restart attempt %d failed - retrying...", attempt))
+                        task.wait(1)
+                    end
+                end
                 
-                updateMacroStatus("Recording enabled - Restarting game...")
-                updateDetailedStatus("Waiting for restart to complete...")
+                if not restartSuccess then
+                    Rayfield:Notify({
+                        Title = "Restart Failed",
+                        Content = "You must be host to restart. Recording from current wave...",
+                        Duration = 5
+                    })
+                    print("⚠️ Failed to restart after 3 attempts - starting recording immediately")
+                    
+                    -- Start recording immediately from current wave
+                    recordingHasStarted = true
+                    gameStartTime = tick()
+                    recordingUnitCounter = {}
+                    recordingUUIDToTag = {}
+                    macro = {}
+                    startUpgradePolling()
+                    
+                    updateMacroStatus("Recording from Wave " .. currentWave)
+                    updateDetailedStatus("Recording in progress (no restart)")
+                end else
+                    updateMacroStatus("Recording enabled - Restarting game...")
+                    updateDetailedStatus("Waiting for restart to complete...")
+                end
                 
             -- If game is over, just wait for next game
             elseif matchFinished then
@@ -4582,7 +4738,6 @@ local RecordToggle = Tab:CreateToggle({
                     Duration = 3
                 })
             else
-                -- Recording was enabled but never started
                 isRecording = false
                 updateMacroStatus("Ready")
                 updateDetailedStatus("Recording cancelled")
@@ -5444,7 +5599,7 @@ task.spawn(function()
         end
         
         print("Match finished detected")
-        task.wait(1) -- Small delay before voting
+        task.wait(1)
 
         -- Priority 1: New challenges available
         if State.NewChallengesAvailable and State.ReturnToLobbyOnNewChallenge then
@@ -5474,9 +5629,6 @@ task.spawn(function()
             end
         
         else
-            -- Try enabled features in order: Retry -> Next -> Lobby
-            local actionTaken = false
-            
             -- Build list of enabled actions
             local actions = {}
             if State.AutoRetry then table.insert(actions, "retry") end
@@ -5486,116 +5638,120 @@ task.spawn(function()
             if #actions == 0 then
                 print("No auto actions enabled")
             else
-                -- Try each action in order
+                -- Try each action until one works
+                local actionWorked = false
+                
                 for _, action in ipairs(actions) do
-    local success = false
-    
-    if action == "retry" then
-        print("Trying Auto Retry...")
-        success = pcall(function()
-            game:GetService("ReplicatedStorage")
-                :WaitForChild("Packages")
-                :WaitForChild("_Index")
-                :WaitForChild("sleitnick_knit@1.7.0")
-                :WaitForChild("knit")
-                :WaitForChild("Services")
-                :WaitForChild("WaveService")
-                :WaitForChild("RE")
-                :WaitForChild("VoteReplay")
-                :FireServer()
-        end)
-        
-        if success then
-            Rayfield:Notify({
-                Title = "Auto Retry",
-                Content = "Voting for Replay...",
-                Duration = 2
-            })
-            print("✓ Voted for Replay")
-            
-            -- Wait to see if MatchFinished becomes false (game restarted)
-            local waited = 0
-            while waited < 15 and workspace:GetAttribute("MatchFinished") do
-                task.wait(1)
-                waited = waited + 1
-            end
-            
-            if not workspace:GetAttribute("MatchFinished") then
-                print("✓ Retry worked - game restarted")
-                actionTaken = true
-                break
-            else
-                warn("⚠️ Retry vote didn't start game - trying next action")
-            end
-        end
-        
-    elseif action == "next" then  -- FIX: Changed from standalone "if" to "elseif"
-        print("Trying Auto Next...")
-        success = pcall(function()
-            game:GetService("ReplicatedStorage")
-                :WaitForChild("Packages")
-                :WaitForChild("_Index")
-                :WaitForChild("sleitnick_knit@1.7.0")
-                :WaitForChild("knit")
-                :WaitForChild("Services")
-                :WaitForChild("WaveService")
-                :WaitForChild("RE")
-                :WaitForChild("VoteNext")
-                :FireServer()
-        end)
-        
-        if success then
-            Rayfield:Notify({
-                Title = "Auto Next",
-                Content = "Voting for Next Stage...",
-                Duration = 2
-            })
-            print("✓ Voted for Next")
-            
-            -- Wait to see if MatchFinished becomes false (game restarted)
-            local waited = 0
-            while waited < 15 and workspace:GetAttribute("MatchFinished") do
-                task.wait(1)
-                waited = waited + 1
-            end
-            
-            if not workspace:GetAttribute("MatchFinished") then
-                print("✓ Next worked - game restarted")
-                actionTaken = true
-                break
-            else
-                warn("⚠️ Next vote didn't start game - trying next action")
-            end
-        end
-        
-    elseif action == "lobby" then  -- FIX: Changed from standalone "if" to "elseif"
-        print("Trying Auto Lobby...")
-        success = pcall(function()
-            game:GetService("ReplicatedStorage")
-                :WaitForChild("Packages")
-                :WaitForChild("_Index")
-                :WaitForChild("sleitnick_knit@1.7.0")
-                :WaitForChild("knit")
-                :WaitForChild("Services")
-                :WaitForChild("WaveService")
-                :WaitForChild("RE")
-                :WaitForChild("ToLobby")
-                :FireServer()
-        end)
-        
-        if success then
-            Rayfield:Notify({
-                Title = "Auto Lobby",
-                Content = "Returning to Lobby...",
-                Duration = 2
-            })
-            print("✓ Returned to Lobby")
-            actionTaken = true
-            break
-        end
-    end
-end             
-                if not actionTaken then
+                    if actionWorked then break end
+                    
+                    -- Keep trying this action until timeout or success
+                    local maxAttempts = 3
+                    
+                    for attempt = 1, maxAttempts do
+                        local success = false
+                        
+                        if action == "retry" then
+                            print(string.format("Trying Auto Retry (attempt %d/%d)...", attempt, maxAttempts))
+                            success = pcall(function()
+                                game:GetService("ReplicatedStorage")
+                                    :WaitForChild("Packages")
+                                    :WaitForChild("_Index")
+                                    :WaitForChild("sleitnick_knit@1.7.0")
+                                    :WaitForChild("knit")
+                                    :WaitForChild("Services")
+                                    :WaitForChild("WaveService")
+                                    :WaitForChild("RE")
+                                    :WaitForChild("VoteReplay")
+                                    :FireServer()
+                            end)
+                            
+                            if success then
+                                Rayfield:Notify({
+                                    Title = "Auto Retry",
+                                    Content = string.format("Voting for Replay (attempt %d)...", attempt),
+                                    Duration = 2
+                                })
+                                print(string.format("✓ Voted for Replay (attempt %d)", attempt))
+                            end
+                            
+                        elseif action == "next" then
+                            print(string.format("Trying Auto Next (attempt %d/%d)...", attempt, maxAttempts))
+                            success = pcall(function()
+                                game:GetService("ReplicatedStorage")
+                                    :WaitForChild("Packages")
+                                    :WaitForChild("_Index")
+                                    :WaitForChild("sleitnick_knit@1.7.0")
+                                    :WaitForChild("knit")
+                                    :WaitForChild("Services")
+                                    :WaitForChild("WaveService")
+                                    :WaitForChild("RE")
+                                    :WaitForChild("VoteNext")
+                                    :FireServer()
+                            end)
+                            
+                            if success then
+                                Rayfield:Notify({
+                                    Title = "Auto Next",
+                                    Content = string.format("Voting for Next Stage (attempt %d)...", attempt),
+                                    Duration = 2
+                                })
+                                print(string.format("✓ Voted for Next (attempt %d)", attempt))
+                            end
+                            
+                        elseif action == "lobby" then
+                            print(string.format("Trying Auto Lobby (attempt %d/%d)...", attempt, maxAttempts))
+                            success = pcall(function()
+                                game:GetService("ReplicatedStorage")
+                                    :WaitForChild("Packages")
+                                    :WaitForChild("_Index")
+                                    :WaitForChild("sleitnick_knit@1.7.0")
+                                    :WaitForChild("knit")
+                                    :WaitForChild("Services")
+                                    :WaitForChild("WaveService")
+                                    :WaitForChild("RE")
+                                    :WaitForChild("ToLobby")
+                                    :FireServer()
+                            end)
+                            
+                            if success then
+                                Rayfield:Notify({
+                                    Title = "Auto Lobby",
+                                    Content = "Returning to Lobby...",
+                                    Duration = 2
+                                })
+                                print("✓ Returned to Lobby")
+                                actionWorked = true
+                                break
+                            end
+                        end
+                        
+                        -- Wait up to 10 seconds to see if MatchFinished becomes false
+                        local waitStart = tick()
+                        while tick() - waitStart < 10 do
+                            if not workspace:GetAttribute("MatchFinished") then
+                                print(string.format("✓ %s worked - game restarted", action))
+                                actionWorked = true
+                                break
+                            end
+                            task.wait(0.5)
+                        end
+                        
+                        if actionWorked then
+                            break
+                        end
+                        
+                        if attempt < maxAttempts then
+                            print(string.format("⚠️ %s attempt %d didn't work - retrying...", action, attempt))
+                            task.wait(1)
+                        end
+                    end
+                    
+                    if not actionWorked then
+                        print(string.format("⚠️ %s failed after %d attempts - trying next action", action, maxAttempts))
+                    end
+                end
+                
+                if not actionWorked then
                     warn("⚠️ All enabled actions failed")
                 end
             end
