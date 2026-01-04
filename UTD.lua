@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.23"
+local script_version = "V0.24"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -116,6 +116,7 @@ local beforeRewardData = nil
 local afterRewardData = nil
 local hasRecentlyRestarted = false
 local currentPlaybackThread = nil
+local moddedPlacementEnabled = false
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -4198,6 +4199,81 @@ GameSection = GameTab:CreateSection("🎮 Game 🎮")
     Flag = "AutoLobby",
     Callback = function(Value)
         State.AutoLobby = Value
+    end,
+})
+
+local function enableModdedPlacement()
+    if moddedPlacementEnabled then return end
+    if isInLobby() then return end
+    
+    local success = pcall(function()
+        local TowerController = require(game:GetService("ReplicatedFirst").Client.Controllers.TowerController)
+        
+        local functionsToHook = {
+            "StartPlace",
+            "EndPlace", 
+            "CanPlace",
+            "ValidatePlacement",
+            "CheckPlacement",
+            "IsValidPlacement"
+        }
+        
+        for _, funcName in ipairs(functionsToHook) do
+            if TowerController[funcName] and type(TowerController[funcName]) == "function" then
+                local original = TowerController[funcName]
+                
+                TowerController[funcName] = function(...)
+                    local results = {original(...)}
+                    
+                    if results[1] == false or results[1] == nil then
+                        return true
+                    end
+                    
+                    return unpack(results)
+                end
+            end
+        end
+        
+        moddedPlacementEnabled = true
+    end)
+    
+    return success
+end
+
+local function disableModdedPlacement()
+    moddedPlacementEnabled = false
+    
+    Rayfield:Notify({
+        Title = "Success",
+        Content = "Rejoin to disable",
+        Duration = 4
+    })
+end
+
+Toggle = GameTab:CreateToggle({
+    Name = "Place Anywhere",
+    CurrentValue = false,
+    Flag = "PlaceAnywhere",
+    Info = "Place units anywhere",
+    Callback = function(Value)
+        if Value then
+            local success = enableModdedPlacement()
+            if success then
+                Rayfield:Notify({
+                    Title = "Success",
+                    Content = "Enabled! Place anywhere",
+                    Duration = 3
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "Failed to enable",
+                    Duration = 3
+                })
+            end
+        else
+            disableModdedPlacement()
+        end
     end,
 })
 
