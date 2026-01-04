@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.24"
+local script_version = "V0.25"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -117,6 +117,7 @@ local afterRewardData = nil
 local hasRecentlyRestarted = false
 local currentPlaybackThread = nil
 local moddedPlacementEnabled = false
+local finishedRewardData = nil
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -139,6 +140,27 @@ local Services = {
     VIRTUAL_USER = game:GetService("VirtualUser"),
     RunService = game:GetService("RunService"),
 }
+
+task.spawn(function()
+    task.wait(2)
+    
+    pcall(function()
+        local SendFinished = Services.ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.WaveService.RE.SendFinished
+        
+        SendFinished.OnClientEvent:Connect(function(result, rewards, gameInfo, ...)
+            print("📦 SendFinished hook triggered!")
+            print("Result:", result)
+            
+            finishedRewardData = {
+                result = result,
+                rewards = rewards,
+                gameInfo = gameInfo
+            }
+        end)
+        
+        print("✅ Hooked SendFinished remote for reward tracking")
+    end)
+end)
 
 local PathState = {
     AutoSelectPath = false,
@@ -1565,73 +1587,122 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
         }
 
     elseif messageType == "game_end" then
-        -- Calculate rewards
-        local rewards = {}
-        local hasUnitDrop = false
+    local rewards = {}
+    local hasUnitDrop = false
+    
+    -- Use hooked data if available
+    if finishedRewardData and finishedRewardData.rewards then
+        local rewardData = finishedRewardData.rewards
+        
+        -- Process currency rewards
+        if rewardData.Gold then
+            rewards["Gold"] = rewardData.Gold
+        end
+        if rewardData.Gems then
+            rewards["Gems"] = rewardData.Gems
+        end
+        if rewardData.Experience then
+            rewards["XP"] = rewardData.Experience
+        end
+        if rewardData.SpiritSouls then
+            rewards["Spirit Souls"] = rewardData.SpiritSouls
+        end
+        
+        -- Process relics
+        if rewardData.Relics then
+            for relicKey, relicData in pairs(rewardData.Relics) do
+                local relicName = relicKey:match("^[^:]+:(.+)$") or relicKey
+                local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
+                
+                if relicData.Stars then
+                    displayName = displayName .. string.format(" ⭐%d", relicData.Stars)
+                end
+                
+                rewards[displayName] = relicData.Amount or 1
+            end
+        end
+        
+        -- Check for unit drops by looking in Units folder
+        local unitsAssets = Services.ReplicatedStorage:FindFirstChild("Assets")
+        if unitsAssets then
+            unitsAssets = unitsAssets:FindFirstChild("Units")
+            if unitsAssets then
+                for rewardKey, _ in pairs(rewardData) do
+                    if unitsAssets:FindFirstChild(rewardKey) then
+                        hasUnitDrop = true
+                        rewards["🎉 NEW UNIT: " .. rewardKey] = 1
+                    end
+                end
+            end
+        end
+    else
+        -- Fallback to old method if hook failed
         if beforeRewardData and afterRewardData then
             rewards = getRewards(beforeRewardData, afterRewardData)
             hasUnitDrop = rewards["__UNIT_DROP__"]
             rewards["__UNIT_DROP__"] = nil
         end
+    end
+    
+    -- Reset for next game
+    finishedRewardData = nil
 
-        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
-        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        
-        -- Format rewards text
-        local rewardsText = ""
-        
-        if next(rewards) then
-            for rewardType, amount in pairs(rewards) do
-                local sign = amount > 0 and "+" or ""
-                rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
-            end
-            rewardsText = rewardsText:gsub("\n$", "") -- Remove trailing newline
-        else
-            rewardsText = "No rewards obtained"
+    local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    
+    -- Format rewards text
+    local rewardsText = ""
+    
+    if next(rewards) then
+        for rewardType, amount in pairs(rewards) do
+            local sign = amount > 0 and "+" or ""
+            rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
         end
-        
-        -- Determine title and color based on game result
-        local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
-        local embedColor = gameResult and 0x57F287 or 0xED4245
-        
-        -- Build description with game info
-        local TitleSubText = "Unknown Stage"
-            if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
-            local resultText = gameResult and "Victory" or "Defeat"
-            TitleSubText = string.format("%s - %s (%s) - %s", 
+        rewardsText = rewardsText:gsub("\n$", "")
+    else
+        rewardsText = "No rewards obtained"
+    end
+    
+    -- Determine title and color based on game result
+    local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
+    local embedColor = gameResult and 0x57F287 or 0xED4245
+    
+    -- Build description with game info
+    local TitleSubText = "Unknown Stage"
+    if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
+        local resultText = gameResult and "Victory" or "Defeat"
+        TitleSubText = string.format("%s - %s (%s) - %s", 
             gameInfo.MapName, gameInfo.Act, gameInfo.Category, resultText)
-        end
-        
-        local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
+    end
+    
+    local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
 
-        local macroInfo = "None"
+    local macroInfo = "None"
     if isPlaybackEnabled and currentMacroName and currentMacroName ~= "" then
         macroInfo = currentMacroName
     end
-        
-        -- Build fields array
-        local fields = {
-            { name = "Player", value = playerName, inline = true },
-            { name = "Duration", value = gameDuration or "Unknown", inline = true },
-            { name = "Waves Completed", value = tostring(currentWave), inline = true },
-            { name = "Macro", value = macroInfo, inline = true },
-            { name = "Rewards", value = rewardsText, inline = false },
-        }
-        
-        data = {
-            username = "LixHub",
-            content = hasUnitDrop and string.format("<@%s>", Config.DISCORD_USER_ID or "") or nil,
-            embeds = {{
-                title = titleText,
-                description = TitleSubText,
-                color = embedColor,
-                fields = fields,
-                footer = { text = "discord.gg/cYKnXE2Nf8" },
-                timestamp = timestamp
-            }}
-        }
     
-
+    -- Build fields array
+    local fields = {
+        { name = "Player", value = playerName, inline = true },
+        { name = "Duration", value = gameDuration or "Unknown", inline = true },
+        { name = "Waves Completed", value = tostring(currentWave), inline = true },
+        { name = "Macro", value = macroInfo, inline = true },
+        { name = "Rewards", value = rewardsText, inline = false },
+    }
+    
+    data = {
+        username = "LixHub",
+        content = hasUnitDrop and string.format("<@%s>", Config.DISCORD_USER_ID or "") or nil,
+        embeds = {{
+            title = titleText,
+            description = TitleSubText,
+            color = embedColor,
+            fields = fields,
+            footer = { text = "discord.gg/cYKnXE2Nf8" },
+            timestamp = timestamp
+        }}
+    }
     elseif messageType == "match_restart" then
     -- Calculate rewards up to the restart point
     local rewards = {}
@@ -2157,7 +2228,7 @@ local function startGameViaAPI()
         
         for _, conn in pairs(getconnections(startButton.MouseButton1Up)) do
             if conn.Enabled then
-                --conn:Fire()
+                conn:Fire()
             end
         end
     end)
@@ -3948,6 +4019,43 @@ Toggle = GameTab:CreateToggle({
     end,
 })
 
+local function deleteEnemies()
+    if not State.deleteEnemiesEnabled then return end
+    
+    task.spawn(function()
+        while State.deleteEnemiesEnabled do
+            task.wait(0.1)
+            
+            pcall(function()
+                local unitsFolder = workspace:FindFirstChild("Ignore")
+                if unitsFolder then
+                    unitsFolder = unitsFolder:FindFirstChild("Units")
+                    if unitsFolder then
+                        for _, child in pairs(unitsFolder:GetChildren()) do
+                            if child:IsA("Model") and tonumber(child.Name) then
+                                child:Destroy()
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+Toggle = GameTab:CreateToggle({
+    Name = "Delete Enemies",
+    CurrentValue = false,
+    Flag = "DeleteEnemies",
+    Info = "Deletes enemy models for better performance",
+    Callback = function(Value)
+        State.deleteEnemiesEnabled = Value
+        if Value then
+            deleteEnemies()
+        end
+    end,
+})
+
 local function enableBlackScreen()
     local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
     
@@ -5171,6 +5279,130 @@ Tab:CreateButton({
             Rayfield:Notify({
                 Title = "Exported",
                 Content = "JSON printed to console",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+Button = WebhookTab:CreateButton({
+    Name = "Export Macro via Webhook",
+    Callback = function()
+        if not ValidWebhook or ValidWebhook == "" then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "No webhook URL set!",
+                Duration = 3
+            })
+            return
+        end
+        
+        if not currentMacroName or currentMacroName == "" then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "No macro selected",
+                Duration = 3
+            })
+            return
+        end
+        
+        local macroData = macroManager[currentMacroName]
+        if not macroData or #macroData == 0 then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Macro is empty",
+                Duration = 3
+            })
+            return
+        end
+        
+        -- Get list of units used in macro
+        local unitCounts = {}
+        for _, action in ipairs(macroData) do
+            if action.Type == "spawn_unit" and action.Unit then
+                local unitName = action.Unit:match("^(.+) #%d+$") or action.Unit
+                unitCounts[unitName] = (unitCounts[unitName] or 0) + 1
+            end
+        end
+        
+        local unitList = {}
+        for unitName, count in pairs(unitCounts) do
+            table.insert(unitList, string.format("%dx %s", count, unitName))
+        end
+        table.sort(unitList)
+        
+        local unitsText = #unitList > 0 and table.concat(unitList, ", ") or "No units"
+        
+        -- Create JSON file content
+        local jsonContent = Services.HttpService:JSONEncode(macroData)
+        
+        -- Encode as base64 for Discord attachment (if your executor supports it)
+        -- Otherwise we'll send as code block
+        local fileContent
+        if syn and syn.crypt and syn.crypt.base64 and syn.crypt.base64.encode then
+            fileContent = syn.crypt.base64.encode(jsonContent)
+        else
+            fileContent = jsonContent
+        end
+        
+        local embed = {
+            title = "📦 Macro Export: " .. currentMacroName,
+            description = string.format("**Actions:** %d\n**Units:** %s", #macroData, unitsText),
+            color = 0x5865F2,
+            footer = { text = "LixHub Macro Export" },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }
+        
+        -- For now, send as embedded code block (Discord API file uploads require multipart/form-data)
+        -- Most executors don't support this properly, so we'll use a code block
+        local truncatedJson = jsonContent
+        if #jsonContent > 2000 then
+            truncatedJson = jsonContent:sub(1, 2000) .. "...\n[Truncated - Full macro too large for embed]"
+        end
+        
+        embed.fields = {
+            {
+                name = "JSON Data",
+                value = "```json\n" .. truncatedJson .. "\n```",
+                inline = false
+            }
+        }
+        
+        local data = {
+            username = "LixHub Macro Export",
+            embeds = {embed}
+        }
+        
+        local payload = Services.HttpService:JSONEncode(data)
+        
+        local requestFunc = syn and syn.request or request or http_request or 
+                          (fluxus and fluxus.request) or getgenv().request
+        
+        if not requestFunc then
+            warn("No HTTP function found!")
+            return
+        end
+        
+        local success, response = pcall(function()
+            return requestFunc({
+                Url = ValidWebhook,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = payload
+            })
+        end)
+        
+        if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
+            Rayfield:Notify({
+                Title = "Macro Sent",
+                Content = string.format("Sent %s to webhook", currentMacroName),
+                Duration = 3
+            })
+        else
+            warn("Webhook failed:", response and response.StatusCode or "No response")
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Failed to send webhook",
                 Duration = 3
             })
         end
