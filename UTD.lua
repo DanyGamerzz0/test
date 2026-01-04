@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.27"
+local script_version = "V0.3"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1610,28 +1610,29 @@ elseif messageType == "game_end" then
                 
             -- Handle Relics table
             elseif type(rewardValue) == "table" and rewardKey == "Relics" then
-                for relicKey, relicData in pairs(rewardValue) do
-                    local relicName = relicKey:match("^[^:]+:(.+)$") or relicKey
-                    local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
-                    
-                    if relicData.Stars then
-                        displayName = displayName .. string.format(" ⭐%d", relicData.Stars)
-                    end
-                    
-                    rewards[displayName] = relicData.Amount or 1
-                end
+    for relicKey, relicData in pairs(rewardValue) do
+        local relicName = relicKey:match("^[^:]+:(.+)$") or relicKey
+        
+        -- Remove star count from name if it exists (e.g., "1Star_Reaper_Accessory" -> "Reaper_Accessory")
+        relicName = relicName:gsub("^%d+Star_", "")
+        
+        local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
+        
+        if relicData.Stars then
+            displayName = displayName .. string.format(" ⭐%d", relicData.Stars)
+        end
+        
+        rewards[displayName] = relicData.Amount or 1
+    end
                 
-            -- Handle unit drops
-            else
-                local unitsAssets = Services.ReplicatedStorage:FindFirstChild("Assets")
-                if unitsAssets then
-                    unitsAssets = unitsAssets:FindFirstChild("Units")
-                    if unitsAssets and unitsAssets:FindFirstChild(rewardKey) then
-                        hasUnitDrop = true
-                        rewards["🎉 NEW UNIT: " .. rewardKey] = 1
-                    end
-                end
-            end
+            -- ✅ Handle unit drops (comes as "Unit" table with Unit/Name/Rarity)
+elseif type(rewardValue) == "table" and rewardKey == "Unit" then
+    if rewardValue.Unit and rewardValue.Rarity then
+        hasUnitDrop = true
+        local unitDisplayName = string.format("[%s] %s", rewardValue.Rarity, rewardValue.Unit)
+        rewards[unitDisplayName] = 1
+    end
+end
         end
     else
         -- Fallback to old method if hook failed
@@ -5203,7 +5204,7 @@ Tab:CreateToggle({
 
 Div = Tab:CreateDivider()
 
-Tab:CreateButton({
+Button1 = Tab:CreateButton({
     Name = "Export Macro (Copy JSON)",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
@@ -5245,7 +5246,7 @@ Tab:CreateButton({
     end,
 })
 
-Button = WebhookTab:CreateButton({
+Button = Tab:CreateButton({
     Name = "Export Macro via Webhook",
     Callback = function()
         if not ValidWebhook or ValidWebhook == "" then
