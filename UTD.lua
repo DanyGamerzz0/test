@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.25"
+local script_version = "V0.26"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -4019,43 +4019,6 @@ Toggle = GameTab:CreateToggle({
     end,
 })
 
-local function deleteEnemies()
-    if not State.deleteEnemiesEnabled then return end
-    
-    task.spawn(function()
-        while State.deleteEnemiesEnabled do
-            task.wait(0.1)
-            
-            pcall(function()
-                local unitsFolder = workspace:FindFirstChild("Ignore")
-                if unitsFolder then
-                    unitsFolder = unitsFolder:FindFirstChild("Units")
-                    if unitsFolder then
-                        for _, child in pairs(unitsFolder:GetChildren()) do
-                            if child:IsA("Model") and tonumber(child.Name) then
-                                child:Destroy()
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-end
-
-Toggle = GameTab:CreateToggle({
-    Name = "Delete Enemies",
-    CurrentValue = false,
-    Flag = "DeleteEnemies",
-    Info = "Deletes enemy models for better performance",
-    Callback = function(Value)
-        State.deleteEnemiesEnabled = Value
-        if Value then
-            deleteEnemies()
-        end
-    end,
-})
-
 local function enableBlackScreen()
     local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
     
@@ -5316,70 +5279,61 @@ Button = WebhookTab:CreateButton({
             return
         end
         
-        -- Get list of units used in macro
-        local unitCounts = {}
+        -- Get list of units used in macro (just names, no counts)
+        local unitNames = {}
+        local seenUnits = {}
+        
         for _, action in ipairs(macroData) do
             if action.Type == "spawn_unit" and action.Unit then
                 local unitName = action.Unit:match("^(.+) #%d+$") or action.Unit
-                unitCounts[unitName] = (unitCounts[unitName] or 0) + 1
+                if not seenUnits[unitName] then
+                    table.insert(unitNames, unitName)
+                    seenUnits[unitName] = true
+                end
             end
         end
         
-        local unitList = {}
-        for unitName, count in pairs(unitCounts) do
-            table.insert(unitList, string.format("%dx %s", count, unitName))
-        end
-        table.sort(unitList)
+        table.sort(unitNames)
+        local unitsText = #unitNames > 0 and table.concat(unitNames, ", ") or "No units"
         
-        local unitsText = #unitList > 0 and table.concat(unitList, ", ") or "No units"
-        
-        -- Create JSON file content
+        -- Encode macro as JSON (same format as clipboard export)
         local jsonContent = Services.HttpService:JSONEncode(macroData)
         
-        -- Encode as base64 for Discord attachment (if your executor supports it)
-        -- Otherwise we'll send as code block
-        local fileContent
-        if syn and syn.crypt and syn.crypt.base64 and syn.crypt.base64.encode then
-            fileContent = syn.crypt.base64.encode(jsonContent)
-        else
-            fileContent = jsonContent
-        end
+        -- Create multipart form data for file upload
+        local boundary = "----WebKitFormBoundary" .. tostring(os.time())
+        local fileName = currentMacroName .. ".json"
         
-        local embed = {
-            title = "📦 Macro Export: " .. currentMacroName,
-            description = string.format("**Actions:** %d\n**Units:** %s", #macroData, unitsText),
-            color = 0x5865F2,
-            footer = { text = "LixHub Macro Export" },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }
-        
-        -- For now, send as embedded code block (Discord API file uploads require multipart/form-data)
-        -- Most executors don't support this properly, so we'll use a code block
-        local truncatedJson = jsonContent
-        if #jsonContent > 2000 then
-            truncatedJson = jsonContent:sub(1, 2000) .. "...\n[Truncated - Full macro too large for embed]"
-        end
-        
-        embed.fields = {
-            {
-                name = "JSON Data",
-                value = "```json\n" .. truncatedJson .. "\n```",
-                inline = false
-            }
-        }
-        
-        local data = {
-            username = "LixHub Macro Export",
-            embeds = {embed}
-        }
-        
-        local payload = Services.HttpService:JSONEncode(data)
+        local body = string.format(
+            "--%s\r\n" ..
+            "Content-Disposition: form-data; name=\"payload_json\"\r\n" ..
+            "Content-Type: application/json\r\n\r\n" ..
+            "%s\r\n" ..
+            "--%s\r\n" ..
+            "Content-Disposition: form-data; name=\"files[0]\"; filename=\"%s\"\r\n" ..
+            "Content-Type: application/json\r\n\r\n" ..
+            "%s\r\n" ..
+            "--%s--\r\n",
+            boundary,
+            Services.HttpService:JSONEncode({
+                username = "LixHub",
+                content = "Units: " .. unitsText
+            }),
+            boundary,
+            fileName,
+            jsonContent,
+            boundary
+        )
         
         local requestFunc = syn and syn.request or request or http_request or 
                           (fluxus and fluxus.request) or getgenv().request
         
         if not requestFunc then
             warn("No HTTP function found!")
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Executor doesn't support HTTP requests",
+                Duration = 3
+            })
             return
         end
         
@@ -5387,15 +5341,17 @@ Button = WebhookTab:CreateButton({
             return requestFunc({
                 Url = ValidWebhook,
                 Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = payload
+                Headers = {
+                    ["Content-Type"] = "multipart/form-data; boundary=" .. boundary
+                },
+                Body = body
             })
         end)
         
         if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
             Rayfield:Notify({
-                Title = "Macro Sent",
-                Content = string.format("Sent %s to webhook", currentMacroName),
+                Title = "Macro Sent ✓",
+                Content = string.format("Sent %s.json", currentMacroName),
                 Duration = 3
             })
         else
