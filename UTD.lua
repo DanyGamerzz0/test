@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.22"
+local script_version = "V0.23"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2208,7 +2208,7 @@ local function tryStartGameWithRetry(maxRetries)
         
         -- Wait to see if we get teleported or PartyFrame closes
         local waitStart = tick()
-        while tick() - waitStart < 5 do
+        while tick() - waitStart < 3 do  -- Reduced from 5 to 3 seconds
             -- Check if we got teleported (no longer in lobby)
             if not isInLobby() then
                 print("✓ Successfully started - teleported to game")
@@ -2232,7 +2232,7 @@ local function tryStartGameWithRetry(maxRetries)
                 return true
             end
             
-            task.wait(0.5)
+            task.wait(0.3)  -- Check more frequently
         end
         
         -- Check if PartyFrame is still visible (need to retry)
@@ -2253,10 +2253,29 @@ local function tryStartGameWithRetry(maxRetries)
         end
         
         print(string.format("⚠️ Start attempt %d failed - PartyFrame still visible", attempt))
-        task.wait(1)
+        task.wait(0.5)  -- Short delay between attempts
     end
     
-    warn("❌ Failed to start game after", maxRetries, "attempts")
+    -- All attempts failed - click Leave button
+    warn("❌ Failed to start game after", maxRetries, "attempts - clicking Leave button")
+    
+    local leaveSuccess = pcall(function()
+        local leaveButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Leave.Hitbox
+        
+        for _, conn in pairs(getconnections(leaveButton.MouseButton1Up)) do
+            if conn.Enabled then
+                conn:Fire()
+            end
+        end
+    end)
+    
+    if leaveSuccess then
+        print("✓ Clicked Leave button - returning to lobby")
+        task.wait(2)  -- Wait for leave to complete
+    else
+        warn("❌ Failed to click Leave button")
+    end
+    
     return false
 end
 
@@ -2422,8 +2441,7 @@ local function checkAndExecuteHighestPriority()
     -- Check if lobby creation UI is already open
     if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi") then
         local lobbyUi = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
-        if (lobbyUi:FindFirstChild("PartyFrame") and lobbyUi:FindFirstChild("PartyFrame").Enabled) or 
-           (lobbyUi:FindFirstChild("WorldsFrame") and lobbyUi:FindFirstChild("WorldsFrame").Enabled) then
+        if (lobbyUi:FindFirstChild("PartyFrame") and lobbyUi:FindFirstChild("PartyFrame").Enabled) then
             return
         end
     end
@@ -4646,31 +4664,28 @@ local RecordToggle = Tab:CreateToggle({
                 local restartSuccess = false
                 for attempt = 1, 3 do
                     print(string.format("Restart attempt %d/3", attempt))
-                    
+    
                     restartMatch()
-                    
-                    -- Wait to see if wave goes back to 0
-                    local waitStart = tick()
-                    while tick() - waitStart < 5 do
-                        local wave = workspace:GetAttribute("Wave") or 0
-                        if wave == 0 then
-                            restartSuccess = true
-                            print("✓ Restart successful")
-                            break
-                        end
-                        task.wait(0.5)
-                    end
-                    
-                    if restartSuccess then
+                -- Wait to see if wave goes back to 0 (reduced timeout)
+                local waitStart = tick()
+                while tick() - waitStart < 2 do  -- Reduced from 5 to 2 seconds
+                    local wave = workspace:GetAttribute("Wave") or 0
+                    if wave == 0 then
+                    restartSuccess = true
+                        print("✓ Restart successful")
                         break
                     end
-                    
-                    if attempt < 3 then
-                        print(string.format("⚠️ Restart attempt %d failed - retrying...", attempt))
-                        task.wait(1)
-                    end
+                    task.wait(0.2)  -- Check more frequently
                 end
-                
+    
+                if restartSuccess then
+                    break
+                end
+                if attempt < 3 then
+        print(string.format("⚠️ Restart attempt %d failed - retrying...", attempt))
+        task.wait(0.3)  -- Shorter delay between attempts (was 1 second)
+    end
+end
                 if not restartSuccess then
                     Rayfield:Notify({
                         Title = "Restart Failed",
