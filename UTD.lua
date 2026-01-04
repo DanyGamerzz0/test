@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.26"
+local script_version = "V0.27"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1586,7 +1586,7 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
             }}
         }
 
-    elseif messageType == "game_end" then
+elseif messageType == "game_end" then
     local rewards = {}
     local hasUnitDrop = false
     
@@ -1594,41 +1594,39 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
     if finishedRewardData and finishedRewardData.rewards then
         local rewardData = finishedRewardData.rewards
         
-        -- Process currency rewards
-        if rewardData.Gold then
-            rewards["Gold"] = rewardData.Gold
-        end
-        if rewardData.Gems then
-            rewards["Gems"] = rewardData.Gems
-        end
-        if rewardData.Experience then
-            rewards["XP"] = rewardData.Experience
-        end
-        if rewardData.SpiritSouls then
-            rewards["Spirit Souls"] = rewardData.SpiritSouls
-        end
-        
-        -- Process relics
-        if rewardData.Relics then
-            for relicKey, relicData in pairs(rewardData.Relics) do
-                local relicName = relicKey:match("^[^:]+:(.+)$") or relicKey
-                local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
-                
-                if relicData.Stars then
-                    displayName = displayName .. string.format(" ⭐%d", relicData.Stars)
+        -- ✅ Process ALL rewards dynamically - only show what we actually got
+        for rewardKey, rewardValue in pairs(rewardData) do
+            -- Handle numeric rewards (currency, XP, etc)
+            if type(rewardValue) == "number" then
+                if rewardValue > 0 then  -- ✅ Only show if we got more than 0
+                    local friendlyName = rewardKey
+                    if rewardKey == "Experience" then
+                        friendlyName = "XP"
+                    elseif rewardKey == "SpiritSouls" then
+                        friendlyName = "Spirit Souls"
+                    end
+                    rewards[friendlyName] = rewardValue
                 end
                 
-                rewards[displayName] = relicData.Amount or 1
-            end
-        end
-        
-        -- Check for unit drops by looking in Units folder
-        local unitsAssets = Services.ReplicatedStorage:FindFirstChild("Assets")
-        if unitsAssets then
-            unitsAssets = unitsAssets:FindFirstChild("Units")
-            if unitsAssets then
-                for rewardKey, _ in pairs(rewardData) do
-                    if unitsAssets:FindFirstChild(rewardKey) then
+            -- Handle Relics table
+            elseif type(rewardValue) == "table" and rewardKey == "Relics" then
+                for relicKey, relicData in pairs(rewardValue) do
+                    local relicName = relicKey:match("^[^:]+:(.+)$") or relicKey
+                    local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
+                    
+                    if relicData.Stars then
+                        displayName = displayName .. string.format(" ⭐%d", relicData.Stars)
+                    end
+                    
+                    rewards[displayName] = relicData.Amount or 1
+                end
+                
+            -- Handle unit drops
+            else
+                local unitsAssets = Services.ReplicatedStorage:FindFirstChild("Assets")
+                if unitsAssets then
+                    unitsAssets = unitsAssets:FindFirstChild("Units")
+                    if unitsAssets and unitsAssets:FindFirstChild(rewardKey) then
                         hasUnitDrop = true
                         rewards["🎉 NEW UNIT: " .. rewardKey] = 1
                     end
@@ -1650,13 +1648,12 @@ local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, wave
     local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
     local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     
-    -- Format rewards text
+    -- Format rewards text - only show what we got
     local rewardsText = ""
     
     if next(rewards) then
         for rewardType, amount in pairs(rewards) do
-            local sign = amount > 0 and "+" or ""
-            rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
+            rewardsText = rewardsText .. string.format("+%s %s\n", amount, rewardType)
         end
         rewardsText = rewardsText:gsub("\n$", "")
     else
