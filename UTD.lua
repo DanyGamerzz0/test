@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2156,7 +2156,7 @@ local function startGameViaAPI()
         
         for _, conn in pairs(getconnections(startButton.MouseButton1Up)) do
             if conn.Enabled then
-                conn:Fire()
+                --conn:Fire()
             end
         end
     end)
@@ -5607,14 +5607,14 @@ task.spawn(function()
             
             local success = pcall(function()
                 game:GetService("ReplicatedStorage")
-                    :WaitForChild("Packages")
-                    :WaitForChild("_Index")
-                    :WaitForChild("sleitnick_knit@1.7.0")
-                    :WaitForChild("knit")
-                    :WaitForChild("Services")
-                    :WaitForChild("WaveService")
-                    :WaitForChild("RE")
-                    :WaitForChild("ToLobby")
+                    :WaitForChild("Packages", 5)
+                    :WaitForChild("_Index", 5)
+                    :WaitForChild("sleitnick_knit@1.7.0", 5)
+                    :WaitForChild("knit", 5)
+                    :WaitForChild("Services", 5)
+                    :WaitForChild("WaveService", 5)
+                    :WaitForChild("RE", 5)
+                    :WaitForChild("ToLobby", 5)
                     :FireServer()
             end)
             
@@ -5626,6 +5626,8 @@ task.spawn(function()
                 })
                 print("✓ Returned to lobby for new challenges")
                 State.NewChallengesAvailable = false
+            else
+                warn("⚠️ Failed to return to lobby - remote not found")
             end
         
         else
@@ -5649,67 +5651,91 @@ task.spawn(function()
                     
                     for attempt = 1, maxAttempts do
                         local success = false
+                        local remoteExists = false
                         
                         if action == "retry" then
                             print(string.format("Trying Auto Retry (attempt %d/%d)...", attempt, maxAttempts))
-                            success = pcall(function()
-                                game:GetService("ReplicatedStorage")
-                                    :WaitForChild("Packages")
-                                    :WaitForChild("_Index")
-                                    :WaitForChild("sleitnick_knit@1.7.0")
-                                    :WaitForChild("knit")
-                                    :WaitForChild("Services")
-                                    :WaitForChild("WaveService")
-                                    :WaitForChild("RE")
-                                    :WaitForChild("VoteReplay")
-                                    :FireServer()
+                            
+                            -- Check if remote exists first
+                            success, remoteExists = pcall(function()
+                                local service = game:GetService("ReplicatedStorage")
+                                    :WaitForChild("Packages", 5)
+                                    :WaitForChild("_Index", 5)
+                                    :WaitForChild("sleitnick_knit@1.7.0", 5)
+                                    :WaitForChild("knit", 5)
+                                    :WaitForChild("Services", 5)
+                                    :WaitForChild("WaveService", 5)
+                                    :WaitForChild("RE", 5)
+                                
+                                local remote = service:FindFirstChild("VoteReplay")
+                                if remote then
+                                    remote:FireServer()
+                                    return true
+                                else
+                                    return false
+                                end
                             end)
                             
-                            if success then
+                            if success and remoteExists then
                                 Rayfield:Notify({
                                     Title = "Auto Retry",
                                     Content = string.format("Voting for Replay (attempt %d)...", attempt),
                                     Duration = 2
                                 })
                                 print(string.format("✓ Voted for Replay (attempt %d)", attempt))
+                            elseif not remoteExists then
+                                warn("⚠️ VoteReplay remote not found - skipping retry")
+                                break -- Skip to next action
                             end
                             
                         elseif action == "next" then
                             print(string.format("Trying Auto Next (attempt %d/%d)...", attempt, maxAttempts))
-                            success = pcall(function()
-                                game:GetService("ReplicatedStorage")
-                                    :WaitForChild("Packages")
-                                    :WaitForChild("_Index")
-                                    :WaitForChild("sleitnick_knit@1.7.0")
-                                    :WaitForChild("knit")
-                                    :WaitForChild("Services")
-                                    :WaitForChild("WaveService")
-                                    :WaitForChild("RE")
-                                    :WaitForChild("VoteNext")
-                                    :FireServer()
+                            
+                            -- Check if remote exists first
+                            success, remoteExists = pcall(function()
+                                local service = game:GetService("ReplicatedStorage")
+                                    :WaitForChild("Packages", 5)
+                                    :WaitForChild("_Index", 5)
+                                    :WaitForChild("sleitnick_knit@1.7.0", 5)
+                                    :WaitForChild("knit", 5)
+                                    :WaitForChild("Services", 5)
+                                    :WaitForChild("WaveService", 5)
+                                    :WaitForChild("RE", 5)
+                                
+                                local remote = service:FindFirstChild("VoteNext")
+                                if remote then
+                                    remote:FireServer()
+                                    return true
+                                else
+                                    return false
+                                end
                             end)
                             
-                            if success then
+                            if success and remoteExists then
                                 Rayfield:Notify({
                                     Title = "Auto Next",
                                     Content = string.format("Voting for Next Stage (attempt %d)...", attempt),
                                     Duration = 2
                                 })
                                 print(string.format("✓ Voted for Next (attempt %d)", attempt))
+                            elseif not remoteExists then
+                                warn("⚠️ VoteNext remote not found - skipping next")
+                                break -- Skip to next action
                             end
                             
                         elseif action == "lobby" then
                             print(string.format("Trying Auto Lobby (attempt %d/%d)...", attempt, maxAttempts))
+                            
                             success = pcall(function()
                                 game:GetService("ReplicatedStorage")
-                                    :WaitForChild("Packages")
-                                    :WaitForChild("_Index")
-                                    :WaitForChild("sleitnick_knit@1.7.0")
-                                    :WaitForChild("knit")
-                                    :WaitForChild("Services")
-                                    :WaitForChild("WaveService")
-                                    :WaitForChild("RE")
-                                    :WaitForChild("ToLobby")
+                                    :WaitForChild("Packages", 5)
+                                    :WaitForChild("_Index", 5)
+                                    :WaitForChild("sleitnick_knit@1.7.0", 5)
+                                    :WaitForChild("knit", 5)
+                                    :WaitForChild("Services", 5)
+                                    :WaitForChild("WaveService", 5)
+                                    :WaitForChild("RE", 5)
+                                    :WaitForChild("ToLobby", 5)
                                     :FireServer()
                             end)
                             
@@ -5722,37 +5748,43 @@ task.spawn(function()
                                 print("✓ Returned to Lobby")
                                 actionWorked = true
                                 break
+                            else
+                                warn("⚠️ ToLobby remote not found")
+                                break -- Skip to next action
                             end
                         end
                         
-                        -- Wait up to 10 seconds to see if MatchFinished becomes false
-                        local waitStart = tick()
-                        while tick() - waitStart < 10 do
-                            if not workspace:GetAttribute("MatchFinished") then
-                                print(string.format("✓ %s worked - game restarted", action))
-                                actionWorked = true
+                        -- Only check for success if remote existed
+                        if remoteExists or action == "lobby" then
+                            -- Wait up to 10 seconds to see if MatchFinished becomes false
+                            local waitStart = tick()
+                            while tick() - waitStart < 10 do
+                                if not workspace:GetAttribute("MatchFinished") then
+                                    print(string.format("✓ %s worked - game restarted", action))
+                                    actionWorked = true
+                                    break
+                                end
+                                task.wait(0.5)
+                            end
+                            
+                            if actionWorked then
                                 break
                             end
-                            task.wait(0.5)
-                        end
-                        
-                        if actionWorked then
-                            break
-                        end
-                        
-                        if attempt < maxAttempts then
-                            print(string.format("⚠️ %s attempt %d didn't work - retrying...", action, attempt))
-                            task.wait(1)
+                            
+                            if attempt < maxAttempts then
+                                print(string.format("⚠️ %s attempt %d didn't work - retrying...", action, attempt))
+                                task.wait(1)
+                            end
                         end
                     end
                     
                     if not actionWorked then
-                        print(string.format("⚠️ %s failed after %d attempts - trying next action", action, maxAttempts))
+                        print(string.format("⚠️ %s failed or not available - trying next action", action))
                     end
                 end
                 
                 if not actionWorked then
-                    warn("⚠️ All enabled actions failed")
+                    warn("⚠️ All enabled actions failed or not available")
                 end
             end
         end
