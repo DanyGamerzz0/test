@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.2"
+    local script_version = "V0.21"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3314,23 +3314,16 @@ local function detectNewUnitsAfterSummon()
             else
                 unmarkedFrames = unmarkedFrames + 1
                 
-                -- Find the child with ITEMINDEX
-                local foundItemIndex = false
-                for _, child in pairs(collectionFrame:GetChildren()) do
-                    local itemIndex = child:GetAttribute("ITEMINDEX")
-                    if itemIndex then
-                        foundItemIndex = true
-                        table.insert(newUnits, {
-                            itemIndex = itemIndex,
-                            collectionFrame = collectionFrame
-                        })
-                        print(string.format("Found NEW unit: ItemIndex=%s, ChildName=%s", itemIndex, child.Name))
-                        break
-                    end
-                end
-                
-                if not foundItemIndex then
-                    print("WARNING: Unmarked CollectionUnitFrame has no child with ITEMINDEX!")
+                -- Get ITEMINDEX directly from the CollectionUnitFrame itself
+                local itemIndex = collectionFrame:GetAttribute("ITEMINDEX")
+                if itemIndex then
+                    table.insert(newUnits, {
+                        itemIndex = itemIndex,
+                        collectionFrame = collectionFrame
+                    })
+                    print(string.format("Found NEW unit: ItemIndex=%s", itemIndex))
+                else
+                    print("WARNING: Unmarked CollectionUnitFrame has no ITEMINDEX attribute!")
                 end
             end
         end
