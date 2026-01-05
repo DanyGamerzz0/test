@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.16"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3284,7 +3284,6 @@ end
 
 local function performBatchSummon(bannerName, amount)
     local bannerId = getBannerIdFromName(bannerName)
-    local currencyType = getCurrencyTypeForBanner(bannerName, amount)
     
     if not bannerId then
         return false, "Invalid banner", 0
@@ -3294,11 +3293,17 @@ local function performBatchSummon(bannerName, amount)
         return false, "Invalid amount", 0
     end
     
-    -- Cap amount based on banner limits
-    if bannerName == "Banner 1" and amount > 10 then
-        amount = 10
-    elseif bannerName == "Banner 2" and amount > 50 then
-        amount = 50
+    -- Determine actual summon amount and currency type
+    local actualAmount = amount
+    local currencyType = "gems"
+    
+    if amount >= 10 then
+        -- Mass summons are always 10x when using "gems10"
+        actualAmount = 10
+        currencyType = "gems10"
+    else
+        currencyType = "gems"
+        actualAmount = amount
     end
     
     -- Capture units before summoning
@@ -3306,12 +3311,11 @@ local function performBatchSummon(bannerName, amount)
     
     -- Perform summon
     local success, result = pcall(function()
-        -- For mass summons (10+), we don't pass the amount parameter
         local args
-        if amount >= 10 then
-            args = {bannerId, currencyType} -- "gems10" - amount is implied
+        if currencyType == "gems10" then
+            args = {bannerId, currencyType} -- No amount parameter for mass summon
         else
-            args = {bannerId, currencyType, amount} -- "gems" with specific amount
+            args = {bannerId, currencyType, actualAmount}
         end
         
         return Services.ReplicatedStorage:WaitForChild("endpoints")
@@ -3325,13 +3329,13 @@ local function performBatchSummon(bannerName, amount)
     end
     
     -- Wait for units to be added to _FX_CACHE
-    task.wait(0.5 + (amount * 0.05))
+    task.wait(0.5 + (actualAmount * 0.05))
     
     -- Detect new units
     local newUnits = detectNewUnits(beforeSnapshot)
     
-    -- Calculate actual cost
-    local actualCost = amount * getCostForBanner(bannerName)
+    -- Calculate actual cost (THIS IS THE FIX - use actualAmount, not amount)
+    local actualCost = actualAmount * getCostForBanner(bannerName)
     
     -- Track the summoned units
     for _, unitId in ipairs(newUnits) do
@@ -3344,7 +3348,7 @@ local function performBatchSummon(bannerName, amount)
         State.SummonedUnits[unitName] = State.SummonedUnits[unitName] + 1
     end
     
-    return true, string.format("Summoned %dx", amount), actualCost
+    return true, string.format("Summoned %dx", actualAmount), actualCost
 end
 
 local function getMaxAffordableSummons(bannerName)
@@ -3355,16 +3359,17 @@ local function getMaxAffordableSummons(bannerName)
     
     local maxSummons = math.floor(currentCurrency / summonCost)
     
-    -- Banner 1: Max 10x summons
-    if bannerName == "Banner 1" then
-        return math.min(maxSummons, 10)
+    -- If we can afford 10+, always do 10x (mass summon)
+    if maxSummons >= 10 then
+        return 10
     end
     
-    -- Banner 2: Max 50x summons
-    return math.min(maxSummons, 50)
+    -- Otherwise do whatever we can afford (1-9)
+    return maxSummons
 end
 
 local function sendSummonWebhook(reason)
+    print("VALIDWEBHOOK: " .. Config.ValidWebhook)
     if not Config.ValidWebhook or Config.ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
         print("No valid webhook URL set")
         return
@@ -7678,7 +7683,7 @@ end)
     local TestWebhookButton = WebhookTab:CreateButton({
         Name = "Test webhook",
         Callback = function()
-            if Config.Config.ValidWebhook then
+            if Config.ValidWebhook then
                 sendWebhook("test")
             else
                 notify(nil,"Error: No webhook URL set!")
