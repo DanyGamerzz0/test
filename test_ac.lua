@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.19"
+    local script_version = "V0.2"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3294,28 +3294,51 @@ end
 local function detectNewUnitsAfterSummon()
     local newUnits = {}
     local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    if not fxCache then return newUnits end
+    if not fxCache then 
+        print("ERROR: _FX_CACHE not found!")
+        return newUnits 
+    end
+    
+    local totalFrames = 0
+    local markedFrames = 0
+    local unmarkedFrames = 0
     
     for _, collectionFrame in pairs(fxCache:GetChildren()) do
         if collectionFrame.Name == "CollectionUnitFrame" then
-            -- If it doesn't have our marker, it's new!
-            if not collectionFrame:GetAttribute("_PreSummonMarker") then
+            totalFrames = totalFrames + 1
+            
+            local hasMarker = collectionFrame:GetAttribute("_PreSummonMarker")
+            
+            if hasMarker then
+                markedFrames = markedFrames + 1
+            else
+                unmarkedFrames = unmarkedFrames + 1
+                
                 -- Find the child with ITEMINDEX
+                local foundItemIndex = false
                 for _, child in pairs(collectionFrame:GetChildren()) do
                     local itemIndex = child:GetAttribute("ITEMINDEX")
                     if itemIndex then
+                        foundItemIndex = true
                         table.insert(newUnits, {
                             itemIndex = itemIndex,
                             collectionFrame = collectionFrame
                         })
+                        print(string.format("Found NEW unit: ItemIndex=%s, ChildName=%s", itemIndex, child.Name))
                         break
                     end
+                end
+                
+                if not foundItemIndex then
+                    print("WARNING: Unmarked CollectionUnitFrame has no child with ITEMINDEX!")
                 end
             end
         end
     end
     
-    print(string.format("Detected %d new CollectionUnitFrames", #newUnits))
+    print(string.format("Detection summary - Total: %d, Marked: %d, Unmarked (new): %d", 
+        totalFrames, markedFrames, unmarkedFrames))
+    
     return newUnits
 end
 
@@ -3346,7 +3369,17 @@ local function performBatchSummon(bannerName, amount)
     local currencyType = amount >= 10 and "gems10" or "gems"
     local currencyBefore = getCurrencyForBanner(bannerName)
     
-    -- DON'T mark here - it's already done once at session start
+    -- Count frames BEFORE summon
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    local countBefore = 0
+    if fxCache then
+        for _, frame in pairs(fxCache:GetChildren()) do
+            if frame.Name == "CollectionUnitFrame" then
+                countBefore = countBefore + 1
+            end
+        end
+    end
+    print(string.format("CollectionUnitFrames BEFORE summon: %d", countBefore))
     
     -- Perform summon
     local success, result = pcall(function()
@@ -3361,7 +3394,19 @@ local function performBatchSummon(bannerName, amount)
         return false, "Summon failed: " .. tostring(result), 0
     end
     
-    task.wait(0.8)
+    -- INCREASED wait time - game needs time to create new frames
+    task.wait(2.0) -- Increased from 0.8 to 2.0
+    
+    -- Count frames AFTER summon
+    local countAfter = 0
+    if fxCache then
+        for _, frame in pairs(fxCache:GetChildren()) do
+            if frame.Name == "CollectionUnitFrame" then
+                countAfter = countAfter + 1
+            end
+        end
+    end
+    print(string.format("CollectionUnitFrames AFTER summon: %d (difference: %d)", countAfter, countAfter - countBefore))
     
     local currencyAfter = getCurrencyForBanner(bannerName)
     local actualCostSpent = currencyBefore - currencyAfter
@@ -3386,8 +3431,6 @@ local function performBatchSummon(bannerName, amount)
             print(string.format("Tracked new unit: %s (ItemIndex: %s)", displayName, unitData.itemIndex))
         end
     end
-    
-    -- DON'T clear markers here - wait until the entire session ends
     
     return true, string.format("Summoned %dx", actualSummons), actualCostSpent
 end
