@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -266,6 +266,7 @@ local macro = {}
         AutoSummonBanner = nil,
         SummonedUnits = {},
         CurrencySpent = 0,
+        SummonMarkersSet = false,
     }
 
     -- ========== CREATE TABS ==========
@@ -3345,8 +3346,7 @@ local function performBatchSummon(bannerName, amount)
     local currencyType = amount >= 10 and "gems10" or "gems"
     local currencyBefore = getCurrencyForBanner(bannerName)
     
-    -- Mark all existing units BEFORE summoning
-    markExistingUnits()
+    -- DON'T mark here - it's already done once at session start
     
     -- Perform summon
     local success, result = pcall(function()
@@ -3361,7 +3361,6 @@ local function performBatchSummon(bannerName, amount)
         return false, "Summon failed: " .. tostring(result), 0
     end
     
-    -- Wait for the game to process
     task.wait(0.8)
     
     local currencyAfter = getCurrencyForBanner(bannerName)
@@ -3388,8 +3387,7 @@ local function performBatchSummon(bannerName, amount)
         end
     end
     
-    -- Clean up markers after detection
-    clearSummonMarkers()
+    -- DON'T clear markers here - wait until the entire session ends
     
     return true, string.format("Summoned %dx", actualSummons), actualCostSpent
 end
@@ -3500,14 +3498,18 @@ task.spawn(function()
             local summonCost = getCostForBanner(State.AutoSummonBanner)
             local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
             
-            -- Calculate how many summons we can afford (max 50)
+            -- Mark units ONCE at the start of the auto-summon session
+            if not State.SummonMarkersSet then
+                markExistingUnits()
+                State.SummonMarkersSet = true
+            end
+            
             local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
             
             if affordableSummons > 0 then
                 local success, message, costSpent = performBatchSummon(State.AutoSummonBanner, affordableSummons)
                 
                 if success then
-                    -- Update currency spent AFTER successful summon
                     State.CurrencySpent = State.CurrencySpent + costSpent
                     
                     print(string.format("Auto Summon: %s - Spent %d %s (Total: %d %s spent)", 
@@ -3517,7 +3519,6 @@ task.spawn(function()
                     task.wait(2)
                 end
                 
-                -- Small delay between batches
                 task.wait(1)
             else
                 -- Not enough currency - stop and send webhook
@@ -3531,6 +3532,10 @@ task.spawn(function()
                         currencyName, currentCurrency, summonCost))
                 end
                 
+                -- Clear markers at the END of the session
+                clearSummonMarkers()
+                State.SummonMarkersSet = false
+                
                 -- Reset tracking
                 State.SummonedUnits = {}
                 State.CurrencySpent = 0
@@ -3542,6 +3547,10 @@ task.spawn(function()
         elseif not State.AutoSummon and State.CurrencySpent > 0 then
             -- User manually disabled - send summary webhook
             sendSummonWebhook("Manually stopped by user")
+            
+            -- Clear markers when manually stopped
+            clearSummonMarkers()
+            State.SummonMarkersSet = false
             
             -- Reset tracking
             State.SummonedUnits = {}
