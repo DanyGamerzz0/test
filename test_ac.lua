@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.13"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3257,31 +3257,36 @@ local function captureCurrentUnits()
     return currentUnits
 end
 
-local function detectNewUnit(beforeSnapshot)
+local function detectNewUnits(beforeSnapshot)
     local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
     
     if not fxCache then
-        return nil
+        return {}
     end
     
+    local newUnits = {}
     for _, child in pairs(fxCache:GetChildren()) do
         if not beforeSnapshot[child.Name] then
             local itemIndex = child:GetAttribute("ITEMINDEX")
             if itemIndex then
-                return itemIndex
+                table.insert(newUnits, itemIndex)
             end
         end
     end
     
-    return nil
+    return newUnits
 end
 
-local function performSummon(bannerName)
+local function performBatchSummon(bannerName, amount)
     local bannerId = getBannerIdFromName(bannerName)
     local currencyType = getCurrencyTypeForBanner(bannerName)
     
     if not bannerId then
-        return false, "Invalid banner"
+        return false, "Invalid banner", 0
+    end
+    
+    if amount <= 0 then
+        return false, "Invalid amount", 0
     end
     
     -- Capture units before summoning
@@ -3289,7 +3294,7 @@ local function performSummon(bannerName)
     
     -- Perform summon
     local success, result = pcall(function()
-        local args = {bannerId, currencyType, 1}
+        local args = {bannerId, currencyType, amount}
         return Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("buy_from_banner")
@@ -3297,34 +3302,42 @@ local function performSummon(bannerName)
     end)
     
     if not success then
-        return false, "Summon failed: " .. tostring(result)
+        return false, "Summon failed: " .. tostring(result), 0
     end
     
-    -- Wait a bit for the unit to be added to _FX_CACHE
-    task.wait(0.5)
+    -- Wait for units to be added to _FX_CACHE
+    task.wait(0.5 + (amount * 0.05))
     
-    -- Detect new unit
-    local newUnitId = detectNewUnit(beforeSnapshot)
+    -- Detect new units
+    local newUnits = detectNewUnits(beforeSnapshot)
     
-    if newUnitId then
-        -- Get unit display name using existing function
-        local unitData = getUnitData(newUnitId)
-        local unitName = unitData and unitData.name or newUnitId
+    -- Calculate actual cost
+    local actualCost = amount * getCostForBanner(bannerName)
+    
+    -- Track the summoned units
+    for _, unitId in ipairs(newUnits) do
+        local unitData = getUnitData(unitId)
+        local unitName = unitData and unitData.name or unitId
         
-        -- Track the summoned unit
         if not State.SummonedUnits[unitName] then
             State.SummonedUnits[unitName] = 0
         end
         State.SummonedUnits[unitName] = State.SummonedUnits[unitName] + 1
-        
-        -- Update currency spent
-        State.CurrencySpent = State.CurrencySpent + getCostForBanner(bannerName)
-        
-        print(string.format("Summoned: %s (ID: %s)", unitName, newUnitId))
-        return true, unitName
     end
     
-    return true, "Unknown unit"
+    return true, string.format("Summoned %dx", amount), actualCost
+end
+
+local function getMaxAffordableSummons(bannerName)
+    local currentCurrency = getCurrencyForBanner(bannerName)
+    local summonCost = getCostForBanner(bannerName)
+    
+    if summonCost <= 0 then return 0 end
+    
+    local maxSummons = math.floor(currentCurrency / summonCost)
+    
+    -- Cap at 50 summons per batch
+    return math.min(maxSummons, 50)
 end
 
 local function sendSummonWebhook(reason)
@@ -3415,19 +3428,25 @@ task.spawn(function()
             local summonCost = getCostForBanner(State.AutoSummonBanner)
             local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
             
-            if currentCurrency >= summonCost then
-                local success, unitName = performSummon(State.AutoSummonBanner)
+            -- Calculate how many summons we can afford (max 50)
+            local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
+            
+            if affordableSummons > 0 then
+                local success, message, costSpent = performBatchSummon(State.AutoSummonBanner, affordableSummons)
                 
                 if success then
-                    print(string.format("Auto Summon: Got %s (%d %s remaining)", 
-                        unitName, currentCurrency - summonCost, currencyName))
+                    -- Update currency spent AFTER successful summon
+                    State.CurrencySpent = State.CurrencySpent + costSpent
+                    
+                    print(string.format("Auto Summon: %s - Spent %d %s (Total: %d %s spent)", 
+                        message, costSpent, currencyName, State.CurrencySpent, currencyName))
                 else
-                    warn("Auto Summon failed:", unitName)
-                    task.wait(2) -- Wait longer on failure
+                    warn("Auto Summon failed:", message)
+                    task.wait(2)
                 end
                 
-                -- Small delay between summons
-                task.wait(0.5)
+                -- Small delay between batches
+                task.wait(1)
             else
                 -- Not enough currency - stop and send webhook
                 print(string.format("Auto Summon: Insufficient currency (%d/%d %s)", 
@@ -3447,10 +3466,6 @@ task.spawn(function()
                 notify("Auto Summon", 
                     string.format("Stopped - Not enough %s (%d/%d)", 
                         currencyName, currentCurrency, summonCost))
-                
-                -- Update toggle UI
-                -- Note: You'll need to store a reference to the toggle to update it
-                -- This is handled automatically if the toggle state is bound to State.AutoSummon
             end
         elseif not State.AutoSummon and State.CurrencySpent > 0 then
             -- User manually disabled - send summary webhook
@@ -5028,7 +5043,8 @@ task.spawn(function()
         if State.AutoSummon and State.AutoSummonBanner then
             local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
             local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-            local totalSummons = math.floor(State.CurrencySpent / getCostForBanner(State.AutoSummonBanner))
+            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            local totalSummons = math.floor(State.CurrencySpent / summonCost)
             
             SummonStatusLabel:Set(string.format("Auto Summon: %d summons | %d %s spent | %d %s left", 
                 totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
