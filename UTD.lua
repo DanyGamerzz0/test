@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.31"
+local script_version = "V0.32"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -787,8 +787,6 @@ local generalHook = newcclosure(function(self, ...)
         warn("❌ Could not determine unit name for slot", slot)
         return
     end
-
-    unitName = unitName:gsub(":[Ss]hiny$", "")
     
     print(string.format("✅ Unit in slot %d: %s", slot, unitName))
     
@@ -816,6 +814,8 @@ local generalHook = newcclosure(function(self, ...)
     end
     
     if uuid then
+
+        local cleanUnitName = unitName:gsub(":[Ss]hiny$", "")
         -- Verify the unit exists in workspace
         local unit = getUnitByUUID(uuid)
         if not unit then
@@ -824,9 +824,9 @@ local generalHook = newcclosure(function(self, ...)
         end
         
         -- Increment counter for this unit type
-        recordingUnitCounter[unitName] = (recordingUnitCounter[unitName] or 0) + 1
-        local unitNumber = recordingUnitCounter[unitName]
-        local unitTag = string.format("%s #%d", unitName, unitNumber)
+        recordingUnitCounter[cleanUnitName] = (recordingUnitCounter[cleanUnitName] or 0) + 1
+    local unitNumber = recordingUnitCounter[cleanUnitName]
+    local unitTag = string.format("%s #%d", cleanUnitName, unitNumber)
         
         -- Track this unit
         recordingUUIDToTag[uuid] = unitTag
