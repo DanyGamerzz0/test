@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.3"
+    local script_version = "V0.31"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -743,7 +743,10 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     
     -- Get display name (e.g., "Shadow")
     local internalName = getInternalSpawnName(spawnedUnit)
+    print("DEBUG PLACEMENT - Internal name:", internalName)
     local displayName = getDisplayNameFromUnitId(internalName)
+    print("DEBUG PLACEMENT - Display name:", displayName)
+    print("DEBUG PLACEMENT - Actual unit in workspace:", spawnedUnit.Name)
     if not displayName then
         warn("Could not get display name for unit")
         Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get display name for unit",Duration = 3,Image = 4483362458})
