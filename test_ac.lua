@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.27"
+    local script_version = "V0.28"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -929,7 +929,6 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
     local placementId = nil
     
     for spawnId, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
-        -- Find the unit with this spawn_id
         local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
         if unitsFolder then
             for _, unit in pairs(unitsFolder:GetChildren()) do
@@ -961,9 +960,18 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
         Time = string.format("%.2f", gameRelativeTime)
     }
     
+    -- Only include AbilityName if it was provided
+    if actionInfo.abilityName then
+        abilityRecord.AbilityName = actionInfo.abilityName
+    end
+    
     table.insert(macro, abilityRecord)
     
-    print(string.format("Recorded ability: %s", placementId))
+    print(string.format("Recorded ability: %s at time %.2f%s", 
+        placementId, 
+        gameRelativeTime,
+        actionInfo.abilityName and (" (" .. actionInfo.abilityName .. ")") or ""
+    ))
     Rayfield:Notify({
         Title = "Macro Recorder",
         Content = string.format("Recorded ability: %s", placementId),
@@ -1039,13 +1047,14 @@ local function setupMacroHooksRefactored()
                     })
                 end)
             elseif self.Name == "use_active_attack" then
-                -- NEW: Record ability usage
-                task.spawn(function()
-                    processAbilityActionWithSpawnIdMapping({
-                        unitUUID = args[1],
-                        timestamp = tick()
-                    })
-                end)
+    -- Record ability usage with optional ability name
+    task.spawn(function()
+        processAbilityActionWithSpawnIdMapping({
+            unitUUID = args[1],
+            abilityName = args[2], -- May be nil, that's okay
+            timestamp = tick()
+        })
+    end)
             end
         end
 
@@ -1551,7 +1560,6 @@ end
 local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     local placementId = action.Unit
     
-    -- Look up current spawn_id for this placement
     local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
     if not currentSpawnId then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
@@ -1559,7 +1567,6 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
         return false
     end
     
-    -- Find the unit by spawn_id to get its current UUID
     local targetUnit = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
@@ -1578,7 +1585,6 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
         return false
     end
     
-    -- Get the current UUID from the unit's _stats
     local stats = targetUnit:FindFirstChild("_stats")
     if not stats then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No stats for %s", 
@@ -1595,21 +1601,30 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     
     local currentUUID = uuidValue.Value
     
-    updateDetailedStatus(string.format("(%d/%d) Using ability for %s", actionIndex, totalActionCount, placementId))
+    local abilityDesc = action.AbilityName and 
+        string.format("ability '%s'", action.AbilityName) or "ability"
+    
+    updateDetailedStatus(string.format("(%d/%d) Using %s for %s", 
+        actionIndex, totalActionCount, abilityDesc, placementId))
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        endpoints:WaitForChild("use_active_attack"):InvokeServer(currentUUID)
+        
+        if action.AbilityName then
+            endpoints:WaitForChild("use_active_attack"):InvokeServer(currentUUID, action.AbilityName)
+        else
+            endpoints:WaitForChild("use_active_attack"):InvokeServer(currentUUID)
+        end
     end)
     
     if success then
-        task.wait(0.2) -- Small delay after ability use
-        updateDetailedStatus(string.format("(%d/%d) Successfully used ability for %s", 
-            actionIndex, totalActionCount, placementId))
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) Successfully used %s for %s", 
+            actionIndex, totalActionCount, abilityDesc, placementId))
         return true
     else
-        updateDetailedStatus(string.format("(%d/%d) Failed to use ability for %s", 
-            actionIndex, totalActionCount, placementId))
+        updateDetailedStatus(string.format("(%d/%d) Failed to use %s for %s", 
+            actionIndex, totalActionCount, abilityDesc, placementId))
         return false
     end
 end
@@ -5976,12 +5991,17 @@ local function importMacroFromTXT(txtContent, macroName)
                     }
                     table.insert(actions, action)
                 elseif actionType == "use_active_attack" and #parts >= 3 then
+                    -- Format: use_active_attack,unit_name,time[,ability_name]
                     local action = {
                         Type = "use_active_attack",
                         Unit = parts[2],
                         Time = parts[3]
                     }
-    table.insert(actions, action)
+                    -- Optional ability name
+                    if parts[4] and parts[4] ~= "" then
+                        action.AbilityName = parts[4]
+                    end
+                    table.insert(actions, action)
                 end
             end
         end
@@ -6358,16 +6378,21 @@ local function playMacroWithGameTimingRefactored()
         end
         
         -- Timing logic with proper field access
-        if not State.IgnoreTiming then
-            -- Convert stored time string to number
+        -- IMPORTANT: Abilities ALWAYS use game timing, even when "Ignore Timing" is enabled
+        local shouldUseGameTiming = (not State.IgnoreTiming) or (action.Type == "use_active_attack")
+        
+        if shouldUseGameTiming then
             local targetGameTime = tonumber(action.Time) or 0
             local currentGameTime = tick() - GameTracking.gameStartTime
             local waitTime = targetGameTime - currentGameTime
             
             if waitTime > 0 then
-                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for timing (target: %.1fs, current: %.1fs)", 
-                    i, totalActions, waitTime, targetGameTime, currentGameTime))
-                print(string.format("Waiting %.2fs for game time %.2fs", waitTime, targetGameTime))
+                local timingMode = (action.Type == "use_active_attack" and State.IgnoreTiming) and 
+                    " [ABILITY - forced timing]" or ""
+                
+                updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for timing%s (target: %.1fs, current: %.1fs)", 
+                    i, totalActions, waitTime, timingMode, targetGameTime, currentGameTime))
+                print(string.format("Waiting %.2fs for game time %.2fs%s", waitTime, targetGameTime, timingMode))
                 
                 local waitStart = tick()
                 while tick() - waitStart < waitTime and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
@@ -6381,7 +6406,6 @@ local function playMacroWithGameTimingRefactored()
                 return false
             end
         else
-            -- Small delay between actions in immediate mode
             if i > 1 then
                 task.wait(0.3)
             end
