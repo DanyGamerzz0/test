@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.33"
+    local script_version = "V0.34"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -938,36 +938,29 @@ end
 
 local function processAbilityActionWithSpawnIdMapping(actionInfo)
     local rawUnitUUID = actionInfo.unitUUID
-
+    
+    -- DEBUG: Print ALL current mappings
     print("=== CURRENT UUID MAPPINGS ===")
     for uuid, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
         print(string.format("  UUID: %s -> Placement: %s", uuid, placement))
     end
-    print("=== SEARCHING FOR UUID: %s ===", rawUnitUUID)
+    print(string.format("=== SEARCHING FOR UUID: %s ===", rawUnitUUID))
     
-    -- Find which placement ID this UUID belongs to
+    -- Find which placement ID this UUID belongs to BY CHECKING THE MAPPING DIRECTLY
     local placementId = nil
     
-    for spawnId, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        if unitsFolder then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
-                if isOwnedByLocalPlayer(unit) then
-                    local stats = unit:FindFirstChild("_stats")
-                    if stats then
-                        local uuidValue = stats:FindFirstChild("uuid")
-                        if uuidValue and uuidValue:IsA("StringValue") then
-                            -- Check if the ability UUID contains the stored UUID
-                            if rawUnitUUID:find(uuidValue.Value, 1, true) then
-                                placementId = placement
-                                print("Ability UUID match:", rawUnitUUID, "contains", uuidValue.Value)
-                                break
-                            end
-                        end
-                    end
-                end
+    -- First, try exact match
+    placementId = MacroSystem.recordingSpawnIdToPlacement[rawUnitUUID]
+    
+    -- If no exact match, try substring match (ability UUID might have extra chars)
+    if not placementId then
+        for storedUUID, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
+            -- Check if ability UUID STARTS WITH the stored UUID
+            if rawUnitUUID:sub(1, #storedUUID) == storedUUID then
+                placementId = placement
+                print(string.format("Ability UUID match: %s starts with %s -> %s", rawUnitUUID, storedUUID, placement))
+                break
             end
-            if placementId then break end
         end
     end
     
