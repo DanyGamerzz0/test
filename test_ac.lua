@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.32"
+    local script_version = "V0.33"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -938,6 +938,12 @@ end
 
 local function processAbilityActionWithSpawnIdMapping(actionInfo)
     local rawUnitUUID = actionInfo.unitUUID
+
+    print("=== CURRENT UUID MAPPINGS ===")
+    for uuid, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
+        print(string.format("  UUID: %s -> Placement: %s", uuid, placement))
+    end
+    print("=== SEARCHING FOR UUID: %s ===", rawUnitUUID)
     
     -- Find which placement ID this UUID belongs to
     local placementId = nil
