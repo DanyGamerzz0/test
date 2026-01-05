@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.14"
+    local script_version = "V0.15"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -180,6 +180,7 @@ local macro = {}
     -- ========== EXISTING VARIABLES (keep all your existing variables) ==========
     local Config = {
         DISCORD_USER_ID = nil,
+        ValidWebhook = nil,
     }
 
     local AutoJoinState = {
@@ -1790,7 +1791,7 @@ end
 
     -- Enhanced webhook function
     local function sendWebhook(messageType, unitData)
-        if ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
+        if Config.ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
             notify("Please set your Discord webhook URL first!")
             return
         end
@@ -1933,7 +1934,7 @@ end
         
         local success, response = pcall(function()
             return requestFunc({
-                Url = ValidWebhook,
+                Url = Config.ValidWebhook,
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
                 Body = payload
@@ -3225,9 +3226,13 @@ local function getBannerIdFromName(bannerName)
     return nil
 end
 
-local function getCurrencyTypeForBanner(bannerName)
-    -- Both banners use "gems" as the currency type parameter
-    return "gems"
+local function getCurrencyTypeForBanner(bannerName, amount)
+    -- Both banners use "gems10" for mass summons (10+)
+    if amount >= 10 then
+        return "gems10"
+    else
+        return "gems"
+    end
 end
 
 local function getCurrencyNameForBanner(bannerName)
@@ -3279,7 +3284,7 @@ end
 
 local function performBatchSummon(bannerName, amount)
     local bannerId = getBannerIdFromName(bannerName)
-    local currencyType = getCurrencyTypeForBanner(bannerName)
+    local currencyType = getCurrencyTypeForBanner(bannerName, amount)
     
     if not bannerId then
         return false, "Invalid banner", 0
@@ -3289,12 +3294,26 @@ local function performBatchSummon(bannerName, amount)
         return false, "Invalid amount", 0
     end
     
+    -- Cap amount based on banner limits
+    if bannerName == "Banner 1" and amount > 10 then
+        amount = 10
+    elseif bannerName == "Banner 2" and amount > 50 then
+        amount = 50
+    end
+    
     -- Capture units before summoning
     local beforeSnapshot = captureCurrentUnits()
     
     -- Perform summon
     local success, result = pcall(function()
-        local args = {bannerId, currencyType, amount}
+        -- For mass summons (10+), we don't pass the amount parameter
+        local args
+        if amount >= 10 then
+            args = {bannerId, currencyType} -- "gems10" - amount is implied
+        else
+            args = {bannerId, currencyType, amount} -- "gems" with specific amount
+        end
+        
         return Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("buy_from_banner")
@@ -3336,12 +3355,17 @@ local function getMaxAffordableSummons(bannerName)
     
     local maxSummons = math.floor(currentCurrency / summonCost)
     
-    -- Cap at 50 summons per batch
+    -- Banner 1: Max 10x summons
+    if bannerName == "Banner 1" then
+        return math.min(maxSummons, 10)
+    end
+    
+    -- Banner 2: Max 50x summons
     return math.min(maxSummons, 50)
 end
 
 local function sendSummonWebhook(reason)
-    if not ValidWebhook or ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
+    if not Config.ValidWebhook or Config.ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
         print("No valid webhook URL set")
         return
     end
@@ -3405,7 +3429,7 @@ local function sendSummonWebhook(reason)
     
     local success, response = pcall(function()
         return requestFunc({
-            Url = ValidWebhook,
+            Url = Config.ValidWebhook,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = payload
@@ -7014,7 +7038,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             return
         end
         
-        if not ValidWebhook then
+        if not Config.ValidWebhook then
             Rayfield:Notify({
                 Title = "Webhook Error",
                 Content = "No webhook URL configured.",
@@ -7145,7 +7169,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         
         local success, result = pcall(function()
             return requestFunc({
-                Url = ValidWebhook,
+                Url = Config.ValidWebhook,
                 Method = "POST",
                 Headers = { 
                     ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
@@ -7617,16 +7641,16 @@ end)
             local trimmed = Text:match("^%s*(.-)%s*$")
 
             if trimmed == "" then
-                ValidWebhook = nil
+                Config.ValidWebhook = nil
                 return
             end
 
             local valid = trimmed:match("^https://")
 
             if valid then
-                ValidWebhook = trimmed
+                Config.ValidWebhook = trimmed
             else
-                ValidWebhook = nil
+                Config.ValidWebhook = nil
             end
         end,
     })
@@ -7654,7 +7678,7 @@ end)
     local TestWebhookButton = WebhookTab:CreateButton({
         Name = "Test webhook",
         Callback = function()
-            if ValidWebhook then
+            if Config.Config.ValidWebhook then
                 sendWebhook("test")
             else
                 notify(nil,"Error: No webhook URL set!")
