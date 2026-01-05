@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.23"
+    local script_version = "V0.24"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3418,53 +3418,6 @@ local function sendSummonWebhook()
         print("Webhook failed:", response and response.StatusCode or "No response")
     end
 end
-
-task.spawn(function()
-    while true do
-        task.wait(1)
-        
-        if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
-            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-            local summonCost = getCostForBanner(State.AutoSummonBanner)
-            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
-            
-            local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
-            
-            if affordableSummons > 0 then
-                local success, message, costSpent = performBatchSummon(State.AutoSummonBanner, affordableSummons)
-                
-                if success then
-                    State.CurrencySpent = State.CurrencySpent + costSpent
-                    
-                else
-                    warn("Auto Summon failed:", message)
-                    task.wait(2)
-                end
-                
-                task.wait(1)
-            else
-                
-                State.AutoSummon = false
-                
-                if State.CurrencySpent > 0 then
-                    sendSummonWebhook()
-                end
-                
-                State.SummonedUnits = {}
-                State.CurrencySpent = 0
-                
-                notify("Auto Summon", 
-                    string.format("Stopped - Not enough %s (%d/%d)", 
-                        currencyName, currentCurrency, summonCost))
-            end
-        elseif not State.AutoSummon and State.CurrencySpent > 0 then
-            sendSummonWebhook()
-            
-            State.SummonedUnits = {}
-            State.CurrencySpent = 0
-        end
-    end
-end)
 
     LobbyTab:CreateSection("🏨 Lobby 🏨")
 
