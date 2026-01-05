@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.3"
+local script_version = "V0.31"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -787,8 +787,10 @@ local generalHook = newcclosure(function(self, ...)
         warn("❌ Could not determine unit name for slot", slot)
         return
     end
+
+    unitName = unitName:gsub(":[Ss]hiny$", "")
     
-    --print(string.format("✅ Unit in slot %d: %s", slot, unitName))
+    print(string.format("✅ Unit in slot %d: %s", slot, unitName))
     
     -- Wait for unit to appear in GC
     task.wait(0.5)
