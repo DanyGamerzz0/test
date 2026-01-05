@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.29"
+    local script_version = "V0.3"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1050,12 +1050,21 @@ local function setupMacroHooksRefactored()
                         timestamp = tick()
                     })
                 end)
-            elseif self.Name == "use_active_attack" then
+           elseif self.Name == "use_active_attack" then
     -- Record ability usage with optional ability name
     task.spawn(function()
+        -- Only include abilityName if args[2] exists AND is a string AND is not empty
+        local abilityName = nil
+        if args[2] and type(args[2]) == "string" and args[2] ~= "" then
+            abilityName = args[2]
+            print("DEBUG: Captured ability name:", abilityName)
+        else
+            print("DEBUG: No ability name (args[2] =", type(args[2]), ":", tostring(args[2]), ")")
+        end
+        
         processAbilityActionWithSpawnIdMapping({
             unitUUID = args[1],
-            abilityName = args[2], -- May be nil, that's okay
+            abilityName = abilityName,
             timestamp = tick()
         })
     end)
