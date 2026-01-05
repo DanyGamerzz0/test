@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.22"
+    local script_version = "V0.23"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1801,13 +1801,13 @@ end
 
         if messageType == "test" then
             data = {
-                username = "LixHub Bot",
+                username = "LixHub",
                 content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
                 embeds = {{
-                    title = "LixHub Notification",
+                    title = "Webhook Test",
                     description = "Test webhook sent successfully",
                     color = 0x5865F2,
-                    footer = { text = "LixHub Auto Logger" },
+                    footer = { text = "LixHub" },
                     timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
                 }}
             }
@@ -1817,16 +1817,16 @@ end
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local unitName = "Unknown Unit"
         
-        print("DEBUG WEBHOOK: unitData type:", type(unitData), "value:", unitData)
+        --print("DEBUG WEBHOOK: unitData type:", type(unitData), "value:", unitData)
         
         -- Simply get the unit name from argument 5 (based on your console output)
         if unitData and type(unitData) == "table" then
-            print("DEBUG WEBHOOK: unitData has", #unitData, "items")
+            --print("DEBUG WEBHOOK: unitData has", #unitData, "items")
             for _, argInfo in ipairs(unitData) do
-                print("DEBUG WEBHOOK: arg", argInfo.index, "=", argInfo.value)
+                --print("DEBUG WEBHOOK: arg", argInfo.index, "=", argInfo.value)
                 if argInfo.index == 5 and argInfo.type == "string" then
                     unitName = argInfo.value
-                    print("DEBUG WEBHOOK: Set unitName to:", unitName)
+                    --print("DEBUG WEBHOOK: Set unitName to:", unitName)
                     break
                 end
             end
@@ -1838,7 +1838,7 @@ end
             username = "LixHub",
             content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
-                title = "Unit Drop!",
+                title = "Unit Drop",
                 description = string.format("**%s** obtained **%s**!", playerName, unitName),
                 color = 0x5865F2,
                 footer = { text = "LixHub" },
@@ -1890,8 +1890,6 @@ end
         rewardsText = rewardsText:gsub("\n$", "")
     end
     
-    local footerText = "discord.gg/cYKnXE2Nf8"
-    
     -- Determine title and color based on game result
     local titleText = "Stage Completed!"
     local embedColor = 0x57F287
@@ -1916,7 +1914,7 @@ end
                 { name = "Waves Completed", value = tostring(GameTracking.lastWave), inline = true },
                 { name = "Rewards", value = rewardsText, inline = false },
             },
-            footer = { text = footerText },
+            footer = { text = "discord.gg/cYKnXE2Nf8" },
             timestamp = timestamp
         }}
     }
@@ -3227,15 +3225,6 @@ local function getBannerIdFromName(bannerName)
     return nil
 end
 
-local function getCurrencyTypeForBanner(bannerName, amount)
-    -- Both banners use "gems10" for mass summons (10+)
-    if amount >= 10 then
-        return "gems10"
-    else
-        return "gems"
-    end
-end
-
 local function getCurrencyNameForBanner(bannerName)
     if bannerName == "Banner 1" then
         return "Gems"
@@ -3243,114 +3232,6 @@ local function getCurrencyNameForBanner(bannerName)
         return "Gingerbread Tokens"
     end
     return "Currency"
-end
-
-local function captureCurrentUnits()
-    local currentUnits = {}
-    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    
-    if not fxCache then
-        return currentUnits
-    end
-    
-    for _, child in pairs(fxCache:GetChildren()) do
-        local itemIndex = child:GetAttribute("ITEMINDEX")
-        if itemIndex then
-            currentUnits[child.Name] = true -- Use child.Name as key
-        end
-    end
-    
-    return currentUnits
-end
-
-local function detectNewUnits(beforeSnapshot, afterSnapshot)
-    local newUnits = {}
-    
-    for unitName, _ in pairs(afterSnapshot) do
-        if not beforeSnapshot[unitName] then
-            table.insert(newUnits, unitName)
-        end
-    end
-    
-    return newUnits
-end
-
-local function markExistingUnits()
-    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    if not fxCache then return end
-    
-    local markedCount = 0
-    
-    -- Mark ALL units you currently own (not just CollectionUnitFrames)
-    for _, child in pairs(fxCache:GetChildren()) do
-        local itemIndex = child:GetAttribute("ITEMINDEX")
-        if itemIndex then
-            -- Store the ITEMINDEX itself as the marker
-            child:SetAttribute("_PreSummonMarker", itemIndex)
-            markedCount = markedCount + 1
-        end
-    end
-    
-    print(string.format("Marked %d existing units by ITEMINDEX", markedCount))
-end
-
-local function detectNewUnitsAfterSummon()
-    local newUnits = {}
-    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    if not fxCache then 
-        print("ERROR: _FX_CACHE not found!")
-        return newUnits 
-    end
-    
-    -- First, collect all ITEMINDEXes that were marked (existed before summon)
-    local preExistingItems = {}
-    for _, child in pairs(fxCache:GetChildren()) do
-        local markedIndex = child:GetAttribute("_PreSummonMarker")
-        if markedIndex then
-            preExistingItems[markedIndex] = true
-        end
-    end
-    
-    print("Pre-existing item count:", table.concat({next(preExistingItems) and "has items" or "empty"}))
-    
-    -- Now check all current units
-    local checkedItems = {}
-    for _, collectionFrame in pairs(fxCache:GetChildren()) do
-        if collectionFrame.Name == "CollectionUnitFrame" then
-            local itemIndex = collectionFrame:GetAttribute("ITEMINDEX")
-            
-            if itemIndex and not checkedItems[itemIndex] then
-                checkedItems[itemIndex] = true
-                
-                -- Only count as NEW if this ITEMINDEX didn't exist before
-                if not preExistingItems[itemIndex] then
-                    table.insert(newUnits, {
-                        itemIndex = itemIndex,
-                        collectionFrame = collectionFrame
-                    })
-                    print(string.format("Found TRULY NEW unit: %s", itemIndex))
-                else
-                    print(string.format("Skipping pre-owned unit: %s", itemIndex))
-                end
-            end
-        end
-    end
-    
-    print(string.format("Detection complete - Found %d truly new units", #newUnits))
-    return newUnits
-end
-
-local function clearSummonMarkers()
-    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    if not fxCache then return end
-    
-    for _, collectionFrame in pairs(fxCache:GetChildren()) do
-        if collectionFrame.Name == "CollectionUnitFrame" then
-            collectionFrame:SetAttribute("_PreSummonMarker", nil)
-        end
-    end
-    
-    print("Cleared all summon markers")
 end
 
 local function captureUnitCounts()
@@ -3381,7 +3262,6 @@ local function compareUnitCounts(beforeCounts, afterCounts)
             local displayName = getDisplayNameFromUnitId(itemIndex)
             if displayName then
                 newUnits[displayName] = (newUnits[displayName] or 0) + difference
-                print(string.format("Unit change detected: %s (+%d)", displayName, difference))
             end
         end
     end
@@ -3405,8 +3285,6 @@ local function performBatchSummon(bannerName, amount)
     
     -- Capture BEFORE snapshot
     local beforeCounts = captureUnitCounts()
-    print(string.format("Captured BEFORE snapshot: %d unique units", 
-        (function() local c=0 for _ in pairs(beforeCounts) do c=c+1 end return c end)()))
     
     -- Perform summon
     local success, result = pcall(function()
@@ -3426,8 +3304,6 @@ local function performBatchSummon(bannerName, amount)
     
     -- Capture AFTER snapshot
     local afterCounts = captureUnitCounts()
-    print(string.format("Captured AFTER snapshot: %d unique units", 
-        (function() local c=0 for _ in pairs(afterCounts) do c=c+1 end return c end)()))
     
     local currencyAfter = getCurrencyForBanner(bannerName)
     local actualCostSpent = currencyBefore - currencyAfter
@@ -3437,9 +3313,6 @@ local function performBatchSummon(bannerName, amount)
     -- Compare snapshots to find new units
     local newUnits = compareUnitCounts(beforeCounts, afterCounts)
     
-    print(string.format("Summon complete: Spent %d currency, Did %d summons, Got %d unit type changes", 
-        actualCostSpent, actualSummons, (function() local c=0 for _ in pairs(newUnits) do c=c+1 end return c end)()))
-    
     -- Merge into session tracking
     for displayName, count in pairs(newUnits) do
         if not State.SummonedUnits[displayName] then
@@ -3447,7 +3320,6 @@ local function performBatchSummon(bannerName, amount)
         end
         State.SummonedUnits[displayName] = State.SummonedUnits[displayName] + count
         
-        print(string.format("Session total: %s x%d", displayName, State.SummonedUnits[displayName]))
     end
     
     return true, string.format("Summoned %dx", actualSummons), actualCostSpent
@@ -3470,10 +3342,9 @@ local function getMaxAffordableSummons(bannerName)
     return maxSummons
 end
 
-local function sendSummonWebhook(reason)
-    print("VALIDWEBHOOK: " .. Config.ValidWebhook)
+local function sendSummonWebhook()
     if not Config.ValidWebhook or Config.ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
-        print("No valid webhook URL set")
+        notify("No valid webhook URL set!")
         return
     end
     
@@ -3494,32 +3365,30 @@ local function sendSummonWebhook(reason)
     local currencyName = getCurrencyNameForBanner(bannerName)
     
     local data = {
-        username = "LixHub Auto Summon",
+        username = "LixHub",
         content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
         embeds = {{
-            title = "🎲 Auto Summon Summary",
-            description = string.format("**Banner:** %s\n**Reason:** %s", bannerName, reason),
-            color = reason:find("Insufficient") and 0xED4245 or 0x5865F2,
+            title = "Auto Summon",
+            description = string.format("**Banner:** %s", bannerName),
+            color = Color3.fromRGB(64, 64, 64),
             fields = {
                 {
-                    name = "💎 Currency Spent",
+                    name = "Currency Spent",
                     value = string.format("%d %s", State.CurrencySpent, currencyName),
                     inline = true
                 },
                 {
-                    name = "🎁 Total Summons",
+                    name = "Total Summons",
                     value = getCostForBanner(State.AutoSummonBanner) > 0 and math.floor(State.CurrencySpent / getCostForBanner(State.AutoSummonBanner)) or 0,
                     inline = true
                 },
                 {
-                    name = "🎯 Units Obtained",
+                    name = "Units Obtained",
                     value = unitsText,
                     inline = false
                 }
             },
-            footer = {
-                text = "LixHub Auto Summon"
-            },
+            footer = {text = "LixHub discord.gg/cYKnXE2Nf8"},
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
@@ -3567,8 +3436,6 @@ task.spawn(function()
                 if success then
                     State.CurrencySpent = State.CurrencySpent + costSpent
                     
-                    print(string.format("Auto Summon: %s - Spent %d %s (Total: %d %s spent)", 
-                        message, costSpent, currencyName, State.CurrencySpent, currencyName))
                 else
                     warn("Auto Summon failed:", message)
                     task.wait(2)
@@ -3576,14 +3443,11 @@ task.spawn(function()
                 
                 task.wait(1)
             else
-                print(string.format("Auto Summon: Insufficient currency (%d/%d %s)", 
-                    currentCurrency, summonCost, currencyName))
                 
                 State.AutoSummon = false
                 
                 if State.CurrencySpent > 0 then
-                    sendSummonWebhook(string.format("Insufficient %s (%d/%d)", 
-                        currencyName, currentCurrency, summonCost))
+                    sendSummonWebhook()
                 end
                 
                 State.SummonedUnits = {}
@@ -3594,7 +3458,7 @@ task.spawn(function()
                         currencyName, currentCurrency, summonCost))
             end
         elseif not State.AutoSummon and State.CurrencySpent > 0 then
-            sendSummonWebhook("Manually stopped by user")
+            sendSummonWebhook()
             
             State.SummonedUnits = {}
             State.CurrencySpent = 0
@@ -5159,21 +5023,74 @@ end
 
 local SummonStatusLabel = LobbyTab:CreateLabel("Auto Summon: Idle")
 
--- Update the status label periodically
+local function updateSummonStatus()
+    if State.AutoSummon and State.AutoSummonBanner then
+        local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+        local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+        local summonCost = getCostForBanner(State.AutoSummonBanner)
+        local totalSummons = summonCost > 0 and math.floor(State.CurrencySpent / summonCost) or 0
+        
+        SummonStatusLabel:Set(string.format("Auto Summon: %d summons | %d %s spent | %d %s left", 
+            totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
+    else
+        SummonStatusLabel:Set("Auto Summon: Idle")
+    end
+end
+
 task.spawn(function()
     while true do
         task.wait(1)
         
-        if State.AutoSummon and State.AutoSummonBanner then
-            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+        if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
             local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
             local summonCost = getCostForBanner(State.AutoSummonBanner)
-            local totalSummons = math.floor(State.CurrencySpent / summonCost)
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
             
-            SummonStatusLabel:Set(string.format("Auto Summon: %d summons | %d %s spent | %d %s left", 
-                totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
-        else
-            SummonStatusLabel:Set("Auto Summon: Idle")
+            local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
+            
+            if affordableSummons > 0 then
+                local success, message, costSpent = performBatchSummon(State.AutoSummonBanner, affordableSummons)
+                
+                if success then
+                    State.CurrencySpent = State.CurrencySpent + costSpent
+                    
+                    -- UPDATE IMMEDIATELY AFTER SUMMON
+                    updateSummonStatus()
+                    
+                    print(string.format("Auto Summon: %s - Spent %d %s (Total: %d %s spent)", 
+                        message, costSpent, currencyName, State.CurrencySpent, currencyName))
+                else
+                    warn("Auto Summon failed:", message)
+                    task.wait(2)
+                end
+                
+                task.wait(1)
+            else
+                print(string.format("Auto Summon: Insufficient currency (%d/%d %s)", 
+                    currentCurrency, summonCost, currencyName))
+                
+                State.AutoSummon = false
+                
+                if State.CurrencySpent > 0 then
+                    sendSummonWebhook()
+                end
+                
+                State.SummonedUnits = {}
+                State.CurrencySpent = 0
+                
+                updateSummonStatus() -- Update when stopping
+                
+                notify("Auto Summon", 
+                    string.format("Stopped - Not enough %s (%d/%d)", 
+                        currencyName, currentCurrency, summonCost))
+            end
+        elseif not State.AutoSummon and State.CurrencySpent > 0 then
+            sendSummonWebhook()
+            
+            State.SummonedUnits = {}
+            State.CurrencySpent = 0
+            
+            updateSummonStatus() -- Update when manually stopped
         end
     end
 end)
