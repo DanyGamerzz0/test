@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.21"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3280,15 +3280,18 @@ local function markExistingUnits()
     if not fxCache then return end
     
     local markedCount = 0
-    for _, collectionFrame in pairs(fxCache:GetChildren()) do
-        if collectionFrame.Name == "CollectionUnitFrame" then
-            -- Mark this as an existing unit
-            collectionFrame:SetAttribute("_PreSummonMarker", true)
+    
+    -- Mark ALL units you currently own (not just CollectionUnitFrames)
+    for _, child in pairs(fxCache:GetChildren()) do
+        local itemIndex = child:GetAttribute("ITEMINDEX")
+        if itemIndex then
+            -- Store the ITEMINDEX itself as the marker
+            child:SetAttribute("_PreSummonMarker", itemIndex)
             markedCount = markedCount + 1
         end
     end
     
-    print(string.format("Marked %d existing CollectionUnitFrames", markedCount))
+    print(string.format("Marked %d existing units by ITEMINDEX", markedCount))
 end
 
 local function detectNewUnitsAfterSummon()
@@ -3299,39 +3302,41 @@ local function detectNewUnitsAfterSummon()
         return newUnits 
     end
     
-    local totalFrames = 0
-    local markedFrames = 0
-    local unmarkedFrames = 0
+    -- First, collect all ITEMINDEXes that were marked (existed before summon)
+    local preExistingItems = {}
+    for _, child in pairs(fxCache:GetChildren()) do
+        local markedIndex = child:GetAttribute("_PreSummonMarker")
+        if markedIndex then
+            preExistingItems[markedIndex] = true
+        end
+    end
     
+    print("Pre-existing item count:", table.concat({next(preExistingItems) and "has items" or "empty"}))
+    
+    -- Now check all current units
+    local checkedItems = {}
     for _, collectionFrame in pairs(fxCache:GetChildren()) do
         if collectionFrame.Name == "CollectionUnitFrame" then
-            totalFrames = totalFrames + 1
+            local itemIndex = collectionFrame:GetAttribute("ITEMINDEX")
             
-            local hasMarker = collectionFrame:GetAttribute("_PreSummonMarker")
-            
-            if hasMarker then
-                markedFrames = markedFrames + 1
-            else
-                unmarkedFrames = unmarkedFrames + 1
+            if itemIndex and not checkedItems[itemIndex] then
+                checkedItems[itemIndex] = true
                 
-                -- Get ITEMINDEX directly from the CollectionUnitFrame itself
-                local itemIndex = collectionFrame:GetAttribute("ITEMINDEX")
-                if itemIndex then
+                -- Only count as NEW if this ITEMINDEX didn't exist before
+                if not preExistingItems[itemIndex] then
                     table.insert(newUnits, {
                         itemIndex = itemIndex,
                         collectionFrame = collectionFrame
                     })
-                    print(string.format("Found NEW unit: ItemIndex=%s", itemIndex))
+                    print(string.format("Found TRULY NEW unit: %s", itemIndex))
                 else
-                    print("WARNING: Unmarked CollectionUnitFrame has no ITEMINDEX attribute!")
+                    print(string.format("Skipping pre-owned unit: %s", itemIndex))
                 end
             end
         end
     end
     
-    print(string.format("Detection summary - Total: %d, Marked: %d, Unmarked (new): %d", 
-        totalFrames, markedFrames, unmarkedFrames))
-    
+    print(string.format("Detection complete - Found %d truly new units", #newUnits))
     return newUnits
 end
 
@@ -3348,6 +3353,42 @@ local function clearSummonMarkers()
     print("Cleared all summon markers")
 end
 
+local function captureUnitCounts()
+    local counts = {}
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    if not fxCache then return counts end
+    
+    for _, child in pairs(fxCache:GetChildren()) do
+        local itemIndex = child:GetAttribute("ITEMINDEX")
+        if itemIndex then
+            counts[itemIndex] = (counts[itemIndex] or 0) + 1
+        end
+    end
+    
+    return counts
+end
+
+local function compareUnitCounts(beforeCounts, afterCounts)
+    local newUnits = {}
+    
+    -- Check all units in the AFTER snapshot
+    for itemIndex, afterCount in pairs(afterCounts) do
+        local beforeCount = beforeCounts[itemIndex] or 0
+        local difference = afterCount - beforeCount
+        
+        if difference > 0 then
+            -- This unit increased in quantity OR is brand new
+            local displayName = getDisplayNameFromUnitId(itemIndex)
+            if displayName then
+                newUnits[displayName] = (newUnits[displayName] or 0) + difference
+                print(string.format("Unit change detected: %s (+%d)", displayName, difference))
+            end
+        end
+    end
+    
+    return newUnits
+end
+
 local function performBatchSummon(bannerName, amount)
     local bannerId = getBannerIdFromName(bannerName)
     
@@ -3362,17 +3403,10 @@ local function performBatchSummon(bannerName, amount)
     local currencyType = amount >= 10 and "gems10" or "gems"
     local currencyBefore = getCurrencyForBanner(bannerName)
     
-    -- Count frames BEFORE summon
-    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    local countBefore = 0
-    if fxCache then
-        for _, frame in pairs(fxCache:GetChildren()) do
-            if frame.Name == "CollectionUnitFrame" then
-                countBefore = countBefore + 1
-            end
-        end
-    end
-    print(string.format("CollectionUnitFrames BEFORE summon: %d", countBefore))
+    -- Capture BEFORE snapshot
+    local beforeCounts = captureUnitCounts()
+    print(string.format("Captured BEFORE snapshot: %d unique units", 
+        (function() local c=0 for _ in pairs(beforeCounts) do c=c+1 end return c end)()))
     
     -- Perform summon
     local success, result = pcall(function()
@@ -3387,42 +3421,33 @@ local function performBatchSummon(bannerName, amount)
         return false, "Summon failed: " .. tostring(result), 0
     end
     
-    -- INCREASED wait time - game needs time to create new frames
-    task.wait(2.0) -- Increased from 0.8 to 2.0
+    -- Wait for game to update collection
+    task.wait(2.0)
     
-    -- Count frames AFTER summon
-    local countAfter = 0
-    if fxCache then
-        for _, frame in pairs(fxCache:GetChildren()) do
-            if frame.Name == "CollectionUnitFrame" then
-                countAfter = countAfter + 1
-            end
-        end
-    end
-    print(string.format("CollectionUnitFrames AFTER summon: %d (difference: %d)", countAfter, countAfter - countBefore))
+    -- Capture AFTER snapshot
+    local afterCounts = captureUnitCounts()
+    print(string.format("Captured AFTER snapshot: %d unique units", 
+        (function() local c=0 for _ in pairs(afterCounts) do c=c+1 end return c end)()))
     
     local currencyAfter = getCurrencyForBanner(bannerName)
     local actualCostSpent = currencyBefore - currencyAfter
     local summonCost = getCostForBanner(bannerName)
     local actualSummons = summonCost > 0 and math.floor(actualCostSpent / summonCost) or 0
     
-    -- Detect new units (those without the marker)
-    local newUnits = detectNewUnitsAfterSummon()
+    -- Compare snapshots to find new units
+    local newUnits = compareUnitCounts(beforeCounts, afterCounts)
     
-    print(string.format("Summon complete: Spent %d currency, Did %d summons, Got %d new units", 
-        actualCostSpent, actualSummons, #newUnits))
+    print(string.format("Summon complete: Spent %d currency, Did %d summons, Got %d unit type changes", 
+        actualCostSpent, actualSummons, (function() local c=0 for _ in pairs(newUnits) do c=c+1 end return c end)()))
     
-    -- Track the summoned units
-    for _, unitData in ipairs(newUnits) do
-        local displayName = getDisplayNameFromUnitId(unitData.itemIndex)
-        if displayName then
-            if not State.SummonedUnits[displayName] then
-                State.SummonedUnits[displayName] = 0
-            end
-            State.SummonedUnits[displayName] = State.SummonedUnits[displayName] + 1
-            
-            print(string.format("Tracked new unit: %s (ItemIndex: %s)", displayName, unitData.itemIndex))
+    -- Merge into session tracking
+    for displayName, count in pairs(newUnits) do
+        if not State.SummonedUnits[displayName] then
+            State.SummonedUnits[displayName] = 0
         end
+        State.SummonedUnits[displayName] = State.SummonedUnits[displayName] + count
+        
+        print(string.format("Session total: %s x%d", displayName, State.SummonedUnits[displayName]))
     end
     
     return true, string.format("Summoned %dx", actualSummons), actualCostSpent
@@ -3534,12 +3559,6 @@ task.spawn(function()
             local summonCost = getCostForBanner(State.AutoSummonBanner)
             local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
             
-            -- Mark units ONCE at the start of the auto-summon session
-            if not State.SummonMarkersSet then
-                markExistingUnits()
-                State.SummonMarkersSet = true
-            end
-            
             local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
             
             if affordableSummons > 0 then
@@ -3557,7 +3576,6 @@ task.spawn(function()
                 
                 task.wait(1)
             else
-                -- Not enough currency - stop and send webhook
                 print(string.format("Auto Summon: Insufficient currency (%d/%d %s)", 
                     currentCurrency, summonCost, currencyName))
                 
@@ -3568,11 +3586,6 @@ task.spawn(function()
                         currencyName, currentCurrency, summonCost))
                 end
                 
-                -- Clear markers at the END of the session
-                clearSummonMarkers()
-                State.SummonMarkersSet = false
-                
-                -- Reset tracking
                 State.SummonedUnits = {}
                 State.CurrencySpent = 0
                 
@@ -3581,14 +3594,8 @@ task.spawn(function()
                         currencyName, currentCurrency, summonCost))
             end
         elseif not State.AutoSummon and State.CurrencySpent > 0 then
-            -- User manually disabled - send summary webhook
             sendSummonWebhook("Manually stopped by user")
             
-            -- Clear markers when manually stopped
-            clearSummonMarkers()
-            State.SummonMarkersSet = false
-            
-            -- Reset tracking
             State.SummonedUnits = {}
             State.CurrencySpent = 0
         end
