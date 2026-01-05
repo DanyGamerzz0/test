@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.25"
+    local script_version = "V0.26"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -4998,6 +4998,10 @@ task.spawn(function()
             local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
             
             local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
+
+            if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards") then
+                Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards"):Destroy()
+            end
             
             if affordableSummons > 0 then
                 local success, message, costSpent = performBatchSummon(State.AutoSummonBanner, affordableSummons)
