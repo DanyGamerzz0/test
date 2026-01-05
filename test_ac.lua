@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.12"
+    local script_version = "V0.13"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3410,7 +3410,7 @@ task.spawn(function()
     while true do
         task.wait(1)
         
-        if State.AutoSummon and State.AutoSummonBanner and not isInLobby() then
+        if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
             local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
             local summonCost = getCostForBanner(State.AutoSummonBanner)
             local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
