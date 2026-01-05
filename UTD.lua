@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.32"
+local script_version = "V0.33"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -481,9 +481,13 @@ local function getSlotForUnit(unitName)
     -- Returns the slot number where this unit is equipped
     -- Returns nil if unit not in loadout
     local loadout = getPlayerLoadout()
+
+    local cleanSearchName = unitName:gsub(":[Ss]hiny$", "")
     
     for slot, name in pairs(loadout) do
-        if name == unitName then
+        local cleanLoadoutName = name:gsub(":[Ss]hiny$", "")
+        
+        if cleanLoadoutName == cleanSearchName then
             return slot
         end
     end
