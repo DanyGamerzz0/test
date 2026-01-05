@@ -1,4 +1,4 @@
-   if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
+if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED PLEASE USE A SUPPORTED EXECUTOR!")
     return
 end
@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.11"
+    local script_version = "V0.12"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -112,30 +112,56 @@ end
         portal = 0
     }
 
-    local totalActions = 0
-    local detailedStatusLabel = nil
+    local MacroSystem = {
+    macro = {},
+    macroManager = {},
+    currentMacroName = "",
+    isRecording = false,
+    isPlaybacking = false,
+    isRecordingLoopRunning = false,
+    recordingHasStarted = false,
+    currentChallenge = nil,
+    macroHasPlayedThisGame = false,
+    trackedUnits = {},
+    recordingSpawnIdToPlacement = {},
+    recordingPlacementCounter = {},
+    recordingUnitNameToSpawnId = {},
+    playbackPlacementToSpawnId = {},
+    playbackDisplayNameInstances = {},
+    detailedStatusLabel = nil,
+}
+
+local GameTracking = {
+    gameInProgress = false,
+    sessionItems = {},
+    gameStartTime = 0,
+    lastWave = 0,
+    startStats = {},
+    endStats = {},
+    currentMapName = "Unknown Map",
+    gameResult = "Unknown",
+    itemNameCache = {},
+    storedPortalData = nil,
+    gameHasEnded = false,
+    isAutoLoopEnabled = false,
+}
+
+local VALIDATION_CONFIG = {
+    PLACEMENT_MAX_RETRIES = 3,
+    UPGRADE_MAX_RETRIES = 3,
+    PLACEMENT_TIMEOUT = 5.0,
+    UPGRADE_TIMEOUT = 4.0,
+    VALIDATION_CHECK_INTERVAL = 0.1,
+    RETRY_DELAY = 0.5,
+    NORMAL_VALIDATION_TIME = 0.3,
+    EXTENDED_VALIDATION_TIME = 1.0,
+}
 
     local maxRetries = 20 -- Maximum number of retry attempts
     local retryDelay = 2 -- Seconds between retries
 
     -- ========== MACRO SYSTEM CORE ==========
 local macro = {}
-local macroManager = {}
-local currentMacroName = ""
-local isRecording = false
-local isPlaybacking = false
-local isRecordingLoopRunning = false
-local recordingHasStarted = false
-local currentChallenge = nil
-local macroHasPlayedThisGame = false
-local trackedUnits = {}
-local recordingSpawnIdToPlacement = {} -- spawn_id -> "Shadow #1"
-local recordingPlacementCounter = {} -- "Shadow" -> 3 (how many placed so far)
-local recordingUnitNameToSpawnId = {}
-
-local playbackPlacementToSpawnId = {} -- "Shadow #1" -> current spawn_id
-
-local playbackDisplayNameInstances = {}
 
     local VALIDATION_CONFIG = {
         PLACEMENT_MAX_RETRIES = 3,
@@ -148,24 +174,10 @@ local playbackDisplayNameInstances = {}
         EXTENDED_VALIDATION_TIME = 1.0, -- New: Longer validation for retries
     }
 
-    local isAutoLoopEnabled = false
-    local gameHasEnded = false
-
     local worldMacroMappings = {} -- Format: {worldKey = macroName}
     local worldDropdowns = {}
 
     -- ========== EXISTING VARIABLES (keep all your existing variables) ==========
-    local gameInProgress = false
-    local sessionItems = {}
-    local gameStartTime = 0
-    local lastWave = 0
-    local startStats = {}
-    local endStats = {}
-    local currentMapName = "Unknown Map"
-    local gameResult = "Unknown"
-    local itemNameCache = {}
-    local storedPortalData = nil
-
     local Config = {
         DISCORD_USER_ID = nil,
     }
@@ -232,7 +244,9 @@ local playbackDisplayNameInstances = {}
         AutoJoinSpiritInvasion = false,
         AutoMatchmakeSpiritInvasion = false,
         AutoJoinHalloween = false,
-        AutoMatchmakeHalloween = false,
+        AutoMatchmakeHalloween = false,  
+        AutoJoinSamuraiHunt = false,
+        AutoMatchmakeSamuraiHunt = false,
         AutoSelectCard = false,
         AutoEquipMacroUnits = false,
         challengeJoinAttempts = 0,
@@ -247,10 +261,11 @@ local playbackDisplayNameInstances = {}
         CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
         AutoSelectPortalReward = false,
         PortalRewardTierFilter = {},
+        AutoSummon = false,
+        AutoSummonBanner = nil,
+        SummonedUnits = {},
+        CurrencySpent = 0,
     }
-
-
-    local currentCardData = nil
 
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
@@ -273,10 +288,10 @@ local playbackDisplayNameInstances = {}
     end
 
 local function clearSpawnIdMappings()
-    recordingSpawnIdToPlacement = {}
-    recordingPlacementCounter = {}
-    recordingUnitNameToSpawnId = {}
-    playbackPlacementToSpawnId = {}
+    MacroSystem.recordingSpawnIdToPlacement = {}
+    MacroSystem.recordingPlacementCounter = {}
+    MacroSystem.recordingUnitNameToSpawnId = {}
+    MacroSystem.playbackPlacementToSpawnId = {}
 end
 
     -- Utility Functions
@@ -370,12 +385,12 @@ end
 local function startRecordingWithSpawnIdMapping()
     table.clear(macro)
     clearSpawnIdMappings()
-    trackedUnits = {}
-    isRecording = true
+    MacroSystem.trackedUnits = {}
+    MacroSystem.isRecording = true
     
-    if gameStartTime == 0 then
-        gameStartTime = tick()
-        print("Setting game start time for recording:", gameStartTime)
+    if GameTracking.gameStartTime == 0 then
+        GameTracking.gameStartTime = tick()
+        print("Setting game start time for recording:", GameTracking.gameStartTime)
     end
     
     print("Started recording with spawn ID mapping system")
@@ -607,8 +622,8 @@ local function resolveUUIDFromInternalName(internalName)
 end
 
     local function updateDetailedStatus(message)
-        if detailedStatusLabel then
-            detailedStatusLabel:Set("Macro Details: " .. message)
+        if MacroSystem.detailedStatusLabel then
+            MacroSystem.detailedStatusLabel:Set("Macro Details: " .. message)
         end
         print("Macro Status: " .. message)
     end
@@ -616,7 +631,7 @@ end
 local function saveMacroToFile(name)
     if not name or name == "" then return end
     
-    local data = macroManager[name]
+    local data = MacroSystem.macroManager[name]
     if not data then return end
 
     -- Direct JSON encoding - no complex serialization needed
@@ -653,13 +668,13 @@ local function loadMacroFromFile(name)
 end
 
     local function stopRecording()
-        isRecording = false
-        recordingHasStarted = false
+        MacroSystem.isRecording = false
+        MacroSystem.recordingHasStarted = false
         print(string.format("Stopped recording. Recorded %d actions", #macro))
         
-        if currentMacroName and currentMacroName ~= "" then
-            macroManager[currentMacroName] = macro
-            saveMacroToFile(currentMacroName)
+        if MacroSystem.currentMacroName and MacroSystem.currentMacroName ~= "" then
+            MacroSystem.macroManager[MacroSystem.currentMacroName] = macro
+            saveMacroToFile(MacroSystem.currentMacroName)
         end
         
         return macro
@@ -734,20 +749,20 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     end
     
     -- Increment placement counter for this unit type
-    recordingPlacementCounter[displayName] = (recordingPlacementCounter[displayName] or 0) + 1
-    local placementNumber = recordingPlacementCounter[displayName]
+    MacroSystem.recordingPlacementCounter[displayName] = (MacroSystem.recordingPlacementCounter[displayName] or 0) + 1
+    local placementNumber = MacroSystem.recordingPlacementCounter[displayName]
     
     -- Create the logical placement identifier
     local placementId = string.format("%s #%d", displayName, placementNumber)
     
     -- Map spawn_id to logical placement for upgrade/sell tracking
-    recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
+    MacroSystem.recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
 
-    recordingUnitNameToSpawnId[spawnedUnit.Name] = tostring(spawnId)
+    MacroSystem.recordingUnitNameToSpawnId[spawnedUnit.Name] = tostring(spawnId)
     
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
-    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     -- Store clean macro record (no spawn_id!)
     local placementRecord = {
@@ -814,8 +829,8 @@ local function waitForSufficientMoney(action, actionIndex, totalActions)
     if action.Type == "spawn_unit" and unitid then
         requiredCost = getPlacementCost(unitid)
     elseif action.Type == "upgrade_unit_ingame" and displayName and instanceNumber then
-        local currentUUID = playbackDisplayNameInstances[displayName] and
-                          playbackDisplayNameInstances[displayName][instanceNumber]
+        local currentUUID = MacroSystem.playbackDisplayNameInstances[displayName] and
+                          MacroSystem.playbackDisplayNameInstances[displayName][instanceNumber]
         if currentUUID then
             local unit = findUnitBySpawnUUID(currentUUID)
             if unit then
@@ -835,7 +850,7 @@ local function waitForSufficientMoney(action, actionIndex, totalActions)
         local maxWaitTime = 9999999999999999999999999999999999999999
         local waitStart = tick()
         
-        while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
+        while getPlayerMoney() < requiredCost and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
             if tick() - waitStart > maxWaitTime then
                 updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money - continuing macro", actionIndex, totalActions))
                 return true
@@ -857,7 +872,7 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     local remoteParam = actionInfo.args[1] -- This should be the unit.Name like "ea27546614ef43b1"
     
     -- Find spawn ID from unit name
-    local spawnId = recordingUnitNameToSpawnId[remoteParam]
+    local spawnId = MacroSystem.recordingUnitNameToSpawnId[remoteParam]
     if not spawnId then
         warn("Could not find spawn ID for unit name:", remoteParam)
         Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find spawn ID for unit name: "..remoteParam,Duration = 3,Image = 4483362458})
@@ -865,14 +880,14 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     end
     
     -- Find placement ID from spawn ID
-    local placementId = recordingSpawnIdToPlacement[spawnId]
+    local placementId = MacroSystem.recordingSpawnIdToPlacement[spawnId]
     if not placementId then
         warn("Could not find placement mapping for spawn_id:", spawnId)
         Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find placement mapping for spawn_id: "..spawnId,Duration = 3,Image = 4483362458})
         return
     end
     
-    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     local sellRecord = {
         Type = "sell_unit_ingame",
@@ -883,8 +898,8 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     table.insert(macro, sellRecord)
     
     -- Clean up mappings
-    recordingSpawnIdToPlacement[spawnId] = nil
-    recordingUnitNameToSpawnId[remoteParam] = nil
+    MacroSystem.recordingSpawnIdToPlacement[spawnId] = nil
+    MacroSystem.recordingUnitNameToSpawnId[remoteParam] = nil
     
 print(string.format("Recorded sell: %s (was unit_name: %s)", placementId, remoteParam))
 Rayfield:Notify({
@@ -896,7 +911,7 @@ Rayfield:Notify({
 end
 
 local function processWaveSkipAction(actionInfo)
-    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     table.insert(macro, {
         Type = "vote_wave_skip",
@@ -911,7 +926,7 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
     -- Find which placement ID this UUID belongs to
     local placementId = nil
     
-    for spawnId, placement in pairs(recordingSpawnIdToPlacement) do
+    for spawnId, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
         -- Find the unit with this spawn_id
         local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
         if unitsFolder then
@@ -936,7 +951,7 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    local gameRelativeTime = actionInfo.timestamp - gameStartTime
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     local abilityRecord = {
         Type = "use_active_attack",
@@ -979,7 +994,7 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
 end
 
 local function setupMacroHooksRefactored()
-    trackedUnits = {}
+    MacroSystem.trackedUnits = {}
 
     task.spawn(function()
         workspace:WaitForChild("_UNITS")
@@ -991,12 +1006,12 @@ local function setupMacroHooksRefactored()
         local args = {...}
         local method = getnamecallmethod()
 
-        if not checkcaller() and isRecording and method == "InvokeServer"
+        if not checkcaller() and MacroSystem.isRecording and method == "InvokeServer"
            and self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
                 task.spawn(function()
-                    if gameStartTime == 0 then gameStartTime = tick() end
+                    if GameTracking.gameStartTime == 0 then GameTracking.gameStartTime = tick() end
                     local preActionUnits = takeUnitsSnapshot()
                     task.wait(0.3)
                     processActionResponseWithSpawnIdMapping({
@@ -1038,7 +1053,7 @@ local function setupMacroHooksRefactored()
     -- Heartbeat: watch for level changes on all our units
     local RunService = game:GetService("RunService")
     RunService.Heartbeat:Connect(function()
-        if not isRecording then return end
+        if not MacroSystem.isRecording then return end
 
         local unitsFolder = workspace:FindFirstChild("_UNITS")
         if not unitsFolder then return end
@@ -1049,26 +1064,26 @@ local function setupMacroHooksRefactored()
                 if spawnId then
                     local spawnKey = tostring(spawnId)
                     local currentLevel = getUnitUpgradeLevel(unit)
-                    local placementId = recordingSpawnIdToPlacement[spawnKey]
+                    local placementId = MacroSystem.recordingSpawnIdToPlacement[spawnKey]
                     
                     if placementId then
                         -- Initialize tracking if new unit
-                        if not trackedUnits[spawnKey] then
-                            trackedUnits[spawnKey] = {
+                        if not MacroSystem.trackedUnits[spawnKey] then
+                            MacroSystem.trackedUnits[spawnKey] = {
                                 placementId = placementId,
                                 lastLevel = currentLevel
                             }
                         end
                         
                         -- Check for level increase
-                        local lastLevel = trackedUnits[spawnKey].lastLevel
+                        local lastLevel = MacroSystem.trackedUnits[spawnKey].lastLevel
                         if currentLevel > lastLevel then
                             local levelIncrease = currentLevel - lastLevel
                             
                             local record = {
                                 Type = MACRO_CONFIG.UPGRADE_REMOTE,
                                 Unit = placementId,
-                                Time = string.format("%.2f", tick() - gameStartTime)
+                                Time = string.format("%.2f", tick() - GameTracking.gameStartTime)
                             }
                             
                             if levelIncrease > 1 then
@@ -1091,7 +1106,7 @@ local function setupMacroHooksRefactored()
                            -- })
                             
                             -- Update tracked level
-                            trackedUnits[spawnKey].lastLevel = currentLevel
+                            MacroSystem.trackedUnits[spawnKey].lastLevel = currentLevel
                         end
                     end
                 end
@@ -1110,7 +1125,7 @@ end
     end
 
     local function loadAllMacros()
-        macroManager = {}
+        MacroSystem.macroManager = {}
         ensureMacroFolders()
         
         local success, files = pcall(function()
@@ -1124,7 +1139,7 @@ end
                     if name then
                         local data = loadMacroFromFile(name)
                         if data then
-                            macroManager[name] = data
+                            MacroSystem.macroManager[name] = data
                         end
                     end
                 end
@@ -1137,19 +1152,17 @@ end
         if filePath and isfile(filePath) then
             delfile(filePath)
         end
-        macroManager[name] = nil
+        MacroSystem.macroManager[name] = nil
     end
 
     local function clearPlaybackTracking()
-    playbackDisplayNameInstances = {}
+    MacroSystem.playbackDisplayNameInstances = {}
 end
 
 local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.PLACEMENT_MAX_RETRIES
-    
-    -- Parse unit info from clean macro format
-    local placementId = action.Unit -- "Shadow #1"
+    local placementId = action.Unit
     local displayName, placementNumber = placementId:match("^(.-) #%s*(%d+)$")
     
     if not displayName or not placementNumber then
@@ -1164,29 +1177,33 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
         return false
     end
     
+    local temp -- Reusable variable
+    
     for attempt = 1, maxRetries do
-        if not isPlaybacking then return false end
+        if not MacroSystem.isPlaybacking then return false end
         
-        local unitId = getUnitIdFromDisplayName(displayName)
-        if not unitId then
+        temp = getUnitIdFromDisplayName(displayName)
+        if not temp then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve unit ID for: %s", 
                 actionIndex, totalActionCount, displayName))
             return false
         end
         
-        local resolvedUUID = resolveUUIDFromInternalName(unitId)
-        if not resolvedUUID then
+        local unitId = temp
+        temp = resolveUUIDFromInternalName(unitId)
+        if not temp then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve UUID for: %s", 
                 actionIndex, totalActionCount, unitId))
             return false
         end
         
+        local resolvedUUID = temp
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", 
             actionIndex, totalActionCount, attempt, maxRetries, placementId))
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Parse position and direction
+        -- Parse position
         local px, py, pz = action.Pos:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
         local dx, dy, dz = action.Dir:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
         
@@ -1196,24 +1213,22 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
         end
         
         local originPos = Vector3.new(tonumber(px), tonumber(py), tonumber(pz))
-        local direction = Vector3.new(tonumber(dx), tonumber(dy), tonumber(dz))
         
-        -- Apply random offset if enabled
         if State.RandomOffsetEnabled then
-            local offsetX = (math.random() - 0.5) * 2 * State.RandomOffsetAmount
-            local offsetZ = (math.random() - 0.5) * 2 * State.RandomOffsetAmount
-            originPos = Vector3.new(originPos.X + offsetX, originPos.Y, originPos.Z + offsetZ)
+            originPos = Vector3.new(
+                originPos.X + (math.random() - 0.5) * 2 * State.RandomOffsetAmount,
+                originPos.Y,
+                originPos.Z + (math.random() - 0.5) * 2 * State.RandomOffsetAmount
+            )
         end
-        
-        local raycastParam = {
-            Origin = originPos,
-            Direction = direction
-        }
         
         local success = pcall(function()
             endpoints:WaitForChild(MACRO_CONFIG.SPAWN_REMOTE):InvokeServer(
                 resolvedUUID,
-                raycastParam,
+                {
+                    Origin = originPos,
+                    Direction = Vector3.new(tonumber(dx), tonumber(dy), tonumber(dz))
+                },
                 action.Rot or 0
             )
         end)
@@ -1227,20 +1242,14 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
             end
         end
         
-        local validationWaitTime = (attempt == 1) and VALIDATION_CONFIG.NORMAL_VALIDATION_TIME or VALIDATION_CONFIG.EXTENDED_VALIDATION_TIME
-        task.wait(validationWaitTime)
+        task.wait((attempt == 1) and VALIDATION_CONFIG.NORMAL_VALIDATION_TIME or VALIDATION_CONFIG.EXTENDED_VALIDATION_TIME)
         
-        local afterSnapshot = takeUnitsSnapshot()
-        local placedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+        temp = findNewlyPlacedUnit(beforeSnapshot, takeUnitsSnapshot())
         
-        if placedUnit and isOwnedByLocalPlayer(placedUnit) then
-            -- Get spawn_id and create mapping
-            local newSpawnId = getUnitSpawnId(placedUnit)
+        if temp and isOwnedByLocalPlayer(temp) then
+            local newSpawnId = getUnitSpawnId(temp)
             if newSpawnId then
-                playbackPlacementToSpawnId[placementId] = newSpawnId
-
-                print("PLACEMENT SUCCESS - Unit:", placementId, "Mapped to spawn_id:", newSpawnId)
-                
+                MacroSystem.playbackPlacementToSpawnId[placementId] = newSpawnId
                 print(string.format("Playback placement success: %s -> spawn_id %s", placementId, tostring(newSpawnId)))
                 updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
                     actionIndex, totalActionCount, placementId))
@@ -1253,35 +1262,35 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
         end
     end
     
-updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s - continuing macro", 
-    actionIndex, totalActionCount, placementId))
-return true
+    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s - continuing macro", 
+        actionIndex, totalActionCount, placementId))
+    return true
 end
 
 local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
     local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
-    
     local placementId = action.Unit
-    local upgradeAmount = action.Amount or 1 -- Default to single upgrade
+    local upgradeAmount = action.Amount or 1
+    local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
     
-    -- Look up current spawn_id for this placement
-    local currentSpawnId = playbackPlacementToSpawnId[placementId]
     if not currentSpawnId then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
             actionIndex, totalActionCount, placementId))
         return false
     end
     
+    local temp -- Reusable
+    
     for attempt = 1, maxRetries do
-        if not isPlaybacking then return false end
+        if not MacroSystem.isPlaybacking then return false end
         
-        -- Find the unit by spawn_id FRESH each attempt (important for retries)
+        -- Find unit by spawn_id
         local targetUnit = nil
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        temp = Services.Workspace:FindFirstChild("_UNITS")
         
-        if unitsFolder then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
+        if temp then
+            for _, unit in pairs(temp:GetChildren()) do
                 if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
                     targetUnit = unit
                     break
@@ -1306,39 +1315,34 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         local upgradeText = upgradeAmount > 1 and 
             string.format("Multi-upgrading x%d", upgradeAmount) or "Upgrading"
         
-        -- Calculate required money FRESH each attempt for ALL upgrades
-        local displayName = parseUnitString(action.Unit)
-        local unitId = displayName and getUnitIdFromDisplayName(displayName)
+        -- Calculate required money
+        temp = parseUnitString(action.Unit)
+        local unitId = temp and getUnitIdFromDisplayName(temp)
         local requiredCost = 0
         
         if unitId then
-            if upgradeAmount > 1 then
-                requiredCost = getMultiUpgradeCost(unitId, originalLevel, upgradeAmount)
-            else
-                requiredCost = getUpgradeCost(unitId, originalLevel)
-            end
+            requiredCost = (upgradeAmount > 1) and 
+                getMultiUpgradeCost(unitId, originalLevel, upgradeAmount) or 
+                getUpgradeCost(unitId, originalLevel)
         end
         
-        -- Wait for money if needed (per attempt timeout)
+        -- Wait for money
         if requiredCost > 0 then
-            local maxWaitTime = 999999999999999999999999999999 -- Shorter wait time per attempt
             local waitStart = tick()
             
-            while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
-                if tick() - waitStart > maxWaitTime then
+            while getPlayerMoney() < requiredCost and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
+                if tick() - waitStart > 999999999999999999999999999999 then
                     updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Money timeout - need %d, have %d", 
                         actionIndex, totalActionCount, attempt, maxRetries, requiredCost, getPlayerMoney()))
                     break
                 end
                 
-                local missingMoney = requiredCost - getPlayerMoney()
                 updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Waiting for %d more yen (%s)", 
-                    actionIndex, totalActionCount, attempt, maxRetries, missingMoney, upgradeText))
+                    actionIndex, totalActionCount, attempt, maxRetries, requiredCost - getPlayerMoney(), upgradeText))
                 task.wait(1)
             end
         end
         
-        -- Skip attempt if still not enough money
         if requiredCost > 0 and getPlayerMoney() < requiredCost then
             updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Insufficient money, trying next attempt", 
                 actionIndex, totalActionCount, attempt, maxRetries))
@@ -1353,17 +1357,17 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: %s %s (Level %d)", 
             actionIndex, totalActionCount, attempt, maxRetries, upgradeText, placementId, originalLevel))
         
-        -- NEW: Fire multiple single upgrade remotes instead of one multi-upgrade remote
+        -- Perform upgrades
         local successfulUpgrades = 0
         local lastKnownLevel = originalLevel
         
         for upgradeIndex = 1, upgradeAmount do
-            -- Re-find unit for each upgrade (in case the unit reference changes)
+            -- Re-find unit
+            temp = Services.Workspace:FindFirstChild("_UNITS")
             local currentTargetUnit = nil
-            local currentUnitsFolder = Services.Workspace:FindFirstChild("_UNITS")
             
-            if currentUnitsFolder then
-                for _, unit in pairs(currentUnitsFolder:GetChildren()) do
+            if temp then
+                for _, unit in pairs(temp:GetChildren()) do
                     if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
                         currentTargetUnit = unit
                         break
@@ -1377,7 +1381,6 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 break
             end
             
-            -- Check if we have enough money for this individual upgrade
             local currentLevel = getUnitUpgradeLevel(currentTargetUnit)
             local singleUpgradeCost = getUpgradeCost(unitId, currentLevel)
             
@@ -1387,9 +1390,7 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 break
             end
             
-            -- Fire single upgrade remote
             local upgradeSuccess = pcall(function()
-                local currentSpawnId = getUnitSpawnId(currentTargetUnit)
                 endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentTargetUnit.Name)
             end)
             
@@ -1399,19 +1400,18 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 break
             end
             
-            -- Quick validation for this single upgrade (shorter wait time)
+            -- Validate upgrade
             local upgradeValidated = false
             local validationStart = tick()
             
-            while tick() - validationStart < 2.0 do -- 2 second timeout per upgrade
-                if not isPlaybacking then return false end
+            while tick() - validationStart < 2.0 do
+                if not MacroSystem.isPlaybacking then return false end
                 
-                -- Re-check unit level
+                temp = Services.Workspace:FindFirstChild("_UNITS")
                 local validationUnit = nil
-                local validationUnitsFolder = Services.Workspace:FindFirstChild("_UNITS")
                 
-                if validationUnitsFolder then
-                    for _, unit in pairs(validationUnitsFolder:GetChildren()) do
+                if temp then
+                    for _, unit in pairs(temp:GetChildren()) do
                         if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
                             validationUnit = unit
                             break
@@ -1430,7 +1430,6 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                         break
                     end
                 else
-                    -- Unit lost during validation
                     updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Unit lost during validation", 
                         actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
                     break
@@ -1442,14 +1441,11 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             if not upgradeValidated then
                 updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Validation timeout", 
                     actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
-                -- Continue to next upgrade instead of breaking - maybe this one will work
             end
             
-            -- Small delay between upgrades to prevent server overload
             task.wait(0.1)
         end
         
-        -- Check overall success
         if successfulUpgrades >= upgradeAmount then
             updateDetailedStatus(string.format("(%d/%d) SUCCESS: %s %s (Level %d->%d, +%d upgrades)", 
                 actionIndex, totalActionCount, upgradeText, placementId, 
@@ -1459,9 +1455,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             updateDetailedStatus(string.format("(%d/%d) PARTIAL: %s %s (Level %d->%d, %d/%d upgrades)", 
                 actionIndex, totalActionCount, upgradeText, placementId, 
                 originalLevel, lastKnownLevel, successfulUpgrades, upgradeAmount))
-            -- Consider partial success as success if we got at least some upgrades
             return true
-         else
+        else
             updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
                 actionIndex, totalActionCount, attempt, maxRetries))
             
@@ -1470,13 +1465,13 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                     actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
             else
-                -- Final attempt failed, exit function and continue macro
                 updateDetailedStatus(string.format("(%d/%d) All upgrade attempts failed - continuing macro", 
                     actionIndex, totalActionCount))
                 return true
             end
         end
     end
+    
     updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts - continuing macro", 
         actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
     return true
@@ -1488,7 +1483,7 @@ local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalAc
     local placementId = action.Unit -- "Shadow #1"
     
     -- Look up current spawn_id for this placement
-    local currentSpawnId = playbackPlacementToSpawnId[placementId]
+    local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
     if not currentSpawnId then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
             actionIndex, totalActionCount, placementId))
@@ -1538,7 +1533,7 @@ local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalAc
         
         if not soldUnit then
             -- Remove from mapping
-            playbackPlacementToSpawnId[placementId] = nil
+            MacroSystem.playbackPlacementToSpawnId[placementId] = nil
             
             updateDetailedStatus(string.format("(%d/%d) Successfully sold %s", 
                 actionIndex, totalActionCount, placementId))
@@ -1555,7 +1550,7 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     local placementId = action.Unit
     
     -- Look up current spawn_id for this placement
-    local currentSpawnId = playbackPlacementToSpawnId[placementId]
+    local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
     if not currentSpawnId then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
             actionIndex, totalActionCount, placementId))
@@ -1646,8 +1641,8 @@ end
 
     local function getItemDisplayName(itemName)
         -- Check cache first
-        if itemNameCache[itemName] then
-            return itemNameCache[itemName]
+        if GameTracking.itemNameCache[itemName] then
+            return GameTracking.itemNameCache[itemName]
         end
         
         -- Try to find the item in Framework.Data.Items ModuleScripts
@@ -1664,7 +1659,7 @@ end
                                 -- Found the item! Use the name field
                                 local displayName = data.name
                                 if displayName then
-                                    itemNameCache[itemName] = displayName
+                                    GameTracking.itemNameCache[itemName] = displayName
                                     print("Found item mapping: " .. itemName .. " -> " .. displayName)
                                     return displayName
                                 end
@@ -1680,7 +1675,7 @@ end
             return first:upper() .. rest:lower()
         end)
         
-        itemNameCache[itemName] = displayName
+        GameTracking.itemNameCache[itemName] = displayName
         return displayName
     end
 
@@ -1745,10 +1740,10 @@ end
     local function getStatChanges()
         local changes = {}
         
-        for statName, endValue in pairs(endStats) do
+        for statName, endValue in pairs(GameTracking.endStats) do
             -- Skip resource stat
             if statName ~= "resource" then
-                local startValue = startStats[statName] or 0
+                local startValue = GameTracking.startStats[statName] or 0
                 local change = endValue - startValue
                 
                 if change > 0 then
@@ -1853,26 +1848,26 @@ end
     -- Keep existing stage webhook code unchanged
     local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
     local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    local gameDuration = tick() - gameStartTime
+    local gameDuration = tick() - GameTracking.gameStartTime
     local formattedTime = formatTime(gameDuration)
     
     -- Add challenge info to duration if it exists
     local durationText = formattedTime
-    if currentChallenge then
-        local challengeDisplay = getChallengeDisplayName(currentChallenge)
+    if MacroSystem.currentChallenge then
+        local challengeDisplay = getChallengeDisplayName(MacroSystem.currentChallenge)
         durationText = formattedTime .. " - (" .. challengeDisplay .. ")"
     end
     
     -- Get stat changes (excluding resource)
-    endStats = captureStats()
+    GameTracking.endStats = captureStats()
     local statChanges = getStatChanges()
     
     -- Format rewards text
     local rewardsText = ""
     
     -- Add items if any were collected
-    if next(sessionItems) then
-        for itemName, quantity in pairs(sessionItems) do
+    if next(GameTracking.sessionItems) then
+        for itemName, quantity in pairs(GameTracking.sessionItems) do
             local displayName = getItemDisplayName(itemName)
             rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
         end
@@ -1881,7 +1876,7 @@ end
     -- Add stat changes if any with total amounts (excluding resource)
     if next(statChanges) then
         for statName, change in pairs(statChanges) do
-            local totalAmount = endStats[statName] or 0
+            local totalAmount = GameTracking.endStats[statName] or 0
             local displayStatName = getStatDisplayName(statName)
             rewardsText = rewardsText .. "+" .. change .. " " .. displayStatName .. " [" .. totalAmount .. "]\n"
         end
@@ -1899,10 +1894,10 @@ end
     local titleText = "Stage Completed!"
     local embedColor = 0x57F287
     
-    if gameResult == "Victory" or gameResult == "Win" then
+    if GameTracking.gameResult == "Victory" or GameTracking.gameResult == "Win" then
         titleText = "Stage Finished!"
         embedColor = 0x57F287
-    elseif gameResult == "Defeat" or gameResult == "Loss" then
+    elseif GameTracking.gameResult == "Defeat" or GameTracking.gameResult == "Loss" then
         titleText = "Stage Failed!"
         embedColor = 0xED4245
     end
@@ -1911,12 +1906,12 @@ end
         username = "LixHub",
         embeds = {{
             title = titleText,
-            description = currentMapName .. " - " .. gameResult,
+            description = GameTracking.currentMapName .. " - " .. GameTracking.gameResult,
             color = embedColor,
             fields = {
                 { name = "Player", value = playerName, inline = true },
                 { name = "Duration", value = durationText, inline = true }, -- This now includes challenge info
-                { name = "Waves Completed", value = tostring(lastWave), inline = true },
+                { name = "Waves Completed", value = tostring(GameTracking.lastWave), inline = true },
                 { name = "Rewards", value = rewardsText, inline = false },
             },
             footer = { text = footerText },
@@ -1959,30 +1954,30 @@ end
     end
 
 local function startGameTracking()
-    if gameInProgress then return end
+    if GameTracking.gameInProgress then return end
     
     State.failsafeActive = false
-    gameInProgress = true
-    sessionItems = {}
-    gameStartTime = tick()  -- Always track game start time
-    startStats = captureStats()
-    macroHasPlayedThisGame = false  -- Reset macro play flag
+    GameTracking.gameInProgress = true
+    GameTracking.sessionItems = {}
+    GameTracking.gameStartTime = tick()  -- Always track game start time
+    GameTracking.startStats = captureStats()
+    MacroSystem.macroHasPlayedThisGame = false  -- Reset macro play flag
     
     -- Get both map name and challenge info
-    currentMapName, currentChallenge = getMapInfo()
-    gameResult = "In Progress"
+    GameTracking.currentMapName, MacroSystem.currentChallenge = getMapInfo()
+    GameTracking.gameResult = "In Progress"
     
     print("Game tracking started!")
-    print("Map: " .. currentMapName)
-    print("Game start time recorded:", gameStartTime)
-    if currentChallenge then
-        print("Challenge: " .. currentChallenge)
+    print("Map: " .. GameTracking.currentMapName)
+    print("Game start time recorded:", GameTracking.gameStartTime)
+    if MacroSystem.currentChallenge then
+        print("Challenge: " .. MacroSystem.currentChallenge)
     end
 end
 
     -- Function to end game tracking
 local function endGameTracking()
-    if not gameInProgress then return end
+    if not GameTracking.gameInProgress then return end
     
     print("Game ended! Sending summary...")
     
@@ -1992,15 +1987,15 @@ local function endGameTracking()
     end
     
     -- Reset tracking
-    gameInProgress = false
-    sessionItems = {}
-    gameStartTime = 0
-    lastWave = 0
-    startStats = {}
-    endStats = {}
-    currentMapName = "Unknown Map"
-    currentChallenge = nil -- Clear challenge info
-    gameResult = "Unknown"
+    GameTracking.gameInProgress = false
+    GameTracking.sessionItems = {}
+    GameTracking.gameStartTime = 0
+    GameTracking.lastWave = 0
+    GameTracking.startStats = {}
+    GameTracking.endStats = {}
+    GameTracking.currentMapName = "Unknown Map"
+    MacroSystem.currentChallenge = nil -- Clear challenge info
+    GameTracking.gameResult = "Unknown"
 end
 
 local function monitorWaves()
@@ -2012,21 +2007,21 @@ local function monitorWaves()
     local waveNum = Services.Workspace._wave_num
     
     waveNum.Changed:Connect(function(newWave)
-        lastWave = newWave
+        GameTracking.lastWave = newWave
         
         -- Game start detection (wave 1 OR if we join mid-game)
-        if newWave >= 1 and not gameInProgress then
+        if newWave >= 1 and not GameTracking.gameInProgress then
             startGameTracking()
             
             -- Start recording if it's enabled but not started yet
-            if isRecording and not recordingHasStarted then
-                recordingHasStarted = true
-                isRecordingLoopRunning = true
+            if MacroSystem.isRecording and not MacroSystem.recordingHasStarted then
+                MacroSystem.recordingHasStarted = true
+                MacroSystem.isRecordingLoopRunning = true
                 startRecordingWithSpawnIdMapping()
                 --MacroStatusLabel:Set("Status: Recording active!")
                 notify("Recording Started", "Game started - macro recording is now active.")
             end
-        elseif newWave > 0 and gameInProgress then
+        elseif newWave > 0 and GameTracking.gameInProgress then
             print("Wave " .. newWave .. " started")
         end
     end)
@@ -2034,13 +2029,13 @@ local function monitorWaves()
     -- Check initial value
     local initialWave = waveNum.Value
     if initialWave >= 1 then
-        lastWave = initialWave
+        GameTracking.lastWave = initialWave
         startGameTracking()
         
         -- Start recording if enabled
-        if isRecording and not recordingHasStarted then
-            recordingHasStarted = true
-            isRecordingLoopRunning = true
+        if MacroSystem.isRecording and not MacroSystem.recordingHasStarted then
+            MacroSystem.recordingHasStarted = true
+            MacroSystem.isRecordingLoopRunning = true
             startRecordingWithSpawnIdMapping()
             --MacroStatusLabel:Set("Status: Recording active!")
             notify("Recording Started", "Joined mid-game - macro recording is now active.")
@@ -2212,7 +2207,7 @@ end
             local waveNum = Services.Workspace._wave_num
             
             waveNum.Changed:Connect(function(newWave)
-                if isRecording and recordingHasStarted then
+                if MacroSystem.isRecording and MacroSystem.recordingHasStarted then
                     print(string.format("Wave %d started during recording", newWave))
                 end
             end)
@@ -2677,13 +2672,13 @@ end
             local gateFolder = gatesFolder.gates:FindFirstChild(tostring(i))
             if gateFolder then
                 local gateType = gateFolder:FindFirstChild("GateType")
-                local currentChallenge = gateFolder:FindFirstChild("current_challenge")
+                 MacroSystem.currentChallenge = gateFolder:FindFirstChild("current_challenge")
                 
-                if gateType and currentChallenge then
+                if gateType and MacroSystem.currentChallenge then
                     table.insert(gates, {
                         id = i,
                         type = gateType.Value,
-                        modifier = currentChallenge.Value
+                        modifier = MacroSystem.currentChallenge.Value
                     })
                 end
             end
@@ -2783,52 +2778,6 @@ end
             return false
         end
     end
-end
-
-local function getPortalUUID(portalId)
-    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-    
-    if not itemsGui then
-        warn("Items GUI not found")
-        return nil
-    end
-    
-    local itemFrames = itemsGui:FindFirstChild("grid")
-    if itemFrames then
-        itemFrames = itemFrames:FindFirstChild("List")
-    end
-    if itemFrames then
-        itemFrames = itemFrames:FindFirstChild("Outer")
-    end
-    if itemFrames then
-        itemFrames = itemFrames:FindFirstChild("ItemFrames")
-    end
-    
-    if not itemFrames then
-        warn("ItemFrames not found in PlayerGui")
-        return nil
-    end
-
-    print("Searching for portal with identifier:", portalId)
-    
-    -- Search for the portal item by ID
-    for _, child in ipairs(itemFrames:GetChildren()) do
-        if child.Name == portalId then
-            -- Look for _uuid or id Value object
-            local uuidValue = child:FindFirstChild("_uuid_or_id")
-            
-            if uuidValue and uuidValue:IsA("StringValue") then
-                print("Found portal UUID:", uuidValue.Value, "for portal:", portalId)
-                return uuidValue.Value
-            else
-                warn("UUID/ID not found in portal item:", portalId)
-                return nil
-            end
-        end
-    end
-    
-    warn("Portal item not found in ItemFrames:", portalId)
-    return nil
 end
 
 local function getOwnedPortalsFromInventory()
@@ -3015,34 +2964,21 @@ end
             return
     end
 
-    --SPIRIT INVASION
-        if State.AutoJoinSpiritInvasion then
-            setProcessingState("Spirit Invasion Auto Join")
+    --SAMURAI HUNT
+        if State.AutoJoinSamuraiHunt then
+            setProcessingState("Samurai Hunt Auto Join")
 
-            if State.AutoMatchmakeSpiritInvasion then
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_MOB_")
+            if State.AutoMatchmakeSamuraiHunt then
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_CHRISTMAS")
         else
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_MOB_")
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_MOB_")
+            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CHRISTMAS")
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CHRISTMAS")
         end
             task.delay(5, clearProcessingState)
             return
         end
 
-        --HALLOWEEN
-                if State.AutoJoinHalloween then
-            setProcessingState("Halloween Event Auto Join")
-
-            if State.AutoMatchmakeHalloween then
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_EVENT_HALLOWEEN_")
-        else
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_EVENT_HALLOWEEN_")
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_EVENT_HALLOWEEN_")
-        end
-            task.delay(5, clearProcessingState)
-            return
-        end
-
+        --INFINITY CASTLE
         if State.AutoJoinInfinityCastle then
             setProcessingState("Infinity Castle Auto Join")
 
@@ -3254,9 +3190,282 @@ end
         end
     end
 
-    GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
+    local function getCurrencyForBanner(bannerName)
+    local player = Services.Players.LocalPlayer
+    if not player or not player:FindFirstChild("_stats") then
+        return 0
+    end
+    
+    if bannerName == "Banner 1" then
+        local gemAmount = player._stats:FindFirstChild("gem_amount")
+        return gemAmount and gemAmount.Value or 0
+    elseif bannerName == "Banner 2" then
+        local tokenAmount = player._stats:FindFirstChild("_resourceGingerBeardToken")
+        return tokenAmount and tokenAmount.Value or 0
+    end
+    
+    return 0
+end
 
-    Button = LobbyTab:CreateButton({
+local function getCostForBanner(bannerName)
+    if bannerName == "Banner 1" then
+        return 50
+    elseif bannerName == "Banner 2" then
+        return 150
+    end
+    return 0
+end
+
+local function getBannerIdFromName(bannerName)
+    if bannerName == "Banner 1" then
+        return "EventClover"
+    elseif bannerName == "Banner 2" then
+        return "Christmas"
+    end
+    return nil
+end
+
+local function getCurrencyTypeForBanner(bannerName)
+    -- Both banners use "gems" as the currency type parameter
+    return "gems"
+end
+
+local function getCurrencyNameForBanner(bannerName)
+    if bannerName == "Banner 1" then
+        return "Gems"
+    elseif bannerName == "Banner 2" then
+        return "Gingerbread Tokens"
+    end
+    return "Currency"
+end
+
+local function captureCurrentUnits()
+    local currentUnits = {}
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    
+    if not fxCache then
+        return currentUnits
+    end
+    
+    for _, child in pairs(fxCache:GetChildren()) do
+        local itemIndex = child:GetAttribute("ITEMINDEX")
+        if itemIndex then
+            currentUnits[child.Name] = true
+        end
+    end
+    
+    return currentUnits
+end
+
+local function detectNewUnit(beforeSnapshot)
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    
+    if not fxCache then
+        return nil
+    end
+    
+    for _, child in pairs(fxCache:GetChildren()) do
+        if not beforeSnapshot[child.Name] then
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            if itemIndex then
+                return itemIndex
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function performSummon(bannerName)
+    local bannerId = getBannerIdFromName(bannerName)
+    local currencyType = getCurrencyTypeForBanner(bannerName)
+    
+    if not bannerId then
+        return false, "Invalid banner"
+    end
+    
+    -- Capture units before summoning
+    local beforeSnapshot = captureCurrentUnits()
+    
+    -- Perform summon
+    local success, result = pcall(function()
+        local args = {bannerId, currencyType, 1}
+        return Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("buy_from_banner")
+            :InvokeServer(unpack(args))
+    end)
+    
+    if not success then
+        return false, "Summon failed: " .. tostring(result)
+    end
+    
+    -- Wait a bit for the unit to be added to _FX_CACHE
+    task.wait(0.5)
+    
+    -- Detect new unit
+    local newUnitId = detectNewUnit(beforeSnapshot)
+    
+    if newUnitId then
+        -- Get unit display name using existing function
+        local unitData = getUnitData(newUnitId)
+        local unitName = unitData and unitData.name or newUnitId
+        
+        -- Track the summoned unit
+        if not State.SummonedUnits[unitName] then
+            State.SummonedUnits[unitName] = 0
+        end
+        State.SummonedUnits[unitName] = State.SummonedUnits[unitName] + 1
+        
+        -- Update currency spent
+        State.CurrencySpent = State.CurrencySpent + getCostForBanner(bannerName)
+        
+        print(string.format("Summoned: %s (ID: %s)", unitName, newUnitId))
+        return true, unitName
+    end
+    
+    return true, "Unknown unit"
+end
+
+local function sendSummonWebhook(reason)
+    if not ValidWebhook or ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
+        print("No valid webhook URL set")
+        return
+    end
+    
+    -- Create units list
+    local unitsText = ""
+    if next(State.SummonedUnits) then
+        local unitsList = {}
+        for unitName, count in pairs(State.SummonedUnits) do
+            table.insert(unitsList, string.format("%s (x%d)", unitName, count))
+        end
+        table.sort(unitsList)
+        unitsText = table.concat(unitsList, "\n")
+    else
+        unitsText = "No units summoned"
+    end
+    
+    local bannerName = State.AutoSummonBanner or "Unknown"
+    local currencyName = getCurrencyNameForBanner(bannerName)
+    
+    local data = {
+        username = "LixHub Auto Summon",
+        content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
+        embeds = {{
+            title = "🎲 Auto Summon Summary",
+            description = string.format("**Banner:** %s\n**Reason:** %s", bannerName, reason),
+            color = reason:find("Insufficient") and 0xED4245 or 0x5865F2,
+            fields = {
+                {
+                    name = "💎 Currency Spent",
+                    value = string.format("%d %s", State.CurrencySpent, currencyName),
+                    inline = true
+                },
+                {
+                    name = "🎁 Total Summons",
+                    value = tostring(State.CurrencySpent / getCostForBanner(bannerName)),
+                    inline = true
+                },
+                {
+                    name = "🎯 Units Obtained",
+                    value = unitsText,
+                    inline = false
+                }
+            },
+            footer = {
+                text = "LixHub Auto Summon"
+            },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+    
+    local payload = Services.HttpService:JSONEncode(data)
+    
+    local requestFunc = syn and syn.request or request or http_request or 
+                    (fluxus and fluxus.request) or getgenv().request
+    
+    if not requestFunc then
+        print("No HTTP function found for webhook")
+        return
+    end
+    
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = ValidWebhook,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = payload
+        })
+    end)
+    
+    if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
+        notify("Auto Summon", "Summary sent to webhook!")
+    else
+        print("Webhook failed:", response and response.StatusCode or "No response")
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        
+        if State.AutoSummon and State.AutoSummonBanner and not isInLobby() then
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+            
+            if currentCurrency >= summonCost then
+                local success, unitName = performSummon(State.AutoSummonBanner)
+                
+                if success then
+                    print(string.format("Auto Summon: Got %s (%d %s remaining)", 
+                        unitName, currentCurrency - summonCost, currencyName))
+                else
+                    warn("Auto Summon failed:", unitName)
+                    task.wait(2) -- Wait longer on failure
+                end
+                
+                -- Small delay between summons
+                task.wait(0.5)
+            else
+                -- Not enough currency - stop and send webhook
+                print(string.format("Auto Summon: Insufficient currency (%d/%d %s)", 
+                    currentCurrency, summonCost, currencyName))
+                
+                State.AutoSummon = false
+                
+                if State.CurrencySpent > 0 then
+                    sendSummonWebhook(string.format("Insufficient %s (%d/%d)", 
+                        currencyName, currentCurrency, summonCost))
+                end
+                
+                -- Reset tracking
+                State.SummonedUnits = {}
+                State.CurrencySpent = 0
+                
+                notify("Auto Summon", 
+                    string.format("Stopped - Not enough %s (%d/%d)", 
+                        currencyName, currentCurrency, summonCost))
+                
+                -- Update toggle UI
+                -- Note: You'll need to store a reference to the toggle to update it
+                -- This is handled automatically if the toggle state is bound to State.AutoSummon
+            end
+        elseif not State.AutoSummon and State.CurrencySpent > 0 then
+            -- User manually disabled - send summary webhook
+            sendSummonWebhook("Manually stopped by user")
+            
+            -- Reset tracking
+            State.SummonedUnits = {}
+            State.CurrencySpent = 0
+        end
+    end
+end)
+
+    LobbyTab:CreateSection("🏨 Lobby 🏨")
+
+     LobbyTab:CreateButton({
             Name = "Return to lobby",
             Callback = function()
                 notify("Return to lobby", "Returning to lobby!")
@@ -3275,7 +3484,7 @@ end
 
     section = JoinerTab:CreateSection("Story Joiner")
 
-     AutoJoinStoryToggle = JoinerTab:CreateToggle({
+       JoinerTab:CreateToggle({
         Name = "Auto Join Story",
         CurrentValue = false,
         Flag = "AutoJoinStory",
@@ -3360,9 +3569,9 @@ end
         end,
     })
 
-    section = JoinerTab:CreateSection("Legend Stage Joiner")
+    JoinerTab:CreateSection("Legend Stage Joiner")
 
-    AutoJoinLegendToggle = JoinerTab:CreateToggle({
+        JoinerTab:CreateToggle({
         Name = "Auto Join Legend",
         CurrentValue = false,
         Flag = "AutoJoinLegend",
@@ -3428,7 +3637,7 @@ end
         end,
     })
 
-    MatchMakeToggle = JoinerTab:CreateToggle({
+    JoinerTab:CreateToggle({
     Name = "Auto Matchmake Legend Stage",
     CurrentValue = false,
     Flag = "AutoMatchmakeLegendStage",
@@ -3439,7 +3648,7 @@ end
 
     section = JoinerTab:CreateSection("Raid Joiner")
 
-    AutoJoinRaidToggle = JoinerTab:CreateToggle({
+        JoinerTab:CreateToggle({
         Name = "Auto Join Raid",
         CurrentValue = false,
         Flag = "AutoJoinRaid",
@@ -3505,7 +3714,7 @@ end
         end,
     })
 
-         MatchMakeToggle = JoinerTab:CreateToggle({
+    JoinerTab:CreateToggle({
     Name = "Auto Matchmake Raid Stage",
     CurrentValue = false,
     Flag = "AutoMatchmakeRaidStage",
@@ -3514,9 +3723,9 @@ end
     end,
 })
 
-    section = JoinerTab:CreateSection("Challenge Joiner")
+    JoinerTab:CreateSection("Challenge Joiner")
 
-    AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+        JoinerTab:CreateToggle({
         Name = "Auto Join Challenge",
         CurrentValue = false,
         Flag = "AutoJoinChallenge",
@@ -3551,7 +3760,7 @@ end
         end,
     })
 
-    ReturnToLobbyToggle = JoinerTab:CreateToggle({
+        JoinerTab:CreateToggle({
         Name = "Return to Lobby on New Challenge",
         CurrentValue = false,
         Flag = "ReturnToLobbyOnNewChallenge",
@@ -3565,7 +3774,7 @@ end
 
     local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
 
-     AutoJoinGateToggle = JoinerTab:CreateToggle({
+        JoinerTab:CreateToggle({
         Name = "Auto Join Gate",
         CurrentValue = false,
         Flag = "AutoJoinGate",
@@ -3600,7 +3809,7 @@ end
         end,
     })
 
-     AutoNextGateToggle = JoinerTab:CreateToggle({
+    JoinerTab:CreateToggle({
     Name = "Auto Next Gate",
     CurrentValue = false,
     Flag = "AutoNextGate",
@@ -3610,7 +3819,7 @@ end
     end,
     })
 
-             MatchMakeToggle = JoinerTab:CreateToggle({
+    JoinerTab:CreateToggle({
     Name = "Auto Matchmake Gate",
     CurrentValue = false,
     Flag = "AutoMatchmakeGateStage",
@@ -3619,9 +3828,9 @@ end
     end,
 })
 
-section = JoinerTab:CreateSection("Portal Joiner")
+JoinerTab:CreateSection("Portal Joiner")
 
- Toggle = JoinerTab:CreateToggle({
+   JoinerTab:CreateToggle({
    Name = "Auto Join Portal",
    CurrentValue = false,
    Flag = "AutoJoinPortal",
@@ -3735,7 +3944,7 @@ RefreshPortalsButton = JoinerTab:CreateButton({
     end,
 })
 
- Toggle = JoinerTab:CreateToggle({
+   JoinerTab:CreateToggle({
    Name = "Auto Next Portal",
    CurrentValue = false,
    Flag = "AutoNextPortal",
@@ -3744,7 +3953,7 @@ RefreshPortalsButton = JoinerTab:CreateButton({
    end,
 })
 
-Toggle = JoinerTab:CreateToggle({
+   JoinerTab:CreateToggle({
    Name = "Auto Select Portal Reward",
    CurrentValue = false,
    Flag = "AutoSelectPortalReward",
@@ -3754,7 +3963,7 @@ Toggle = JoinerTab:CreateToggle({
    end,
 })
 
-local PortalTierFilterDropdown = JoinerTab:CreateDropdown({
+    PortalTierFilterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Reward Tiers",
     Options = {"Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5", "Tier 6", "Tier 7", "Tier 8", "Tier 9", "Tier 10", "Tier 11"},
     CurrentOption = {},
@@ -3804,45 +4013,27 @@ local PortalTierFilterDropdown = JoinerTab:CreateDropdown({
 
 section = JoinerTab:CreateSection("Event Joiner")
 
- Toggle = JoinerTab:CreateToggle({
-   Name = "Auto Join Spirit Invasion",
+   JoinerTab:CreateToggle({
+   Name = "Auto Join Samurai Hunt",
    CurrentValue = false,
-   Flag = "AutoJoinSpiritInvasion",
+   Flag = "AutoJoinSamuraiHunt",
    Callback = function(Value)
-        State.AutoJoinSpiritInvasion = Value
+        State.AutoJoinSamuraiHunt = Value
    end,
 })
 
- Toggle = JoinerTab:CreateToggle({
-   Name = "Auto Matchmake Spirit Invasion",
+   JoinerTab:CreateToggle({
+   Name = "Auto Matchmake Samurai Hunt",
    CurrentValue = false,
-   Flag = "AutoMatchmakeSpiritInvasion",
+   Flag = "AutoMatchmakeSamuraiHunt",
    Callback = function(Value)
-        State.AutoMatchmakeSpiritInvasion = Value
-   end,
-})
-
- Toggle = JoinerTab:CreateToggle({
-   Name = "Auto Join Halloween Event",
-   CurrentValue = false,
-   Flag = "AutoJoinHalloween",
-   Callback = function(Value)
-        State.AutoJoinHalloween = Value
-   end,
-})
-
- Toggle = JoinerTab:CreateToggle({
-   Name = "Auto Matchmake Halloween Event",
-   CurrentValue = false,
-   Flag = "AutoMatchmakeHalloween",
-   Callback = function(Value)
-        State.AutoMatchmakeHalloween = Value
+        State.AutoMatchmakeSamuraiHunt = Value
    end,
 })
 
 section = JoinerTab:CreateSection("Infinity Castle Joiner")
 
- Toggle = JoinerTab:CreateToggle({
+   JoinerTab:CreateToggle({
    Name = "Auto Join Infinity Castle",
    CurrentValue = false,
    Flag = "AutoJoinInfinityCastle",
@@ -3851,7 +4042,7 @@ section = JoinerTab:CreateSection("Infinity Castle Joiner")
    end,
 })
 
-Toggle = JoinerTab:CreateToggle({
+    JoinerTab:CreateToggle({
     Name = "Auto Next Infinity Castle",
     CurrentValue = false,
     Flag = "AutoNextInfinityCastle",
@@ -3861,9 +4052,9 @@ Toggle = JoinerTab:CreateToggle({
     end,
 })  
 
-section = JoinerTab:CreateSection("Boss Rush Joiner")
+JoinerTab:CreateSection("Boss Rush Joiner")
 
- Toggle = JoinerTab:CreateToggle({
+   JoinerTab:CreateToggle({
    Name = "Auto Join Boss Rush",
    CurrentValue = false,
    Flag = "AutoJoinBossRush",
@@ -3872,7 +4063,7 @@ section = JoinerTab:CreateSection("Boss Rush Joiner")
    end,
 })
 
- Toggle = JoinerTab:CreateToggle({
+   JoinerTab:CreateToggle({
    Name = "Traits Disabled Mode",
    CurrentValue = true,
    Flag = "AutoJoinBossRushSelectionMode",
@@ -3881,7 +4072,7 @@ section = JoinerTab:CreateSection("Boss Rush Joiner")
    end,
 })
 
- AutoSelectCardToggle = CardPriorityTab:CreateToggle({
+    CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
     CurrentValue = false,
     Flag = "AutoSelectCard",
@@ -4313,7 +4504,6 @@ local function setupCardSelectionMonitoring()
     
     cardsRemote.OnClientEvent:Connect(function(action, cardData, waveReq, ...)
         if action == "StartSelection" then
-            currentCardData = cardData
             
             if State.AutoSelectCard then
                 task.spawn(function()
@@ -4693,9 +4883,9 @@ end
         end
     end
 
-    GameSection = GameTab:CreateSection("👥 Player 👥")
+    GameTab:CreateSection("👥 Player 👥")
 
-        Slider = GameTab:CreateSlider({
+    GameTab:CreateSlider({
     Name = "Max Camera Zoom Distance",
     Range = {5, 100},
     Increment = 1,
@@ -4707,7 +4897,7 @@ end
     end,
     })
 
-        Toggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Anti AFK (No kick message)",
         CurrentValue = false,
         Flag = "AntiAfkKickToggle",
@@ -4728,7 +4918,7 @@ end
         end)
     end)
 
-        Toggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Low Performance Mode",
         CurrentValue = false,
         Flag = "enableLowPerformanceMode",
@@ -4738,7 +4928,7 @@ end
         end,
     })
 
-    Toggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Black Screen",
         CurrentValue = false,
         Flag = "enableBlackScreen",
@@ -4748,7 +4938,7 @@ end
         end,
     })
 
-    Toggle = LobbyTab:CreateToggle({
+        LobbyTab:CreateToggle({
         Name = "Auto Execute Script",
         CurrentValue = false,
         Flag = "enableAutoExecute",
@@ -4770,6 +4960,84 @@ end
         end,
     })
 
+    LobbyTab:CreateSection("Auto Summon")
+
+    LobbyTab:CreateToggle({
+    Name = "Auto Summon",
+    CurrentValue = false,
+    Flag = "AutoSummon", 
+    Info = "Automatically summon on selected banner until currency runs out",
+    Callback = function(Value)
+        State.AutoSummon = Value
+        
+        if not Value and State.CurrencySpent > 0 then
+            -- User manually stopped - webhook will be sent by the loop
+            notify("Auto Summon", "Stopped - Sending summary to webhook...")
+        end
+        
+        if Value then
+            if not State.AutoSummonBanner then
+                notify("Auto Summon", "Please select a banner first!")
+                return
+            end
+            
+            -- Reset tracking when starting
+            State.SummonedUnits = {}
+            State.CurrencySpent = 0
+            
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            
+            notify("Auto Summon", 
+                string.format("Started on %s (%d %s available)", 
+                    State.AutoSummonBanner, currentCurrency, currencyName))
+        end
+    end,
+})
+
+    LobbyTab:CreateDropdown({
+    Name = "Select Banner To Auto Summon",
+    Options = {"Banner 1", "Banner 2"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoSummonBanner",
+    Info = "Banner 1: 50 Gems | Banner 2: 150 Gingerbread Tokens",
+    Callback = function(Options)
+        State.AutoSummonBanner = Options[1]
+        
+        if State.AutoSummonBanner then
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            
+            notify("Banner Selected", 
+                string.format("%s selected (%d %s available, %d per summon)", 
+                    State.AutoSummonBanner, currentCurrency, currencyName, summonCost))
+        end
+    end,
+})
+
+local SummonStatusLabel = LobbyTab:CreateLabel("Auto Summon: Idle")
+
+-- Update the status label periodically
+task.spawn(function()
+    while true do
+        task.wait(1)
+        
+        if State.AutoSummon and State.AutoSummonBanner then
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+            local totalSummons = math.floor(State.CurrencySpent / getCostForBanner(State.AutoSummonBanner))
+            
+            SummonStatusLabel:Set(string.format("Auto Summon: %d summons | %d %s spent | %d %s left", 
+                totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
+        else
+            SummonStatusLabel:Set("Auto Summon: Idle")
+        end
+    end
+end)
+
     local function updateFPSLimit()
         if State.enableLimitFPS and State.SelectedFPS > 0 then
             setfpscap(tonumber(State.SelectedFPS))
@@ -4778,7 +5046,7 @@ end
         end
     end
 
-    Toggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Limit FPS",
         CurrentValue = false,
         Flag = "enableLimitFPS",
@@ -4801,7 +5069,7 @@ end
     end,
     })
 
-     Toggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Streamer Mode (hide name/level/title)",
         CurrentValue = false,
         Flag = "StreamerMode",
@@ -4859,10 +5127,10 @@ end
         enableLowPerformanceMode()
     end
 
-    GameSection = GameTab:CreateSection("🎮 Game 🎮")
+    GameTab:CreateSection("🎮 Game 🎮")
 
 
-    Toggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Delete Enemies",
         CurrentValue = false,
         Flag = "enableDeleteEnemies",
@@ -4937,27 +5205,24 @@ end
         return false
     end
     
-    local macroData = macroManager[macroName]
+    local macroData = MacroSystem.macroManager[macroName]
     if not macroData or #macroData == 0 then
         print("Cannot auto-equip: Macro is empty")
         return false
     end
     
-    -- Extract unique units from macro
+    -- Extract unique units
     local requiredUnits = {}
+    local temp
     
     for _, action in ipairs(macroData) do
         if action.Type == "spawn_unit" and action.Unit then
-            local unitName = action.Unit
-            
-            -- Extract base unit name (remove instance number like "#1", "#2")
-            local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
-            
-            requiredUnits[baseUnitName] = true
+            temp = action.Unit:match("^(.+) #%d+$") or action.Unit
+            requiredUnits[temp] = true
         end
     end
     
-    -- Get list of required units
+    -- Get list
     local requiredUnitsList = {}
     for unitName, _ in pairs(requiredUnits) do
         table.insert(requiredUnitsList, unitName)
@@ -4968,18 +5233,15 @@ end
         return false
     end
     
-    -- Check if we have all required units in our collection
+    -- Check available units
     local success, result = pcall(function()
-        local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-        if not fxCache then
-            error("_FX_CACHE not found")
-        end
+        temp = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+        if not temp then error("_FX_CACHE not found") end
         
-        local availableUnits = {} -- {displayName: uuid}
+        local availableUnits = {}
         local missingUnits = {}
         
-        -- Scan through _FX_CACHE to find available units
-        for _, child in pairs(fxCache:GetChildren()) do
+        for _, child in pairs(temp:GetChildren()) do
             local itemIndex = child:GetAttribute("ITEMINDEX")
             if itemIndex then
                 local displayName = getDisplayNameFromUnitId(itemIndex)
@@ -4992,7 +5254,6 @@ end
             end
         end
         
-        -- Check if we have all required units
         for _, requiredUnit in ipairs(requiredUnitsList) do
             if not availableUnits[requiredUnit] then
                 table.insert(missingUnits, requiredUnit)
@@ -5000,8 +5261,7 @@ end
         end
         
         if #missingUnits > 0 then
-            local missingText = table.concat(missingUnits, ", ")
-            error("Missing units: " .. missingText)
+            error("Missing units: " .. table.concat(missingUnits, ", "))
         end
         
         return availableUnits
@@ -5013,36 +5273,30 @@ end
         return false
     end
     
-    local availableUnits = result
-    
     print(string.format("Auto-equipping %d units for macro: %s", #requiredUnitsList, macroName))
     notify("Auto Equip", string.format("Equipping %d units for %s", #requiredUnitsList, macroName))
     
-    -- Step 1: Unequip all current units
-    local unequipSuccess = pcall(function()
+    -- Unequip all
+    if not pcall(function()
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("unequip_all"):InvokeServer()
-    end)
-    
-    if not unequipSuccess then
+    end) then
         print("Failed to unequip current units")
         return false
     end
     
     print("Successfully unequipped all units")
-    task.wait(0.5) -- Small delay after unequipping
+    task.wait(0.5)
     
-    -- Step 2: Equip each required unit
+    -- Equip each
     local equippedCount = 0
     local failedUnits = {}
     
     for _, unitName in ipairs(requiredUnitsList) do
-        local unitUUID = availableUnits[unitName]
-        if unitUUID then
-            local equipSuccess = pcall(function()
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("equip_unit"):InvokeServer(unitUUID)
-            end)
-            
-            if equipSuccess then
+        temp = result[unitName]
+        if temp then
+            if pcall(function()
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("equip_unit"):InvokeServer(temp)
+            end) then
                 equippedCount = equippedCount + 1
                 print("Successfully equipped:", unitName)
             else
@@ -5050,7 +5304,7 @@ end
                 print("Failed to equip:", unitName)
             end
             
-            task.wait(0.2) -- Small delay between equips
+            task.wait(0.2)
         end
     end
     
@@ -5187,7 +5441,7 @@ local function getMacroForCurrentWorld()
         local nightmareKey = "ds_legend_act_" .. actNum
         local mappedMacro = worldMacroMappings[nightmareKey]
         
-        if mappedMacro and macroManager[mappedMacro] then
+        if mappedMacro and MacroSystem.macroManager[mappedMacro] then
             print("Found Nightmare Train Act", actNum, "mapping:", nightmareKey, "->", mappedMacro)
             return mappedMacro
         else
@@ -5200,7 +5454,7 @@ local function getMacroForCurrentWorld()
         for worldKey, macroName in pairs(worldMacroMappings) do
             if worldKey:lower():find("legend") and 
                (worldKey:lower():find(currentWorld:lower()) or currentWorld:lower():find(worldKey:lower():gsub("_legend", ""))) then
-                if macroManager[macroName] then
+                if MacroSystem.macroManager[macroName] then
                     print("Found legend-specific mapping:", worldKey, "->", macroName)
                     return macroName
                 end
@@ -5210,7 +5464,7 @@ local function getMacroForCurrentWorld()
     
     -- Try exact match for regular stages
     local mappedMacro = worldMacroMappings[currentWorld]
-    if mappedMacro and macroManager[mappedMacro] then
+    if mappedMacro and MacroSystem.macroManager[mappedMacro] then
         print("Found exact match for world:", currentWorld, "->", mappedMacro)
         return mappedMacro
     end
@@ -5219,7 +5473,7 @@ local function getMacroForCurrentWorld()
     local currentWorldLower = string.lower(currentWorld)
     
     for worldKey, macroName in pairs(worldMacroMappings) do
-        if string.lower(worldKey) == currentWorldLower and macroManager[macroName] then
+        if string.lower(worldKey) == currentWorldLower and MacroSystem.macroManager[macroName] then
             print("Found case-insensitive match:", currentWorld, "matched with", worldKey, "->", macroName)
             return macroName
         end
@@ -5230,7 +5484,7 @@ local function getMacroForCurrentWorld()
         local baseWorldKey = worldKey:match("^([^_]+)") or worldKey
         local baseCurrentWorld = currentWorld:match("^([^_]+)") or currentWorld
         
-        if string.lower(baseWorldKey) == string.lower(baseCurrentWorld) and macroManager[macroName] then
+        if string.lower(baseWorldKey) == string.lower(baseCurrentWorld) and MacroSystem.macroManager[macroName] then
             print("Found base name match:", currentWorld, "matched with", worldKey, "via base names:", baseCurrentWorld, "->", macroName)
             return macroName
         end
@@ -5240,7 +5494,7 @@ local function getMacroForCurrentWorld()
     return nil
 end
 
-    Toggle = GameTab:CreateToggle({
+    GameTab:CreateToggle({
     Name = "Auto Start Game",
     CurrentValue = false,
     Flag = "AutoStartGame",
@@ -5258,9 +5512,9 @@ end
                     -- Auto-equip macro units BEFORE starting the game
                     if State.AutoEquipMacroUnits then
                         local worldSpecificMacro = getMacroForCurrentWorld()
-                        local macroToEquip = worldSpecificMacro or currentMacroName
+                        local macroToEquip = worldSpecificMacro or MacroSystem.currentMacroName
                         
-                        if macroToEquip and macroToEquip ~= "" and macroManager[macroToEquip] then
+                        if macroToEquip and macroToEquip ~= "" and MacroSystem.macroManager[macroToEquip] then
                             print("Auto-equipping units for macro:", macroToEquip)
                             local equipSuccess = autoEquipMacroUnits(macroToEquip)
                             
@@ -5277,7 +5531,7 @@ end
         end
     end)
 
-     Toggle = GameTab:CreateToggle({
+    GameTab:CreateToggle({
     Name = "Auto Retry",
     CurrentValue = false,
     Flag = "AutoRetry",
@@ -5289,7 +5543,7 @@ end
     end,
     })
 
-    Toggle = GameTab:CreateToggle({
+    GameTab:CreateToggle({
     Name = "Auto Next",
     CurrentValue = false,
     Flag = "AutoNext",
@@ -5302,7 +5556,7 @@ end
     end,
     })
 
-    Toggle = GameTab:CreateToggle({
+    GameTab:CreateToggle({
     Name = "Auto Lobby",
     CurrentValue = false,
     Flag = "AutoLobby",
@@ -5314,7 +5568,7 @@ end
     end,
     })
 
-     ReturnToLobbyFailsafeToggle = GameTab:CreateToggle({
+    GameTab:CreateToggle({
     Name = "Return to Lobby Failsafe",
     CurrentValue = false,
     Flag = "ReturnToLobbyFailsafe",
@@ -5324,7 +5578,7 @@ end
     end,
 })
 
-    Toggle = GameTab:CreateToggle({
+    GameTab:CreateToggle({
     Name = "Auto Skip Waves",
     CurrentValue = false,
     Flag = "AutoSkipWaves",
@@ -5380,7 +5634,7 @@ end
 
     GameTab:CreateSection("Boss Rush")
 
-     AutoSelectCardToggle = GameTab:CreateToggle({
+    GameTab:CreateToggle({
     Name = "Auto Select Card",
     CurrentValue = false,
     Flag = "AutoSelectCardBossRush",
@@ -5420,7 +5674,7 @@ end)
 
     GameTab:CreateSection("Auto Sell")
 
-     AutoSellToggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Auto Sell All Units",
         CurrentValue = false,
         Flag = "AutoSellEnabled",
@@ -5451,7 +5705,7 @@ end)
         end,
     })
 
-     AutoSellFarmToggle = GameTab:CreateToggle({
+        GameTab:CreateToggle({
         Name = "Auto Sell Farm Units",
         CurrentValue = false,
         Flag = "AutoSellFarmEnabled",
@@ -5484,14 +5738,14 @@ end)
 
     -- Macro Tab
     local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
-    detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
+    MacroSystem.detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
 
      Divider = MacroTab:CreateDivider()
 
     local MacroDropdown = MacroTab:CreateDropdown({
         Name = "Select Macro",
         Options = {},
-        CurrentOption = currentMacroName,
+        CurrentOption = MacroSystem.currentMacroName,
         MultipleOptions = false,
         Flag = "MacroDropdown",
         Callback = function(selected)
@@ -5503,9 +5757,9 @@ end)
             end
 
             print("User selected macro:", selectedName)
-            currentMacroName = selectedName
-            if selectedName and macroManager[selectedName] then
-                macro = macroManager[selectedName]
+            MacroSystem.currentMacroName = selectedName
+            if selectedName and MacroSystem.macroManager[selectedName] then
+                macro = MacroSystem.macroManager[selectedName]
                 print("Selected macro '" .. selectedName .. "' with " .. #macro .. " actions.")
             else
                 print("Invalid selection or macro doesn't exist:", selectedName)
@@ -5531,25 +5785,25 @@ end
     local function refreshMacroDropdown()
         local options = {}
 
-        for name in pairs(macroManager) do
+        for name in pairs(MacroSystem.macroManager) do
             table.insert(options, name)
         end
 
         table.sort(options)
 
-        if type(currentMacroName) == "table" then
-            currentMacroName = currentMacroName[1] or ""
+        if type(MacroSystem.currentMacroName) == "table" then
+            MacroSystem.currentMacroName = MacroSystem.currentMacroName[1] or ""
         end
 
-        if not currentMacroName or currentMacroName == "" then
-            currentMacroName = options[1]
+        if not MacroSystem.currentMacroName or MacroSystem.currentMacroName == "" then
+            MacroSystem.currentMacroName = options[1]
         end
 
-        if currentMacroName and macroManager[currentMacroName] then
-            macro = macroManager[currentMacroName]
+        if MacroSystem.currentMacroName and MacroSystem.macroManager[MacroSystem.currentMacroName] then
+            macro = MacroSystem.macroManager[MacroSystem.currentMacroName]
         end
 
-        MacroDropdown:Refresh(options, currentMacroName)
+        MacroDropdown:Refresh(options, MacroSystem.currentMacroName)
         print("Refreshed dropdown with " .. #options .. " macros")
     end
 
@@ -5570,7 +5824,7 @@ local function refreshAutoSelectDropdowns()
     local macroOptions = {"None"}
     
     -- Add all available macros
-    for macroName in pairs(macroManager) do
+    for macroName in pairs(MacroSystem.macroManager) do
         table.insert(macroOptions, macroName)
     end
     
@@ -5640,12 +5894,12 @@ end
             local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
             
             if cleanedName ~= "" then
-                if macroManager[cleanedName] then
+                if MacroSystem.macroManager[cleanedName] then
                     notify(nil,"Error: Macro '" .. cleanedName .. "' already exists.")
                     return
                 end
 
-                macroManager[cleanedName] = {}
+                MacroSystem.macroManager[cleanedName] = {}
                 saveMacroToFile(cleanedName)
                 refreshMacroDropdown()
                 task.wait(0.1)
@@ -5735,7 +5989,7 @@ local function importMacroFromTXT(txtContent, macroName)
     end
     
     -- Save the macro in new format
-    macroManager[macroName] = actions
+    MacroSystem.macroManager[macroName] = actions
     saveMacroToFile(macroName)
     refreshMacroDropdown()
     refreshAutoSelectDropdowns()
@@ -5835,7 +6089,7 @@ local function importMacroFromContent(jsonContent, macroName)
         placementCount, upgradeCount, sellCount, skipCount))
     
     -- Save the macro as-is (no conversion)
-    macroManager[macroName] = importedActions
+    MacroSystem.macroManager[macroName] = importedActions
     saveMacroToFile(macroName)
     refreshMacroDropdown()
     refreshAutoSelectDropdowns()
@@ -5901,7 +6155,7 @@ local function importMacroFromURL(url, macroName)
 end
 
 local function exportMacroToClipboard(macroName, format)
-    if not macroManager[macroName] or #macroManager[macroName] == 0 then
+    if not MacroSystem.macroManager[macroName] or #MacroSystem.macroManager[macroName] == 0 then
         Rayfield:Notify({
             Title = "Export Error",
             Content = "No macro data to export",
@@ -5910,7 +6164,7 @@ local function exportMacroToClipboard(macroName, format)
         return
     end
     
-    local macroData = macroManager[macroName]
+    local macroData = MacroSystem.macroManager[macroName]
     
     -- Export in new format (no conversion needed since data is already in new format)
     local jsonData = Services.HttpService:JSONEncode(macroData)
@@ -5948,15 +6202,15 @@ end
     DeleteSelectedMacroButton = MacroTab:CreateButton({
         Name = "Delete Selected Macro",
         Callback = function()
-            if not currentMacroName or currentMacroName == "" then
+            if not MacroSystem.currentMacroName or MacroSystem.currentMacroName == "" then
                 notify(nil,"Error: No macro selected.")
                 return
             end
 
-            deleteMacroFile(currentMacroName)
-            notify(nil,"Deleted: Deleted macro '" .. currentMacroName .. "'.")
+            deleteMacroFile(MacroSystem.currentMacroName)
+            notify(nil,"Deleted: Deleted macro '" .. MacroSystem.currentMacroName .. "'.")
 
-            macroManager[currentMacroName] = nil
+            MacroSystem.macroManager[MacroSystem.currentMacroName] = nil
             macro = {}
             refreshMacroDropdown()
         end,
@@ -5967,26 +6221,26 @@ local RecordToggle = MacroTab:CreateToggle({
     CurrentValue = false,
     Flag = "RecordMacro",
     Callback = function(Value)
-        isRecording = Value
+        MacroSystem.isRecording = Value
 
         if Value then
             -- Start recording immediately if in game, or when game starts
-            if not isInLobby() and gameInProgress then
-                recordingHasStarted = true
-                isRecordingLoopRunning = true
+            if not isInLobby() and GameTracking.gameInProgress then
+                MacroSystem.recordingHasStarted = true
+                MacroSystem.isRecordingLoopRunning = true
                 startRecordingWithSpawnIdMapping()
                 MacroStatusLabel:Set("Status: Recording active!")
                 notify("Recording Started", "Macro recording is now active.")
             else
-                recordingHasStarted = false
+                MacroSystem.recordingHasStarted = false
                 MacroStatusLabel:Set("Status: Recording enabled - will start when game begins")
                 notify("Recording Ready", "Recording will start when you enter a game.")
             end
         elseif not Value then
-            if isRecordingLoopRunning then
+            if MacroSystem.isRecordingLoopRunning then
                 notify("Recording Stopped", "Recording manually stopped.")
             end
-            isRecordingLoopRunning = false
+            MacroSystem.isRecordingLoopRunning = false
             stopRecording()
             MacroStatusLabel:Set("Status: Recording stopped")
         end
@@ -6000,14 +6254,14 @@ local function playMacroWithGameTimingRefactored()
         return false
     end
     
-    if macroHasPlayedThisGame then
+    if MacroSystem.macroHasPlayedThisGame then
         print("Macro already played this game, skipping")
         updateDetailedStatus("Macro already played this game - waiting for next game")
         return false
     end
     
-    macroHasPlayedThisGame = true
-    totalActions = #macro
+    MacroSystem.macroHasPlayedThisGame = true
+    local totalActions = #macro
     
     if State.IgnoreTiming then
         updateDetailedStatus(string.format("Starting immediate playback with %d actions", totalActions))
@@ -6017,19 +6271,19 @@ local function playMacroWithGameTimingRefactored()
         print("Starting macro playback with absolute game timing")
     end
     
-    gameHasEnded = false
+    GameTracking.gameHasEnded = false
     clearPlaybackTracking()
     clearPlaybackTrackingWithSpawnIdMapping()
 
     print("Starting macro playback - mappings cleared")
     
-    if gameStartTime == 0 then
-        gameStartTime = tick()
-        print("Setting game start time for playback:", gameStartTime)
+    if GameTracking.gameStartTime == 0 then
+        GameTracking.gameStartTime = tick()
+        print("Setting game start time for playback:", GameTracking.gameStartTime)
     end
     
     for i, action in ipairs(macro) do
-        if not isPlaybacking or not isAutoLoopEnabled or gameHasEnded then
+        if not MacroSystem.isPlaybacking or not GameTracking.isAutoLoopEnabled or GameTracking.gameHasEnded then
             updateDetailedStatus("Macro interrupted - stopping execution")
             print("Macro interrupted - stopping execution")
             return false
@@ -6051,7 +6305,7 @@ local function playMacroWithGameTimingRefactored()
             elseif action.Type == "upgrade_unit_ingame" then
                 -- Calculate upgrade cost
                 local placementId = action.Unit
-                local currentSpawnId = playbackPlacementToSpawnId[placementId]
+                local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
                 
                 if currentSpawnId then
                     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
@@ -6075,7 +6329,7 @@ local function playMacroWithGameTimingRefactored()
                 local maxWaitTime = 999999999999999999999999999999999999999
                 local waitStart = tick()
                 
-                while getPlayerMoney() < requiredCost and isPlaybacking and not gameHasEnded do
+                while getPlayerMoney() < requiredCost and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
                     if tick() - waitStart > maxWaitTime then
                         updateDetailedStatus(string.format("(%d/%d) Timeout waiting for money", i, totalActions))
                         print("Timeout waiting for sufficient money")
@@ -6088,7 +6342,7 @@ local function playMacroWithGameTimingRefactored()
                     task.wait(1)
                 end
                 
-                if not isPlaybacking or gameHasEnded then
+                if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
                     updateDetailedStatus("Macro stopped during money wait")
                     return false
                 end
@@ -6099,7 +6353,7 @@ local function playMacroWithGameTimingRefactored()
         if not State.IgnoreTiming then
             -- Convert stored time string to number
             local targetGameTime = tonumber(action.Time) or 0
-            local currentGameTime = tick() - gameStartTime
+            local currentGameTime = tick() - GameTracking.gameStartTime
             local waitTime = targetGameTime - currentGameTime
             
             if waitTime > 0 then
@@ -6108,12 +6362,12 @@ local function playMacroWithGameTimingRefactored()
                 print(string.format("Waiting %.2fs for game time %.2fs", waitTime, targetGameTime))
                 
                 local waitStart = tick()
-                while tick() - waitStart < waitTime and isPlaybacking and not gameHasEnded do
+                while tick() - waitStart < waitTime and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
                     task.wait(0.1)
                 end
             end
             
-            if not isPlaybacking or gameHasEnded then
+            if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
                 updateDetailedStatus("Macro stopped during timing wait")
                 print("Macro stopped during timing wait")
                 return false
@@ -6149,7 +6403,7 @@ local function createAutoSelectDropdowns()
     
     -- Get initial macro options
     local initialMacroOptions = {"None"}
-    for macroName in pairs(macroManager) do
+    for macroName in pairs(MacroSystem.macroManager) do
         table.insert(initialMacroOptions, macroName)
     end
     table.sort(initialMacroOptions)
@@ -6501,35 +6755,35 @@ end
     end
 
 local function autoLoopPlaybackWithGameTiming()
-    while isAutoLoopEnabled do
+    while GameTracking.isAutoLoopEnabled do
         -- Wait for a game to be active (but don't wait for new game to start)
-        while (not gameInProgress or isInLobby()) and isAutoLoopEnabled do
+        while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
             updateDetailedStatus("Waiting for active game...")
             task.wait(1)
         end
         
-        if not isAutoLoopEnabled then break end
+        if not GameTracking.isAutoLoopEnabled then break end
         
         -- Check if macro already played this game
-        if macroHasPlayedThisGame then
+        if MacroSystem.macroHasPlayedThisGame then
             updateDetailedStatus("Macro already played this game - waiting for next game...")
             
             -- Wait for this game to end and next to start
-            while gameInProgress and isAutoLoopEnabled do
+            while GameTracking.gameInProgress and GameTracking.isAutoLoopEnabled do
                 task.wait(1)
             end
             
             -- Wait for next game to start
-            while (not gameInProgress or isInLobby()) and isAutoLoopEnabled do
+            while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
                 task.wait(1)
             end
             
-            if not isAutoLoopEnabled then break end
+            if not GameTracking.isAutoLoopEnabled then break end
         end
         
         -- Get macro to use
         local worldSpecificMacro = getMacroForCurrentWorld()
-        local macroToUse = worldSpecificMacro or currentMacroName
+        local macroToUse = worldSpecificMacro or MacroSystem.currentMacroName
         
         if not macroToUse or macroToUse == "" then
             MacroStatusLabel:Set("Status: Error - No macro selected!")
@@ -6547,7 +6801,7 @@ local function autoLoopPlaybackWithGameTiming()
         end
         
         macro = loadedMacro
-        isPlaybacking = true
+        MacroSystem.isPlaybacking = true
         
         local macroSource = worldSpecificMacro and " (Auto-selected)" or " (Manual selection)"
         local timingMode = State.IgnoreTiming and " - Immediate Mode" or " - Game Time Sync"
@@ -6560,9 +6814,9 @@ local function autoLoopPlaybackWithGameTiming()
         
         local completed = playMacroWithGameTimingRefactored()
         
-        isPlaybacking = false
+        MacroSystem.isPlaybacking = false
         
-        if isAutoLoopEnabled then
+        if GameTracking.isAutoLoopEnabled then
             if completed then
                 MacroStatusLabel:Set("Status: Macro completed - waiting for next game...")
                 updateDetailedStatus("Macro completed - waiting for next game...")
@@ -6577,7 +6831,7 @@ local function autoLoopPlaybackWithGameTiming()
     
     MacroStatusLabel:Set("Status: Playback stopped")
     updateDetailedStatus("Playback stopped")
-    isPlaybacking = false
+    MacroSystem.isPlaybacking = false
 end
 
 local PlayToggleEnhanced = MacroTab:CreateToggle({
@@ -6585,7 +6839,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     CurrentValue = false,
     Flag = "PlayBackMacro",
     Callback = function(Value)
-        isAutoLoopEnabled = Value
+        GameTracking.isAutoLoopEnabled = Value
         
         if Value then
             MacroStatusLabel:Set("Status: Playback enabled - will play when conditions are met")
@@ -6596,8 +6850,8 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             end)
         else
             MacroStatusLabel:Set("Status: Playback disabled")
-            isPlaybacking = false
-            gameHasEnded = false
+            MacroSystem.isPlaybacking = false
+            GameTracking.gameHasEnded = false
             notify("Playback Disabled", "Macro playback stopped.")
         end
     end,
@@ -6605,7 +6859,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
 
  Divider = MacroTab:CreateDivider()
 
-    RandomOffsetToggle = MacroTab:CreateToggle({
+        MacroTab:CreateToggle({
         Name = "Random Offset",
         CurrentValue = false,
         Flag = "RandomOffsetEnabled",
@@ -6634,7 +6888,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         end,
     })
 
-    IgnoreTimingToggle = MacroTab:CreateToggle({
+        MacroTab:CreateToggle({
         Name = "Ignore Timing",
         CurrentValue = false,
         Flag = "IgnoreTiming",
@@ -6706,7 +6960,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             end
             
             -- Check if macro already exists
-            if macroManager[macroName] then
+            if MacroSystem.macroManager[macroName] then
                 Rayfield:Notify({
                     Title = "Import Cancelled",
                     Content = "'" .. macroName .. "' already exists.",
@@ -6720,7 +6974,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     ExportButton = MacroTab:CreateButton({
         Name = "Export Macro To Clipboard",
         Callback = function()
-            if not currentMacroName or currentMacroName == "" then
+            if not MacroSystem.currentMacroName or MacroSystem.currentMacroName == "" then
                 Rayfield:Notify({
                     Title = "Export Error",
                     Content = "No macro selected for export.",
@@ -6728,14 +6982,14 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
                 })
                 return
             end
-            exportMacroToClipboard(currentMacroName, "compact")
+            exportMacroToClipboard(MacroSystem.currentMacroName, "compact")
         end,
     })
 
      SendWebhookButton = MacroTab:CreateButton({
     Name = "Export Macro via Webhook",
     Callback = function()
-        if not currentMacroName or currentMacroName == "" then
+        if not MacroSystem.currentMacroName or MacroSystem.currentMacroName == "" then
             Rayfield:Notify({
                 Title = "Webhook Error",
                 Content = "No macro selected.",
@@ -6753,7 +7007,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             return
         end
         
-        local macroData = macroManager[currentMacroName]
+        local macroData = MacroSystem.MacroSystem.macroManager[MacroSystem.currentMacroName]
         if not macroData or #macroData == 0 then
             Rayfield:Notify({
                 Title = "Webhook Error",
@@ -6809,7 +7063,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         
         -- Create the JSON data in the new format
         local jsonData = Services.HttpService:JSONEncode(macroData)
-        local fileName = currentMacroName .. ".json"
+        local fileName = MacroSystem.currentMacroName .. ".json"
         
         -- Create multipart form data for file upload
         local boundary = "----WebKitFormBoundary" .. tostring(tick())
@@ -6822,7 +7076,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         body = body .. Services.HttpService:JSONEncode({
             username = "LixHub Macro Share",
             embeds = {{
-                title = "📁 Macro Shared: " .. currentMacroName,
+                title = "📁 Macro Shared: " .. MacroSystem.currentMacroName,
                 color = 0x5865F2,
                 fields = {
                     {
@@ -6890,7 +7144,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             if result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
                 Rayfield:Notify({
                     Title = "Webhook Success", 
-                    Content = string.format("Macro '%s' sent successfully!\nUnits: %s", currentMacroName, unitsText:sub(1, 50) .. (unitsText:len() > 50 and "..." or "")),
+                    Content = string.format("Macro '%s' sent successfully!\nUnits: %s", MacroSystem.currentMacroName, unitsText:sub(1, 50) .. (unitsText:len() > 50 and "..." or "")),
                     Duration = 5
                 })
             elseif result.StatusCode then
@@ -6945,7 +7199,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
  CheckUnitsButton = MacroTab:CreateButton({
     Name = "Check Macro Units",
     Callback = function()
-        if not currentMacroName or currentMacroName == "" then
+        if not MacroSystem.currentMacroName or MacroSystem.currentMacroName == "" then
             Rayfield:Notify({
                 Title = "Check Units Error",
                 Content = "No macro selected.",
@@ -6955,7 +7209,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             return
         end
         
-        local macroData = macroManager[currentMacroName]
+        local macroData = MacroSystem.macroManager[MacroSystem.currentMacroName]
         if not macroData or #macroData == 0 then
             Rayfield:Notify({
                 Title = "Check Units Error", 
@@ -6991,14 +7245,14 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             local unitsText = table.concat(unitsList, ", ")
             
             Rayfield:Notify({
-                Title = currentMacroName,
+                Title = MacroSystem.currentMacroName,
                 Content = unitsText,
                 Duration = 6,
                 Image = 4483362458,
             })
         else
             Rayfield:Notify({
-                Title = currentMacroName,
+                Title = MacroSystem.currentMacroName,
                 Content = "No units found in this macro.",
                 Duration = 3,
                 Image = 4483362458,
@@ -7020,7 +7274,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             return
         end
 
-        if not currentMacroName or currentMacroName == "" then
+        if not MacroSystem.currentMacroName or MacroSystem.currentMacroName == "" then
             Rayfield:Notify({
                 Title = "Equip Error",
                 Content = "No macro selected.",
@@ -7030,7 +7284,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             return
         end
         
-        local macroData = macroManager[currentMacroName]
+        local macroData = MacroSystem.macroManager[MacroSystem.currentMacroName]
         if not macroData or #macroData == 0 then
             Rayfield:Notify({
                 Title = "Equip Error", 
@@ -7177,7 +7431,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             if #failedUnits == 0 then
                 Rayfield:Notify({
                     Title = "Equip Complete",
-                    Content = string.format("Successfully equipped all %d units for %s", equippedCount, currentMacroName),
+                    Content = string.format("Successfully equipped all %d units for %s", equippedCount, MacroSystem.currentMacroName),
                     Duration = 5,
                     Image = 4483362458,
                 })
@@ -7196,7 +7450,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     end,
 })
 
-    local AutoEquipMacroUnitsToggle = MacroTab:CreateToggle({
+        MacroTab:CreateToggle({
         Name = "Auto Equip Macro Units",
         CurrentValue = false,
         Flag = "AutoEquipMacroUnits",
@@ -7211,7 +7465,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
 
      Divider = MacroTab:CreateDivider()
 
-      AutoUpgradeToggle = AutoplayTab:CreateToggle({
+    AutoplayTab:CreateToggle({
     Name = "Auto Upgrade Units",
     CurrentValue = false,
     Flag = "AutoUpgrade",
@@ -7222,7 +7476,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
 })
 
 
-     PrioritizeFarmToggle = AutoplayTab:CreateToggle({
+    AutoplayTab:CreateToggle({
     Name = "Prioritize Farm Units",
     CurrentValue = false,
     Flag = "PrioritizeFarm",
@@ -7232,7 +7486,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
     end,
 })
 
- AutoAbilityToggle = AutoplayTab:CreateToggle({
+    AutoplayTab:CreateToggle({
     Name = "Auto Use Abilities",
     CurrentValue = false,
     Flag = "AutoAbility",
@@ -7246,7 +7500,7 @@ task.spawn(function()
     while true do
         task.wait(0.5) -- Check every 0.5 seconds
         
-        if State.AutoUpgrade and not isInLobby() and gameInProgress then
+        if State.AutoUpgrade and not isInLobby() and GameTracking.gameInProgress then
             local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
             if not unitsFolder then continue end
             
@@ -7309,7 +7563,7 @@ task.spawn(function()
     while true do
         task.wait(1) -- Check every second
         
-        if State.AutoAbility and not isInLobby() and gameInProgress then
+        if State.AutoAbility and not isInLobby() and GameTracking.gameInProgress then
             local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
             if not unitsFolder then continue end
             
@@ -7372,7 +7626,7 @@ end)
         end,
     })
 
-    WebhookToggle = WebhookTab:CreateToggle({
+        WebhookTab:CreateToggle({
         Name = "Send On Stage Finished",
         CurrentValue = false,
         Flag = "SendWebhookOnStageFinished",
@@ -7403,18 +7657,18 @@ local function getPortalDepth(portalData)
 end
 
 local function pickBestPortalFromStoredData()
-    if not storedPortalData or #storedPortalData == 0 then
+    if not GameTracking.storedPortalData or #GameTracking.storedPortalData == 0 then
         print("No stored portal data available")
         return false
     end
     
-    print(string.format("Picking best portal from %d stored portals", #storedPortalData))
+    print(string.format("Picking best portal from %d stored portals", #GameTracking.storedPortalData))
     
     -- Apply tier filter if set
     local hasFilter = #State.PortalRewardTierFilter > 0
     local acceptablePortals = {}
     
-    for i, portalData in ipairs(storedPortalData) do
+    for i, portalData in ipairs(GameTracking.storedPortalData) do
         local depth = getPortalDepth(portalData)
         local rewardScale = portalData._unique_item_data._unique_portal_data._portal_reward_scale or 0
         
@@ -7451,7 +7705,7 @@ local function pickBestPortalFromStoredData()
         end
         
         -- Find highest tier among all portals
-        for i, portalData in ipairs(storedPortalData) do
+        for i, portalData in ipairs(GameTracking.storedPortalData) do
             local depth = getPortalDepth(portalData)
             local rewardScale = portalData._unique_item_data._unique_portal_data._portal_reward_scale or 0
             
@@ -7505,7 +7759,7 @@ local function pickBestPortalFromStoredData()
         )
         
         -- Clear stored data after use
-        storedPortalData = nil
+        GameTracking.storedPortalData = nil
         return true
     else
         notify("Auto Portal Pick", "Failed to select portal", 3)
@@ -7521,7 +7775,7 @@ task.spawn(function()
         
         if State.AutoSelectPortalReward then
             -- Store portal data for later use
-            storedPortalData = portalsArray
+            GameTracking.storedPortalData = portalsArray
             print("Stored portal data for auto-selection at game end")
             
             -- Log portal info
@@ -7607,14 +7861,14 @@ end)
     -- Connect item tracking
     if itemAddedRemote then
         itemAddedRemote.OnClientEvent:Connect(function(itemName, quantity)
-            if gameInProgress then
-                if sessionItems[itemName] then
-                    sessionItems[itemName] = sessionItems[itemName] + quantity
+            if GameTracking.gameInProgress then
+                if GameTracking.sessionItems[itemName] then
+                    GameTracking.sessionItems[itemName] = GameTracking.sessionItems[itemName] + quantity
                 else
-                    sessionItems[itemName] = quantity
+                    GameTracking.sessionItems[itemName] = quantity
                 end
                 
-                print("Item collected: " .. itemName .. " x" .. quantity .. " (Total: " .. sessionItems[itemName] .. ")")
+                print("Item collected: " .. itemName .. " x" .. quantity .. " (Total: " .. GameTracking.sessionItems[itemName] .. ")")
             end
         end)
     end
@@ -7626,13 +7880,13 @@ end)
             print("game_finished RemoteEvent fired!")
             print("Number of arguments:", #args)
 
-            gameHasEnded = true
+            GameTracking.gameHasEnded = true
             startFailsafeTimer()
-            macroHasPlayedThisGame = false
+            MacroSystem.macroHasPlayedThisGame = false
             
-                    if isRecording then
-                isRecording = false
-                isRecordingLoopRunning = false
+                    if MacroSystem.isRecording then
+                MacroSystem.isRecording = false
+                MacroSystem.isRecordingLoopRunning = false
                 Rayfield:Notify({
                     Title = "Recording Stopped",
                     Content = "Game ended, recording has been automatically stopped and saved.",
@@ -7641,9 +7895,9 @@ end)
                 })
                 RecordToggle:Set(false)
 
-                if currentMacroName then
-                    macroManager[currentMacroName] = macro
-                    saveMacroToFile(currentMacroName)
+                if MacroSystem.currentMacroName then
+                    MacroSystem.macroManager[MacroSystem.currentMacroName] = macro
+                    saveMacroToFile(MacroSystem.currentMacroName)
                 end
             end 
 
@@ -7658,38 +7912,38 @@ end)
             end
             
             -- WIN/LOSS DETECTION
-            gameResult = "Defeat" -- Default to defeat
+            GameTracking.gameResult = "Defeat" -- Default to defeat
             
             -- Look for victory field in table arguments or direct boolean
             for i, arg in ipairs(args) do
                 if type(arg) == "table" and arg.victory ~= nil then
                     if arg.victory == true then
-                        gameResult = "Victory"
+                        GameTracking.gameResult = "Victory"
                         print("Found victory field: true -> Result: Victory")
                     else
-                        gameResult = "Defeat"
+                        GameTracking.gameResult = "Defeat"
                         print("Found victory field: false -> Result: Defeat")
                     end
                     break
                 elseif type(arg) == "boolean" then
                     if arg == true then
-                        gameResult = "Victory"
+                        GameTracking.gameResult = "Victory"
                         print("Found boolean argument: true -> Result: Victory")
                     else
-                        gameResult = "Defeat"
+                        GameTracking.gameResult = "Defeat"
                         print("Found boolean argument: false -> Result: Defeat")
                     end
                     break
                 end
             end
             
-            print("Final game result:", gameResult)
+            print("Final game result:", GameTracking.gameResult)
             
             -- Handle auto voting logic with priority system
     task.spawn(function()
         task.wait(1) -- Small delay to ensure game state is stable
 
-        if State.AutoSelectPortalReward and storedPortalData then
+        if State.AutoSelectPortalReward and GameTracking.storedPortalData then
         pickBestPortalFromStoredData()
         task.wait(0.5) -- Small delay after portal selection
     end
@@ -7784,7 +8038,7 @@ end
         end
         
         -- Priority 3: Auto Next (medium priority) - only for victories
-        if State.AutoVoteNext and gameResult == "Victory" then
+        if State.AutoVoteNext and GameTracking.gameResult == "Victory" then
             print("Auto Next enabled and game won - Voting for next stage...")
             local success, err = pcall(function()
                 Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_story")
@@ -7820,7 +8074,7 @@ end
     end)
             task.spawn(function()
                 task.wait(0.1)
-                if gameInProgress then
+                if GameTracking.gameInProgress then
                     endGameTracking()
                 end
             end)
@@ -7880,7 +8134,7 @@ task.delay(1, function()
     -- Force set the dropdown values based on saved mappings
     task.wait(0.5)
     for worldKey, macroName in pairs(worldMacroMappings) do
-        if worldDropdowns[worldKey] and macroManager[macroName] then
+        if worldDropdowns[worldKey] and MacroSystem.macroManager[macroName] then
             worldDropdowns[worldKey]:Set(macroName)
             print("Restored auto-select mapping:", worldKey, "->", macroName)
         end
@@ -7898,17 +8152,17 @@ Rayfield:LoadConfiguration()
         end
         
         if savedMacroName and savedMacroName ~= "" and type(savedMacroName) == "string" then
-            currentMacroName = savedMacroName
+            MacroSystem.currentMacroName = savedMacroName
             
             -- Load the macro data from file when restoring from config
-            local loadedMacro = loadMacroFromFile(currentMacroName)
+            local loadedMacro = loadMacroFromFile(MacroSystem.currentMacroName)
             if loadedMacro then
                 macro = loadedMacro
-                macroManager[currentMacroName] = loadedMacro
-                print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
+                MacroSystem.macroManager[MacroSystem.currentMacroName] = loadedMacro
+                print("Successfully loaded saved macro:", MacroSystem.currentMacroName, "with", #macro, "actions")
             else
-                print("Failed to load saved macro:", currentMacroName)
-                currentMacroName = ""
+                print("Failed to load saved macro:", MacroSystem.currentMacroName)
+                MacroSystem.currentMacroName = ""
             end
         else
             print("No valid saved macro name found")
@@ -7918,7 +8172,7 @@ Rayfield:LoadConfiguration()
     end)
 
     for worldKey, macroName in pairs(worldMacroMappings) do
-        if worldDropdowns[worldKey] and macroManager[macroName] then
+        if worldDropdowns[worldKey] and MacroSystem.macroManager[macroName] then
             worldDropdowns[worldKey]:Set(macroName)
             print("Restored auto-select mapping:", worldKey, "->", macroName)
         end
