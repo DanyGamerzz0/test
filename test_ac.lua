@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.31"
+    local script_version = "V0.32"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -733,20 +733,13 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
         return
     end
     
-    -- Get the spawn_id from the unit
-    local spawnId = getUnitSpawnId(spawnedUnit)
-    if not spawnId then
-        warn("Could not get spawn_id from newly placed unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get spawn_id from newly placed unit",Duration = 3,Image = 4483362458})
-        return
-    end
-    
     -- Get display name (e.g., "Shadow")
     local internalName = getInternalSpawnName(spawnedUnit)
     print("DEBUG PLACEMENT - Internal name:", internalName)
     local displayName = getDisplayNameFromUnitId(internalName)
     print("DEBUG PLACEMENT - Display name:", displayName)
     print("DEBUG PLACEMENT - Actual unit in workspace:", spawnedUnit.Name)
+    
     if not displayName then
         warn("Could not get display name for unit")
         Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get display name for unit",Duration = 3,Image = 4483362458})
@@ -760,10 +753,28 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     -- Create the logical placement identifier
     local placementId = string.format("%s #%d", displayName, placementNumber)
     
-    -- Map spawn_id to logical placement for upgrade/sell tracking
-    MacroSystem.recordingSpawnIdToPlacement[tostring(spawnId)] = placementId
+    -- Get the ACTUAL UUID from the unit for mapping
+    local stats = spawnedUnit:FindFirstChild("_stats")
+    if not stats then
+        warn("No _stats found on spawned unit")
+        Rayfield:Notify({Title = "Macro Recorder",Content = "No _stats found on spawned unit",Duration = 3,Image = 4483362458})
+        return
+    end
 
-    MacroSystem.recordingUnitNameToSpawnId[spawnedUnit.Name] = tostring(spawnId)
+    local uuidValue = stats:FindFirstChild("uuid")
+    if not uuidValue or not uuidValue:IsA("StringValue") then
+        warn("No uuid found in _stats")
+        Rayfield:Notify({Title = "Macro Recorder",Content = "No uuid found in _stats",Duration = 3,Image = 4483362458})
+        return
+    end
+
+    local actualUUID = uuidValue.Value
+
+    -- Map UUID to logical placement for ability/upgrade/sell tracking
+    MacroSystem.recordingSpawnIdToPlacement[actualUUID] = placementId
+    MacroSystem.recordingUnitNameToSpawnId[spawnedUnit.Name] = actualUUID
+
+    print(string.format("Mapped UUID %s -> %s", actualUUID, placementId))
     
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
@@ -781,13 +792,13 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     
     table.insert(macro, placementRecord)
     
-print(string.format("Recorded placement: %s (spawn_id: %s)", placementId, tostring(spawnId)))
-Rayfield:Notify({
-    Title = "Macro Recorder",
-    Content = string.format("Recorded placement: %s", placementId),
-    Duration = 3,
-    Image = 4483362458
-})
+    print(string.format("Recorded placement: %s (UUID: %s)", placementId, actualUUID))
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded placement: %s", placementId),
+        Duration = 3,
+        Image = 4483362458
+    })
 end
 
 local function parseUnitString(unitString)
