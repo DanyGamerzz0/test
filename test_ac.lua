@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.16"
+    local script_version = "V0.17"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3255,27 +3255,19 @@ local function captureCurrentUnits()
     for _, child in pairs(fxCache:GetChildren()) do
         local itemIndex = child:GetAttribute("ITEMINDEX")
         if itemIndex then
-            currentUnits[child.Name] = true
+            currentUnits[child.Name] = true -- Use child.Name as key
         end
     end
     
     return currentUnits
 end
 
-local function detectNewUnits(beforeSnapshot)
-    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    
-    if not fxCache then
-        return {}
-    end
-    
+local function detectNewUnits(beforeSnapshot, afterSnapshot)
     local newUnits = {}
-    for _, child in pairs(fxCache:GetChildren()) do
-        if not beforeSnapshot[child.Name] then
-            local itemIndex = child:GetAttribute("ITEMINDEX")
-            if itemIndex then
-                table.insert(newUnits, itemIndex)
-            end
+    
+    for unitName, _ in pairs(afterSnapshot) do
+        if not beforeSnapshot[unitName] then
+            table.insert(newUnits, unitName)
         end
     end
     
@@ -3293,18 +3285,14 @@ local function performBatchSummon(bannerName, amount)
         return false, "Invalid amount", 0
     end
     
-    -- Determine actual summon amount and currency type
-    local actualAmount = amount
+    -- Determine currency type based on amount
     local currencyType = "gems"
-    
     if amount >= 10 then
-        -- Mass summons are always 10x when using "gems10"
-        actualAmount = 10
         currencyType = "gems10"
-    else
-        currencyType = "gems"
-        actualAmount = amount
     end
+    
+    -- Get currency BEFORE summon
+    local currencyBefore = getCurrencyForBanner(bannerName)
     
     -- Capture units before summoning
     local beforeSnapshot = captureCurrentUnits()
@@ -3315,7 +3303,7 @@ local function performBatchSummon(bannerName, amount)
         if currencyType == "gems10" then
             args = {bannerId, currencyType} -- No amount parameter for mass summon
         else
-            args = {bannerId, currencyType, actualAmount}
+            args = {bannerId, currencyType, amount}
         end
         
         return Services.ReplicatedStorage:WaitForChild("endpoints")
@@ -3328,27 +3316,52 @@ local function performBatchSummon(bannerName, amount)
         return false, "Summon failed: " .. tostring(result), 0
     end
     
-    -- Wait for units to be added to _FX_CACHE
-    task.wait(0.5 + (actualAmount * 0.05))
+    -- Wait for the game to process
+    task.wait(0.8)
     
-    -- Detect new units
-    local newUnits = detectNewUnits(beforeSnapshot)
+    -- Get currency AFTER summon
+    local currencyAfter = getCurrencyForBanner(bannerName)
     
-    -- Calculate actual cost (THIS IS THE FIX - use actualAmount, not amount)
-    local actualCost = actualAmount * getCostForBanner(bannerName)
+    -- Calculate ACTUAL cost spent
+    local actualCostSpent = currencyBefore - currencyAfter
     
-    -- Track the summoned units
-    for _, unitId in ipairs(newUnits) do
-        local unitData = getUnitData(unitId)
-        local unitName = unitData and unitData.name or unitId
-        
-        if not State.SummonedUnits[unitName] then
-            State.SummonedUnits[unitName] = 0
+    -- Calculate actual number of summons done
+    local summonCost = getCostForBanner(bannerName)
+    local actualSummons = summonCost > 0 and math.floor(actualCostSpent / summonCost) or 0
+    
+    -- Detect new units (capture after snapshot)
+    local afterSnapshot = captureCurrentUnits()
+    local newUnits = detectNewUnits(beforeSnapshot, afterSnapshot)
+    
+    print(string.format("Summon complete: Spent %d currency, Did %d summons, Got %d new units", 
+        actualCostSpent, actualSummons, #newUnits))
+    
+    -- Track the summoned units by checking _FX_CACHE for new entries
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    if fxCache then
+        for unitName, _ in pairs(afterSnapshot) do
+            if not beforeSnapshot[unitName] then
+                -- This is a new unit
+                local unitChild = fxCache:FindFirstChild(unitName)
+                if unitChild then
+                    local itemIndex = unitChild:GetAttribute("ITEMINDEX")
+                    if itemIndex then
+                        local unitData = getUnitData(itemIndex)
+                        local displayName = unitData and unitData.name or itemIndex
+                        
+                        if not State.SummonedUnits[displayName] then
+                            State.SummonedUnits[displayName] = 0
+                        end
+                        State.SummonedUnits[displayName] = State.SummonedUnits[displayName] + 1
+                        
+                        print(string.format("Tracked new unit: %s", displayName))
+                    end
+                end
+            end
         end
-        State.SummonedUnits[unitName] = State.SummonedUnits[unitName] + 1
     end
     
-    return true, string.format("Summoned %dx", actualAmount), actualCost
+    return true, string.format("Summoned %dx", actualSummons), actualCostSpent
 end
 
 local function getMaxAffordableSummons(bannerName)
@@ -3406,7 +3419,7 @@ local function sendSummonWebhook(reason)
                 },
                 {
                     name = "🎁 Total Summons",
-                    value = tostring(State.CurrencySpent / getCostForBanner(bannerName)),
+                    value = getCostForBanner(State.AutoSummonBanner) > 0 and math.floor(State.CurrencySpent / getCostForBanner(State.AutoSummonBanner)) or 0,
                     inline = true
                 },
                 {
