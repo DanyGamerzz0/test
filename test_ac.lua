@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.24"
+    local script_version = "V0.25"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3300,7 +3300,7 @@ local function performBatchSummon(bannerName, amount)
     end
     
     -- Wait for game to update collection
-    task.wait(2.0)
+    task.wait(5.0)
     
     -- Capture AFTER snapshot
     local afterCounts = captureUnitCounts()
@@ -4922,12 +4922,11 @@ end
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "AutoSummon", 
-    Info = "Automatically summon on selected banner until currency runs out",
+    Info = "Automatically summon on selected banner",
     Callback = function(Value)
         State.AutoSummon = Value
         
         if not Value and State.CurrencySpent > 0 then
-            -- User manually stopped - webhook will be sent by the loop
             notify("Auto Summon", "Stopped - Sending summary to webhook...")
         end
         
@@ -4958,7 +4957,6 @@ end
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "AutoSummonBanner",
-    Info = "Banner 1: 50 Gems | Banner 2: 150 Gingerbread Tokens",
     Callback = function(Options)
         State.AutoSummonBanner = Options[1]
         
@@ -5010,8 +5008,6 @@ task.spawn(function()
                     -- UPDATE IMMEDIATELY AFTER SUMMON
                     updateSummonStatus()
                     
-                    print(string.format("Auto Summon: %s - Spent %d %s (Total: %d %s spent)", 
-                        message, costSpent, currencyName, State.CurrencySpent, currencyName))
                 else
                     warn("Auto Summon failed:", message)
                     task.wait(2)
@@ -5019,8 +5015,6 @@ task.spawn(function()
                 
                 task.wait(1)
             else
-                print(string.format("Auto Summon: Insufficient currency (%d/%d %s)", 
-                    currentCurrency, summonCost, currencyName))
                 
                 State.AutoSummon = false
                 
