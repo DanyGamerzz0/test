@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.28"
+    local script_version = "V0.29"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -923,7 +923,7 @@ local function processWaveSkipAction(actionInfo)
 end
 
 local function processAbilityActionWithSpawnIdMapping(actionInfo)
-    local unitUUID = actionInfo.unitUUID
+    local rawUnitUUID = actionInfo.unitUUID
     
     -- Find which placement ID this UUID belongs to
     local placementId = nil
@@ -936,9 +936,13 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
                     local stats = unit:FindFirstChild("_stats")
                     if stats then
                         local uuidValue = stats:FindFirstChild("uuid")
-                        if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == unitUUID then
-                            placementId = placement
-                            break
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            -- Check if the ability UUID contains the stored UUID
+                            if rawUnitUUID:find(uuidValue.Value, 1, true) then
+                                placementId = placement
+                                print("Ability UUID match:", rawUnitUUID, "contains", uuidValue.Value)
+                                break
+                            end
                         end
                     end
                 end
@@ -948,7 +952,7 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
     end
     
     if not placementId then
-        warn("Could not find placement ID for ability UUID:", unitUUID)
+        warn("Could not find placement ID for ability UUID:", rawUnitUUID)
         return
     end
     
