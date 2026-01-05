@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.17"
+    local script_version = "V0.18"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3274,6 +3274,63 @@ local function detectNewUnits(beforeSnapshot, afterSnapshot)
     return newUnits
 end
 
+local function markExistingUnits()
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    if not fxCache then return end
+    
+    local markedCount = 0
+    for _, collectionFrame in pairs(fxCache:GetChildren()) do
+        if collectionFrame.Name == "CollectionUnitFrame" then
+            -- Mark this as an existing unit
+            collectionFrame:SetAttribute("_PreSummonMarker", true)
+            markedCount = markedCount + 1
+        end
+    end
+    
+    print(string.format("Marked %d existing CollectionUnitFrames", markedCount))
+end
+
+local function detectNewUnitsAfterSummon()
+    local newUnits = {}
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    if not fxCache then return newUnits end
+    
+    for _, collectionFrame in pairs(fxCache:GetChildren()) do
+        if collectionFrame.Name == "CollectionUnitFrame" then
+            -- If it doesn't have our marker, it's new!
+            if not collectionFrame:GetAttribute("_PreSummonMarker") then
+                -- Find the child with ITEMINDEX
+                for _, child in pairs(collectionFrame:GetChildren()) do
+                    local itemIndex = child:GetAttribute("ITEMINDEX")
+                    if itemIndex then
+                        table.insert(newUnits, {
+                            itemIndex = itemIndex,
+                            collectionFrame = collectionFrame
+                        })
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    print(string.format("Detected %d new CollectionUnitFrames", #newUnits))
+    return newUnits
+end
+
+local function clearSummonMarkers()
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    if not fxCache then return end
+    
+    for _, collectionFrame in pairs(fxCache:GetChildren()) do
+        if collectionFrame.Name == "CollectionUnitFrame" then
+            collectionFrame:SetAttribute("_PreSummonMarker", nil)
+        end
+    end
+    
+    print("Cleared all summon markers")
+end
+
 local function performBatchSummon(bannerName, amount)
     local bannerId = getBannerIdFromName(bannerName)
     
@@ -3285,27 +3342,15 @@ local function performBatchSummon(bannerName, amount)
         return false, "Invalid amount", 0
     end
     
-    -- Determine currency type based on amount
-    local currencyType = "gems"
-    if amount >= 10 then
-        currencyType = "gems10"
-    end
-    
-    -- Get currency BEFORE summon
+    local currencyType = amount >= 10 and "gems10" or "gems"
     local currencyBefore = getCurrencyForBanner(bannerName)
     
-    -- Capture units before summoning
-    local beforeSnapshot = captureCurrentUnits()
+    -- Mark all existing units BEFORE summoning
+    markExistingUnits()
     
     -- Perform summon
     local success, result = pcall(function()
-        local args
-        if currencyType == "gems10" then
-            args = {bannerId, currencyType} -- No amount parameter for mass summon
-        else
-            args = {bannerId, currencyType, amount}
-        end
-        
+        local args = currencyType == "gems10" and {bannerId, currencyType} or {bannerId, currencyType, amount}
         return Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("buy_from_banner")
@@ -3319,47 +3364,32 @@ local function performBatchSummon(bannerName, amount)
     -- Wait for the game to process
     task.wait(0.8)
     
-    -- Get currency AFTER summon
     local currencyAfter = getCurrencyForBanner(bannerName)
-    
-    -- Calculate ACTUAL cost spent
     local actualCostSpent = currencyBefore - currencyAfter
-    
-    -- Calculate actual number of summons done
     local summonCost = getCostForBanner(bannerName)
     local actualSummons = summonCost > 0 and math.floor(actualCostSpent / summonCost) or 0
     
-    -- Detect new units (capture after snapshot)
-    local afterSnapshot = captureCurrentUnits()
-    local newUnits = detectNewUnits(beforeSnapshot, afterSnapshot)
+    -- Detect new units (those without the marker)
+    local newUnits = detectNewUnitsAfterSummon()
     
     print(string.format("Summon complete: Spent %d currency, Did %d summons, Got %d new units", 
         actualCostSpent, actualSummons, #newUnits))
     
-    -- Track the summoned units by checking _FX_CACHE for new entries
-    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-    if fxCache then
-        for unitName, _ in pairs(afterSnapshot) do
-            if not beforeSnapshot[unitName] then
-                -- This is a new unit
-                local unitChild = fxCache:FindFirstChild(unitName)
-                if unitChild then
-                    local itemIndex = unitChild:GetAttribute("ITEMINDEX")
-                    if itemIndex then
-                        local unitData = getUnitData(itemIndex)
-                        local displayName = unitData and unitData.name or itemIndex
-                        
-                        if not State.SummonedUnits[displayName] then
-                            State.SummonedUnits[displayName] = 0
-                        end
-                        State.SummonedUnits[displayName] = State.SummonedUnits[displayName] + 1
-                        
-                        print(string.format("Tracked new unit: %s", displayName))
-                    end
-                end
+    -- Track the summoned units
+    for _, unitData in ipairs(newUnits) do
+        local displayName = getDisplayNameFromUnitId(unitData.itemIndex)
+        if displayName then
+            if not State.SummonedUnits[displayName] then
+                State.SummonedUnits[displayName] = 0
             end
+            State.SummonedUnits[displayName] = State.SummonedUnits[displayName] + 1
+            
+            print(string.format("Tracked new unit: %s (ItemIndex: %s)", displayName, unitData.itemIndex))
         end
     end
+    
+    -- Clean up markers after detection
+    clearSummonMarkers()
     
     return true, string.format("Summoned %dx", actualSummons), actualCostSpent
 end
