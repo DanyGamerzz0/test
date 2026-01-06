@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.35"
+    local script_version = "V0.36"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -4013,7 +4013,7 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-    section = JoinerTab:CreateSection("Gate Joiner")
+    --[[section = JoinerTab:CreateSection("Gate Joiner")
 
     local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
 
@@ -4069,7 +4069,7 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
     Callback = function(Value)
         State.AutoMatchmakeGateStage = Value
     end,
-})
+})--]]
 
 JoinerTab:CreateSection("Portal Joiner")
 
