@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2978,7 +2978,7 @@ end
         return false
     end
 
-    local function checkAndExecuteHighestPriority()
+   local function checkAndExecuteHighestPriority()
         if not isInLobby() then return end
         if AutoJoinState.isProcessing then return end
         if not canPerformAction() then return end
@@ -3073,113 +3073,61 @@ end
         end
 
         -- STORY
-       if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
-    setProcessingState("Story Auto Join")
-    
-    -- Parse the act selection to get the act number or infinite flag
-    local isInfinite = State.StoryActSelected:find("Infinite")
-    local actNumber = nil
-    
-    if not isInfinite then
-        -- Extract act number from "Act X - Name" format
-        actNumber = tonumber(State.StoryActSelected:match("Act (%d+)"))
-    end
-    
-    -- Get the proper level ID from the modules
-    local levelId = getLevelIdByWorldAndAct(State.StoryStageSelected, actNumber, isInfinite)
-    
-    if not levelId then
-        warn("Could not find level ID for:", State.StoryStageSelected, actNumber or "Infinite")
-        notify("Auto Joiner Error", "Failed to find level data")
-        task.delay(5, clearProcessingState)
-        return
-    end
-    
-    print("Using level ID from module:", levelId)
-    
-    if State.AutoMatchmakeStoryStage then      
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(levelId, {Difficulty = State.StoryDifficultySelected})
-    else
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", levelId, false, State.StoryDifficultySelected)
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
-    end
-    
-    task.delay(5, clearProcessingState)
-    return
-end
+        if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
+            setProcessingState("Story Auto Join")
+
+            -- Build the complete stage ID
+            local completeStageId = State.StoryStageSelected .. State.StoryActSelected
+
+            if State.AutoMatchmakeStoryStage then      
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(completeStageId,{Difficulty = State.StoryDifficultySelected})
+        else
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
+
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",completeStageId,false,State.StoryDifficultySelected)
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
+        end
+            task.delay(5, clearProcessingState)
+            return
+        end
 
         -- LEGEND STAGE
         if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
-    setProcessingState("Legend Stage Auto Join")
+            setProcessingState("Legend Stage Auto Join")
 
-    -- Parse act number from selection (could be "Act 1" or just "1")
-    local actNumber = tonumber(State.LegendActSelected:match("%d+"))
-    
-    if not actNumber then
-        warn("Could not parse legend act number from:", State.LegendActSelected)
-        task.delay(5, clearProcessingState)
-        return
-    end
-    
-    -- Get the proper level ID from the modules
-    local levelId = getLegendLevelId(State.LegendStageSelected, actNumber)
-    
-    if not levelId then
-        warn("Could not find legend level ID for:", State.LegendStageSelected, "Act", actNumber)
-        notify("Auto Joiner Error", "Failed to find legend level data")
-        task.delay(5, clearProcessingState)
-        return
-    end
-    
-    print("Using legend level ID from module:", levelId)
+            -- Build the complete legend stage ID
+            local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
 
-    if State.AutoMatchmakeLegendStage then            
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(levelId, {Difficulty = "Normal"})
-    else
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", levelId, false, "Hard")
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
-    end
-    
-    task.delay(5, clearProcessingState)
-    return
-end
+            if State.AutoMatchmakeLegendStage then            
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(string.lower(completeLegendStageId),{Difficulty = "Normal"})
+        else
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
+
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",string.lower(completeLegendStageId),false,"Hard")
+
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
+        end
+            task.delay(5, clearProcessingState)
+            return
+        end
         if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
-    setProcessingState("Raid Auto Join")
+            setProcessingState("Raid Auto Join")
 
-    -- Parse act number from selection
-    local actNumber = tonumber(State.RaidActSelected:match("%d+"))
-    
-    if not actNumber then
-        warn("Could not parse raid act number from:", State.RaidActSelected)
-        task.delay(5, clearProcessingState)
-        return
-    end
-    
-    -- Get the proper level ID from the modules
-    local levelId = getRaidLevelId(State.RaidStageSelected, actNumber)
-    
-    if not levelId then
-        warn("Could not find raid level ID for:", State.RaidStageSelected, "Act", actNumber)
-        notify("Auto Joiner Error", "Failed to find raid level data")
-        task.delay(5, clearProcessingState)
-        return
-    end
-    
-    print("Using raid level ID from module:", levelId)
+            local completeRaidStageId = State.RaidStageSelected .. State.RaidActSelected
 
-    if State.AutoMatchmakeRaidStage then        
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(levelId, {Difficulty = "Normal"})
-    else
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("R1", levelId, false, "Hard")
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("R1")
-    end
-    
-    task.delay(5, clearProcessingState)
-    return
-end
+             if State.AutoMatchmakeRaidStage then        
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(completeRaidStageId,{Difficulty = "Normal"})
+        else
+
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
+
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("R1",completeRaidStageId,false,"Hard")
+
+                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("R1")
+        end
+            task.delay(5, clearProcessingState)
+            return
+        end
     end
 
     local function enableBlackScreen()
@@ -3586,65 +3534,45 @@ end
     })
 
     local StoryStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Story Stage",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "StageStorySelector",
-    Callback = function(Option)
-        if not isGameDataLoaded() then
-            warn("Game data not loaded yet, ignoring story stage selection")
-            return
-        end
-        
-        local selectedDisplayName
-        if type(Option) == "table" and Option[1] then
-            selectedDisplayName = Option[1]
-        elseif type(Option) == "string" then
-            selectedDisplayName = Option
-        else
-            warn("Invalid option type in StoryStageDropdown:", type(Option))
-            return
-        end
-        
-        State.StoryStageSelected = selectedDisplayName
-        
-        -- Dynamically populate acts for this world
-        local allLevels = getAllLevelsData()
-        local acts = {}
-        local hasInfinite = false
-        
-        for levelId, levelInfo in pairs(allLevels) do
-            if levelInfo.world == selectedDisplayName and levelInfo.story_world_rank then
-                if levelInfo.infinite then
-                    hasInfinite = true
-                elseif levelInfo.story_level_rank then
-                    table.insert(acts, {
-                        num = levelInfo.story_level_rank,
-                        name = levelInfo.name,
-                        id = levelInfo.id
-                    })
+        Name = "Select Story Stage",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "StageStorySelector",
+        Callback = function(Option)
+            -- Safety check - don't run if data isn't loaded yet
+            if not isGameDataLoaded() then
+                warn("Game data not loaded yet, ignoring story stage selection")
+                return
+            end
+            
+            -- Handle both table and string inputs safely
+            local selectedDisplayName
+            if type(Option) == "table" and Option[1] then
+                selectedDisplayName = Option[1]
+            elseif type(Option) == "string" then
+                selectedDisplayName = Option
+            else
+                warn("Invalid option type in StoryStageDropdown:", type(Option))
+                return
+            end
+            
+            -- Safely call the backend function with additional error handling
+            local success, backendWorldKey = pcall(function()
+                return getBackendWorldKeyFromDisplayName(selectedDisplayName)
+            end)
+            
+            if success and backendWorldKey then
+                State.StoryStageSelected = backendWorldKey
+                print("Selected story stage:", selectedDisplayName, "->", backendWorldKey)
+            else
+                warn("Failed to get backend world key for story stage:", selectedDisplayName)
+                if not success then
+                    warn("Error:", backendWorldKey)
                 end
             end
-        end
-        
-        -- Sort by act number
-        table.sort(acts, function(a, b) return a.num < b.num end)
-        
-        -- Build dropdown options
-        local actOptions = {}
-        for _, act in ipairs(acts) do
-            table.insert(actOptions, string.format("Act %d - %s", act.num, act.name))
-        end
-        
-        if hasInfinite then
-            table.insert(actOptions, "Infinite Mode")
-        end
-        
-        StoryActDropdown:Refresh(actOptions)
-        print("Updated acts for", selectedDisplayName, ":", #actOptions, "options")
-    end,
-})
+        end,
+    })
 
      ChapterDropdown869 = JoinerTab:CreateDropdown({
         Name = "Select Story Act",
@@ -3653,8 +3581,15 @@ end
         MultipleOptions = false,
         Flag = "StoryActSelector",
         Callback = function(Option)
-        local selectedOption = type(Option) == "table" and Option[1] or Option
-        State.StoryActSelected = selectedOption
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            if selectedOption == "Infinite" then
+                State.StoryActSelected = "_infinite"
+            else
+                local num = selectedOption:match("%d+")
+                if num then
+                    State.StoryActSelected = "_level_" .. num
+                end
+            end
         end,
     })
 
@@ -3685,59 +3620,46 @@ end
         end,
     })
 
-local LegendStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Legend Stage",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "LegendWorldSelector",
-    Callback = function(Option)
-        if not isGameDataLoaded() then
-            warn("Game data not loaded yet, ignoring legend stage selection")
-            return
-        end
-        
-        local selectedDisplayName
-        if type(Option) == "table" and Option[1] then
-            selectedDisplayName = Option[1]
-        elseif type(Option) == "string" then
-            selectedDisplayName = Option
-        else
-            warn("Invalid option type in LegendStageDropdown:", type(Option))
-            return
-        end
-        
-        State.LegendStageSelected = selectedDisplayName
-        
-        -- Dynamically populate acts for this legend world
-        local allLevels = getAllLevelsData()
-        local acts = {}
-        
-        for levelId, levelInfo in pairs(allLevels) do
-            if levelInfo.world == selectedDisplayName and levelInfo.legend_stage then
-                if levelInfo.legend_level_rank then
-                    table.insert(acts, {
-                        num = levelInfo.legend_level_rank,
-                        name = levelInfo.name,
-                        id = levelInfo.id
-                    })
+    local LegendStageDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Legend Stage",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "LegendWorldSelector",
+        Callback = function(Option)
+            -- Safety check - don't run if data isn't loaded yet
+            if not isGameDataLoaded() then
+                warn("Game data not loaded yet, ignoring legend stage selection")
+                return
+            end
+            
+            -- Handle both table and string inputs safely
+            local selectedDisplayName
+            if type(Option) == "table" and Option[1] then
+                selectedDisplayName = Option[1]
+            elseif type(Option) == "string" then
+                selectedDisplayName = Option
+            else
+                warn("Invalid option type in LegendStageDropdown:", type(Option))
+                return
+            end
+            
+            -- Safely call the backend function
+            local success, backendWorldKey = pcall(function()
+                return getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
+            end)
+            
+            if success and backendWorldKey then
+                State.LegendStageSelected = backendWorldKey
+                print("Selected legend stage:", selectedDisplayName, "->", backendWorldKey)
+            else
+                warn("Failed to get backend legend world key for:", selectedDisplayName)
+                if not success then
+                    warn("Error:", backendWorldKey)
                 end
             end
-        end
-        
-        -- Sort by act number
-        table.sort(acts, function(a, b) return a.num < b.num end)
-        
-        -- Build dropdown options
-        local actOptions = {}
-        for _, act in ipairs(acts) do
-            table.insert(actOptions, string.format("Act %d - %s", act.num, act.name))
-        end
-        
-        LegendActDropdown:Refresh(actOptions)
-        print("Updated legend acts for", selectedDisplayName, ":", #actOptions, "options")
-    end,
-})
+        end,
+    })
 
     LegendChapterDropdown = JoinerTab:CreateDropdown({
         Name = "Select Legend Stage Act",
@@ -3747,7 +3669,11 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         Flag = "LegendActSelector",
         Callback = function(Option)
             local selectedOption = type(Option) == "table" and Option[1] or Option
-            State.LegendActSelected = selectedOption
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.LegendActSelected = "_" .. num
+            end
         end,
     })
 
@@ -3771,59 +3697,46 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-local RaidStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Stage",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "RaidWorldSelector",
-    Callback = function(Option)
-        if not isGameDataLoaded() then
-            warn("Game data not loaded yet, ignoring raid stage selection")
-            return
-        end
-        
-        local selectedDisplayName
-        if type(Option) == "table" and Option[1] then
-            selectedDisplayName = Option[1]
-        elseif type(Option) == "string" then
-            selectedDisplayName = Option
-        else
-            warn("Invalid option type in RaidStageDropdown:", type(Option))
-            return
-        end
-        
-        State.RaidStageSelected = selectedDisplayName
-        
-        -- Dynamically populate acts for this raid world
-        local allLevels = getAllLevelsData()
-        local acts = {}
-        
-        for levelId, levelInfo in pairs(allLevels) do
-            if levelInfo.world == selectedDisplayName and levelInfo.raid_world then
-                if levelInfo.raid_level_rank then
-                    table.insert(acts, {
-                        num = levelInfo.raid_level_rank,
-                        levelId = levelInfo.id,
-                        name = levelInfo.name
-                    })
+    local RaidStageDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Raid Stage",
+        Options = {},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "RaidWorldSelector",
+        Callback = function(Option)
+            -- Safety check - don't run if data isn't loaded yet
+            if not isGameDataLoaded() then
+                warn("Game data not loaded yet, ignoring raid stage selection")
+                return
+            end
+            
+            -- Handle both table and string inputs safely
+            local selectedDisplayName
+            if type(Option) == "table" and Option[1] then
+                selectedDisplayName = Option[1]
+            elseif type(Option) == "string" then
+                selectedDisplayName = Option
+            else
+                warn("Invalid option type in RaidStageDropdown:", type(Option))
+                return
+            end
+            
+            -- Safely call the backend function
+            local success, backendWorldKey = pcall(function()
+                return getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
+            end)
+            
+            if success and backendWorldKey then
+                State.RaidStageSelected = backendWorldKey
+                print("Selected raid stage:", selectedDisplayName, "->", backendWorldKey)
+            else
+                warn("Failed to get backend raid world key for:", selectedDisplayName)
+                if not success then
+                    warn("Error:", backendWorldKey)
                 end
             end
-        end
-        
-        -- Sort by act number
-        table.sort(acts, function(a, b) return a.num < b.num end)
-        
-        -- Build dropdown options
-        local actOptions = {}
-        for _, act in ipairs(acts) do
-            table.insert(actOptions, string.format("Act %d - %s", act.num, act.name))
-        end
-        
-        RaidActDropdown:Refresh(actOptions)
-        print("Updated raid acts for", selectedDisplayName, ":", #actOptions, "options")
-    end,
-})
+        end,
+    })
 
     RaidChapterDropdown = JoinerTab:CreateDropdown({
         Name = "Select Raid Stage Act",
@@ -3833,7 +3746,11 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         Flag = "RaidActSelector",
         Callback = function(Option)
             local selectedOption = type(Option) == "table" and Option[1] or Option
-            State.RaidActSelected = selectedOption
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.RaidActSelected = "_" .. num
+            end
         end,
     })
 
@@ -4643,88 +4560,6 @@ end
 
 task.spawn(setupCardSelectionMonitoring)
 
-local function getAllLevelsData()
-    local allLevels = {}
-    local levelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
-    
-    if not levelsFolder then return allLevels end
-    
-    -- Scan through all level modules (Testing, Story, etc.)
-    for _, levelModule in ipairs(levelsFolder:GetDescendants()) do
-        if levelModule:IsA("ModuleScript") then
-            local success, levelData = pcall(require, levelModule)
-            
-            if success and levelData and type(levelData) == "table" then
-                -- Merge all levels from this module into our master list
-                for levelId, levelInfo in pairs(levelData) do
-                    if type(levelInfo) == "table" and levelInfo.id then
-                        allLevels[levelId] = levelInfo
-                    end
-                end
-            end
-        end
-    end
-    
-    return allLevels
-end
-
-local function getLevelIdByWorldAndAct(worldName, actNumber, isInfinite)
-    local allLevels = getAllLevelsData()
-    
-    for levelId, levelInfo in pairs(allLevels) do
-        -- Check if this level matches our world
-        if levelInfo.world == worldName then
-            if isInfinite and levelInfo.infinite then
-                -- Found infinite mode for this world
-                return levelInfo.id
-            elseif not isInfinite and levelInfo.story_level_rank == actNumber then
-                -- Found the specific act for this world
-                return levelInfo.id
-            end
-        end
-    end
-    
-    return nil
-end
-
-local function getLegendLevelId(worldName, actNumber)
-    local allLevels = getAllLevelsData()
-    
-    for levelId, levelInfo in pairs(allLevels) do
-        -- Check if this level belongs to our world and is a legend stage
-        if levelInfo.world == worldName and levelInfo.legend_stage then
-            -- Legend stages typically have legend_level_rank or we check the pattern
-            if levelInfo.legend_level_rank == actNumber or 
-               levelId:match("_(%d+)$") == tostring(actNumber) then
-                print("Found legend level:", levelId, "for", worldName, "Act", actNumber)
-                return levelInfo.id  -- Returns exact ID like "Wano_legend_1"
-            end
-        end
-    end
-    
-    warn("Could not find legend level for:", worldName, "Act", actNumber)
-    return nil
-end
-
-local function getRaidLevelId(worldName, actNumber)
-    local allLevels = getAllLevelsData()
-    
-    for levelId, levelInfo in pairs(allLevels) do
-        -- Check if this level belongs to our world and is a raid
-        if levelInfo.world == worldName and levelInfo.raid_world then
-            -- Raid stages have raid_level_rank
-            if levelInfo.raid_level_rank == actNumber or 
-               levelId:match("_(%d+)$") == tostring(actNumber) then
-                print("Found raid level:", levelId, "for", worldName, "Act", actNumber)
-                return levelInfo.id  -- Returns exact ID like "Wano_Raid_1"
-            end
-        end
-    end
-    
-    warn("Could not find raid level for:", worldName, "Act", actNumber)
-    return nil
-end
-
     local function loadIgnoreWorldsWithRetry()
         loadingRetries.ignoreWorlds = loadingRetries.ignoreWorlds + 1
         
@@ -4886,251 +4721,207 @@ local function loadPortals()
     end
 end
 
-   local function loadLegendStagesWithRetry()
-    loadingRetries.legend = loadingRetries.legend + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadLegendStagesWithRetry)
-        else
-            warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
-            LegendStageDropdown:Refresh({"Failed to load - check console"})
-        end
-        return
-    end
-    
-    local success, result = pcall(function()
-        local allLevels = getAllLevelsData()
-        local legendWorlds = {} -- {worldName: {acts: {...}, rank: number}}
+local function loadLegendStagesWithRetry()
+        loadingRetries.legend = loadingRetries.legend + 1
         
-        -- Group legend levels by world
-        for levelId, levelInfo in pairs(allLevels) do
-            if levelInfo.world and levelInfo.legend_stage then
-                if not legendWorlds[levelInfo.world] then
-                    legendWorlds[levelInfo.world] = {
-                        acts = {},
-                        rank = levelInfo.legend_world_rank or 999
-                    }
-                end
+        if not isGameDataLoaded() then
+            if loadingRetries.legend <= maxRetries then
+                print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
+                task.wait(retryDelay)
+                task.spawn(loadLegendStagesWithRetry)
+            else
+                warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
+                LegendStageDropdown:Refresh({"Failed to load - check console"})
+            end
+            return
+        end
+        
+        local success, result = pcall(function()
+            local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+            local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+            
+            if not WorldLevelOrder or not WorldLevelOrder.LEGEND_WORLD_ORDER then
+                error("WorldLevelOrder or LEGEND_WORLD_ORDER not found")
+            end
+
+            local displayNames = {}
+            
+            for _, orderedWorldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
+                local worldModules = WorldsFolder:GetChildren()
                 
-                if levelInfo.legend_level_rank then
-                    table.insert(legendWorlds[levelInfo.world].acts, {
-                        actNum = levelInfo.legend_level_rank,
-                        levelId = levelInfo.id,
-                        name = levelInfo.name
-                    })
+                for _, worldModule in ipairs(worldModules) do
+                    if worldModule:IsA("ModuleScript") then
+                        local moduleSuccess, worldData = pcall(require, worldModule)
+                        
+                        if moduleSuccess and worldData and worldData[orderedWorldKey] then
+                            local worldInfo = worldData[orderedWorldKey]
+                            
+                            if type(worldInfo) == "table" and worldInfo.name and worldInfo.legend_stage then
+                                table.insert(displayNames, worldInfo.name)
+                            end
+                            break
+                        end
+                    end
                 end
             end
-        end
-        
-        -- Sort and create dropdown options
-        local worldList = {}
-        for worldName, worldData in pairs(legendWorlds) do
-            table.insert(worldList, {
-                name = worldName,
-                rank = worldData.rank,
-                data = worldData
-            })
-        end
-        
-        -- Sort by legend_world_rank
-        table.sort(worldList, function(a, b)
-            return a.rank < b.rank
+            
+            if #displayNames == 0 then
+                error("No legend stages found")
+            end
+            
+            return displayNames
         end)
         
-        local displayNames = {}
-        for _, world in ipairs(worldList) do
-            table.insert(displayNames, world.name)
-        end
-        
-        if #displayNames == 0 then
-            error("No legend stages found")
-        end
-        
-        return displayNames
-    end)
-    
-    if success and result and #result > 0 then
-        LegendStageDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d legend worlds (attempt %d)", #result, loadingRetries.legend))
-    else
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadLegendStagesWithRetry)
+        if success and result and #result > 0 then
+            LegendStageDropdown:Refresh(result)
+            print(string.format("Successfully loaded %d legend stages (attempt %d)", #result, loadingRetries.legend))
         else
-            warn("Failed to load legend stages after", maxRetries, "attempts:", result)
-            LegendStageDropdown:Refresh({"Failed to load - check console"})
+            if loadingRetries.legend <= maxRetries then
+                print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
+                task.wait(retryDelay)
+                task.spawn(loadLegendStagesWithRetry)
+            else
+                warn("Failed to load legend stages after", maxRetries, "attempts:", result)
+                LegendStageDropdown:Refresh({"Failed to load - check console"})
+            end
         end
     end
-end
 
     local function loadStoryStagesWithRetry()
-    loadingRetries.story = loadingRetries.story + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.story <= maxRetries then
-            print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadStoryStagesWithRetry)
-        else
-            warn("Failed to load story stages after", maxRetries, "attempts - giving up")
-            StoryStageDropdown:Refresh({"Failed to load - check console"})
-        end
-        return
-    end
-    
-    local success, result = pcall(function()
-        local allLevels = getAllLevelsData()
-        local storyWorlds = {} -- {worldName: {acts: {...}, infinite: bool}}
+        loadingRetries.story = loadingRetries.story + 1
         
-        -- Group levels by world
-        for levelId, levelInfo in pairs(allLevels) do
-            if levelInfo.world and levelInfo.story_world_rank then
-                if not storyWorlds[levelInfo.world] then
-                    storyWorlds[levelInfo.world] = {
-                        acts = {},
-                        infinite = false,
-                        rank = levelInfo.story_world_rank
-                    }
-                end
+        if not isGameDataLoaded() then
+            if loadingRetries.story <= maxRetries then
+                print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
+                task.wait(retryDelay)
+                task.spawn(loadStoryStagesWithRetry)
+            else
+                warn("Failed to load story stages after", maxRetries, "attempts - giving up")
+                StoryStageDropdown:Refresh({"Failed to load - check console"})
+            end
+            return
+        end
+        
+        local success, result = pcall(function()
+            local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+            local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+            
+            if not WorldLevelOrder or not WorldLevelOrder.WORLD_ORDER then
+                error("WorldLevelOrder or WORLD_ORDER not found")
+            end
+
+            local displayNames = {}
+            
+            for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
+                local worldModules = WorldsFolder:GetChildren()
                 
-                if levelInfo.infinite then
-                    storyWorlds[levelInfo.world].infinite = true
-                else
-                    table.insert(storyWorlds[levelInfo.world].acts, {
-                        actNum = levelInfo.story_level_rank,
-                        levelId = levelInfo.id,
-                        name = levelInfo.name
-                    })
+                for _, worldModule in ipairs(worldModules) do
+                    if worldModule:IsA("ModuleScript") then
+                        local moduleSuccess, worldData = pcall(require, worldModule)
+                        
+                        if moduleSuccess and worldData and worldData[orderedWorldKey] then
+                            local worldInfo = worldData[orderedWorldKey]
+                            
+                            if type(worldInfo) == "table" and worldInfo.name then
+                                table.insert(displayNames, worldInfo.name)
+                            end
+                            break
+                        end
+                    end
                 end
             end
-        end
-        
-        -- Sort and create dropdown options
-        local worldList = {}
-        for worldName, worldData in pairs(storyWorlds) do
-            table.insert(worldList, {
-                name = worldName,
-                rank = worldData.rank,
-                data = worldData
-            })
-        end
-        
-        -- Sort by story_world_rank
-        table.sort(worldList, function(a, b)
-            return a.rank < b.rank
+            
+            if #displayNames == 0 then
+                error("No story stages found")
+            end
+            
+            return displayNames
         end)
         
-        local displayNames = {}
-        for _, world in ipairs(worldList) do
-            table.insert(displayNames, world.name)
-        end
-        
-        if #displayNames == 0 then
-            error("No story stages found")
-        end
-        
-        return displayNames
-    end)
-    
-    if success and result and #result > 0 then
-        StoryStageDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d story worlds (attempt %d)", #result, loadingRetries.story))
-    else
-        if loadingRetries.story <= maxRetries then
-            print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadStoryStagesWithRetry)
+        if success and result and #result > 0 then
+            StoryStageDropdown:Refresh(result)
+            print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
         else
-            warn("Failed to load story stages after", maxRetries, "attempts:", result)
-            StoryStageDropdown:Refresh({"Failed to load - check console"})
+            if loadingRetries.story <= maxRetries then
+                print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
+                task.wait(retryDelay)
+                task.spawn(loadStoryStagesWithRetry)
+            else
+                warn("Failed to load story stages after", maxRetries, "attempts:", result)
+                StoryStageDropdown:Refresh({"Failed to load - check console"})
+            end
         end
     end
-end
 
 local function loadRaidStagesWithRetry()
-    loadingRetries.raid = loadingRetries.raid + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.raid <= maxRetries then
-            print(string.format("Raid stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.raid, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadRaidStagesWithRetry)
-        else
-            warn("Failed to load raid stages after", maxRetries, "attempts - giving up")
-            RaidStageDropdown:Refresh({"Failed to load - check console"})
-        end
-        return
-    end
-    
-    local success, result = pcall(function()
-        local allLevels = getAllLevelsData()
-        local raidWorlds = {} -- {worldName: {acts: {...}, rank: number}}
+        loadingRetries.raid = loadingRetries.raid + 1
         
-        -- Group raid levels by world
-        for levelId, levelInfo in pairs(allLevels) do
-            if levelInfo.world and levelInfo.raid_world then
-                if not raidWorlds[levelInfo.world] then
-                    raidWorlds[levelInfo.world] = {
-                        acts = {},
-                        rank = levelInfo.raid_world_rank or 999
-                    }
-                end
+        if not isGameDataLoaded() then
+            if loadingRetries.raid <= maxRetries then
+                print(string.format("Raid stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.raid, maxRetries))
+                task.wait(retryDelay)
+                task.spawn(loadRaidStagesWithRetry)
+            else
+                warn("Failed to load raid stages after", maxRetries, "attempts - giving up")
+                RaidStageDropdown:Refresh({"Failed to load - check console"})
+            end
+            return
+        end
+        
+        local success, result = pcall(function()
+            local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+            local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+            
+            if not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
+                error("WorldLevelOrder or RAID_WORLD_ORDER not found")
+            end
+
+            local displayNames = {}
+            local addedWorlds = {}
+            
+            for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
+                local worldModules = WorldsFolder:GetChildren()
                 
-                if levelInfo.raid_level_rank then
-                    table.insert(raidWorlds[levelInfo.world].acts, {
-                        actNum = levelInfo.raid_level_rank,
-                        levelId = levelInfo.id,
-                        name = levelInfo.name
-                    })
+                for _, worldModule in ipairs(worldModules) do
+                    if worldModule:IsA("ModuleScript") then
+                        local moduleSuccess, worldData = pcall(require, worldModule)
+                        
+                        if moduleSuccess and worldData and worldData[orderedWorldKey] then
+                            local worldInfo = worldData[orderedWorldKey]
+                            
+                            if type(worldInfo) == "table" and worldInfo.name and worldInfo.raid_world then
+                                if not addedWorlds[orderedWorldKey] then
+                                    table.insert(displayNames, worldInfo.name)
+                                    addedWorlds[orderedWorldKey] = true
+                                end
+                            end
+                            break
+                        end
+                    end
                 end
             end
-        end
-        
-        -- Sort and create dropdown options
-        local worldList = {}
-        for worldName, worldData in pairs(raidWorlds) do
-            table.insert(worldList, {
-                name = worldName,
-                rank = worldData.rank,
-                data = worldData
-            })
-        end
-        
-        -- Sort by raid_world_rank
-        table.sort(worldList, function(a, b)
-            return a.rank < b.rank
+            
+            if #displayNames == 0 then
+                error("No raid stages found")
+            end
+            
+            return displayNames
         end)
         
-        local displayNames = {}
-        for _, world in ipairs(worldList) do
-            table.insert(displayNames, world.name)
-        end
-        
-        if #displayNames == 0 then
-            error("No raid stages found")
-        end
-        
-        return displayNames
-    end)
-    
-    if success and result and #result > 0 then
-        RaidStageDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d raid worlds (attempt %d)", #result, loadingRetries.raid))
-    else
-        if loadingRetries.raid <= maxRetries then
-            print(string.format("Raid stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.raid, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadRaidStagesWithRetry)
+        if success and result and #result > 0 then
+            RaidStageDropdown:Refresh(result)
+            print(string.format("Successfully loaded %d raid stages (attempt %d)", #result, loadingRetries.raid))
         else
-            warn("Failed to load raid stages after", maxRetries, "attempts:", result)
-            RaidStageDropdown:Refresh({"Failed to load - check console"})
+            if loadingRetries.raid <= maxRetries then
+                print(string.format("Raid stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.raid, maxRetries, tostring(result)))
+                task.wait(retryDelay)
+                task.spawn(loadRaidStagesWithRetry)
+            else
+                warn("Failed to load raid stages after", maxRetries, "attempts:", result)
+                RaidStageDropdown:Refresh({"Failed to load - check console"})
+            end
         end
     end
-end
 
     GameTab:CreateSection("👥 Player 👥")
 
