@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.14"
+    local script_version = "V0.15"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1114,7 +1114,7 @@ end
     -- Heartbeat: watch for level changes on all our units
     local RunService = game:GetService("RunService")
     RunService.Heartbeat:Connect(function()
-        if not MacroSystem.isRecording then return end
+        if not MacroSystem.isRecording then print("ur not recording dumbass") return end
 
         local unitsFolder = workspace:FindFirstChild("_UNITS")
         if not unitsFolder then return end
