@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.16"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1114,66 +1114,74 @@ end
     -- Heartbeat: watch for level changes on all our units
     local RunService = game:GetService("RunService")
     RunService.Heartbeat:Connect(function()
-        if not MacroSystem.isRecording then print("ur not recording dumbass") return end
+    if not MacroSystem.isRecording then return end -- Removed the debug print
 
-        local unitsFolder = workspace:FindFirstChild("_UNITS")
-        if not unitsFolder then return end
+    local unitsFolder = workspace:FindFirstChild("_UNITS")
+    if not unitsFolder then return end
 
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) then
-                local spawnId = getUnitSpawnId(unit)
-                if spawnId then
-                    local spawnKey = tostring(spawnId)
-                    local currentLevel = getUnitUpgradeLevel(unit)
-                    local placementId = MacroSystem.recordingSpawnIdToPlacement[spawnKey]
+    for _, unit in pairs(unitsFolder:GetChildren()) do
+        if isOwnedByLocalPlayer(unit) then
+            local stats = unit:FindFirstChild("_stats")
+            if not stats then continue end
+            
+            -- Create combined identifier (UUID + spawn_id) to match placement mapping
+            local uuidValue = stats:FindFirstChild("uuid")
+            local spawnIdValue = stats:FindFirstChild("spawn_id")
+            
+            if not uuidValue or not uuidValue:IsA("StringValue") then continue end
+            
+            local combinedId = uuidValue.Value
+            if spawnIdValue then
+                combinedId = combinedId .. spawnIdValue.Value
+            end
+            
+            -- Find placement ID from our mapping
+            local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedId]
+            
+            if placementId then
+                local currentLevel = getUnitUpgradeLevel(unit)
+                
+                -- Initialize tracking if new unit
+                if not MacroSystem.trackedUnits[combinedId] then
+                    MacroSystem.trackedUnits[combinedId] = {
+                        placementId = placementId,
+                        lastLevel = currentLevel
+                    }
+                    print(string.format("Started tracking upgrades for %s (Combined ID: %s, Level: %d)", 
+                        placementId, combinedId, currentLevel))
+                end
+                
+                -- Check for level increase
+                local lastLevel = MacroSystem.trackedUnits[combinedId].lastLevel
+                if currentLevel > lastLevel then
+                    local levelIncrease = currentLevel - lastLevel
                     
-                    if placementId then
-                        -- Initialize tracking if new unit
-                        if not MacroSystem.trackedUnits[spawnKey] then
-                            MacroSystem.trackedUnits[spawnKey] = {
-                                placementId = placementId,
-                                lastLevel = currentLevel
-                            }
-                        end
-                        
-                        -- Check for level increase
-                        local lastLevel = MacroSystem.trackedUnits[spawnKey].lastLevel
-                        if currentLevel > lastLevel then
-                            local levelIncrease = currentLevel - lastLevel
-                            
-                            local record = {
-                                Type = MACRO_CONFIG.UPGRADE_REMOTE,
-                                Unit = placementId,
-                                Time = string.format("%.2f", tick() - GameTracking.gameStartTime)
-                            }
-                            
-                            if levelIncrease > 1 then
-                                record.Amount = levelIncrease
-                            end
-                            
-                            table.insert(macro, record)
-                            
-                            local upgradeText = levelIncrease > 1 
-                                and string.format("x%d", levelIncrease) or ""
-                            
-                            print(string.format("Recorded upgrade%s: %s (L%d->L%d)",
-                                upgradeText, placementId, lastLevel, currentLevel))
-                            
-                            --Rayfield:Notify({
-                               -- Title = "Macro Recorder",
-                               -- Content = string.format("Recorded upgrade%s: %s", upgradeText, placementId),
-                               -- Duration = 3,
-                              --  Image = 4483362458
-                           -- })
-                            
-                            -- Update tracked level
-                            MacroSystem.trackedUnits[spawnKey].lastLevel = currentLevel
-                        end
+                    local record = {
+                        Type = MACRO_CONFIG.UPGRADE_REMOTE,
+                        Unit = placementId,
+                        Time = string.format("%.2f", tick() - GameTracking.gameStartTime)
+                    }
+                    
+                    if levelIncrease > 1 then
+                        record.Amount = levelIncrease
                     end
+                    
+                    table.insert(macro, record)
+                    
+                    local upgradeText = levelIncrease > 1 
+                        and string.format(" (x%d)", levelIncrease) or ""
+                    
+                    print(string.format("✓ Recorded upgrade%s: %s (L%d→L%d) at %.2fs", 
+                        upgradeText, placementId, lastLevel, currentLevel, 
+                        tick() - GameTracking.gameStartTime))
+                    
+                    -- Update tracked level
+                    MacroSystem.trackedUnits[combinedId].lastLevel = currentLevel
                 end
             end
         end
-    end)
+    end
+end)
 
     print("Macro hooks initialized - placement, sell, and upgrade monitoring active")
 end
