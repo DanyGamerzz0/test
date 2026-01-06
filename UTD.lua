@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.34"
+local script_version = "V0.35"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -496,29 +496,27 @@ local function getSlotForUnit(unitName)
 end
 
 local function getUnitData(unitName)
-    -- Access unit data from the Towers module
-    -- Path: game:GetService("ReplicatedStorage").Shared.Data.Towers[UnitName]
+    -- Clean the unit name (remove :shiny suffix)
+    local cleanUnitName = unitName:gsub(":[Ss]hiny$", "")
+    
     local success, result = pcall(function()
         local module = game:GetService("ReplicatedStorage")
             .Shared
             .Data
             .Towers
-            :FindFirstChild(unitName)
+            :FindFirstChild(cleanUnitName)  -- Use cleaned name here
         
         if not module then
             return nil
         end
         
-        -- Check if it's a ModuleScript
         if module:IsA("ModuleScript") then
             local required = require(module)
             
-            -- If it's a function, call it to get the actual data
             if type(required) == "function" then
                 return required()
             end
             
-            -- Otherwise return the table directly
             return required
         end
         
