@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.23"
+    local script_version = "V0.24"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3146,24 +3146,28 @@ end
 if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
     setProcessingState("Legend Stage Auto Join")
 
-    -- Try the direct construction first (what we already have)
+    -- FIXED: Construct the proper legend ID format
     local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
     
-    -- Verify if this ID exists in the level modules
-    local allLevels = getAllLevelsData()
+    -- Check if the ID already contains "legend" - if not, insert it before the act number
     local finalLevelId = completeLegendStageId
-
-    print("DEBUG - Legend Auto Join:")
-print("  Selected display name:", State.LegendStageSelected)
-print("  Constructed ID:", completeLegendStageId)
-print("  Final ID being sent:", finalLevelId)
+    if not completeLegendStageId:lower():find("legend") then
+        -- Split the ID to insert "_legend" before the act number
+        -- Example: "MirrorWorld_1" -> "MirrorWorld_legend_1"
+        local baseName, actPart = completeLegendStageId:match("^(.-)(__%d+)$")
+        if baseName and actPart then
+            finalLevelId = baseName .. "_legend" .. actPart
+            print("Legend: Inserted '_legend' into ID:", completeLegendStageId, "->", finalLevelId)
+        end
+    end
     
-    -- If direct construction doesn't exist, try with getExactLevelId
-    if not allLevels[completeLegendStageId] then
-        print("Legend: Direct ID not found, trying getExactLevelId...")
-        finalLevelId = getExactLevelId(completeLegendStageId)
+    -- Verify the ID exists in modules
+    local allLevels = getAllLevelsData()
+    if not allLevels[finalLevelId] then
+        print("Legend: Constructed ID not found, trying getExactLevelId...")
+        finalLevelId = getExactLevelId(finalLevelId)
     else
-        print("Legend: Direct ID verified in modules:", completeLegendStageId)
+        print("Legend: Constructed ID verified in modules:", finalLevelId)
     end
     
     print("Legend: Using final ID:", finalLevelId)
@@ -3732,20 +3736,22 @@ end
     })
 
     LegendChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Legend Stage Act",
-        Options = {"Act 1", "Act 2", "Act 3"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "LegendActSelector",
-        Callback = function(Option)
-            local selectedOption = type(Option) == "table" and Option[1] or Option
-            
-            local num = selectedOption:match("%d+")
-            if num then
-                State.LegendActSelected = "_" .. num
-            end
-        end,
-    })
+    Name = "Select Legend Stage Act",
+    Options = {"Act 1", "Act 2", "Act 3"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "LegendActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        
+        local num = selectedOption:match("%d+")
+        if num then
+            -- FIXED: Use "_legend_" format for legend acts
+            State.LegendActSelected = "_legend_" .. num
+            print("Selected Legend Act format:", State.LegendActSelected)
+        end
+    end,
+})
 
     JoinerTab:CreateToggle({
     Name = "Auto Matchmake Legend Stage",
