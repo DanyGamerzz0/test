@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.33"
+    local script_version = "V0.34"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2367,35 +2367,35 @@ end
 end
 
 
-    local function getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
-        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+local function getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
+    local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+    local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+    
+    if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
+        return nil
+    end
+    
+    for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
+        local worldModules = WorldsFolder:GetChildren()
         
-        if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
-            return nil
-        end
-        
-        for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
-            local worldModules = WorldsFolder:GetChildren()
-            
-            for _, worldModule in ipairs(worldModules) do
-                if worldModule:IsA("ModuleScript") then
-                    local success, worldData = pcall(require, worldModule)
+        for _, worldModule in ipairs(worldModules) do
+            if worldModule:IsA("ModuleScript") then
+                local success, worldData = pcall(require, worldModule)
+                
+                if success and worldData and worldData[orderedWorldKey] then
+                    local worldInfo = worldData[orderedWorldKey]
                     
-                    if success and worldData and worldData[orderedWorldKey] then
-                        local worldInfo = worldData[orderedWorldKey]
-                        
-                        if type(worldInfo) == "table" and worldInfo.raid_world and worldInfo.name == selectedDisplayName then
-                            return orderedWorldKey .. "_Raid"
-                        end
-                        break
+                    if type(worldInfo) == "table" and worldInfo.raid_world and worldInfo.name == selectedDisplayName then
+                        return orderedWorldKey -- REMOVED the "_Raid" suffix here
                     end
+                    break
                 end
             end
         end
-        
-        return nil
     end
+    
+    return nil
+end
 
     local function isInLobby()
         return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
