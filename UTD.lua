@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.33"
+local script_version = "V0.34"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -486,7 +486,7 @@ local function getSlotForUnit(unitName)
     
     for slot, name in pairs(loadout) do
         local cleanLoadoutName = name:gsub(":[Ss]hiny$", "")
-        
+
         if cleanLoadoutName == cleanSearchName then
             return slot
         end
@@ -557,30 +557,33 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
     
     excludeUUIDs = excludeUUIDs or {}
     
+    -- Clean the search name (remove :shiny suffix)
+    local cleanUnitName = unitName:gsub(":[Ss]hiny$", "")
+    
     local candidates = {}
     
     for _, obj in pairs(getgc(true)) do
         if type(obj) == "table" then
-            -- Check if it has GUID field (UUID)
             local guid = rawget(obj, "GUID")
             
             if guid and type(guid) == "string" and string.find(guid, "-") then
-                -- Skip if we're already tracking this UUID
                 if excludeUUIDs[guid] then
                     continue
                 end
                 
-                -- Check if it matches our unit name
                 local objUnitId = rawget(obj, "UnitId") or rawget(obj, "TowerID")
                 local objName = rawget(obj, "Name")
                 
-                if objUnitId == unitName or objName == unitName then
-                    -- Verify it has other unit-specific fields
+                -- Clean the unit names from GC too
+                local cleanObjUnitId = objUnitId and objUnitId:gsub(":[Ss]hiny$", "") or nil
+                local cleanObjName = objName and objName:gsub(":[Ss]hiny$", "") or nil
+                
+                -- Compare cleaned names
+                if cleanObjUnitId == cleanUnitName or cleanObjName == cleanUnitName then
                     local hasUpgrade = rawget(obj, "Upgrade") ~= nil
                     local hasModel = rawget(obj, "Model") ~= nil
                     
                     if hasUpgrade and hasModel then
-                        -- Verify the model exists in workspace
                         local model = rawget(obj, "Model")
                         local modelExists = false
                         
@@ -596,9 +599,6 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
                                 unitName = objUnitId or objName,
                                 data = obj
                             })
-                            
-                            --print(string.format("✅ Found candidate: %s (UUID=%s, Level=%d)", 
-                                --objUnitId or objName, guid, rawget(obj, "Upgrade") or 1))
                         end
                     end
                 end
@@ -611,7 +611,6 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
         return nil, nil
     end
     
-    -- If multiple candidates, return the one with lowest upgrade level (newest)
     table.sort(candidates, function(a, b) 
         local aLevel = rawget(a.data, "Upgrade") or 1
         local bLevel = rawget(b.data, "Upgrade") or 1
@@ -619,7 +618,6 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
     end)
     
     local best = candidates[1]
-    --print(string.format("✅ Selected: %s (UUID=%s)", best.unitName, best.uuid))
     
     return best.uuid, best.unitName
 end
