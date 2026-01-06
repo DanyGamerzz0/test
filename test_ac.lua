@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.3"
+    local script_version = "V0.31"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3026,6 +3026,55 @@ end
     return approximateId
 end
 
+local function getExactStoryLevelId(worldKey, actNumber)
+    local success, exactLevelId = pcall(function()
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        
+        -- Search through all world modules to find this world
+        for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+            if worldModule:IsA("ModuleScript") then
+                local moduleSuccess, worldData = pcall(require, worldModule)
+                
+                if moduleSuccess and worldData and worldData[worldKey] then
+                    local worldInfo = worldData[worldKey]
+                    
+                    -- Check if this world has levels
+                    if worldInfo.levels then
+                        -- Look for the act in the levels table
+                        for levelKey, levelData in pairs(worldInfo.levels) do
+                            if type(levelData) == "table" and levelData.id then
+                                -- Check if this is the right act number
+                                -- Handle both "level_1" and "1" formats
+                                local actMatch = levelKey:match("_?(%d+)$")
+                                if actMatch and tonumber(actMatch) == actNumber then
+                                    print(string.format("Found exact level ID: %s (world: %s, act: %d)", 
+                                        levelData.id, worldKey, actNumber))
+                                    return levelData.id
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Check infinite mode if act is "infinite"
+                    if actNumber == "infinite" and worldInfo.infinite and worldInfo.infinite.id then
+                        print(string.format("Found infinite level ID: %s", worldInfo.infinite.id))
+                        return worldInfo.infinite.id
+                    end
+                end
+            end
+        end
+        
+        return nil
+    end)
+    
+    if success and exactLevelId then
+        return exactLevelId
+    end
+    
+    warn(string.format("Could not find exact level ID for world: %s, act: %s", worldKey, tostring(actNumber)))
+    return nil
+end
+
    local function checkAndExecuteHighestPriority()
         if not isInLobby() then return end
         if AutoJoinState.isProcessing then return end
@@ -4856,55 +4905,6 @@ local function loadLegendStagesWithRetry()
             end
         end
     end
-
-    local function getExactStoryLevelId(worldKey, actNumber)
-    local success, exactLevelId = pcall(function()
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-        
-        -- Search through all world modules to find this world
-        for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
-            if worldModule:IsA("ModuleScript") then
-                local moduleSuccess, worldData = pcall(require, worldModule)
-                
-                if moduleSuccess and worldData and worldData[worldKey] then
-                    local worldInfo = worldData[worldKey]
-                    
-                    -- Check if this world has levels
-                    if worldInfo.levels then
-                        -- Look for the act in the levels table
-                        for levelKey, levelData in pairs(worldInfo.levels) do
-                            if type(levelData) == "table" and levelData.id then
-                                -- Check if this is the right act number
-                                -- Handle both "level_1" and "1" formats
-                                local actMatch = levelKey:match("_?(%d+)$")
-                                if actMatch and tonumber(actMatch) == actNumber then
-                                    print(string.format("Found exact level ID: %s (world: %s, act: %d)", 
-                                        levelData.id, worldKey, actNumber))
-                                    return levelData.id
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Check infinite mode if act is "infinite"
-                    if actNumber == "infinite" and worldInfo.infinite and worldInfo.infinite.id then
-                        print(string.format("Found infinite level ID: %s", worldInfo.infinite.id))
-                        return worldInfo.infinite.id
-                    end
-                end
-            end
-        end
-        
-        return nil
-    end)
-    
-    if success and exactLevelId then
-        return exactLevelId
-    end
-    
-    warn(string.format("Could not find exact level ID for world: %s, act: %s", worldKey, tostring(actNumber)))
-    return nil
-end
 
 local function loadStoryStagesWithRetry()
     loadingRetries.story = loadingRetries.story + 1
