@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.16"
+    local script_version = "V0.17"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1651,13 +1651,20 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     end
     
     local uuidValue = stats:FindFirstChild("uuid")
+    local spawnIdValue = stats:FindFirstChild("spawn_id")
+    
     if not uuidValue or not uuidValue:IsA("StringValue") then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No UUID for %s", 
             actionIndex, totalActionCount, placementId))
         return false
     end
     
-    local currentUUID = uuidValue.Value
+    -- CREATE COMBINED IDENTIFIER (UUID + spawn_id)
+    local combinedIdentifier = uuidValue.Value
+    if spawnIdValue then
+        combinedIdentifier = combinedIdentifier .. spawnIdValue.Value
+        print(string.format("Created combined identifier for ability: %s", combinedIdentifier))
+    end
     
     local abilityDesc = action.AbilityName and 
         string.format("ability '%s'", action.AbilityName) or "ability"
@@ -1669,9 +1676,11 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
         
         if action.AbilityName then
-            endpoints:WaitForChild("use_active_attack"):InvokeServer(currentUUID, action.AbilityName)
+            -- Pass combined identifier + ability name
+            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier, action.AbilityName)
         else
-            endpoints:WaitForChild("use_active_attack"):InvokeServer(currentUUID)
+            -- Pass combined identifier only
+            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
         end
     end)
     
