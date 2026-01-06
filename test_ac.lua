@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.21"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3144,19 +3144,28 @@ end
 if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
     setProcessingState("Legend Stage Auto Join")
 
-    -- Build the legend stage ID the old way
+    -- Try the direct construction first (what we already have)
     local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
     
-    -- NEW: Get the exact ID from modules (NO string.lower()!)
-    local exactLevelId = getExactLevelId(completeLegendStageId)
-    print("Legend: Constructed", completeLegendStageId, "-> Using exact ID:", exactLevelId)
+    -- Verify if this ID exists in the level modules
+    local allLevels = getAllLevelsData()
+    local finalLevelId = completeLegendStageId
+    
+    -- If direct construction doesn't exist, try with getExactLevelId
+    if not allLevels[completeLegendStageId] then
+        print("Legend: Direct ID not found, trying getExactLevelId...")
+        finalLevelId = getExactLevelId(completeLegendStageId)
+    else
+        print("Legend: Direct ID verified in modules:", completeLegendStageId)
+    end
+    
+    print("Legend: Using final ID:", finalLevelId)
 
     if State.AutoMatchmakeLegendStage then            
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(exactLevelId, {Difficulty = "Normal"})
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(finalLevelId, {Difficulty = "Normal"})
     else
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", exactLevelId, false, "Hard")
-        --Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", finalLevelId, false, "Hard")
     end
     task.delay(5, clearProcessingState)
     return
