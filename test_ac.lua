@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.27"
+    local script_version = "V0.28"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3148,19 +3148,21 @@ if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSe
 
     local baseStageId = State.LegendStageSelected  -- e.g., "MirrorWorld" or "ds_legend"
     
-    -- FIXED: Check if "_legend" is missing and add it before the act number
-    local finalLevelId
+    -- Check if "_legend" is missing and add it before the act number
+    local constructedId
     if not baseStageId:lower():find("legend") then
-        -- Add "_legend_" before the act number
-        finalLevelId = baseStageId .. "_legend_" .. State.LegendActSelected
-        print("Legend: Added '_legend_' to base:", baseStageId, "->", finalLevelId)
+        constructedId = baseStageId .. "_legend_" .. State.LegendActSelected
+        print("Legend: Added '_legend_' to base:", baseStageId, "->", constructedId)
     else
-        -- Already has "legend", just append act number
-        finalLevelId = baseStageId .. "_" .. State.LegendActSelected
-        print("Legend: Base already has 'legend':", finalLevelId)
+        constructedId = baseStageId .. "_" .. State.LegendActSelected
+        print("Legend: Base already has 'legend':", constructedId)
     end
     
-    print("Legend: Using final ID:", finalLevelId)
+    -- CRITICAL FIX: Always use getExactLevelId to correct casing and verify existence
+    local finalLevelId = getExactLevelId(constructedId)
+    
+    print("Legend: Constructed ID:", constructedId)
+    print("Legend: Corrected to exact ID:", finalLevelId)
 
     if State.AutoMatchmakeLegendStage then            
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(finalLevelId, {Difficulty = "Normal"})
