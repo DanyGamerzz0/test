@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.2"
+    local script_version = "V0.21"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3156,7 +3156,7 @@ if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSe
     else
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", exactLevelId, false, "Hard")
-        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
+        --Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
     end
     task.delay(5, clearProcessingState)
     return
