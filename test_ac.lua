@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.26"
+    local script_version = "V0.27"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3146,11 +3146,21 @@ end
 if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
     setProcessingState("Legend Stage Auto Join")
 
-    -- The LegendStageSelected already IS "ds_legend" (the base)
-    -- We just need to append the act number
-    local finalLevelId = State.LegendStageSelected .. "_" .. State.LegendActSelected
+    local baseStageId = State.LegendStageSelected  -- e.g., "MirrorWorld" or "ds_legend"
     
-    print("Legend: Using final ID:", finalLevelId)  -- Should be "ds_legend_1"
+    -- FIXED: Check if "_legend" is missing and add it before the act number
+    local finalLevelId
+    if not baseStageId:lower():find("legend") then
+        -- Add "_legend_" before the act number
+        finalLevelId = baseStageId .. "_legend_" .. State.LegendActSelected
+        print("Legend: Added '_legend_' to base:", baseStageId, "->", finalLevelId)
+    else
+        -- Already has "legend", just append act number
+        finalLevelId = baseStageId .. "_" .. State.LegendActSelected
+        print("Legend: Base already has 'legend':", finalLevelId)
+    end
+    
+    print("Legend: Using final ID:", finalLevelId)
 
     if State.AutoMatchmakeLegendStage then            
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(finalLevelId, {Difficulty = "Normal"})
