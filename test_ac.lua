@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.13"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1106,7 +1106,7 @@ local function setupMacroHooksRefactored()
         })
     end)
 end
-        end
+end
 
         return oldNamecall(self, ...)
     end)
@@ -6340,10 +6340,19 @@ local function playMacroWithGameTimingRefactored()
     
     MacroSystem.macroHasPlayedThisGame = true
     local totalActions = #macro
+    local scheduledAbilities = 0 -- Track scheduled abilities
     
     if State.IgnoreTiming then
-        updateDetailedStatus(string.format("Starting immediate playback with %d actions (abilities scheduled in background)", totalActions))
-        print("Starting immediate macro playback (ignoring timing, scheduling abilities)")
+        -- Count abilities to schedule
+        for _, action in ipairs(macro) do
+            if action.Type == "use_active_attack" then
+                scheduledAbilities = scheduledAbilities + 1
+            end
+        end
+        
+        updateDetailedStatus(string.format("Starting immediate playback with %d actions (%d abilities will execute at scheduled times)", 
+            totalActions, scheduledAbilities))
+        print(string.format("Starting immediate macro playback - %d abilities will be scheduled", scheduledAbilities))
     else
         updateDetailedStatus(string.format("Starting game-time playback with %d actions", totalActions))
         print("Starting macro playback with absolute game timing")
@@ -6360,6 +6369,8 @@ local function playMacroWithGameTimingRefactored()
         print("Setting game start time for playback:", GameTracking.gameStartTime)
     end
     
+    local activeAbilityTasks = 0 -- Track active background tasks
+    
     for i, action in ipairs(macro) do
         if not MacroSystem.isPlaybacking or not GameTracking.isAutoLoopEnabled or GameTracking.gameHasEnded then
             updateDetailedStatus("Macro interrupted - stopping execution")
@@ -6367,12 +6378,11 @@ local function playMacroWithGameTimingRefactored()
             return false
         end
         
-        -- Money waiting logic for ALL timing modes (except abilities in ignore timing mode)
+        -- Money waiting logic for placement/upgrade actions
         if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
             local requiredCost = 0
             
             if action.Type == "spawn_unit" then
-                -- Calculate placement cost
                 local displayName, instanceNumber = parseUnitString(action.Unit)
                 if displayName then
                     local unitId = getUnitIdFromDisplayName(displayName)
@@ -6381,7 +6391,6 @@ local function playMacroWithGameTimingRefactored()
                     end
                 end
             elseif action.Type == "upgrade_unit_ingame" then
-                -- Calculate upgrade cost
                 local placementId = action.Unit
                 local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
                 
@@ -6415,8 +6424,13 @@ local function playMacroWithGameTimingRefactored()
                     end
                     
                     local missingMoney = requiredCost - getPlayerMoney()
-                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen (need %d, have %d)", 
-                        i, totalActions, missingMoney, requiredCost, getPlayerMoney()))
+                    local statusExtra = ""
+                    if State.IgnoreTiming and activeAbilityTasks > 0 then
+                        statusExtra = string.format(" | %d abilities scheduled", activeAbilityTasks)
+                    end
+                    
+                    updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen (need %d, have %d)%s", 
+                        i, totalActions, missingMoney, requiredCost, getPlayerMoney(), statusExtra))
                     task.wait(1)
                 end
                 
@@ -6427,26 +6441,39 @@ local function playMacroWithGameTimingRefactored()
             end
         end
         
-        -- NEW: Handle abilities separately when ignore timing is enabled
+        -- Handle abilities separately when ignore timing is enabled
         if State.IgnoreTiming and action.Type == "use_active_attack" then
-            -- Schedule ability in background without blocking macro execution
+            activeAbilityTasks = activeAbilityTasks + 1
+            
+            -- Schedule ability in background
             task.spawn(function()
+                local abilityIndex = activeAbilityTasks
                 local targetGameTime = tonumber(action.Time) or 0
                 local currentGameTime = tick() - GameTracking.gameStartTime
                 local waitTime = targetGameTime - currentGameTime
                 
                 if waitTime > 0 then
-                    print(string.format("[Background Ability] Scheduled %s for %.2fs from now", 
-                        action.Unit, waitTime))
+                    print(string.format("[Ability %d/%d] Scheduled %s for %.2fs from now", 
+                        abilityIndex, scheduledAbilities, action.Unit, waitTime))
                     task.wait(waitTime)
                 end
                 
                 -- Execute ability at scheduled time (if macro still running)
                 if MacroSystem.isPlaybacking and not GameTracking.gameHasEnded then
-                    print(string.format("[Background Ability] Executing %s", action.Unit))
+                    print(string.format("[Ability %d/%d] Executing %s", 
+                        abilityIndex, scheduledAbilities, action.Unit))
                     validateAbilityActionWithSpawnIdMapping(action, i, totalActions)
+                    activeAbilityTasks = activeAbilityTasks - 1
+                    
+                    if activeAbilityTasks == 0 then
+                        print("All scheduled abilities completed")
+                    end
                 end
             end)
+            
+            -- Update status to show ability was scheduled
+            updateDetailedStatus(string.format("(%d/%d) Scheduled ability: %s (%d abilities queued)", 
+                i, totalActions, action.Unit, activeAbilityTasks))
             
             -- Continue immediately to next action
             continue
@@ -6482,7 +6509,7 @@ local function playMacroWithGameTimingRefactored()
             end
         end
         
-        -- Execute the action (non-ability actions in ignore timing mode, or all actions in timing mode)
+        -- Execute the action
         local actionSuccess = executeActionWithSpawnIdMapping(action, i, totalActions)
         
         if not actionSuccess then
@@ -6490,13 +6517,17 @@ local function playMacroWithGameTimingRefactored()
         end
     end
     
-    if State.IgnoreTiming then
-        updateDetailedStatus("Immediate macro playback completed (abilities scheduled)")
-        print("Immediate macro playback completed (abilities will execute at scheduled times)")
+    -- Final status message
+    if State.IgnoreTiming and activeAbilityTasks > 0 then
+        updateDetailedStatus(string.format("Immediate playback completed - %d abilities still executing in background", 
+            activeAbilityTasks))
+        print(string.format("Immediate macro playback completed - %d abilities will execute at scheduled times", 
+            activeAbilityTasks))
     else
-        updateDetailedStatus("Game-time macro playback completed")
-        print("Game-time macro playback completed")
+        updateDetailedStatus("Macro playback completed")
+        print("Macro playback completed")
     end
+    
     return true
 end
 
