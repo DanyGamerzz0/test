@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.24"
+    local script_version = "V0.25"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3735,7 +3735,7 @@ end
         end,
     })
 
-    LegendChapterDropdown = JoinerTab:CreateDropdown({
+LegendChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Legend Stage Act",
     Options = {"Act 1", "Act 2", "Act 3"},
     CurrentOption = {},
@@ -3746,9 +3746,16 @@ end
         
         local num = selectedOption:match("%d+")
         if num then
-            -- FIXED: Use "_legend_" format for legend acts
-            State.LegendActSelected = "_legend_" .. num
-            print("Selected Legend Act format:", State.LegendActSelected)
+            -- FIXED: Only add "_legend_" if the stage doesn't already have it
+            if State.LegendStageSelected and State.LegendStageSelected:lower():find("legend") then
+                -- Stage already has "legend" in it, just use the act number
+                State.LegendActSelected = "_" .. num
+                --print("Selected Legend Act (stage already has legend):", State.LegendActSelected)
+            else
+                -- Stage doesn't have "legend", add it
+                State.LegendActSelected = "_legend_" .. num
+                --print("Selected Legend Act (added legend):", State.LegendActSelected)
+            end
         end
     end,
 })
