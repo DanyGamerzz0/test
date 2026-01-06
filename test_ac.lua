@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.12"
+    local script_version = "V0.13"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -769,12 +769,19 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     end
 
     local actualUUID = uuidValue.Value
+    local spawnIdValue = stats:FindFirstChild("spawn_id")
+
+        local combinedIdentifier = actualUUID
+    if spawnIdValue then
+        combinedIdentifier = actualUUID .. spawnIdValue.Value
+        print("DEBUG: Created combined identifier for placement:", combinedIdentifier)
+    end
 
     -- Map UUID to logical placement for ability/upgrade/sell tracking
-    MacroSystem.recordingSpawnIdToPlacement[actualUUID] = placementId
-    MacroSystem.recordingUnitNameToSpawnId[spawnedUnit.Name] = actualUUID
+    MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier] = placementId
+    MacroSystem.recordingUnitNameToSpawnId[spawnedUnit.Name] = combinedIdentifier
 
-    print(string.format("Mapped UUID %s -> %s", actualUUID, placementId))
+    print(string.format("Mapped combined ID %s -> %s", combinedIdentifier, placementId))
     
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
@@ -940,32 +947,22 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
     local rawUnitUUID = actionInfo.unitUUID
     
     -- DEBUG: Print ALL current mappings
-    print("=== CURRENT UUID MAPPINGS ===")
-    for uuid, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
-        print(string.format("  UUID: %s -> Placement: %s", uuid, placement))
+    print("=== CURRENT COMBINED ID MAPPINGS ===")
+    for combinedId, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
+        print(string.format("  Combined ID: %s -> Placement: %s", combinedId, placement))
     end
-    print(string.format("=== SEARCHING FOR UUID: %s ===", rawUnitUUID))
+    print(string.format("=== SEARCHING FOR COMBINED ID: %s ===", rawUnitUUID))
     
-    -- Find which placement ID this UUID belongs to BY CHECKING THE MAPPING DIRECTLY
+    -- Find which placement ID this combined identifier belongs to
     local placementId = nil
     
-    -- First, try exact match
+    -- First, try exact match with the combined identifier
     placementId = MacroSystem.recordingSpawnIdToPlacement[rawUnitUUID]
     
-    -- If no exact match, try substring match (ability UUID might have extra chars)
-    if not placementId then
-        for storedUUID, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
-            -- Check if ability UUID STARTS WITH the stored UUID
-            if rawUnitUUID:sub(1, #storedUUID) == storedUUID then
-                placementId = placement
-                print(string.format("Ability UUID match: %s starts with %s -> %s", rawUnitUUID, storedUUID, placement))
-                break
-            end
-        end
-    end
-    
-    if not placementId then
-        warn("Could not find placement ID for ability UUID:", rawUnitUUID)
+    if placementId then
+        print(string.format("Found exact match: %s -> %s", rawUnitUUID, placementId))
+    else
+        warn("Could not find placement ID for combined identifier:", rawUnitUUID)
         return
     end
     
@@ -1066,6 +1063,33 @@ local function setupMacroHooksRefactored()
            elseif self.Name == "use_active_attack" then
     -- Record ability usage with optional ability name
     task.spawn(function()
+        -- Get the unit's UUID AND spawn_id to create stable identifier
+        local unitIdentifier = args[1] -- This is the UUID passed to the remote
+        
+        -- Try to find the actual unit to get its spawn_id
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if unitsFolder then
+            for _, unit in pairs(unitsFolder:GetChildren()) do
+                if isOwnedByLocalPlayer(unit) then
+                    local stats = unit:FindFirstChild("_stats")
+                    if stats then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        local spawnIdValue = stats:FindFirstChild("spawn_id")
+                        
+                        if uuidValue and uuidValue:IsA("StringValue") and 
+                           uuidValue.Value == args[1] then
+                            -- Found the unit - create combined identifier
+                            if spawnIdValue then
+                                unitIdentifier = uuidValue.Value .. spawnIdValue.Value
+                                print("DEBUG: Created combined identifier:", unitIdentifier)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
         -- Only include abilityName if args[2] exists AND is a string AND is not empty
         local abilityName = nil
         if args[2] and type(args[2]) == "string" and args[2] ~= "" then
@@ -1076,12 +1100,12 @@ local function setupMacroHooksRefactored()
         end
         
         processAbilityActionWithSpawnIdMapping({
-            unitUUID = args[1],
+            unitUUID = unitIdentifier, -- Now using UUID+spawn_id
             abilityName = abilityName,
             timestamp = tick()
         })
     end)
-            end
+end
         end
 
         return oldNamecall(self, ...)
