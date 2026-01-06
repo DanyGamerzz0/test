@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.29"
+    local script_version = "V0.3"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3121,22 +3121,25 @@ end
         end
 
         -- STORY
-        if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
+if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
     setProcessingState("Story Auto Join")
 
-    -- Build the stage ID the old way
-    local completeStageId = State.StoryStageSelected .. State.StoryActSelected
+    -- Get EXACT level ID from modules (no guessing!)
+    local exactLevelId = getExactStoryLevelId(State.StoryStageSelected, State.StoryActSelected)
     
-    -- NEW: Get the exact ID from modules
-    local exactLevelId = getExactLevelId(completeStageId)
-    print("Story: Constructed", completeStageId, "-> Using exact ID:", exactLevelId)
+    if not exactLevelId then
+        warn("Failed to get exact level ID for story stage:", State.StoryStageSelected, "act:", State.StoryActSelected)
+        clearProcessingState()
+        return
+    end
+    
+    print("Story auto-join using EXACT level ID:", exactLevelId)
 
     if State.AutoMatchmakeStoryStage then      
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(exactLevelId, {Difficulty = State.StoryDifficultySelected})
     else
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", exactLevelId, false, State.StoryDifficultySelected)
-        --Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
     end
     task.delay(5, clearProcessingState)
     return
@@ -3599,65 +3602,64 @@ end
         end,
     })
 
-    local StoryStageDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Story Stage",
-        Options = {},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "StageStorySelector",
-        Callback = function(Option)
-            -- Safety check - don't run if data isn't loaded yet
-            if not isGameDataLoaded() then
-                warn("Game data not loaded yet, ignoring story stage selection")
-                return
+local StoryStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Story Stage",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StageStorySelector",
+    Callback = function(Option)
+        if not isGameDataLoaded() then
+            warn("Game data not loaded yet, ignoring story stage selection")
+            return
+        end
+        
+        local selectedDisplayName
+        if type(Option) == "table" and Option[1] then
+            selectedDisplayName = Option[1]
+        elseif type(Option) == "string" then
+            selectedDisplayName = Option
+        else
+            warn("Invalid option type in StoryStageDropdown:", type(Option))
+            return
+        end
+        
+        local success, backendWorldKey = pcall(function()
+            return getBackendWorldKeyFromDisplayName(selectedDisplayName)
+        end)
+        
+        if success and backendWorldKey then
+            State.StoryStageSelected = backendWorldKey -- Store EXACT backend key
+            print("Selected story stage:", selectedDisplayName, "-> Stored backend key:", backendWorldKey)
+        else
+            warn("Failed to get backend world key for story stage:", selectedDisplayName)
+            if not success then
+                warn("Error:", backendWorldKey)
             end
-            
-            -- Handle both table and string inputs safely
-            local selectedDisplayName
-            if type(Option) == "table" and Option[1] then
-                selectedDisplayName = Option[1]
-            elseif type(Option) == "string" then
-                selectedDisplayName = Option
-            else
-                warn("Invalid option type in StoryStageDropdown:", type(Option))
-                return
-            end
-            
-            -- Safely call the backend function with additional error handling
-            local success, backendWorldKey = pcall(function()
-                return getBackendWorldKeyFromDisplayName(selectedDisplayName)
-            end)
-            
-            if success and backendWorldKey then
-                State.StoryStageSelected = backendWorldKey
-                print("Selected story stage:", selectedDisplayName, "->", backendWorldKey)
-            else
-                warn("Failed to get backend world key for story stage:", selectedDisplayName)
-                if not success then
-                    warn("Error:", backendWorldKey)
-                end
-            end
-        end,
-    })
+        end
+    end,
+})
 
-     ChapterDropdown869 = JoinerTab:CreateDropdown({
-        Name = "Select Story Act",
-        Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "StoryActSelector",
-        Callback = function(Option)
-            local selectedOption = type(Option) == "table" and Option[1] or Option
-            if selectedOption == "Infinite" then
-                State.StoryActSelected = "_infinite"
-            else
-                local num = selectedOption:match("%d+")
-                if num then
-                    State.StoryActSelected = "_level_" .. num
-                end
+ChapterDropdown869 = JoinerTab:CreateDropdown({
+    Name = "Select Story Act",
+    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        if selectedOption == "Infinite" then
+            State.StoryActSelected = "infinite"
+            print("Selected story act: infinite")
+        else
+            local num = selectedOption:match("%d+")
+            if num then
+                State.StoryActSelected = tonumber(num) -- Store as NUMBER not string
+                print("Selected story act number:", State.StoryActSelected)
             end
-        end,
-    })
+        end
+    end,
+})
 
      ChapterDropdown = JoinerTab:CreateDropdown({
         Name = "Select Story Difficulty",
@@ -4855,71 +4857,121 @@ local function loadLegendStagesWithRetry()
         end
     end
 
-    local function loadStoryStagesWithRetry()
-        loadingRetries.story = loadingRetries.story + 1
+    local function getExactStoryLevelId(worldKey, actNumber)
+    local success, exactLevelId = pcall(function()
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
-        if not isGameDataLoaded() then
-            if loadingRetries.story <= maxRetries then
-                print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
-                task.wait(retryDelay)
-                task.spawn(loadStoryStagesWithRetry)
-            else
-                warn("Failed to load story stages after", maxRetries, "attempts - giving up")
-                StoryStageDropdown:Refresh({"Failed to load - check console"})
-            end
-            return
-        end
-        
-        local success, result = pcall(function()
-            local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-            local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-            
-            if not WorldLevelOrder or not WorldLevelOrder.WORLD_ORDER then
-                error("WorldLevelOrder or WORLD_ORDER not found")
-            end
-
-            local displayNames = {}
-            
-            for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
-                local worldModules = WorldsFolder:GetChildren()
+        -- Search through all world modules to find this world
+        for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+            if worldModule:IsA("ModuleScript") then
+                local moduleSuccess, worldData = pcall(require, worldModule)
                 
-                for _, worldModule in ipairs(worldModules) do
-                    if worldModule:IsA("ModuleScript") then
-                        local moduleSuccess, worldData = pcall(require, worldModule)
-                        
-                        if moduleSuccess and worldData and worldData[orderedWorldKey] then
-                            local worldInfo = worldData[orderedWorldKey]
-                            
-                            if type(worldInfo) == "table" and worldInfo.name then
-                                table.insert(displayNames, worldInfo.name)
+                if moduleSuccess and worldData and worldData[worldKey] then
+                    local worldInfo = worldData[worldKey]
+                    
+                    -- Check if this world has levels
+                    if worldInfo.levels then
+                        -- Look for the act in the levels table
+                        for levelKey, levelData in pairs(worldInfo.levels) do
+                            if type(levelData) == "table" and levelData.id then
+                                -- Check if this is the right act number
+                                -- Handle both "level_1" and "1" formats
+                                local actMatch = levelKey:match("_?(%d+)$")
+                                if actMatch and tonumber(actMatch) == actNumber then
+                                    print(string.format("Found exact level ID: %s (world: %s, act: %d)", 
+                                        levelData.id, worldKey, actNumber))
+                                    return levelData.id
+                                end
                             end
-                            break
                         end
+                    end
+                    
+                    -- Check infinite mode if act is "infinite"
+                    if actNumber == "infinite" and worldInfo.infinite and worldInfo.infinite.id then
+                        print(string.format("Found infinite level ID: %s", worldInfo.infinite.id))
+                        return worldInfo.infinite.id
                     end
                 end
             end
-            
-            if #displayNames == 0 then
-                error("No story stages found")
-            end
-            
-            return displayNames
-        end)
+        end
         
-        if success and result and #result > 0 then
-            StoryStageDropdown:Refresh(result)
-            print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
+        return nil
+    end)
+    
+    if success and exactLevelId then
+        return exactLevelId
+    end
+    
+    warn(string.format("Could not find exact level ID for world: %s, act: %s", worldKey, tostring(actNumber)))
+    return nil
+end
+
+local function loadStoryStagesWithRetry()
+    loadingRetries.story = loadingRetries.story + 1
+    
+    if not isGameDataLoaded() then
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
+            task.wait(retryDelay)
+            task.spawn(loadStoryStagesWithRetry)
         else
-            if loadingRetries.story <= maxRetries then
-                print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
-                task.wait(retryDelay)
-                task.spawn(loadStoryStagesWithRetry)
-            else
-                warn("Failed to load story stages after", maxRetries, "attempts:", result)
-                StoryStageDropdown:Refresh({"Failed to load - check console"})
+            warn("Failed to load story stages after", maxRetries, "attempts - giving up")
+            StoryStageDropdown:Refresh({"Failed to load - check console"})
+        end
+        return
+    end
+    
+    local success, result = pcall(function()
+        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        
+        if not WorldLevelOrder or not WorldLevelOrder.WORLD_ORDER then
+            error("WorldLevelOrder or WORLD_ORDER not found")
+        end
+
+        local displayNames = {}
+        
+        for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
+            local worldModules = WorldsFolder:GetChildren()
+            
+            for _, worldModule in ipairs(worldModules) do
+                if worldModule:IsA("ModuleScript") then
+                    local moduleSuccess, worldData = pcall(require, worldModule)
+                    
+                    if moduleSuccess and worldData and worldData[orderedWorldKey] then
+                        local worldInfo = worldData[orderedWorldKey]
+                        
+                        if type(worldInfo) == "table" and worldInfo.name then
+                            table.insert(displayNames, worldInfo.name)
+                            print(string.format("Loaded story stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
+                        end
+                        break
+                    end
+                end
             end
         end
+        
+        if #displayNames == 0 then
+            error("No story stages found")
+        end
+        
+        return displayNames
+    end)
+    
+    if success and result and #result > 0 then
+        StoryStageDropdown:Refresh(result)
+        print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
+    else
+        if loadingRetries.story <= maxRetries then
+            print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
+            task.wait(retryDelay)
+            task.spawn(loadStoryStagesWithRetry)
+        else
+            warn("Failed to load story stages after", maxRetries, "attempts:", result)
+            StoryStageDropdown:Refresh({"Failed to load - check console"})
+        end
     end
+end
 
 local function loadRaidStagesWithRetry()
         loadingRetries.raid = loadingRetries.raid + 1
