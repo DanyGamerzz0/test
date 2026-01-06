@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.19"
+    local script_version = "V0.2"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2978,6 +2978,52 @@ end
         return false
     end
 
+    local function getAllLevelsData()
+    local allLevels = {}
+    local levelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
+    
+    if not levelsFolder then return allLevels end
+    
+    -- Scan through all level modules (Testing, Story, etc.)
+    for _, levelModule in ipairs(levelsFolder:GetDescendants()) do
+        if levelModule:IsA("ModuleScript") then
+            local success, levelData = pcall(require, levelModule)
+            
+            if success and levelData and type(levelData) == "table" then
+                -- Merge all levels from this module into our master list
+                for levelId, levelInfo in pairs(levelData) do
+                    if type(levelInfo) == "table" and levelInfo.id then
+                        allLevels[levelId] = levelInfo
+                    end
+                end
+            end
+        end
+    end
+    
+    return allLevels
+end
+
+    local function getExactLevelId(approximateId)
+    local allLevels = getAllLevelsData()
+    
+    -- Try exact match first
+    if allLevels[approximateId] then
+        return allLevels[approximateId].id
+    end
+    
+    -- Try case-insensitive match
+    local lowerApprox = approximateId:lower()
+    for levelId, levelInfo in pairs(allLevels) do
+        if levelId:lower() == lowerApprox then
+            return levelInfo.id
+        end
+    end
+    
+    -- Fallback: return what we got
+    warn("Could not find exact level ID for:", approximateId, "- using as-is")
+    return approximateId
+end
+
    local function checkAndExecuteHighestPriority()
         if not isInLobby() then return end
         if AutoJoinState.isProcessing then return end
@@ -3074,60 +3120,68 @@ end
 
         -- STORY
         if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
-            setProcessingState("Story Auto Join")
+    setProcessingState("Story Auto Join")
 
-            -- Build the complete stage ID
-            local completeStageId = State.StoryStageSelected .. State.StoryActSelected
+    -- Build the stage ID the old way
+    local completeStageId = State.StoryStageSelected .. State.StoryActSelected
+    
+    -- NEW: Get the exact ID from modules
+    local exactLevelId = getExactLevelId(completeStageId)
+    print("Story: Constructed", completeStageId, "-> Using exact ID:", exactLevelId)
 
-            if State.AutoMatchmakeStoryStage then      
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(completeStageId,{Difficulty = State.StoryDifficultySelected})
-        else
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
+    if State.AutoMatchmakeStoryStage then      
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(exactLevelId, {Difficulty = State.StoryDifficultySelected})
+    else
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", exactLevelId, false, State.StoryDifficultySelected)
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
+    end
+    task.delay(5, clearProcessingState)
+    return
+end
 
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",completeStageId,false,State.StoryDifficultySelected)
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
-        end
-            task.delay(5, clearProcessingState)
-            return
-        end
+-- LEGEND STAGE - Update ONLY the auto-join part
+if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
+    setProcessingState("Legend Stage Auto Join")
 
-        -- LEGEND STAGE
-        if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
-            setProcessingState("Legend Stage Auto Join")
+    -- Build the legend stage ID the old way
+    local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
+    
+    -- NEW: Get the exact ID from modules (NO string.lower()!)
+    local exactLevelId = getExactLevelId(completeLegendStageId)
+    print("Legend: Constructed", completeLegendStageId, "-> Using exact ID:", exactLevelId)
 
-            -- Build the complete legend stage ID
-            local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
+    if State.AutoMatchmakeLegendStage then            
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(exactLevelId, {Difficulty = "Normal"})
+    else
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", exactLevelId, false, "Hard")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
+    end
+    task.delay(5, clearProcessingState)
+    return
+end
 
-            if State.AutoMatchmakeLegendStage then            
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(string.lower(completeLegendStageId),{Difficulty = "Normal"})
-        else
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
+-- RAID - Update ONLY the auto-join part
+if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
+    setProcessingState("Raid Auto Join")
 
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1",string.lower(completeLegendStageId),false,"Hard")
+    local completeRaidStageId = State.RaidStageSelected .. State.RaidActSelected
+    
+    -- NEW: Get the exact ID from modules
+    local exactLevelId = getExactLevelId(completeRaidStageId)
+    print("Raid: Constructed", completeRaidStageId, "-> Using exact ID:", exactLevelId)
 
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
-        end
-            task.delay(5, clearProcessingState)
-            return
-        end
-        if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
-            setProcessingState("Raid Auto Join")
-
-            local completeRaidStageId = State.RaidStageSelected .. State.RaidActSelected
-
-             if State.AutoMatchmakeRaidStage then        
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(completeRaidStageId,{Difficulty = "Normal"})
-        else
-
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
-
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("R1",completeRaidStageId,false,"Hard")
-
-                Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("R1")
-        end
-            task.delay(5, clearProcessingState)
-            return
-        end
+    if State.AutoMatchmakeRaidStage then        
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(exactLevelId, {Difficulty = "Normal"})
+    else
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("R1", exactLevelId, false, "Hard")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("R1")
+    end
+    task.delay(5, clearProcessingState)
+    return
+end
     end
 
     local function enableBlackScreen()
