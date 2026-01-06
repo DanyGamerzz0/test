@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.32"
+    local script_version = "V0.33"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3079,6 +3079,9 @@ local function getExactLegendLevelId(worldKey, actNumber)
     local success, exactLevelId = pcall(function()
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
+        -- worldKey should already be the full legend key like "Shibuya_legend" or "ds_legend"
+        print("getExactLegendLevelId - worldKey:", worldKey, "actNumber:", actNumber)
+        
         -- Search through all world modules to find this world
         for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
             if worldModule:IsA("ModuleScript") then
@@ -3087,18 +3090,18 @@ local function getExactLegendLevelId(worldKey, actNumber)
                 if moduleSuccess and worldData and worldData[worldKey] then
                     local worldInfo = worldData[worldKey]
                     
-                    -- Check if this world has legend_stage with levels
-                    if worldInfo.legend_stage and worldInfo.legend_stage.levels then
-                        -- Look for the act in the legend levels table
-                        for levelKey, levelData in pairs(worldInfo.legend_stage.levels) do
-                            if type(levelData) == "table" and levelData.id then
-                                -- Check if this is the right act number
-                                local actMatch = levelKey:match("_?(%d+)$")
-                                if actMatch and tonumber(actMatch) == actNumber then
-                                    print(string.format("Found exact legend level ID: %s (world: %s, act: %d)", 
-                                        levelData.id, worldKey, actNumber))
-                                    return levelData.id
-                                end
+                    -- Check if this world has legend_stage (should be true for legend worlds)
+                    if worldInfo.legend_stage and worldInfo.levels then
+                        -- Look for the act in the levels table
+                        -- The key format is just '1', '2', '3' in the module
+                        local actKey = tostring(actNumber)
+                        
+                        if worldInfo.levels[actKey] then
+                            local levelData = worldInfo.levels[actKey]
+                            if levelData and levelData.id then
+                                print(string.format("Found exact legend level ID: %s (world: %s, act: %d)", 
+                                    levelData.id, worldKey, actNumber))
+                                return levelData.id
                             end
                         end
                     end
@@ -3121,6 +3124,8 @@ local function getExactRaidLevelId(worldKey, actNumber)
     local success, exactLevelId = pcall(function()
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
+        print("getExactRaidLevelId - worldKey:", worldKey, "actNumber:", actNumber)
+        
         -- Search through all world modules to find this world
         for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
             if worldModule:IsA("ModuleScript") then
@@ -3132,15 +3137,14 @@ local function getExactRaidLevelId(worldKey, actNumber)
                     -- Check if this world has raid_levels
                     if worldInfo.raid_levels then
                         -- Look for the act in the raid levels table
-                        for levelKey, levelData in pairs(worldInfo.raid_levels) do
-                            if type(levelData) == "table" and levelData.id then
-                                -- Check if this is the right act number
-                                local actMatch = levelKey:match("_?(%d+)$")
-                                if actMatch and tonumber(actMatch) == actNumber then
-                                    print(string.format("Found exact raid level ID: %s (world: %s, act: %d)", 
-                                        levelData.id, worldKey, actNumber))
-                                    return levelData.id
-                                end
+                        local actKey = tostring(actNumber)
+                        
+                        if worldInfo.raid_levels[actKey] then
+                            local levelData = worldInfo.raid_levels[actKey]
+                            if levelData and levelData.id then
+                                print(string.format("Found exact raid level ID: %s (world: %s, act: %d)", 
+                                    levelData.id, worldKey, actNumber))
+                                return levelData.id
                             end
                         end
                     end
