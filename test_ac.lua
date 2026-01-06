@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.34"
+    local script_version = "V0.35"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2367,35 +2367,35 @@ end
 end
 
 
-local function getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
-    local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-    local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-    
-    if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
-        return nil
-    end
-    
-    for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
-        local worldModules = WorldsFolder:GetChildren()
+    local function getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
+        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
-        for _, worldModule in ipairs(worldModules) do
-            if worldModule:IsA("ModuleScript") then
-                local success, worldData = pcall(require, worldModule)
-                
-                if success and worldData and worldData[orderedWorldKey] then
-                    local worldInfo = worldData[orderedWorldKey]
+        if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
+            return nil
+        end
+        
+        for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
+            local worldModules = WorldsFolder:GetChildren()
+            
+            for _, worldModule in ipairs(worldModules) do
+                if worldModule:IsA("ModuleScript") then
+                    local success, worldData = pcall(require, worldModule)
                     
-                    if type(worldInfo) == "table" and worldInfo.raid_world and worldInfo.name == selectedDisplayName then
-                        return orderedWorldKey -- REMOVED the "_Raid" suffix here
+                    if success and worldData and worldData[orderedWorldKey] then
+                        local worldInfo = worldData[orderedWorldKey]
+                        
+                        if type(worldInfo) == "table" and worldInfo.raid_world and worldInfo.name == selectedDisplayName then
+                            return orderedWorldKey .. "_Raid"
+                        end
+                        break
                     end
-                    break
                 end
             end
         end
+        
+        return nil
     end
-    
-    return nil
-end
 
     local function isInLobby()
         return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
@@ -3126,24 +3126,28 @@ local function getExactRaidLevelId(worldKey, actNumber)
         
         print("getExactRaidLevelId - worldKey:", worldKey, "actNumber:", actNumber)
         
+        -- Remove "_Raid" suffix if it exists (since the module key doesn't have it)
+        local cleanWorldKey = worldKey:gsub("_Raid$", "")
+        print("Cleaned worldKey:", cleanWorldKey)
+        
         -- Search through all world modules to find this world
         for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
             if worldModule:IsA("ModuleScript") then
                 local moduleSuccess, worldData = pcall(require, worldModule)
                 
-                if moduleSuccess and worldData and worldData[worldKey] then
-                    local worldInfo = worldData[worldKey]
+                if moduleSuccess and worldData and worldData[cleanWorldKey] then
+                    local worldInfo = worldData[cleanWorldKey]
                     
-                    -- Check if this world has raid_levels
-                    if worldInfo.raid_levels then
-                        -- Look for the act in the raid levels table
+                    -- Check if this is a raid world
+                    if worldInfo.raid_world and worldInfo.levels then
+                        -- Look for the act in the levels table
                         local actKey = tostring(actNumber)
                         
-                        if worldInfo.raid_levels[actKey] then
-                            local levelData = worldInfo.raid_levels[actKey]
+                        if worldInfo.levels[actKey] then
+                            local levelData = worldInfo.levels[actKey]
                             if levelData and levelData.id then
                                 print(string.format("Found exact raid level ID: %s (world: %s, act: %d)", 
-                                    levelData.id, worldKey, actNumber))
+                                    levelData.id, cleanWorldKey, actNumber))
                                 return levelData.id
                             end
                         end
