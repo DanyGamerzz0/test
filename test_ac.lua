@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.22"
+    local script_version = "V0.23"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2331,38 +2331,40 @@ end
     end
 
     local function getBackendLegendWorldKeyFromDisplayName(selectedDisplayName)
-        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+    local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+    local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+    
+    if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.LEGEND_WORLD_ORDER then
+        return nil
+    end
+    
+    -- Only search through legend worlds that are in LEGEND_WORLD_ORDER
+    for _, orderedWorldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
+        -- Get all world modules to find the one containing this world
+        local worldModules = WorldsFolder:GetChildren()
         
-        if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.LEGEND_WORLD_ORDER then
-            return nil
-        end
-        
-        -- Only search through legend worlds that are in LEGEND_WORLD_ORDER
-        for _, orderedWorldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
-            -- Get all world modules to find the one containing this world
-            local worldModules = WorldsFolder:GetChildren()
-            
-            for _, worldModule in ipairs(worldModules) do
-                if worldModule:IsA("ModuleScript") then
-                    local success, worldData = pcall(require, worldModule)
+        for _, worldModule in ipairs(worldModules) do
+            if worldModule:IsA("ModuleScript") then
+                local success, worldData = pcall(require, worldModule)
+                
+                if success and worldData and worldData[orderedWorldKey] then
+                    local worldInfo = worldData[orderedWorldKey]
                     
-                    if success and worldData and worldData[orderedWorldKey] then
-                        local worldInfo = worldData[orderedWorldKey]
-                        
-                        if type(worldInfo) == "table" and worldInfo.name and worldInfo.legend_stage then
-                            if worldInfo.name == selectedDisplayName then
-                                return orderedWorldKey -- Return the backend world key like "Shibuya_legend"
-                            end
+                    if type(worldInfo) == "table" and worldInfo.name and worldInfo.legend_stage then
+                        if worldInfo.name == selectedDisplayName then
+                            -- FIXED: Return the full legend key from LEGEND_WORLD_ORDER
+                            print("Found legend match:", selectedDisplayName, "-> Backend key:", orderedWorldKey)
+                            return orderedWorldKey -- This should be "MirrorWorld_legend_1", not "MirrorWorld_1"
                         end
-                        break -- Found the world, no need to check other modules
                     end
+                    break -- Found the world, no need to check other modules
                 end
             end
         end
-        
-        return nil
     end
+    
+    return nil
+end
 
 
     local function getBackendRaidWorldKeyFromDisplayName(selectedDisplayName)
@@ -3150,6 +3152,11 @@ if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSe
     -- Verify if this ID exists in the level modules
     local allLevels = getAllLevelsData()
     local finalLevelId = completeLegendStageId
+
+    print("DEBUG - Legend Auto Join:")
+print("  Selected display name:", State.LegendStageSelected)
+print("  Constructed ID:", completeLegendStageId)
+print("  Final ID being sent:", finalLevelId)
     
     -- If direct construction doesn't exist, try with getExactLevelId
     if not allLevels[completeLegendStageId] then
