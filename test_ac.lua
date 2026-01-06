@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.25"
+    local script_version = "V0.26"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3146,31 +3146,11 @@ end
 if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
     setProcessingState("Legend Stage Auto Join")
 
-    -- FIXED: Construct the proper legend ID format
-    local completeLegendStageId = State.LegendStageSelected .. State.LegendActSelected
+    -- The LegendStageSelected already IS "ds_legend" (the base)
+    -- We just need to append the act number
+    local finalLevelId = State.LegendStageSelected .. "_" .. State.LegendActSelected
     
-    -- Check if the ID already contains "legend" - if not, insert it before the act number
-    local finalLevelId = completeLegendStageId
-    if not completeLegendStageId:lower():find("legend") then
-        -- Split the ID to insert "_legend" before the act number
-        -- Example: "MirrorWorld_1" -> "MirrorWorld_legend_1"
-        local baseName, actPart = completeLegendStageId:match("^(.-)(__%d+)$")
-        if baseName and actPart then
-            finalLevelId = baseName .. "_legend" .. actPart
-            print("Legend: Inserted '_legend' into ID:", completeLegendStageId, "->", finalLevelId)
-        end
-    end
-    
-    -- Verify the ID exists in modules
-    local allLevels = getAllLevelsData()
-    if not allLevels[finalLevelId] then
-        print("Legend: Constructed ID not found, trying getExactLevelId...")
-        finalLevelId = getExactLevelId(finalLevelId)
-    else
-        print("Legend: Constructed ID verified in modules:", finalLevelId)
-    end
-    
-    print("Legend: Using final ID:", finalLevelId)
+    print("Legend: Using final ID:", finalLevelId)  -- Should be "ds_legend_1"
 
     if State.AutoMatchmakeLegendStage then            
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer(finalLevelId, {Difficulty = "Normal"})
@@ -3742,20 +3722,13 @@ LegendChapterDropdown = JoinerTab:CreateDropdown({
     MultipleOptions = false,
     Flag = "LegendActSelector",
     Callback = function(Option)
-        local selectedOption = type(Option) == "table" and Option[1] or Option
+       local selectedOption = type(Option) == "table" and Option[1] or Option
         
         local num = selectedOption:match("%d+")
         if num then
-            -- FIXED: Only add "_legend_" if the stage doesn't already have it
-            if State.LegendStageSelected and State.LegendStageSelected:lower():find("legend") then
-                -- Stage already has "legend" in it, just use the act number
-                State.LegendActSelected = "_" .. num
-                --print("Selected Legend Act (stage already has legend):", State.LegendActSelected)
-            else
-                -- Stage doesn't have "legend", add it
-                State.LegendActSelected = "_legend_" .. num
-                --print("Selected Legend Act (added legend):", State.LegendActSelected)
-            end
+            -- FIXED: The backend key already has everything, just store which act number
+            State.LegendActSelected = num  -- Just "1", "2", or "3"
+            print("Selected Legend Act number:", State.LegendActSelected)
         end
     end,
 })
