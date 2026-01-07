@@ -3,6 +3,11 @@ if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller an
     return
 end
 
+if game.PlaceId ~= 107573139811370 and game.PlaceId ~= 72115712027203 then
+    game:GetService("Players").LocalPlayer:Kick("GAME NOT SUPPORTED!")
+    return
+end
+
     local success, Rayfield = pcall(function()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
@@ -17,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.46"
+    local script_version = "V0.12"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
