@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.4"
+    local script_version = "V0.41"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2773,21 +2773,19 @@ local function joinDailyChallenge()
     
     if not dailyData then
         print("No daily challenge data available")
-        return false
+        return "no_data" -- Different from failed attempt
     end
     
     -- Check if we should ignore this world (using improved function)
     if checkIgnoreWorldsForDaily(dailyData) then
         print("Skipping daily challenge due to ignored world")
-        State.dailyChallengeJoinAttempts = 0 -- Reset counter for skipped challenges
-        return false
+        return "skipped" -- Return skipped status, not false
     end
     
     -- Check if challenge has desired rewards
     if not checkChallengeRewards(dailyData) then
         print("Daily challenge doesn't contain desired rewards, skipping")
-        State.dailyChallengeJoinAttempts = 0 -- Reset counter for skipped challenges
-        return false
+        return "skipped" -- Return skipped status, not false
     end
     
     -- Attempt to join the daily challenge
@@ -2811,11 +2809,10 @@ local function joinDailyChallenge()
     
     if success then
         notify("Daily Challenge", string.format("Joining daily challenge: %s", dailyData.current_challenge or "Unknown"))
-        State.dailyChallengeJoinAttempts = 0 -- Reset on success
-        return true
+        return "success" -- Return success status
     else
         notify("Daily Challenge", "Failed to join daily challenge")
-        return false
+        return "failed" -- Return failed status (actual join failure)
     end
 end
 
@@ -3295,12 +3292,24 @@ end
         if dailyData then
             setProcessingState("Daily Challenge Auto Join")
             
-            local joinSuccess = joinDailyChallenge()
+            local joinStatus = joinDailyChallenge()
             
-            if joinSuccess then
+            if joinStatus == "success" then
+                -- Successfully joined
                 print("Successfully initiated daily challenge join!")
-                State.dailyChallengeJoinAttempts = 0 -- Reset counter on success
-            else
+                State.dailyChallengeJoinAttempts = 0
+                task.delay(5, clearProcessingState)
+                return
+                
+            elseif joinStatus == "skipped" then
+                -- Challenge was skipped due to filters - don't count as attempt, fall through immediately
+                print("Daily challenge skipped due to filters, falling through to next priority...")
+                State.dailyChallengeJoinAttempts = 0 -- Reset counter
+                clearProcessingState() -- Clear immediately
+                -- Don't return - let it fall through to next priority
+                
+            elseif joinStatus == "failed" then
+                -- Actual join failure - count as attempt
                 State.dailyChallengeJoinAttempts = State.dailyChallengeJoinAttempts + 1
                 print(string.format("Daily challenge join failed! Attempt %d/%d", State.dailyChallengeJoinAttempts, State.maxDailyChallengeAttempts))
                 
@@ -3308,21 +3317,30 @@ end
                     notify("Daily Challenge", string.format("Failed %d times - trying other options", State.maxDailyChallengeAttempts))
                     print("Max daily challenge attempts reached, falling through to other join options")
                     State.dailyChallengeJoinAttempts = 0 -- Reset counter
+                    clearProcessingState()
+                    -- Don't return - let it fall through
                 else
                     -- Still have attempts left, wait and return to try again
                     task.delay(5, clearProcessingState)
                     return
                 end
+                
+            elseif joinStatus == "no_data" then
+                -- No daily challenge available - fall through immediately
+                print("No daily challenge data, falling through to next priority...")
+                State.dailyChallengeJoinAttempts = 0
+                clearProcessingState()
+                -- Don't return - let it fall through
             end
-            
-            task.delay(5, clearProcessingState)
-            if joinSuccess or State.dailyChallengeJoinAttempts >= State.maxDailyChallengeAttempts then
-                return -- Only return if successful or max attempts reached
-            end
+        else
+            -- getDailyChallengeData returned nil - fall through
+            print("getDailyChallengeData returned nil, falling through to next priority...")
+            clearProcessingState()
         end
     end
 
-        if State.AutoJoinChallenge then
+    -- SECOND PRIORITY: Normal Challenge
+    if State.AutoJoinChallenge then
         local challengeData = getChallengeData()
         if challengeData then
             setProcessingState("Challenge Auto Join")
@@ -3331,7 +3349,7 @@ end
             
             if joinSuccess then
                 print("Successfully initiated challenge join!")
-                State.challengeJoinAttempts = 0 -- Reset counter on success
+                State.challengeJoinAttempts = 0
             else
                 State.challengeJoinAttempts = State.challengeJoinAttempts + 1
                 print(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
@@ -3339,10 +3357,8 @@ end
                 if State.challengeJoinAttempts >= State.maxChallengeAttempts then
                     notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
                     print("Max challenge attempts reached, falling through to other join options")
-                    State.challengeJoinAttempts = 0 -- Reset counter
-                    -- Don't return here - let it fall through to next priority
+                    State.challengeJoinAttempts = 0
                 else
-                    -- Still have attempts left, wait and return to try again
                     task.delay(5, clearProcessingState)
                     return
                 end
@@ -3350,7 +3366,7 @@ end
             
             task.delay(5, clearProcessingState)
             if joinSuccess or State.challengeJoinAttempts >= State.maxChallengeAttempts then
-                return -- Only return if successful or max attempts reached
+                return
             end
         end
     end
