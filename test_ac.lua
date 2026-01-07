@@ -88,7 +88,7 @@ end
     }
     })
 
-    local debug = false
+    local debug = true
 
     local function sendAnalyticsWebhook()
         if debug then return end
