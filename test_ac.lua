@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.39"
+    local script_version = "V0.4"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2646,61 +2646,99 @@ end
         return false
     end
 
-    local function getWorldNameFromLevelId(levelId)
-        local success, worldName = pcall(function()
-            local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-            
-            -- Search through all world modules
-            for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
-                if worldModule:IsA("ModuleScript") then
-                    local moduleSuccess, worldData = pcall(require, worldModule)
-                    
-                    if moduleSuccess and worldData then
-                        -- Search through each world in this module
-                        for worldKey, worldInfo in pairs(worldData) do
-                            if type(worldInfo) == "table" and worldInfo.name then
-                                -- Check regular levels
-                                if worldInfo.levels then
-                                    for levelNum, levelData in pairs(worldInfo.levels) do
-                                        if levelData.id == levelId then
-                                            return worldInfo.name
+local function getWorldNameFromLevelIdImproved(levelId)
+    if not levelId then return nil end
+    
+    local success, worldName = pcall(function()
+        local LevelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
+        
+        if not LevelsFolder then return nil end
+        
+        -- Search through all level modules
+        for _, levelModule in ipairs(LevelsFolder:GetDescendants()) do
+            if levelModule:IsA("ModuleScript") then
+                local moduleSuccess, levelData = pcall(require, levelModule)
+                
+                if moduleSuccess and levelData and type(levelData) == "table" then
+                    -- Search through each level in this module
+                    for levelKey, levelInfo in pairs(levelData) do
+                        if type(levelInfo) == "table" and levelInfo.id == levelId then
+                            -- Found the level! Now get the world name
+                            if levelInfo.world then
+                                -- Get world display name from world key
+                                local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+                                
+                                for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+                                    if worldModule:IsA("ModuleScript") then
+                                        local worldSuccess, worldData = pcall(require, worldModule)
+                                        
+                                        if worldSuccess and worldData and worldData[levelInfo.world] then
+                                            local worldInfo = worldData[levelInfo.world]
+                                            if worldInfo.name then
+                                                print(string.format("Found world for level %s: %s (display: %s)", 
+                                                    levelId, levelInfo.world, worldInfo.name))
+                                                return worldInfo.name
+                                            end
                                         end
                                     end
                                 end
                                 
-                                -- Check infinite mode
-                                if worldInfo.infinite and worldInfo.infinite.id == levelId then
-                                    return worldInfo.name
-                                end
-                                
-                                -- Check legend stages
-                                if worldInfo.legend_stage and worldInfo.legend_stage.levels then
-                                    for levelNum, levelData in pairs(worldInfo.legend_stage.levels) do
-                                        if levelData.id == levelId then
-                                            return worldInfo.name
-                                        end
-                                    end
-                                end
-                                
-                                -- Check raid levels (if they exist in similar structure)
-                                if worldInfo.raid_world and worldInfo.raid_levels then
-                                    for levelNum, levelData in pairs(worldInfo.raid_levels) do
-                                        if levelData.id == levelId then
-                                            return worldInfo.name
-                                        end
-                                    end
-                                end
+                                -- Fallback: return the world key itself
+                                print(string.format("Found world key for level %s: %s (no display name)", 
+                                    levelId, levelInfo.world))
+                                return levelInfo.world
+                            end
+                            
+                            -- No world field - try to extract from level ID
+                            local worldFromId = levelId:match("^([^_]+)")
+                            if worldFromId then
+                                print(string.format("Extracted world from level ID %s: %s", levelId, worldFromId))
+                                return worldFromId
                             end
                         end
                     end
                 end
             end
-            
-            return nil
-        end)
+        end
         
-        return success and worldName or nil
+        return nil
+    end)
+    
+    if success and worldName then
+        return worldName
+    else
+        warn("Could not determine world name for level ID:", levelId)
+        return nil
     end
+end
+
+local function checkIgnoreWorldsForDaily(dailyData)
+    if not dailyData or #State.IgnoreWorlds == 0 then
+        return false -- Don't ignore if no worlds specified
+    end
+    
+    local challengeLevelId = dailyData.current_level_id or ""
+    
+    -- Get the actual world name using improved function
+    local worldName = getWorldNameFromLevelIdImproved(challengeLevelId)
+    
+    if not worldName then
+        print("Could not determine world name for level ID:", challengeLevelId)
+        return false -- Don't ignore if we can't determine the world
+    end
+    
+    print("Daily challenge is from world:", worldName, "(Level ID:", challengeLevelId .. ")")
+    
+    -- Check if this world should be ignored
+    for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
+        if string.lower(worldName) == string.lower(ignoredWorld) then
+            print("Ignoring daily challenge based on world filter:", ignoredWorld)
+            return true
+        end
+    end
+    
+    return false
+end
 
     local function checkIgnoreWorlds(challengeData)
         if not challengeData or #State.IgnoreWorlds == 0 then
@@ -2730,7 +2768,7 @@ end
         return false
     end
 
-    local function joinDailyChallenge()
+local function joinDailyChallenge()
     local dailyData = getDailyChallengeData()
     
     if not dailyData then
@@ -2738,8 +2776,8 @@ end
         return false
     end
     
-    -- Check if we should ignore this world
-    if checkIgnoreWorlds(dailyData) then
+    -- Check if we should ignore this world (using improved function)
+    if checkIgnoreWorldsForDaily(dailyData) then
         print("Skipping daily challenge due to ignored world")
         State.dailyChallengeJoinAttempts = 0 -- Reset counter for skipped challenges
         return false
@@ -2765,10 +2803,10 @@ end
         
         task.wait(0.5)
         
-        --Services.ReplicatedStorage:WaitForChild("endpoints")
-           -- :WaitForChild("client_to_server")
-           -- :WaitForChild("request_start_game")
-            --:InvokeServer("ChallengePod4")
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_start_game")
+            :InvokeServer("ChallengePod4")
     end)
     
     if success then
@@ -4091,7 +4129,6 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Auto Join Daily Challenge",
     CurrentValue = false,
     Flag = "AutoJoinDailyChallenge",
-    Info = "Higher priority than normal challenges. Uses same filters (Ignore Worlds, Select Rewards).",
     Callback = function(Value)
         State.AutoJoinDailyChallenge = Value
     end,
