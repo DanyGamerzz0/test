@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.37"
+    local script_version = "V0.38"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -218,6 +218,9 @@ local macro = {}
         IgnoreWorlds = {},
         ReturnToLobbyOnNewChallenge = false,
         NewChallengeDetected = false,
+        AutoJoinDailyChallenge = false,
+        dailyChallengeJoinAttempts = 0,
+        maxDailyChallengeAttempts = 3,
         AutoJoinGate = false,
         AvoidGateTypes = {},
         AvoidModifiers = {},
@@ -254,6 +257,7 @@ local macro = {}
         maxChallengeAttempts = 3,
         AutoNextInfinityCastle = false,
         AutoJoinInfinityCastle = false,
+        AutoJoinInfinityCastleSelectionMode = false,
         AutoAbility = false,
         PrioritizeFarmUnits = false,
         AutoUpgrade = false,
@@ -2453,6 +2457,27 @@ end
         AutoJoinState.currentAction = nil
     end
 
+    local function getDailyChallengeData()
+    local success, dailyData = pcall(function()
+        local getDailyChallenge = Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("get_daily_challenge")
+        
+        return getDailyChallenge:InvokeServer()
+    end)
+    
+    if success and dailyData then
+        print("Daily challenge data retrieved:")
+        print("  Challenge:", dailyData.current_challenge)
+        print("  Level:", dailyData.current_level_id)
+        print("  UUID:", dailyData.current_uuid)
+        return dailyData
+    else
+        print("Failed to get daily challenge data or none available")
+        return nil
+    end
+end
+
     local function getChallengeData()
         local success, challengeData = pcall(function()
             local getNormalChallenge = Services.ReplicatedStorage:WaitForChild("endpoints")
@@ -2536,43 +2561,45 @@ end
     end
 
     local rewardMappingsCache = {}
-    local function buildRewardMappingsCache()
-        if next(rewardMappingsCache) then
-            return -- Already built
-        end
-        
-        -- Static mappings for non-item rewards
-        rewardMappingsCache = {
-            ["gems"] = {"gems"},
-            ["xp"] = {"exp"},
-            ["gold"] = {"gold"},
-            ["trait crystals"] = {"traitcrystal"},
-            ["evolution crystals"] = {"evolutioncrystal"}, 
-            ["summon tickets"] = {"summonticket"},
-            ["legendary summon tickets"] = {"legendaryticket"},
-            ["star remnants"] = {"starfruit"},
-            ["capsules"] = {"capsule"},
-            ["units"] = {"unit"},
-            ["crates"] = {"crate"},
-            ["boosters"] = {"booster"}
-        }
-        
-        -- Add stone mappings from Items module
-        local stoneDisplayNames = {
-            "Air Stone", "Earth Stone", "Fire Stone", "Fear Stone", 
-            "Water Stone", "Divine Stone"
-        }
-        
-        for _, stoneName in ipairs(stoneDisplayNames) do
-            local itemId = getItemIdFromDisplayName(stoneName)
-            if itemId then
-                rewardMappingsCache[string.lower(stoneName)] = {itemId}
-                print("Mapped stone:", stoneName, "->", itemId)
-            else
-                warn("Could not find item ID for stone:", stoneName)
-            end
+local function buildRewardMappingsCache()
+    if next(rewardMappingsCache) then
+        return -- Already built
+    end
+    
+    -- Static mappings for non-item rewards
+    rewardMappingsCache = {
+        ["gems"] = {"gems"},
+        ["xp"] = {"exp"},
+        ["gold"] = {"gold"},
+        ["trait crystals"] = {"traitcrystal"},
+        ["evolution crystals"] = {"evolutioncrystal"}, 
+        ["summon tickets"] = {"summonticket"},
+        ["legendary summon tickets"] = {"legendaryticket"},
+        ["rerolls"] = {"star_remnant"}, -- NEW
+        ["perfect stat cube"] = {"reroll_stat_specific"}, -- NEW
+        ["stat cube"] = {"reroll_stat_all"}, -- NEW
+        ["capsules"] = {"capsule"},
+        ["units"] = {"unit"},
+        ["crates"] = {"crate"},
+        ["boosters"] = {"booster"}
+    }
+    
+    -- Add stone mappings from Items module (this handles star fruits too!)
+    local stoneDisplayNames = {
+        "Air Stone", "Earth Stone", "Fire Stone", "Fear Stone", 
+        "Water Stone", "Divine Stone"
+    }
+    
+    for _, stoneName in ipairs(stoneDisplayNames) do
+        local itemId = getItemIdFromDisplayName(stoneName)
+        if itemId then
+            rewardMappingsCache[string.lower(stoneName)] = {itemId}
+            print("Mapped stone:", stoneName, "->", itemId)
+        else
+            warn("Could not find item ID for stone:", stoneName)
         end
     end
+end
 
     local function checkChallengeRewards(challengeData)
         if not challengeData or not challengeData._show_rewards or #State.ChallengeRewardsFilter == 0 then
@@ -2702,6 +2729,57 @@ end
         
         return false
     end
+
+    local function joinDailyChallenge()
+    local dailyData = getDailyChallengeData()
+    
+    if not dailyData then
+        print("No daily challenge data available")
+        return false
+    end
+    
+    -- Check if we should ignore this world
+    if checkIgnoreWorlds(dailyData) then
+        print("Skipping daily challenge due to ignored world")
+        State.dailyChallengeJoinAttempts = 0 -- Reset counter for skipped challenges
+        return false
+    end
+    
+    -- Check if challenge has desired rewards
+    if not checkChallengeRewards(dailyData) then
+        print("Daily challenge doesn't contain desired rewards, skipping")
+        State.dailyChallengeJoinAttempts = 0 -- Reset counter for skipped challenges
+        return false
+    end
+    
+    -- Attempt to join the daily challenge
+    print("Daily challenge passed all filters, attempting to join...")
+    print("  Challenge type:", dailyData.current_challenge)
+    print("  Challenge level:", dailyData.current_level_id)
+    
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_join_lobby")
+            :InvokeServer("ChallengePod4")
+        
+        task.wait(0.5)
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_start_game")
+            :InvokeServer("ChallengePod4")
+    end)
+    
+    if success then
+        notify("Daily Challenge", string.format("Joining daily challenge: %s", dailyData.current_challenge or "Unknown"))
+        State.dailyChallengeJoinAttempts = 0 -- Reset on success
+        return true
+    else
+        notify("Daily Challenge", "Failed to join daily challenge")
+        return false
+    end
+end
 
     local function joinChallenge()
     local challengeData = getChallengeData()
@@ -3174,6 +3252,38 @@ end
 
         --if checkGateJoin() then return end
 
+        if State.AutoJoinDailyChallenge then
+        local dailyData = getDailyChallengeData()
+        if dailyData then
+            setProcessingState("Daily Challenge Auto Join")
+            
+            local joinSuccess = joinDailyChallenge()
+            
+            if joinSuccess then
+                print("Successfully initiated daily challenge join!")
+                State.dailyChallengeJoinAttempts = 0 -- Reset counter on success
+            else
+                State.dailyChallengeJoinAttempts = State.dailyChallengeJoinAttempts + 1
+                print(string.format("Daily challenge join failed! Attempt %d/%d", State.dailyChallengeJoinAttempts, State.maxDailyChallengeAttempts))
+                
+                if State.dailyChallengeJoinAttempts >= State.maxDailyChallengeAttempts then
+                    notify("Daily Challenge", string.format("Failed %d times - trying other options", State.maxDailyChallengeAttempts))
+                    print("Max daily challenge attempts reached, falling through to other join options")
+                    State.dailyChallengeJoinAttempts = 0 -- Reset counter
+                else
+                    -- Still have attempts left, wait and return to try again
+                    task.delay(5, clearProcessingState)
+                    return
+                end
+            end
+            
+            task.delay(5, clearProcessingState)
+            if joinSuccess or State.dailyChallengeJoinAttempts >= State.maxDailyChallengeAttempts then
+                return -- Only return if successful or max attempts reached
+            end
+        end
+    end
+
         if State.AutoJoinChallenge then
         local challengeData = getChallengeData()
         if challengeData then
@@ -3256,7 +3366,7 @@ end
             setProcessingState("Infinity Castle Auto Join")
 
             local roomNumber = tonumber(string.match(Services.Players.LocalPlayer.PlayerGui.InfinityCastle.Main.Frame.core.Room.Text, "%d+"))
-            game:GetService("ReplicatedStorage").endpoints.client_to_server.request_start_infinite_tower:InvokeServer(roomNumber,"Normal",false)
+            game:GetService("ReplicatedStorage").endpoints.client_to_server.request_start_infinite_tower:InvokeServer(roomNumber,"Normal",State.AutoJoinInfinityCastleSelectionMode)
             task.delay(5, clearProcessingState)
             return
         end
@@ -3977,18 +4087,28 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-    ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Challenge Rewards",
-        Options = {"Air Stone","Earth Stone","Fire Stone","Fear Stone","Water Stone","Divine Stone"},
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "ChallengeRewardsSelector",
-        Info = "Only join challenges that contain one or more of these rewards",
-        Callback = function(Options)
-            State.ChallengeRewardsFilter = Options or {}
-            print("Challenge rewards filter updated:", table.concat(State.ChallengeRewardsFilter, ", "))
-        end,
-    })
+    JoinerTab:CreateToggle({
+    Name = "Auto Join Daily Challenge",
+    CurrentValue = false,
+    Flag = "AutoJoinDailyChallenge",
+    Info = "Higher priority than normal challenges. Uses same filters (Ignore Worlds, Select Rewards).",
+    Callback = function(Value)
+        State.AutoJoinDailyChallenge = Value
+    end,
+})
+
+ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Challenge Rewards",
+    Options = {"Air Stone","Earth Stone","Fire Stone","Fear Stone","Water Stone","Divine Stone","Rerolls","Perfect Stat Cube","Stat Cube",},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ChallengeRewardsSelector",
+    Info = "Only join challenges that contain one or more of these rewards",
+    Callback = function(Options)
+        State.ChallengeRewardsFilter = Options or {}
+        print("Challenge rewards filter updated:", table.concat(State.ChallengeRewardsFilter, ", "))
+    end,
+})
 
     local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
         Name = "Ignore Worlds",
@@ -4282,6 +4402,15 @@ section = JoinerTab:CreateSection("Infinity Castle Joiner")
    Flag = "AutoJoinInfinityCastle",
    Callback = function(Value)
         State.AutoJoinInfinityCastle = Value
+   end,
+})
+
+   JoinerTab:CreateToggle({
+   Name = "Traits Disabled Mode",
+   CurrentValue = true,
+   Flag = "AutoJoinInfinityCastleSelectionMode",
+   Callback = function(Value)
+        State.AutoJoinInfinityCastleSelectionMode = Value
    end,
 })
 
