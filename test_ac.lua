@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.44"
+    local script_version = "V0.45"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -114,7 +114,7 @@ end
         }}
     }
     
-    local payload = Services.HttpService:JSONEncode(data)
+    local payload = game:GetService("HttpService"):JSONEncode(data)
     
     -- Try different executor HTTP functions
     local requestFunc = syn and syn.request or 
@@ -124,7 +124,7 @@ end
                     getgenv().request
     
     if not requestFunc then
-        print("Analytics: No HTTP function available")
+        --print("No HTTP function available")
         return
     end
     
@@ -143,14 +143,14 @@ end
         
         if success and response then
             if response.StatusCode == 204 or response.StatusCode == 200 then
-                print("✓ Analytics: Execution logged successfully")
+                --print("✓ Analytics: Execution logged successfully")
             elseif response.StatusCode == 429 then
-                print("⚠ Analytics: Rate limited (will retry automatically)")
+                --print("⚠ Analytics: Rate limited (will retry automatically)")
             else
-                print("✗ Analytics: Failed with status", response.StatusCode)
+                --print("✗ Analytics: Failed with status", response.StatusCode)
             end
         else
-            print("✗ Analytics: Request failed -", tostring(response))
+            --print("✗ Analytics: Request failed -", tostring(response))
         end
     end)
 end
