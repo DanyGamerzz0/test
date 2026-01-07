@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.45"
+    local script_version = "V0.46"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -83,7 +83,10 @@ end
     }
     })
 
+    local debug = false
+
     local function sendAnalyticsWebhook()
+        if debug then return end
     local data = {
         username = "Anime Crusaders",
         embeds = {{
