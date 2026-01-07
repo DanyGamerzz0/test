@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.41"
+    local script_version = "V0.42"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -219,6 +219,7 @@ local macro = {}
         ReturnToLobbyOnNewChallenge = false,
         NewChallengeDetected = false,
         AutoJoinDailyChallenge = false,
+        AutoMatchmakeDailyChallenge = false,
         dailyChallengeJoinAttempts = 0,
         maxDailyChallengeAttempts = 3,
         AutoJoinGate = false,
@@ -3880,7 +3881,7 @@ end
             Name = "Return to lobby",
             Callback = function()
                 notify("Return to lobby", "Returning to lobby!")
-                Services.TeleportService:Teleport(107573139811370, Services.Players.LocalPlayer)
+                game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
         end,
     })
 
@@ -4144,7 +4145,7 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
     JoinerTab:CreateToggle({
     Name = "Auto Join Daily Challenge",
     CurrentValue = false,
-    Flag = "AutoJoinDailyChallenge",
+    Flag = "AutoMatchmakeDailyChallenge",
     Callback = function(Value)
         State.AutoJoinDailyChallenge = Value
     end,
