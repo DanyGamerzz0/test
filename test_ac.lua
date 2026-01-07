@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.42"
+    local script_version = "V0.43"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3446,6 +3446,7 @@ if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected a
     else
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", exactLevelId, false, State.StoryDifficultySelected)
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
     end
     task.delay(5, clearProcessingState)
     return
@@ -3471,6 +3472,7 @@ if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSe
     else
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("P1")
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("P1", exactLevelId, false, "Hard")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("P1")
     end
     task.delay(5, clearProcessingState)
     return
@@ -3496,6 +3498,7 @@ if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
     else
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("R1")
         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_lock_level"):InvokeServer("R1", exactLevelId, false, "Hard")
+        Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("R1")
     end
     task.delay(5, clearProcessingState)
     return
@@ -8450,7 +8453,30 @@ if gameFinishedRemote then
         
         print("Final game result:", GameTracking.gameResult)
         
-        -- Handle auto voting logic with improved retry and fallback system
+        -- SEND WEBHOOK IMMEDIATELY (BEFORE AUTO-VOTE LOGIC)
+        if GameTracking.gameInProgress then
+            print("Game ended! Sending webhook immediately...")
+            
+            -- Capture end stats
+            GameTracking.endStats = captureStats()
+            
+            -- Send summary webhook immediately
+            if State.SendStageCompletedWebhook then
+                task.spawn(function()
+                    sendWebhook("stage")
+                end)
+            end
+            
+            -- Reset tracking (but don't fully end game tracking yet - auto-vote needs gameInProgress flag)
+            GameTracking.sessionItems = {}
+            GameTracking.lastWave = 0
+            GameTracking.startStats = {}
+            GameTracking.currentMapName = "Unknown Map"
+            MacroSystem.currentChallenge = nil
+            -- NOTE: We keep gameInProgress = true until auto-vote completes
+        end
+        
+        -- Handle auto voting logic (this can take time, but webhook is already sent)
         task.spawn(function()
             task.wait(1) -- Small delay to ensure game state is stable
 
@@ -8460,7 +8486,7 @@ if gameFinishedRemote then
                 task.wait(0.5)
             end
             
-            -- Challenge detection handler (FIXED: Now validates properly)
+            -- Challenge detection handler
             if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected then
                 notify("Auto Challenge", "New challenge detected - returning to lobby")
                 task.wait(2)
@@ -8470,7 +8496,6 @@ if gameFinishedRemote then
                 end)
                 
                 if success then
-                    -- Validate we actually returned to lobby
                     local validationStart = tick()
                     while tick() - validationStart < 5 do
                         if isInLobby() then
@@ -8478,6 +8503,10 @@ if gameFinishedRemote then
                             notify("Challenge Handler", "Returned to lobby - new challenge detected!", 3)
                             State.NewChallengeDetected = false
                             State.failsafeActive = false
+                            -- Fully end game tracking now
+                            GameTracking.gameInProgress = false
+                            GameTracking.gameStartTime = 0
+                            GameTracking.gameResult = "Unknown"
                             return
                         end
                         task.wait(0.2)
@@ -8486,15 +8515,13 @@ if gameFinishedRemote then
                 else
                     warn("Failed to return to lobby for new challenge")
                 end
-                -- Don't return - let it fall through to other options
             end
             
-            -- VALIDATION FUNCTION (moved up so everything can use it)
+            -- VALIDATION FUNCTION
             local function tryAutoAction(actionName, remoteCall, maxAttempts)
                 for attempt = 1, maxAttempts do
                     print(string.format("Attempting %s (attempt %d/%d)", actionName, attempt, maxAttempts))
                     
-                    -- Try to fire the remote
                     local success, err = pcall(remoteCall)
                     
                     if not success then
@@ -8509,19 +8536,16 @@ if gameFinishedRemote then
                         end
                     end
                     
-                    -- Remote fired successfully, now validate it actually worked
                     print(string.format("%s remote fired, validating action took effect...", actionName))
                     
                     local validationStart = tick()
-                    local validationTimeout = 5 -- 5 seconds to validate
+                    local validationTimeout = 5
                     local actionWorked = false
                     
                     while tick() - validationStart < validationTimeout do
-                        -- Check if end game UI is gone (meaning action worked)
                         local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
                         
                         if not resultsUI or not resultsUI.Enabled then
-                            -- UI is gone - action worked!
                             actionWorked = true
                             print(string.format("✓ %s validated - ResultsUI closed", actionName))
                             notify("Auto Vote", string.format("%s succeeded!", actionName), 3)
@@ -8532,7 +8556,7 @@ if gameFinishedRemote then
                     end
                     
                     if actionWorked then
-                        State.failsafeActive = false -- Cancel failsafe since action worked
+                        State.failsafeActive = false
                         return true
                     else
                         warn(string.format("✗ %s validation failed - ResultsUI still visible after %ds", actionName, validationTimeout))
@@ -8550,7 +8574,7 @@ if gameFinishedRemote then
                 return false
             end
             
-            -- Auto Next Portal (FIXED: Now uses validation)
+            -- Auto Next Portal
             if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
                 local portalSuccess = tryAutoAction("Auto Next Portal", function()
                     local ownedPortals = getOwnedPortalsFromInventory()
@@ -8564,18 +8588,26 @@ if gameFinishedRemote then
                 end, State.AutoRetryAttempts)
                 
                 if portalSuccess then
-                    return -- Only return if it actually worked
+                    -- Fully end game tracking now
+                    GameTracking.gameInProgress = false
+                    GameTracking.gameStartTime = 0
+                    GameTracking.gameResult = "Unknown"
+                    return
                 end
             end
 
-            -- Auto Next Infinity Castle (FIXED: Now uses validation)
+            -- Auto Next Infinity Castle
             if State.AutoNextInfinityCastle then
                 local infinitySuccess = tryAutoAction("Auto Next Infinity Castle", function()
                     Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("set_game_finished_vote"):InvokeServer("next_infinite_tower")
                 end, State.AutoRetryAttempts)
                 
                 if infinitySuccess then
-                    return -- Only return if it actually worked
+                    -- Fully end game tracking now
+                    GameTracking.gameInProgress = false
+                    GameTracking.gameStartTime = 0
+                    GameTracking.gameResult = "Unknown"
+                    return
                 end
             end
             
@@ -8607,7 +8639,7 @@ if gameFinishedRemote then
                 table.insert(actionsToTry, {
                     name = "Auto Lobby",
                     call = function()
-                        task.wait(1) -- Extra delay for lobby
+                        task.wait(1)
                         Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
                     end,
                     attempts = State.AutoRetryAttempts
@@ -8620,10 +8652,10 @@ if gameFinishedRemote then
                 
                 if success then
                     print(string.format("✓ %s succeeded and validated, stopping fallback chain", action.name))
-                    break -- Stop trying other actions if one actually worked
+                    break
                 else
                     print(string.format("✗ %s failed validation, trying next fallback option...", action.name))
-                    task.wait(1) -- Brief pause before trying next action
+                    task.wait(1)
                 end
             end
 
@@ -8637,13 +8669,10 @@ if gameFinishedRemote then
                 print("At least one action worked - ResultsUI is closed")
             end
             
-            -- End game tracking
-            task.spawn(function()
-                task.wait(0.1)
-                if GameTracking.gameInProgress then
-                    endGameTracking()
-                end
-            end)
+            -- Fully end game tracking after all auto-vote logic completes
+            GameTracking.gameInProgress = false
+            GameTracking.gameStartTime = 0
+            GameTracking.gameResult = "Unknown"
         end)
     end)
 end
