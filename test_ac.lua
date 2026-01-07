@@ -92,6 +92,7 @@ end
 
     local function sendAnalyticsWebhook()
         if debug then return end
+        if game.PlaceId ~= 107573139811370 then return end
     local data = {
         username = "Anime Crusaders",
         embeds = {{
