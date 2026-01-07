@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.43"
+    local script_version = "V0.44"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -82,6 +82,78 @@ end
         Key = {"0xLIXHUB"}
     }
     })
+
+    local function sendAnalyticsWebhook()
+    local data = {
+        username = "Anime Crusaders",
+        embeds = {{
+            title = "Script Execution",
+            description = "**LixHub - Anime Crusaders**",
+            color = 0x5865F2,
+            fields = {
+                {
+                    name = "Version",
+                    value = script_version,
+                    inline = true
+                },
+                {
+                    name = "Executor",
+                    value = (identifyexecutor and identifyexecutor()) or "Unknown",
+                    inline = true
+                },
+                {
+                    name = "Timestamp",
+                    value = os.date("%Y-%m-%d %H:%M:%S UTC", os.time()),
+                    inline = false
+                }
+            },
+            footer = {
+                text = "https://discord.gg/cYKnXE2Nf8"
+            },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+    
+    local payload = Services.HttpService:JSONEncode(data)
+    
+    -- Try different executor HTTP functions
+    local requestFunc = syn and syn.request or 
+                    request or 
+                    http_request or 
+                    (fluxus and fluxus.request) or 
+                    getgenv().request
+    
+    if not requestFunc then
+        print("Analytics: No HTTP function available")
+        return
+    end
+    
+    -- Send in background, don't block script execution
+    task.spawn(function()
+        local success, response = pcall(function()
+            return requestFunc({
+                Url = "https://execution-count.bloxbanter.workers.dev/webhooks/1458540045496746126/RyhDIQdWG4BdVX6JTnGyc1PHdjve8zVlBCRF0aKQH7P93GjVbj7Xj9abygbLgV7120uY",
+                Method = "POST",
+                Headers = { 
+                    ["Content-Type"] = "application/json"
+                },
+                Body = payload
+            })
+        end)
+        
+        if success and response then
+            if response.StatusCode == 204 or response.StatusCode == 200 then
+                print("✓ Analytics: Execution logged successfully")
+            elseif response.StatusCode == 429 then
+                print("⚠ Analytics: Rate limited (will retry automatically)")
+            else
+                print("✗ Analytics: Failed with status", response.StatusCode)
+            end
+        else
+            print("✗ Analytics: Request failed -", tostring(response))
+        end
+    end)
+end
 
     -- ========== SERVICES ==========
     local Services = {
@@ -8663,10 +8735,9 @@ if gameFinishedRemote then
             task.wait(1)
             local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
             if resultsUI and resultsUI.Enabled then
-                warn("All auto-vote actions failed - ResultsUI still visible")
-                notify("Auto Vote", "All auto-vote actions failed - manual intervention needed", 5)
+                warn("All auto-vote actions failed")
             else
-                print("At least one action worked - ResultsUI is closed")
+                print("At least one action worked")
             end
             
             -- Fully end game tracking after all auto-vote logic completes
@@ -8774,6 +8845,7 @@ Rayfield:LoadConfiguration()
         end
     end
 
+    sendAnalyticsWebhook()
     Rayfield:SetVisibility(false)
 
         local screenGui = Instance.new("ScreenGui")
