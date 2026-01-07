@@ -17,7 +17,7 @@ end
         return
     end
 
-    local script_version = "V0.38"
+    local script_version = "V0.39"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2765,10 +2765,10 @@ end
         
         task.wait(0.5)
         
-        Services.ReplicatedStorage:WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-            :WaitForChild("request_start_game")
-            :InvokeServer("ChallengePod4")
+        --Services.ReplicatedStorage:WaitForChild("endpoints")
+           -- :WaitForChild("client_to_server")
+           -- :WaitForChild("request_start_game")
+            --:InvokeServer("ChallengePod4")
     end)
     
     if success then
