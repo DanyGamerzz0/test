@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.12"
+    local script_version = "V0.13"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3839,8 +3839,8 @@ local function performBatchSummon(bannerName, amount)
         return false, "Summon failed: " .. tostring(result), 0
     end
     
-    -- Wait for game to update collection
-    task.wait(5.0)
+    -- REDUCED: Wait for game to update collection (reduced from 5.0s to 2.0s)
+    task.wait(2.0)
     
     -- Capture AFTER snapshot
     local afterCounts = captureUnitCounts()
@@ -5547,7 +5547,7 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.3) -- REDUCED: Check more frequently (was 1 second)
         
         if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
             local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
@@ -5571,10 +5571,10 @@ task.spawn(function()
                     
                 else
                     warn("Auto Summon failed:", message)
-                    task.wait(2)
+                    task.wait(1) -- Only wait on failure (was 2)
                 end
                 
-                task.wait(1)
+                -- REMOVED: The task.wait(1) here - loop will handle timing
             else
                 
                 State.AutoSummon = false
@@ -5586,7 +5586,7 @@ task.spawn(function()
                 State.SummonedUnits = {}
                 State.CurrencySpent = 0
                 
-                updateSummonStatus() -- Update when stopping
+                updateSummonStatus()
                 
                 notify("Auto Summon", 
                     string.format("Stopped - Not enough %s (%d/%d)", 
@@ -5598,7 +5598,7 @@ task.spawn(function()
             State.SummonedUnits = {}
             State.CurrencySpent = 0
             
-            updateSummonStatus() -- Update when manually stopped
+            updateSummonStatus()
         end
     end
 end)
