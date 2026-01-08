@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.13"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -350,9 +350,10 @@ local macro = {}
         PortalRewardTierFilter = {},
         AutoSummon = false,
         AutoSummonBanner = nil,
+        BeforeSummonCounts = nil,
+        SummonMarkersSet = false,
         SummonedUnits = {},
         CurrencySpent = 0,
-        SummonMarkersSet = false,
         AutoRetryAttempts = 3,
         AutoRetryDelay = 2,
     }
@@ -5496,10 +5497,11 @@ end
             -- Reset tracking when starting
             State.SummonedUnits = {}
             State.CurrencySpent = 0
+            State.BeforeSummonCounts = nil
+            State.SummonMarkersSet = false
             
             local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
             local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-            local summonCost = getCostForBanner(State.AutoSummonBanner)
             
             notify("Auto Summon", 
                 string.format("Started on %s (%d %s available)", 
@@ -5547,7 +5549,7 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(0.3) -- REDUCED: Check more frequently (was 1 second)
+        task.wait(0.3)
         
         if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
             local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
@@ -5561,30 +5563,65 @@ task.spawn(function()
             end
             
             if affordableSummons > 0 then
-                local success, message, costSpent = performBatchSummon(State.AutoSummonBanner, affordableSummons)
-                
-                if success then
-                    State.CurrencySpent = State.CurrencySpent + costSpent
-                    
-                    -- UPDATE IMMEDIATELY AFTER SUMMON
-                    updateSummonStatus()
-                    
-                else
-                    warn("Auto Summon failed:", message)
-                    task.wait(1) -- Only wait on failure (was 2)
+                -- Take BEFORE snapshot only on first summon
+                if not State.SummonMarkersSet then
+                    State.BeforeSummonCounts = captureUnitCounts()
+                    State.SummonMarkersSet = true
+                    print("Captured BEFORE snapshot for auto summon")
                 end
                 
-                -- REMOVED: The task.wait(1) here - loop will handle timing
-            else
+                local bannerId = getBannerIdFromName(State.AutoSummonBanner)
+                local currencyType = affordableSummons >= 10 and "gems10" or "gems"
+                local currencyBefore = getCurrencyForBanner(State.AutoSummonBanner)
                 
+                local success, result = pcall(function()
+                    local args = currencyType == "gems10" and {bannerId, currencyType} or {bannerId, currencyType, affordableSummons}
+                    return Services.ReplicatedStorage:WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("buy_from_banner")
+                        :InvokeServer(unpack(args))
+                end)
+                
+                if success then
+                    local currencyAfter = getCurrencyForBanner(State.AutoSummonBanner)
+                    local actualCostSpent = currencyBefore - currencyAfter
+                    State.CurrencySpent = State.CurrencySpent + actualCostSpent
+                    
+                    updateSummonStatus()
+                else
+                    warn("Auto Summon failed:", result)
+                    task.wait(1)
+                end
+                
+            else
+                -- Out of currency - time to finalize
                 State.AutoSummon = false
                 
                 if State.CurrencySpent > 0 then
+                    -- Wait for final units to register
+                    task.wait(3)
+                    
+                    -- Take AFTER snapshot
+                    local afterCounts = captureUnitCounts()
+                    
+                    -- Compare to find new units
+                    if State.BeforeSummonCounts then
+                        local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
+                        
+                        -- Store results
+                        State.SummonedUnits = newUnits
+                        
+                        print("Auto summon complete - found", #newUnits, "new units")
+                    end
+                    
                     sendSummonWebhook()
                 end
                 
+                -- Reset tracking
                 State.SummonedUnits = {}
                 State.CurrencySpent = 0
+                State.BeforeSummonCounts = nil
+                State.SummonMarkersSet = false
                 
                 updateSummonStatus()
                 
@@ -5593,10 +5630,22 @@ task.spawn(function()
                         currencyName, currentCurrency, summonCost))
             end
         elseif not State.AutoSummon and State.CurrencySpent > 0 then
+            -- Manual stop - finalize
+            task.wait(3)
+            
+            local afterCounts = captureUnitCounts()
+            
+            if State.BeforeSummonCounts then
+                local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
+                State.SummonedUnits = newUnits
+            end
+            
             sendSummonWebhook()
             
             State.SummonedUnits = {}
             State.CurrencySpent = 0
+            State.BeforeSummonCounts = nil
+            State.SummonMarkersSet = false
             
             updateSummonStatus()
         end
