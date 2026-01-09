@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.17"
+    local script_version = "V0.18"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -225,6 +225,7 @@ local GameTracking = {
     storedPortalData = nil,
     gameHasEnded = false,
     isAutoLoopEnabled = false,
+    portalDepth = nil,
 }
 
 local VALIDATION_CONFIG = {
@@ -1865,6 +1866,7 @@ end
 local function getMapInfo()
     local mapName = "Unknown Map"
     local challengeModifier = nil
+    local portalDepth = nil
     
     -- Try to get map data from GetLevelData
     if Services.Workspace:FindFirstChild("_MAP_CONFIG") and Services.Workspace._MAP_CONFIG:FindFirstChild("GetLevelData") then
@@ -1880,9 +1882,21 @@ local function getMapInfo()
             -- Capture challenge modifier
             challengeModifier = result.challenge
             
+            -- Capture portal depth if it exists
+            if result.PortalItem and 
+               result.PortalItem._unique_item_data and 
+               result.PortalItem._unique_item_data._unique_portal_data and 
+               result.PortalItem._unique_item_data._unique_portal_data.portal_depth then
+                portalDepth = result.PortalItem._unique_item_data._unique_portal_data.portal_depth
+                print("Portal depth detected:", portalDepth)
+            end
+            
             print("Map info retrieved:", mapName)
             if challengeModifier then
                 print("Challenge modifier found:", challengeModifier)
+            end
+            if portalDepth then
+                print("Portal depth found:", portalDepth)
             end
             print("Full map data:", result)
         else
@@ -1890,7 +1904,7 @@ local function getMapInfo()
         end
     end
     
-    return mapName, challengeModifier
+    return mapName, challengeModifier, portalDepth
 end
 
     -- Function to capture current stats
@@ -2072,12 +2086,18 @@ end
         titleText = "Stage Failed!"
         embedColor = 0xED4245
     end
+
+     local description = GameTracking.currentMapName
+    if GameTracking.portalDepth then
+        description = description .. " - Tier " .. GameTracking.portalDepth
+    end
+    description = description .. " - " .. GameTracking.gameResult
     
      data = {
         username = "LixHub",
         embeds = {{
             title = titleText,
-            description = GameTracking.currentMapName .. " - " .. GameTracking.gameResult,
+            description = description,
             color = embedColor,
             fields = {
                 { name = "Player", value = playerName, inline = true },
@@ -2135,7 +2155,7 @@ local function startGameTracking()
     MacroSystem.macroHasPlayedThisGame = false  -- Reset macro play flag
     
     -- Get both map name and challenge info
-    GameTracking.currentMapName, MacroSystem.currentChallenge = getMapInfo()
+    GameTracking.currentMapName, MacroSystem.currentChallenge, GameTracking.portalDepth = getMapInfo()
     GameTracking.gameResult = "In Progress"
     
     print("Game tracking started!")
@@ -2143,6 +2163,9 @@ local function startGameTracking()
     print("Game start time recorded:", GameTracking.gameStartTime)
     if MacroSystem.currentChallenge then
         print("Challenge: " .. MacroSystem.currentChallenge)
+    end
+    if GameTracking.portalDepth then
+        print("Portal Depth: " .. GameTracking.portalDepth)
     end
 end
 
@@ -8637,6 +8660,7 @@ if gameFinishedRemote then
                             GameTracking.gameInProgress = false
                             GameTracking.gameStartTime = 0
                             GameTracking.gameResult = "Unknown"
+                            GameTracking.portalDepth = nil
                             return
                         end
                         task.wait(0.2)
@@ -8722,6 +8746,7 @@ if gameFinishedRemote then
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
+                    GameTracking.portalDepth = nil
                     return
                 end
             end
@@ -8737,6 +8762,7 @@ if gameFinishedRemote then
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
+                    GameTracking.portalDepth = nil
                     return
                 end
             end
@@ -8802,6 +8828,7 @@ if gameFinishedRemote then
             GameTracking.gameInProgress = false
             GameTracking.gameStartTime = 0
             GameTracking.gameResult = "Unknown"
+            GameTracking.portalDepth = nil
         end)
     end)
 end
