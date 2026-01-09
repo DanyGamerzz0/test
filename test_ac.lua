@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.16"
+    local script_version = "V0.17"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2030,21 +2030,6 @@ end
         local challengeDisplay = getChallengeDisplayName(MacroSystem.currentChallenge)
         durationText = formattedTime .. " - (" .. challengeDisplay .. ")"
     end
-
-    local portalTierText = ""
-    local success, levelData = pcall(function()
-        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
-    end)
-    
-    if success and levelData and levelData.PortalItem then
-        local portalSuccess, portalDepth = pcall(function()
-            return levelData.PortalItem._unique_item_data._unique_portal_data.portal_depth
-        end)
-        
-        if portalSuccess and portalDepth then
-            portalTierText = " - Tier " .. portalDepth
-        end
-    end
     
     -- Get stat changes (excluding resource)
     GameTracking.endStats = captureStats()
@@ -2087,12 +2072,6 @@ end
         titleText = "Stage Failed!"
         embedColor = 0xED4245
     end
-    
-    local titleText = GameTracking.currentMapName
-    if portalTierText ~= "" then
-        titleText = titleText .. " - Tier " .. string.match(portalTierText, "%d+")
-    end
-    local titleText = GameTracking.currentMapName .. portalTierText .. " - " .. GameTracking.gameResult
     
      data = {
         username = "LixHub",
