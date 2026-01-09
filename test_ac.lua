@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.16"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2036,15 +2036,13 @@ end
         return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
     end)
     
-    if success and levelData then
-        -- Check if this is a portal level and get the tier
-        if levelData._portal_only_level == true and 
-           levelData._unique_item_data and 
-           levelData._unique_item_data._unique_portal_data and
-           levelData._unique_item_data._unique_portal_data.portal_depth then
-            
-            local portalDepth = levelData._unique_item_data._unique_portal_data.portal_depth
-            portalTierText = " [Tier " .. portalDepth .. "]"
+    if success and levelData and levelData.PortalItem then
+        local portalSuccess, portalDepth = pcall(function()
+            return levelData.PortalItem._unique_item_data._unique_portal_data.portal_depth
+        end)
+        
+        if portalSuccess and portalDepth then
+            portalTierText = " - Tier " .. portalDepth
         end
     end
     
@@ -2094,7 +2092,7 @@ end
     if portalTierText ~= "" then
         titleText = titleText .. " - Tier " .. string.match(portalTierText, "%d+")
     end
-    titleText = titleText .. " - " .. GameTracking.gameResult
+    local titleText = GameTracking.currentMapName .. portalTierText .. " - " .. GameTracking.gameResult
     
      data = {
         username = "LixHub",
