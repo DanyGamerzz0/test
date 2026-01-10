@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.24"
+    local script_version = "V0.25"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -641,7 +641,7 @@ local function normalizeShinyUnits()
         end
         
         -- Get unit data to check rarity
-        local unitData = getUnitDataFromId(unit.unit_id)
+        local unitData = getUnitData(unit.unit_id)
         if not unitData then
             continue
         end
