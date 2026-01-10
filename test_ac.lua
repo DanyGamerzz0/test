@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.23"
+    local script_version = "V0.24"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -359,6 +359,8 @@ local macro = {}
         CurrencySpent = 0,
         AutoRetryAttempts = 3,
         AutoRetryDelay = 2,
+        AutoNormalizeShiny = false,
+        NormalizeRarityFilter = {},
     }
 
     -- ========== CREATE TABS ==========
@@ -585,6 +587,111 @@ local function getUnitData(unitId)
     end)
     
     return success and unitData or nil
+end
+
+local function findAllUnits()
+    local gc = getgc(true)
+    local units = {}
+    local seen = {}
+    
+    for _, obj in pairs(gc) do
+        if type(obj) == "table" then
+            local hasUnitId = rawget(obj, "unit_id") ~= nil
+            local hasTraits = rawget(obj, "traits") ~= nil
+            local hasUuid = rawget(obj, "uuid") ~= nil
+            
+            if hasUnitId and hasTraits and hasUuid then
+                local uuid = obj.uuid
+                if not seen[uuid] then
+                    seen[uuid] = true
+                    table.insert(units, obj)
+                end
+            end
+        end
+    end
+    
+    return units
+end
+
+local function normalizeShinyUnits()
+    if not State.AutoNormalizeShiny or #State.NormalizeRarityFilter == 0 then
+        return
+    end
+    
+    local allUnits = findAllUnits()
+    if #allUnits == 0 then
+        print("No units found for normalization")
+        return
+    end
+    
+    local normalizedCount = 0
+    local skippedLocked = 0
+    local skippedRarity = 0
+    
+    for _, unit in ipairs(allUnits) do
+        -- Skip if not shiny
+        if not unit.shiny then
+            continue
+        end
+        
+        -- Skip if locked
+        if unit._locked then
+            skippedLocked = skippedLocked + 1
+            continue
+        end
+        
+        -- Get unit data to check rarity
+        local unitData = getUnitDataFromId(unit.unit_id)
+        if not unitData then
+            continue
+        end
+        
+        local unitRarity = unitData.rarity
+        
+        -- Check if rarity matches filter
+        local shouldNormalize = false
+        for _, selectedRarity in ipairs(State.NormalizeRarityFilter) do
+            if unitRarity == selectedRarity then
+                shouldNormalize = true
+                break
+            end
+        end
+        
+        if not shouldNormalize then
+            skippedRarity = skippedRarity + 1
+            continue
+        end
+        
+        -- Normalize the unit
+        local success = pcall(function()
+            --Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_remove_shiny"):InvokeServer(unit.uuid)
+        end)
+        
+        if success then
+            normalizedCount = normalizedCount + 1
+            print(string.format("Normalized: %s (%s) - UUID: %s", 
+                unitData.name or "Unknown", 
+                unitRarity or "Unknown",
+                unit.uuid))
+            
+            task.wait(0.2) -- Small delay between normalizations
+        else
+            warn("Failed to normalize unit:", unit.uuid)
+        end
+    end
+    
+    -- Summary notification
+    local summaryText = string.format("Normalized %d shiny units", normalizedCount)
+    if skippedLocked > 0 then
+        summaryText = summaryText .. string.format("\nSkipped %d locked units", skippedLocked)
+    end
+    if skippedRarity > 0 then
+        summaryText = summaryText .. string.format("\nSkipped %d units (rarity filter)", skippedRarity)
+    end
+    
+    notify("Auto Normalize Complete", summaryText)
+    print("\n=== NORMALIZATION SUMMARY ===")
+    print(summaryText)
 end
 
 local function getCostScale()
@@ -1304,8 +1411,6 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
     local displayName, placementNumber = placementId:match("^(.-) #%s*(%d+)$")
     
     if not displayName or not placementNumber then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: Invalid unit format: %s", 
-            actionIndex, totalActionCount, placementId))
         return false
     end
     
@@ -1315,38 +1420,37 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
         return false
     end
     
-    local temp -- Reusable variable
+    local temp
+    local macroName = MacroSystem.currentMacroName or "Unknown"
     
     for attempt = 1, maxRetries do
         if not MacroSystem.isPlaybacking then return false end
         
         temp = getUnitIdFromDisplayName(displayName)
         if not temp then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve unit ID for: %s", 
-                actionIndex, totalActionCount, displayName))
             return false
         end
         
         local unitId = temp
         temp = resolveUUIDFromInternalName(unitId)
         if not temp then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Could not resolve UUID for: %s", 
-                actionIndex, totalActionCount, unitId))
             return false
         end
         
         local resolvedUUID = temp
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", 
-            actionIndex, totalActionCount, attempt, maxRetries, placementId))
+        
+        -- FIXED: Consistent format with attempt info
+        if attempt > 1 then
+            updateDetailedStatus(string.format("Macro: %s (%d/%d)\nAttempt %d/%d: Placing %s", 
+                macroName, actionIndex, totalActionCount, attempt, maxRetries, placementId))
+        end
         
         local beforeSnapshot = takeUnitsSnapshot()
         
-        -- Parse position
         local px, py, pz = action.Pos:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
         local dx, dy, dz = action.Dir:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
         
         if not (px and py and pz and dx and dy and dz) then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Invalid position format", actionIndex, totalActionCount))
             return false
         end
         
@@ -1389,8 +1493,6 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
             if newSpawnId then
                 MacroSystem.playbackPlacementToSpawnId[placementId] = newSpawnId
                 print(string.format("Playback placement success: %s -> spawn_id %s", placementId, tostring(newSpawnId)))
-                updateDetailedStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
-                    actionIndex, totalActionCount, placementId))
                 return true
             end
         end
@@ -1400,8 +1502,6 @@ local function validatePlacementActionWithSpawnIdMapping(action, actionIndex, to
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not place %s - continuing macro", 
-        actionIndex, totalActionCount, placementId))
     return true
 end
 
@@ -1411,14 +1511,13 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
     local placementId = action.Unit
     local upgradeAmount = action.Amount or 1
     local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
+    local macroName = MacroSystem.currentMacroName or "Unknown"
     
     if not currentSpawnId then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
-            actionIndex, totalActionCount, placementId))
         return false
     end
     
-    local temp -- Reusable
+    local temp
     
     for attempt = 1, maxRetries do
         if not MacroSystem.isPlaybacking then return false end
@@ -1437,11 +1536,10 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         end
         
         if not targetUnit then
-            updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
-                actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
             if attempt < maxRetries then
-                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed - unit not found, retrying...", 
-                    actionIndex, totalActionCount, attempt, maxRetries))
+                -- FIXED: Consistent format with attempt info
+                updateDetailedStatus(string.format("Macro: %s (%d/%d)\nAttempt %d/%d: Unit not found, retrying...", 
+                    macroName, actionIndex, totalActionCount, attempt, maxRetries))
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
                 continue
             else
@@ -1451,9 +1549,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
         
         local originalLevel = getUnitUpgradeLevel(targetUnit)
         local upgradeText = upgradeAmount > 1 and 
-            string.format("Multi-upgrading x%d", upgradeAmount) or "Upgrading"
+            string.format("x%d upgrade", upgradeAmount) or "upgrade"
         
-        -- Calculate required money
         temp = parseUnitString(action.Unit)
         local unitId = temp and getUnitIdFromDisplayName(temp)
         local requiredCost = 0
@@ -1464,26 +1561,19 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 getUpgradeCost(unitId, originalLevel)
         end
         
-        -- Wait for money
+        -- Wait for money (but don't show detailed status here, it's handled in main loop)
         if requiredCost > 0 then
             local waitStart = tick()
             
             while getPlayerMoney() < requiredCost and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
                 if tick() - waitStart > 999999999999999999999999999999 then
-                    updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Money timeout - need %d, have %d", 
-                        actionIndex, totalActionCount, attempt, maxRetries, requiredCost, getPlayerMoney()))
                     break
                 end
-                
-                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Waiting for %d more yen (%s)", 
-                    actionIndex, totalActionCount, attempt, maxRetries, requiredCost - getPlayerMoney(), upgradeText))
                 task.wait(1)
             end
         end
         
         if requiredCost > 0 and getPlayerMoney() < requiredCost then
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: Insufficient money, trying next attempt", 
-                actionIndex, totalActionCount, attempt, maxRetries))
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
                 continue
@@ -1492,15 +1582,16 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             end
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: %s %s (Level %d)", 
-            actionIndex, totalActionCount, attempt, maxRetries, upgradeText, placementId, originalLevel))
+        -- FIXED: Show attempt info only if retrying
+        if attempt > 1 then
+            updateDetailedStatus(string.format("Macro: %s (%d/%d)\nAttempt %d/%d: Upgrading %s (%s)", 
+                macroName, actionIndex, totalActionCount, attempt, maxRetries, placementId, upgradeText))
+        end
         
-        -- Perform upgrades
         local successfulUpgrades = 0
         local lastKnownLevel = originalLevel
         
         for upgradeIndex = 1, upgradeAmount do
-            -- Re-find unit
             temp = Services.Workspace:FindFirstChild("_UNITS")
             local currentTargetUnit = nil
             
@@ -1514,8 +1605,6 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             end
             
             if not currentTargetUnit then
-                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Unit lost during upgrade sequence", 
-                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
                 break
             end
             
@@ -1523,8 +1612,6 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             local singleUpgradeCost = getUpgradeCost(unitId, currentLevel)
             
             if singleUpgradeCost > 0 and getPlayerMoney() < singleUpgradeCost then
-                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Insufficient money for upgrade (need %d, have %d)", 
-                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount, singleUpgradeCost, getPlayerMoney()))
                 break
             end
             
@@ -1533,12 +1620,9 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             end)
             
             if not upgradeSuccess then
-                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Remote call failed", 
-                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
                 break
             end
             
-            -- Validate upgrade
             local upgradeValidated = false
             local validationStart = tick()
             
@@ -1563,13 +1647,9 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                         lastKnownLevel = newLevel
                         successfulUpgrades = successfulUpgrades + 1
                         upgradeValidated = true
-                        updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Level %d -> %d SUCCESS", 
-                            actionIndex, totalActionCount, upgradeIndex, upgradeAmount, currentLevel, newLevel))
                         break
                     end
                 else
-                    updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Unit lost during validation", 
-                        actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
                     break
                 end
                 
@@ -1577,41 +1657,25 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             end
             
             if not upgradeValidated then
-                updateDetailedStatus(string.format("(%d/%d) Upgrade %d/%d: Validation timeout", 
-                    actionIndex, totalActionCount, upgradeIndex, upgradeAmount))
+                break
             end
             
             task.wait(0.1)
         end
         
         if successfulUpgrades >= upgradeAmount then
-            updateDetailedStatus(string.format("(%d/%d) SUCCESS: %s %s (Level %d->%d, +%d upgrades)", 
-                actionIndex, totalActionCount, upgradeText, placementId, 
-                originalLevel, lastKnownLevel, successfulUpgrades))
             return true
         elseif successfulUpgrades > 0 then
-            updateDetailedStatus(string.format("(%d/%d) PARTIAL: %s %s (Level %d->%d, %d/%d upgrades)", 
-                actionIndex, totalActionCount, upgradeText, placementId, 
-                originalLevel, lastKnownLevel, successfulUpgrades, upgradeAmount))
             return true
         else
-            updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: No upgrades succeeded", 
-                actionIndex, totalActionCount, attempt, maxRetries))
-            
             if attempt < maxRetries then
-                updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
-                    actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
             else
-                updateDetailedStatus(string.format("(%d/%d) All upgrade attempts failed - continuing macro", 
-                    actionIndex, totalActionCount))
                 return true
             end
         end
     end
     
-    updateDetailedStatus(string.format("(%d/%d) FAILED: Could not %s %s after %d attempts - continuing macro", 
-        actionIndex, totalActionCount, upgradeText:lower(), placementId, maxRetries))
     return true
 end
 
@@ -1623,8 +1687,8 @@ local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalAc
     -- Look up current spawn_id for this placement
     local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
     if not currentSpawnId then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
-            actionIndex, totalActionCount, placementId))
+        --updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
+            --actionIndex, totalActionCount, placementId))
         return false
     end
     
@@ -1642,12 +1706,12 @@ local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalAc
     end
     
     if not targetUnit then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
-            actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
+        --updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
+            --actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
         return false
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActionCount, placementId))
+    --updateDetailedStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActionCount, placementId))
     
     local success = pcall(function()
         endpoints:WaitForChild(MACRO_CONFIG.SELL_REMOTE):InvokeServer(targetUnit.Name)
@@ -1673,14 +1737,14 @@ local function validateSellActionWithSpawnIdMapping(action, actionIndex, totalAc
             -- Remove from mapping
             MacroSystem.playbackPlacementToSpawnId[placementId] = nil
             
-            updateDetailedStatus(string.format("(%d/%d) Successfully sold %s", 
-                actionIndex, totalActionCount, placementId))
+            --updateDetailedStatus(string.format("(%d/%d) Successfully sold %s", 
+                --actionIndex, totalActionCount, placementId))
             return true
         end
     end
     
-updateDetailedStatus(string.format("(%d/%d) Failed to sell %s - continuing macro", 
-    actionIndex, totalActionCount, placementId))
+--updateDetailedStatus(string.format("(%d/%d) Failed to sell %s - continuing macro", 
+    --actionIndex, totalActionCount, placementId))
 return true
 end
 
@@ -1689,8 +1753,8 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     
     local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
     if not currentSpawnId then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
-            actionIndex, totalActionCount, placementId))
+        --updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
+            --actionIndex, totalActionCount, placementId))
         return false
     end
     
@@ -1707,15 +1771,15 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     end
     
     if not targetUnit then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
-            actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
+        --updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
+            --actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
         return false
     end
     
     local stats = targetUnit:FindFirstChild("_stats")
     if not stats then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No stats for %s", 
-            actionIndex, totalActionCount, placementId))
+       -- updateDetailedStatus(string.format("(%d/%d) FAILED: No stats for %s", 
+            --actionIndex, totalActionCount, placementId))
         return false
     end
     
@@ -1723,8 +1787,8 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     local spawnIdValue = stats:FindFirstChild("spawn_id")
     
     if not uuidValue or not uuidValue:IsA("StringValue") then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No UUID for %s", 
-            actionIndex, totalActionCount, placementId))
+        --updateDetailedStatus(string.format("(%d/%d) FAILED: No UUID for %s", 
+            --actionIndex, totalActionCount, placementId))
         return false
     end
     
@@ -1732,14 +1796,14 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     local combinedIdentifier = uuidValue.Value
     if spawnIdValue then
         combinedIdentifier = combinedIdentifier .. spawnIdValue.Value
-        print(string.format("Created combined identifier for ability: %s", combinedIdentifier))
+        --print(string.format("Created combined identifier for ability: %s", combinedIdentifier))
     end
     
     local abilityDesc = action.AbilityName and 
         string.format("ability '%s'", action.AbilityName) or "ability"
     
-    updateDetailedStatus(string.format("(%d/%d) Using %s for %s", 
-        actionIndex, totalActionCount, abilityDesc, placementId))
+    --updateDetailedStatus(string.format("(%d/%d) Using %s for %s", 
+        --actionIndex, totalActionCount, abilityDesc, placementId))
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
@@ -1755,12 +1819,12 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     
     if success then
         task.wait(0.2)
-        updateDetailedStatus(string.format("(%d/%d) Successfully used %s for %s", 
-            actionIndex, totalActionCount, abilityDesc, placementId))
+        --updateDetailedStatus(string.format("(%d/%d) Successfully used %s for %s", 
+           -- actionIndex, totalActionCount, abilityDesc, placementId))
         return true
     else
-        updateDetailedStatus(string.format("(%d/%d) Failed to use %s for %s", 
-            actionIndex, totalActionCount, abilityDesc, placementId))
+        --updateDetailedStatus(string.format("(%d/%d) Failed to use %s for %s", 
+           -- actionIndex, totalActionCount, abilityDesc, placementId))
         return false
     end
 end
@@ -5558,6 +5622,42 @@ end
 
 local SummonStatusLabel = LobbyTab:CreateLabel("Auto Summon: Idle")
 
+LobbyTab:CreateSection("Auto Normalize Shiny")
+
+
+LobbyTab:CreateToggle({
+    Name = "Auto Normalize Shiny",
+    CurrentValue = false,
+    Flag = "AutoNormalizeShiny",
+    Info = "Automatically remove shiny from units based on selected rarities (skips locked units)",
+    Callback = function(Value)
+        State.AutoNormalizeShiny = Value
+        
+        if Value and #State.NormalizeRarityFilter == 0 then
+            notify("Auto Normalize", "Please select at least one rarity to normalize!")
+        end
+    end,
+})
+
+LobbyTab:CreateDropdown({
+    Name = "Select Rarities to Normalize",
+    Options = {"Rare", "Epic", "Legendary"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "NormalizeRarityFilter",
+    Info = "Only normalize shiny units of these rarities (locked units are always skipped)",
+    Callback = function(Options)
+        State.NormalizeRarityFilter = Options or {}
+        
+        if #State.NormalizeRarityFilter > 0 then
+            local rarityText = table.concat(State.NormalizeRarityFilter, ", ")
+            print("Normalize rarity filter updated:", rarityText)
+        else
+            print("Normalize rarity filter cleared")
+        end
+    end,
+})
+
 local function updateSummonStatus()
     if State.AutoSummon and State.AutoSummonBanner then
         local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
@@ -8715,6 +8815,15 @@ task.spawn(function()
     end)
     
     print("Hooked into Select_Portals remote - ready to store portal data")
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoNormalizeShiny and isInLobby() and #State.NormalizeRarityFilter > 0 then
+            normalizeShinyUnits()
+        end
+    end
 end)
 
     -- ========== REMOTE EVENT CONNECTIONS ==========
