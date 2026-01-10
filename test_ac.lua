@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -226,6 +226,8 @@ local GameTracking = {
     gameHasEnded = false,
     isAutoLoopEnabled = false,
     portalDepth = nil,
+    currentWave = 0,
+    waveStartTime = 0,
 }
 
 local VALIDATION_CONFIG = {
@@ -480,12 +482,15 @@ local function startRecordingWithSpawnIdMapping()
     MacroSystem.trackedUnits = {}
     MacroSystem.isRecording = true
     
-    if GameTracking.gameStartTime == 0 then
-        GameTracking.gameStartTime = tick()
-        print("Setting game start time for recording:", GameTracking.gameStartTime)
+    -- Initialize wave tracking
+    local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+    if waveNum then
+        GameTracking.currentWave = waveNum.Value
+        GameTracking.waveStartTime = tick()
+        print(string.format("Recording started at wave %d", GameTracking.currentWave))
     end
     
-    print("Started recording with spawn ID mapping system")
+    print("Started recording with wave-based timing system")
 end
 
 local function clearPlaybackTrackingWithSpawnIdMapping()
@@ -547,7 +552,7 @@ local function getDisplayNameFromUnitId(unitId)
                 if moduleSuccess and unitData then
                     for unitKey, unitInfo in pairs(unitData) do
                         if type(unitInfo) == "table" and unitInfo.id == unitId and unitInfo.name then
-                            return unitInfo.name
+                            return unitInfo.namewww
                         end
                     end
                 end
@@ -808,6 +813,11 @@ end
         return nil
     end
 
+    local function getRecordingTime()
+    local timeInWave = tick() - GameTracking.waveStartTime
+    return string.format("%d %.17f", GameTracking.currentWave, timeInWave)
+end
+
 local function processPlacementActionWithSpawnIdMapping(actionInfo)
 
     local beforeSnapshot = actionInfo.preActionUnits or takeUnitsSnapshot()
@@ -825,10 +835,7 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     
     -- Get display name (e.g., "Shadow")
     local internalName = getInternalSpawnName(spawnedUnit)
-    print("DEBUG PLACEMENT - Internal name:", internalName)
     local displayName = getDisplayNameFromUnitId(internalName)
-    print("DEBUG PLACEMENT - Display name:", displayName)
-    print("DEBUG PLACEMENT - Actual unit in workspace:", spawnedUnit.Name)
     
     if not displayName then
         warn("Could not get display name for unit")
@@ -864,7 +871,6 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
         local combinedIdentifier = actualUUID
     if spawnIdValue then
         combinedIdentifier = actualUUID .. spawnIdValue.Value
-        print("DEBUG: Created combined identifier for placement:", combinedIdentifier)
     end
 
     -- Map UUID to logical placement for ability/upgrade/sell tracking
@@ -881,7 +887,7 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local placementRecord = {
         Type = "spawn_unit",
         Unit = placementId, -- "Shadow #1", "Shadow #2", etc.
-        Time = string.format("%.2f", gameRelativeTime),
+        Time = getRecordingTime(),
         Pos = raycastData.Origin and string.format("%.17f, %.17f, %.17f", raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
         Dir = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
         Rot = rotation ~= 0 and rotation or 0
@@ -1005,7 +1011,7 @@ local function processSellActionWithSpawnIdMapping(actionInfo)
     local sellRecord = {
         Type = "sell_unit_ingame",
         Unit = placementId,
-        Time = string.format("%.2f", gameRelativeTime)
+        Time = getRecordingTime()
     }
     
     table.insert(macro, sellRecord)
@@ -1021,16 +1027,6 @@ Rayfield:Notify({
     Duration = 3,
     Image = 4483362458
 })
-end
-
-local function processWaveSkipAction(actionInfo)
-    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
-    
-    table.insert(macro, {
-        Type = "vote_wave_skip",
-        Time = string.format("%.2f", gameRelativeTime)
-    })
-    Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded wave skip",Duration = 3,Image = 4483362458})
 end
 
 local function processAbilityActionWithSpawnIdMapping(actionInfo)
@@ -1061,7 +1057,7 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
     local abilityRecord = {
         Type = "use_active_attack",
         Unit = placementId,
-        Time = string.format("%.2f", gameRelativeTime)
+        Time = getRecordingTime()
     }
     
     -- Only include AbilityName if it was provided
@@ -1095,16 +1091,7 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
         processPlacementActionWithSpawnIdMapping(actionInfo)
     elseif actionInfo.remoteName == MACRO_CONFIG.SELL_REMOTE then
         processSellActionWithSpawnIdMapping(actionInfo)
-    elseif actionInfo.remoteName == MACRO_CONFIG.WAVE_SKIP_REMOTE then
-        Rayfield:Notify({
-            Title = "Macro Recorder",
-            Content = "Processing wave skip action",
-            Duration = 2,
-            Image = 4483362458,
-        })
-        processWaveSkipAction(actionInfo)
     end
-    -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
 
 local function setupMacroHooksRefactored()
@@ -1140,13 +1127,6 @@ local function setupMacroHooksRefactored()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.SELL_REMOTE,
                         args = args,
-                        timestamp = tick()
-                    })
-                end)
-            elseif self.Name == MACRO_CONFIG.WAVE_SKIP_REMOTE then
-                task.spawn(function()
-                    processActionResponseWithSpawnIdMapping({
-                        remoteName = MACRO_CONFIG.WAVE_SKIP_REMOTE,
                         timestamp = tick()
                     })
                 end)
@@ -1249,7 +1229,7 @@ end
                     local record = {
                         Type = MACRO_CONFIG.UPGRADE_REMOTE,
                         Unit = placementId,
-                        Time = string.format("%.2f", tick() - GameTracking.gameStartTime)
+                        Time = getRecordingTime()
                     }
                     
                     if levelIncrease > 1 then
@@ -2396,17 +2376,27 @@ end
         end
     end
 
-    local function monitorWavesForRecording()
-        if Services.Workspace:FindFirstChild("_wave_num") then
-            local waveNum = Services.Workspace._wave_num
-            
-            waveNum.Changed:Connect(function(newWave)
-                if MacroSystem.isRecording and MacroSystem.recordingHasStarted then
-                    print(string.format("Wave %d started during recording", newWave))
-                end
-            end)
-        end
+local function monitorWavesForRecording()
+    if not Services.Workspace:FindFirstChild("_wave_num") then
+        Services.Workspace:WaitForChild("_wave_num")
     end
+    
+    local waveNum = Services.Workspace._wave_num
+    
+    -- Monitor wave changes
+    waveNum.Changed:Connect(function(newWave)
+        GameTracking.currentWave = newWave
+        GameTracking.waveStartTime = tick()
+        
+        if MacroSystem.isRecording then
+            print(string.format("Wave %d started during recording (time reset)", newWave))
+        end
+    end)
+    
+    -- Set initial wave
+    GameTracking.currentWave = waveNum.Value
+    GameTracking.waveStartTime = tick()
+end
 
     local function getBackendWorldKeyFromDisplayName(selectedDisplayName)
         local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
@@ -6889,7 +6879,7 @@ local RecordToggle = MacroTab:CreateToggle({
     end
 })
 
-local function playMacroWithGameTimingRefactored()
+--[[local function playMacroWithGameTimingRefactored()
     if not macro or #macro == 0 then
         print("No macro data to play back")
         updateDetailedStatus("No macro data to play back")
@@ -7092,6 +7082,136 @@ local function playMacroWithGameTimingRefactored()
         print("Macro playback completed")
     end
     
+    return true
+end--]]
+
+local function playMacroWithWaveTiming()
+    if not macro or #macro == 0 then
+        print("No macro data to play back")
+        updateDetailedStatus("No macro data to play back")
+        return false
+    end
+    
+    if MacroSystem.macroHasPlayedThisGame then
+        print("Macro already played this game, skipping")
+        updateDetailedStatus("Macro already played this game - waiting for next game")
+        return false
+    end
+    
+    MacroSystem.macroHasPlayedThisGame = true
+    local totalActions = #macro
+    local scheduledAbilities = 0
+    
+    updateDetailedStatus(string.format("Starting wave-based playback with %d actions", totalActions))
+    print("Starting macro playback with wave-based timing")
+    
+    GameTracking.gameHasEnded = false
+    clearPlaybackTracking()
+    clearPlaybackTrackingWithSpawnIdMapping()
+    
+    local activeAbilityTasks = 0
+    
+    for i, action in ipairs(macro) do
+        if not MacroSystem.isPlaybacking or not GameTracking.isAutoLoopEnabled or GameTracking.gameHasEnded then
+            updateDetailedStatus("Macro interrupted - stopping execution")
+            return false
+        end
+        
+        -- Parse wave and time from "wave time" format
+        local targetWave, targetTime = action.Time:match("^(%d+)%s+([%d%.]+)$")
+        targetWave = tonumber(targetWave)
+        targetTime = tonumber(targetTime)
+        
+        if not targetWave or not targetTime then
+            warn(string.format("Invalid time format in action %d: %s", i, tostring(action.Time)))
+            continue
+        end
+        
+        -- Money waiting logic (same as before)
+        if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
+            -- ... keep your existing waitForSufficientMoney logic ...
+        end
+        
+        -- Handle abilities separately when ignore timing is enabled
+        if State.IgnoreTiming and action.Type == "use_active_attack" then
+            activeAbilityTasks = activeAbilityTasks + 1
+            
+            task.spawn(function()
+                -- Wait for correct wave
+                while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking do
+                    task.wait(0.5)
+                end
+                
+                if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then return end
+                
+                -- Wait for correct time within wave
+                local timeInWave = tick() - GameTracking.waveStartTime
+                local waitTime = targetTime - timeInWave
+                if waitTime > 0 then
+                    task.wait(waitTime)
+                end
+                
+                -- Execute ability
+                if MacroSystem.isPlaybacking and not GameTracking.gameHasEnded then
+                    validateAbilityActionWithSpawnIdMapping(action, i, totalActions)
+                    activeAbilityTasks = activeAbilityTasks - 1
+                end
+            end)
+            
+            updateDetailedStatus(string.format("(%d/%d) Scheduled ability: %s for wave %d at %.1fs", 
+                i, totalActions, action.Unit, targetWave, targetTime))
+            continue
+        end
+        
+        -- Timing logic for non-ability actions
+        if not State.IgnoreTiming then
+            -- Wait for correct wave
+            while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
+                updateDetailedStatus(string.format("(%d/%d) Waiting for wave %d (currently wave %d)", 
+                    i, totalActions, targetWave, GameTracking.currentWave))
+                task.wait(0.5)
+            end
+            
+            if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
+                updateDetailedStatus("Macro stopped during wave wait")
+                return false
+            end
+            
+            -- Wait for correct time within wave
+            local timeInWave = tick() - GameTracking.waveStartTime
+            local waitTime = targetTime - timeInWave
+            
+            if waitTime > 0 then
+                updateDetailedStatus(string.format("(%d/%d) Wave %d: Waiting %.1fs (at %.1fs, target %.1fs)", 
+                    i, totalActions, targetWave, waitTime, timeInWave, targetTime))
+                
+                local waitStart = tick()
+                while tick() - waitStart < waitTime and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
+                    task.wait(0.1)
+                end
+            end
+            
+            if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
+                updateDetailedStatus("Macro stopped during timing wait")
+                return false
+            end
+        else
+            -- Ignore timing mode - just small delay between actions
+            if i > 1 then
+                task.wait(0.3)
+            end
+        end
+        
+        -- Execute the action
+        local actionSuccess = executeActionWithSpawnIdMapping(action, i, totalActions)
+        
+        if not actionSuccess then
+            print(string.format("Action %d failed: %s", i, action.Type))
+        end
+    end
+    
+    updateDetailedStatus("Macro playback completed")
+    print("Macro playback completed")
     return true
 end
 
@@ -7479,7 +7599,7 @@ local function autoLoopPlaybackWithGameTiming()
         notify("Playbook Started", macroToUse .. macroSource .. timingMode .. " (" .. #macro .. " actions)")
         clearSpawnIdMappings()
         
-        local completed = playMacroWithGameTimingRefactored()
+        local completed = playMacroWithWaveTiming()
         
         MacroSystem.isPlaybacking = false
         
