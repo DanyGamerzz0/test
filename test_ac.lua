@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.19"
+    local script_version = "V0.2"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2182,17 +2182,18 @@ local function monitorWaves()
     
     waveNum.Changed:Connect(function(newWave)
         GameTracking.lastWave = newWave
+        GameTracking.currentWave = newWave
+        GameTracking.waveStartTime = tick()
         
-        -- Game start detection (wave 1 OR if we join mid-game)
-        if newWave >= 1 and not GameTracking.gameInProgress then
+        -- Game start detection (wave 0 or 1, or mid-game join)
+        if newWave >= 0 and not GameTracking.gameInProgress then -- CHANGED: >= 0 instead of >= 1
             startGameTracking()
             
-            -- Start recording if it's enabled but not started yet
+            -- Start recording if enabled
             if MacroSystem.isRecording and not MacroSystem.recordingHasStarted then
                 MacroSystem.recordingHasStarted = true
                 MacroSystem.isRecordingLoopRunning = true
                 startRecordingWithSpawnIdMapping()
-                --MacroStatusLabel:Set("Status: Recording active!")
                 notify("Recording Started", "Game started - macro recording is now active.")
             end
         elseif newWave > 0 and GameTracking.gameInProgress then
@@ -2202,7 +2203,10 @@ local function monitorWaves()
     
     -- Check initial value
     local initialWave = waveNum.Value
-    if initialWave >= 1 then
+    GameTracking.currentWave = initialWave
+    GameTracking.waveStartTime = tick()
+    
+    if initialWave >= 0 then -- CHANGED: >= 0 instead of >= 1
         GameTracking.lastWave = initialWave
         startGameTracking()
         
@@ -2211,11 +2215,10 @@ local function monitorWaves()
             MacroSystem.recordingHasStarted = true
             MacroSystem.isRecordingLoopRunning = true
             startRecordingWithSpawnIdMapping()
-            --MacroStatusLabel:Set("Status: Recording active!")
-            notify("Recording Started", "Joined mid-game - macro recording is now active.")
+            notify("Recording Started", "Joined game - macro recording is now active.")
         end
         
-        print("Joined mid-game at wave " .. initialWave .. "!")
+        print("Game active at wave " .. initialWave .. "!")
     end
     
     print("Monitoring wave changes for game start detection...")
