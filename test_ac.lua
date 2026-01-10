@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.22"
+    local script_version = "V0.23"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -718,12 +718,11 @@ local function resolveUUIDFromInternalName(internalName)
     return uuid
 end
 
-    local function updateDetailedStatus(message)
-        if MacroSystem.detailedStatusLabel then
-            MacroSystem.detailedStatusLabel:Set("Macro Details: " .. message)
-        end
-        --print("Macro Status: " .. message)
+local function updateDetailedStatus(message)
+    if MacroSystem.detailedStatusLabel then
+        MacroSystem.detailedStatusLabel:Set(message)
     end
+end
 
 local function saveMacroToFile(name)
     if not name or name == "" then return end
@@ -7101,13 +7100,13 @@ end--]]
 local function playMacroWithWaveTiming()
     if not macro or #macro == 0 then
         print("No macro data to play back")
-        updateDetailedStatus("No macro data to play back")
+        updateDetailedStatus("No macro loaded")
         return false
     end
     
     if MacroSystem.macroHasPlayedThisGame then
         print("Macro already played this game, skipping")
-        updateDetailedStatus("Macro already played this game - waiting for next game")
+        updateDetailedStatus("Macro already played this game")
         return false
     end
     
@@ -7115,20 +7114,28 @@ local function playMacroWithWaveTiming()
     local totalActions = #macro
     local scheduledAbilities = 0
     
-    updateDetailedStatus(string.format("Starting wave-based playback with %d actions", totalActions))
-    print("Starting macro playback with wave-based timing")
+    -- Initial status
+    local macroName = MacroSystem.currentMacroName or "Unknown"
+    updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: 00:00", macroName, 0, totalActions))
     
     GameTracking.gameHasEnded = false
     clearPlaybackTracking()
     clearPlaybackTrackingWithSpawnIdMapping()
     
     local activeAbilityTasks = 0
+    local macroStartTime = tick()
     
     for i, action in ipairs(macro) do
         if not MacroSystem.isPlaybacking or not GameTracking.isAutoLoopEnabled or GameTracking.gameHasEnded then
-            updateDetailedStatus("Macro interrupted - stopping execution")
+            updateDetailedStatus(string.format("Macro: %s - Interrupted", macroName))
             return false
         end
+        
+        -- Calculate time elapsed
+        local timeElapsed = tick() - macroStartTime
+        local minutes = math.floor(timeElapsed / 60)
+        local seconds = math.floor(timeElapsed % 60)
+        local timeString = string.format("%02d:%02d", minutes, seconds)
         
         -- Parse wave and time from "wave time" format
         local targetWave, targetTime = action.Time:match("^(%d+)%s+([%d%.]+)$")
@@ -7140,9 +7147,73 @@ local function playMacroWithWaveTiming()
             continue
         end
         
-        -- Money waiting logic (same as before)
+        -- Money waiting logic
         if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
-            -- ... keep your existing waitForSufficientMoney logic ...
+            local requiredCost = 0
+            
+            if action.Type == "spawn_unit" then
+                local displayName, instanceNumber = parseUnitString(action.Unit)
+                if displayName then
+                    local unitId = getUnitIdFromDisplayName(displayName)
+                    if unitId then
+                        requiredCost = getPlacementCost(unitId)
+                    end
+                end
+            elseif action.Type == "upgrade_unit_ingame" then
+                local placementId = action.Unit
+                local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
+                
+                if currentSpawnId then
+                    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                    if unitsFolder then
+                        for _, unit in pairs(unitsFolder:GetChildren()) do
+                            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                                local displayName = parseUnitString(action.Unit)
+                                if displayName then
+                                    local unitId = getUnitIdFromDisplayName(displayName)
+                                    local currentLevel = getUnitUpgradeLevel(unit)
+                                    local upgradeAmount = action.Amount or 1
+                                    
+                                    if upgradeAmount > 1 then
+                                        requiredCost = getMultiUpgradeCost(unitId, currentLevel, upgradeAmount)
+                                    else
+                                        requiredCost = getUpgradeCost(unitId, currentLevel)
+                                    end
+                                end
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if requiredCost > 0 then
+                local maxWaitTime = 999999999999999999999999999999999999999
+                local waitStart = tick()
+                
+                while getPlayerMoney() < requiredCost and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
+                    if tick() - waitStart > maxWaitTime then
+                        break
+                    end
+                    
+                    local currentMoney = getPlayerMoney()
+                    local missingMoney = requiredCost - currentMoney
+                    
+                    -- Update time elapsed during wait
+                    timeElapsed = tick() - macroStartTime
+                    minutes = math.floor(timeElapsed / 60)
+                    seconds = math.floor(timeElapsed % 60)
+                    timeString = string.format("%02d:%02d", minutes, seconds)
+                    
+                    updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nWaiting for %d yen (have %d, need %d)", 
+                        macroName, i, totalActions, timeString, missingMoney, currentMoney, requiredCost))
+                    task.wait(1)
+                end
+                
+                if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
+                    return false
+                end
+            end
         end
         
         -- Handle abilities separately when ignore timing is enabled
@@ -7171,8 +7242,14 @@ local function playMacroWithWaveTiming()
                 end
             end)
             
-            updateDetailedStatus(string.format("(%d/%d) Scheduled ability: %s for wave %d at %.1fs", 
-                i, totalActions, action.Unit, targetWave, targetTime))
+            -- Update time elapsed
+            timeElapsed = tick() - macroStartTime
+            minutes = math.floor(timeElapsed / 60)
+            seconds = math.floor(timeElapsed % 60)
+            timeString = string.format("%02d:%02d", minutes, seconds)
+            
+            updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nScheduled ability for wave %d", 
+                macroName, i, totalActions, timeString, targetWave))
             continue
         end
         
@@ -7180,13 +7257,17 @@ local function playMacroWithWaveTiming()
         if not State.IgnoreTiming then
             -- Wait for correct wave
             while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
-                updateDetailedStatus(string.format("(%d/%d) Waiting for wave %d (currently wave %d)", 
-                    i, totalActions, targetWave, GameTracking.currentWave))
+                timeElapsed = tick() - macroStartTime
+                minutes = math.floor(timeElapsed / 60)
+                seconds = math.floor(timeElapsed % 60)
+                timeString = string.format("%02d:%02d", minutes, seconds)
+                
+                updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nWaiting for wave %d (currently wave %d)", 
+                    macroName, i, totalActions, timeString, targetWave, GameTracking.currentWave))
                 task.wait(0.5)
             end
             
             if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
-                updateDetailedStatus("Macro stopped during wave wait")
                 return false
             end
             
@@ -7195,25 +7276,46 @@ local function playMacroWithWaveTiming()
             local waitTime = targetTime - timeInWave
             
             if waitTime > 0 then
-                updateDetailedStatus(string.format("(%d/%d) Wave %d: Waiting %.1fs (at %.1fs, target %.1fs)", 
-                    i, totalActions, targetWave, waitTime, timeInWave, targetTime))
-                
                 local waitStart = tick()
                 while tick() - waitStart < waitTime and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
+                    timeElapsed = tick() - macroStartTime
+                    minutes = math.floor(timeElapsed / 60)
+                    seconds = math.floor(timeElapsed % 60)
+                    timeString = string.format("%02d:%02d", minutes, seconds)
+                    
+                    updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nWave %d: Waiting %.1fs", 
+                        macroName, i, totalActions, timeString, targetWave, waitTime - (tick() - waitStart)))
                     task.wait(0.1)
                 end
             end
             
             if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
-                updateDetailedStatus("Macro stopped during timing wait")
                 return false
             end
         else
-            -- Ignore timing mode - just small delay between actions
             if i > 1 then
                 task.wait(0.3)
             end
         end
+        
+        -- Update status with next action info
+        timeElapsed = tick() - macroStartTime
+        minutes = math.floor(timeElapsed / 60)
+        seconds = math.floor(timeElapsed % 60)
+        timeString = string.format("%02d:%02d", minutes, seconds)
+        
+        local nextActionText = ""
+        if i < totalActions then
+            local nextAction = macro[i + 1]
+            local nextWave, nextTime = nextAction.Time:match("^(%d+)%s+([%d%.]+)$")
+            if nextWave and nextTime then
+                nextActionText = string.format("\n[%d] Next action in %s wave (%s)", 
+                    i + 1, nextWave, nextAction.Type)
+            end
+        end
+        
+        updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s%s", 
+            macroName, i, totalActions, timeString, nextActionText))
         
         -- Execute the action
         local actionSuccess = executeActionWithSpawnIdMapping(action, i, totalActions)
@@ -7223,7 +7325,13 @@ local function playMacroWithWaveTiming()
         end
     end
     
-    updateDetailedStatus("Macro playback completed")
+    -- Final status
+    timeElapsed = tick() - macroStartTime
+    minutes = math.floor(timeElapsed / 60)
+    seconds = math.floor(timeElapsed % 60)
+    timeString = string.format("%02d:%02d", minutes, seconds)
+    
+    updateDetailedStatus(string.format("Macro: %s - Completed in %s", macroName, timeString))
     print("Macro playback completed")
     return true
 end
@@ -7651,7 +7759,7 @@ local function autoLoopPlaybackWithGameTiming()
     MacroSystem.isPlaybacking = false
 end
 
-local PlayToggleEnhanced = MacroTab:CreateToggle({
+ PlayToggleEnhanced = MacroTab:CreateToggle({
     Name = "Playback Macro",
     CurrentValue = false,
     Flag = "PlayBackMacro",
@@ -7659,7 +7767,8 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         GameTracking.isAutoLoopEnabled = Value
         
         if Value then
-            MacroStatusLabel:Set("Status: Playback enabled - will play when conditions are met")
+            MacroStatusLabel:Set("Status: Playback enabled")
+            updateDetailedStatus("Waiting for game to start...")
             notify("Playback Enabled", "Macro will play once per game when conditions are met.")
             
             task.spawn(function()
@@ -7667,6 +7776,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             end)
         else
             MacroStatusLabel:Set("Status: Playback disabled")
+            updateDetailedStatus("Playback stopped")
             MacroSystem.isPlaybacking = false
             GameTracking.gameHasEnded = false
             notify("Playback Disabled", "Macro playback stopped.")
