@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.21"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2185,8 +2185,29 @@ local function monitorWaves()
         GameTracking.currentWave = newWave
         GameTracking.waveStartTime = tick()
         
-        -- Game start detection (wave 0 or 1, or mid-game join)
-        if newWave >= 0 and not GameTracking.gameInProgress then -- CHANGED: >= 0 instead of >= 1
+        if newWave > 0 and GameTracking.gameInProgress then
+            print("Wave " .. newWave .. " started")
+        end
+    end)
+    
+    -- Check initial value
+    local initialWave = waveNum.Value
+    GameTracking.currentWave = initialWave
+    GameTracking.waveStartTime = tick()
+    GameTracking.lastWave = initialWave
+    
+    print("Monitoring wave changes...")
+end
+
+local function monitorGameStarted()
+    local gameData = Services.Workspace:WaitForChild("_DATA")
+    local gameStarted = gameData:WaitForChild("GameStarted")
+    
+    print("Monitoring GameStarted value...")
+    
+    gameStarted.Changed:Connect(function(isStarted)
+        if isStarted and not GameTracking.gameInProgress then
+            print("GameStarted = true detected, starting game tracking...")
             startGameTracking()
             
             -- Start recording if enabled
@@ -2196,32 +2217,21 @@ local function monitorWaves()
                 startRecordingWithSpawnIdMapping()
                 notify("Recording Started", "Game started - macro recording is now active.")
             end
-        elseif newWave > 0 and GameTracking.gameInProgress then
-            print("Wave " .. newWave .. " started")
         end
     end)
     
     -- Check initial value
-    local initialWave = waveNum.Value
-    GameTracking.currentWave = initialWave
-    GameTracking.waveStartTime = tick()
-    
-    if initialWave >= 0 then -- CHANGED: >= 0 instead of >= 1
-        GameTracking.lastWave = initialWave
+    if gameStarted.Value and not GameTracking.gameInProgress then
+        print("GameStarted already true, starting game tracking...")
         startGameTracking()
         
-        -- Start recording if enabled
         if MacroSystem.isRecording and not MacroSystem.recordingHasStarted then
             MacroSystem.recordingHasStarted = true
             MacroSystem.isRecordingLoopRunning = true
             startRecordingWithSpawnIdMapping()
-            notify("Recording Started", "Joined game - macro recording is now active.")
+            notify("Recording Started", "Joined game in progress - macro recording is now active.")
         end
-        
-        print("Game active at wave " .. initialWave .. "!")
     end
-    
-    print("Monitoring wave changes for game start detection...")
 end
 
     local function sellAllPlayerUnits()
@@ -7554,13 +7564,17 @@ local function autoLoopPlaybackWithGameTiming()
         
         if not GameTracking.isAutoLoopEnabled then break end
         
-        -- NEW: Wait for wave 0 to start (game actually loaded)
-        while GameTracking.currentWave < 0 and GameTracking.isAutoLoopEnabled do
-            updateDetailedStatus("Waiting for game to initialize (wave 0)...")
-            task.wait(0.5)
+        -- NEW: Wait for GameStarted to be true
+        local gameData = Services.Workspace:FindFirstChild("_DATA")
+        if gameData then
+            local gameStarted = gameData:FindFirstChild("GameStarted")
+            if gameStarted then
+                while not gameStarted.Value and GameTracking.isAutoLoopEnabled do
+                    updateDetailedStatus("Waiting for game to start (GameStarted = false)...")
+                    task.wait(0.5)
+                end
+            end
         end
-        
-        if not GameTracking.isAutoLoopEnabled then break end
         
         -- Check if macro already played this game
         if MacroSystem.macroHasPlayedThisGame then
@@ -8985,6 +8999,7 @@ end
 
     -- Only monitor waves if not in lobby
     if not isInLobby() then 
+        monitorGameStarted()
         monitorWaves() 
         task.spawn(monitorWavesForAutoSell)
         task.spawn(monitorWavesForAutoSellFarm)
