@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.2"
+    local script_version = "V0.21"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -226,7 +226,7 @@ local GameTracking = {
     gameHasEnded = false,
     isAutoLoopEnabled = false,
     portalDepth = nil,
-    currentWave = 0,
+    currentWave = -1,
     waveStartTime = 0,
 }
 
@@ -7554,6 +7554,14 @@ local function autoLoopPlaybackWithGameTiming()
         
         if not GameTracking.isAutoLoopEnabled then break end
         
+        -- NEW: Wait for wave 0 to start (game actually loaded)
+        while GameTracking.currentWave < 0 and GameTracking.isAutoLoopEnabled do
+            updateDetailedStatus("Waiting for game to initialize (wave 0)...")
+            task.wait(0.5)
+        end
+        
+        if not GameTracking.isAutoLoopEnabled then break end
+        
         -- Check if macro already played this game
         if MacroSystem.macroHasPlayedThisGame then
             updateDetailedStatus("Macro already played this game - waiting for next game...")
@@ -7566,6 +7574,11 @@ local function autoLoopPlaybackWithGameTiming()
             -- Wait for next game to start
             while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
                 task.wait(1)
+            end
+            
+            -- NEW: Wait for wave 0 again
+            while GameTracking.currentWave < 0 and GameTracking.isAutoLoopEnabled do
+                task.wait(0.5)
             end
             
             if not GameTracking.isAutoLoopEnabled then break end
@@ -7594,15 +7607,15 @@ local function autoLoopPlaybackWithGameTiming()
         MacroSystem.isPlaybacking = true
         
         local macroSource = worldSpecificMacro and " (Auto-selected)" or " (Manual selection)"
-        local timingMode = State.IgnoreTiming and " - Immediate Mode" or " - Game Time Sync"
+        local timingMode = State.IgnoreTiming and " - Immediate Mode" or " - Wave-Based Sync"
         
         MacroStatusLabel:Set("Status: Playing " .. macroToUse .. macroSource .. "...")
         updateDetailedStatus("Starting macro: " .. macroToUse .. macroSource .. timingMode)
         
-        notify("Playbook Started", macroToUse .. macroSource .. timingMode .. " (" .. #macro .. " actions)")
+        notify("Playback Started", macroToUse .. macroSource .. timingMode .. " (" .. #macro .. " actions)")
         clearSpawnIdMappings()
         
-        local completed = playMacroWithWaveTiming()
+        local completed = playMacroWithWaveTiming() -- USING NEW FUNCTION
         
         MacroSystem.isPlaybacking = false
         
