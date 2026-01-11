@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.46"
+    local script_version = "V0.47"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9098,7 +9098,10 @@ if gameFinishedRemote then
         print("Final game result:", GameTracking.gameResult)
         
         -- SEND WEBHOOK IMMEDIATELY (BEFORE AUTO-VOTE LOGIC)
-        if GameTracking.gameInProgress then
+        -- CRITICAL FIX: Don't reset gameInProgress yet - keep it true for webhook
+        local shouldSendWebhook = GameTracking.gameInProgress
+        
+        if shouldSendWebhook then
             print("Game ended! Sending webhook immediately...")
             
             -- Capture end stats
@@ -9111,13 +9114,12 @@ if gameFinishedRemote then
                 end)
             end
             
-            -- Reset tracking (but don't fully end game tracking yet - auto-vote needs gameInProgress flag)
+            -- Reset tracking (but keep gameInProgress true for now)
             GameTracking.sessionItems = {}
             GameTracking.lastWave = 0
             GameTracking.startStats = {}
             GameTracking.currentMapName = "Unknown Map"
             MacroSystem.currentChallenge = nil
-            -- NOTE: We keep gameInProgress = true until auto-vote completes
         end
         
         -- Handle auto voting logic (this can take time, but webhook is already sent)
@@ -9147,7 +9149,10 @@ if gameFinishedRemote then
                             notify("Challenge Handler", "Returned to lobby - new challenge detected!", 3)
                             State.NewChallengeDetected = false
                             State.failsafeActive = false
-                            -- Fully end game tracking now
+                            
+                            -- NOW reset game state
+                            print("Resetting game state flags...")
+                            MacroSystem.macroHasPlayedThisGame = false
                             GameTracking.gameInProgress = false
                             GameTracking.gameStartTime = 0
                             GameTracking.gameResult = "Unknown"
@@ -9233,7 +9238,9 @@ if gameFinishedRemote then
                 end, State.AutoRetryAttempts)
                 
                 if portalSuccess then
-                    -- Fully end game tracking now
+                    -- Reset game state NOW since we're staying in game
+                    print("Resetting game state flags after portal replay...")
+                    MacroSystem.macroHasPlayedThisGame = false
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
@@ -9249,7 +9256,9 @@ if gameFinishedRemote then
                 end, State.AutoRetryAttempts)
                 
                 if infinitySuccess then
-                    -- Fully end game tracking now
+                    -- Reset game state NOW
+                    print("Resetting game state flags after infinity castle...")
+                    MacroSystem.macroHasPlayedThisGame = false
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
@@ -9315,13 +9324,15 @@ if gameFinishedRemote then
                 print("At least one action worked")
             end
             
-            -- Fully end game tracking after all auto-vote logic completes
+            -- CRITICAL FIX: Reset game state flags AFTER auto-vote completes
             print("Resetting game state flags...")
             MacroSystem.macroHasPlayedThisGame = false
             GameTracking.gameInProgress = false
             GameTracking.gameStartTime = 0
             GameTracking.gameResult = "Unknown"
             GameTracking.portalDepth = nil
+            
+            print("Game ended, resetting flag for next game")
         end)
     end)
 end
