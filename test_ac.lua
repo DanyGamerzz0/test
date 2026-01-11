@@ -620,23 +620,20 @@ local function normalizeShinyUnits()
     
     local allUnits = findAllUnits()
     if #allUnits == 0 then
-        print("No units found for normalization")
+        --print("No units found for normalization")
         return
     end
     
     local normalizedCount = 0
-    local skippedLocked = 0
-    local skippedRarity = 0
     
     for _, unit in ipairs(allUnits) do
-        -- Skip if not shiny
+        -- Skip if not shiny (safety check)
         if not unit.shiny then
             continue
         end
         
         -- Skip if locked
         if unit._locked then
-            skippedLocked = skippedLocked + 1
             continue
         end
         
@@ -658,13 +655,15 @@ local function normalizeShinyUnits()
         end
         
         if not shouldNormalize then
-            skippedRarity = skippedRarity + 1
             continue
         end
         
         -- Normalize the unit
         local success = pcall(function()
-            --Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_remove_shiny"):InvokeServer(unit.uuid)
+            --Services.ReplicatedStorage:WaitForChild("endpoints")
+                --:WaitForChild("client_to_server")
+                --:WaitForChild("request_remove_shiny")
+                --:InvokeServer(unit.uuid)
         end)
         
         if success then
@@ -676,22 +675,13 @@ local function normalizeShinyUnits()
             
             task.wait(0.2) -- Small delay between normalizations
         else
-            warn("Failed to normalize unit:", unit.uuid)
+            --warn("Failed to normalize unit:", unit.uuid)
         end
     end
     
     -- Summary notification
-    local summaryText = string.format("Normalized %d shiny units", normalizedCount)
-    if skippedLocked > 0 then
-        summaryText = summaryText .. string.format("\nSkipped %d locked units", skippedLocked)
-    end
-    if skippedRarity > 0 then
-        summaryText = summaryText .. string.format("\nSkipped %d units (rarity filter)", skippedRarity)
-    end
-    
-    notify("Auto Normalize Complete", summaryText)
-    print("\n=== NORMALIZATION SUMMARY ===")
-    print(summaryText)
+    notify("Auto Normalize Complete", string.format("Normalized %d shiny units", normalizedCount))
+    --print(string.format("\n=== Normalized %d shiny units ===", normalizedCount))
 end
 
 local function getCostScale()
