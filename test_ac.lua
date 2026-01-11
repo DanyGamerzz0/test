@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.42"
+    local script_version = "V0.43"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7803,14 +7803,23 @@ local function autoLoopPlaybackWithGameTiming()
         -- NEW: Wait for GameStarted to be true
         local gameData = Services.Workspace:FindFirstChild("_DATA")
         if gameData then
-            local gameStarted = gameData:FindFirstChild("GameStarted")
-            if gameStarted then
-                while not gameStarted.Value and GameTracking.isAutoLoopEnabled do
-                    updateDetailedStatus("Waiting for game to start (GameStarted = false)...")
-                    task.wait(0.5)
-                end
+    local gameStarted = gameData:FindFirstChild("GameStarted")
+    if gameStarted and not gameStarted.Value then
+        -- Wait for Changed event instead of polling
+        local connection
+        connection = gameStarted.Changed:Connect(function(value)
+            if value == true then
+                connection:Disconnect()
             end
+        end)
+        
+        -- Timeout fallback
+        local waitStart = tick()
+        while not gameStarted.Value and GameTracking.isAutoLoopEnabled and tick() - waitStart < 30 do
+            task.wait(0.5)
         end
+    end
+end
         
         -- Check if macro already played this game
         if MacroSystem.macroHasPlayedThisGame then
@@ -8946,7 +8955,6 @@ if gameFinishedRemote then
 
         GameTracking.gameHasEnded = true
         startFailsafeTimer()
-        MacroSystem.macroHasPlayedThisGame = false
         
         if MacroSystem.isRecording then
             MacroSystem.isRecording = false
@@ -9222,6 +9230,7 @@ if gameFinishedRemote then
             end
             
             -- Fully end game tracking after all auto-vote logic completes
+            MacroSystem.macroHasPlayedThisGame = false
             GameTracking.gameInProgress = false
             GameTracking.gameStartTime = 0
             GameTracking.gameResult = "Unknown"
