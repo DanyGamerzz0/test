@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.28"
+    local script_version = "V0.29"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -4048,12 +4048,16 @@ local function getMaxAffordableSummons(bannerName)
     local maxSummons = math.floor(currentCurrency / summonCost)
     
     -- If we can afford 10+, always do 10x (mass summon)
-    if maxSummons >= 10 then
-        return 10
+    local batchCost = summonCost * 10
+
+    if currentCurrency >= batchCost then
+        -- Return maximum batch count (50 summons max per batch)
+        local affordableBatches = math.floor(currentCurrency / batchCost)
+        return math.min(affordableBatches * 10, 50) -- Cap at 50
     end
     
     -- Otherwise do whatever we can afford (1-9)
-    return maxSummons
+    return 0
 end
 
 local function sendSummonWebhook()
@@ -5777,8 +5781,12 @@ local function updateSummonStatus()
             local summonCost = getCostForBanner(State.AutoSummonBanner)
             totalSummons = summonCost > 0 and math.floor(State.CurrencySpent / summonCost) or 0
             
-            SummonStatusLabel:Set(string.format("Auto Summon: %d summons | %d %s spent | %d %s left", 
-                totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
+            -- Show batch info
+            local batchCost = summonCost * 10
+            local batchesCompleted = math.floor(State.CurrencySpent / batchCost)
+            
+            SummonStatusLabel:Set(string.format("Auto Summon: %d batches (%d summons) | %d %s spent | %d %s left", 
+                batchesCompleted, totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
         end
     else
         SummonStatusLabel:Set("Auto Summon: Idle")
@@ -5790,8 +5798,6 @@ task.spawn(function()
         task.wait(0.3)
         
         if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
-            local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
-            
             -- Remove ObtainedRewards popup
             if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards") then
                 Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards"):Destroy()
@@ -5802,47 +5808,73 @@ task.spawn(function()
                 startSummonSession()
             end
             
-            if State.AutoSummonBanner == "Banner 3" or affordableSummons > 0 then
-                local bannerId = getBannerIdFromName(State.AutoSummonBanner)
-                local currencyBefore = getCurrencyForBanner(State.AutoSummonBanner)
-                
+            local bannerId = getBannerIdFromName(State.AutoSummonBanner)
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            local batchCost = summonCost * 10 -- 500 gems for 10x
+            
+            -- Check if we can afford a batch summon (gems10 with count 50)
+            if State.AutoSummonBanner == "Banner 3" then
+                -- Banner 3 - single summons only
                 local success, result = pcall(function()
-                    if State.AutoSummonBanner == "Banner 3" then
-                        return Services.ReplicatedStorage:WaitForChild("endpoints")
-                            :WaitForChild("client_to_server")
-                            :WaitForChild("buy_from_banner")
-                            :InvokeServer(bannerId)
-                    else
-                        local currencyType = affordableSummons >= 10 and "gems10" or "gems"
-                        local args = currencyType == "gems10" and {bannerId, currencyType} or {bannerId, currencyType, affordableSummons}
-                        return Services.ReplicatedStorage:WaitForChild("endpoints")
-                            :WaitForChild("client_to_server")
-                            :WaitForChild("buy_from_banner")
-                            :InvokeServer(unpack(args))
-                    end
+                    return Services.ReplicatedStorage:WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("buy_from_banner")
+                        :InvokeServer(bannerId)
                 end)
                 
                 if success then
+                    State.Banner3SpinCount = State.Banner3SpinCount + 1
+                    State.CurrencySpent = State.Banner3SpinCount
+                    updateSummonStatus()
+                else
+                    warn("Banner 3 summon failed:", result)
+                    task.wait(1)
+                end
+                
+            elseif currentCurrency >= batchCost then
+                -- Banner 1 or 2 - batch summons (gems10 with count 50)
+                local currencyBefore = currentCurrency
+                
+                print(string.format("Attempting batch summon - Currency: %d, Cost per batch: %d", 
+                    currencyBefore, batchCost))
+                
+                local success, result = pcall(function()
+                    local args = {bannerId, "gems10", 50}
+                    return Services.ReplicatedStorage:WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("buy_from_banner")
+                        :InvokeServer(unpack(args))
+                end)
+                
+                if success then
+                    -- Wait for currency to update
+                    task.wait(0.5)
+                    
                     local currencyAfter = getCurrencyForBanner(State.AutoSummonBanner)
                     local actualCostSpent = currencyBefore - currencyAfter
                     
-                    if State.AutoSummonBanner == "Banner 3" then
-                        State.Banner3SpinCount = State.Banner3SpinCount + 1
-                        actualCostSpent = State.Banner3SpinCount
-                    end
-                    
                     State.CurrencySpent = State.CurrencySpent + actualCostSpent
+                    
+                    print(string.format("✓ Batch summon complete - Spent: %d, Total spent: %d", 
+                        actualCostSpent, State.CurrencySpent))
+                    
                     updateSummonStatus()
-                else
-                    warn("Auto Summon failed:", result)
+                    
+                    -- Small delay between batches to let remotes fire
                     task.wait(1)
+                else
+                    warn("Batch summon failed:", result)
+                    task.wait(2)
                 end
+                
             else
                 -- Out of currency - finalize
+                print("Not enough currency for batch summon, ending session")
                 State.AutoSummon = false
                 
                 if State.CurrencySpent > 0 then
-                    task.wait(2) -- Wait for final remotes to fire
+                    task.wait(3) -- Wait longer for final remotes to fire
                     endSummonSession()
                     sendSummonWebhook()
                 end
@@ -5850,16 +5882,15 @@ task.spawn(function()
                 updateSummonStatus()
                 
                 local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
-                local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-                local summonCost = getCostForBanner(State.AutoSummonBanner)
-                
                 notify("Auto Summon", 
-                    string.format("Stopped - Not enough %s (%d/%d)", 
-                        currencyName, currentCurrency, summonCost))
+                    string.format("Stopped - Not enough %s for batch summon (%d/%d needed)", 
+                        currencyName, currentCurrency, batchCost))
             end
+            
         elseif not State.AutoSummon and State.SummonSessionActive then
             -- Manual stop - finalize
-            task.wait(2)
+            print("Manual stop detected, ending session")
+            task.wait(3)
             endSummonSession()
             sendSummonWebhook()
             updateSummonStatus()
