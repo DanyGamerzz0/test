@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.43"
+    local script_version = "V0.44"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9230,6 +9230,7 @@ if gameFinishedRemote then
             end
             
             -- Fully end game tracking after all auto-vote logic completes
+            print("Resetting game state flags...")
             MacroSystem.macroHasPlayedThisGame = false
             GameTracking.gameInProgress = false
             GameTracking.gameStartTime = 0
