@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.33"
+    local script_version = "V0.34"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5725,7 +5725,8 @@ task.spawn(function()
             end
         elseif not State.AutoSummon and State.SummonMarkersSet then
             -- User stopped summoning - finalize
-            task.wait(3) -- Wait for final units to register
+            print("Auto-summon stopped, processing final units...")
+            task.wait(3) -- Wait for final units to register in collection
             
             -- Take AFTER snapshot
             local afterCounts = captureUnitCounts()
@@ -5733,11 +5734,21 @@ task.spawn(function()
             -- Compare to find new units
             if State.BeforeSummonCounts then
                 local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
-                State.SummonedUnits = newUnits
+                
+                -- Store units for webhook
+                for unitName, count in pairs(newUnits) do
+                    State.SummonedUnits[unitName] = count
+                    print("Summoned unit:", unitName, "x" .. count)
+                end
             end
             
-            -- Send webhook
-            sendSummonWebhook()
+            -- Send webhook if any units were summoned
+            if next(State.SummonedUnits) then
+                print("Sending summon webhook with", #State.SummonedUnits, "unit types")
+                sendSummonWebhook()
+            else
+                print("No units found to send webhook")
+            end
             
             -- Reset tracking
             State.SummonedUnits = {}
