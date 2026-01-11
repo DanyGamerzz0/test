@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.26"
+    local script_version = "V0.27"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3909,7 +3909,7 @@ local function compareGCSnapshots(beforeUnits, afterUnits)
 end
 
 local function getUnitDisplayInfo(unitId, skinId)
-    local unitData = getUnitDataFromId(unitId)
+    local unitData = getUnitData(unitId)
     if not unitData then
         return unitId, false
     end
