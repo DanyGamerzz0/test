@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.39"
+    local script_version = "V0.4"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2045,10 +2045,7 @@ end
 end
 
 local function getItemCountWithFallback(itemName)
-    -- First check sessionItems (what we collected this game)
-    if GameTracking.sessionItems[itemName] then
-        return GameTracking.sessionItems[itemName]
-    end
+    -- Don't check sessionItems first - go straight to GC to get the TOTAL
     
     -- Use GC to find inventory table and get current total
     for _, obj in pairs(getgc(true)) do
@@ -2065,6 +2062,7 @@ local function getItemCountWithFallback(itemName)
         end
     end
     
+    -- If we couldn't find it in GC, return 0 (no bracket will show)
     return 0
 end
 
