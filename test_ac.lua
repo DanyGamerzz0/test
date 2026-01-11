@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.48"
+    local script_version = "V0.49"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7246,16 +7246,39 @@ local function playMacroWithWaveTiming()
     local macroName = MacroSystem.currentMacroName or "Unknown"
     updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: 00:00", macroName, 0, totalActions))
     
-    GameTracking.gameHasEnded = false
+    GameTracking.gameHasEnded = false  -- ← CRITICAL: Reset this at start
     clearPlaybackTracking()
     clearPlaybackTrackingWithSpawnIdMapping()
     
     local activeAbilityTasks = 0
     local macroStartTime = tick()
     
+    -- DEBUG: Print initial state
+    print("=== MACRO PLAYBACK DEBUG START ===")
+    print("isPlaybacking:", MacroSystem.isPlaybacking)
+    print("isAutoLoopEnabled:", GameTracking.isAutoLoopEnabled)
+    print("gameHasEnded:", GameTracking.gameHasEnded)
+    print("gameInProgress:", GameTracking.gameInProgress)
+    print("===================================")
+    
     for i, action in ipairs(macro) do
-        if not MacroSystem.isPlaybacking or not GameTracking.isAutoLoopEnabled or GameTracking.gameHasEnded then
-            updateDetailedStatus(string.format("Macro: %s - Interrupted", macroName))
+        -- DEBUG: Check interrupt conditions BEFORE the check
+        local playbackCheck = MacroSystem.isPlaybacking
+        local loopCheck = GameTracking.isAutoLoopEnabled
+        local endedCheck = GameTracking.gameHasEnded
+        
+        if not playbackCheck or not loopCheck or endedCheck then
+            print("=== MACRO INTERRUPTED ===")
+            print("Action index:", i, "/", totalActions)
+            print("isPlaybacking:", playbackCheck, "(should be true)")
+            print("isAutoLoopEnabled:", loopCheck, "(should be true)")
+            print("gameHasEnded:", endedCheck, "(should be false)")
+            print("Reason:", not playbackCheck and "Playback disabled" or 
+                              not loopCheck and "Loop disabled" or 
+                              endedCheck and "Game ended flag set" or "Unknown")
+            print("========================")
+            
+            updateDetailedStatus(string.format("Macro: %s - Interrupted at action %d/%d", macroName, i, totalActions))
             return false
         end
         
@@ -7265,7 +7288,7 @@ local function playMacroWithWaveTiming()
         local seconds = math.floor(timeElapsed % 60)
         local timeString = string.format("%02d:%02d", minutes, seconds)
         
-        -- Parse wave and time from "wave time" format
+        -- Parse wave and time
         local targetWave, targetTime = action.Time:match("^(%d+)%s+([%d%.]+)$")
         targetWave = tonumber(targetWave)
         targetTime = tonumber(targetTime)
@@ -7275,7 +7298,7 @@ local function playMacroWithWaveTiming()
             continue
         end
         
-        -- Money waiting logic
+        -- Money waiting logic (keep existing code)
         if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
             local requiredCost = 0
             
@@ -7327,7 +7350,6 @@ local function playMacroWithWaveTiming()
                     local currentMoney = getPlayerMoney()
                     local missingMoney = requiredCost - currentMoney
                     
-                    -- Update time elapsed during wait
                     timeElapsed = tick() - macroStartTime
                     minutes = math.floor(timeElapsed / 60)
                     seconds = math.floor(timeElapsed % 60)
@@ -7339,38 +7361,35 @@ local function playMacroWithWaveTiming()
                 end
                 
                 if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
+                    print("Interrupted during money wait")
                     return false
                 end
             end
         end
         
-        -- Handle abilities separately when ignore timing is enabled
+        -- Handle abilities (keep existing code)
         if State.IgnoreTiming and action.Type == "use_active_attack" then
             activeAbilityTasks = activeAbilityTasks + 1
             
             task.spawn(function()
-                -- Wait for correct wave
                 while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking do
                     task.wait(0.5)
                 end
                 
                 if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then return end
                 
-                -- Wait for correct time within wave
                 local timeInWave = tick() - GameTracking.waveStartTime
                 local waitTime = targetTime - timeInWave
                 if waitTime > 0 then
                     task.wait(waitTime)
                 end
                 
-                -- Execute ability
                 if MacroSystem.isPlaybacking and not GameTracking.gameHasEnded then
                     validateAbilityActionWithSpawnIdMapping(action, i, totalActions)
                     activeAbilityTasks = activeAbilityTasks - 1
                 end
             end)
             
-            -- Update time elapsed
             timeElapsed = tick() - macroStartTime
             minutes = math.floor(timeElapsed / 60)
             seconds = math.floor(timeElapsed % 60)
@@ -7381,9 +7400,8 @@ local function playMacroWithWaveTiming()
             continue
         end
         
-        -- Timing logic for non-ability actions
+        -- Timing logic (keep existing code)
         if not State.IgnoreTiming then
-            -- Wait for correct wave
             while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
                 timeElapsed = tick() - macroStartTime
                 minutes = math.floor(timeElapsed / 60)
@@ -7396,10 +7414,10 @@ local function playMacroWithWaveTiming()
             end
             
             if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
+                print("Interrupted during wave wait")
                 return false
             end
             
-            -- Wait for correct time within wave
             local timeInWave = tick() - GameTracking.waveStartTime
             local waitTime = targetTime - timeInWave
             
@@ -7418,6 +7436,7 @@ local function playMacroWithWaveTiming()
             end
             
             if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
+                print("Interrupted during time wait")
                 return false
             end
         else
@@ -7426,7 +7445,7 @@ local function playMacroWithWaveTiming()
             end
         end
         
-        -- Update status with next action info
+        -- Update status with next action
         timeElapsed = tick() - macroStartTime
         minutes = math.floor(timeElapsed / 60)
         seconds = math.floor(timeElapsed % 60)
@@ -7445,11 +7464,12 @@ local function playMacroWithWaveTiming()
         updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s%s", 
             macroName, i, totalActions, timeString, nextActionText))
         
-        -- Execute the action
+        -- Execute action
+        print(string.format("Executing action %d/%d: %s", i, totalActions, action.Type))
         local actionSuccess = executeActionWithSpawnIdMapping(action, i, totalActions)
         
         if not actionSuccess then
-            print(string.format("Action %d failed: %s", i, action.Type))
+            print(string.format("⚠️ Action %d failed: %s for unit %s", i, action.Type, action.Unit or "N/A"))
         end
     end
     
@@ -7460,7 +7480,7 @@ local function playMacroWithWaveTiming()
     timeString = string.format("%02d:%02d", minutes, seconds)
     
     updateDetailedStatus(string.format("Macro: %s - Completed in %s", macroName, timeString))
-    print("Macro playback completed")
+    print("=== MACRO PLAYBACK COMPLETE ===")
     return true
 end
 
@@ -8989,8 +9009,14 @@ if gameFinishedRemote then
     gameFinishedRemote.OnClientEvent:Connect(function(...)
         local args = {...}
         print("game_finished RemoteEvent fired!")
+
+        if not (State.AutoVoteRetry or State.AutoNextPortal or State.AutoNextInfinityCastle) then
+            GameTracking.gameHasEnded = true
+        else
+            print("Skipping gameHasEnded flag - Auto Retry/Next is enabled")
+        end
         
-        GameTracking.gameHasEnded = true
+        --GameTracking.gameHasEnded = true
         startFailsafeTimer()
         
         -- Handle recording stop
