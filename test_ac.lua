@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.35"
+    local script_version = "V0.36"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5574,6 +5574,7 @@ LobbyTab:CreateToggle({
         State.AutoSummon = Value
         
         if Value then
+            -- Starting auto-summon
             if not State.AutoSummonBanner then
                 notify("Auto Summon", "Please select a banner first!")
                 return
@@ -5585,18 +5586,73 @@ LobbyTab:CreateToggle({
             State.SummonMarkersSet = false
             
             notify("Auto Summon", string.format("Started x50 summons on %s", State.AutoSummonBanner))
-        else
-            -- Send final webhook when stopped
-            if next(State.SummonedUnits) then
-                notify("Auto Summon", "Stopped - Sending summary to webhook...")
-                task.wait(2) -- Wait for last summon to register
-                sendSummonWebhook()
-            end
             
-            -- Reset tracking
-            State.SummonedUnits = {}
-            State.BeforeSummonCounts = nil
-            State.SummonMarkersSet = false
+        else
+            -- Stopping auto-summon - PROCESS IMMEDIATELY HERE
+            print("==============================================")
+            print("=== TOGGLE TURNED OFF - PROCESSING UNITS ===")
+            print("==============================================")
+            
+            if State.SummonMarkersSet then
+                task.spawn(function()
+                    notify("Auto Summon", "Stopped - Processing units...")
+                    print("Waiting 5 seconds for units to register...")
+                    task.wait(5)
+                    
+                    -- Take AFTER snapshot
+                    print("=== CAPTURING AFTER SNAPSHOT ===")
+                    local afterCounts = captureUnitCounts()
+                    print("Total items in AFTER snapshot:", (function()
+                        local count = 0
+                        for _ in pairs(afterCounts) do count = count + 1 end
+                        return count
+                    end)())
+                    
+                    -- Compare to find new units
+                    if State.BeforeSummonCounts then
+                        print("=== COMPARING BEFORE AND AFTER ===")
+                        local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
+                        
+                        print("Comparison complete. New units found:")
+                        local totalNewUnits = 0
+                        for unitName, count in pairs(newUnits) do
+                            totalNewUnits = totalNewUnits + 1
+                            print("  NEW:", unitName, "x" .. count)
+                            State.SummonedUnits[unitName] = count
+                        end
+                        print("Total NEW unit types:", totalNewUnits)
+                    else
+                        warn("ERROR: BeforeSummonCounts is nil!")
+                    end
+                    
+                    -- Send webhook if any units were summoned
+                    print("=== CHECKING WEBHOOK SEND ===")
+                    local hasUnits = false
+                    for k, v in pairs(State.SummonedUnits) do
+                        hasUnits = true
+                        print("  Unit:", k, "Count:", v)
+                    end
+                    
+                    if hasUnits then
+                        print("✓ Units found, sending webhook...")
+                        sendSummonWebhook()
+                        print("✓ Webhook sent!")
+                        notify("Auto Summon", "Summary sent to webhook!")
+                    else
+                        print("✗ No units in State.SummonedUnits - webhook NOT sent")
+                        notify("Auto Summon", "No new units detected")
+                    end
+                    
+                    -- Reset tracking
+                    print("=== RESETTING TRACKING ===")
+                    State.SummonedUnits = {}
+                    State.BeforeSummonCounts = nil
+                    State.SummonMarkersSet = false
+                    print("=== FINALIZATION COMPLETE ===")
+                end)
+            else
+                print("WARNING: SummonMarkersSet was false when toggle turned off")
+            end
         end
     end,
 })
@@ -5684,8 +5740,6 @@ task.spawn(function()
         task.wait(0.5)
         
         if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
-            print("=== AUTO SUMMON ACTIVE ===")
-            
             -- Destroy rewards GUI if it appears
             if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards") then
                 Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards"):Destroy()
@@ -5696,10 +5750,6 @@ task.spawn(function()
                 State.BeforeSummonCounts = captureUnitCounts()
                 State.SummonMarkersSet = true
                 print("=== CAPTURED BEFORE SNAPSHOT ===")
-                print("Total units in BEFORE snapshot:", #State.BeforeSummonCounts)
-                for itemIndex, count in pairs(State.BeforeSummonCounts) do
-                    print("  BEFORE:", itemIndex, "=", count)
-                end
             end
             
             local bannerId = getBannerIdFromName(State.AutoSummonBanner)
@@ -5709,7 +5759,7 @@ task.spawn(function()
                 continue
             end
             
-            -- Always do x50 summons (gems10 currency type)
+            -- Always do x50 summons
             local success, result = pcall(function()
                 return Services.ReplicatedStorage:WaitForChild("endpoints")
                     :WaitForChild("client_to_server")
@@ -5726,72 +5776,8 @@ task.spawn(function()
                 SummonStatusLabel:Set(string.format("Auto Summon: Error - %s", tostring(result):sub(1, 30)))
                 task.wait(3)
             end
-            
-        elseif not State.AutoSummon and State.SummonMarkersSet then
-            -- User stopped summoning - finalize
-            print("==============================================")
-            print("=== AUTO SUMMON STOPPED - PROCESSING UNITS ===")
-            print("==============================================")
-            
-            print("Waiting 5 seconds for units to register...")
-            task.wait(5) -- Increased wait time
-            
-            -- Take AFTER snapshot
-            print("=== CAPTURING AFTER SNAPSHOT ===")
-            local afterCounts = captureUnitCounts()
-            print("Total units in AFTER snapshot:", #afterCounts)
-            for itemIndex, count in pairs(afterCounts) do
-                print("  AFTER:", itemIndex, "=", count)
-            end
-            
-            -- Compare to find new units
-            if State.BeforeSummonCounts then
-                print("=== COMPARING BEFORE AND AFTER ===")
-                local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
-                
-                print("Comparison complete. New units found:")
-                local totalNewUnits = 0
-                for unitName, count in pairs(newUnits) do
-                    totalNewUnits = totalNewUnits + 1
-                    print("  NEW:", unitName, "x" .. count)
-                    State.SummonedUnits[unitName] = count
-                end
-                print("Total NEW unit types:", totalNewUnits)
-            else
-                warn("ERROR: BeforeSummonCounts is nil!")
-            end
-            
-            -- Send webhook if any units were summoned
-            print("=== CHECKING WEBHOOK SEND ===")
-            print("State.SummonedUnits contents:")
-            local hasUnits = false
-            for k, v in pairs(State.SummonedUnits) do
-                hasUnits = true
-                print("  Unit:", k, "Count:", v)
-            end
-            
-            if hasUnits then
-                print("✓ Units found, sending webhook...")
-                sendSummonWebhook()
-                print("✓ Webhook sent!")
-            else
-                print("✗ No units in State.SummonedUnits - webhook NOT sent")
-            end
-            
-            -- Reset tracking
-            print("=== RESETTING TRACKING ===")
-            State.SummonedUnits = {}
-            State.BeforeSummonCounts = nil
-            State.SummonMarkersSet = false
-            
-            SummonStatusLabel:Set("Auto Summon: Idle")
-            print("=== FINALIZATION COMPLETE ===")
-            
         else
-            -- Idle state
-            if State.SummonMarkersSet then
-                print("WARNING: SummonMarkersSet is true but AutoSummon is off and we're not in the finalization block")
-            end
+            SummonStatusLabel:Set("Auto Summon: Idle")
         end
     end
 end)
