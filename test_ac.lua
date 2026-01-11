@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.49"
+    local script_version = "V0.5"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -228,6 +228,7 @@ local GameTracking = {
     portalDepth = nil,
     currentWave = -1,
     waveStartTime = 0,
+    gameInstanceId = 0,
 }
 
 local VALIDATION_CONFIG = {
@@ -2272,6 +2273,11 @@ local function startGameTracking()
     GameTracking.gameStartTime = tick()  -- Always track game start time
     GameTracking.startStats = captureStats()
     MacroSystem.macroHasPlayedThisGame = false  -- Reset macro play flag
+    GameTracking.gameHasEnded = false
+    GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
+
+    print("=== NEW GAME STARTED ===")
+    print("Game Instance ID:", GameTracking.gameInstanceId)  -- ← ADD THIS
     
     -- Get both map name and challenge info
     GameTracking.currentMapName, MacroSystem.currentChallenge, GameTracking.portalDepth = getMapInfo()
@@ -7239,6 +7245,10 @@ local function playMacroWithWaveTiming()
     end
     
     MacroSystem.macroHasPlayedThisGame = true
+
+    local macroGameInstanceId = GameTracking.gameInstanceId
+    print("Macro starting for game instance:", macroGameInstanceId)
+
     local totalActions = #macro
     local scheduledAbilities = 0
     
@@ -7261,24 +7271,17 @@ local function playMacroWithWaveTiming()
     print("gameInProgress:", GameTracking.gameInProgress)
     print("===================================")
     
-    for i, action in ipairs(macro) do
-        -- DEBUG: Check interrupt conditions BEFORE the check
-        local playbackCheck = MacroSystem.isPlaybacking
-        local loopCheck = GameTracking.isAutoLoopEnabled
-        local endedCheck = GameTracking.gameHasEnded
-        
-        if not playbackCheck or not loopCheck or endedCheck then
-            print("=== MACRO INTERRUPTED ===")
-            print("Action index:", i, "/", totalActions)
-            print("isPlaybacking:", playbackCheck, "(should be true)")
-            print("isAutoLoopEnabled:", loopCheck, "(should be true)")
-            print("gameHasEnded:", endedCheck, "(should be false)")
-            print("Reason:", not playbackCheck and "Playback disabled" or 
-                              not loopCheck and "Loop disabled" or 
-                              endedCheck and "Game ended flag set" or "Unknown")
-            print("========================")
+     for i, action in ipairs(macro) do
+        -- UPDATED CHECK: Compare game instance IDs
+        if not MacroSystem.isPlaybacking or 
+           not GameTracking.isAutoLoopEnabled or 
+           GameTracking.gameInstanceId ~= macroGameInstanceId then  -- ← CHANGED THIS LINE
             
-            updateDetailedStatus(string.format("Macro: %s - Interrupted at action %d/%d", macroName, i, totalActions))
+            print("=== MACRO INTERRUPTED ===")
+            print("Current game instance:", GameTracking.gameInstanceId)
+            print("Macro's game instance:", macroGameInstanceId)
+            print("Instance changed:", GameTracking.gameInstanceId ~= macroGameInstanceId)
+            print("========================")
             return false
         end
         
@@ -9009,14 +9012,12 @@ if gameFinishedRemote then
     gameFinishedRemote.OnClientEvent:Connect(function(...)
         local args = {...}
         print("game_finished RemoteEvent fired!")
-
-        if not (State.AutoVoteRetry or State.AutoNextPortal or State.AutoNextInfinityCastle) then
-            GameTracking.gameHasEnded = true
-        else
-            print("Skipping gameHasEnded flag - Auto Retry/Next is enabled")
-        end
         
-        --GameTracking.gameHasEnded = true
+        -- Mark that THIS game instance has ended
+        GameTracking.gameHasEnded = true
+        local endedGameId = GameTracking.gameInstanceId
+        print("Game instance", endedGameId, "has ended")
+        
         startFailsafeTimer()
         
         -- Handle recording stop
@@ -9100,6 +9101,7 @@ if gameFinishedRemote then
                             State.failsafeActive = false
                             MacroSystem.macroHasPlayedThisGame = false
                             GameTracking.gameInProgress = false
+                            GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
                             return
                         end
                         task.wait(0.2)
@@ -9178,13 +9180,15 @@ if gameFinishedRemote then
                 end, State.AutoRetryAttempts)
                 
                 if portalSuccess then
-                    -- Reset game state NOW since we're staying in game
-                    print("Resetting game state flags after portal replay...")
+                    print("Portal replay succeeded - incrementing game instance")
                     MacroSystem.macroHasPlayedThisGame = false
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
                     GameTracking.portalDepth = nil
+                    GameTracking.gameHasEnded = false
+                    GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
+                    print("New game instance ID:", GameTracking.gameInstanceId)
                     return
                 end
             end
@@ -9196,13 +9200,15 @@ if gameFinishedRemote then
                 end, State.AutoRetryAttempts)
                 
                 if infinitySuccess then
-                    -- Reset game state NOW
-                    print("Resetting game state flags after infinity castle...")
+                    print("Infinity castle next succeeded - incrementing game instance")
                     MacroSystem.macroHasPlayedThisGame = false
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
                     GameTracking.portalDepth = nil
+                    GameTracking.gameHasEnded = false
+                    GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
+                    print("New game instance ID:", GameTracking.gameInstanceId)
                     return
                 end
             end
@@ -9248,6 +9254,15 @@ if gameFinishedRemote then
                 
                 if success then
                     print(string.format("✓ %s succeeded and validated, stopping fallback chain", action.name))
+                    
+                    -- If retry/next succeeded, increment game instance
+                    if action.name == "Auto Retry" or action.name == "Auto Next" then
+                        print("Auto action succeeded - incrementing game instance")
+                        GameTracking.gameHasEnded = false
+                        GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
+                        print("New game instance ID:", GameTracking.gameInstanceId)
+                    end
+                    
                     break
                 else
                     print(string.format("✗ %s failed validation, trying next fallback option...", action.name))
