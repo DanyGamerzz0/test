@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.38"
+    local script_version = "V0.39"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2044,22 +2044,24 @@ end
     return inventoryCache
 end
 
-    local function getItemCountWithFallback(itemName)
+local function getItemCountWithFallback(itemName)
     -- First check sessionItems (what we collected this game)
     if GameTracking.sessionItems[itemName] then
         return GameTracking.sessionItems[itemName]
     end
     
-    -- Try GC fallback for total amount
-    local inventory = findInventoryInGC()
-    if inventory then
-        local success, count = pcall(function()
-            return inventory[itemName]
-        end)
-        
-        if success and type(count) == "number" then
-            print("GC fallback found", itemName, ":", count)
-            return count
+    -- Use GC to find inventory table and get current total
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            local success, count = pcall(function()
+                return obj[itemName]
+            end)
+            
+            -- Check if this table has our item as a key with a number value
+            if success and type(count) == "number" and count > 0 then
+                print("Found total count for", itemName, ":", count)
+                return count
+            end
         end
     end
     
