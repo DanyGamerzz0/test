@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.44"
+    local script_version = "V0.45"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7792,7 +7792,7 @@ end
 
 local function autoLoopPlaybackWithGameTiming()
     while GameTracking.isAutoLoopEnabled do
-        -- Wait for a game to be active (but don't wait for new game to start)
+        -- Wait for a game to be active
         while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
             updateDetailedStatus("Waiting for active game...")
             task.wait(1)
@@ -7800,47 +7800,59 @@ local function autoLoopPlaybackWithGameTiming()
         
         if not GameTracking.isAutoLoopEnabled then break end
         
-        -- NEW: Wait for GameStarted to be true
+        -- FIXED: Wait for GameStarted AND wave 0 to be reached
         local gameData = Services.Workspace:FindFirstChild("_DATA")
         if gameData then
-    local gameStarted = gameData:FindFirstChild("GameStarted")
-    if gameStarted and not gameStarted.Value then
-        -- Wait for Changed event instead of polling
-        local connection
-        connection = gameStarted.Changed:Connect(function(value)
-            if value == true then
-                connection:Disconnect()
+            local gameStarted = gameData:FindFirstChild("GameStarted")
+            if gameStarted then
+                -- Wait for GameStarted to become true (if it's not already)
+                local waitStart = tick()
+                while not gameStarted.Value and GameTracking.isAutoLoopEnabled and tick() - waitStart < 30 do
+                    updateDetailedStatus("Waiting for game to start...")
+                    task.wait(0.5)
+                end
             end
-        end)
-        
-        -- Timeout fallback
-        local waitStart = tick()
-        while not gameStarted.Value and GameTracking.isAutoLoopEnabled and tick() - waitStart < 30 do
-            task.wait(0.5)
         end
-    end
-end
+        
+        -- CRITICAL FIX: Wait for wave 0 to ensure game is truly ready
+        local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+        if waveNum then
+            local waveWaitStart = tick()
+            -- Wait until we're at wave 0 (game prep phase)
+            while waveNum.Value < 0 and GameTracking.isAutoLoopEnabled and tick() - waveWaitStart < 15 do
+                updateDetailedStatus("Waiting for wave initialization...")
+                task.wait(0.5)
+            end
+            
+            -- Additional check: Make sure we're exactly at wave 0 before proceeding
+            if waveNum.Value ~= 0 then
+                print("WARNING: Game started but not at wave 0 (current wave:", waveNum.Value, ") - waiting...")
+                while waveNum.Value ~= 0 and GameTracking.isAutoLoopEnabled and tick() - waveWaitStart < 30 do
+                    updateDetailedStatus(string.format("Waiting for wave 0 (current: %d)...", waveNum.Value))
+                    task.wait(0.5)
+                end
+            end
+        end
+        
+        if not GameTracking.isAutoLoopEnabled then break end
+        
+        -- ADDITIONAL FIX: Small delay to ensure everything is initialized
+        task.wait(0.5)
         
         -- Check if macro already played this game
         if MacroSystem.macroHasPlayedThisGame then
             updateDetailedStatus("Macro already played this game - waiting for next game...")
             
-            -- Wait for this game to end and next to start
+            -- Wait for this game to end
             while GameTracking.gameInProgress and GameTracking.isAutoLoopEnabled do
                 task.wait(1)
             end
             
-            -- Wait for next game to start
-            while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
-                task.wait(1)
-            end
+            -- Reset the flag for next game
+            MacroSystem.macroHasPlayedThisGame = false
             
-            -- NEW: Wait for wave 0 again
-            while GameTracking.currentWave < 0 and GameTracking.isAutoLoopEnabled do
-                task.wait(0.5)
-            end
-            
-            if not GameTracking.isAutoLoopEnabled then break end
+            -- Wait for next game to start (loop back to top)
+            continue
         end
         
         -- Get macro to use
@@ -7874,7 +7886,14 @@ end
         notify("Playback Started", macroToUse .. macroSource .. timingMode .. " (" .. #macro .. " actions)")
         clearSpawnIdMappings()
         
-        local completed = playMacroWithWaveTiming() -- USING NEW FUNCTION
+        print(string.format("=== MACRO PLAYBACK START ==="))
+        print(string.format("Macro: %s", macroToUse))
+        print(string.format("Actions: %d", #macro))
+        print(string.format("Game in progress: %s", tostring(GameTracking.gameInProgress)))
+        print(string.format("Current wave: %d", GameTracking.currentWave))
+        print(string.format("============================"))
+        
+        local completed = playMacroWithWaveTiming()
         
         MacroSystem.isPlaybacking = false
         
@@ -7882,9 +7901,11 @@ end
             if completed then
                 MacroStatusLabel:Set("Status: Macro completed - waiting for next game...")
                 updateDetailedStatus("Macro completed - waiting for next game...")
+                print("✓ Macro playback completed successfully")
             else
                 MacroStatusLabel:Set("Status: Macro interrupted - waiting for next game...")
                 updateDetailedStatus("Macro interrupted - waiting for next game...")
+                print("✗ Macro playback was interrupted")
             end
         end
         
