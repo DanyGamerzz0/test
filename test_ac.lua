@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.41"
+    local script_version = "V0.42"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2044,10 +2044,24 @@ end
     return inventoryCache
 end
 
+local function shouldTrackTotal(itemName)
+    local lowerName = itemName:lower()
+    
+    -- Track anything with "pity" or "token" in the name
+    if lowerName:find("pity") or lowerName:find("token") then
+        return true
+    end
+    
+    return false
+end
+
 local function getItemCountWithFallback(itemName)
-    -- Search ALL tables in GC and find the HIGHEST count (should be the real inventory)
-    local maxCount = 0
-    local foundAny = false
+    -- Only proceed if this is an item we care about
+    if not shouldTrackTotal(itemName) then
+        return nil -- Return nil to indicate "don't show total"
+    end
+    
+    local allCounts = {}
     
     for _, obj in pairs(getgc(true)) do
         if type(obj) == "table" then
@@ -2055,23 +2069,21 @@ local function getItemCountWithFallback(itemName)
                 return obj[itemName]
             end)
             
-            -- Check if this table has our item as a key with a number value
             if success and type(count) == "number" and count > 0 then
-                foundAny = true
-                if count > maxCount then
-                    maxCount = count
-                    print("Found higher count for", itemName, ":", count)
-                end
+                table.insert(allCounts, count)
             end
         end
     end
     
-    if foundAny then
-        print("Final total count for", itemName, ":", maxCount)
-        return maxCount
+    if #allCounts == 0 then
+        return 0
     end
     
-    return 0
+    -- Sort and return highest
+    table.sort(allCounts, function(a, b) return a > b end)
+    
+    print(string.format("Found total for %s: %d", itemName, allCounts[1]))
+    return allCounts[1]
 end
 
     -- Enhanced webhook function
@@ -2153,19 +2165,19 @@ end
     
     -- Add items if any were collected
     if next(GameTracking.sessionItems) then
-            for itemName, quantity in pairs(GameTracking.sessionItems) do
-                local displayName = getItemDisplayName(itemName)
-                
-                -- Try to get total amount using GC fallback
-                local totalAmount = getItemCountWithFallback(itemName)
-                
-                if totalAmount > 0 then
-                    rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. " [" .. totalAmount .. "]\n"
-                else
-                    rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
-                end
-            end
+    for itemName, quantity in pairs(GameTracking.sessionItems) do
+        local displayName = getItemDisplayName(itemName)
+        
+        -- Only try to get total for pities and tokens
+        local totalAmount = getItemCountWithFallback(itemName)
+        
+        if totalAmount and totalAmount > 0 then
+            rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. " [" .. totalAmount .. "]\n"
+        else
+            rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
         end
+    end
+end
     
     -- Add stat changes if any with total amounts (excluding resource)
     if next(statChanges) then
