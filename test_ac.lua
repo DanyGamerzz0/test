@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.5"
+    local script_version = "V0.51"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7826,7 +7826,7 @@ local function autoLoopPlaybackWithGameTiming()
         -- Wait for a game to be active
         while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
             updateDetailedStatus("Waiting for active game...")
-            task.wait(1)
+            task.wait(0.5) -- Changed from 1 to 0.5 for faster detection
         end
         
         print("Game detected! gameInProgress:", GameTracking.gameInProgress, "| macroHasPlayedThisGame:", MacroSystem.macroHasPlayedThisGame)
@@ -7842,6 +7842,10 @@ local function autoLoopPlaybackWithGameTiming()
             MacroSystem.macroHasPlayedThisGame = false
         end
         
+        -- ADDED: Check if game instance changed (new game started)
+        local currentGameInstance = GameTracking.gameInstanceId
+        print("Current game instance ID:", currentGameInstance)
+        
         -- Wait for GameStarted flag
         local gameData = Services.Workspace:FindFirstChild("_DATA")
         if gameData then
@@ -7851,6 +7855,17 @@ local function autoLoopPlaybackWithGameTiming()
                 while not gameStarted.Value and GameTracking.isAutoLoopEnabled and tick() - waitStart < 30 do
                     updateDetailedStatus("Waiting for GameStarted flag...")
                     task.wait(0.5)
+                    
+                    -- ADDED: Check if game instance changed during wait
+                    if GameTracking.gameInstanceId ~= currentGameInstance then
+                        print("Game instance changed during GameStarted wait - restarting loop")
+                        break
+                    end
+                end
+                
+                -- ADDED: If game instance changed, restart loop
+                if GameTracking.gameInstanceId ~= currentGameInstance then
+                    continue
                 end
             end
         end
@@ -7862,6 +7877,17 @@ local function autoLoopPlaybackWithGameTiming()
             while waveNum.Value < 0 and GameTracking.isAutoLoopEnabled and tick() - waveWaitStart < 15 do
                 updateDetailedStatus(string.format("Waiting for wave 0 (current: %d)...", waveNum.Value))
                 task.wait(0.5)
+                
+                -- ADDED: Check if game instance changed during wait
+                if GameTracking.gameInstanceId ~= currentGameInstance then
+                    print("Game instance changed during wave wait - restarting loop")
+                    break
+                end
+            end
+            
+            -- ADDED: If game instance changed, restart loop
+            if GameTracking.gameInstanceId ~= currentGameInstance then
+                continue
             end
         end
         
@@ -7920,14 +7946,18 @@ local function autoLoopPlaybackWithGameTiming()
         if GameTracking.isAutoLoopEnabled then
             if completed then
                 MacroStatusLabel:Set("Status: Macro completed - waiting for next game...")
+                updateDetailedStatus("Macro completed - waiting for next game...")
                 print("✓ Macro playback completed successfully")
             else
-                MacroStatusLabel:Set("Status: Macro interrupted - waiting for next game...")
+                -- CHANGED: Update status immediately when interrupted
+                MacroStatusLabel:Set("Status: Macro interrupted - ready for next game")
+                updateDetailedStatus("Macro interrupted - ready for next game")
                 print("✗ Macro playback was interrupted")
             end
         end
         
-        task.wait(1)
+        -- ADDED: Small delay then immediately check for new game
+        task.wait(0.5)
     end
     
     MacroStatusLabel:Set("Status: Playback stopped")
