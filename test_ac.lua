@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.36"
+    local script_version = "V0.37"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5569,7 +5569,7 @@ LobbyTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "AutoSummon", 
-    Info = "Automatically summon x50 batches until stopped",
+    Info = "Automatically summons until stopped",
     Callback = function(Value)
         State.AutoSummon = Value
         
@@ -5585,73 +5585,42 @@ LobbyTab:CreateToggle({
             State.BeforeSummonCounts = nil
             State.SummonMarkersSet = false
             
-            notify("Auto Summon", string.format("Started x50 summons on %s", State.AutoSummonBanner))
+            notify("Auto Summon", string.format("Started summoning on %s", State.AutoSummonBanner))
             
         else
-            -- Stopping auto-summon - PROCESS IMMEDIATELY HERE
-            print("==============================================")
-            print("=== TOGGLE TURNED OFF - PROCESSING UNITS ===")
-            print("==============================================")
-            
+            -- Stopping auto-summon - process units
             if State.SummonMarkersSet then
                 task.spawn(function()
-                    notify("Auto Summon", "Stopped - Processing units...")
-                    print("Waiting 5 seconds for units to register...")
+                    notify("Auto Summon", "Stopped...")
                     task.wait(5)
                     
                     -- Take AFTER snapshot
-                    print("=== CAPTURING AFTER SNAPSHOT ===")
                     local afterCounts = captureUnitCounts()
-                    print("Total items in AFTER snapshot:", (function()
-                        local count = 0
-                        for _ in pairs(afterCounts) do count = count + 1 end
-                        return count
-                    end)())
                     
                     -- Compare to find new units
                     if State.BeforeSummonCounts then
-                        print("=== COMPARING BEFORE AND AFTER ===")
                         local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
                         
-                        print("Comparison complete. New units found:")
-                        local totalNewUnits = 0
                         for unitName, count in pairs(newUnits) do
-                            totalNewUnits = totalNewUnits + 1
-                            print("  NEW:", unitName, "x" .. count)
                             State.SummonedUnits[unitName] = count
                         end
-                        print("Total NEW unit types:", totalNewUnits)
-                    else
-                        warn("ERROR: BeforeSummonCounts is nil!")
                     end
                     
                     -- Send webhook if any units were summoned
-                    print("=== CHECKING WEBHOOK SEND ===")
-                    local hasUnits = false
-                    for k, v in pairs(State.SummonedUnits) do
-                        hasUnits = true
-                        print("  Unit:", k, "Count:", v)
-                    end
+                    local hasUnits = next(State.SummonedUnits) ~= nil
                     
                     if hasUnits then
-                        print("✓ Units found, sending webhook...")
                         sendSummonWebhook()
-                        print("✓ Webhook sent!")
                         notify("Auto Summon", "Summary sent to webhook!")
                     else
-                        print("✗ No units in State.SummonedUnits - webhook NOT sent")
                         notify("Auto Summon", "No new units detected")
                     end
                     
                     -- Reset tracking
-                    print("=== RESETTING TRACKING ===")
                     State.SummonedUnits = {}
                     State.BeforeSummonCounts = nil
                     State.SummonMarkersSet = false
-                    print("=== FINALIZATION COMPLETE ===")
                 end)
-            else
-                print("WARNING: SummonMarkersSet was false when toggle turned off")
             end
         end
     end,
@@ -5710,31 +5679,6 @@ LobbyTab:CreateDropdown({
     end,
 })
 
-local function updateSummonStatus()
-    if State.AutoSummon and State.AutoSummonBanner then
-        local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
-        local totalSummons = 0
-        
-        if State.AutoSummonBanner == "Banner 3" then
-            totalSummons = State.Banner3SpinCount
-            SummonStatusLabel:Set(string.format("Auto Summon: %d spins completed", totalSummons))
-        else
-            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-            local summonCost = getCostForBanner(State.AutoSummonBanner)
-            totalSummons = summonCost > 0 and math.floor(State.CurrencySpent / summonCost) or 0
-            
-            -- Show batch info
-            local batchCost = summonCost * 10
-            local batchesCompleted = math.floor(State.CurrencySpent / batchCost)
-            
-            SummonStatusLabel:Set(string.format("Auto Summon: %d batches (%d summons) | %d %s spent | %d %s left", 
-                batchesCompleted, totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
-        end
-    else
-        SummonStatusLabel:Set("Auto Summon: Idle")
-    end
-end
-
 task.spawn(function()
     while true do
         task.wait(0.5)
@@ -5749,12 +5693,10 @@ task.spawn(function()
             if not State.SummonMarkersSet then
                 State.BeforeSummonCounts = captureUnitCounts()
                 State.SummonMarkersSet = true
-                print("=== CAPTURED BEFORE SNAPSHOT ===")
             end
             
             local bannerId = getBannerIdFromName(State.AutoSummonBanner)
             if not bannerId then
-                warn("Invalid banner ID")
                 task.wait(2)
                 continue
             end
@@ -5764,15 +5706,13 @@ task.spawn(function()
                 return Services.ReplicatedStorage:WaitForChild("endpoints")
                     :WaitForChild("client_to_server")
                     :WaitForChild("buy_from_banner")
-                    :InvokeServer(bannerId, "gems10")
+                    :InvokeServer(bannerId, "gems10", 50)
             end)
             
             if success then
-                SummonStatusLabel:Set(string.format("Auto Summon: Active on %s (x50 batch completed)", State.AutoSummonBanner))
-                print("Successfully completed x50 summon batch")
+                SummonStatusLabel:Set(string.format("Auto Summon: Active on %s", State.AutoSummonBanner))
                 task.wait(2)
             else
-                warn("Auto Summon failed:", result)
                 SummonStatusLabel:Set(string.format("Auto Summon: Error - %s", tostring(result):sub(1, 30)))
                 task.wait(3)
             end
