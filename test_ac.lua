@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.37"
+    local script_version = "V0.38"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -365,6 +365,8 @@ local macro = {}
         TrackedSummonItems = {},
         SummonSessionActive = false,
     }
+
+    local inventoryCache = nil
 
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
@@ -2005,11 +2007,64 @@ end
             ["gem_amount"] = "Gems",
             ["player_xp"] = "XP",
             ["Resourcejewels"] = "Jewels",
-
+            ["Resourcegingerbeardtoken"] = "Gingerbread Tokens",
         }
         
         return statMappings[statName] or getItemDisplayName(statName)
     end
+
+    local function findInventoryInGC()
+    if inventoryCache then
+        return inventoryCache
+    end
+    
+    print("Searching for inventory in GC...")
+    local candidates = {}
+    
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            local success, count = pcall(function()
+                return obj["EsdeathPity"]
+            end)
+            
+            if success and type(count) == "number" then
+                table.insert(candidates, {table = obj, count = count})
+            end
+        end
+    end
+    
+    if #candidates == 0 then
+        return nil
+    end
+    
+    table.sort(candidates, function(a, b) return a.count > b.count end)
+    inventoryCache = candidates[1].table
+    
+    print("Found inventory in GC")
+    return inventoryCache
+end
+
+    local function getItemCountWithFallback(itemName)
+    -- First check sessionItems (what we collected this game)
+    if GameTracking.sessionItems[itemName] then
+        return GameTracking.sessionItems[itemName]
+    end
+    
+    -- Try GC fallback for total amount
+    local inventory = findInventoryInGC()
+    if inventory then
+        local success, count = pcall(function()
+            return inventory[itemName]
+        end)
+        
+        if success and type(count) == "number" then
+            print("GC fallback found", itemName, ":", count)
+            return count
+        end
+    end
+    
+    return 0
+end
 
     -- Enhanced webhook function
     local function sendWebhook(messageType, unitData)
@@ -2090,11 +2145,19 @@ end
     
     -- Add items if any were collected
     if next(GameTracking.sessionItems) then
-        for itemName, quantity in pairs(GameTracking.sessionItems) do
-            local displayName = getItemDisplayName(itemName)
-            rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
+            for itemName, quantity in pairs(GameTracking.sessionItems) do
+                local displayName = getItemDisplayName(itemName)
+                
+                -- Try to get total amount using GC fallback
+                local totalAmount = getItemCountWithFallback(itemName)
+                
+                if totalAmount > 0 then
+                    rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. " [" .. totalAmount .. "]\n"
+                else
+                    rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
+                end
+            end
         end
-    end
     
     -- Add stat changes if any with total amounts (excluding resource)
     if next(statChanges) then
