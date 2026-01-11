@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.4"
+    local script_version = "V0.41"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2045,9 +2045,10 @@ end
 end
 
 local function getItemCountWithFallback(itemName)
-    -- Don't check sessionItems first - go straight to GC to get the TOTAL
+    -- Search ALL tables in GC and find the HIGHEST count (should be the real inventory)
+    local maxCount = 0
+    local foundAny = false
     
-    -- Use GC to find inventory table and get current total
     for _, obj in pairs(getgc(true)) do
         if type(obj) == "table" then
             local success, count = pcall(function()
@@ -2056,13 +2057,20 @@ local function getItemCountWithFallback(itemName)
             
             -- Check if this table has our item as a key with a number value
             if success and type(count) == "number" and count > 0 then
-                print("Found total count for", itemName, ":", count)
-                return count
+                foundAny = true
+                if count > maxCount then
+                    maxCount = count
+                    print("Found higher count for", itemName, ":", count)
+                end
             end
         end
     end
     
-    -- If we couldn't find it in GC, return 0 (no bracket will show)
+    if foundAny then
+        print("Final total count for", itemName, ":", maxCount)
+        return maxCount
+    end
+    
     return 0
 end
 
