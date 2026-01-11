@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.3"
+    local script_version = "V0.31"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3987,25 +3987,12 @@ local function sendSummonWebhook()
         return
     end
     
-    -- Create enhanced units list with shiny/skin indicators
+    -- Create units list
     local unitsText = ""
     if next(State.SummonedUnits) then
         local unitsList = {}
-        for unitKey, unitData in pairs(State.SummonedUnits) do
-            local emoji = ""
-            if unitData.shiny and unitData.skin then
-                emoji = "⭐🎨 " -- Shiny + Skin
-            elseif unitData.shiny then
-                emoji = "⭐ " -- Shiny only
-            elseif unitData.skin then
-                emoji = "🎨 " -- Skin only
-            end
-            
-            table.insert(unitsList, string.format("%s%s (x%d)", 
-                emoji,
-                unitData.displayName,
-                unitData.count
-            ))
+        for unitName, count in pairs(State.SummonedUnits) do
+            table.insert(unitsList, string.format("%s (x%d)", unitName, count))
         end
         table.sort(unitsList)
         unitsText = table.concat(unitsList, "\n")
@@ -4016,31 +4003,22 @@ local function sendSummonWebhook()
     local bannerName = State.AutoSummonBanner or "Unknown"
     local currencyName = getCurrencyNameForBanner(bannerName)
     
-    -- Calculate total summons
-    local totalSummons = 0
-    if bannerName == "Banner 3" then
-        totalSummons = State.Banner3SpinCount
-    else
-        local cost = getCostForBanner(bannerName)
-        totalSummons = cost > 0 and math.floor(State.CurrencySpent / cost) or 0
-    end
-    
     local data = {
         username = "LixHub",
         content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
         embeds = {{
-            title = "Auto Summon Complete",
+            title = "Auto Summon",
             description = string.format("**Banner:** %s", bannerName),
-            color = 0x5865F2,
+            color = Color3.fromRGB(64, 64, 64),
             fields = {
                 {
-                    name = currencyName .. " Spent",
-                    value = string.format("%d", State.CurrencySpent),
+                    name = "Currency Spent",
+                    value = string.format("%d %s", State.CurrencySpent, currencyName),
                     inline = true
                 },
                 {
                     name = "Total Summons",
-                    value = tostring(totalSummons),
+                    value = getCostForBanner(State.AutoSummonBanner) > 0 and math.floor(State.CurrencySpent / getCostForBanner(State.AutoSummonBanner)) or 0,
                     inline = true
                 },
                 {
