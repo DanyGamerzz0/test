@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.42"
+    local script_version = "V0.25"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -361,12 +361,7 @@ local macro = {}
         AutoRetryDelay = 2,
         AutoNormalizeShiny = false,
         NormalizeRarityFilter = {},
-        Banner3SpinCount = 0,
-        TrackedSummonItems = {},
-        SummonSessionActive = false,
     }
-
-    local inventoryCache = nil
 
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
@@ -618,30 +613,30 @@ local function findAllUnits()
     return units
 end
 
-local function isInLobby()
-        return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
-end
-
 local function normalizeShinyUnits()
-    if not State.AutoNormalizeShiny or #State.NormalizeRarityFilter == 0 then return end
-    if not isInLobby() then return end
+    if not State.AutoNormalizeShiny or #State.NormalizeRarityFilter == 0 then
+        return
+    end
     
     local allUnits = findAllUnits()
     if #allUnits == 0 then
-        --print("No units found for normalization")
+        print("No units found for normalization")
         return
     end
     
     local normalizedCount = 0
+    local skippedLocked = 0
+    local skippedRarity = 0
     
     for _, unit in ipairs(allUnits) do
-        -- Skip if not shiny (safety check)
+        -- Skip if not shiny
         if not unit.shiny then
             continue
         end
         
         -- Skip if locked
         if unit._locked then
+            skippedLocked = skippedLocked + 1
             continue
         end
         
@@ -663,30 +658,40 @@ local function normalizeShinyUnits()
         end
         
         if not shouldNormalize then
+            skippedRarity = skippedRarity + 1
             continue
         end
         
         -- Normalize the unit
         local success = pcall(function()
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_remove_shiny"):InvokeServer(unit.uuid)
+            --Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_remove_shiny"):InvokeServer(unit.uuid)
         end)
         
         if success then
             normalizedCount = normalizedCount + 1
-            --print(string.format("Normalized: %s (%s) - UUID: %s", 
-                --unitData.name or "Unknown", 
-                --unitRarity or "Unknown",
-                --unit.uuid))
+            print(string.format("Normalized: %s (%s) - UUID: %s", 
+                unitData.name or "Unknown", 
+                unitRarity or "Unknown",
+                unit.uuid))
             
             task.wait(0.2) -- Small delay between normalizations
         else
-            --warn("Failed to normalize unit:", unit.uuid)
+            warn("Failed to normalize unit:", unit.uuid)
         end
     end
     
     -- Summary notification
-    notify("Auto Normalize Complete", string.format("Normalized %d shiny units", normalizedCount))
-    --print(string.format("\n=== Normalized %d shiny units ===", normalizedCount))
+    local summaryText = string.format("Normalized %d shiny units", normalizedCount)
+    if skippedLocked > 0 then
+        summaryText = summaryText .. string.format("\nSkipped %d locked units", skippedLocked)
+    end
+    if skippedRarity > 0 then
+        summaryText = summaryText .. string.format("\nSkipped %d units (rarity filter)", skippedRarity)
+    end
+    
+    notify("Auto Normalize Complete", summaryText)
+    print("\n=== NORMALIZATION SUMMARY ===")
+    print(summaryText)
 end
 
 local function getCostScale()
@@ -2007,84 +2012,11 @@ end
             ["gem_amount"] = "Gems",
             ["player_xp"] = "XP",
             ["Resourcejewels"] = "Jewels",
-            ["Resourcegingerbeardtoken"] = "Gingerbread Tokens",
+
         }
         
         return statMappings[statName] or getItemDisplayName(statName)
     end
-
-    local function findInventoryInGC()
-    if inventoryCache then
-        return inventoryCache
-    end
-    
-    print("Searching for inventory in GC...")
-    local candidates = {}
-    
-    for _, obj in pairs(getgc(true)) do
-        if type(obj) == "table" then
-            local success, count = pcall(function()
-                return obj["EsdeathPity"]
-            end)
-            
-            if success and type(count) == "number" then
-                table.insert(candidates, {table = obj, count = count})
-            end
-        end
-    end
-    
-    if #candidates == 0 then
-        return nil
-    end
-    
-    table.sort(candidates, function(a, b) return a.count > b.count end)
-    inventoryCache = candidates[1].table
-    
-    print("Found inventory in GC")
-    return inventoryCache
-end
-
-local function shouldTrackTotal(itemName)
-    local lowerName = itemName:lower()
-    
-    -- Track anything with "pity" or "token" in the name
-    if lowerName:find("pity") or lowerName:find("token") then
-        return true
-    end
-    
-    return false
-end
-
-local function getItemCountWithFallback(itemName)
-    -- Only proceed if this is an item we care about
-    if not shouldTrackTotal(itemName) then
-        return nil -- Return nil to indicate "don't show total"
-    end
-    
-    local allCounts = {}
-    
-    for _, obj in pairs(getgc(true)) do
-        if type(obj) == "table" then
-            local success, count = pcall(function()
-                return obj[itemName]
-            end)
-            
-            if success and type(count) == "number" and count > 0 then
-                table.insert(allCounts, count)
-            end
-        end
-    end
-    
-    if #allCounts == 0 then
-        return 0
-    end
-    
-    -- Sort and return highest
-    table.sort(allCounts, function(a, b) return a > b end)
-    
-    print(string.format("Found total for %s: %d", itemName, allCounts[1]))
-    return allCounts[1]
-end
 
     -- Enhanced webhook function
     local function sendWebhook(messageType, unitData)
@@ -2165,19 +2097,11 @@ end
     
     -- Add items if any were collected
     if next(GameTracking.sessionItems) then
-    for itemName, quantity in pairs(GameTracking.sessionItems) do
-        local displayName = getItemDisplayName(itemName)
-        
-        -- Only try to get total for pities and tokens
-        local totalAmount = getItemCountWithFallback(itemName)
-        
-        if totalAmount and totalAmount > 0 then
-            rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. " [" .. totalAmount .. "]\n"
-        else
+        for itemName, quantity in pairs(GameTracking.sessionItems) do
+            local displayName = getItemDisplayName(itemName)
             rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
         end
     end
-end
     
     -- Add stat changes if any with total amounts (excluding resource)
     if next(statChanges) then
@@ -2647,6 +2571,10 @@ end
         end
         
         return nil
+    end
+
+    local function isInLobby()
+        return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
     end
 
     local function canPerformAction()
@@ -3923,8 +3851,6 @@ local function getBannerIdFromName(bannerName)
         return "EventClover"
     elseif bannerName == "Banner 2" then
         return "Christmas"
-    elseif bannerName == "Banner 3" then
-        return "Event" -- Replace with actual Banner 3 ID
     end
     return nil
 end
@@ -4029,23 +3955,7 @@ local function performBatchSummon(bannerName, amount)
     return true, string.format("Summoned %dx", actualSummons), actualCostSpent
 end
 
-local function getUnitDisplayInfo(unitId, skinId)
-    local unitData = getUnitData(unitId)
-    if not unitData then
-        return unitId, false
-    end
-    
-    local displayName = unitData.name or unitId
-    local isSkin = skinId ~= nil and skinId ~= "" and skinId ~= unitId
-    
-    return displayName, isSkin
-end
-
 local function getMaxAffordableSummons(bannerName)
-    if bannerName == "Banner 3" then
-        return 1 -- Always single summon for Banner 3
-    end
-    
     local currentCurrency = getCurrencyForBanner(bannerName)
     local summonCost = getCostForBanner(bannerName)
     
@@ -4054,16 +3964,12 @@ local function getMaxAffordableSummons(bannerName)
     local maxSummons = math.floor(currentCurrency / summonCost)
     
     -- If we can afford 10+, always do 10x (mass summon)
-    local batchCost = summonCost * 10
-
-    if currentCurrency >= batchCost then
-        -- Return maximum batch count (50 summons max per batch)
-        local affordableBatches = math.floor(currentCurrency / batchCost)
-        return math.min(affordableBatches * 10, 50) -- Cap at 50
+    if maxSummons >= 10 then
+        return 10
     end
     
     -- Otherwise do whatever we can afford (1-9)
-    return 0
+    return maxSummons
 end
 
 local function sendSummonWebhook()
@@ -4086,15 +3992,26 @@ local function sendSummonWebhook()
     end
     
     local bannerName = State.AutoSummonBanner or "Unknown"
+    local currencyName = getCurrencyNameForBanner(bannerName)
     
     local data = {
         username = "LixHub",
         content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
         embeds = {{
-            title = "Auto Summon Complete",
+            title = "Auto Summon",
             description = string.format("**Banner:** %s", bannerName),
-            color = 0x5865F2,
+            color = Color3.fromRGB(64, 64, 64),
             fields = {
+                {
+                    name = "Currency Spent",
+                    value = string.format("%d %s", State.CurrencySpent, currencyName),
+                    inline = true
+                },
+                {
+                    name = "Total Summons",
+                    value = getCostForBanner(State.AutoSummonBanner) > 0 and math.floor(State.CurrencySpent / getCostForBanner(State.AutoSummonBanner)) or 0,
+                    inline = true
+                },
                 {
                     name = "Units Obtained",
                     value = unitsText,
@@ -5648,16 +5565,19 @@ end
 
     LobbyTab:CreateSection("Auto Summon")
 
-LobbyTab:CreateToggle({
+    LobbyTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "AutoSummon", 
-    Info = "Automatically summons until stopped",
+    Info = "Automatically summon on selected banner",
     Callback = function(Value)
         State.AutoSummon = Value
         
+        if not Value and State.CurrencySpent > 0 then
+            notify("Auto Summon", "Stopped - Sending summary to webhook...")
+        end
+        
         if Value then
-            -- Starting auto-summon
             if not State.AutoSummonBanner then
                 notify("Auto Summon", "Please select a banner first!")
                 return
@@ -5665,53 +5585,23 @@ LobbyTab:CreateToggle({
             
             -- Reset tracking when starting
             State.SummonedUnits = {}
+            State.CurrencySpent = 0
             State.BeforeSummonCounts = nil
             State.SummonMarkersSet = false
             
-            notify("Auto Summon", string.format("Started summoning on %s", State.AutoSummonBanner))
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
             
-        else
-            -- Stopping auto-summon - process units
-            if State.SummonMarkersSet then
-                task.spawn(function()
-                    notify("Auto Summon", "Stopped...")
-                    task.wait(5)
-                    
-                    -- Take AFTER snapshot
-                    local afterCounts = captureUnitCounts()
-                    
-                    -- Compare to find new units
-                    if State.BeforeSummonCounts then
-                        local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
-                        
-                        for unitName, count in pairs(newUnits) do
-                            State.SummonedUnits[unitName] = count
-                        end
-                    end
-                    
-                    -- Send webhook if any units were summoned
-                    local hasUnits = next(State.SummonedUnits) ~= nil
-                    
-                    if hasUnits then
-                        sendSummonWebhook()
-                        notify("Auto Summon", "Summary sent to webhook!")
-                    else
-                        notify("Auto Summon", "No new units detected")
-                    end
-                    
-                    -- Reset tracking
-                    State.SummonedUnits = {}
-                    State.BeforeSummonCounts = nil
-                    State.SummonMarkersSet = false
-                end)
-            end
+            notify("Auto Summon", 
+                string.format("Started on %s (%d %s available)", 
+                    State.AutoSummonBanner, currentCurrency, currencyName))
         end
     end,
 })
 
-LobbyTab:CreateDropdown({
+    LobbyTab:CreateDropdown({
     Name = "Select Banner To Auto Summon",
-    Options = {"Banner 1", "Banner 2", "Banner 3"},
+    Options = {"Banner 1", "Banner 2"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "AutoSummonBanner",
@@ -5719,7 +5609,13 @@ LobbyTab:CreateDropdown({
         State.AutoSummonBanner = Options[1]
         
         if State.AutoSummonBanner then
-            notify("Banner Selected", string.format("%s selected", State.AutoSummonBanner))
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            
+            notify("Banner Selected", 
+                string.format("%s selected (%d %s available, %d per summon)", 
+                    State.AutoSummonBanner, currentCurrency, currencyName, summonCost))
         end
     end,
 })
@@ -5762,45 +5658,121 @@ LobbyTab:CreateDropdown({
     end,
 })
 
+local function updateSummonStatus()
+    if State.AutoSummon and State.AutoSummonBanner then
+        local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+        local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+        local summonCost = getCostForBanner(State.AutoSummonBanner)
+        local totalSummons = summonCost > 0 and math.floor(State.CurrencySpent / summonCost) or 0
+        
+        SummonStatusLabel:Set(string.format("Auto Summon: %d summons | %d %s spent | %d %s left", 
+            totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
+    else
+        SummonStatusLabel:Set("Auto Summon: Idle")
+    end
+end
+
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.3)
         
         if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
-            -- Destroy rewards GUI if it appears
+            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
+            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
+            
+            local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
+
             if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards") then
                 Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards"):Destroy()
             end
             
-            -- Take BEFORE snapshot only on first summon
-            if not State.SummonMarkersSet then
-                State.BeforeSummonCounts = captureUnitCounts()
-                State.SummonMarkersSet = true
-            end
-            
-            local bannerId = getBannerIdFromName(State.AutoSummonBanner)
-            if not bannerId then
-                task.wait(2)
-                continue
-            end
-            
-            -- Always do x50 summons
-            local success, result = pcall(function()
-                return Services.ReplicatedStorage:WaitForChild("endpoints")
-                    :WaitForChild("client_to_server")
-                    :WaitForChild("buy_from_banner")
-                    :InvokeServer(bannerId, "gems10", 50)
-            end)
-            
-            if success then
-                SummonStatusLabel:Set(string.format("Auto Summon: Active on %s", State.AutoSummonBanner))
-                task.wait(2)
+            if affordableSummons > 0 then
+                -- Take BEFORE snapshot only on first summon
+                if not State.SummonMarkersSet then
+                    State.BeforeSummonCounts = captureUnitCounts()
+                    State.SummonMarkersSet = true
+                    print("Captured BEFORE snapshot for auto summon")
+                end
+                
+                local bannerId = getBannerIdFromName(State.AutoSummonBanner)
+                local currencyType = affordableSummons >= 10 and "gems10" or "gems"
+                local currencyBefore = getCurrencyForBanner(State.AutoSummonBanner)
+                
+                local success, result = pcall(function()
+                    local args = currencyType == "gems10" and {bannerId, currencyType} or {bannerId, currencyType, affordableSummons}
+                    return Services.ReplicatedStorage:WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("buy_from_banner")
+                        :InvokeServer(unpack(args))
+                end)
+                
+                if success then
+                    local currencyAfter = getCurrencyForBanner(State.AutoSummonBanner)
+                    local actualCostSpent = currencyBefore - currencyAfter
+                    State.CurrencySpent = State.CurrencySpent + actualCostSpent
+                    
+                    updateSummonStatus()
+                else
+                    warn("Auto Summon failed:", result)
+                    task.wait(1)
+                end
+                
             else
-                SummonStatusLabel:Set(string.format("Auto Summon: Error - %s", tostring(result):sub(1, 30)))
-                task.wait(3)
+                -- Out of currency - time to finalize
+                State.AutoSummon = false
+                
+                if State.CurrencySpent > 0 then
+                    -- Wait for final units to register
+                    task.wait(3)
+                    
+                    -- Take AFTER snapshot
+                    local afterCounts = captureUnitCounts()
+                    
+                    -- Compare to find new units
+                    if State.BeforeSummonCounts then
+                        local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
+                        
+                        -- Store results
+                        State.SummonedUnits = newUnits
+                        
+                        print("Auto summon complete - found", #newUnits, "new units")
+                    end
+                    
+                    sendSummonWebhook()
+                end
+                
+                -- Reset tracking
+                State.SummonedUnits = {}
+                State.CurrencySpent = 0
+                State.BeforeSummonCounts = nil
+                State.SummonMarkersSet = false
+                
+                updateSummonStatus()
+                
+                notify("Auto Summon", 
+                    string.format("Stopped - Not enough %s (%d/%d)", 
+                        currencyName, currentCurrency, summonCost))
             end
-        else
-            SummonStatusLabel:Set("Auto Summon: Idle")
+        elseif not State.AutoSummon and State.CurrencySpent > 0 then
+            -- Manual stop - finalize
+            task.wait(3)
+            
+            local afterCounts = captureUnitCounts()
+            
+            if State.BeforeSummonCounts then
+                local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
+                State.SummonedUnits = newUnits
+            end
+            
+            sendSummonWebhook()
+            
+            State.SummonedUnits = {}
+            State.CurrencySpent = 0
+            State.BeforeSummonCounts = nil
+            State.SummonMarkersSet = false
+            
+            updateSummonStatus()
         end
     end
 end)
