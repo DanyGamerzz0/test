@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.22"
+    local script_version = "V0.23"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1057,6 +1057,7 @@ end
 local function processAbilityActionWithSpawnIdMapping(actionInfo)
     local rawUnitUUID = actionInfo.unitUUID
     
+    -- Find which placement ID this combined identifier belongs to
     local placementId = nil
     placementId = MacroSystem.recordingSpawnIdToPlacement[rawUnitUUID]
     
@@ -1072,15 +1073,18 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
             Time = formatTimeValue(currentWave, secondsInWave)
         }
         
-        if actionInfo.abilityName then
+        -- FIXED: Only include AbilityName if it exists and is not nil
+        if actionInfo.abilityName and actionInfo.abilityName ~= "" then
             abilityRecord.AbilityName = actionInfo.abilityName
         end
         
         table.insert(macro, abilityRecord)
         
+        local abilityInfo = actionInfo.abilityName and (" (" .. actionInfo.abilityName .. ")") or ""
+        
         Rayfield:Notify({
             Title = "Macro Recorder",
-            Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
+            Content = string.format("Recorded ability: %s%s (Wave %d)", placementId, abilityInfo, currentWave),
             Duration = 2,
             Image = 4483362458
         })
@@ -1155,7 +1159,7 @@ local function setupMacroHooksRefactored()
                         timestamp = tick()
                     })
                 end)
-           elseif self.Name == "use_active_attack" then
+     elseif self.Name == "use_active_attack" then
     -- Record ability usage with optional ability name
     task.spawn(function()
         -- Get the unit's UUID AND spawn_id to create stable identifier
@@ -1171,12 +1175,11 @@ local function setupMacroHooksRefactored()
                         local uuidValue = stats:FindFirstChild("uuid")
                         local spawnIdValue = stats:FindFirstChild("spawn_id")
                         
-                        if uuidValue and uuidValue:IsA("StringValue") and 
+                        if uuidValue and uuidValue:IsA("StringValue") and
                            uuidValue.Value == args[1] then
                             -- Found the unit - create combined identifier
                             if spawnIdValue then
                                 unitIdentifier = uuidValue.Value .. spawnIdValue.Value
-                                print("DEBUG: Created combined identifier:", unitIdentifier)
                             end
                             break
                         end
@@ -1185,18 +1188,15 @@ local function setupMacroHooksRefactored()
             end
         end
         
-        -- Only include abilityName if args[2] exists AND is a string AND is not empty
+        -- FIXED: Only include abilityName if args[2] exists AND is a non-empty string
         local abilityName = nil
-        if args[2] and type(args[2]) == "string" and args[2] ~= "" then
+        if args[2] and type(args[2]) == "string" and args[2] ~= "" and args[2] ~= "nil" then
             abilityName = args[2]
-            print("DEBUG: Captured ability name:", abilityName)
-        else
-            print("DEBUG: No ability name (args[2] =", type(args[2]), ":", tostring(args[2]), ")")
         end
         
         processAbilityActionWithSpawnIdMapping({
-            unitUUID = unitIdentifier, -- Now using UUID+spawn_id
-            abilityName = abilityName,
+            unitUUID = unitIdentifier,
+            abilityName = abilityName, -- Will be nil if not provided
             timestamp = tick()
         })
     end)
@@ -1758,7 +1758,6 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     local combinedIdentifier = uuidValue.Value
     if spawnIdValue then
         combinedIdentifier = combinedIdentifier .. spawnIdValue.Value
-        print(string.format("Created combined identifier for ability: %s", combinedIdentifier))
     end
     
     local abilityDesc = action.AbilityName and 
@@ -1770,11 +1769,11 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
         
-        if action.AbilityName then
-            -- Pass combined identifier + ability name
+        -- FIXED: Only pass ability name if it exists and is not nil
+        if action.AbilityName and action.AbilityName ~= "" and action.AbilityName ~= "nil" then
             endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier, action.AbilityName)
         else
-            -- Pass combined identifier only
+            -- No ability name - just pass the combined identifier
             endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
         end
     end)
