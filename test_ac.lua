@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.25"
+    local script_version = "V0.26"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1154,36 +1154,36 @@ local function setupMacroHooksRefactored()
                     })
                 end)
      elseif self.Name == "use_active_attack" then
-    -- FIXED: Only capture UUID (first argument)
+    -- FIXED: Capture ALL data we need BEFORE task.spawn to avoid thread access issues
     local capturedUnitUUID = args[1]
     
-    -- Now spawn task with captured UUID only
-    task.spawn(function()
-        local unitIdentifier = capturedUnitUUID
-        
-        -- Try to find the actual unit to get its spawn_id
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        if unitsFolder then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
-                if isOwnedByLocalPlayer(unit) then
-                    local stats = unit:FindFirstChild("_stats")
-                    if stats then
-                        local uuidValue = stats:FindFirstChild("uuid")
-                        local spawnIdValue = stats:FindFirstChild("spawn_id")
-                        
-                        if uuidValue and uuidValue:IsA("StringValue") and 
-                           uuidValue.Value == capturedUnitUUID then
-                            -- Found the unit - create combined identifier
-                            if spawnIdValue then
-                                unitIdentifier = uuidValue.Value .. spawnIdValue.Value
-                            end
-                            break
+    -- Pre-fetch the unit and combined identifier in the SAME THREAD as the hook
+    local unitIdentifier = capturedUnitUUID
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local uuidValue = stats:FindFirstChild("uuid")
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    
+                    if uuidValue and uuidValue:IsA("StringValue") and 
+                       uuidValue.Value == capturedUnitUUID then
+                        -- Found the unit - create combined identifier IN THIS THREAD
+                        if spawnIdValue then
+                            unitIdentifier = uuidValue.Value .. spawnIdValue.Value
                         end
+                        break
                     end
                 end
             end
         end
-        
+    end
+    
+    -- NOW spawn task with the already-captured data
+    task.spawn(function()
         processAbilityActionWithSpawnIdMapping({
             unitUUID = unitIdentifier,
             timestamp = tick()
