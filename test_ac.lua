@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.27"
+    local script_version = "V0.28"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1087,6 +1087,45 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
     end
 end
 
+local function processAbilityRecording(actionInfo)
+    local capturedUnitUUID = actionInfo.args[1]
+    if not capturedUnitUUID then
+        warn("No UUID provided for ability")
+        return
+    end
+    
+    -- Find the unit and create combined identifier (inside spawned task now)
+    local unitIdentifier = capturedUnitUUID
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local uuidValue = stats:FindFirstChild("uuid")
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    
+                    if uuidValue and uuidValue:IsA("StringValue") and 
+                       uuidValue.Value == capturedUnitUUID then
+                        -- Found the unit - create combined identifier
+                        if spawnIdValue then
+                            unitIdentifier = uuidValue.Value .. spawnIdValue.Value
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Now process the ability action
+    processAbilityActionWithSpawnIdMapping({
+        unitUUID = unitIdentifier,
+        timestamp = actionInfo.timestamp
+    })
+end
+
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
         Rayfield:Notify({
@@ -1106,6 +1145,9 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
             Image = 4483362458,
         })
         processWaveSkipAction(actionInfo)
+         elseif actionInfo.remoteName == "use_active_attack" then
+        -- NEW: Handle ability recording
+        processAbilityRecording(actionInfo)
     end
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
@@ -1154,39 +1196,14 @@ local function setupMacroHooksRefactored()
                     })
                 end)
 elseif self.Name == "use_active_attack" then
-    -- Capture UUID (first argument)
-    local capturedUnitUUID = args[1]
-    
-    -- Find the unit and create combined identifier
-    local unitIdentifier = capturedUnitUUID
-    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-    
-    if unitsFolder then
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) then
-                local stats = unit:FindFirstChild("_stats")
-                if stats then
-                    local uuidValue = stats:FindFirstChild("uuid")
-                    local spawnIdValue = stats:FindFirstChild("spawn_id")
-                    
-                    if uuidValue and uuidValue:IsA("StringValue") and 
-                       uuidValue.Value == capturedUnitUUID then
-                        -- Found the unit - create combined identifier
-                        if spawnIdValue then
-                            unitIdentifier = uuidValue.Value .. spawnIdValue.Value
-                        end
-                        break
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Call directly instead of task.spawn
-    processAbilityActionWithSpawnIdMapping({
-        unitUUID = unitIdentifier,
-        timestamp = tick()
-    })
+    -- Just capture the raw argument and spawn the task - no Instance access here
+    task.spawn(function()
+        processActionResponseWithSpawnIdMapping({
+            remoteName = "use_active_attack",
+            args = args,
+            timestamp = tick()
+        })
+    end)
 end
 end
 
