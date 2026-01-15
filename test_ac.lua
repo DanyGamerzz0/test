@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.52"
+    local script_version = "V0.53"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2353,6 +2353,9 @@ local function monitorGameStarted()
     gameStarted.Changed:Connect(function(isStarted)
         if isStarted and not GameTracking.gameInProgress then
             print("GameStarted = true detected, starting game tracking...")
+
+            MacroSystem.macroHasPlayedThisGame = false
+
             startGameTracking()
             
             -- Start recording if enabled
@@ -7841,6 +7844,7 @@ local function autoLoopPlaybackWithGameTiming()
         
         -- Wait for a game to be active
         while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
+            MacroSystem.macroHasPlayedThisGame = false
             updateDetailedStatus("Waiting for active game...")
             task.wait(0.5) -- Changed from 1 to 0.5 for faster detection
         end
