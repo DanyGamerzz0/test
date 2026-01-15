@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.29"
+    local script_version = "V0.3"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1052,39 +1052,6 @@ local function processWaveSkipAction(actionInfo)
         Time = formatTimeValue(currentWave, secondsInWave)
     })
     Rayfield:Notify({Title = "Macro Recorder",Content = string.format("Recorded wave skip (Wave %d)", currentWave),Duration = 3,Image = 4483362458})
-end
-
-local function processAbilityActionWithSpawnIdMapping(actionInfo)
-    local rawUnitUUID = actionInfo.unitUUID
-    
-    -- Find which placement ID this combined identifier belongs to
-    local placementId = nil
-    placementId = MacroSystem.recordingSpawnIdToPlacement[rawUnitUUID]
-    
-    if placementId then
-        -- Calculate wave-based time
-        local currentWave = getCurrentWaveNumber()
-        local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
-        local secondsInWave = actionInfo.timestamp - waveStartTime
-        
-        local abilityRecord = {
-            Type = "use_active_attack",
-            Unit = placementId,
-            Time = formatTimeValue(currentWave, secondsInWave)
-        }
-        -- AbilityName field removed entirely
-        
-        table.insert(macro, abilityRecord)
-        
-        Rayfield:Notify({
-            Title = "Macro Recorder",
-            Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
-            Duration = 2,
-            Image = 4483362458
-        })
-    else
-        warn("Could not find placement ID for combined identifier:", rawUnitUUID)
-    end
 end
 
 local function processAbilityRecording(actionInfo)
