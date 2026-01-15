@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.31"
+    local script_version = "V0.32"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1056,7 +1056,7 @@ local function processWaveSkipAction(actionInfo)
     Rayfield:Notify({Title = "Macro Recorder",Content = string.format("Recorded wave skip (Wave %d)", currentWave),Duration = 3,Image = 4483362458})
 end
 
-local function processAbilityRecording(actionInfo)
+--[[local function processAbilityRecording(actionInfo)
     local capturedUnitUUID = actionInfo.args[1]
     if not capturedUnitUUID then
         warn("No UUID provided for ability")
@@ -1091,7 +1091,7 @@ local function processAbilityRecording(actionInfo)
         Duration = 2,
         Image = 4483362458
     })
-end
+end--]]
 
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
@@ -1114,7 +1114,7 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
         processWaveSkipAction(actionInfo)
          elseif actionInfo.remoteName == "use_active_attack" then
         -- NEW: Handle ability recording
-        processAbilityRecording(actionInfo)
+        --processAbilityRecording(actionInfo)
     end
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
