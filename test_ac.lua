@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.53"
+    local script_version = "V0.42"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -228,7 +228,6 @@ local GameTracking = {
     portalDepth = nil,
     currentWave = -1,
     waveStartTime = 0,
-    gameInstanceId = 0,
 }
 
 local VALIDATION_CONFIG = {
@@ -2273,11 +2272,6 @@ local function startGameTracking()
     GameTracking.gameStartTime = tick()  -- Always track game start time
     GameTracking.startStats = captureStats()
     MacroSystem.macroHasPlayedThisGame = false  -- Reset macro play flag
-    GameTracking.gameHasEnded = false
-    GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
-
-    print("=== NEW GAME STARTED ===")
-    print("Game Instance ID:", GameTracking.gameInstanceId)  -- ← ADD THIS
     
     -- Get both map name and challenge info
     GameTracking.currentMapName, MacroSystem.currentChallenge, GameTracking.portalDepth = getMapInfo()
@@ -2353,9 +2347,6 @@ local function monitorGameStarted()
     gameStarted.Changed:Connect(function(isStarted)
         if isStarted and not GameTracking.gameInProgress then
             print("GameStarted = true detected, starting game tracking...")
-
-            MacroSystem.macroHasPlayedThisGame = false
-
             startGameTracking()
             
             -- Start recording if enabled
@@ -5758,7 +5749,7 @@ LobbyTab:CreateDropdown({
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "NormalizeRarityFilter",
-    Info = "Only normalize shiny units of these rarities (locked units are excluded)",
+    Info = "Only normalize shiny units of these rarities (locked units are always skipped)",
     Callback = function(Options)
         State.NormalizeRarityFilter = Options or {}
         
@@ -7248,10 +7239,6 @@ local function playMacroWithWaveTiming()
     end
     
     MacroSystem.macroHasPlayedThisGame = true
-
-    local macroGameInstanceId = GameTracking.gameInstanceId
-    print("Macro starting for game instance:", macroGameInstanceId)
-
     local totalActions = #macro
     local scheduledAbilities = 0
     
@@ -7266,19 +7253,9 @@ local function playMacroWithWaveTiming()
     local activeAbilityTasks = 0
     local macroStartTime = tick()
     
-    -- NEW: Get current wave to determine which actions need catching up
-    local currentWave = GameTracking.currentWave
-    local currentTimeInWave = tick() - GameTracking.waveStartTime
-    
-    print(string.format("Starting playback: Current wave %d, time in wave: %.2fs", 
-        currentWave, currentTimeInWave))
-    
-     for i, action in ipairs(macro) do
-        if not MacroSystem.isPlaybacking or 
-           not GameTracking.isAutoLoopEnabled or 
-           GameTracking.gameInstanceId ~= macroGameInstanceId then
-            
-            print("=== MACRO INTERRUPTED ===")
+    for i, action in ipairs(macro) do
+        if not MacroSystem.isPlaybacking or not GameTracking.isAutoLoopEnabled or GameTracking.gameHasEnded then
+            updateDetailedStatus(string.format("Macro: %s - Interrupted", macroName))
             return false
         end
         
@@ -7288,7 +7265,7 @@ local function playMacroWithWaveTiming()
         local seconds = math.floor(timeElapsed % 60)
         local timeString = string.format("%02d:%02d", minutes, seconds)
         
-        -- Parse wave and time
+        -- Parse wave and time from "wave time" format
         local targetWave, targetTime = action.Time:match("^(%d+)%s+([%d%.]+)$")
         targetWave = tonumber(targetWave)
         targetTime = tonumber(targetTime)
@@ -7298,15 +7275,7 @@ local function playMacroWithWaveTiming()
             continue
         end
         
-        -- NEW: Determine if this action is "overdue" (should have happened already)
-        local isOverdue = false
-        if targetWave < currentWave then
-            isOverdue = true
-        elseif targetWave == currentWave and targetTime < currentTimeInWave then
-            isOverdue = true
-        end
-        
-        -- Money waiting logic (same for both overdue and on-time actions)
+        -- Money waiting logic
         if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
             local requiredCost = 0
             
@@ -7358,64 +7327,63 @@ local function playMacroWithWaveTiming()
                     local currentMoney = getPlayerMoney()
                     local missingMoney = requiredCost - currentMoney
                     
+                    -- Update time elapsed during wait
                     timeElapsed = tick() - macroStartTime
                     minutes = math.floor(timeElapsed / 60)
                     seconds = math.floor(timeElapsed % 60)
                     timeString = string.format("%02d:%02d", minutes, seconds)
                     
-                    local statusPrefix = isOverdue and "[CATCHING UP] " or ""
-                    updateDetailedStatus(string.format("%sMacro: %s (%d/%d) Time Elapse: %s\nWaiting for %d yen (have %d, need %d)", 
-                        statusPrefix, macroName, i, totalActions, timeString, missingMoney, currentMoney, requiredCost))
+                    updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nWaiting for %d yen (have %d, need %d)", 
+                        macroName, i, totalActions, timeString, missingMoney, currentMoney, requiredCost))
                     task.wait(1)
                 end
                 
                 if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
-                    print("Interrupted during money wait")
                     return false
                 end
             end
         end
         
-        -- Handle abilities (keep existing code)
+        -- Handle abilities separately when ignore timing is enabled
         if State.IgnoreTiming and action.Type == "use_active_attack" then
             activeAbilityTasks = activeAbilityTasks + 1
             
             task.spawn(function()
-                -- Only wait for timing if not overdue
-                if not isOverdue then
-                    while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking do
-                        task.wait(0.5)
-                    end
-                    
-                    if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then return end
-                    
-                    local timeInWave = tick() - GameTracking.waveStartTime
-                    local waitTime = targetTime - timeInWave
-                    if waitTime > 0 then
-                        task.wait(waitTime)
-                    end
+                -- Wait for correct wave
+                while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking do
+                    task.wait(0.5)
                 end
                 
+                if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then return end
+                
+                -- Wait for correct time within wave
+                local timeInWave = tick() - GameTracking.waveStartTime
+                local waitTime = targetTime - timeInWave
+                if waitTime > 0 then
+                    task.wait(waitTime)
+                end
+                
+                -- Execute ability
                 if MacroSystem.isPlaybacking and not GameTracking.gameHasEnded then
                     validateAbilityActionWithSpawnIdMapping(action, i, totalActions)
                     activeAbilityTasks = activeAbilityTasks - 1
                 end
             end)
             
+            -- Update time elapsed
             timeElapsed = tick() - macroStartTime
             minutes = math.floor(timeElapsed / 60)
             seconds = math.floor(timeElapsed % 60)
             timeString = string.format("%02d:%02d", minutes, seconds)
             
-            local statusPrefix = isOverdue and "[CATCHING UP] " or ""
-            updateDetailedStatus(string.format("%sMacro: %s (%d/%d) Time Elapse: %s\nScheduled ability for wave %d", 
-                statusPrefix, macroName, i, totalActions, timeString, targetWave))
+            updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nScheduled ability for wave %d", 
+                macroName, i, totalActions, timeString, targetWave))
             continue
         end
         
-        -- NEW: Timing logic with catch-up
-        if not State.IgnoreTiming and not isOverdue then
-            -- Normal timing - wait for the right wave and time
+        -- Timing logic for non-ability actions
+        if not State.IgnoreTiming then
+            -- Wait for correct wave
             while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
                 timeElapsed = tick() - macroStartTime
                 minutes = math.floor(timeElapsed / 60)
@@ -7428,10 +7396,10 @@ local function playMacroWithWaveTiming()
             end
             
             if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
-                print("Interrupted during wave wait")
                 return false
             end
             
+            -- Wait for correct time within wave
             local timeInWave = tick() - GameTracking.waveStartTime
             local waitTime = targetTime - timeInWave
             
@@ -7450,27 +7418,20 @@ local function playMacroWithWaveTiming()
             end
             
             if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then
-                print("Interrupted during time wait")
                 return false
             end
-        elseif not State.IgnoreTiming and isOverdue then
-            -- Catching up - execute immediately without timing wait
-            print(string.format("[CATCH-UP] Executing overdue action %d/%d (was scheduled for wave %d, we're on wave %d)", 
-                i, totalActions, targetWave, currentWave))
         else
-            -- IgnoreTiming is enabled - execute immediately
             if i > 1 then
                 task.wait(0.3)
             end
         end
         
-        -- Update status with next action
+        -- Update status with next action info
         timeElapsed = tick() - macroStartTime
         minutes = math.floor(timeElapsed / 60)
         seconds = math.floor(timeElapsed % 60)
         timeString = string.format("%02d:%02d", minutes, seconds)
         
-        local statusPrefix = isOverdue and "[CATCHING UP] " or ""
         local nextActionText = ""
         if i < totalActions then
             local nextAction = macro[i + 1]
@@ -7481,17 +7442,14 @@ local function playMacroWithWaveTiming()
             end
         end
         
-        updateDetailedStatus(string.format("%sMacro: %s (%d/%d) Time Elapse: %s%s", 
-            statusPrefix, macroName, i, totalActions, timeString, nextActionText))
+        updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s%s", 
+            macroName, i, totalActions, timeString, nextActionText))
         
-        -- Execute action
-        print(string.format("%sExecuting action %d/%d: %s", 
-            isOverdue and "[CATCH-UP] " or "", 
-            i, totalActions, action.Type))
+        -- Execute the action
         local actionSuccess = executeActionWithSpawnIdMapping(action, i, totalActions)
         
         if not actionSuccess then
-            print(string.format("⚠️ Action %d failed: %s for unit %s", i, action.Type, action.Unit or "N/A"))
+            print(string.format("Action %d failed: %s", i, action.Type))
         end
     end
     
@@ -7502,7 +7460,7 @@ local function playMacroWithWaveTiming()
     timeString = string.format("%02d:%02d", minutes, seconds)
     
     updateDetailedStatus(string.format("Macro: %s - Completed in %s", macroName, timeString))
-    print("=== MACRO PLAYBACK COMPLETE ===")
+    print("Macro playback completed")
     return true
 end
 
@@ -7833,96 +7791,47 @@ end
     end
 
 local function autoLoopPlaybackWithGameTiming()
-    print("=== PLAYBACK LOOP STARTED ===")
-    
     while GameTracking.isAutoLoopEnabled do
-        -- CRITICAL FIX: Reset flag immediately when loop starts waiting for new game
-        if not GameTracking.gameInProgress or isInLobby() then
-            MacroSystem.macroHasPlayedThisGame = false
-            print("Waiting for new game - reset macroHasPlayedThisGame flag")
-        end
-        
-        -- Wait for a game to be active
+        -- Wait for a game to be active (but don't wait for new game to start)
         while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
-            MacroSystem.macroHasPlayedThisGame = false
             updateDetailedStatus("Waiting for active game...")
-            task.wait(0.5) -- Changed from 1 to 0.5 for faster detection
-        end
-        
-        print("Game detected! gameInProgress:", GameTracking.gameInProgress, "| macroHasPlayedThisGame:", MacroSystem.macroHasPlayedThisGame)
-        
-        if not GameTracking.isAutoLoopEnabled then 
-            print("Playback disabled, breaking loop")
-            break 
-        end
-        
-        -- SAFETY CHECK: Double-check flag wasn't somehow set
-        if MacroSystem.macroHasPlayedThisGame then
-            print("WARNING: macroHasPlayedThisGame was true at game start - this shouldn't happen! Resetting...")
-            MacroSystem.macroHasPlayedThisGame = false
-        end
-        
-        -- ADDED: Check if game instance changed (new game started)
-        local currentGameInstance = GameTracking.gameInstanceId
-        print("Current game instance ID:", currentGameInstance)
-        
-        -- Wait for GameStarted flag
-        local gameData = Services.Workspace:FindFirstChild("_DATA")
-        if gameData then
-            local gameStarted = gameData:FindFirstChild("GameStarted")
-            if gameStarted then
-                local waitStart = tick()
-                while not gameStarted.Value and GameTracking.isAutoLoopEnabled and tick() - waitStart < 30 do
-                    updateDetailedStatus("Waiting for GameStarted flag...")
-                    task.wait(0.5)
-                    
-                    -- ADDED: Check if game instance changed during wait
-                    if GameTracking.gameInstanceId ~= currentGameInstance then
-                        print("Game instance changed during GameStarted wait - restarting loop")
-                        break
-                    end
-                end
-                
-                -- ADDED: If game instance changed, restart loop
-                if GameTracking.gameInstanceId ~= currentGameInstance then
-                    continue
-                end
-            end
-        end
-        
-        -- Wait for wave 0
-        local waveNum = Services.Workspace:FindFirstChild("_wave_num")
-        if waveNum then
-            local waveWaitStart = tick()
-            while waveNum.Value < 0 and GameTracking.isAutoLoopEnabled and tick() - waveWaitStart < 15 do
-                updateDetailedStatus(string.format("Waiting for wave 0 (current: %d)...", waveNum.Value))
-                task.wait(0.5)
-                
-                -- ADDED: Check if game instance changed during wait
-                if GameTracking.gameInstanceId ~= currentGameInstance then
-                    print("Game instance changed during wave wait - restarting loop")
-                    break
-                end
-            end
-            
-            -- ADDED: If game instance changed, restart loop
-            if GameTracking.gameInstanceId ~= currentGameInstance then
-                continue
-            end
+            task.wait(1)
         end
         
         if not GameTracking.isAutoLoopEnabled then break end
         
-        task.wait(0.5) -- Stability delay
+        -- NEW: Wait for GameStarted to be true
+        local gameData = Services.Workspace:FindFirstChild("_DATA")
+        if gameData then
+            local gameStarted = gameData:FindFirstChild("GameStarted")
+            if gameStarted then
+                while not gameStarted.Value and GameTracking.isAutoLoopEnabled do
+                    updateDetailedStatus("Waiting for game to start (GameStarted = false)...")
+                    task.wait(0.5)
+                end
+            end
+        end
         
-        -- FINAL SAFETY CHECK before loading macro
+        -- Check if macro already played this game
         if MacroSystem.macroHasPlayedThisGame then
-            print("ERROR: Flag was set during initialization! Skipping this game cycle.")
-            -- Wait for game to end before retrying
+            updateDetailedStatus("Macro already played this game - waiting for next game...")
+            
+            -- Wait for this game to end and next to start
             while GameTracking.gameInProgress and GameTracking.isAutoLoopEnabled do
                 task.wait(1)
             end
-            continue
+            
+            -- Wait for next game to start
+            while (not GameTracking.gameInProgress or isInLobby()) and GameTracking.isAutoLoopEnabled do
+                task.wait(1)
+            end
+            
+            -- NEW: Wait for wave 0 again
+            while GameTracking.currentWave < 0 and GameTracking.isAutoLoopEnabled do
+                task.wait(0.5)
+            end
+            
+            if not GameTracking.isAutoLoopEnabled then break end
         end
         
         -- Get macro to use
@@ -7956,10 +7865,7 @@ local function autoLoopPlaybackWithGameTiming()
         notify("Playback Started", macroToUse .. macroSource .. timingMode .. " (" .. #macro .. " actions)")
         clearSpawnIdMappings()
         
-        print(string.format("=== MACRO PLAYBACK START ==="))
-        print(string.format("Macro: %s | Actions: %d", macroToUse, #macro))
-        
-        local completed = playMacroWithWaveTiming()
+        local completed = playMacroWithWaveTiming() -- USING NEW FUNCTION
         
         MacroSystem.isPlaybacking = false
         
@@ -7967,78 +7873,42 @@ local function autoLoopPlaybackWithGameTiming()
             if completed then
                 MacroStatusLabel:Set("Status: Macro completed - waiting for next game...")
                 updateDetailedStatus("Macro completed - waiting for next game...")
-                print("✓ Macro playback completed successfully")
             else
-                -- CHANGED: Update status immediately when interrupted
-                MacroStatusLabel:Set("Status: Macro interrupted - ready for next game")
-                updateDetailedStatus("Macro interrupted - ready for next game")
-                print("✗ Macro playback was interrupted")
+                MacroStatusLabel:Set("Status: Macro interrupted - waiting for next game...")
+                updateDetailedStatus("Macro interrupted - waiting for next game...")
             end
         end
         
-        -- ADDED: Small delay then immediately check for new game
-        task.wait(0.5)
+        task.wait(1)
     end
     
     MacroStatusLabel:Set("Status: Playback stopped")
+    updateDetailedStatus("Playback stopped")
     MacroSystem.isPlaybacking = false
 end
 
-PlayToggleEnhanced = MacroTab:CreateToggle({
+ PlayToggleEnhanced = MacroTab:CreateToggle({
     Name = "Playback Macro",
     CurrentValue = false,
     Flag = "PlayBackMacro",
     Callback = function(Value)
-        print("========================================")
-        print("PLAYBACK TOGGLE CHANGED TO:", Value)
-        print("========================================")
-        
         GameTracking.isAutoLoopEnabled = Value
         
         if Value then
-            print("Enabling playback system...")
-            print("Current game state:")
-            print("  - gameInProgress:", GameTracking.gameInProgress)
-            print("  - isInLobby:", isInLobby())
-            print("  - currentMacroName:", MacroSystem.currentMacroName or "None")
-            print("  - macroHasPlayedThisGame:", MacroSystem.macroHasPlayedThisGame)
-            print("  - currentWave:", GameTracking.currentWave)
-            
             MacroStatusLabel:Set("Status: Playback enabled")
-            updateDetailedStatus("Playback enabled - initializing...")
+            updateDetailedStatus("Waiting for game to start...")
+            notify("Playback Enabled", "Macro will play once per game when conditions are met.")
             
-            -- NEW: If already in a game, start immediately
-            if GameTracking.gameInProgress and not isInLobby() then
-                notify("Playback Enabled", "Starting macro from current wave (" .. GameTracking.currentWave .. ")")
-                
-                -- Reset the flag so it can play this game
-                MacroSystem.macroHasPlayedThisGame = false
-            else
-                notify("Playback Enabled", "Macro will play once per game when conditions are met.")
-            end
-            
-            -- Start the playback loop
-            print("Spawning playback loop task...")
             task.spawn(function()
-                print("Playback loop task started!")
                 autoLoopPlaybackWithGameTiming()
-                print("Playback loop task ended!")
             end)
-            
-            print("Playback system fully enabled")
         else
-            print("Disabling playback system...")
-            
             MacroStatusLabel:Set("Status: Playback disabled")
             updateDetailedStatus("Playback stopped")
             MacroSystem.isPlaybacking = false
             GameTracking.gameHasEnded = false
             notify("Playback Disabled", "Macro playback stopped.")
-            
-            print("Playback system disabled")
         end
-        
-        print("========================================")
     end,
 })
 
@@ -9072,100 +8942,129 @@ if gameFinishedRemote then
     gameFinishedRemote.OnClientEvent:Connect(function(...)
         local args = {...}
         print("game_finished RemoteEvent fired!")
-        
-        -- Mark that THIS game instance has ended
+        print("Number of arguments:", #args)
+
         GameTracking.gameHasEnded = true
-        local endedGameId = GameTracking.gameInstanceId
-        print("Game instance", endedGameId, "has ended")
-        
         startFailsafeTimer()
+        MacroSystem.macroHasPlayedThisGame = false
         
-        -- Handle recording stop
         if MacroSystem.isRecording then
             MacroSystem.isRecording = false
             MacroSystem.isRecordingLoopRunning = false
             Rayfield:Notify({
                 Title = "Recording Stopped",
-                Content = "Game ended, recording saved.",
+                Content = "Game ended, recording has been automatically stopped and saved.",
                 Duration = 3,
+                Image = 0,
             })
             RecordToggle:Set(false)
+
             if MacroSystem.currentMacroName then
                 MacroSystem.macroManager[MacroSystem.currentMacroName] = macro
                 saveMacroToFile(MacroSystem.currentMacroName)
             end
+        end 
+
+        -- Print detailed argument contents for debugging
+        for i, arg in ipairs(args) do
+            print("Arg[" .. i .. "] (" .. type(arg) .. "):")
+            if type(arg) == "table" then
+                printTableContents(arg, 1)
+            else
+                print("  " .. tostring(arg))
+            end
         end
         
-        -- Detect victory/defeat
-        GameTracking.gameResult = "Defeat"
+        -- WIN/LOSS DETECTION
+        GameTracking.gameResult = "Defeat" -- Default to defeat
+        
+        -- Look for victory field in table arguments or direct boolean
         for i, arg in ipairs(args) do
             if type(arg) == "table" and arg.victory ~= nil then
-                GameTracking.gameResult = arg.victory and "Victory" or "Defeat"
+                if arg.victory == true then
+                    GameTracking.gameResult = "Victory"
+                    print("Found victory field: true -> Result: Victory")
+                else
+                    GameTracking.gameResult = "Defeat"
+                    print("Found victory field: false -> Result: Defeat")
+                end
                 break
             elseif type(arg) == "boolean" then
-                GameTracking.gameResult = arg and "Victory" or "Defeat"
+                if arg == true then
+                    GameTracking.gameResult = "Victory"
+                    print("Found boolean argument: true -> Result: Victory")
+                else
+                    GameTracking.gameResult = "Defeat"
+                    print("Found boolean argument: false -> Result: Defeat")
+                end
                 break
             end
         end
         
-        -- CRITICAL FIX: Send webhook BEFORE any other logic
-        if GameTracking.gameInProgress and State.SendStageCompletedWebhook then
-            print("Sending webhook immediately (gameInProgress=true)...")
+        print("Final game result:", GameTracking.gameResult)
+        
+        -- SEND WEBHOOK IMMEDIATELY (BEFORE AUTO-VOTE LOGIC)
+        if GameTracking.gameInProgress then
+            print("Game ended! Sending webhook immediately...")
+            
+            -- Capture end stats
             GameTracking.endStats = captureStats()
             
-            -- Use task.defer to prevent blocking
-            task.defer(function()
-                local webhookSuccess = pcall(function()
+            -- Send summary webhook immediately
+            if State.SendStageCompletedWebhook then
+                task.spawn(function()
                     sendWebhook("stage")
                 end)
-                if webhookSuccess then
-                    print("✓ Webhook sent successfully")
-                else
-                    warn("✗ Webhook failed to send")
-                end
-            end)
+            end
             
-            -- Small delay to ensure webhook fires
-            task.wait(0.5)
+            -- Reset tracking (but don't fully end game tracking yet - auto-vote needs gameInProgress flag)
+            GameTracking.sessionItems = {}
+            GameTracking.lastWave = 0
+            GameTracking.startStats = {}
+            GameTracking.currentMapName = "Unknown Map"
+            MacroSystem.currentChallenge = nil
+            -- NOTE: We keep gameInProgress = true until auto-vote completes
         end
         
-        -- Reset session tracking (but keep gameInProgress true for now)
-        GameTracking.sessionItems = {}
-        GameTracking.lastWave = 0
-        GameTracking.startStats = {}
-        
-        -- Handle auto-voting in separate task
+        -- Handle auto voting logic (this can take time, but webhook is already sent)
         task.spawn(function()
-            task.wait(1)
-            
-            -- Portal reward selection
+            task.wait(1) -- Small delay to ensure game state is stable
+
+            -- Portal reward selection (highest priority - always try first)
             if State.AutoSelectPortalReward and GameTracking.storedPortalData then
                 pickBestPortalFromStoredData()
                 task.wait(0.5)
             end
             
-            -- Challenge detection
+            -- Challenge detection handler
             if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected then
-                notify("Auto Challenge", "New challenge - returning to lobby")
+                notify("Auto Challenge", "New challenge detected - returning to lobby")
                 task.wait(2)
+                
                 local success = pcall(function()
-                    Services.ReplicatedStorage:WaitForChild("endpoints")
-                        :WaitForChild("client_to_server")
-                        :WaitForChild("teleport_back_to_lobby"):InvokeServer()
+                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
                 end)
+                
                 if success then
                     local validationStart = tick()
                     while tick() - validationStart < 5 do
                         if isInLobby() then
+                            print("Successfully returned to lobby for new challenge!")
+                            notify("Challenge Handler", "Returned to lobby - new challenge detected!", 3)
                             State.NewChallengeDetected = false
                             State.failsafeActive = false
-                            MacroSystem.macroHasPlayedThisGame = false
+                            -- Fully end game tracking now
                             GameTracking.gameInProgress = false
-                            GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
+                            GameTracking.gameStartTime = 0
+                            GameTracking.gameResult = "Unknown"
+                            GameTracking.portalDepth = nil
                             return
                         end
                         task.wait(0.2)
                     end
+                    warn("Failed to validate lobby teleport for new challenge")
+                else
+                    warn("Failed to return to lobby for new challenge")
                 end
             end
             
@@ -9240,15 +9139,11 @@ if gameFinishedRemote then
                 end, State.AutoRetryAttempts)
                 
                 if portalSuccess then
-                    print("Portal replay succeeded - incrementing game instance")
-                    MacroSystem.macroHasPlayedThisGame = false
+                    -- Fully end game tracking now
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
                     GameTracking.portalDepth = nil
-                    GameTracking.gameHasEnded = false
-                    GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
-                    print("New game instance ID:", GameTracking.gameInstanceId)
                     return
                 end
             end
@@ -9260,15 +9155,11 @@ if gameFinishedRemote then
                 end, State.AutoRetryAttempts)
                 
                 if infinitySuccess then
-                    print("Infinity castle next succeeded - incrementing game instance")
-                    MacroSystem.macroHasPlayedThisGame = false
+                    -- Fully end game tracking now
                     GameTracking.gameInProgress = false
                     GameTracking.gameStartTime = 0
                     GameTracking.gameResult = "Unknown"
                     GameTracking.portalDepth = nil
-                    GameTracking.gameHasEnded = false
-                    GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
-                    print("New game instance ID:", GameTracking.gameInstanceId)
                     return
                 end
             end
@@ -9314,15 +9205,6 @@ if gameFinishedRemote then
                 
                 if success then
                     print(string.format("✓ %s succeeded and validated, stopping fallback chain", action.name))
-                    
-                    -- If retry/next succeeded, increment game instance
-                    if action.name == "Auto Retry" or action.name == "Auto Next" then
-                        print("Auto action succeeded - incrementing game instance")
-                        GameTracking.gameHasEnded = false
-                        GameTracking.gameInstanceId = GameTracking.gameInstanceId + 1
-                        print("New game instance ID:", GameTracking.gameInstanceId)
-                    end
-                    
                     break
                 else
                     print(string.format("✗ %s failed validation, trying next fallback option...", action.name))
@@ -9339,15 +9221,11 @@ if gameFinishedRemote then
                 print("At least one action worked")
             end
             
-            -- CRITICAL FIX: Reset game state flags AFTER auto-vote completes
-            print("Resetting game state flags...")
-            MacroSystem.macroHasPlayedThisGame = false
+            -- Fully end game tracking after all auto-vote logic completes
             GameTracking.gameInProgress = false
             GameTracking.gameStartTime = 0
             GameTracking.gameResult = "Unknown"
             GameTracking.portalDepth = nil
-            
-            print("Game ended, resetting flag for next game")
         end)
     end)
 end
