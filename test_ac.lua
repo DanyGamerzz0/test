@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.26"
+    local script_version = "V0.27"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1153,11 +1153,11 @@ local function setupMacroHooksRefactored()
                         timestamp = tick()
                     })
                 end)
-     elseif self.Name == "use_active_attack" then
-    -- FIXED: Capture ALL data we need BEFORE task.spawn to avoid thread access issues
+elseif self.Name == "use_active_attack" then
+    -- Capture UUID (first argument)
     local capturedUnitUUID = args[1]
     
-    -- Pre-fetch the unit and combined identifier in the SAME THREAD as the hook
+    -- Find the unit and create combined identifier
     local unitIdentifier = capturedUnitUUID
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
@@ -1171,7 +1171,7 @@ local function setupMacroHooksRefactored()
                     
                     if uuidValue and uuidValue:IsA("StringValue") and 
                        uuidValue.Value == capturedUnitUUID then
-                        -- Found the unit - create combined identifier IN THIS THREAD
+                        -- Found the unit - create combined identifier
                         if spawnIdValue then
                             unitIdentifier = uuidValue.Value .. spawnIdValue.Value
                         end
@@ -1182,13 +1182,11 @@ local function setupMacroHooksRefactored()
         end
     end
     
-    -- NOW spawn task with the already-captured data
-    task.spawn(function()
-        processAbilityActionWithSpawnIdMapping({
-            unitUUID = unitIdentifier,
-            timestamp = tick()
-        })
-    end)
+    -- Call directly instead of task.spawn
+    processAbilityActionWithSpawnIdMapping({
+        unitUUID = unitIdentifier,
+        timestamp = tick()
+    })
 end
 end
 
