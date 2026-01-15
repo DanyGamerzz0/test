@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.28"
+    local script_version = "V0.29"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1094,35 +1094,33 @@ local function processAbilityRecording(actionInfo)
         return
     end
     
-    -- Find the unit and create combined identifier (inside spawned task now)
-    local unitIdentifier = capturedUnitUUID
-    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    -- Look up the placement ID directly from our mapping
+    -- (Same approach as sell - no Instance access needed)
+    local placementId = MacroSystem.recordingSpawnIdToPlacement[capturedUnitUUID]
     
-    if unitsFolder then
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) then
-                local stats = unit:FindFirstChild("_stats")
-                if stats then
-                    local uuidValue = stats:FindFirstChild("uuid")
-                    local spawnIdValue = stats:FindFirstChild("spawn_id")
-                    
-                    if uuidValue and uuidValue:IsA("StringValue") and 
-                       uuidValue.Value == capturedUnitUUID then
-                        -- Found the unit - create combined identifier
-                        if spawnIdValue then
-                            unitIdentifier = uuidValue.Value .. spawnIdValue.Value
-                        end
-                        break
-                    end
-                end
-            end
-        end
+    if not placementId then
+        warn("Could not find placement ID for UUID:", capturedUnitUUID)
+        return
     end
     
-    -- Now process the ability action
-    processAbilityActionWithSpawnIdMapping({
-        unitUUID = unitIdentifier,
-        timestamp = actionInfo.timestamp
+    -- Calculate wave-based time
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "use_active_attack",
+        Unit = placementId,
+        Time = formatTimeValue(currentWave, secondsInWave)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
+        Duration = 2,
+        Image = 4483362458
     })
 end
 
@@ -1196,11 +1194,13 @@ local function setupMacroHooksRefactored()
                     })
                 end)
 elseif self.Name == "use_active_attack" then
-    -- Just capture the raw argument and spawn the task - no Instance access here
+    -- Just capture the raw UUID argument - no Instance access here
+    local capturedUnitUUID = args[1]
+    
     task.spawn(function()
         processActionResponseWithSpawnIdMapping({
             remoteName = "use_active_attack",
-            args = args,
+            args = {capturedUnitUUID}, -- Pass just the UUID
             timestamp = tick()
         })
     end)
