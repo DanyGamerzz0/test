@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.3"
+    local script_version = "V0.31"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -226,6 +226,8 @@ local GameTracking = {
     gameHasEnded = false,
     isAutoLoopEnabled = false,
     portalDepth = nil,
+    waveStartTime = 0,
+    gameInstanceId = 0,
 }
 
 local VALIDATION_CONFIG = {
