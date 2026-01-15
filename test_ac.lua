@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -357,6 +357,8 @@ local macro = {}
         CurrencySpent = 0,
         AutoRetryAttempts = 3,
         AutoRetryDelay = 2,
+        AutoNormalizeShiny = false,
+        NormalizeRarityFilter = {},
     }
 
     -- ========== CREATE TABS ==========
@@ -2507,9 +2509,100 @@ end
         return nil
     end
 
+    local function findAllUnits()
+    local gc = getgc(true)
+    local units = {}
+    local seen = {}
+    
+    for _, obj in pairs(gc) do
+        if type(obj) == "table" then
+            local hasUnitId = rawget(obj, "unit_id") ~= nil
+            local hasTraits = rawget(obj, "traits") ~= nil
+            local hasUuid = rawget(obj, "uuid") ~= nil
+            
+            if hasUnitId and hasTraits and hasUuid then
+                local uuid = obj.uuid
+                if not seen[uuid] then
+                    seen[uuid] = true
+                    table.insert(units, obj)
+                end
+            end
+        end
+    end
+    
+    return units
+end
+
     local function isInLobby()
         return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
     end
+
+    local function normalizeShinyUnits()
+    if not State.AutoNormalizeShiny or #State.NormalizeRarityFilter == 0 then return end
+    if not isInLobby() then return end
+    
+    local allUnits = findAllUnits()
+    if #allUnits == 0 then
+        --print("No units found for normalization")
+        return
+    end
+    
+    local normalizedCount = 0
+    
+    for _, unit in ipairs(allUnits) do
+        -- Skip if not shiny (safety check)
+        if not unit.shiny then
+            continue
+        end
+        
+        -- Skip if locked
+        if unit._locked then
+            continue
+        end
+        
+        -- Get unit data to check rarity
+        local unitData = getUnitData(unit.unit_id)
+        if not unitData then
+            continue
+        end
+        
+        local unitRarity = unitData.rarity
+        
+        -- Check if rarity matches filter
+        local shouldNormalize = false
+        for _, selectedRarity in ipairs(State.NormalizeRarityFilter) do
+            if unitRarity == selectedRarity then
+                shouldNormalize = true
+                break
+            end
+        end
+        
+        if not shouldNormalize then
+            continue
+        end
+        
+        -- Normalize the unit
+        local success = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_remove_shiny"):InvokeServer(unit.uuid)
+        end)
+        
+        if success then
+            normalizedCount = normalizedCount + 1
+            --print(string.format("Normalized: %s (%s) - UUID: %s", 
+                --unitData.name or "Unknown", 
+                --unitRarity or "Unknown",
+                --unit.uuid))
+            
+            task.wait(0.2) -- Small delay between normalizations
+        else
+            --warn("Failed to normalize unit:", unit.uuid)
+        end
+    end
+    
+    -- Summary notification
+    notify("Auto Normalize Complete", string.format("Normalized %d shiny units", normalizedCount))
+    --print(string.format("\n=== Normalized %d shiny units ===", normalizedCount))
+end
 
     local function canPerformAction()
         return tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown
@@ -5556,6 +5649,42 @@ end
 
 local SummonStatusLabel = LobbyTab:CreateLabel("Auto Summon: Idle")
 
+LobbyTab:CreateSection("Auto Normalize Shiny")
+
+
+LobbyTab:CreateToggle({
+    Name = "Auto Normalize Shiny",
+    CurrentValue = false,
+    Flag = "AutoNormalizeShiny",
+    Info = "Automatically remove shiny from units based on selected rarities (skips locked units)",
+    Callback = function(Value)
+        State.AutoNormalizeShiny = Value
+        
+        if Value and #State.NormalizeRarityFilter == 0 then
+            notify("Auto Normalize", "Please select at least one rarity to normalize!")
+        end
+    end,
+})
+
+LobbyTab:CreateDropdown({
+    Name = "Select Rarities to Normalize",
+    Options = {"Rare", "Epic", "Legendary"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "NormalizeRarityFilter",
+    Info = "Only normalize shiny units of these rarities (locked units are always skipped)",
+    Callback = function(Options)
+        State.NormalizeRarityFilter = Options or {}
+        
+        if #State.NormalizeRarityFilter > 0 then
+            local rarityText = table.concat(State.NormalizeRarityFilter, ", ")
+            print("Normalize rarity filter updated:", rarityText)
+        else
+            print("Normalize rarity filter cleared")
+        end
+    end,
+})
+
 local function updateSummonStatus()
     if State.AutoSummon and State.AutoSummonBanner then
         local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
@@ -8455,6 +8584,15 @@ task.spawn(function()
     end)
     
     print("Hooked into Select_Portals remote - ready to store portal data")
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoNormalizeShiny and isInLobby() and #State.NormalizeRarityFilter > 0 then
+            normalizeShinyUnits()
+        end
+    end
 end)
 
     -- ========== REMOTE EVENT CONNECTIONS ==========
