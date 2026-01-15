@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.51"
+    local script_version = "V0.52"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5755,7 +5755,7 @@ LobbyTab:CreateDropdown({
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "NormalizeRarityFilter",
-    Info = "Only normalize shiny units of these rarities (locked units are always skipped)",
+    Info = "Only normalize shiny units of these rarities (locked units are excluded)",
     Callback = function(Options)
         State.NormalizeRarityFilter = Options or {}
         
@@ -7256,32 +7256,26 @@ local function playMacroWithWaveTiming()
     local macroName = MacroSystem.currentMacroName or "Unknown"
     updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: 00:00", macroName, 0, totalActions))
     
-    GameTracking.gameHasEnded = false  -- ← CRITICAL: Reset this at start
+    GameTracking.gameHasEnded = false
     clearPlaybackTracking()
     clearPlaybackTrackingWithSpawnIdMapping()
     
     local activeAbilityTasks = 0
     local macroStartTime = tick()
     
-    -- DEBUG: Print initial state
-    print("=== MACRO PLAYBACK DEBUG START ===")
-    print("isPlaybacking:", MacroSystem.isPlaybacking)
-    print("isAutoLoopEnabled:", GameTracking.isAutoLoopEnabled)
-    print("gameHasEnded:", GameTracking.gameHasEnded)
-    print("gameInProgress:", GameTracking.gameInProgress)
-    print("===================================")
+    -- NEW: Get current wave to determine which actions need catching up
+    local currentWave = GameTracking.currentWave
+    local currentTimeInWave = tick() - GameTracking.waveStartTime
+    
+    print(string.format("Starting playback: Current wave %d, time in wave: %.2fs", 
+        currentWave, currentTimeInWave))
     
      for i, action in ipairs(macro) do
-        -- UPDATED CHECK: Compare game instance IDs
         if not MacroSystem.isPlaybacking or 
            not GameTracking.isAutoLoopEnabled or 
-           GameTracking.gameInstanceId ~= macroGameInstanceId then  -- ← CHANGED THIS LINE
+           GameTracking.gameInstanceId ~= macroGameInstanceId then
             
             print("=== MACRO INTERRUPTED ===")
-            print("Current game instance:", GameTracking.gameInstanceId)
-            print("Macro's game instance:", macroGameInstanceId)
-            print("Instance changed:", GameTracking.gameInstanceId ~= macroGameInstanceId)
-            print("========================")
             return false
         end
         
@@ -7301,7 +7295,15 @@ local function playMacroWithWaveTiming()
             continue
         end
         
-        -- Money waiting logic (keep existing code)
+        -- NEW: Determine if this action is "overdue" (should have happened already)
+        local isOverdue = false
+        if targetWave < currentWave then
+            isOverdue = true
+        elseif targetWave == currentWave and targetTime < currentTimeInWave then
+            isOverdue = true
+        end
+        
+        -- Money waiting logic (same for both overdue and on-time actions)
         if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
             local requiredCost = 0
             
@@ -7358,8 +7360,9 @@ local function playMacroWithWaveTiming()
                     seconds = math.floor(timeElapsed % 60)
                     timeString = string.format("%02d:%02d", minutes, seconds)
                     
-                    updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nWaiting for %d yen (have %d, need %d)", 
-                        macroName, i, totalActions, timeString, missingMoney, currentMoney, requiredCost))
+                    local statusPrefix = isOverdue and "[CATCHING UP] " or ""
+                    updateDetailedStatus(string.format("%sMacro: %s (%d/%d) Time Elapse: %s\nWaiting for %d yen (have %d, need %d)", 
+                        statusPrefix, macroName, i, totalActions, timeString, missingMoney, currentMoney, requiredCost))
                     task.wait(1)
                 end
                 
@@ -7375,16 +7378,19 @@ local function playMacroWithWaveTiming()
             activeAbilityTasks = activeAbilityTasks + 1
             
             task.spawn(function()
-                while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking do
-                    task.wait(0.5)
-                end
-                
-                if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then return end
-                
-                local timeInWave = tick() - GameTracking.waveStartTime
-                local waitTime = targetTime - timeInWave
-                if waitTime > 0 then
-                    task.wait(waitTime)
+                -- Only wait for timing if not overdue
+                if not isOverdue then
+                    while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking do
+                        task.wait(0.5)
+                    end
+                    
+                    if not MacroSystem.isPlaybacking or GameTracking.gameHasEnded then return end
+                    
+                    local timeInWave = tick() - GameTracking.waveStartTime
+                    local waitTime = targetTime - timeInWave
+                    if waitTime > 0 then
+                        task.wait(waitTime)
+                    end
                 end
                 
                 if MacroSystem.isPlaybacking and not GameTracking.gameHasEnded then
@@ -7398,13 +7404,15 @@ local function playMacroWithWaveTiming()
             seconds = math.floor(timeElapsed % 60)
             timeString = string.format("%02d:%02d", minutes, seconds)
             
-            updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s\nScheduled ability for wave %d", 
-                macroName, i, totalActions, timeString, targetWave))
+            local statusPrefix = isOverdue and "[CATCHING UP] " or ""
+            updateDetailedStatus(string.format("%sMacro: %s (%d/%d) Time Elapse: %s\nScheduled ability for wave %d", 
+                statusPrefix, macroName, i, totalActions, timeString, targetWave))
             continue
         end
         
-        -- Timing logic (keep existing code)
-        if not State.IgnoreTiming then
+        -- NEW: Timing logic with catch-up
+        if not State.IgnoreTiming and not isOverdue then
+            -- Normal timing - wait for the right wave and time
             while GameTracking.currentWave < targetWave and MacroSystem.isPlaybacking and not GameTracking.gameHasEnded do
                 timeElapsed = tick() - macroStartTime
                 minutes = math.floor(timeElapsed / 60)
@@ -7442,7 +7450,12 @@ local function playMacroWithWaveTiming()
                 print("Interrupted during time wait")
                 return false
             end
+        elseif not State.IgnoreTiming and isOverdue then
+            -- Catching up - execute immediately without timing wait
+            print(string.format("[CATCH-UP] Executing overdue action %d/%d (was scheduled for wave %d, we're on wave %d)", 
+                i, totalActions, targetWave, currentWave))
         else
+            -- IgnoreTiming is enabled - execute immediately
             if i > 1 then
                 task.wait(0.3)
             end
@@ -7454,6 +7467,7 @@ local function playMacroWithWaveTiming()
         seconds = math.floor(timeElapsed % 60)
         timeString = string.format("%02d:%02d", minutes, seconds)
         
+        local statusPrefix = isOverdue and "[CATCHING UP] " or ""
         local nextActionText = ""
         if i < totalActions then
             local nextAction = macro[i + 1]
@@ -7464,11 +7478,13 @@ local function playMacroWithWaveTiming()
             end
         end
         
-        updateDetailedStatus(string.format("Macro: %s (%d/%d) Time Elapse: %s%s", 
-            macroName, i, totalActions, timeString, nextActionText))
+        updateDetailedStatus(string.format("%sMacro: %s (%d/%d) Time Elapse: %s%s", 
+            statusPrefix, macroName, i, totalActions, timeString, nextActionText))
         
         -- Execute action
-        print(string.format("Executing action %d/%d: %s", i, totalActions, action.Type))
+        print(string.format("%sExecuting action %d/%d: %s", 
+            isOverdue and "[CATCH-UP] " or "", 
+            i, totalActions, action.Type))
         local actionSuccess = executeActionWithSpawnIdMapping(action, i, totalActions)
         
         if not actionSuccess then
@@ -7982,10 +7998,20 @@ PlayToggleEnhanced = MacroTab:CreateToggle({
             print("  - isInLobby:", isInLobby())
             print("  - currentMacroName:", MacroSystem.currentMacroName or "None")
             print("  - macroHasPlayedThisGame:", MacroSystem.macroHasPlayedThisGame)
+            print("  - currentWave:", GameTracking.currentWave)
             
             MacroStatusLabel:Set("Status: Playback enabled")
             updateDetailedStatus("Playback enabled - initializing...")
-            notify("Playback Enabled", "Macro will play once per game when conditions are met.")
+            
+            -- NEW: If already in a game, start immediately
+            if GameTracking.gameInProgress and not isInLobby() then
+                notify("Playback Enabled", "Starting macro from current wave (" .. GameTracking.currentWave .. ")")
+                
+                -- Reset the flag so it can play this game
+                MacroSystem.macroHasPlayedThisGame = false
+            else
+                notify("Playback Enabled", "Macro will play once per game when conditions are met.")
+            end
             
             -- Start the playback loop
             print("Spawning playback loop task...")
