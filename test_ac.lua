@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.23"
+    local script_version = "V0.24"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1160,10 +1160,27 @@ local function setupMacroHooksRefactored()
                     })
                 end)
      elseif self.Name == "use_active_attack" then
-    -- Record ability usage with optional ability name
+    -- FIXED: Capture ability name BEFORE task.spawn to avoid thread access issues
+    local capturedUnitUUID = args[1]
+    local capturedAbilityName = nil
+    
+    -- Safely capture ability name from args[2]
+    if args[2] ~= nil then
+        local success, result = pcall(function()
+            if type(args[2]) == "string" and args[2] ~= "" and args[2] ~= "nil" then
+                return args[2]
+            end
+            return nil
+        end)
+        
+        if success and result then
+            capturedAbilityName = result
+        end
+    end
+    
+    -- Now spawn task with captured values
     task.spawn(function()
-        -- Get the unit's UUID AND spawn_id to create stable identifier
-        local unitIdentifier = args[1] -- This is the UUID passed to the remote
+        local unitIdentifier = capturedUnitUUID
         
         -- Try to find the actual unit to get its spawn_id
         local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
@@ -1175,8 +1192,8 @@ local function setupMacroHooksRefactored()
                         local uuidValue = stats:FindFirstChild("uuid")
                         local spawnIdValue = stats:FindFirstChild("spawn_id")
                         
-                        if uuidValue and uuidValue:IsA("StringValue") and
-                           uuidValue.Value == args[1] then
+                        if uuidValue and uuidValue:IsA("StringValue") and 
+                           uuidValue.Value == capturedUnitUUID then
                             -- Found the unit - create combined identifier
                             if spawnIdValue then
                                 unitIdentifier = uuidValue.Value .. spawnIdValue.Value
@@ -1188,23 +1205,17 @@ local function setupMacroHooksRefactored()
             end
         end
         
-        -- FIXED: Only include abilityName if args[2] exists AND is a non-empty string
-        local abilityName = nil
-        if args[2] and type(args[2]) == "string" and args[2] ~= "" and args[2] ~= "nil" then
-            abilityName = args[2]
-        end
-        
         processAbilityActionWithSpawnIdMapping({
             unitUUID = unitIdentifier,
-            abilityName = abilityName, -- Will be nil if not provided
+            abilityName = capturedAbilityName,
             timestamp = tick()
         })
     end)
 end
 end
 
-        return oldNamecall(self, ...)
-    end)
+    return oldNamecall(self, ...)
+end)
 
     -- Heartbeat: watch for level changes on all our units
     local RunService = game:GetService("RunService")
