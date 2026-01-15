@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.24"
+    local script_version = "V0.25"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1072,19 +1072,13 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
             Unit = placementId,
             Time = formatTimeValue(currentWave, secondsInWave)
         }
-        
-        -- FIXED: Only include AbilityName if it exists and is not nil
-        if actionInfo.abilityName and actionInfo.abilityName ~= "" then
-            abilityRecord.AbilityName = actionInfo.abilityName
-        end
+        -- AbilityName field removed entirely
         
         table.insert(macro, abilityRecord)
         
-        local abilityInfo = actionInfo.abilityName and (" (" .. actionInfo.abilityName .. ")") or ""
-        
         Rayfield:Notify({
             Title = "Macro Recorder",
-            Content = string.format("Recorded ability: %s%s (Wave %d)", placementId, abilityInfo, currentWave),
+            Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
             Duration = 2,
             Image = 4483362458
         })
@@ -1160,25 +1154,10 @@ local function setupMacroHooksRefactored()
                     })
                 end)
      elseif self.Name == "use_active_attack" then
-    -- FIXED: Capture ability name BEFORE task.spawn to avoid thread access issues
+    -- FIXED: Only capture UUID (first argument)
     local capturedUnitUUID = args[1]
-    local capturedAbilityName = nil
     
-    -- Safely capture ability name from args[2]
-    if args[2] ~= nil then
-        local success, result = pcall(function()
-            if type(args[2]) == "string" and args[2] ~= "" and args[2] ~= "nil" then
-                return args[2]
-            end
-            return nil
-        end)
-        
-        if success and result then
-            capturedAbilityName = result
-        end
-    end
-    
-    -- Now spawn task with captured values
+    -- Now spawn task with captured UUID only
     task.spawn(function()
         local unitIdentifier = capturedUnitUUID
         
@@ -1207,7 +1186,6 @@ local function setupMacroHooksRefactored()
         
         processAbilityActionWithSpawnIdMapping({
             unitUUID = unitIdentifier,
-            abilityName = capturedAbilityName,
             timestamp = tick()
         })
     end)
@@ -1771,32 +1749,23 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
         combinedIdentifier = combinedIdentifier .. spawnIdValue.Value
     end
     
-    local abilityDesc = action.AbilityName and 
-        string.format("ability '%s'", action.AbilityName) or "ability"
-    
-    updateDetailedStatus(string.format("(%d/%d) Using %s for %s", 
-        actionIndex, totalActionCount, abilityDesc, placementId))
+    updateDetailedStatus(string.format("(%d/%d) Using ability for %s", 
+        actionIndex, totalActionCount, placementId))
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        
-        -- FIXED: Only pass ability name if it exists and is not nil
-        if action.AbilityName and action.AbilityName ~= "" and action.AbilityName ~= "nil" then
-            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier, action.AbilityName)
-        else
-            -- No ability name - just pass the combined identifier
-            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
-        end
+        -- Only pass the combined identifier (UUID)
+        endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
     end)
     
     if success then
         task.wait(0.2)
-        updateDetailedStatus(string.format("(%d/%d) Successfully used %s for %s", 
-            actionIndex, totalActionCount, abilityDesc, placementId))
+        updateDetailedStatus(string.format("(%d/%d) Successfully used ability for %s", 
+            actionIndex, totalActionCount, placementId))
         return true
     else
-        updateDetailedStatus(string.format("(%d/%d) Failed to use %s for %s", 
-            actionIndex, totalActionCount, abilityDesc, placementId))
+        updateDetailedStatus(string.format("(%d/%d) Failed to use ability for %s", 
+            actionIndex, totalActionCount, placementId))
         return false
     end
 end
