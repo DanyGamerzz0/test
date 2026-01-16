@@ -88,7 +88,7 @@ end
     }
     })
 
-    local debug = false
+    local debug = true
 
 local function incrementExecutionCounter()
     local requestFunc = syn and syn.request or 
