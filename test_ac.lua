@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1174,9 +1174,21 @@ end
 end)
 
     -- Heartbeat: watch for level changes on all our units
-    local RunService = game:GetService("RunService")
-    RunService.Heartbeat:Connect(function()
-    if not MacroSystem.isRecording then return end -- Removed the debug print
+local RunService = game:GetService("RunService")
+RunService.Heartbeat:Connect(function()
+    if not MacroSystem.isRecording then return end
+
+    -- CACHE wave number ONCE with protection
+    local currentWave = 0
+    local waveStartTime = GameTracking.gameStartTime
+    
+    pcall(function()
+        local waveNum = workspace:FindFirstChild("_wave_num")
+        if waveNum then
+            currentWave = waveNum.Value
+            waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+        end
+    end)
 
     local unitsFolder = workspace:FindFirstChild("_UNITS")
     if not unitsFolder then return end
@@ -1186,7 +1198,6 @@ end)
             local stats = unit:FindFirstChild("_stats")
             if not stats then continue end
             
-            -- Create combined identifier (UUID + spawn_id) to match placement mapping
             local uuidValue = stats:FindFirstChild("uuid")
             local spawnIdValue = stats:FindFirstChild("spawn_id")
             
@@ -1197,47 +1208,35 @@ end)
                 combinedId = combinedId .. spawnIdValue.Value
             end
             
-            -- Find placement ID from our mapping
             local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedId]
             
             if placementId then
                 local currentLevel = getUnitUpgradeLevel(unit)
                 
-                -- Initialize tracking if new unit
                 if not MacroSystem.trackedUnits[combinedId] then
                     MacroSystem.trackedUnits[combinedId] = {
                         placementId = placementId,
                         lastLevel = currentLevel
                     }
-                    print(string.format("Started tracking upgrades for %s (Combined ID: %s, Level: %d)", 
-                        placementId, combinedId, currentLevel))
                 end
                 
-                -- Check for level increase
                 local lastLevel = MacroSystem.trackedUnits[combinedId].lastLevel
                 if currentLevel > lastLevel then
                     local levelIncrease = currentLevel - lastLevel
                     
+                    -- USE CACHED WAVE NUMBER
                     local record = {
-                    Type = MACRO_CONFIG.UPGRADE_REMOTE,
-                    Unit = placementId,
-                    Time = formatTimeValue(getCurrentWaveNumber(), (tick() - (GameTracking.waveStartTimes[getCurrentWaveNumber()] or GameTracking.gameStartTime)))
+                        Type = MACRO_CONFIG.UPGRADE_REMOTE,
+                        Unit = placementId,
+                        Time = formatTimeValue(currentWave, (tick() - waveStartTime))
                     }   
                     
                     if levelIncrease > 1 then
-                    record.Amount = levelIncrease
+                        record.Amount = levelIncrease
                     end
                     
                     table.insert(macro, record)
                     
-                    local upgradeText = levelIncrease > 1 
-                        and string.format(" (x%d)", levelIncrease) or ""
-                    
-                    print(string.format("✓ Recorded upgrade%s: %s (L%d→L%d) at %.2fs", 
-                        upgradeText, placementId, lastLevel, currentLevel, 
-                        tick() - GameTracking.gameStartTime))
-                    
-                    -- Update tracked level
                     MacroSystem.trackedUnits[combinedId].lastLevel = currentLevel
                 end
             end
