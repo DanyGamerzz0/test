@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.23"
+    local script_version = "V0.24"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1288,6 +1288,134 @@ local function processLelouchAbilityRecording(actionInfo)
     })
 end
 
+local function processDioAbilityRecording(actionInfo)
+    local dioSpawnId = actionInfo.args[1]
+    local abilityType = actionInfo.args[2]
+    
+    if not dioSpawnId or not abilityType then
+        warn("Missing arguments for Dio ability")
+        return
+    end
+    
+    -- Find Dio's placement ID by spawn_id
+    local dioPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(dioSpawnId) then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            dioPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if dioPlacementId then
+                                print(string.format("Found Dio: spawn_id=%s -> placement=%s", 
+                                    tostring(dioSpawnId), dioPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not dioPlacementId then
+        warn("Could not find placement ID for Dio spawn ID:", dioSpawnId)
+        return
+    end
+    
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "dio_writes",
+        Dio = dioPlacementId,
+        Ability = abilityType,
+        Time = formatTimeValue(currentWave, secondsInWave)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Dio: %s (%s)", dioPlacementId, abilityType),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
+local function processFrierenAbilityRecording(actionInfo)
+    local frierenSpawnId = actionInfo.args[1]
+    local magicType = actionInfo.args[2]
+    
+    if not frierenSpawnId or not magicType then
+        warn("Missing arguments for Frieren ability")
+        return
+    end
+    
+    -- Find Frieren's placement ID by spawn_id
+    local frierenPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(frierenSpawnId) then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            frierenPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if frierenPlacementId then
+                                print(string.format("Found Frieren: spawn_id=%s -> placement=%s", 
+                                    tostring(frierenSpawnId), frierenPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not frierenPlacementId then
+        warn("Could not find placement ID for Frieren spawn ID:", frierenSpawnId)
+        return
+    end
+    
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "frieren_magics",
+        Frieren = frierenPlacementId,
+        Magic = magicType,
+        Time = formatTimeValue(currentWave, secondsInWave)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Frieren: %s (%s)", frierenPlacementId, magicType),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
         Rayfield:Notify({
@@ -1313,6 +1441,10 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
     processHestiaAbilityRecording(actionInfo)
 elseif actionInfo.remoteName == "LelouchChoosePiece" then
     processLelouchAbilityRecording(actionInfo)
+    elseif actionInfo.remoteName == "DioWrites" then
+        processDioAbilityRecording(actionInfo)
+    elseif actionInfo.remoteName == "FrierenMagics" then
+        processFrierenAbilityRecording(actionInfo)
     end
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
@@ -1393,6 +1525,30 @@ local function setupMacroHooksRefactored()
                      timestamp = tick()
                 })
             end)
+            elseif self.Name == "DioWrites" then
+    local dioSpawnId = args[1]
+    local abilityType = args[2]  -- "ZAWARUDO", "EraseMotion", "EraseThought", "EraseForce", "EraseForm"
+    
+    task.defer(function()
+        processActionResponseWithSpawnIdMapping({
+            remoteName = "DioWrites",
+            args = {dioSpawnId, abilityType},
+            timestamp = tick()
+        })
+    end)
+    
+-- NEW: Frieren abilities
+elseif self.Name == "FrierenMagics" then
+    local frierenSpawnId = args[1]
+    local magicType = args[2]  -- "Thunderfire", "Judgement", "Void"
+    
+    task.defer(function()
+        processActionResponseWithSpawnIdMapping({
+            remoteName = "FrierenMagics",
+            args = {frierenSpawnId, magicType},
+            timestamp = tick()
+        })
+    end)
             elseif self.Name == "LelouchChoosePiece" then
     local lelouchSpawnId = args[1]  -- This is LELOUCH's spawn_id
     local pieceType = args[2]
@@ -1992,7 +2148,7 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        -- Only pass the combined identifier (UUID)
+        task.wait(2)
         endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
     end)
     
@@ -2050,7 +2206,7 @@ local function validateHestiaAbilityAction(action, actionIndex, totalActionCount
     
     local success = pcall(function()
         -- Wait for Hestia's ability to be ready
-        task.wait(1)
+        task.wait(3)
         
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
@@ -2156,6 +2312,124 @@ local function validateLelouchAbilityAction(action, actionIndex, totalActionCoun
     return false
 end
 
+local function validateDioAbilityAction(action, actionIndex, totalActionCount)
+    local dioPlacementId = action.Dio
+    local abilityType = action.Ability
+    
+    -- Get Dio's spawn_id
+    local dioSpawnId = MacroSystem.playbackPlacementToSpawnId[dioPlacementId]
+    
+    if not dioSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Dio %s", 
+            actionIndex, totalActionCount, dioPlacementId))
+        return false
+    end
+    
+    -- Extract actual spawn_id value
+    local dioActualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == dioSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        dioActualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not dioActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Dio spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Dio ability: %s (%s)", 
+        actionIndex, totalActionCount, dioPlacementId, abilityType))
+    
+    local success = pcall(function()
+        task.wait(0.3) -- Small delay
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("DioWrites")
+            :FireServer(dioActualSpawnId, abilityType)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Dio ability used (%s)", 
+            actionIndex, totalActionCount, abilityType))
+        return true
+    end
+    return false
+end
+
+local function validateFrierenAbilityAction(action, actionIndex, totalActionCount)
+    local frierenPlacementId = action.Frieren
+    local magicType = action.Magic
+    
+    -- Get Frieren's spawn_id
+    local frierenSpawnId = MacroSystem.playbackPlacementToSpawnId[frierenPlacementId]
+    
+    if not frierenSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Frieren %s", 
+            actionIndex, totalActionCount, frierenPlacementId))
+        return false
+    end
+    
+    -- Extract actual spawn_id value
+    local frierenActualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == frierenSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        frierenActualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not frierenActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Frieren spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Frieren magic: %s (%s)", 
+        actionIndex, totalActionCount, frierenPlacementId, magicType))
+    
+    local success = pcall(function()
+        task.wait(0.3) -- Small delay
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("FrierenMagics")
+            :FireServer(frierenActualSpawnId, magicType)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Frieren magic used (%s)", 
+            actionIndex, totalActionCount, magicType))
+        return true
+    end
+    return false
+end
+
 local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     if action.Type == "spawn_unit" then
         return validatePlacementActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
@@ -2170,6 +2444,10 @@ local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionC
     return validateHestiaAbilityAction(action, actionIndex, totalActionCount)
 elseif action.Type == "lelouch_choose_piece" then
     return validateLelouchAbilityAction(action, actionIndex, totalActionCount)
+    elseif action.Type == "dio_writes" then
+        return validateDioAbilityAction(action, actionIndex, totalActionCount)
+    elseif action.Type == "frieren_magics" then
+        return validateFrierenAbilityAction(action, actionIndex, totalActionCount)
     elseif action.Type == "vote_wave_skip" then
         -- Wave skip logic remains unchanged
         updateDetailedStatus(string.format("(%d/%d) Skipping wave", actionIndex, totalActionCount))
@@ -5080,6 +5358,8 @@ JoinerTab:CreateSection("Boss Rush Joiner")
         State.AutoJoinBossRushSelectionMode = Value
    end,
 })
+
+ CardPriorityTab:CreateLabel("Higher number = higher priority")
 
     CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
