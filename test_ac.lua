@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.19"
+    local script_version = "V0.2"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -210,6 +210,7 @@ end
     playbackPlacementToSpawnId = {},
     playbackDisplayNameInstances = {},
     detailedStatusLabel = nil,
+    lelouchPendingPiece = nil,
 }
 
 local GameTracking = {
@@ -1259,8 +1260,7 @@ local function setupMacroHooksRefactored()
         local args = {...}
         local method = getnamecallmethod()
 
-        if not checkcaller() and MacroSystem.isRecording and method == "InvokeServer"
-           and self.Parent and self.Parent.Name == "client_to_server" then
+        if not checkcaller() and MacroSystem.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
                 -- FIXED: Take snapshot BEFORE the remote fires, in a separate thread
@@ -1333,8 +1333,24 @@ local function setupMacroHooksRefactored()
                         timestamp = tick()
                     })
                 end)
+                elseif self.Name == "LelouchAssignUnit" then
+                local targetSpawnId = args[1]
+                
+                -- Get the piece type from the previous ChoosePiece call
+                if MacroSystem.lelouchPendingPiece then
+                    local pieceType = MacroSystem.lelouchPendingPiece.pieceType
+                    
+                    task.defer(function()
+                        processActionResponseWithSpawnIdMapping({
+                            remoteName = "LelouchChoosePiece",
+                            args = {targetSpawnId, pieceType},
+                            timestamp = tick()
+                        })
+                    end)
+                    MacroSystem.lelouchPendingPiece = nil
             end
         end
+    end
 
         return oldNamecall(self, ...)
     end)
@@ -1927,6 +1943,7 @@ local function validateHestiaAbilityAction(action, actionIndex, totalActionCount
         actionIndex, totalActionCount, targetPlacementId))
     
     local success = pcall(function()
+        -- FIXED: Use FireServer, not InvokeServer
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("HestiaAssignBlade")
@@ -1954,10 +1971,19 @@ local function validateLelouchAbilityAction(action, actionIndex, totalActionCoun
         actionIndex, totalActionCount, action.Piece, action.Target))
     
     local success = pcall(function()
+        -- Step 1: Choose the piece type
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("LelouchChoosePiece")
             :FireServer(targetSpawnId, action.Piece)
+        
+        task.wait(0.1) -- Small delay between steps
+        
+        -- Step 2: Assign to unit
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("LelouchAssignUnit")
+            :FireServer(targetSpawnId)
     end)
     
     if success then
