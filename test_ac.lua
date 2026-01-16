@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.22"
+    local script_version = "V0.23"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1208,15 +1208,18 @@ local function processHestiaAbilityRecording(actionInfo)
 end
 
 local function processLelouchAbilityRecording(actionInfo)
-    local targetSpawnId = actionInfo.args[1]
-    local pieceType = actionInfo.args[2]
+    local lelouchSpawnId = actionInfo.args[1]  -- Lelouch's spawn_id
+    local targetSpawnId = actionInfo.args[2]   -- Target's spawn_id
+    local pieceType = actionInfo.args[3]        -- Piece type
     
-    if not targetSpawnId or not pieceType then
+    if not lelouchSpawnId or not targetSpawnId or not pieceType then
         warn("Missing arguments for Lelouch ability")
+        print("DEBUG: lelouchSpawnId =", lelouchSpawnId, "targetSpawnId =", targetSpawnId, "pieceType =", pieceType)
         return
     end
     
-    -- FIXED: Find the unit by spawn_id and get its placement ID
+    -- Find LELOUCH's placement ID
+    local lelouchPlacementId = nil
     local targetPlacementId = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
@@ -1226,23 +1229,36 @@ local function processLelouchAbilityRecording(actionInfo)
                 local stats = unit:FindFirstChild("_stats")
                 if stats then
                     local unitSpawnId = stats:FindFirstChild("spawn_id")
-                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(targetSpawnId) then
-                        -- Found the unit! Get its combined identifier
+                    
+                    if unitSpawnId then
                         local uuidValue = stats:FindFirstChild("uuid")
                         if uuidValue and uuidValue:IsA("StringValue") then
                             local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
-                            targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
                             
-                            if targetPlacementId then
+                            -- Match Lelouch by his spawn_id
+                            if tostring(unitSpawnId.Value) == tostring(lelouchSpawnId) and placementId then
+                                lelouchPlacementId = placementId
+                                print(string.format("Found Lelouch: spawn_id=%s -> placement=%s", 
+                                    tostring(lelouchSpawnId), lelouchPlacementId))
+                            end
+                            
+                            -- Match target by their spawn_id
+                            if tostring(unitSpawnId.Value) == tostring(targetSpawnId) and placementId then
+                                targetPlacementId = placementId
                                 print(string.format("Found Lelouch target: spawn_id=%s -> placement=%s", 
                                     tostring(targetSpawnId), targetPlacementId))
-                                break
                             end
                         end
                     end
                 end
             end
         end
+    end
+    
+    if not lelouchPlacementId then
+        warn("Could not find placement ID for Lelouch spawn ID:", lelouchSpawnId)
+        return
     end
     
     if not targetPlacementId then
@@ -1256,6 +1272,7 @@ local function processLelouchAbilityRecording(actionInfo)
     
     local abilityRecord = {
         Type = "lelouch_choose_piece",
+        Lelouch = lelouchPlacementId,  -- NEW: Store Lelouch's placement ID
         Target = targetPlacementId,
         Piece = pieceType,
         Time = formatTimeValue(currentWave, secondsInWave)
@@ -1265,7 +1282,7 @@ local function processLelouchAbilityRecording(actionInfo)
     
     Rayfield:Notify({
         Title = "Macro Recorder",
-        Content = string.format("Recorded Lelouch: %s (%s)", targetPlacementId, pieceType),
+        Content = string.format("Recorded Lelouch: %s (%s) -> %s", lelouchPlacementId, pieceType, targetPlacementId),
         Duration = 2,
         Image = 4483362458
     })
@@ -1377,31 +1394,40 @@ local function setupMacroHooksRefactored()
                 })
             end)
             elseif self.Name == "LelouchChoosePiece" then
-                local targetSpawnId = args[1]
-                local pieceType = args[2]
-                task.defer(function()
-                    processActionResponseWithSpawnIdMapping({
-                        remoteName = "LelouchChoosePiece",
-                        args = {targetSpawnId, pieceType},
-                        timestamp = tick()
-                    })
-                end)
+    local lelouchSpawnId = args[1]  -- This is LELOUCH's spawn_id
+    local pieceType = args[2]
+    
+    print("DEBUG LelouchChoosePiece: Lelouch spawn_id =", lelouchSpawnId, "Piece =", pieceType)
+    
+    -- Store for the next AssignUnit call
+    MacroSystem.lelouchPendingPiece = {
+        lelouchSpawnId = lelouchSpawnId,  -- NEW: Store Lelouch's spawn_id too
+        pieceType = pieceType,
+        timestamp = tick()
+    }
                 elseif self.Name == "LelouchAssignUnit" then
-                local targetSpawnId = args[1]
-                
-                -- Get the piece type from the previous ChoosePiece call
-                if MacroSystem.lelouchPendingPiece then
-                    local pieceType = MacroSystem.lelouchPendingPiece.pieceType
-                    
-                    task.defer(function()
-                        processActionResponseWithSpawnIdMapping({
-                            remoteName = "LelouchChoosePiece",
-                            args = {targetSpawnId, pieceType},
-                            timestamp = tick()
-                        })
-                    end)
-                    MacroSystem.lelouchPendingPiece = nil
-            end
+    local targetSpawnId = args[1]  -- This is the TARGET's spawn_id
+    
+    print("DEBUG LelouchAssignUnit: Target spawn_id =", targetSpawnId)
+    
+    -- Get the piece type and Lelouch's spawn_id from the previous ChoosePiece call
+    if MacroSystem.lelouchPendingPiece then
+        local lelouchSpawnId = MacroSystem.lelouchPendingPiece.lelouchSpawnId
+        local pieceType = MacroSystem.lelouchPendingPiece.pieceType
+        
+        task.defer(function()
+            processActionResponseWithSpawnIdMapping({
+                remoteName = "LelouchChoosePiece",
+                args = {lelouchSpawnId, targetSpawnId, pieceType},  -- FIXED: Pass both spawn_ids
+                timestamp = tick()
+            })
+        end)
+        
+        -- Clear pending data
+        MacroSystem.lelouchPendingPiece = nil
+    else
+        warn("LelouchAssignUnit fired but no pending piece data!")
+    end
         end
     end
 
@@ -2041,62 +2067,85 @@ local function validateHestiaAbilityAction(action, actionIndex, totalActionCount
 end
 
 local function validateLelouchAbilityAction(action, actionIndex, totalActionCount)
+    local lelouchPlacementId = action.Lelouch
     local targetPlacementId = action.Target
     
-    -- Get the current spawn_id for this placement
-    local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
+    -- Get Lelouch's spawn_id
+    local lelouchSpawnId = MacroSystem.playbackPlacementToSpawnId[lelouchPlacementId]
     
-    if not currentSpawnId then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for %s", 
+    if not lelouchSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Lelouch %s", 
+            actionIndex, totalActionCount, lelouchPlacementId))
+        return false
+    end
+    
+    -- Get target's spawn_id
+    local targetSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
+    
+    if not targetSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for target %s", 
             actionIndex, totalActionCount, targetPlacementId))
         return false
     end
     
-    -- Extract just the spawn_id value (not the combined identifier)
-    local actualSpawnId = nil
+    -- Extract actual spawn_id values
+    local lelouchActualSpawnId = nil
+    local targetActualSpawnId = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
     if unitsFolder then
         for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+            if isOwnedByLocalPlayer(unit) then
+                local unitSpawnId = getUnitSpawnId(unit)
                 local stats = unit:FindFirstChild("_stats")
+                
                 if stats then
                     local spawnIdValue = stats:FindFirstChild("spawn_id")
                     if spawnIdValue then
-                        actualSpawnId = spawnIdValue.Value
-                        break
+                        if unitSpawnId == lelouchSpawnId then
+                            lelouchActualSpawnId = spawnIdValue.Value
+                        end
+                        if unitSpawnId == targetSpawnId then
+                            targetActualSpawnId = spawnIdValue.Value
+                        end
                     end
                 end
             end
         end
     end
     
-    if not actualSpawnId then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find spawn_id for %s", 
-            actionIndex, totalActionCount, targetPlacementId))
+    if not lelouchActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Lelouch spawn_id", 
+            actionIndex, totalActionCount))
         return false
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Using Lelouch (%s) on %s (spawn_id: %s)", 
-        actionIndex, totalActionCount, action.Piece, targetPlacementId, tostring(actualSpawnId)))
+    if not targetActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find target spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Lelouch (%s): %s -> %s", 
+        actionIndex, totalActionCount, action.Piece, lelouchPlacementId, targetPlacementId))
     
     local success = pcall(function()
         -- Wait for Lelouch's ability to be ready
         task.wait(0.5)
         
-        -- Step 1: Choose the piece type
+        -- Step 1: Choose the piece type (uses Lelouch's spawn_id)
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("LelouchChoosePiece")
-            :FireServer(actualSpawnId, action.Piece)
+            :FireServer(lelouchActualSpawnId, action.Piece)
         
-        task.wait(0.5) -- Small delay between steps
+        task.wait(0.1) -- Small delay between steps
         
-        -- Step 2: Assign to unit
+        -- Step 2: Assign to unit (uses target's spawn_id)
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("LelouchAssignUnit")
-            :FireServer(actualSpawnId)
+            :FireServer(targetActualSpawnId)
     end)
     
     if success then
