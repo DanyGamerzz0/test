@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.2"
+    local script_version = "V0.21"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1152,8 +1152,34 @@ local function processHestiaAbilityRecording(actionInfo)
         return
     end
     
-    -- Find the placement ID for the target unit
-    local targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[targetSpawnId]
+    -- FIXED: Find the unit by spawn_id and get its placement ID
+    local targetPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(targetSpawnId) then
+                        -- Found the unit! Get its combined identifier
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if targetPlacementId then
+                                print(string.format("Found Hestia target: spawn_id=%s -> placement=%s", 
+                                    tostring(targetSpawnId), targetPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
     
     if not targetPlacementId then
         warn("Could not find placement ID for Hestia target spawn ID:", targetSpawnId)
@@ -1190,7 +1216,34 @@ local function processLelouchAbilityRecording(actionInfo)
         return
     end
     
-    local targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[targetSpawnId]
+    -- FIXED: Find the unit by spawn_id and get its placement ID
+    local targetPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(targetSpawnId) then
+                        -- Found the unit! Get its combined identifier
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if targetPlacementId then
+                                print(string.format("Found Lelouch target: spawn_id=%s -> placement=%s", 
+                                    tostring(targetSpawnId), targetPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
     
     if not targetPlacementId then
         warn("Could not find placement ID for Lelouch target spawn ID:", targetSpawnId)
@@ -1931,23 +1984,49 @@ end
 
 local function validateHestiaAbilityAction(action, actionIndex, totalActionCount)
     local targetPlacementId = action.Target
-    local targetSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
     
-    if not targetSpawnId then
+    -- Get the current spawn_id for this placement
+    local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
+    
+    if not currentSpawnId then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for %s", 
             actionIndex, totalActionCount, targetPlacementId))
         return false
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Using Hestia ability on %s", 
-        actionIndex, totalActionCount, targetPlacementId))
+    -- FIXED: Extract just the spawn_id value (not the combined identifier)
+    local actualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        actualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not actualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find spawn_id for %s", 
+            actionIndex, totalActionCount, targetPlacementId))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Hestia ability on %s (spawn_id: %s)", 
+        actionIndex, totalActionCount, targetPlacementId, tostring(actualSpawnId)))
     
     local success = pcall(function()
-        -- FIXED: Use FireServer, not InvokeServer
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("HestiaAssignBlade")
-            :FireServer(targetSpawnId)
+            :FireServer(actualSpawnId)
     end)
     
     if success then
