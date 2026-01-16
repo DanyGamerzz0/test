@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.33"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -226,11 +226,7 @@ local GameTracking = {
     gameHasEnded = false,
     isAutoLoopEnabled = false,
     portalDepth = nil,
-    waveStartTime = 0,
-    gameInstanceId = 0,
 }
-
-local waveNumInstance = Services.Workspace:WaitForChild("_wave_num", 10)
 
 local VALIDATION_CONFIG = {
     PLACEMENT_MAX_RETRIES = 3,
@@ -419,8 +415,9 @@ local function formatTimeValue(waveNum, secondsInWave)
 end
 
 local function getCurrentWaveNumber()
-    if waveNumInstance then
-        return waveNumInstance.Value
+    local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+    if waveNum then
+        return waveNum.Value
     end
     return 0
 end
@@ -1057,41 +1054,39 @@ local function processWaveSkipAction(actionInfo)
     Rayfield:Notify({Title = "Macro Recorder",Content = string.format("Recorded wave skip (Wave %d)", currentWave),Duration = 3,Image = 4483362458})
 end
 
-local function processAbilityRecording(actionInfo)
-    local capturedUnitUUID = actionInfo.args[1]
-    if not capturedUnitUUID then
-        warn("No UUID provided for ability")
-        return
+local function processAbilityActionWithSpawnIdMapping(actionInfo)
+    local rawUnitUUID = actionInfo.unitUUID
+    
+    local placementId = nil
+    placementId = MacroSystem.recordingSpawnIdToPlacement[rawUnitUUID]
+    
+    if placementId then
+        -- Calculate wave-based time
+        local currentWave = getCurrentWaveNumber()
+        local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+        local secondsInWave = actionInfo.timestamp - waveStartTime
+        
+        local abilityRecord = {
+            Type = "use_active_attack",
+            Unit = placementId,
+            Time = formatTimeValue(currentWave, secondsInWave)
+        }
+        
+        if actionInfo.abilityName then
+            abilityRecord.AbilityName = actionInfo.abilityName
+        end
+        
+        table.insert(macro, abilityRecord)
+        
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
+            Duration = 2,
+            Image = 4483362458
+        })
+    else
+        warn("Could not find placement ID for combined identifier:", rawUnitUUID)
     end
-    
-    -- Look up the placement ID directly from our mapping
-    -- (Same approach as sell - no Instance access needed)
-    local placementId = MacroSystem.recordingSpawnIdToPlacement[capturedUnitUUID]
-    
-    if not placementId then
-        warn("Could not find placement ID for UUID:", capturedUnitUUID)
-        return
-    end
-    
-    -- Calculate wave-based time
-    local currentWave = getCurrentWaveNumber()
-    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
-    local secondsInWave = actionInfo.timestamp - waveStartTime
-    
-    local abilityRecord = {
-        Type = "use_active_attack",
-        Unit = placementId,
-        Time = formatTimeValue(currentWave, secondsInWave)
-    }
-    
-    table.insert(macro, abilityRecord)
-    
-    Rayfield:Notify({
-        Title = "Macro Recorder",
-        Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
-        Duration = 2,
-        Image = 4483362458
-    })
 end
 
 local function processActionResponseWithSpawnIdMapping(actionInfo)
@@ -1113,9 +1108,6 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
             Image = 4483362458,
         })
         processWaveSkipAction(actionInfo)
-         elseif actionInfo.remoteName == "use_active_attack" then
-        -- NEW: Handle ability recording
-        processAbilityRecording(actionInfo)
     end
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
@@ -1163,22 +1155,56 @@ local function setupMacroHooksRefactored()
                         timestamp = tick()
                     })
                 end)
-elseif self.Name == "use_active_attack" then
-    -- Just capture the raw UUID argument - no Instance access here
-    local capturedUnitUUID = args[1]
-    
+           elseif self.Name == "use_active_attack" then
+    -- Record ability usage with optional ability name
     task.spawn(function()
-        processActionResponseWithSpawnIdMapping({
-            remoteName = "use_active_attack",
-            args = {capturedUnitUUID}, -- Pass just the UUID
+        -- Get the unit's UUID AND spawn_id to create stable identifier
+        local unitIdentifier = args[1] -- This is the UUID passed to the remote
+        
+        -- Try to find the actual unit to get its spawn_id
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if unitsFolder then
+            for _, unit in pairs(unitsFolder:GetChildren()) do
+                if isOwnedByLocalPlayer(unit) then
+                    local stats = unit:FindFirstChild("_stats")
+                    if stats then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        local spawnIdValue = stats:FindFirstChild("spawn_id")
+                        
+                        if uuidValue and uuidValue:IsA("StringValue") and 
+                           uuidValue.Value == args[1] then
+                            -- Found the unit - create combined identifier
+                            if spawnIdValue then
+                                unitIdentifier = uuidValue.Value .. spawnIdValue.Value
+                                print("DEBUG: Created combined identifier:", unitIdentifier)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Only include abilityName if args[2] exists AND is a string AND is not empty
+        local abilityName = nil
+        if args[2] and type(args[2]) == "string" and args[2] ~= "" then
+            abilityName = args[2]
+            print("DEBUG: Captured ability name:", abilityName)
+        else
+            print("DEBUG: No ability name (args[2] =", type(args[2]), ":", tostring(args[2]), ")")
+        end
+        
+        processAbilityActionWithSpawnIdMapping({
+            unitUUID = unitIdentifier, -- Now using UUID+spawn_id
+            abilityName = abilityName,
             timestamp = tick()
         })
     end)
 end
 end
 
-    return oldNamecall(self, ...)
-end)
+        return oldNamecall(self, ...)
+    end)
 
     -- Heartbeat: watch for level changes on all our units
     local RunService = game:GetService("RunService")
@@ -1732,25 +1758,35 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     local combinedIdentifier = uuidValue.Value
     if spawnIdValue then
         combinedIdentifier = combinedIdentifier .. spawnIdValue.Value
+        print(string.format("Created combined identifier for ability: %s", combinedIdentifier))
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Using ability for %s", 
-        actionIndex, totalActionCount, placementId))
+    local abilityDesc = action.AbilityName and 
+        string.format("ability '%s'", action.AbilityName) or "ability"
+    
+    updateDetailedStatus(string.format("(%d/%d) Using %s for %s", 
+        actionIndex, totalActionCount, abilityDesc, placementId))
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        -- Only pass the combined identifier (UUID)
-        endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
+        
+        if action.AbilityName then
+            -- Pass combined identifier + ability name
+            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier, action.AbilityName)
+        else
+            -- Pass combined identifier only
+            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
+        end
     end)
     
     if success then
         task.wait(0.2)
-        updateDetailedStatus(string.format("(%d/%d) Successfully used ability for %s", 
-            actionIndex, totalActionCount, placementId))
+        updateDetailedStatus(string.format("(%d/%d) Successfully used %s for %s", 
+            actionIndex, totalActionCount, abilityDesc, placementId))
         return true
     else
-        updateDetailedStatus(string.format("(%d/%d) Failed to use ability for %s", 
-            actionIndex, totalActionCount, placementId))
+        updateDetailedStatus(string.format("(%d/%d) Failed to use %s for %s", 
+            actionIndex, totalActionCount, abilityDesc, placementId))
         return false
     end
 end
