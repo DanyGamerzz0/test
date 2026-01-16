@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.25"
+    local script_version = "V0.26"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -375,6 +375,9 @@ local macro = {}
     local MacroTab = Window:CreateTab("Macro", "joystick")
     local AutoplayTab = Window:CreateTab("Autoplay", "joystick")
     local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
+
+    local MacroStatusLabel = MacroTab:CreateLabel("Status: Ready")
+    local MacroDetailsLabel = MacroTab:CreateLabel("Macro: Ready")
 
     -- ========== MACRO SYSTEM FUNCTIONS ==========
 
@@ -786,14 +789,14 @@ local function resolveUUIDFromInternalName(internalName)
 end
 
 local function updateDetailedStatus(message)
-    if MacroSystem.detailedStatusLabel then
-        MacroSystem.detailedStatusLabel:Set("Macro: " .. message)
+    if MacroDetailsLabel then
+        MacroDetailsLabel:Set("Macro: " .. message)
     end
 end
 
 local function updateMacroStatus(message)
-    if MacroSystem.statusLabel then
-        MacroSystem.statusLabel:Set("Status: " .. message)
+    if MacroStatusLabel then
+        MacroStatusLabel:Set("Status: " .. message)
     end
 end
 
@@ -6988,8 +6991,6 @@ end)
     })
 
     -- Macro Tab
-local MacroStatusLabel = MacroTab:CreateLabel("Status: Ready")
-local MacroDetailsLabel = MacroTab:CreateLabel("Macro: Ready")
 
      Divider = MacroTab:CreateDivider()
 
