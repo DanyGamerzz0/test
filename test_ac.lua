@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.21"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -879,23 +879,17 @@ end
     end
 
 local function processPlacementActionWithSpawnIdMapping(actionInfo)
-    local beforeSnapshot = {}
+    -- Use the snapshot that was already taken in the hook
+    local beforeSnapshot = actionInfo.preActionUnits
     
-    -- Safely take before snapshot
-    pcall(function()
-        beforeSnapshot = actionInfo.preActionUnits or takeUnitsSnapshot()
-    end)
+    if not beforeSnapshot then
+        warn("No pre-action snapshot provided")
+        return
+    end
     
-    task.wait(0.3)
-
-    local afterSnapshot = {}
+    -- Take after snapshot in main thread
+    local afterSnapshot = takeUnitsSnapshot()
     
-    -- Safely take after snapshot
-    pcall(function()
-        afterSnapshot = takeUnitsSnapshot()
-    end)
-    
-    -- Rest of the function remains the same...
     local spawnedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     if not spawnedUnit then
         warn("Could not find newly placed unit")
@@ -1192,10 +1186,22 @@ local function setupMacroHooksRefactored()
            and self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
-                task.defer(function()
-                    if GameTracking.gameStartTime == 0 then GameTracking.gameStartTime = tick() end
-                    local preActionUnits = takeUnitsSnapshot()
-                    task.wait(0.3)
+                -- FIXED: Take snapshot BEFORE the remote fires, in a separate thread
+                task.spawn(function()
+                    if GameTracking.gameStartTime == 0 then 
+                        GameTracking.gameStartTime = tick() 
+                    end
+                    
+                    -- Wait for main thread to take snapshot
+                    local preActionUnits = nil
+                    task.synchronize() -- Switch to main thread
+                    preActionUnits = takeUnitsSnapshot()
+                    
+                    -- Wait for placement to complete
+                    task.wait(0.5)
+                    
+                    -- Process in main thread
+                    task.synchronize()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.SPAWN_REMOTE,
                         args = args,
@@ -1203,6 +1209,7 @@ local function setupMacroHooksRefactored()
                         preActionUnits = preActionUnits
                     })
                 end)
+                
             elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
                 task.defer(function()
                     processActionResponseWithSpawnIdMapping({
@@ -1211,6 +1218,7 @@ local function setupMacroHooksRefactored()
                         timestamp = tick()
                     })
                 end)
+                
             elseif self.Name == MACRO_CONFIG.WAVE_SKIP_REMOTE then
                 task.defer(function()
                     processActionResponseWithSpawnIdMapping({
@@ -1218,22 +1226,22 @@ local function setupMacroHooksRefactored()
                         timestamp = tick()
                     })
                 end)
-elseif self.Name == "use_active_attack" then
-    -- Just capture the raw UUID argument - no Instance access here
-    local capturedUnitUUID = args[1]
-    
-    task.defer(function()
-        processActionResponseWithSpawnIdMapping({
-            remoteName = "use_active_attack",
-            args = {capturedUnitUUID}, -- Pass just the UUID
-            timestamp = tick()
-        })
-    end)
-end
-end
+                
+            elseif self.Name == "use_active_attack" then
+                local capturedUnitUUID = args[1]
+                
+                task.defer(function()
+                    processActionResponseWithSpawnIdMapping({
+                        remoteName = "use_active_attack",
+                        args = {capturedUnitUUID},
+                        timestamp = tick()
+                    })
+                end)
+            end
+        end
 
-    return oldNamecall(self, ...)
-end)
+        return oldNamecall(self, ...)
+    end)
 
     -- Heartbeat: watch for level changes on all our units
 local RunService = game:GetService("RunService")
