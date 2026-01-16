@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.19"
+    local script_version = "V0.2"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -897,22 +897,37 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
     
-    -- NEW: Calculate wave-based time
-    local currentWave = getCurrentWaveNumber()
-    local absoluteTime = actionInfo.timestamp - GameTracking.gameStartTime
-    local waveStartTime = GameTracking.waveStartTimes and GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    -- SAFE wave number access
+    local currentWave = 0
+    local waveStartTime = GameTracking.gameStartTime
+    
+    pcall(function()
+        local waveNum = workspace:FindFirstChild("_wave_num")
+        if waveNum then
+            currentWave = waveNum.Value
+            waveStartTime = GameTracking.waveStartTimes and GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+        end
+    end)
+    
     local secondsInWave = actionInfo.timestamp - waveStartTime
     
     local placementRecord = {
         Type = "spawn_unit",
         Unit = placementId,
-        Time = formatTimeValue(currentWave, secondsInWave), -- NEW FORMAT
+        Time = formatTimeValue(currentWave, secondsInWave),
         Pos = raycastData.Origin and string.format("%.17f, %.17f, %.17f", raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
         Dir = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
         Rot = rotation ~= 0 and rotation or 0
     }
     
     table.insert(macro, placementRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded placement: %s (Wave %d)", placementId, currentWave),
+        Duration = 3,
+        Image = 4483362458
+    })
 end
 
 local function parseUnitString(unitString)
