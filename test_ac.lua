@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.27"
+    local script_version = "V0.28"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9151,7 +9151,7 @@ local function pickBestPortalFromStoredData()
         task.wait(0.5)
 
         if #Services.Workspace.Camera:GetChildren() > 0 then
-            for _, child in pairs(camera:GetChildren()) do
+            for _, child in pairs(Services.Workspace.Camera:GetChildren()) do
                 child:Destroy()
             end
         end
