@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.26"
+    local script_version = "V0.27"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9147,6 +9147,14 @@ local function pickBestPortalFromStoredData()
             ), 
             3
         )
+
+        task.wait(0.5)
+
+        if #Services.Workspace.Camera:GetChildren() > 0 then
+            for _, child in pairs(camera:GetChildren()) do
+                child:Destroy()
+            end
+        end
         
         -- Clear stored data after use
         GameTracking.storedPortalData = nil
