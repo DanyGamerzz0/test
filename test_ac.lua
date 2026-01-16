@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.28"
+    local script_version = "V0.29"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -8397,7 +8397,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             return
         end
         
-        local macroData = MacroSystem.MacroSystem.macroManager[MacroSystem.currentMacroName]
+        local macroData = MacroSystem.macroManager[MacroSystem.currentMacroName]
         if not macroData or #macroData == 0 then
             Rayfield:Notify({
                 Title = "Webhook Error",
