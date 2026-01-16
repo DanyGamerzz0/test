@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.29"
+    local script_version = "V0.3"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -8443,7 +8443,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         if next(unitCounts) then
             local unitsList = {}
             for unitName, count in pairs(unitCounts) do
-                table.insert(unitsList, unitName .. " (x" .. count .. ")")
+                table.insert(unitsList, unitName)
             end
             table.sort(unitsList)
             unitsText = table.concat(unitsList, ", ")
@@ -8464,30 +8464,18 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
         body = body .. "Content-Type: application/json\r\n\r\n"
         body = body .. Services.HttpService:JSONEncode({
-            username = "LixHub Macro Share",
             embeds = {{
-                title = "📁 Macro Shared: " .. MacroSystem.currentMacroName,
+                title = MacroSystem.currentMacroName,
                 color = 0x5865F2,
                 fields = {
                     {
-                        name = "📊 Action Summary",
-                        value = string.format("**Total Actions:** %d\n🏗️ **Placements:** %d\n⬆️ **Upgrades:** %d\n💸 **Sells:** %d\n➡️ **Wave Skips:** %d",
-                            #macroData,
-                            actionCounts.spawn_unit,
-                            actionCounts.upgrade_unit_ingame, 
-                            actionCounts.sell_unit_ingame,
-                            actionCounts.vote_wave_skip
-                        ),
-                        inline = false
-                    },
-                    {
-                        name = "🎯 Units Used",
+                        name = "Units Required",
                         value = unitsText,
                         inline = false
                     },
                 },
                 footer = {
-                    text = script_version
+                    text = "https://discord.com/invite/cYKnXE2Nf8"
                 },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
