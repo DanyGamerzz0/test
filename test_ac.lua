@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1143,6 +1143,80 @@ local function processAbilityRecording(actionInfo)
     })
 end
 
+local function processHestiaAbilityRecording(actionInfo)
+    local targetSpawnId = actionInfo.args[1]
+    
+    if not targetSpawnId then
+        warn("No spawn ID provided for Hestia ability")
+        return
+    end
+    
+    -- Find the placement ID for the target unit
+    local targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[targetSpawnId]
+    
+    if not targetPlacementId then
+        warn("Could not find placement ID for Hestia target spawn ID:", targetSpawnId)
+        return
+    end
+    
+    -- Calculate wave-based time
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "hestia_assign_blade",
+        Target = targetPlacementId,
+        Time = formatTimeValue(currentWave, secondsInWave)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Hestia ability: %s (Wave %d)", targetPlacementId, currentWave),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
+local function processLelouchAbilityRecording(actionInfo)
+    local targetSpawnId = actionInfo.args[1]
+    local pieceType = actionInfo.args[2]
+    
+    if not targetSpawnId or not pieceType then
+        warn("Missing arguments for Lelouch ability")
+        return
+    end
+    
+    local targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[targetSpawnId]
+    
+    if not targetPlacementId then
+        warn("Could not find placement ID for Lelouch target spawn ID:", targetSpawnId)
+        return
+    end
+    
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "lelouch_choose_piece",
+        Target = targetPlacementId,
+        Piece = pieceType,
+        Time = formatTimeValue(currentWave, secondsInWave)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Lelouch: %s (%s)", targetPlacementId, pieceType),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
         Rayfield:Notify({
@@ -1163,8 +1237,11 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
         })
         processWaveSkipAction(actionInfo)
          elseif actionInfo.remoteName == "use_active_attack" then
-        -- NEW: Handle ability recording
         processAbilityRecording(actionInfo)
+        elseif actionInfo.remoteName == "HestiaAssignBlade" then
+    processHestiaAbilityRecording(actionInfo)
+elseif actionInfo.remoteName == "LelouchChoosePiece" then
+    processLelouchAbilityRecording(actionInfo)
     end
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
@@ -1234,6 +1311,25 @@ local function setupMacroHooksRefactored()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = "use_active_attack",
                         args = {capturedUnitUUID},
+                        timestamp = tick()
+                    })
+                end)
+            elseif self.Name == "HestiaAssignBlade" then
+                local targetSpawnId = args[1]
+                task.defer(function()
+                    processActionResponseWithSpawnIdMapping({
+                     remoteName = "HestiaAssignBlade",
+                     args = {targetSpawnId},
+                     timestamp = tick()
+                })
+            end)
+            elseif self.Name == "LelouchChoosePiece" then
+                local targetSpawnId = args[1]
+                local pieceType = args[2]
+                task.defer(function()
+                    processActionResponseWithSpawnIdMapping({
+                        remoteName = "LelouchChoosePiece",
+                        args = {targetSpawnId, pieceType},
                         timestamp = tick()
                     })
                 end)
@@ -1817,6 +1913,61 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     end
 end
 
+local function validateHestiaAbilityAction(action, actionIndex, totalActionCount)
+    local targetPlacementId = action.Target
+    local targetSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
+    
+    if not targetSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for %s", 
+            actionIndex, totalActionCount, targetPlacementId))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Hestia ability on %s", 
+        actionIndex, totalActionCount, targetPlacementId))
+    
+    local success = pcall(function()
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("HestiaAssignBlade")
+            :FireServer(targetSpawnId)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Hestia ability used", actionIndex, totalActionCount))
+        return true
+    end
+    return false
+end
+
+local function validateLelouchAbilityAction(action, actionIndex, totalActionCount)
+    local targetSpawnId = MacroSystem.playbackPlacementToSpawnId[action.Target]
+    
+    if not targetSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for %s", 
+            actionIndex, totalActionCount, action.Target))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Lelouch (%s) on %s", 
+        actionIndex, totalActionCount, action.Piece, action.Target))
+    
+    local success = pcall(function()
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("LelouchChoosePiece")
+            :FireServer(targetSpawnId, action.Piece)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Lelouch ability used", actionIndex, totalActionCount))
+        return true
+    end
+    return false
+end
+
 local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     if action.Type == "spawn_unit" then
         return validatePlacementActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
@@ -1827,6 +1978,10 @@ local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionC
     elseif action.Type == "use_active_attack" then
         -- NEW: Handle ability actions
         return validateAbilityActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
+    elseif action.Type == "hestia_assign_blade" then
+    return validateHestiaAbilityAction(action, actionIndex, totalActionCount)
+elseif action.Type == "lelouch_choose_piece" then
+    return validateLelouchAbilityAction(action, actionIndex, totalActionCount)
     elseif action.Type == "vote_wave_skip" then
         -- Wave skip logic remains unchanged
         updateDetailedStatus(string.format("(%d/%d) Skipping wave", actionIndex, totalActionCount))
