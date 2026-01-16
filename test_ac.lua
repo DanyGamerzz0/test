@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.2"
+    local script_version = "V0.21"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -452,34 +452,70 @@ local function isOwnedByLocalPlayer(unit)
     return true
 end
 
-    local function takeUnitsSnapshot()
-        local snapshot = {}
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        
-        if not unitsFolder then 
-            warn("_UNITS folder not found in workspace")
-            return snapshot 
-        end
-        
+local function takeUnitsSnapshot()
+    local snapshot = {}
+    
+    -- Safely get the units folder
+    local success, unitsFolder = pcall(function()
+        return Services.Workspace:FindFirstChild("_UNITS")
+    end)
+    
+    if not success or not unitsFolder then 
+        warn("_UNITS folder not found in workspace")
+        return snapshot 
+    end
+    
+    -- Safely iterate through units
+    local unitsList = {}
+    pcall(function()
         for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) then
-                local unitData = {
+            table.insert(unitsList, unit)
+        end
+    end)
+    
+    for _, unit in ipairs(unitsList) do
+        local isOwned = false
+        local unitData = {}
+        
+        -- Safely check ownership
+        pcall(function()
+            isOwned = isOwnedByLocalPlayer(unit)
+        end)
+        
+        if isOwned then
+            -- Safely get unit data
+            pcall(function()
+                unitData = {
                     instance = unit,
                     name = unit.Name,
                     spawnUUID = unit:GetAttribute("_SPAWN_UNIT_UUID"),
-                    position = unit.PrimaryPart and unit.PrimaryPart.Position or 
-                            unit:FindFirstChildWhichIsA("BasePart") and unit:FindFirstChildWhichIsA("BasePart").Position,
-                    owner = getUnitOwner(unit)
+                    position = nil,
+                    owner = nil
                 }
                 
-                if unitData.position and unitData.spawnUUID then
-                    table.insert(snapshot, unitData)
+                -- Safely get position
+                if unit.PrimaryPart then
+                    unitData.position = unit.PrimaryPart.Position
+                else
+                    local firstPart = unit:FindFirstChildWhichIsA("BasePart")
+                    if firstPart then
+                        unitData.position = firstPart.Position
+                    end
                 end
-                end
+                
+                -- Safely get owner
+                unitData.owner = getUnitOwner(unit)
+            end)
+            
+            if unitData.position and unitData.spawnUUID then
+                table.insert(snapshot, unitData)
             end
-        print(string.format("Snapshot taken: %d player-owned units found", #snapshot))
-        return snapshot
+        end
     end
+    
+    print(string.format("Snapshot taken: %d player-owned units found", #snapshot))
+    return snapshot
+end
 
     local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
         local beforeUUIDs = {}
@@ -843,12 +879,23 @@ end
     end
 
 local function processPlacementActionWithSpawnIdMapping(actionInfo)
-    local beforeSnapshot = actionInfo.preActionUnits or takeUnitsSnapshot()
+    local beforeSnapshot = {}
+    
+    -- Safely take before snapshot
+    pcall(function()
+        beforeSnapshot = actionInfo.preActionUnits or takeUnitsSnapshot()
+    end)
     
     task.wait(0.3)
 
-    local afterSnapshot = takeUnitsSnapshot()
+    local afterSnapshot = {}
     
+    -- Safely take after snapshot
+    pcall(function()
+        afterSnapshot = takeUnitsSnapshot()
+    end)
+    
+    -- Rest of the function remains the same...
     local spawnedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     if not spawnedUnit then
         warn("Could not find newly placed unit")
