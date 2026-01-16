@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.3"
+    local script_version = "V0.13"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -88,44 +88,9 @@ end
     }
     })
 
-    local debug = true
+    local debug = false
 
-    local function sendAnalyticsWebhook()
-        if debug then return end
-        if game.PlaceId ~= 107573139811370 then return end
-    local data = {
-        username = "Anime Crusaders",
-        embeds = {{
-            title = "Script Execution",
-            description = "**LixHub - Anime Crusaders**",
-            color = 0x5865F2,
-            fields = {
-                {
-                    name = "Version",
-                    value = script_version,
-                    inline = true
-                },
-                {
-                    name = "Executor",
-                    value = (identifyexecutor and identifyexecutor()) or "Unknown",
-                    inline = true
-                },
-                {
-                    name = "Timestamp",
-                    value = os.date("%Y-%m-%d %H:%M:%S UTC", os.time()),
-                    inline = false
-                }
-            },
-            footer = {
-                text = "https://discord.gg/cYKnXE2Nf8"
-            },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
-    
-    local payload = game:GetService("HttpService"):JSONEncode(data)
-    
-    -- Try different executor HTTP functions
+local function incrementExecutionCounter()
     local requestFunc = syn and syn.request or 
                     request or 
                     http_request or 
@@ -133,7 +98,7 @@ end
                     getgenv().request
     
     if not requestFunc then
-        --print("No HTTP function available")
+        --print("No HTTP function available for execution counter")
         return
     end
     
@@ -141,25 +106,23 @@ end
     task.spawn(function()
         local success, response = pcall(function()
             return requestFunc({
-                Url = "https://execution-count.bloxbanter.workers.dev/webhooks/1458540045496746126/RyhDIQdWG4BdVX6JTnGyc1PHdjve8zVlBCRF0aKQH7P93GjVbj7Xj9abygbLgV7120uY",
+                Url = "https://discord-counter.bloxbanter.workers.dev/increment", -- Replace with your actual worker URL
                 Method = "POST",
                 Headers = { 
                     ["Content-Type"] = "application/json"
-                },
-                Body = payload
+                }
             })
         end)
         
         if success and response then
-            if response.StatusCode == 204 or response.StatusCode == 200 then
-                --print("✓ Analytics: Execution logged successfully")
-            elseif response.StatusCode == 429 then
-                --print("⚠ Analytics: Rate limited (will retry automatically)")
+            if response.StatusCode == 200 then
+                local data = game:GetService("HttpService"):JSONDecode(response.Body)
+                --print("✓ Execution counted! Total:", data.count)
             else
-                --print("✗ Analytics: Failed with status", response.StatusCode)
+                --print("✗ Counter failed with status", response.StatusCode)
             end
         else
-            --print("✗ Analytics: Request failed -", tostring(response))
+            --print("✗ Counter request failed")
         end
     end)
 end
@@ -9658,7 +9621,7 @@ Rayfield:LoadConfiguration()
         end
     end
 
-    sendAnalyticsWebhook()
+    incrementExecutionCounter()
     Rayfield:SetVisibility(false)
 
         local screenGui = Instance.new("ScreenGui")
