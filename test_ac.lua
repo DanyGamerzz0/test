@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.21"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1994,7 +1994,7 @@ local function validateHestiaAbilityAction(action, actionIndex, totalActionCount
         return false
     end
     
-    -- FIXED: Extract just the spawn_id value (not the combined identifier)
+    -- Extract just the spawn_id value (not the combined identifier)
     local actualSpawnId = nil
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
@@ -2023,6 +2023,9 @@ local function validateHestiaAbilityAction(action, actionIndex, totalActionCount
         actionIndex, totalActionCount, targetPlacementId, tostring(actualSpawnId)))
     
     local success = pcall(function()
+        -- Wait for Hestia's ability to be ready
+        task.wait(1)
+        
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("HestiaAssignBlade")
@@ -2038,31 +2041,62 @@ local function validateHestiaAbilityAction(action, actionIndex, totalActionCount
 end
 
 local function validateLelouchAbilityAction(action, actionIndex, totalActionCount)
-    local targetSpawnId = MacroSystem.playbackPlacementToSpawnId[action.Target]
+    local targetPlacementId = action.Target
     
-    if not targetSpawnId then
+    -- Get the current spawn_id for this placement
+    local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
+    
+    if not currentSpawnId then
         updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for %s", 
-            actionIndex, totalActionCount, action.Target))
+            actionIndex, totalActionCount, targetPlacementId))
         return false
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Using Lelouch (%s) on %s", 
-        actionIndex, totalActionCount, action.Piece, action.Target))
+    -- Extract just the spawn_id value (not the combined identifier)
+    local actualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        actualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not actualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find spawn_id for %s", 
+            actionIndex, totalActionCount, targetPlacementId))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Lelouch (%s) on %s (spawn_id: %s)", 
+        actionIndex, totalActionCount, action.Piece, targetPlacementId, tostring(actualSpawnId)))
     
     local success = pcall(function()
+        -- Wait for Lelouch's ability to be ready
+        task.wait(0.5)
+        
         -- Step 1: Choose the piece type
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("LelouchChoosePiece")
-            :FireServer(targetSpawnId, action.Piece)
+            :FireServer(actualSpawnId, action.Piece)
         
-        task.wait(0.1) -- Small delay between steps
+        task.wait(0.5) -- Small delay between steps
         
         -- Step 2: Assign to unit
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("LelouchAssignUnit")
-            :FireServer(targetSpawnId)
+            :FireServer(actualSpawnId)
     end)
     
     if success then
