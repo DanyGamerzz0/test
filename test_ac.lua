@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.16"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1627,7 +1627,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-    print("Macro hooks initialized - placement, sell, and upgrade monitoring active")
+    --print("Macro hooks initialized - placement, sell, and upgrade monitoring active")
 end
 
     -- File Management Functions
@@ -4979,7 +4979,7 @@ local function getAllPortalDataFromModules()
                             moduleName = moduleScript.Name
                         }
                         
-                        print("Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Module:", moduleScript.Name)
+                        --print("Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Module:", moduleScript.Name)
                     end
                 end
             end
@@ -5000,7 +5000,7 @@ local function buildPortalDropdownOptions()
         
         if moduleInfo then
             table.insert(dropdownOptions, moduleInfo.name)
-            print("Added to dropdown:", moduleInfo.name, "(Owned)")
+            --print("Added to dropdown:", moduleInfo.name, "(Owned)")
         end
     end
     
@@ -5912,7 +5912,7 @@ local function loadStoryStagesWithRetry()
                         
                         if type(worldInfo) == "table" and worldInfo.name then
                             table.insert(displayNames, worldInfo.name)
-                            print(string.format("Loaded story stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
+                            --print(string.format("Loaded story stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
                         end
                         break
                     end
@@ -9151,18 +9151,18 @@ end)
         unitAddedRemote.OnClientEvent:Connect(function(...)
             if isInLobby() then return end
             local args = {...}
-            print("unit_added RemoteEvent fired!")
-            print("Number of arguments:", #args)
+            --print("unit_added RemoteEvent fired!")
+            --print("Number of arguments:", #args)
             
             -- Print detailed argument contents for debugging
-            for i, arg in ipairs(args) do
-                print("Unit Drop Arg[" .. i .. "] (" .. type(arg) .. "):")
-                if type(arg) == "table" then
-                    printTableContents(arg, 1)
-                else
-                    print("  " .. tostring(arg))
-                end
-            end
+            --for i, arg in ipairs(args) do
+                --print("Unit Drop Arg[" .. i .. "] (" .. type(arg) .. "):")
+                --if type(arg) == "table" then
+                    --printTableContents(arg, 1)
+                --else
+                    --print("  " .. tostring(arg))
+                --end
+            --end
             
             -- Send webhook notification if enabled
             if State.SendStageCompletedWebhook then
