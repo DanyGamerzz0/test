@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.14"
+    local script_version = "V0.15"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1437,10 +1437,10 @@ local function setupMacroHooksRefactored()
         if not checkcaller() and MacroSystem.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
+                task.spawn(function()
                     if GameTracking.gameStartTime == 0 then 
                         GameTracking.gameStartTime = tick() 
                     end
-                    
                     -- Wait for main thread to take snapshot
                     local preActionUnits = takeUnitsSnapshot()
                     
@@ -1453,6 +1453,7 @@ local function setupMacroHooksRefactored()
                         timestamp = tick(),
                         preActionUnits = preActionUnits
                     })
+                end)
                 
             elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
                 task.spawn(function()
