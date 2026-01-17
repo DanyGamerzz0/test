@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.16"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -866,6 +866,14 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local spawnedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     if not spawnedUnit then
         warn("Could not find newly placed unit")
+        print("[DEBUG] Before UUIDs:")
+        for i, unitData in ipairs(beforeSnapshot) do
+            print("    ", i, unitData.spawnUUID)
+        end
+        print("[DEBUG] After UUIDs:")
+        for i, unitData in ipairs(afterSnapshot) do
+            print("    ", i, unitData.spawnUUID)
+        end
         Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find newly placed unit",Duration = 3,Image = 4483362458})
         return
     end
@@ -1438,6 +1446,7 @@ local function setupMacroHooksRefactored()
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
                 task.spawn(function()
+                    print("[DEBUG] placement fired")
                     if GameTracking.gameStartTime == 0 then 
                         GameTracking.gameStartTime = tick() 
                     end
@@ -1447,12 +1456,14 @@ local function setupMacroHooksRefactored()
                     -- Wait for placement to complete
                     task.wait(0.3)
                     
+                    print("[DEBUG] processing placement")
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.SPAWN_REMOTE,
                         args = args,
                         timestamp = tick(),
                         preActionUnits = preActionUnits
                     })
+                    print("[DEBUG] placement completed")
                 end)
                 
             elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
@@ -3830,7 +3841,7 @@ local function getOwnedPortalsFromInventory()
                 local actualPortalId = portalNameToIdMap[inventoryName] or inventoryName
                 
                 ownedPortals[actualPortalId] = uuidValue.Value
-                print("Found owned portal:", inventoryName, "| Mapped to ID:", actualPortalId, "| UUID:", uuidValue.Value)
+                --print("Found owned portal:", inventoryName, "| Mapped to ID:", actualPortalId, "| UUID:", uuidValue.Value)
             end
         end
     end
@@ -4632,7 +4643,7 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
         
         if success and backendWorldKey then
             State.StoryStageSelected = backendWorldKey -- Store EXACT backend key
-            print("Selected story stage:", selectedDisplayName, "-> Stored backend key:", backendWorldKey)
+            --print("Selected story stage:", selectedDisplayName, "-> Stored backend key:", backendWorldKey)
         else
             warn("Failed to get backend world key for story stage:", selectedDisplayName)
             if not success then
@@ -4718,7 +4729,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         
         if success and backendWorldKey then
             State.LegendStageSelected = backendWorldKey -- Store EXACT backend key
-            print("Selected legend stage:", selectedDisplayName, "-> Stored backend key:", backendWorldKey)
+            --print("Selected legend stage:", selectedDisplayName, "-> Stored backend key:", backendWorldKey)
         else
             warn("Failed to get backend legend world key for:", selectedDisplayName)
             if not success then
@@ -4793,7 +4804,7 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         
         if success and backendWorldKey then
             State.RaidStageSelected = backendWorldKey -- Store EXACT backend key
-            print("Selected raid stage:", selectedDisplayName, "-> Stored backend key:", backendWorldKey)
+            --print("Selected raid stage:", selectedDisplayName, "-> Stored backend key:", backendWorldKey)
         else
             warn("Failed to get backend raid world key for:", selectedDisplayName)
             if not success then
@@ -5845,7 +5856,7 @@ local function loadLegendStagesWithRetry()
                         
                         if type(worldInfo) == "table" and worldInfo.name and worldInfo.legend_stage then
                             table.insert(displayNames, worldInfo.name)
-                            print(string.format("Loaded legend stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
+                            --print(string.format("Loaded legend stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
                         end
                         break
                     end
@@ -5982,7 +5993,7 @@ local function loadRaidStagesWithRetry()
                             if not addedWorlds[orderedWorldKey] then
                                 table.insert(displayNames, worldInfo.name)
                                 addedWorlds[orderedWorldKey] = true
-                                print(string.format("Loaded raid stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
+                                --print(string.format("Loaded raid stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
                             end
                         end
                         break
@@ -7087,7 +7098,7 @@ local function refreshAutoSelectDropdowns()
                 print("✗ Failed to refresh dropdown for", worldKey)
             end
         else
-            print("⚠ Invalid dropdown object for", worldKey)
+            --print("⚠ Invalid dropdown object for", worldKey)
         end
     end
     
@@ -9130,7 +9141,7 @@ task.spawn(function()
         end
     end)
     
-    print("Hooked into Select_Portals remote - ready to store portal data")
+    --print("Hooked into Select_Portals remote - ready to store portal data")
 end)
 
 task.spawn(function()
