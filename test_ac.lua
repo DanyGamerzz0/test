@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -943,6 +943,8 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     }
     
     table.insert(macro, placementRecord)
+
+    print("[DEBUG] recorded placement: " .. placementId .. " (Wave ".. currentWave .. ")")
     
     Rayfield:Notify({
         Title = "Macro Recorder",
