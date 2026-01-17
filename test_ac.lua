@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.14"
+    local script_version = "V0.15"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -88,7 +88,7 @@ end
     }
     })
 
-    local debug = true
+    local debug = false
 
 local function incrementExecutionCounter()
     local requestFunc = syn and syn.request or 
@@ -6172,10 +6172,6 @@ LobbyTab:CreateDropdown({
     Flag = "AutoSummonBanner",
     Callback = function(Options)
         State.AutoSummonBanner = Options[1]
-        
-        if State.AutoSummonBanner then
-            notify("Banner Selected", string.format("%s selected", State.AutoSummonBanner))
-        end
     end,
 })
 
@@ -6903,11 +6899,6 @@ end)
         Info = "Automatically sell all your units when the specified wave is reached",
         Callback = function(Value)
             State.AutoSellEnabled = Value
-            if Value then
-                notify("Auto Sell", string.format("Enabled - will sell all units on wave %d", State.AutoSellWave))
-            else
-                notify("Auto Sell", "Disabled")
-            end
         end,
     })
 
@@ -6921,9 +6912,6 @@ end)
         Info = "Wave number to automatically sell all units",
         Callback = function(Value)
             State.AutoSellWave = Value
-            if State.AutoSellEnabled then
-                notify("Auto Sell", string.format("Updated - will sell all units on wave %d", Value))
-            end
         end,
     })
 
@@ -6934,11 +6922,6 @@ end)
         Info = "Automatically sell all farm units (that are sellable) when the specified wave is reached",
         Callback = function(Value)
             State.AutoSellFarmEnabled = Value
-            if Value then
-                notify("Auto Sell Farm", string.format("Enabled - will sell farm units on wave %d", State.AutoSellFarmWave))
-            else
-                notify("Auto Sell Farm", "Disabled")
-            end
         end,
     })
 
@@ -6952,9 +6935,6 @@ end)
         Info = "Wave number to automatically sell all farm units",
         Callback = function(Value)
             State.AutoSellFarmWave = Value
-            if State.AutoSellFarmEnabled then
-                notify("Auto Sell Farm", string.format("Updated - will sell farm units on wave %d", Value))
-            end
         end,
     })
 
