@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.13"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1437,32 +1437,25 @@ local function setupMacroHooksRefactored()
         if not checkcaller() and MacroSystem.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
-                -- FIXED: Take snapshot BEFORE the remote fires, in a separate thread
-                task.spawn(function()
                     if GameTracking.gameStartTime == 0 then 
                         GameTracking.gameStartTime = tick() 
                     end
                     
                     -- Wait for main thread to take snapshot
-                    local preActionUnits = nil
-                    task.synchronize() -- Switch to main thread
-                    preActionUnits = takeUnitsSnapshot()
+                    local preActionUnits = takeUnitsSnapshot()
                     
                     -- Wait for placement to complete
-                    task.wait(0.5)
+                    task.wait(0.3)
                     
-                    -- Process in main thread
-                    task.synchronize()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.SPAWN_REMOTE,
                         args = args,
                         timestamp = tick(),
                         preActionUnits = preActionUnits
                     })
-                end)
                 
             elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
-                task.defer(function()
+                task.spawn(function()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.SELL_REMOTE,
                         args = args,
@@ -1471,7 +1464,7 @@ local function setupMacroHooksRefactored()
                 end)
                 
             elseif self.Name == MACRO_CONFIG.WAVE_SKIP_REMOTE then
-                task.defer(function()
+                task.spawn(function()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.WAVE_SKIP_REMOTE,
                         timestamp = tick()
@@ -1479,9 +1472,9 @@ local function setupMacroHooksRefactored()
                 end)
                 
             elseif self.Name == "use_active_attack" then
+                task.spawn(function()
+                    
                 local capturedUnitUUID = args[1]
-                
-                task.defer(function()
                     processActionResponseWithSpawnIdMapping({
                         remoteName = "use_active_attack",
                         args = {capturedUnitUUID},
@@ -1490,7 +1483,7 @@ local function setupMacroHooksRefactored()
                 end)
             elseif self.Name == "HestiaAssignBlade" then
                 local targetSpawnId = args[1]
-                task.defer(function()
+                task.spawn(function()
                     processActionResponseWithSpawnIdMapping({
                      remoteName = "HestiaAssignBlade",
                      args = {targetSpawnId},
@@ -1501,7 +1494,7 @@ local function setupMacroHooksRefactored()
     local dioSpawnId = args[1]
     local abilityType = args[2]  -- "ZAWARUDO", "EraseMotion", "EraseThought", "EraseForce", "EraseForm"
     
-    task.defer(function()
+    task.spawn(function()
         processActionResponseWithSpawnIdMapping({
             remoteName = "DioWrites",
             args = {dioSpawnId, abilityType},
@@ -1514,7 +1507,7 @@ elseif self.Name == "FrierenMagics" then
     local frierenSpawnId = args[1]
     local magicType = args[2]  -- "Thunderfire", "Judgement", "Void"
     
-    task.defer(function()
+    task.spawn(function()
         processActionResponseWithSpawnIdMapping({
             remoteName = "FrierenMagics",
             args = {frierenSpawnId, magicType},
@@ -1543,7 +1536,7 @@ elseif self.Name == "FrierenMagics" then
         local lelouchSpawnId = MacroSystem.lelouchPendingPiece.lelouchSpawnId
         local pieceType = MacroSystem.lelouchPendingPiece.pieceType
         
-        task.defer(function()
+        task.spawn(function()
             processActionResponseWithSpawnIdMapping({
                 remoteName = "LelouchChoosePiece",
                 args = {lelouchSpawnId, targetSpawnId, pieceType},  -- FIXED: Pass both spawn_ids
