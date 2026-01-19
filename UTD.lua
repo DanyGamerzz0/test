@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.36"
+local script_version = "V0.37"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1956,6 +1956,33 @@ local function joinStoryViaAPI(mapUIName, act, difficulty, difficultyPercent)
     end
 end
 
+local function joinWinterViaAPI(act, difficulty, difficultyPercent)
+    if not PodController then
+        warn("PodController not initialized")
+        return false
+    end
+    
+    local gameData = {
+        Category = "LimitedTimeModes",
+        Map = "Winter",
+        Act = tostring(act),
+        Difficulty = difficulty,
+        Modulation = convertDifficultyMeter(difficultyPercent),
+        FriendsOnly = false
+    }    
+    local success = pcall(function()
+        PodController:RequestPod(gameData)
+    end)
+    
+    if success then
+        print("✅ Winter Event join request sent via API")
+        return true
+    else
+        warn("❌ Winter Event join failed")
+        return false
+    end
+end
+
 local function joinLegendViaAPI(mapUIName, act, difficultyPercent)
     if not PodController then
         warn("PodController not initialized")
@@ -2711,6 +2738,30 @@ local function checkAndExecuteHighestPriority()
             clearProcessingState()
         end
     end
+        -- Priority 7: Winter Auto Join
+    if State.AutoJoinWinterEvent and State.WinterActSelected and State.WinterStageDifficultySelected and State.WinterStageDifficultyMeterSelected then
+        setProcessingState("Winter Event Auto Join")
+        
+         local success = joinWinterViaAPI(
+            State.StoryActSelected,
+            State.StoryDifficultySelected,
+            State.StoryDifficultyMeterSelected
+        )
+        
+        if success then
+            print("✅ Successfully joined Winter Event via API!")
+            
+            if waitForJoinSuccess(10) then
+                if tryStartGameWithRetry(3) then
+                    task.wait(3)
+                    clearProcessingState()
+                    return
+                end
+            end
+        else
+            clearProcessingState()
+        end
+    end
 end
 
 --[[--------------------------------------------------------------]]
@@ -3221,7 +3272,7 @@ section = JoinerTab:CreateSection("Challenge Joiner")
 
     section = JoinerTab:CreateSection("Winter Event Joiner")
 
-     AutoCollectPresentsToggle = GameTab:CreateToggle({
+     AutoCollectPresentsToggle = JoinerTab:CreateToggle({
     Name = "Auto Collect Present Drops",
     CurrentValue = false,
     Flag = "AutoCollectPresents",
@@ -3262,14 +3313,25 @@ task.spawn(function()
                             local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
                             
                             if humanoidRootPart then
+                                -- Save original position
+                                local originalCFrame = humanoidRootPart.CFrame
+                                
+                                -- Teleport to present
                                 local presentPos = present:GetPivot().Position
                                 humanoidRootPart.CFrame = CFrame.new(presentPos)
                                 
+                                -- Wait for present to be collected
                                 local timeout = 0
                                 while present and present.Parent and timeout < 20 do
                                     task.wait(0.1)
                                     timeout = timeout + 1
                                 end
+                                
+                                -- Teleport back to original position
+                                if humanoidRootPart and humanoidRootPart.Parent then
+                                    humanoidRootPart.CFrame = originalCFrame
+                                end
+                                
                                 task.wait(0.2)
                             end
                         end
@@ -4402,7 +4464,7 @@ local function enableModdedPlacement()
     if isInLobby() then return end
     
     local success = pcall(function()
-        local TowerController = require(game:GetService("ReplicatedFirst").Client.Controllers.TowerController)
+        local TowerController = require(game:GetService("ReplicatedStorage").Client.Controllers.TowerController)
         
         local functionsToHook = {
             "StartPlace",
