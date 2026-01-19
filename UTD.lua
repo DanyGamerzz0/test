@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.35"
+local script_version = "V0.36"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -227,6 +227,13 @@ local State = {
     AutoJoinRaid = false,
     RaidStageSelected = nil,
     RaidActSelected = nil,
+
+    -- Winter Event
+    AutoCollectPresents = false,
+    AutoJoinWinterEvent = false,
+    WinterActSelected = false,
+    WinterStageDifficultySelected = false,
+    WinterStageDifficultyMeterSelected = false,
 }
 
         local loadingRetries = {
@@ -2708,6 +2715,8 @@ end
 
 --[[--------------------------------------------------------------]]
 
+AutoPathTab:CreateLabel("Higher number = higher priority")
+
 local AutoPathToggle = AutoPathTab:CreateToggle({
     Name = "Auto Select Path",
     CurrentValue = false,
@@ -3209,6 +3218,121 @@ section = JoinerTab:CreateSection("Challenge Joiner")
             State.ReturnToLobbyOnNewChallenge = Value
         end,
     })
+
+    section = JoinerTab:CreateSection("Winter Event Joiner")
+
+     AutoCollectPresentsToggle = GameTab:CreateToggle({
+    Name = "Auto Collect Present Drops",
+    CurrentValue = false,
+    Flag = "AutoCollectPresents",
+    Info = "Automatically teleport and collect present drops around the map",
+    Callback = function(Value)
+        State.AutoCollectPresents = Value
+    end,
+})
+
+task.spawn(function()
+    local isCollecting = false
+    
+    while true do
+        task.wait(0.5)
+        
+        if State.AutoCollectPresents and not isCollecting then
+            isCollecting = true
+            
+            pcall(function()
+                local drops = workspace:FindFirstChild("Ignore")
+                if drops then
+                    drops = drops:FindFirstChild("Drops")
+                end
+                
+                if drops then
+                    local presents = {}
+                    for _, child in pairs(drops:GetChildren()) do
+                        if child.Name == "Present" and child:IsA("Model") then
+                            table.insert(presents, child)
+                        end
+                    end
+                    
+                    for _, present in ipairs(presents) do
+                        if not State.AutoCollectPresents then break end
+                        
+                        if present and present.Parent then
+                            local character = Services.Players.LocalPlayer.Character
+                            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+                            
+                            if humanoidRootPart then
+                                local presentPos = present:GetPivot().Position
+                                humanoidRootPart.CFrame = CFrame.new(presentPos)
+                                
+                                local timeout = 0
+                                while present and present.Parent and timeout < 20 do
+                                    task.wait(0.1)
+                                    timeout = timeout + 1
+                                end
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end)
+            isCollecting = false
+        end
+    end
+end)
+
+AutoJoinWinterEventToggle = JoinerTab:CreateToggle({
+        Name = "Auto Join Winter Event",
+        CurrentValue = false,
+        Flag = "AutoJoinWinterEvent",
+        Callback = function(Value)
+            State.AutoJoinWinterEvent = Value
+        end,
+    })
+
+RaidChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Winter Event Act",
+    Options = {"Act 1", "Infinite"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "WinterStageActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+            local num = selectedOption:match("%d+")
+            if num then
+                State.WinterActSelected = num
+        end
+    end,
+})
+
+ WinterDifficultyDropdown = JoinerTab:CreateDropdown({
+        Name = "Select Winter Stage Difficulty",
+        Options = {"Easy","Hard","Nightmare"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "WinterStageDifficultySelector",
+        Callback = function(Option)
+            if Option[1] == "Easy" then
+                State.WinterStageDifficultySelected = "Easy"
+            elseif Option[1] == "Hard" then
+                State.WinterStageDifficultySelected = "Hard"
+            elseif Option[1] == "Nightmare" then
+                State.WinterStageDifficultySelected = "Nightmare"
+            end
+        end,
+    })
+
+   WinterSlider = JoinerTab:CreateSlider({
+   Name = "Select Difficulty Meter",
+   Range = {100, 700},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 100,
+   Flag = "WinterStageDifficultyMeterSelector",
+   Callback = function(Value)
+    State.WinterStageDifficultyMeterSelected = Value
+   end,
+})
 
 local function buildMapLookup()
     print("Building map name lookup...")
