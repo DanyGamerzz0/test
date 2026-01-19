@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.39"
+local script_version = "V0.4"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -3360,10 +3360,14 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
     Flag = "WinterStageActSelector",
     Callback = function(Option)
         local selectedOption = type(Option) == "table" and Option[1] or Option
-            local num = selectedOption:match("%d+")
-            if num then
-                State.WinterActSelected = num
-        end
+            if selectedOption == "Infinite" then
+                State.WinterActSelected = "Infinite"
+            else
+                local num = selectedOption:match("%d+")
+                if num then
+                    State.WinterActSelected = num
+                end
+            end
     end,
 })
 
