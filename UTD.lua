@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.38"
+local script_version = "V0.39"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1965,7 +1965,7 @@ local function joinWinterViaAPI(act, difficulty, difficultyPercent)
     local gameData = {
         Category = "LimitedTimeModes",
         Map = "Winter",
-        Act = tonumber(act),
+        Act = tostring(act),
         Difficulty = difficulty,
         Modulation = convertDifficultyMeter(difficultyPercent),
         FriendsOnly = false
@@ -2743,9 +2743,9 @@ local function checkAndExecuteHighestPriority()
         setProcessingState("Winter Event Auto Join")
         
          local success = joinWinterViaAPI(
-            State.StoryActSelected,
-            State.StoryDifficultySelected,
-            State.StoryDifficultyMeterSelected
+            State.WinterActSelected,
+            State.WinterStageDifficultySelected,
+            State.WinterStageDifficultyMeterSelected
         )
         
         if success then
