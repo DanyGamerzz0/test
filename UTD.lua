@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.37"
+local script_version = "V0.38"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -1965,7 +1965,7 @@ local function joinWinterViaAPI(act, difficulty, difficultyPercent)
     local gameData = {
         Category = "LimitedTimeModes",
         Map = "Winter",
-        Act = tostring(act),
+        Act = tonumber(act),
         Difficulty = difficulty,
         Modulation = convertDifficultyMeter(difficultyPercent),
         FriendsOnly = false
@@ -2751,13 +2751,13 @@ local function checkAndExecuteHighestPriority()
         if success then
             print("✅ Successfully joined Winter Event via API!")
             
-            if waitForJoinSuccess(10) then
+           --[[ if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
                     task.wait(3)
                     clearProcessingState()
                     return
                 end
-            end
+            end--]]
         else
             clearProcessingState()
         end
