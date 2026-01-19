@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.4"
+local script_version = "V0.41"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -2751,13 +2751,13 @@ local function checkAndExecuteHighestPriority()
         if success then
             print("✅ Successfully joined Winter Event via API!")
             
-           --[[ if waitForJoinSuccess(10) then
+            if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
                     task.wait(3)
                     clearProcessingState()
                     return
                 end
-            end--]]
+            end
         else
             clearProcessingState()
         end
@@ -3352,7 +3352,7 @@ AutoJoinWinterEventToggle = JoinerTab:CreateToggle({
         end,
     })
 
-RaidChapterDropdown = JoinerTab:CreateDropdown({
+WinterChapterDropdown = JoinerTab:CreateDropdown({
     Name = "Select Winter Event Act",
     Options = {"Act 1", "Infinite"},
     CurrentOption = {},
