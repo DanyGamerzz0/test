@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.41"
+local script_version = "V0.42"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -233,7 +233,7 @@ local State = {
     AutoJoinWinterEvent = false,
     WinterActSelected = false,
     WinterStageDifficultySelected = false,
-    WinterStageDifficultyMeterSelected = false,
+    WinterStageDifficultyMeterSelected = 100,
 }
 
         local loadingRetries = {
