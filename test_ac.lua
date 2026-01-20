@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.14"
+    local script_version = "V0.15"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -155,6 +155,13 @@ end
         ignoreWorlds = 0,
         portal = 0
     }
+
+    local ENHANCED_VALIDATION = {
+    SNAPSHOT_DELAY = 0.5,           -- Increased from 0.1s
+    POST_ACTION_WAIT = 0.8,         -- Increased from 0.3s
+    MAX_SNAPSHOT_ATTEMPTS = 5,       -- New: Retry snapshots
+    UNIT_SPAWN_TIMEOUT = 10.0,      -- New: Wait longer for spawns
+}
 
     local MacroSystem = {
     macro = {},
@@ -420,7 +427,7 @@ local function isOwnedByLocalPlayer(unit)
     return true
 end
 
-local function takeUnitsSnapshot()
+--[[local function takeUnitsSnapshot()
     local snapshot = {}
     
     -- Safely get the units folder
@@ -483,6 +490,99 @@ local function takeUnitsSnapshot()
     
     print(string.format("Snapshot taken: %d player-owned units found", #snapshot))
     return snapshot
+end--]]
+
+local function takeUnitsSnapshotWithRetry(attemptNum)
+    attemptNum = attemptNum or 1
+    
+    local snapshot = {}
+    
+    local success, unitsFolder = pcall(function()
+        return Services.Workspace:FindFirstChild("_UNITS")
+    end)
+    
+    if not success or not unitsFolder then 
+        warn("_UNITS folder not found, attempt", attemptNum)
+        
+        if attemptNum < ENHANCED_VALIDATION.MAX_SNAPSHOT_ATTEMPTS then
+            task.wait(0.2)
+            return takeUnitsSnapshotWithRetry(attemptNum + 1)
+        end
+        
+        return snapshot 
+    end
+    
+    local unitsList = {}
+    pcall(function()
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            table.insert(unitsList, unit)
+        end
+    end)
+    
+    for _, unit in ipairs(unitsList) do
+        local isOwned = false
+        local unitData = {}
+        
+        pcall(function()
+            isOwned = isOwnedByLocalPlayer(unit)
+        end)
+        
+        if isOwned then
+            pcall(function()
+                unitData = {
+                    instance = unit,
+                    name = unit.Name,
+                    spawnUUID = unit:GetAttribute("_SPAWN_UNIT_UUID"),
+                    position = nil,
+                    owner = nil
+                }
+                
+                if unit.PrimaryPart then
+                    unitData.position = unit.PrimaryPart.Position
+                else
+                    local firstPart = unit:FindFirstChildWhichIsA("BasePart")
+                    if firstPart then
+                        unitData.position = firstPart.Position
+                    end
+                end
+                
+                unitData.owner = getUnitOwner(unit)
+            end)
+            
+            if unitData.position and unitData.spawnUUID then
+                table.insert(snapshot, unitData)
+            end
+        end
+    end
+    
+    print(string.format("[Snapshot] Attempt %d: Found %d units", attemptNum, #snapshot))
+    return snapshot
+end
+
+local function waitForNewUnitSpawn(beforeSnapshot, maxWaitTime)
+    maxWaitTime = maxWaitTime or ENHANCED_VALIDATION.UNIT_SPAWN_TIMEOUT
+    local waitStart = tick()
+    local checkInterval = 0.2
+    
+    while tick() - waitStart < maxWaitTime do
+        task.wait(checkInterval)
+        
+        local afterSnapshot = takeUnitsSnapshotWithRetry()
+        local newUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+        
+        if newUnit then
+            print(string.format("[Spawn Wait] Found new unit after %.2fs", tick() - waitStart))
+            return newUnit, afterSnapshot
+        end
+        
+        -- Log progress every 2 seconds
+        if (tick() - waitStart) % 2 < checkInterval then
+            print(string.format("[Spawn Wait] Still waiting... (%.1fs elapsed)", tick() - waitStart))
+        end
+    end
+    
+    warn(string.format("[Spawn Wait] Timeout after %.1fs - no new unit detected", tick() - waitStart))
+    return nil, takeUnitsSnapshotWithRetry()
 end
 
     local function findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
@@ -852,29 +952,49 @@ end
     end
 
 local function processPlacementActionWithSpawnIdMapping(actionInfo)
-    -- Use the snapshot that was already taken in the hook
+    print("[Placement] Starting placement processing...")
+    
+    -- Use pre-captured snapshot from hook
     local beforeSnapshot = actionInfo.preActionUnits
     
     if not beforeSnapshot then
-        warn("No pre-action snapshot provided")
+        warn("[Placement] No pre-action snapshot provided!")
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = "ERROR: No snapshot - action may be lost",
+            Duration = 3,
+            Image = 4483362458
+        })
         return
     end
     
-    -- Take after snapshot in main thread
-    local afterSnapshot = takeUnitsSnapshot()
+    print(string.format("[Placement] Before snapshot has %d units", #beforeSnapshot))
     
-    local spawnedUnit = findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
+    -- FIXED: Wait for spawn with polling instead of fixed delay
+    local spawnedUnit, afterSnapshot = waitForNewUnitSpawn(
+        beforeSnapshot, 
+        ENHANCED_VALIDATION.UNIT_SPAWN_TIMEOUT
+    )
+    
     if not spawnedUnit then
-        warn("Could not find newly placed unit")
-        print("[DEBUG] Before UUIDs:")
+        warn("[Placement] Could not find newly placed unit!")
+        
+        -- DEBUG: Show before/after comparison
+        print("[Placement] Before UUIDs:")
         for i, unitData in ipairs(beforeSnapshot) do
             print("    ", i, unitData.spawnUUID)
         end
-        print("[DEBUG] After UUIDs:")
+        print("[Placement] After UUIDs:")
         for i, unitData in ipairs(afterSnapshot) do
             print("    ", i, unitData.spawnUUID)
         end
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not find newly placed unit",Duration = 3,Image = 4483362458})
+        
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = "Could not find newly placed unit - action may be lost",
+            Duration = 5,
+            Image = 4483362458
+        })
         return
     end
     
@@ -882,26 +1002,31 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local displayName = getDisplayNameFromUnitId(internalName)
     
     if not displayName then
-        warn("Could not get display name for unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "Could not get display name for unit",Duration = 3,Image = 4483362458})
+        warn("[Placement] Could not get display name for unit")
+        Rayfield:Notify({
+            Title = "Macro Recorder",
+            Content = "Could not identify unit - action may be incomplete",
+            Duration = 3,
+            Image = 4483362458
+        })
         return
     end
     
-    MacroSystem.recordingPlacementCounter[displayName] = (MacroSystem.recordingPlacementCounter[displayName] or 0) + 1
+    -- Continue with normal processing...
+    MacroSystem.recordingPlacementCounter[displayName] = 
+        (MacroSystem.recordingPlacementCounter[displayName] or 0) + 1
     local placementNumber = MacroSystem.recordingPlacementCounter[displayName]
     local placementId = string.format("%s #%d", displayName, placementNumber)
     
     local stats = spawnedUnit:FindFirstChild("_stats")
     if not stats then
-        warn("No _stats found on spawned unit")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "No _stats found on spawned unit",Duration = 3,Image = 4483362458})
+        warn("[Placement] No _stats found on spawned unit")
         return
     end
 
     local uuidValue = stats:FindFirstChild("uuid")
     if not uuidValue or not uuidValue:IsA("StringValue") then
-        warn("No uuid found in _stats")
-        Rayfield:Notify({Title = "Macro Recorder",Content = "No uuid found in _stats",Duration = 3,Image = 4483362458})
+        warn("[Placement] No uuid found in _stats")
         return
     end
 
@@ -919,7 +1044,6 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
     local raycastData = actionInfo.args[2] or {}
     local rotation = actionInfo.args[3] or 0
     
-    -- SAFE wave number access
     local currentWave = 0
     local waveStartTime = GameTracking.gameStartTime
     
@@ -927,7 +1051,9 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
         local waveNum = workspace:FindFirstChild("_wave_num")
         if waveNum then
             currentWave = waveNum.Value
-            waveStartTime = GameTracking.waveStartTimes and GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+            waveStartTime = GameTracking.waveStartTimes and 
+                           GameTracking.waveStartTimes[currentWave] or 
+                           GameTracking.gameStartTime
         end
     end)
     
@@ -937,14 +1063,16 @@ local function processPlacementActionWithSpawnIdMapping(actionInfo)
         Type = "spawn_unit",
         Unit = placementId,
         Time = formatTimeValue(currentWave, secondsInWave),
-        Pos = raycastData.Origin and string.format("%.17f, %.17f, %.17f", raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
-        Dir = raycastData.Direction and string.format("%.17f, %.17f, %.17f", raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
+        Pos = raycastData.Origin and string.format("%.17f, %.17f, %.17f", 
+            raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
+        Dir = raycastData.Direction and string.format("%.17f, %.17f, %.17f", 
+            raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
         Rot = rotation ~= 0 and rotation or 0
     }
     
     table.insert(macro, placementRecord)
-
-    print("[DEBUG] recorded placement: " .. placementId .. " (Wave ".. currentWave .. ")")
+    
+    print(string.format("[Placement] ✓ Recorded: %s (Wave %d)", placementId, currentWave))
     
     Rayfield:Notify({
         Title = "Macro Recorder",
@@ -1438,44 +1566,61 @@ local function setupMacroHooksRefactored()
         workspace:WaitForChild("_UNITS")
     end)
 
-    -- Hook placement, sell, and ability remotes
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local args = {...}
         local method = getnamecallmethod()
 
-        if not checkcaller() and MacroSystem.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
+        if not checkcaller() and MacroSystem.isRecording and 
+           self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
+                -- FIXED: Capture snapshot BEFORE remote fires
+                local preActionSnapshot = takeUnitsSnapshotWithRetry()
+                
+                print(string.format("[Hook] Spawn detected - snapshot has %d units", 
+                    #preActionSnapshot))
+                
+                -- Store original remote call
+                local remoteResult = oldNamecall(self, ...)
+                
+                -- CRITICAL: Wait for server response
+                task.wait(ENHANCED_VALIDATION.SNAPSHOT_DELAY)
+                
+                -- Process in separate thread but with captured snapshot
                 task.spawn(function()
-                    print("[DEBUG] placement fired")
                     if GameTracking.gameStartTime == 0 then 
                         GameTracking.gameStartTime = tick() 
                     end
-                    -- Wait for main thread to take snapshot
-                    local preActionUnits = takeUnitsSnapshot()
                     
-                    -- Wait for placement to complete
-                    task.wait(0.3)
+                    -- FIXED: Wait for action to complete on server
+                    task.wait(ENHANCED_VALIDATION.POST_ACTION_WAIT)
                     
-                    print("[DEBUG] processing placement")
+                    print("[Hook] Processing placement action...")
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.SPAWN_REMOTE,
                         args = args,
                         timestamp = tick(),
-                        preActionUnits = preActionUnits
+                        preActionUnits = preActionSnapshot
                     })
-                    print("[DEBUG] placement completed")
                 end)
                 
+                return remoteResult
+                
             elseif self.Name == MACRO_CONFIG.SELL_REMOTE then
+                -- Keep sell handling simple since it doesn't need spawn tracking
+                local remoteResult = oldNamecall(self, ...)
+                
                 task.spawn(function()
+                    task.wait(0.2)
                     processActionResponseWithSpawnIdMapping({
                         remoteName = MACRO_CONFIG.SELL_REMOTE,
                         args = args,
                         timestamp = tick()
                     })
                 end)
+                
+                return remoteResult
                 
             elseif self.Name == MACRO_CONFIG.WAVE_SKIP_REMOTE then
                 task.spawn(function()
