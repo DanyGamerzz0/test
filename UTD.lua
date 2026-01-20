@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.43"
+local script_version = "V0.44"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -140,6 +140,43 @@ local Services = {
     VIRTUAL_USER = game:GetService("VirtualUser"),
     RunService = game:GetService("RunService"),
 }
+
+local function incrementExecutionCounter()
+    local requestFunc = syn and syn.request or 
+                    request or 
+                    http_request or 
+                    (fluxus and fluxus.request) or 
+                    getgenv().request
+    
+    if not requestFunc then
+        --print("No HTTP function available for execution counter")
+        return
+    end
+    
+    -- Send in background, don't block script execution
+    task.spawn(function()
+        local success, response = pcall(function()
+            return requestFunc({
+                Url = "https://discord-counter.bloxbanter.workers.dev/increment", -- Replace with your actual worker URL
+                Method = "POST",
+                Headers = { 
+                    ["Content-Type"] = "application/json"
+                }
+            })
+        end)
+        
+        if success and response then
+            if response.StatusCode == 200 then
+                local data = game:GetService("HttpService"):JSONDecode(response.Body)
+                --print("✓ Execution counted! Total:", data.count)
+            else
+                --print("✗ Counter failed with status", response.StatusCode)
+            end
+        else
+            --print("✗ Counter request failed")
+        end
+    end)
+end
 
 task.spawn(function()
     task.wait(2)
@@ -6359,6 +6396,7 @@ task.spawn(function()
 end)
 
 Rayfield:LoadConfiguration()
+incrementExecutionCounter()
 Rayfield:SetVisibility(false)
 
 Rayfield:TopNotify({
