@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.42"
+local script_version = "V0.43"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -907,6 +907,24 @@ local generalHook = newcclosure(function(self, ...)
                 -- Stop tracking this unit
                 stopTrackingUnitChanges(uuid)
                 recordingUUIDToTag[uuid] = nil
+                elseif method == "FireServer" and self.Name == "UseAbility" then
+    local uuid = args[1]
+    local abilitySlot = args[2]
+    
+    local unitTag = recordingUUIDToTag[uuid]
+    if not unitTag then
+        warn("⚠️ Ability used for untracked unit:", uuid)
+        return
+    end
+    
+    table.insert(macro, {
+        Type = "use_ability",
+        Unit = unitTag,
+        AbilitySlot = abilitySlot,
+        Time = string.format("%.2f", gameRelativeTime)
+    })
+    
+    print(string.format("✓ Recorded ability: %s (UUID=%s) Slot %d", unitTag, uuid, abilitySlot))
             end
         end)
     end
@@ -1196,6 +1214,40 @@ local function executeUnitSell(action, actionIndex, totalActions)
     end
     
     updateDetailedStatus("Sell failed")
+    return false
+end
+
+local function executeUnitAbility(action, actionIndex, totalActions)
+    updateMacroStatus(string.format("(%d/%d) Using %s ability", actionIndex, totalActions, action.Unit))
+    
+    local uuid = playbackUnitTagToUUID[action.Unit]
+    
+    if not uuid or type(uuid) ~= "string" then
+        updateDetailedStatus(string.format("Error: Invalid UUID for %s", action.Unit))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("Using %s ability (Slot %d)...", action.Unit, action.AbilitySlot))
+    
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("Packages")
+            :WaitForChild("_Index")
+            :WaitForChild("sleitnick_knit@1.7.0")
+            :WaitForChild("knit")
+            :WaitForChild("Services")
+            :WaitForChild("TowerService")
+            :WaitForChild("RE")
+            :WaitForChild("UseAbility")
+            :FireServer(uuid, action.AbilitySlot)
+    end)
+    
+    if success then
+        updateDetailedStatus(string.format("Used %s ability ✓", action.Unit))
+        return true
+    end
+    
+    updateDetailedStatus("Ability use failed")
     return false
 end
 
@@ -5189,10 +5241,35 @@ local function playMacro()
             
         elseif action.Type == "sell_unit" then
             success = executeUnitSell(action, i, totalActions)
-        end
+        elseif action.Type == "use_ability" then
+    -- If ignore timing is ON, schedule ability in background
+    if ignoreTiming then
+        -- Get the action time for scheduling
+        local abilityTime = tonumber(action.Time)
+        local currentElapsedTime = tick() - startTime
+        local delayTime = math.max(0, abilityTime - currentElapsedTime)
         
-        task.wait(0.1)
+        -- Schedule ability in background thread
+        task.spawn(function()
+            task.wait(delayTime)
+            
+            -- Check if game is still active before firing
+            local matchFinished = workspace:GetAttribute("MatchFinished")
+            if isPlaybackEnabled and gameInProgress and not matchFinished then
+                executeUnitAbility(action, i, totalActions)
+            end
+        end)
+        
+        -- Don't block the macro - mark as success immediately
+        success = true
+        updateDetailedStatus(string.format("(%d/%d) Scheduled ability for %s", i, totalActions, action.Unit))
+    else
+        -- Normal mode - execute ability now
+        success = executeUnitAbility(action, i, totalActions)
     end
+end
+    task.wait(0.1)
+end
     
     updateMacroStatus("Playback Complete")
     updateDetailedStatus(string.format("Completed %d/%d actions ✓", totalActions, totalActions))
