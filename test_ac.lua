@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.13"
+    local script_version = "V0.14"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1031,30 +1031,26 @@ local function processWaveSkipAction(actionInfo)
     Rayfield:Notify({Title = "Macro Recorder",Content = "Recorded wave skip",Duration = 3,Image = 4483362458})
 end
 
-local function processAbilityActionWithSpawnIdMapping(actionInfo)
-    local rawUnitUUID = actionInfo.unitUUID
-    
-    -- DEBUG: Print ALL current mappings
-    print("=== CURRENT COMBINED ID MAPPINGS ===")
-    for combinedId, placement in pairs(MacroSystem.recordingSpawnIdToPlacement) do
-        print(string.format("  Combined ID: %s -> Placement: %s", combinedId, placement))
-    end
-    print(string.format("=== SEARCHING FOR COMBINED ID: %s ===", rawUnitUUID))
-    
-    -- Find which placement ID this combined identifier belongs to
-    local placementId = nil
-    
-    -- First, try exact match with the combined identifier
-    placementId = MacroSystem.recordingSpawnIdToPlacement[rawUnitUUID]
-    
-    if placementId then
-        print(string.format("Found exact match: %s -> %s", rawUnitUUID, placementId))
-    else
-        warn("Could not find placement ID for combined identifier:", rawUnitUUID)
+local function processAbilityRecording(actionInfo)
+    local capturedUnitUUID = actionInfo.args[1]
+    if not capturedUnitUUID then
+        warn("No UUID provided for ability")
         return
     end
     
-    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    -- Look up the placement ID directly from our mapping
+    -- (Same approach as sell - no Instance access needed)
+    local placementId = MacroSystem.recordingSpawnIdToPlacement[capturedUnitUUID]
+    
+    if not placementId then
+        warn("Could not find placement ID for UUID:", capturedUnitUUID)
+        return
+    end
+    
+    -- Calculate wave-based time
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
     
     local abilityRecord = {
         Type = "use_active_attack",
@@ -1062,21 +1058,263 @@ local function processAbilityActionWithSpawnIdMapping(actionInfo)
         Time = string.format("%.2f", gameRelativeTime)
     }
     
-    -- Only include AbilityName if it was provided
-    if actionInfo.abilityName then
-        abilityRecord.AbilityName = actionInfo.abilityName
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
+local function processHestiaAbilityRecording(actionInfo)
+    local targetSpawnId = actionInfo.args[1]
+    
+    if not targetSpawnId then
+        warn("No spawn ID provided for Hestia ability")
+        return
     end
+    
+    -- FIXED: Find the unit by spawn_id and get its placement ID
+    local targetPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(targetSpawnId) then
+                        -- Found the unit! Get its combined identifier
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            targetPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if targetPlacementId then
+                                print(string.format("Found Hestia target: spawn_id=%s -> placement=%s", 
+                                    tostring(targetSpawnId), targetPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not targetPlacementId then
+        warn("Could not find placement ID for Hestia target spawn ID:", targetSpawnId)
+        return
+    end
+    
+    -- Calculate wave-based time
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "hestia_assign_blade",
+        Target = targetPlacementId,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
     
     table.insert(macro, abilityRecord)
     
-    print(string.format("Recorded ability: %s at time %.2f%s", 
-        placementId, 
-        gameRelativeTime,
-        actionInfo.abilityName and (" (" .. actionInfo.abilityName .. ")") or ""
-    ))
     Rayfield:Notify({
         Title = "Macro Recorder",
-        Content = string.format("Recorded ability: %s", placementId),
+        Content = string.format("Recorded Hestia ability: %s (Wave %d)", targetPlacementId, currentWave),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
+local function processLelouchAbilityRecording(actionInfo)
+    local lelouchSpawnId = actionInfo.args[1]  -- Lelouch's spawn_id
+    local targetSpawnId = actionInfo.args[2]   -- Target's spawn_id
+    local pieceType = actionInfo.args[3]        -- Piece type
+    
+    if not lelouchSpawnId or not targetSpawnId or not pieceType then
+        warn("Missing arguments for Lelouch ability")
+        print("DEBUG: lelouchSpawnId =", lelouchSpawnId, "targetSpawnId =", targetSpawnId, "pieceType =", pieceType)
+        return
+    end
+    
+    -- Find LELOUCH's placement ID
+    local lelouchPlacementId = nil
+    local targetPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    
+                    if unitSpawnId then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            -- Match Lelouch by his spawn_id
+                            if tostring(unitSpawnId.Value) == tostring(lelouchSpawnId) and placementId then
+                                lelouchPlacementId = placementId
+                                print(string.format("Found Lelouch: spawn_id=%s -> placement=%s", 
+                                    tostring(lelouchSpawnId), lelouchPlacementId))
+                            end
+                            
+                            -- Match target by their spawn_id
+                            if tostring(unitSpawnId.Value) == tostring(targetSpawnId) and placementId then
+                                targetPlacementId = placementId
+                                print(string.format("Found Lelouch target: spawn_id=%s -> placement=%s", 
+                                    tostring(targetSpawnId), targetPlacementId))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not lelouchPlacementId then
+        warn("Could not find placement ID for Lelouch spawn ID:", lelouchSpawnId)
+        return
+    end
+    
+    if not targetPlacementId then
+        warn("Could not find placement ID for Lelouch target spawn ID:", targetSpawnId)
+        return
+    end
+    
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "lelouch_choose_piece",
+        Lelouch = lelouchPlacementId,  -- NEW: Store Lelouch's placement ID
+        Target = targetPlacementId,
+        Piece = pieceType,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Lelouch: %s (%s) -> %s", lelouchPlacementId, pieceType, targetPlacementId),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
+local function processDioAbilityRecording(actionInfo)
+    local dioSpawnId = actionInfo.args[1]
+    local abilityType = actionInfo.args[2]
+    
+    if not dioSpawnId or not abilityType then
+        warn("Missing arguments for Dio ability")
+        return
+    end
+    
+    -- Find Dio's placement ID by spawn_id
+    local dioPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(dioSpawnId) then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            dioPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if dioPlacementId then
+                                print(string.format("Found Dio: spawn_id=%s -> placement=%s", 
+                                    tostring(dioSpawnId), dioPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not dioPlacementId then
+        warn("Could not find placement ID for Dio spawn ID:", dioSpawnId)
+        return
+    end
+end
+
+local function processFrierenAbilityRecording(actionInfo)
+    local frierenSpawnId = actionInfo.args[1]
+    local magicType = actionInfo.args[2]
+    
+    if not frierenSpawnId or not magicType then
+        warn("Missing arguments for Frieren ability")
+        return
+    end
+    
+    -- Find Frieren's placement ID by spawn_id
+    local frierenPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(frierenSpawnId) then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            frierenPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if frierenPlacementId then
+                                print(string.format("Found Frieren: spawn_id=%s -> placement=%s", 
+                                    tostring(frierenSpawnId), frierenPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not frierenPlacementId then
+        warn("Could not find placement ID for Frieren spawn ID:", frierenSpawnId)
+        return
+    end
+    
+    local currentWave = getCurrentWaveNumber()
+    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
+    local secondsInWave = actionInfo.timestamp - waveStartTime
+    
+    local abilityRecord = {
+        Type = "frieren_magics",
+        Frieren = frierenPlacementId,
+        Magic = magicType,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Frieren: %s (%s)", frierenPlacementId, magicType),
         Duration = 2,
         Image = 4483362458
     })
@@ -1101,6 +1339,16 @@ local function processActionResponseWithSpawnIdMapping(actionInfo)
             Image = 4483362458,
         })
         processWaveSkipAction(actionInfo)
+         elseif actionInfo.remoteName == "use_active_attack" then
+        processAbilityRecording(actionInfo)
+        elseif actionInfo.remoteName == "HestiaAssignBlade" then
+    processHestiaAbilityRecording(actionInfo)
+elseif actionInfo.remoteName == "LelouchChoosePiece" then
+    processLelouchAbilityRecording(actionInfo)
+    elseif actionInfo.remoteName == "DioWrites" then
+        processDioAbilityRecording(actionInfo)
+    elseif actionInfo.remoteName == "FrierenMagics" then
+        processFrierenAbilityRecording(actionInfo)
     end
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
@@ -1118,8 +1366,7 @@ local function setupMacroHooksRefactored()
         local args = {...}
         local method = getnamecallmethod()
 
-        if not checkcaller() and MacroSystem.isRecording and method == "InvokeServer"
-           and self.Parent and self.Parent.Name == "client_to_server" then
+        if not checkcaller() and MacroSystem.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
 
             if self.Name == MACRO_CONFIG.SPAWN_REMOTE then
                 task.spawn(function()
@@ -1149,53 +1396,85 @@ local function setupMacroHooksRefactored()
                     })
                 end)
            elseif self.Name == "use_active_attack" then
-    -- Record ability usage with optional ability name
+                task.spawn(function()
+                    
+                local capturedUnitUUID = args[1]
+                    processActionResponseWithSpawnIdMapping({
+                        remoteName = "use_active_attack",
+                        args = {capturedUnitUUID},
+                        timestamp = tick()
+                    })
+                end)
+            elseif self.Name == "HestiaAssignBlade" then
+                local targetSpawnId = args[1]
+                task.spawn(function()
+                    processActionResponseWithSpawnIdMapping({
+                     remoteName = "HestiaAssignBlade",
+                     args = {targetSpawnId},
+                     timestamp = tick()
+                })
+            end)
+            elseif self.Name == "DioWrites" then
+    local dioSpawnId = args[1]
+    local abilityType = args[2]  -- "ZAWARUDO", "EraseMotion", "EraseThought", "EraseForce", "EraseForm"
+    
     task.spawn(function()
-        -- Get the unit's UUID AND spawn_id to create stable identifier
-        local unitIdentifier = args[1] -- This is the UUID passed to the remote
-        
-        -- Try to find the actual unit to get its spawn_id
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        if unitsFolder then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
-                if isOwnedByLocalPlayer(unit) then
-                    local stats = unit:FindFirstChild("_stats")
-                    if stats then
-                        local uuidValue = stats:FindFirstChild("uuid")
-                        local spawnIdValue = stats:FindFirstChild("spawn_id")
-                        
-                        if uuidValue and uuidValue:IsA("StringValue") and 
-                           uuidValue.Value == args[1] then
-                            -- Found the unit - create combined identifier
-                            if spawnIdValue then
-                                unitIdentifier = uuidValue.Value .. spawnIdValue.Value
-                                print("DEBUG: Created combined identifier:", unitIdentifier)
-                            end
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        
-        -- Only include abilityName if args[2] exists AND is a string AND is not empty
-        local abilityName = nil
-        if args[2] and type(args[2]) == "string" and args[2] ~= "" then
-            abilityName = args[2]
-            print("DEBUG: Captured ability name:", abilityName)
-        else
-            print("DEBUG: No ability name (args[2] =", type(args[2]), ":", tostring(args[2]), ")")
-        end
-        
-        processAbilityActionWithSpawnIdMapping({
-            unitUUID = unitIdentifier, -- Now using UUID+spawn_id
-            abilityName = abilityName,
+        processActionResponseWithSpawnIdMapping({
+            remoteName = "DioWrites",
+            args = {dioSpawnId, abilityType},
             timestamp = tick()
         })
     end)
-end
-end
-
+    
+-- NEW: Frieren abilities
+elseif self.Name == "FrierenMagics" then
+    local frierenSpawnId = args[1]
+    local magicType = args[2]  -- "Thunderfire", "Judgement", "Void"
+    
+    task.spawn(function()
+        processActionResponseWithSpawnIdMapping({
+            remoteName = "FrierenMagics",
+            args = {frierenSpawnId, magicType},
+            timestamp = tick()
+        })
+    end)
+            elseif self.Name == "LelouchChoosePiece" then
+    local lelouchSpawnId = args[1]  -- This is LELOUCH's spawn_id
+    local pieceType = args[2]
+    
+    print("DEBUG LelouchChoosePiece: Lelouch spawn_id =", lelouchSpawnId, "Piece =", pieceType)
+    
+    -- Store for the next AssignUnit call
+    MacroSystem.lelouchPendingPiece = {
+        lelouchSpawnId = lelouchSpawnId,  -- NEW: Store Lelouch's spawn_id too
+        pieceType = pieceType,
+        timestamp = tick()
+    }
+                elseif self.Name == "LelouchAssignUnit" then
+    local targetSpawnId = args[1]  -- This is the TARGET's spawn_id
+    
+    print("DEBUG LelouchAssignUnit: Target spawn_id =", targetSpawnId)
+    
+    -- Get the piece type and Lelouch's spawn_id from the previous ChoosePiece call
+    if MacroSystem.lelouchPendingPiece then
+        local lelouchSpawnId = MacroSystem.lelouchPendingPiece.lelouchSpawnId
+        local pieceType = MacroSystem.lelouchPendingPiece.pieceType
+        
+        task.spawn(function()
+            processActionResponseWithSpawnIdMapping({
+                remoteName = "LelouchChoosePiece",
+                args = {lelouchSpawnId, targetSpawnId, pieceType},  -- FIXED: Pass both spawn_ids
+                timestamp = tick()
+            })
+        end)
+        
+        -- Clear pending data
+        MacroSystem.lelouchPendingPiece = nil
+    else
+        warn("LelouchAssignUnit fired but no pending piece data!")
+    end
+        end
+    end
         return oldNamecall(self, ...)
     end)
 
