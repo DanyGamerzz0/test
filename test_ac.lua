@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.16"
+    local script_version = "V0.17"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1047,11 +1047,6 @@ local function processAbilityRecording(actionInfo)
         return
     end
     
-    -- Calculate wave-based time
-    local currentWave = getCurrentWaveNumber()
-    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
-    local secondsInWave = actionInfo.timestamp - waveStartTime
-    
     local abilityRecord = {
         Type = "use_active_attack",
         Unit = placementId,
@@ -1062,7 +1057,7 @@ local function processAbilityRecording(actionInfo)
     
     Rayfield:Notify({
         Title = "Macro Recorder",
-        Content = string.format("Recorded ability: %s (Wave %d)", placementId, currentWave),
+        Content = string.format("Recorded ability: %s (Wave %d)", placementId),
         Duration = 2,
         Image = 4483362458
     })
@@ -1110,11 +1105,6 @@ local function processHestiaAbilityRecording(actionInfo)
         return
     end
     
-    -- Calculate wave-based time
-    local currentWave = getCurrentWaveNumber()
-    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
-    local secondsInWave = actionInfo.timestamp - waveStartTime
-    
     local abilityRecord = {
         Type = "hestia_assign_blade",
         Target = targetPlacementId,
@@ -1125,7 +1115,7 @@ local function processHestiaAbilityRecording(actionInfo)
     
     Rayfield:Notify({
         Title = "Macro Recorder",
-        Content = string.format("Recorded Hestia ability: %s (Wave %d)", targetPlacementId, currentWave),
+        Content = string.format("Recorded Hestia ability: %s (Wave %d)", targetPlacementId),
         Duration = 2,
         Image = 4483362458
     })
@@ -1189,10 +1179,6 @@ local function processLelouchAbilityRecording(actionInfo)
         warn("Could not find placement ID for Lelouch target spawn ID:", targetSpawnId)
         return
     end
-    
-    local currentWave = getCurrentWaveNumber()
-    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
-    local secondsInWave = actionInfo.timestamp - waveStartTime
     
     local abilityRecord = {
         Type = "lelouch_choose_piece",
@@ -1298,10 +1284,6 @@ local function processFrierenAbilityRecording(actionInfo)
         warn("Could not find placement ID for Frieren spawn ID:", frierenSpawnId)
         return
     end
-    
-    local currentWave = getCurrentWaveNumber()
-    local waveStartTime = GameTracking.waveStartTimes[currentWave] or GameTracking.gameStartTime
-    local secondsInWave = actionInfo.timestamp - waveStartTime
     
     local abilityRecord = {
         Type = "frieren_magics",
