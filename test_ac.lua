@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.15"
+    local script_version = "V0.16"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3045,9 +3045,100 @@ end
         return nil
     end
 
+        local function findAllUnits()
+    local gc = getgc(true)
+    local units = {}
+    local seen = {}
+    
+    for _, obj in pairs(gc) do
+        if type(obj) == "table" then
+            local hasUnitId = rawget(obj, "unit_id") ~= nil
+            local hasTraits = rawget(obj, "traits") ~= nil
+            local hasUuid = rawget(obj, "uuid") ~= nil
+            
+            if hasUnitId and hasTraits and hasUuid then
+                local uuid = obj.uuid
+                if not seen[uuid] then
+                    seen[uuid] = true
+                    table.insert(units, obj)
+                end
+            end
+        end
+    end
+    
+    return units
+end
+
     local function isInLobby()
         return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
     end
+
+        local function normalizeShinyUnits()
+    if not State.AutoNormalizeShiny or #State.NormalizeRarityFilter == 0 then return end
+    if not isInLobby() then return end
+    
+    local allUnits = findAllUnits()
+    if #allUnits == 0 then
+        --print("No units found for normalization")
+        return
+    end
+    
+    local normalizedCount = 0
+    
+    for _, unit in ipairs(allUnits) do
+        -- Skip if not shiny (safety check)
+        if not unit.shiny then
+            continue
+        end
+        
+        -- Skip if locked
+        if unit._locked then
+            continue
+        end
+        
+        -- Get unit data to check rarity
+        local unitData = getUnitData(unit.unit_id)
+        if not unitData then
+            continue
+        end
+        
+        local unitRarity = unitData.rarity
+        
+        -- Check if rarity matches filter
+        local shouldNormalize = false
+        for _, selectedRarity in ipairs(State.NormalizeRarityFilter) do
+            if unitRarity == selectedRarity then
+                shouldNormalize = true
+                break
+            end
+        end
+        
+        if not shouldNormalize then
+            continue
+        end
+        
+        -- Normalize the unit
+        local success = pcall(function()
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_remove_shiny"):InvokeServer(unit.uuid)
+        end)
+        
+        if success then
+            normalizedCount = normalizedCount + 1
+            --print(string.format("Normalized: %s (%s) - UUID: %s", 
+                --unitData.name or "Unknown", 
+                --unitRarity or "Unknown",
+                --unit.uuid))
+            
+            task.wait(0.2) -- Small delay between normalizations
+        else
+            --warn("Failed to normalize unit:", unit.uuid)
+        end
+    end
+    
+    -- Summary notification
+    notify("Auto Normalize Complete", string.format("Normalized %d shiny units", normalizedCount))
+    --print(string.format("\n=== Normalized %d shiny units ===", normalizedCount))
+end
 
     local function canPerformAction()
         return tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown
@@ -4323,17 +4414,10 @@ local function getBannerIdFromName(bannerName)
         return "EventClover"
     elseif bannerName == "Banner 2" then
         return "Christmas"
+    elseif bannerName == "Banner 3" then
+        return "Event" -- Replace with actual Banner 3 ID
     end
     return nil
-end
-
-local function getCurrencyNameForBanner(bannerName)
-    if bannerName == "Banner 1" then
-        return "Gems"
-    elseif bannerName == "Banner 2" then
-        return "Gingerbread Tokens"
-    end
-    return "Currency"
 end
 
 local function captureUnitCounts()
@@ -4464,26 +4548,15 @@ local function sendSummonWebhook()
     end
     
     local bannerName = State.AutoSummonBanner or "Unknown"
-    local currencyName = getCurrencyNameForBanner(bannerName)
     
     local data = {
         username = "LixHub",
         content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
         embeds = {{
-            title = "Auto Summon",
+            title = "Auto Summon Complete",
             description = string.format("**Banner:** %s", bannerName),
-            color = Color3.fromRGB(64, 64, 64),
+            color = 0x5865F2,
             fields = {
-                {
-                    name = "Currency Spent",
-                    value = string.format("%d %s", State.CurrencySpent, currencyName),
-                    inline = true
-                },
-                {
-                    name = "Total Summons",
-                    value = getCostForBanner(State.AutoSummonBanner) > 0 and math.floor(State.CurrencySpent / getCostForBanner(State.AutoSummonBanner)) or 0,
-                    inline = true
-                },
                 {
                     name = "Units Obtained",
                     value = unitsText,
@@ -6035,21 +6108,18 @@ end
         end,
     })
 
-    LobbyTab:CreateSection("Auto Summon")
+LobbyTab:CreateSection("Auto Summon")
 
-    LobbyTab:CreateToggle({
+LobbyTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "AutoSummon", 
-    Info = "Automatically summon on selected banner",
+    Info = "Automatically summons until stopped",
     Callback = function(Value)
         State.AutoSummon = Value
         
-        if not Value and State.CurrencySpent > 0 then
-            notify("Auto Summon", "Stopped - Sending summary to webhook...")
-        end
-        
         if Value then
+            -- Starting auto-summon
             if not State.AutoSummonBanner then
                 notify("Auto Summon", "Please select a banner first!")
                 return
@@ -6057,110 +6127,138 @@ end
             
             -- Reset tracking when starting
             State.SummonedUnits = {}
-            State.CurrencySpent = 0
+            State.BeforeSummonCounts = nil
+            State.SummonMarkersSet = false
             
-            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
-            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-            local summonCost = getCostForBanner(State.AutoSummonBanner)
+            notify("Auto Summon", string.format("Started summoning on %s", State.AutoSummonBanner))
             
-            notify("Auto Summon", 
-                string.format("Started on %s (%d %s available)", 
-                    State.AutoSummonBanner, currentCurrency, currencyName))
+        else
+            -- Stopping auto-summon - process units
+            if State.SummonMarkersSet then
+                task.spawn(function()
+                    notify("Auto Summon", "Stopped...")
+                    task.wait(5)
+                    
+                    -- Take AFTER snapshot
+                    local afterCounts = captureUnitCounts()
+                    
+                    -- Compare to find new units
+                    if State.BeforeSummonCounts then
+                        local newUnits = compareUnitCounts(State.BeforeSummonCounts, afterCounts)
+                        
+                        for unitName, count in pairs(newUnits) do
+                            State.SummonedUnits[unitName] = count
+                        end
+                    end
+                    
+                    -- Send webhook if any units were summoned
+                    local hasUnits = next(State.SummonedUnits) ~= nil
+                    
+                    if hasUnits then
+                        sendSummonWebhook()
+                        notify("Auto Summon", "Summary sent to webhook!")
+                    else
+                        notify("Auto Summon", "No new units detected")
+                    end
+                    
+                    -- Reset tracking
+                    State.SummonedUnits = {}
+                    State.BeforeSummonCounts = nil
+                    State.SummonMarkersSet = false
+                end)
+            end
         end
     end,
 })
 
-    LobbyTab:CreateDropdown({
+LobbyTab:CreateDropdown({
     Name = "Select Banner To Auto Summon",
-    Options = {"Banner 1", "Banner 2"},
+    Options = {"Banner 1", "Banner 2", "Banner 3"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "AutoSummonBanner",
     Callback = function(Options)
         State.AutoSummonBanner = Options[1]
-        
-        if State.AutoSummonBanner then
-            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
-            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-            local summonCost = getCostForBanner(State.AutoSummonBanner)
-            
-            notify("Banner Selected", 
-                string.format("%s selected (%d %s available, %d per summon)", 
-                    State.AutoSummonBanner, currentCurrency, currencyName, summonCost))
-        end
     end,
 })
 
 local SummonStatusLabel = LobbyTab:CreateLabel("Auto Summon: Idle")
 
-local function updateSummonStatus()
-    if State.AutoSummon and State.AutoSummonBanner then
-        local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
-        local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-        local summonCost = getCostForBanner(State.AutoSummonBanner)
-        local totalSummons = summonCost > 0 and math.floor(State.CurrencySpent / summonCost) or 0
+LobbyTab:CreateSection("Auto Normalize Shiny")
+
+
+LobbyTab:CreateToggle({
+    Name = "Auto Normalize Shiny",
+    CurrentValue = false,
+    Flag = "AutoNormalizeShiny",
+    Info = "Automatically remove shiny from units based on selected rarities (skips locked units)",
+    Callback = function(Value)
+        State.AutoNormalizeShiny = Value
         
-        SummonStatusLabel:Set(string.format("Auto Summon: %d summons | %d %s spent | %d %s left", 
-            totalSummons, State.CurrencySpent, currencyName, currentCurrency, currencyName))
-    else
-        SummonStatusLabel:Set("Auto Summon: Idle")
-    end
-end
+        if Value and #State.NormalizeRarityFilter == 0 then
+            notify("Auto Normalize", "Please select at least one rarity to normalize!")
+        end
+    end,
+})
+
+LobbyTab:CreateDropdown({
+    Name = "Select Rarities to Normalize",
+    Options = {"Rare", "Epic", "Legendary"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "NormalizeRarityFilter",
+    Info = "Only normalize shiny units of these rarities (locked units are always skipped)",
+    Callback = function(Options)
+        State.NormalizeRarityFilter = Options or {}
+        
+        if #State.NormalizeRarityFilter > 0 then
+            local rarityText = table.concat(State.NormalizeRarityFilter, ", ")
+            print("Normalize rarity filter updated:", rarityText)
+        else
+            print("Normalize rarity filter cleared")
+        end
+    end,
+})
 
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.5)
         
         if State.AutoSummon and State.AutoSummonBanner and isInLobby() then
-            local currentCurrency = getCurrencyForBanner(State.AutoSummonBanner)
-            local summonCost = getCostForBanner(State.AutoSummonBanner)
-            local currencyName = getCurrencyNameForBanner(State.AutoSummonBanner)
-            
-            local affordableSummons = getMaxAffordableSummons(State.AutoSummonBanner)
-
+            -- Destroy rewards GUI if it appears
             if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards") then
                 Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ObtainedRewards"):Destroy()
             end
             
-            if affordableSummons > 0 then
-                local success, message, costSpent = performBatchSummon(State.AutoSummonBanner, affordableSummons)
-                
-                if success then
-                    State.CurrencySpent = State.CurrencySpent + costSpent
-                    
-                    -- UPDATE IMMEDIATELY AFTER SUMMON
-                    updateSummonStatus()
-                    
-                else
-                    warn("Auto Summon failed:", message)
-                    task.wait(2)
-                end
-                
-                task.wait(1)
-            else
-                
-                State.AutoSummon = false
-                
-                if State.CurrencySpent > 0 then
-                    sendSummonWebhook()
-                end
-                
-                State.SummonedUnits = {}
-                State.CurrencySpent = 0
-                
-                updateSummonStatus() -- Update when stopping
-                
-                notify("Auto Summon", 
-                    string.format("Stopped - Not enough %s (%d/%d)", 
-                        currencyName, currentCurrency, summonCost))
+            -- Take BEFORE snapshot only on first summon
+            if not State.SummonMarkersSet then
+                State.BeforeSummonCounts = captureUnitCounts()
+                State.SummonMarkersSet = true
             end
-        elseif not State.AutoSummon and State.CurrencySpent > 0 then
-            sendSummonWebhook()
             
-            State.SummonedUnits = {}
-            State.CurrencySpent = 0
+            local bannerId = getBannerIdFromName(State.AutoSummonBanner)
+            if not bannerId then
+                task.wait(2)
+                continue
+            end
             
-            updateSummonStatus() -- Update when manually stopped
+            -- Always do x50 summons
+            local success, result = pcall(function()
+                return Services.ReplicatedStorage:WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("buy_from_banner")
+                    :InvokeServer(bannerId, "gems10", 50)
+            end)
+            
+            if success then
+                SummonStatusLabel:Set(string.format("Auto Summon: Active on %s", State.AutoSummonBanner))
+                task.wait(2)
+            else
+                SummonStatusLabel:Set(string.format("Auto Summon: Error - %s", tostring(result):sub(1, 30)))
+                task.wait(3)
+            end
+        else
+            SummonStatusLabel:Set("Auto Summon: Idle")
         end
     end
 end)
@@ -8951,6 +9049,15 @@ task.spawn(function()
     end)
     
     print("Hooked into Select_Portals remote - ready to store portal data")
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoNormalizeShiny and isInLobby() and #State.NormalizeRarityFilter > 0 then
+            normalizeShinyUnits()
+        end
+    end
 end)
 
     -- ========== REMOTE EVENT CONNECTIONS ==========
