@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.14"
+    local script_version = "V0.15"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2030,37 +2030,293 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     local combinedIdentifier = uuidValue.Value
     if spawnIdValue then
         combinedIdentifier = combinedIdentifier .. spawnIdValue.Value
-        print(string.format("Created combined identifier for ability: %s", combinedIdentifier))
     end
     
-    local abilityDesc = action.AbilityName and 
-        string.format("ability '%s'", action.AbilityName) or "ability"
-    
-    updateDetailedStatus(string.format("(%d/%d) Using %s for %s", 
-        actionIndex, totalActionCount, abilityDesc, placementId))
+    updateDetailedStatus(string.format("(%d/%d) Using ability for %s", 
+        actionIndex, totalActionCount, placementId))
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        
-        if action.AbilityName then
-            -- Pass combined identifier + ability name
-            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier, action.AbilityName)
-        else
-            -- Pass combined identifier only
-            endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
-        end
+        task.wait(2)
+        endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
     end)
     
     if success then
         task.wait(0.2)
-        updateDetailedStatus(string.format("(%d/%d) Successfully used %s for %s", 
-            actionIndex, totalActionCount, abilityDesc, placementId))
+        updateDetailedStatus(string.format("(%d/%d) Successfully used ability for %s", 
+            actionIndex, totalActionCount, placementId))
         return true
     else
-        updateDetailedStatus(string.format("(%d/%d) Failed to use %s for %s", 
-            actionIndex, totalActionCount, abilityDesc, placementId))
+        updateDetailedStatus(string.format("(%d/%d) Failed to use ability for %s", 
+            actionIndex, totalActionCount, placementId))
         return false
     end
+end
+
+local function validateHestiaAbilityAction(action, actionIndex, totalActionCount)
+    local targetPlacementId = action.Target
+    
+    -- Get the current spawn_id for this placement
+    local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
+    
+    if not currentSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for %s", 
+            actionIndex, totalActionCount, targetPlacementId))
+        return false
+    end
+    
+    -- Extract just the spawn_id value (not the combined identifier)
+    local actualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        actualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not actualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find spawn_id for %s", 
+            actionIndex, totalActionCount, targetPlacementId))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Hestia ability on %s (spawn_id: %s)", 
+        actionIndex, totalActionCount, targetPlacementId, tostring(actualSpawnId)))
+    
+    local success = pcall(function()
+        -- Wait for Hestia's ability to be ready
+        task.wait(3)
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("HestiaAssignBlade")
+            :FireServer(actualSpawnId)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Hestia ability used", actionIndex, totalActionCount))
+        return true
+    end
+    return false
+end
+
+local function validateLelouchAbilityAction(action, actionIndex, totalActionCount)
+    local lelouchPlacementId = action.Lelouch
+    local targetPlacementId = action.Target
+    
+    -- Get Lelouch's spawn_id
+    local lelouchSpawnId = MacroSystem.playbackPlacementToSpawnId[lelouchPlacementId]
+    
+    if not lelouchSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Lelouch %s", 
+            actionIndex, totalActionCount, lelouchPlacementId))
+        return false
+    end
+    
+    -- Get target's spawn_id
+    local targetSpawnId = MacroSystem.playbackPlacementToSpawnId[targetPlacementId]
+    
+    if not targetSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for target %s", 
+            actionIndex, totalActionCount, targetPlacementId))
+        return false
+    end
+    
+    -- Extract actual spawn_id values
+    local lelouchActualSpawnId = nil
+    local targetActualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local unitSpawnId = getUnitSpawnId(unit)
+                local stats = unit:FindFirstChild("_stats")
+                
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        if unitSpawnId == lelouchSpawnId then
+                            lelouchActualSpawnId = spawnIdValue.Value
+                        end
+                        if unitSpawnId == targetSpawnId then
+                            targetActualSpawnId = spawnIdValue.Value
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not lelouchActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Lelouch spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    if not targetActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find target spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Lelouch (%s): %s -> %s", 
+        actionIndex, totalActionCount, action.Piece, lelouchPlacementId, targetPlacementId))
+    
+    local success = pcall(function()
+        -- Wait for Lelouch's ability to be ready
+        task.wait(0.5)
+        
+        -- Step 1: Choose the piece type (uses Lelouch's spawn_id)
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("LelouchChoosePiece")
+            :FireServer(lelouchActualSpawnId, action.Piece)
+        
+        task.wait(0.1) -- Small delay between steps
+        
+        -- Step 2: Assign to unit (uses target's spawn_id)
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("LelouchAssignUnit")
+            :FireServer(targetActualSpawnId)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Lelouch ability used", actionIndex, totalActionCount))
+        return true
+    end
+    return false
+end
+
+local function validateDioAbilityAction(action, actionIndex, totalActionCount)
+    local dioPlacementId = action.Dio
+    local abilityType = action.Ability
+    
+    -- Get Dio's spawn_id
+    local dioSpawnId = MacroSystem.playbackPlacementToSpawnId[dioPlacementId]
+    
+    if not dioSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Dio %s", 
+            actionIndex, totalActionCount, dioPlacementId))
+        return false
+    end
+    
+    -- Extract actual spawn_id value
+    local dioActualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == dioSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        dioActualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not dioActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Dio spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Dio ability: %s (%s)", 
+        actionIndex, totalActionCount, dioPlacementId, abilityType))
+    
+    local success = pcall(function()
+        task.wait(0.3) -- Small delay
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("DioWrites")
+            :FireServer(dioActualSpawnId, abilityType)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Dio ability used (%s)", 
+            actionIndex, totalActionCount, abilityType))
+        return true
+    end
+    return false
+end
+
+local function validateFrierenAbilityAction(action, actionIndex, totalActionCount)
+    local frierenPlacementId = action.Frieren
+    local magicType = action.Magic
+    
+    -- Get Frieren's spawn_id
+    local frierenSpawnId = MacroSystem.playbackPlacementToSpawnId[frierenPlacementId]
+    
+    if not frierenSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Frieren %s", 
+            actionIndex, totalActionCount, frierenPlacementId))
+        return false
+    end
+    
+    -- Extract actual spawn_id value
+    local frierenActualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == frierenSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        frierenActualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not frierenActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Frieren spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Frieren magic: %s (%s)", 
+        actionIndex, totalActionCount, frierenPlacementId, magicType))
+    
+    local success = pcall(function()
+        task.wait(0.3) -- Small delay
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("FrierenMagics")
+            :FireServer(frierenActualSpawnId, magicType)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Frieren magic used (%s)", 
+            actionIndex, totalActionCount, magicType))
+        return true
+    end
+    return false
 end
 
 local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
@@ -2073,6 +2329,14 @@ local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionC
     elseif action.Type == "use_active_attack" then
         -- NEW: Handle ability actions
         return validateAbilityActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
+    elseif action.Type == "hestia_assign_blade" then
+    return validateHestiaAbilityAction(action, actionIndex, totalActionCount)
+elseif action.Type == "lelouch_choose_piece" then
+    return validateLelouchAbilityAction(action, actionIndex, totalActionCount)
+    elseif action.Type == "dio_writes" then
+        return validateDioAbilityAction(action, actionIndex, totalActionCount)
+    elseif action.Type == "frieren_magics" then
+        return validateFrierenAbilityAction(action, actionIndex, totalActionCount)
     elseif action.Type == "vote_wave_skip" then
         -- Wave skip logic remains unchanged
         updateDetailedStatus(string.format("(%d/%d) Skipping wave", actionIndex, totalActionCount))
