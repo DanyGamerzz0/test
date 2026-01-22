@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.24"
+    local script_version = "V0.25"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -355,6 +355,7 @@ local macro = {}
         SummonMarkersSet = false,
         AutoRetryAttempts = 3,
         AutoRetryDelay = 2,
+        SelectedBossRush = nil,
     }
 
     -- ========== CREATE TABS ==========
@@ -4132,20 +4133,43 @@ end
 
     --BOSS RUSH
     if State.AutoJoinBossRush then
-        setProcessingState("Boss Rush Auto Join")
+    setProcessingState("Boss Rush Auto Join")
 
+    local bossRushType = State.SelectedBossRush or "Chainsaw Boss Rush"
+    local lobbyId = ""
+    
+    -- Determine lobby ID based on selection
+    if bossRushType == "Chainsaw Boss Rush" then
         if State.AutoJoinBossRushSelectionMode then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CSM_BOSSRUSH_TRAITLESS")
-             task.wait(0.5) 
-             game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITLESS") 
+            lobbyId = "_CSM_BOSSRUSH_TRAITLESS"
         else
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CSM_BOSSRUSH_TRAITS")
-            task.wait(0.5)
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CSM_BOSSRUSH_TRAITS")
+            lobbyId = "_CSM_BOSSRUSH_TRAITS"
         end
-            task.delay(5, clearProcessingState)
-            return
+    elseif bossRushType == "Aizen Boss Rush" then
+        if State.AutoJoinBossRushSelectionMode then
+            lobbyId = "_BL_BOSSRUSH_TRAITLESS"
+        else
+            lobbyId = "_BL_BOSSRUSH_TRAITS"
+        end
     end
+    
+    print("Joining Boss Rush:", bossRushType, "| Lobby ID:", lobbyId, "| Traitless Mode:", State.AutoJoinBossRushSelectionMode)
+    
+    -- Join the lobby
+    game:GetService("ReplicatedStorage"):WaitForChild("endpoints")
+        :WaitForChild("client_to_server"):WaitForChild("request_join_lobby")
+        :InvokeServer(lobbyId)
+    
+    task.wait(0.5)
+    
+    -- Start the game
+    game:GetService("ReplicatedStorage"):WaitForChild("endpoints")
+        :WaitForChild("client_to_server"):WaitForChild("request_start_game")
+        :InvokeServer(lobbyId)
+    
+    task.delay(5, clearProcessingState)
+    return
+end
 
     --SAMURAI HUNT
         if State.AutoJoinSamuraiHunt then
@@ -5210,7 +5234,7 @@ section = JoinerTab:CreateSection("Infinity Castle Joiner")
 
 JoinerTab:CreateSection("Boss Rush Joiner")
 
-   JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
    Name = "Auto Join Boss Rush",
    CurrentValue = false,
    Flag = "AutoJoinBossRush",
@@ -5219,7 +5243,19 @@ JoinerTab:CreateSection("Boss Rush Joiner")
    end,
 })
 
-   JoinerTab:CreateToggle({
+BossRushSelectorDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Boss Rush",
+    Options = {"Chainsaw Boss Rush", "Aizen Boss Rush"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "BossRushSelectorDropdown",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        State.SelectedBossRush = selectedOption
+    end,
+})
+
+JoinerTab:CreateToggle({
    Name = "Traits Disabled Mode",
    CurrentValue = true,
    Flag = "AutoJoinBossRushSelectionMode",
@@ -8041,33 +8077,62 @@ local samuraiHuntDropdown = categoryCollapsibles.Other.Tab:CreateDropdown({
 worldDropdowns[samuraiHuntKey] = samuraiHuntDropdown
 print("  ✓ Added Samurai Hunt | ID:", samuraiHuntKey)
 
-local bossRushTraitsKey = "Csm_bossrush"
-local currentMappingTraits = worldMacroMappings[bossRushTraitsKey] or "None"
+local bossRushChainsawKey = "Csm_bossrush"
+local currentMappingChainsaw = worldMacroMappings[bossRushChainsawKey] or "None"
 
-local bossRushTraitsDropdown = categoryCollapsibles.Other.Tab:CreateDropdown({
-    Name = "Boss Rush",
+local bossRushChainsawDropdown = categoryCollapsibles.Other.Tab:CreateDropdown({
+    Name = "Chainsaw Boss Rush",
     Options = initialMacroOptions,
-    CurrentOption = {currentMappingTraits},
+    CurrentOption = {currentMappingChainsaw},
     MultipleOptions = false,
-    Flag = "AutoSelect_" .. bossRushTraitsKey,
-    Info = "Auto-select macro for Boss Rush",
+    Flag = "AutoSelect_" .. bossRushChainsawKey,
+    Info = "Auto-select macro for Chainsaw Boss Rush",
     Callback = function(Option)
         local selectedMacro = type(Option) == "table" and Option[1] or Option
         
         if selectedMacro == "None" or selectedMacro == "" then
-            worldMacroMappings[bossRushTraitsKey] = nil
-            print("Cleared auto-select for Boss Rush")
+            worldMacroMappings[bossRushChainsawKey] = nil
+            --print("Cleared auto-select for Chainsaw Boss Rush")
         else
-            worldMacroMappings[bossRushTraitsKey] = selectedMacro
-            print("Set auto-select: Boss Rush ->", selectedMacro)
+            worldMacroMappings[bossRushChainsawKey] = selectedMacro
+            --print("Set auto-select: Chainsaw Boss Rush ->", selectedMacro)
         end
         
         saveWorldMappings()
     end,
 })
 
-worldDropdowns[bossRushTraitsKey] = bossRushTraitsDropdown
-print("  ✓ Added Boss Rush | ID:", bossRushTraitsKey)
+worldDropdowns[bossRushChainsawKey] = bossRushChainsawDropdown
+print("  ✓ Added Chainsaw Boss Rush | ID:", bossRushChainsawKey)
+
+-- Add Aizen Boss Rush
+local bossRushAizenKey = "FakeKarakura"
+local currentMappingAizen = worldMacroMappings[bossRushAizenKey] or "None"
+
+local bossRushAizenDropdown = categoryCollapsibles.Other.Tab:CreateDropdown({
+    Name = "Aizen Boss Rush",
+    Options = initialMacroOptions,
+    CurrentOption = {currentMappingAizen},
+    MultipleOptions = false,
+    Flag = "AutoSelect_" .. bossRushAizenKey,
+    Info = "Auto-select macro for Aizen Boss Rush",
+    Callback = function(Option)
+        local selectedMacro = type(Option) == "table" and Option[1] or Option
+        
+        if selectedMacro == "None" or selectedMacro == "" then
+            worldMacroMappings[bossRushAizenKey] = nil
+            --print("Cleared auto-select for Aizen Boss Rush")
+        else
+            worldMacroMappings[bossRushAizenKey] = selectedMacro
+            --print("Set auto-select: Aizen Boss Rush ->", selectedMacro)
+        end
+        
+        saveWorldMappings()
+    end,
+})
+
+worldDropdowns[bossRushAizenKey] = bossRushAizenDropdown
+print("  ✓ Added Aizen Boss Rush | ID:", bossRushAizenKey)
 end
 
     local function loadWorldMappings()
