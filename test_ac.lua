@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.18"
+    local script_version = "V0.19"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2048,7 +2048,7 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        task.wait(2)
+        task.wait(1)
         endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
     end)
     
@@ -2105,8 +2105,8 @@ local function validateHestiaAbilityAction(action, actionIndex, totalActionCount
         actionIndex, totalActionCount, targetPlacementId, tostring(actualSpawnId)))
     
     local success = pcall(function()
-        -- Wait for Hestia's ability to be ready
-        task.wait(3)
+        -- FIX: Add longer wait to ensure Hestia's ability animation completes
+        task.wait(5)  -- Increased from 3 to 5 seconds
         
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
