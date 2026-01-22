@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.19"
+    local script_version = "V0.2"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1038,15 +1038,49 @@ local function processAbilityRecording(actionInfo)
         return
     end
     
-    -- Look up the placement ID directly from our mapping
-    local placementId = MacroSystem.recordingSpawnIdToPlacement[capturedUnitUUID]
+    -- FIX: Find the unit by UUID and get its combined identifier
+    local combinedIdentifier = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
-    if not placementId then
-        warn("Could not find placement ID for UUID:", capturedUnitUUID)
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local uuidValue = stats:FindFirstChild("uuid")
+                    
+                    -- Check if this is the unit we're looking for
+                    if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == capturedUnitUUID then
+                        local spawnIdValue = stats:FindFirstChild("spawn_id")
+                        
+                        -- Create combined identifier (UUID + spawn_id)
+                        if spawnIdValue then
+                            combinedIdentifier = capturedUnitUUID .. spawnIdValue.Value
+                            print("Found ability unit - UUID:", capturedUnitUUID, "Combined ID:", combinedIdentifier)
+                        else
+                            combinedIdentifier = capturedUnitUUID
+                            print("Found ability unit - UUID only (no spawn_id):", capturedUnitUUID)
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not combinedIdentifier then
+        warn("Could not find unit for ability UUID:", capturedUnitUUID)
         return
     end
     
-    -- FIX: Declare gameRelativeTime
+    -- Look up the placement ID using the combined identifier
+    local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+    
+    if not placementId then
+        warn("Could not find placement ID for combined identifier:", combinedIdentifier)
+        return
+    end
+    
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     local abilityRecord = {
@@ -1059,7 +1093,7 @@ local function processAbilityRecording(actionInfo)
     
     Rayfield:Notify({
         Title = "Macro Recorder",
-        Content = string.format("Recorded ability: %s (Wave %d)", placementId),
+        Content = string.format("Recorded ability: %s", placementId),
         Duration = 2,
         Image = 4483362458
     })
