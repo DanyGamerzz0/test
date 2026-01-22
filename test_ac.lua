@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.2"
+    local script_version = "V0.21"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1038,42 +1038,51 @@ local function processAbilityRecording(actionInfo)
         return
     end
     
-    -- FIX: Find the unit by UUID and get its combined identifier
+    -- WAIT for the unit to be placed and mapped
+    local maxWait = 2.0
+    local waitStart = tick()
     local combinedIdentifier = nil
-    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     
-    if unitsFolder then
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if isOwnedByLocalPlayer(unit) then
-                local stats = unit:FindFirstChild("_stats")
-                if stats then
-                    local uuidValue = stats:FindFirstChild("uuid")
-                    
-                    -- Check if this is the unit we're looking for
-                    if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == capturedUnitUUID then
-                        local spawnIdValue = stats:FindFirstChild("spawn_id")
+    while tick() - waitStart < maxWait do
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        
+        if unitsFolder then
+            for _, unit in pairs(unitsFolder:GetChildren()) do
+                if isOwnedByLocalPlayer(unit) then
+                    local stats = unit:FindFirstChild("_stats")
+                    if stats then
+                        local uuidValue = stats:FindFirstChild("uuid")
                         
-                        -- Create combined identifier (UUID + spawn_id)
-                        if spawnIdValue then
-                            combinedIdentifier = capturedUnitUUID .. spawnIdValue.Value
-                            print("Found ability unit - UUID:", capturedUnitUUID, "Combined ID:", combinedIdentifier)
-                        else
-                            combinedIdentifier = capturedUnitUUID
-                            print("Found ability unit - UUID only (no spawn_id):", capturedUnitUUID)
+                        if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == capturedUnitUUID then
+                            local spawnIdValue = stats:FindFirstChild("spawn_id")
+                            
+                            if spawnIdValue then
+                                combinedIdentifier = capturedUnitUUID .. spawnIdValue.Value
+                                
+                                -- Check if this unit is already mapped
+                                if MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier] then
+                                    print("Found mapped ability unit - Combined ID:", combinedIdentifier)
+                                    break
+                                else
+                                    print("Found unit but not yet mapped, waiting...")
+                                    combinedIdentifier = nil
+                                end
+                            end
                         end
-                        break
                     end
                 end
             end
         end
+        
+        if combinedIdentifier then break end
+        task.wait(0.1)
     end
     
     if not combinedIdentifier then
-        warn("Could not find unit for ability UUID:", capturedUnitUUID)
+        warn("Timeout: Could not find mapped unit for ability UUID:", capturedUnitUUID)
         return
     end
     
-    -- Look up the placement ID using the combined identifier
     local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
     
     if not placementId then
@@ -1090,6 +1099,8 @@ local function processAbilityRecording(actionInfo)
     }
     
     table.insert(macro, abilityRecord)
+    
+    print(string.format("✓ Recorded ability: %s (UUID: %s)", placementId, capturedUnitUUID))
     
     Rayfield:Notify({
         Title = "Macro Recorder",
