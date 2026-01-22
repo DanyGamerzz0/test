@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.26"
+    local script_version = "V0.27"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5213,7 +5213,7 @@ section = JoinerTab:CreateSection("Infinity Castle Joiner")
 
    JoinerTab:CreateToggle({
    Name = "Traits Disabled Mode",
-   CurrentValue = true,
+   CurrentValue = false,
    Flag = "AutoJoinInfinityCastleSelectionMode",
    Callback = function(Value)
         State.AutoJoinInfinityCastleSelectionMode = Value
@@ -5253,9 +5253,9 @@ BossRushSelectorDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-JoinerTab:CreateToggle({
+TraitDisableModeBossRush = JoinerTab:CreateToggle({
    Name = "Traits Disabled Mode",
-   CurrentValue = true,
+   CurrentValue = false,
    Flag = "AutoJoinBossRushSelectionMode",
    Callback = function(Value)
         State.AutoJoinBossRushSelectionMode = Value
