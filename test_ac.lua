@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.17"
+    local script_version = "V0.18"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1039,13 +1039,15 @@ local function processAbilityRecording(actionInfo)
     end
     
     -- Look up the placement ID directly from our mapping
-    -- (Same approach as sell - no Instance access needed)
     local placementId = MacroSystem.recordingSpawnIdToPlacement[capturedUnitUUID]
     
     if not placementId then
         warn("Could not find placement ID for UUID:", capturedUnitUUID)
         return
     end
+    
+    -- FIX: Declare gameRelativeTime
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     local abilityRecord = {
         Type = "use_active_attack",
@@ -1104,6 +1106,9 @@ local function processHestiaAbilityRecording(actionInfo)
         warn("Could not find placement ID for Hestia target spawn ID:", targetSpawnId)
         return
     end
+    
+    -- FIX: Declare gameRelativeTime
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     local abilityRecord = {
         Type = "hestia_assign_blade",
@@ -1180,9 +1185,12 @@ local function processLelouchAbilityRecording(actionInfo)
         return
     end
     
+    -- FIX: Declare gameRelativeTime
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    
     local abilityRecord = {
         Type = "lelouch_choose_piece",
-        Lelouch = lelouchPlacementId,  -- NEW: Store Lelouch's placement ID
+        Lelouch = lelouchPlacementId,
         Target = targetPlacementId,
         Piece = pieceType,
         Time = string.format("%.2f", gameRelativeTime)
@@ -1240,6 +1248,25 @@ local function processDioAbilityRecording(actionInfo)
         warn("Could not find placement ID for Dio spawn ID:", dioSpawnId)
         return
     end
+    
+    -- FIX: Declare gameRelativeTime HERE
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    
+    local abilityRecord = {
+        Type = "dio_writes",
+        Dio = dioPlacementId,
+        Ability = abilityType,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Dio ability: %s (%s)", dioPlacementId, abilityType),
+        Duration = 2,
+        Image = 4483362458
+    })
 end
 
 local function processFrierenAbilityRecording(actionInfo)
@@ -1284,6 +1311,8 @@ local function processFrierenAbilityRecording(actionInfo)
         warn("Could not find placement ID for Frieren spawn ID:", frierenSpawnId)
         return
     end
+
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     local abilityRecord = {
         Type = "frieren_magics",
