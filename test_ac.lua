@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.23"
+    local script_version = "V0.24"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7516,18 +7516,22 @@ local function playMacroWithGameTimingRefactored()
     MacroSystem.macroHasPlayedThisGame = true
     local totalActions = #macro
     local scheduledAbilities = 0 -- Track scheduled abilities
+    local scheduledWaveSkips = 0 -- Track scheduled wave skips
     
     if State.IgnoreTiming then
-        -- Count abilities to schedule
+        -- Count abilities and wave skips to schedule
         for _, action in ipairs(macro) do
             if action.Type == "use_active_attack" then
                 scheduledAbilities = scheduledAbilities + 1
+            elseif action.Type == "vote_wave_skip" then
+                scheduledWaveSkips = scheduledWaveSkips + 1
             end
         end
         
-        updateDetailedStatus(string.format("Starting immediate playback with %d actions (%d abilities will execute at scheduled times)", 
-            totalActions, scheduledAbilities))
-        print(string.format("Starting immediate macro playback - %d abilities will be scheduled", scheduledAbilities))
+        updateDetailedStatus(string.format("Starting immediate playback with %d actions (%d abilities, %d wave skips will execute at scheduled times)", 
+            totalActions, scheduledAbilities, scheduledWaveSkips))
+        print(string.format("Starting immediate macro playback - %d abilities and %d wave skips will be scheduled", 
+            scheduledAbilities, scheduledWaveSkips))
     else
         updateDetailedStatus(string.format("Starting game-time playback with %d actions", totalActions))
         print("Starting macro playback with absolute game timing")
@@ -7545,6 +7549,7 @@ local function playMacroWithGameTimingRefactored()
     end
     
     local activeAbilityTasks = 0 -- Track active background tasks
+    local activeWaveSkipTasks = 0 -- Track active wave skip tasks
     
     for i, action in ipairs(macro) do
         if not MacroSystem.isPlaybacking or not GameTracking.isAutoLoopEnabled or GameTracking.gameHasEnded then
@@ -7600,8 +7605,8 @@ local function playMacroWithGameTimingRefactored()
                     
                     local missingMoney = requiredCost - getPlayerMoney()
                     local statusExtra = ""
-                    if State.IgnoreTiming and activeAbilityTasks > 0 then
-                        statusExtra = string.format(" | %d abilities scheduled", activeAbilityTasks)
+                    if State.IgnoreTiming and (activeAbilityTasks > 0 or activeWaveSkipTasks > 0) then
+                        statusExtra = string.format(" | %d abilities, %d wave skips scheduled", activeAbilityTasks, activeWaveSkipTasks)
                     end
                     
                     updateDetailedStatus(string.format("(%d/%d) Waiting for %d more yen (need %d, have %d)%s", 
@@ -7647,14 +7652,63 @@ local function playMacroWithGameTimingRefactored()
             end)
             
             -- Update status to show ability was scheduled
-            updateDetailedStatus(string.format("(%d/%d) Scheduled ability: %s (%d abilities queued)", 
-                i, totalActions, action.Unit, activeAbilityTasks))
+            updateDetailedStatus(string.format("(%d/%d) Scheduled ability: %s (%d abilities, %d wave skips queued)", 
+                i, totalActions, action.Unit, activeAbilityTasks, activeWaveSkipTasks))
             
             -- Continue immediately to next action
             continue
         end
         
-        -- Timing logic for non-ability actions
+        -- NEW: Handle wave skips separately when ignore timing is enabled
+        if State.IgnoreTiming and action.Type == "vote_wave_skip" then
+            activeWaveSkipTasks = activeWaveSkipTasks + 1
+            
+            -- Schedule wave skip in background
+            task.spawn(function()
+                local waveSkipIndex = activeWaveSkipTasks
+                local targetGameTime = tonumber(action.Time) or 0
+                local currentGameTime = tick() - GameTracking.gameStartTime
+                local waitTime = targetGameTime - currentGameTime
+                
+                if waitTime > 0 then
+                    print(string.format("[Wave Skip %d/%d] Scheduled for %.2fs from now", 
+                        waveSkipIndex, scheduledWaveSkips, waitTime))
+                    task.wait(waitTime)
+                end
+                
+                -- Execute wave skip at scheduled time (if macro still running)
+                if MacroSystem.isPlaybacking and not GameTracking.gameHasEnded then
+                    print(string.format("[Wave Skip %d/%d] Executing wave skip", 
+                        waveSkipIndex, scheduledWaveSkips))
+                    
+                    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+                    local success = pcall(function()
+                        endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
+                    end)
+                    
+                    if success then
+                        print(string.format("[Wave Skip %d/%d] Successfully executed", waveSkipIndex, scheduledWaveSkips))
+                    else
+                        print(string.format("[Wave Skip %d/%d] Failed to execute", waveSkipIndex, scheduledWaveSkips))
+                    end
+                    
+                    activeWaveSkipTasks = activeWaveSkipTasks - 1
+                    
+                    if activeWaveSkipTasks == 0 then
+                        print("All scheduled wave skips completed")
+                    end
+                end
+            end)
+            
+            -- Update status to show wave skip was scheduled
+            updateDetailedStatus(string.format("(%d/%d) Scheduled wave skip (%d abilities, %d wave skips queued)", 
+                i, totalActions, activeAbilityTasks, activeWaveSkipTasks))
+            
+            -- Continue immediately to next action
+            continue
+        end
+        
+        -- Timing logic for non-ability, non-wave-skip actions
         local shouldUseGameTiming = not State.IgnoreTiming
         
         if shouldUseGameTiming then
@@ -7693,11 +7747,11 @@ local function playMacroWithGameTimingRefactored()
     end
     
     -- Final status message
-    if State.IgnoreTiming and activeAbilityTasks > 0 then
-        updateDetailedStatus(string.format("Immediate playback completed - %d abilities still executing in background", 
-            activeAbilityTasks))
-        print(string.format("Immediate macro playback completed - %d abilities will execute at scheduled times", 
-            activeAbilityTasks))
+    if State.IgnoreTiming and (activeAbilityTasks > 0 or activeWaveSkipTasks > 0) then
+        updateDetailedStatus(string.format("Immediate playback completed - %d abilities, %d wave skips still executing in background", 
+            activeAbilityTasks, activeWaveSkipTasks))
+        print(string.format("Immediate macro playback completed - %d abilities and %d wave skips will execute at scheduled times", 
+            activeAbilityTasks, activeWaveSkipTasks))
     else
         updateDetailedStatus("Macro playback completed")
         print("Macro playback completed")
