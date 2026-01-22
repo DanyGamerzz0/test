@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.21"
+    local script_version = "V0.22"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1038,58 +1038,15 @@ local function processAbilityRecording(actionInfo)
         return
     end
     
-    -- WAIT for the unit to be placed and mapped
-    local maxWait = 2.0
-    local waitStart = tick()
-    local combinedIdentifier = nil
-    
-    while tick() - waitStart < maxWait do
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-        
-        if unitsFolder then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
-                if isOwnedByLocalPlayer(unit) then
-                    local stats = unit:FindFirstChild("_stats")
-                    if stats then
-                        local uuidValue = stats:FindFirstChild("uuid")
-                        
-                        if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == capturedUnitUUID then
-                            local spawnIdValue = stats:FindFirstChild("spawn_id")
-                            
-                            if spawnIdValue then
-                                combinedIdentifier = capturedUnitUUID .. spawnIdValue.Value
-                                
-                                -- Check if this unit is already mapped
-                                if MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier] then
-                                    print("Found mapped ability unit - Combined ID:", combinedIdentifier)
-                                    break
-                                else
-                                    print("Found unit but not yet mapped, waiting...")
-                                    combinedIdentifier = nil
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        
-        if combinedIdentifier then break end
-        task.wait(0.1)
-    end
-    
-    if not combinedIdentifier then
-        warn("Timeout: Could not find mapped unit for ability UUID:", capturedUnitUUID)
-        return
-    end
-    
-    local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+    -- Look up the placement ID directly from our mapping
+    -- (Same approach as sell - no Instance access needed)
+    local placementId = MacroSystem.recordingSpawnIdToPlacement[capturedUnitUUID]
     
     if not placementId then
-        warn("Could not find placement ID for combined identifier:", combinedIdentifier)
+        warn("Could not find placement ID for UUID:", capturedUnitUUID)
         return
     end
-    
+
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     
     local abilityRecord = {
@@ -1100,11 +1057,9 @@ local function processAbilityRecording(actionInfo)
     
     table.insert(macro, abilityRecord)
     
-    print(string.format("✓ Recorded ability: %s (UUID: %s)", placementId, capturedUnitUUID))
-    
     Rayfield:Notify({
         Title = "Macro Recorder",
-        Content = string.format("Recorded ability: %s", placementId),
+        Content = string.format("Recorded ability: %s (Wave %d)", placementId),
         Duration = 2,
         Image = 4483362458
     })
@@ -6864,10 +6819,8 @@ end
     CurrentValue = false,
     Flag = "AutoSkipWaves",
     Callback = function(Value)
-            State.AutoSkipWaves = Value
-            if Services.Players.LocalPlayer.PlayerGui.VoteSkip.Enabled == true then
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("vote_wave_skip"):InvokeServer()
-            end
+        State.AutoSkipWaves = Value
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("toggle_setting"):InvokeServer("autoskip_waves",Value)
     end,
     })
 
@@ -6884,34 +6837,48 @@ end
     end,
     })
 
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            if State.AutoSkipWaves then
-                local waveNum = Services.Workspace:WaitForChild("_wave_num").Value
-                local skipLimit = State.AutoSkipUntilWave
-                if skipLimit == 0 then
-                    local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
-                    if voteSkip and voteSkip.Enabled then
-                        game:GetService("ReplicatedStorage")
-                            :WaitForChild("endpoints")
-                            :WaitForChild("client_to_server")
-                            :WaitForChild("vote_wave_skip")
-                            :InvokeServer()
-                    end
-                elseif waveNum <= skipLimit then
-                    local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
-                    if voteSkip and voteSkip.Enabled then
-                        game:GetService("ReplicatedStorage")
-                            :WaitForChild("endpoints")
-                            :WaitForChild("client_to_server")
-                            :WaitForChild("vote_wave_skip")
-                            :InvokeServer()
-                    end
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoSkipWaves then
+            local waveNum = Services.Workspace:WaitForChild("_wave_num").Value
+            local skipLimit = State.AutoSkipUntilWave
+            
+            -- Check if we've exceeded the skip limit (and limit is not 0)
+            if skipLimit > 0 and waveNum > skipLimit then
+                -- Disable auto skip waves
+                State.AutoSkipWaves = false
+                game:GetService("ReplicatedStorage")
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("toggle_setting")
+                    :InvokeServer("autoskip_waves", false)
+                
+                notify("Auto Skip Waves", string.format("Disabled - reached wave limit (%d)", skipLimit))
+            elseif skipLimit == 0 then
+                -- Skip all waves when limit is 0
+                local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
+                if voteSkip and voteSkip.Enabled then
+                    game:GetService("ReplicatedStorage")
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("toggle_setting")
+                    :InvokeServer("autoskip_waves", true)
+                end
+            elseif waveNum <= skipLimit then
+                -- Skip waves until we reach the limit
+                local voteSkip = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
+                if voteSkip and voteSkip.Enabled then
+                    game:GetService("ReplicatedStorage")
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("toggle_setting")
+                    :InvokeServer("autoskip_waves", true)
                 end
             end
         end
-    end)
+    end
+end)
 
     GameTab:CreateSection("Boss Rush")
 
