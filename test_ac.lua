@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.22"
+    local script_version = "V0.23"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2048,8 +2048,8 @@ local function validateAbilityActionWithSpawnIdMapping(action, actionIndex, tota
     
     local success = pcall(function()
         local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        task.wait(1)
         endpoints:WaitForChild("use_active_attack"):InvokeServer(combinedIdentifier)
+        print("[DEBUG] popping ability: "..combinedIdentifier)
     end)
     
     if success then
