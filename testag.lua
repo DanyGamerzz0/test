@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1365,6 +1365,8 @@ local AutoUseAbilityToggle = GameTab:CreateToggle({
     end,
 })
 
+local AbilityDropdown
+
 local UnitDropdown = GameTab:CreateDropdown({
     Name = "Select Units",
     Options = {},
@@ -1377,25 +1379,20 @@ local UnitDropdown = GameTab:CreateDropdown({
         
         -- Update abilities dropdown based on selected units
         local availableAbilities = getAbilitiesForSelectedUnits()
-        --AbilityDropdown:Refresh(availableAbilities)
         
-        -- Clear selected abilities if they're no longer valid
-        if State.SelectedAbilitiesToUse then
-            local validAbilities = {}
-            for _, ability in ipairs(State.SelectedAbilitiesToUse) do
-                for _, available in ipairs(availableAbilities) do
-                    if ability == available then
-                        table.insert(validAbilities, ability)
-                        break
-                    end
-                end
-            end
-            State.SelectedAbilitiesToUse = validAbilities
+        -- Refresh the dropdown with new abilities
+        if AbilityDropdown then
+            AbilityDropdown:Refresh(availableAbilities, true) -- true parameter clears current selection
         end
+        
+        -- Clear selected abilities since units changed
+        State.SelectedAbilitiesToUse = {}
+        
+        print(string.format("Selected %d units, showing %d abilities", #Options, #availableAbilities))
     end,
 })
 
-local AbilityDropdown = GameTab:CreateDropdown({
+AbilityDropdown = GameTab:CreateDropdown({
     Name = "Select Abilities",
     Options = {},
     CurrentOption = {},
@@ -1404,6 +1401,7 @@ local AbilityDropdown = GameTab:CreateDropdown({
     Info = "Select which abilities to use automatically",
     Callback = function(Options)
         State.SelectedAbilitiesToUse = Options
+        print(string.format("Selected %d abilities to auto-use", #Options))
     end,
 })
 
@@ -1430,17 +1428,11 @@ local AbilityDropdownSukuna = GameTab:CreateDropdown({
 })
 
 task.spawn(function()
-    task.wait(1) -- Wait for modules to load
+    task.wait(1)
     
-    local abilitiesList = getUnitAbilitiesList()
-    local displayNames = {}
-    
-    for _, abilityData in ipairs(abilitiesList) do
-        table.insert(displayNames, abilityData.display)
-    end
-    
-    AbilityDropdown:Refresh(displayNames)
-    print("Loaded " .. #displayNames .. " unit abilities into dropdown")
+    local unitsWithAbilities = getUnitsWithAbilities()
+    UnitDropdown:Refresh(unitsWithAbilities)
+    print("Loaded " .. #unitsWithAbilities .. " units with abilities into dropdown")
 end)
 
 GameTab:CreateSection("Auto Sell")
