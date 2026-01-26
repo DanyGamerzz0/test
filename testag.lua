@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1313,14 +1313,14 @@ local function getAbilitiesForSelectedUnits()
         local skillData = SkillsData[unitName]
         if skillData then
             -- Check for Skill1 and Skill2 (multi-skill units)
-            if skillData.Skill1 then
+            if skillData.Skill1 and type(skillData.Skill1) == "string" then
                 local abilityName = skillData.Skill1
                 if not abilitySet[abilityName] then
                     table.insert(abilities, abilityName)
                     abilitySet[abilityName] = true
                 end
             end
-            if skillData.Skill2 then
+            if skillData.Skill2 and type(skillData.Skill2) == "string" then
                 local abilityName = skillData.Skill2
                 if not abilitySet[abilityName] then
                     table.insert(abilities, abilityName)
@@ -1337,10 +1337,17 @@ local function getAbilitiesForSelectedUnits()
         end
     end
     
-    -- Sort alphabetically
-    table.sort(abilities)
+    -- Sort alphabetically - but verify all entries are strings first
+    local validAbilities = {}
+    for _, ability in ipairs(abilities) do
+        if type(ability) == "string" then
+            table.insert(validAbilities, ability)
+        end
+    end
     
-    return abilities
+    table.sort(validAbilities)
+    
+    return validAbilities
 end
 
 local AutoUseAbilityToggle = GameTab:CreateToggle({
