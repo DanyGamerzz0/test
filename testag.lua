@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1377,7 +1377,7 @@ local UnitDropdown = GameTab:CreateDropdown({
         
         -- Update abilities dropdown based on selected units
         local availableAbilities = getAbilitiesForSelectedUnits()
-        AbilityDropdown:Refresh(availableAbilities)
+        --AbilityDropdown:Refresh(availableAbilities)
         
         -- Clear selected abilities if they're no longer valid
         if State.SelectedAbilitiesToUse then
