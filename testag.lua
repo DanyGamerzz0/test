@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.23"
+local script_version = "V0.24"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -604,6 +604,12 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
     -- Trim the target name
     unitBaseName = unitBaseName:gsub("^%s+", ""):gsub("%s+$", "")
     
+    -- ALSO TRIM ABILITY NAME IF IT EXISTS
+    if abilityName then
+        abilityName = abilityName:gsub("^%s+", ""):gsub("%s+$", "")
+        print(string.format("🎯 Using ability: '%s' for unit: '%s'", abilityName, unitBaseName))
+    end
+    
     if isInLobby() then return false end
     
     local ground = Services.Workspace:FindFirstChild("Ground")
@@ -621,8 +627,12 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
             if baseUnitName == unitBaseName then
                 local args = {"SkillsButton", unit.Name}
                 
+                -- ADD THE ABILITY NAME AS THIRD ARGUMENT
                 if abilityName and abilityName ~= "" then
                     table.insert(args, abilityName)
+                    print(string.format("📋 Final args: [1]='%s', [2]='%s', [3]='%s'", args[1], args[2], args[3]))
+                else
+                    print(string.format("📋 Final args: [1]='%s', [2]='%s' (no ability name)", args[1], args[2]))
                 end
                 
                 local success, result = pcall(function()
@@ -642,7 +652,7 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
                     end
                 else
                     -- Error occurred
-                    warn(string.format("Error using ability on %s: %s", unitBaseName, tostring(result)))
+                    warn(string.format("❌ Error using ability on %s: %s", unitBaseName, tostring(result)))
                     return false
                 end
             end
