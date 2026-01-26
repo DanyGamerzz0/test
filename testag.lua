@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.19"
+local script_version = "V0.2"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -601,28 +601,47 @@ local function getUnitAbilitiesList()
 end
 
 local function findAndUseUnitAbility(unitBaseName, abilityName)
-    if isInLobby() then return false end
+    print(string.format("🔍 findAndUseUnitAbility called: unitBaseName='%s', abilityName='%s'", 
+        tostring(unitBaseName), tostring(abilityName)))
+    
+    if isInLobby() then 
+        print("❌ In lobby, cannot use abilities")
+        return false 
+    end
     
     local ground = Services.Workspace:FindFirstChild("Ground")
-    if not ground then return false end
+    if not ground then 
+        print("❌ Ground not found")
+        return false 
+    end
     
     local unitClient = ground:FindFirstChild("unitClient")
-    if not unitClient then return false end
+    if not unitClient then 
+        print("❌ unitClient not found")
+        return false 
+    end
+    
+    print("📋 Searching in unitClient with", #unitClient:GetChildren(), "units")
     
     -- Search for the unit in unitClient
     for _, unit in pairs(unitClient:GetChildren()) do
         if unit:IsA("Model") then
-            -- Check if this unit matches the base name
             local unitName = unit.Name
             local baseUnitName = unitName:match("^(.+)%s+%d+$") or unitName
             
+            print(string.format("  Checking unit: '%s' (base: '%s') vs target: '%s'", 
+                unitName, baseUnitName, unitBaseName))
+            
             if baseUnitName == unitBaseName then
-                -- Found matching unit, try to use ability
+                print(string.format("✓ Found matching unit: %s", unitName))
+                
                 local args = {"SkillsButton", unit.Name}
                 
-                -- Add ability name if specified (for multi-skill units)
                 if abilityName and abilityName ~= "" then
                     table.insert(args, abilityName)
+                    print(string.format("  Using args: %s, %s, %s", args[1], args[2], args[3]))
+                else
+                    print(string.format("  Using args: %s, %s", args[1], args[2]))
                 end
                 
                 local success, result = pcall(function()
@@ -630,15 +649,24 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
                         :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
                 end)
                 
-                if success and result then
-                    local abilityText = abilityName and (" - " .. abilityName) or ""
-                    print(string.format("✓ Used ability on %s%s", unitBaseName, abilityText))
-                    return true
+                if success then
+                    if result then
+                        local abilityText = abilityName and (" - " .. abilityName) or ""
+                        print(string.format("✓ Successfully used ability on %s%s", unitBaseName, abilityText))
+                        return true
+                    else
+                        print(string.format("⚠️ Server returned false for %s (cooldown or invalid?)", unitBaseName))
+                        return false
+                    end
+                else
+                    warn(string.format("❌ Error invoking ability: %s", tostring(result)))
+                    return false
                 end
             end
         end
     end
     
+    print(string.format("❌ Unit not found in unitClient: %s", unitBaseName))
     return false
 end
 
@@ -5632,34 +5660,59 @@ task.spawn(function()
     while true do
         task.wait(ABILITY_CHECK_INTERVAL)
         
+        -- Debug: Check if auto-ability is enabled
+        if State.AutoUseAbility then
+            print("=== AUTO ABILITY DEBUG ===")
+            print("Auto Use Ability:", State.AutoUseAbility)
+            print("Is in lobby:", isInLobby())
+            print("Selected abilities count:", State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse or 0)
+            
+            if State.SelectedAbilitiesToUse then
+                print("Selected abilities:")
+                for i, ability in ipairs(State.SelectedAbilitiesToUse) do
+                    print("  " .. i .. ". " .. ability)
+                end
+            end
+            print("========================")
+        end
+        
         if State.AutoUseAbility and not isInLobby() then
             if State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse > 0 then
                 
                 for _, abilityDisplay in ipairs(State.SelectedAbilitiesToUse) do
+                    print("Processing ability:", abilityDisplay)
+                    
                     -- Parse "UnitName - AbilityName" format
                     local unitName, abilityName = abilityDisplay:match("^(.+)%s*%-%s*(.+)$")
                     
+                    print("Parsed - Unit:", unitName, "Ability:", abilityName)
+                    
                     if unitName and abilityName then
-                        -- For multi-skill units, abilityName will be the actual skill name
-                        -- For single-skill units, abilityName will be "Ability"
-                        
                         if abilityName == "Ability" then
-                            -- Single-skill unit - pass nil for ability name
+                            print("Attempting single-skill ability for:", unitName)
                             local success = findAndUseUnitAbility(unitName, nil)
                             if success then
-                                print(string.format("✓ Auto-used: %s", unitName))
+                                print("✓ Auto-used:", unitName)
+                            else
+                                print("✗ Failed to use ability for:", unitName)
                             end
                         else
-                            -- Multi-skill unit - use the ability name directly
+                            print("Attempting multi-skill ability for:", unitName, "-", abilityName)
                             local success = findAndUseUnitAbility(unitName, abilityName)
                             if success then
-                                print(string.format("✓ Auto-used: %s - %s", unitName, abilityName))
+                                print("✓ Auto-used:", unitName, "-", abilityName)
+                            else
+                                print("✗ Failed to use ability for:", unitName, "-", abilityName)
                             end
                         end
+                    else
+                        warn("Failed to parse ability display:", abilityDisplay)
                     end
                     
-                    task.wait(0.1) -- Small delay between ability uses
+                    task.wait(0.1)
                 end
+            else
+                print("No abilities selected or empty list")
             end
         end
     end
