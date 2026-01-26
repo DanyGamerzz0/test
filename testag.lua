@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1310,41 +1310,60 @@ local function getAbilitiesForSelectedUnits()
     local abilitySet = {} -- To avoid duplicates
     
     for _, unitName in ipairs(State.SelectedUnitsForAbility) do
+        print("Processing unit: " .. unitName)
         local skillData = SkillsData[unitName]
+        
         if skillData then
-            -- Check for Skill1 and Skill2 (multi-skill units)
-            if skillData.Skill1 and type(skillData.Skill1) == "string" then
+            print("  Found skillData for " .. unitName)
+            print("  Skill1:", tostring(skillData.Skill1))
+            print("  Skill2:", tostring(skillData.Skill2))
+            
+            local hasMultiSkill = false
+            
+            -- Check for Skill1
+            if skillData.Skill1 and type(skillData.Skill1) == "string" and skillData.Skill1 ~= "" then
+                hasMultiSkill = true
                 local displayName = unitName .. " - " .. skillData.Skill1
                 if not abilitySet[displayName] then
                     table.insert(abilities, displayName)
                     abilitySet[displayName] = true
+                    print("  ✓ Added ability: " .. displayName)
                 end
             end
-            if skillData.Skill2 and type(skillData.Skill2) == "string" then
+            
+            -- Check for Skill2
+            if skillData.Skill2 and type(skillData.Skill2) == "string" and skillData.Skill2 ~= "" then
+                hasMultiSkill = true
                 local displayName = unitName .. " - " .. skillData.Skill2
                 if not abilitySet[displayName] then
                     table.insert(abilities, displayName)
                     abilitySet[displayName] = true
+                    print("  ✓ Added ability: " .. displayName)
                 end
             end
-            -- For single-skill units, show as "UnitName - Ability"
-            if not skillData.Skill1 and not skillData.Skill2 then
+            
+            -- For single-skill units (no Skill1 or Skill2), show as "UnitName - Ability"
+            if not hasMultiSkill then
                 local displayName = unitName .. " - Ability"
                 if not abilitySet[displayName] then
                     table.insert(abilities, displayName)
                     abilitySet[displayName] = true
+                    print("  ✓ Added single ability: " .. displayName)
                 end
             end
+        else
+            warn("  ❌ No skillData found for " .. unitName)
         end
     end
     
     -- Sort alphabetically
     table.sort(abilities)
     
-    print("Available abilities for selected units:")
+    print("\n=== Final ability list (" .. #abilities .. " total) ===")
     for i, ability in ipairs(abilities) do
         print("  " .. i .. ". " .. ability)
     end
+    print("=====================================\n")
     
     return abilities
 end
@@ -1374,26 +1393,52 @@ local UnitDropdown = GameTab:CreateDropdown({
     Flag = "UnitAbilitySelector",
     Info = "Select which units to use abilities on",
     Callback = function(Options)
-        print("UnitDropdown callback triggered with " .. #Options .. " selections")
+        print("\n=== UnitDropdown callback triggered ===")
+        print("Received " .. #Options .. " unit selections")
+        
+        -- Store current selection
+        local previousSelection = State.SelectedUnitsForAbility or {}
         State.SelectedUnitsForAbility = Options
         
-        -- Update abilities dropdown based on selected units
-        local availableAbilities = getAbilitiesForSelectedUnits()
-        
-        print("Generated " .. #availableAbilities .. " abilities from selected units")
-        
-        -- Refresh the dropdown with new abilities
-        if AbilityDropdown then
-            print("Refreshing AbilityDropdown...")
-            AbilityDropdown:Refresh(availableAbilities, true)
+        -- Only update abilities if selection actually changed
+        local selectionChanged = false
+        if #previousSelection ~= #Options then
+            selectionChanged = true
         else
-            warn("AbilityDropdown is nil!")
+            -- Check if contents are different
+            local prevSet = {}
+            for _, v in ipairs(previousSelection) do
+                prevSet[v] = true
+            end
+            for _, v in ipairs(Options) do
+                if not prevSet[v] then
+                    selectionChanged = true
+                    break
+                end
+            end
         end
         
-        -- Clear selected abilities since units changed
-        State.SelectedAbilitiesToUse = {}
+        if selectionChanged then
+            print("Selection changed, updating abilities...")
+            
+            -- Update abilities dropdown based on selected units
+            local availableAbilities = getAbilitiesForSelectedUnits()
+            
+            -- Refresh the dropdown with new abilities
+            if AbilityDropdown then
+                print("Refreshing AbilityDropdown with " .. #availableAbilities .. " abilities...")
+                AbilityDropdown:Refresh(availableAbilities, true)
+            else
+                warn("AbilityDropdown is nil!")
+            end
+            
+            -- Clear selected abilities since units changed
+            State.SelectedAbilitiesToUse = {}
+        else
+            print("Selection unchanged, skipping update")
+        end
         
-        print(string.format("✓ Selected %d units, showing %d abilities", #Options, #availableAbilities))
+        print("=====================================\n")
     end,
 })
 
@@ -1406,10 +1451,12 @@ AbilityDropdown = GameTab:CreateDropdown({
     Info = "Select which abilities to use automatically (format: UnitName - AbilityName)",
     Callback = function(Options)
         State.SelectedAbilitiesToUse = Options
+        print("\n=== AbilityDropdown callback ===")
         print(string.format("Selected %d abilities to auto-use:", #Options))
         for i, ability in ipairs(Options) do
             print("  " .. i .. ". " .. ability)
         end
+        print("================================\n")
     end,
 })
 
@@ -1440,7 +1487,7 @@ task.spawn(function()
     
     local unitsWithAbilities = getUnitsWithAbilities()
     UnitDropdown:Refresh(unitsWithAbilities)
-    print("Loaded " .. #unitsWithAbilities .. " units with abilities into dropdown")
+    print("✓ Loaded " .. #unitsWithAbilities .. " units with abilities into dropdown")
 end)
 
 GameTab:CreateSection("Auto Sell")
