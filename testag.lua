@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.14"
+local script_version = "V0.15"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1315,34 +1315,49 @@ local function getAbilitiesForSelectedUnits()
         
         if skillData then
             print("  Found skillData for " .. unitName)
-            print("  Skill1:", tostring(skillData.Skill1))
-            print("  Skill2:", tostring(skillData.Skill2))
             
             local hasMultiSkill = false
+            local skillCount = 0
             
-            -- Check for Skill1
-            if skillData.Skill1 and type(skillData.Skill1) == "string" and skillData.Skill1 ~= "" then
-                hasMultiSkill = true
-                local displayName = unitName .. " - " .. skillData.Skill1
-                if not abilitySet[displayName] then
-                    table.insert(abilities, displayName)
-                    abilitySet[displayName] = true
-                    print("  ✓ Added ability: " .. displayName)
+            -- Iterate through all possible skill fields (Skill1, Skill2, Skill3, etc.)
+            for skillKey, skillValue in pairs(skillData) do
+                if type(skillKey) == "string" and skillKey:match("^Skill%d+$") then
+                    -- Found a skill field (Skill1, Skill2, etc.)
+                    print("  Found " .. skillKey .. ":", type(skillValue))
+                    
+                    if type(skillValue) == "table" then
+                        hasMultiSkill = true
+                        skillCount = skillCount + 1
+                        
+                        -- Extract ability name from the skill table
+                        -- The table might have a Name field or use the key itself
+                        local abilityName = skillValue.Name or skillValue.SkillName or skillKey
+                        
+                        print("    Ability name:", abilityName)
+                        
+                        local displayName = unitName .. " - " .. abilityName
+                        if not abilitySet[displayName] then
+                            table.insert(abilities, displayName)
+                            abilitySet[displayName] = true
+                            print("  ✓ Added ability: " .. displayName)
+                        end
+                    elseif type(skillValue) == "string" and skillValue ~= "" then
+                        hasMultiSkill = true
+                        skillCount = skillCount + 1
+                        
+                        local displayName = unitName .. " - " .. skillValue
+                        if not abilitySet[displayName] then
+                            table.insert(abilities, displayName)
+                            abilitySet[displayName] = true
+                            print("  ✓ Added ability: " .. displayName)
+                        end
+                    end
                 end
             end
             
-            -- Check for Skill2
-            if skillData.Skill2 and type(skillData.Skill2) == "string" and skillData.Skill2 ~= "" then
-                hasMultiSkill = true
-                local displayName = unitName .. " - " .. skillData.Skill2
-                if not abilitySet[displayName] then
-                    table.insert(abilities, displayName)
-                    abilitySet[displayName] = true
-                    print("  ✓ Added ability: " .. displayName)
-                end
-            end
+            print("  Total skills found:", skillCount)
             
-            -- For single-skill units (no Skill1 or Skill2), show as "UnitName - Ability"
+            -- For single-skill units (no Skill1, Skill2, etc.), show as "UnitName - Ability"
             if not hasMultiSkill then
                 local displayName = unitName .. " - Ability"
                 if not abilitySet[displayName] then
@@ -5639,16 +5654,33 @@ task.spawn(function()
                     if unitName and abilityName then
                         local skillData = SkillsData[unitName]
                         if skillData then
-                            -- Handle multi-skill units
-                            if skillData.Skill1 or skillData.Skill2 then
-                                if abilityName == skillData.Skill1 or abilityName == skillData.Skill2 then
-                                    local success = findAndUseUnitAbility(unitName, abilityName)
-                                    if success then
-                                        print(string.format("✓ Auto-used: %s - %s", unitName, abilityName))
+                            -- Check if this is a multi-skill unit
+                            local isMultiSkill = false
+                            for skillKey, skillValue in pairs(skillData) do
+                                if type(skillKey) == "string" and skillKey:match("^Skill%d+$") then
+                                    if type(skillValue) == "table" then
+                                        local skillTableName = skillValue.Name or skillValue.SkillName or skillKey
+                                        if abilityName == skillTableName then
+                                            isMultiSkill = true
+                                            local success = findAndUseUnitAbility(unitName, skillTableName)
+                                            if success then
+                                                print(string.format("✓ Auto-used: %s - %s", unitName, skillTableName))
+                                            end
+                                            break
+                                        end
+                                    elseif type(skillValue) == "string" and abilityName == skillValue then
+                                        isMultiSkill = true
+                                        local success = findAndUseUnitAbility(unitName, skillValue)
+                                        if success then
+                                            print(string.format("✓ Auto-used: %s - %s", unitName, skillValue))
+                                        end
+                                        break
                                     end
                                 end
+                            end
+                            
                             -- Handle single-skill units (shown as "UnitName - Ability")
-                            elseif abilityName == "Ability" then
+                            if not isMultiSkill and abilityName == "Ability" then
                                 local success = findAndUseUnitAbility(unitName, nil)
                                 if success then
                                     print(string.format("✓ Auto-used: %s", unitName))
