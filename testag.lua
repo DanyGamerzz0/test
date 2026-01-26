@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1469,32 +1469,44 @@ local UnitDropdown = GameTab:CreateDropdown({
     Flag = "UnitAbilitySelector",
     Info = "Select which units to use abilities on",
     Callback = function(Options)
-        --print("\n=== UnitDropdown callback triggered ===")
-        --print("Received " .. #Options .. " unit selections:")
+        print("\n=== UnitDropdown callback triggered ===")
+        print("Received " .. #Options .. " unit selections:")
         for i, unit in ipairs(Options) do
-            --print("  " .. i .. ". " .. unit)
+            print("  " .. i .. ". " .. unit)
         end
-        
-        -- ALWAYS update abilities when callback fires (removed "unchanged" check)
-       -- print("Updating abilities...")
         
         State.SelectedUnitsForAbility = Options
         
         -- Update abilities dropdown based on selected units
         local availableAbilities = getAbilitiesForSelectedUnits()
         
+        -- Store current ability selections
+        local previousSelections = State.SelectedAbilitiesToUse or {}
+        
         -- Refresh the dropdown with new abilities
         if AbilityDropdown then
-            --print("Refreshing AbilityDropdown with " .. #availableAbilities .. " abilities...")
-            AbilityDropdown:Refresh(availableAbilities, true)
+            print("Refreshing AbilityDropdown with " .. #availableAbilities .. " abilities...")
+            AbilityDropdown:Refresh(availableAbilities, false) -- Don't clear!
         else
-            --warn("AbilityDropdown is nil!")
+            warn("AbilityDropdown is nil!")
         end
         
-        -- Clear selected abilities since units changed
-        State.SelectedAbilitiesToUse = {}
+        -- Try to preserve ability selections that still exist
+        local preservedSelections = {}
+        for _, ability in ipairs(previousSelections) do
+            -- Check if this ability is still available
+            for _, available in ipairs(availableAbilities) do
+                if ability == available then
+                    table.insert(preservedSelections, ability)
+                    break
+                end
+            end
+        end
         
-        --print("=====================================\n")
+        State.SelectedAbilitiesToUse = preservedSelections
+        
+        print(string.format("Preserved %d/%d ability selections", #preservedSelections, #previousSelections))
+        print("=====================================\n")
     end,
 })
 
@@ -1503,16 +1515,16 @@ AbilityDropdown = GameTab:CreateDropdown({
     Options = {},
     CurrentOption = {},
     MultipleOptions = true,
-    Flag = "AbilitySelector",
+    Flag = "AbilitySelector",  -- ✓ This is already set, good!
     Info = "Select which abilities to use automatically",
     Callback = function(Options)
         State.SelectedAbilitiesToUse = Options
-       -- print("\n=== AbilityDropdown callback ===")
-        --print(string.format("Selected %d abilities to auto-use:", #Options))
+        print("\n=== AbilityDropdown callback ===")
+        print(string.format("Selected %d abilities to auto-use:", #Options))
         for i, ability in ipairs(Options) do
-            --print("  " .. i .. ". " .. ability)
+            print("  " .. i .. ". " .. ability)
         end
-        --print("================================\n")
+        print("================================\n")
     end,
 })
 
@@ -5779,26 +5791,53 @@ Rayfield:TopNotify({
 })
 
 task.spawn(function()
-    task.wait(0.5) -- Small delay to ensure config is fully loaded
+    task.wait(1) -- Increase delay to ensure config is fully loaded
     
-    -- Restore unit dropdown selections visually
-    if State.SelectedUnitsForAbility and #State.SelectedUnitsForAbility > 0 then
+    print("=== RESTORING ABILITY SELECTIONS ===")
+    
+    -- Get saved flags from Rayfield config
+    local savedUnits = Rayfield.Flags["UnitAbilitySelector"]
+    local savedAbilities = Rayfield.Flags["AbilitySelector"]
+    
+    print("Saved units from config:", savedUnits and #savedUnits or "nil")
+    print("Saved abilities from config:", savedAbilities and #savedAbilities or "nil")
+    
+    -- Restore units first
+    if savedUnits and #savedUnits > 0 then
+        State.SelectedUnitsForAbility = savedUnits
+        
         local unitsWithAbilities = getUnitsWithAbilities()
         UnitDropdown:Refresh(unitsWithAbilities)
         
-        -- Force the dropdown to show the selected units
-        for _, selectedUnit in ipairs(State.SelectedUnitsForAbility) do
-            --print("Restoring selection for unit:", selectedUnit)
+        print("Restored " .. #savedUnits .. " unit selections")
+        for i, unit in ipairs(savedUnits) do
+            print("  " .. i .. ". " .. unit)
         end
         
-        -- Update abilities dropdown
+        -- Update abilities dropdown based on restored units
         local availableAbilities = getAbilitiesForSelectedUnits()
         if AbilityDropdown then
-            AbilityDropdown:Refresh(availableAbilities, true)
+            AbilityDropdown:Refresh(availableAbilities, false) -- Don't clear selections!
         end
         
-        --print("Restored " .. #State.SelectedUnitsForAbility .. " unit selections from config")
+        print("Generated " .. #availableAbilities .. " available abilities")
     end
+    
+    -- Now restore ability selections AFTER units are restored
+    task.wait(0.5)
+    
+    if savedAbilities and #savedAbilities > 0 then
+        State.SelectedAbilitiesToUse = savedAbilities
+        
+        print("Restored " .. #savedAbilities .. " ability selections:")
+        for i, ability in ipairs(savedAbilities) do
+            print("  " .. i .. ". " .. ability)
+        end
+    else
+        print("No saved abilities to restore")
+    end
+    
+    print("====================================")
 end)
 
 local screenGui = Instance.new("ScreenGui")
