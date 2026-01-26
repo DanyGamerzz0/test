@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.17"
+local script_version = "V0.18"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1389,9 +1389,10 @@ local function getAbilitiesForSelectedUnits()
             
             print("  Total skills found:", skillCount)
             
-            -- For single-skill units (no Skill1, Skill2, etc.), show as "UnitName - Ability"
+            -- For single-skill units (no Skill1, Skill2, etc.), check for SkillsName at root level
             if not hasMultiSkill then
-                local displayName = unitName .. " - Ability"
+                local abilityName = skillData.SkillsName or "Ability"
+                local displayName = unitName .. " - " .. abilityName
                 if not abilitySet[displayName] then
                     table.insert(abilities, displayName)
                     abilitySet[displayName] = true
@@ -5767,6 +5768,29 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
+
+task.spawn(function()
+    task.wait(0.5) -- Small delay to ensure config is fully loaded
+    
+    -- Restore unit dropdown selections visually
+    if State.SelectedUnitsForAbility and #State.SelectedUnitsForAbility > 0 then
+        local unitsWithAbilities = getUnitsWithAbilities()
+        UnitDropdown:Refresh(unitsWithAbilities)
+        
+        -- Force the dropdown to show the selected units
+        for _, selectedUnit in ipairs(State.SelectedUnitsForAbility) do
+            print("Restoring selection for unit:", selectedUnit)
+        end
+        
+        -- Update abilities dropdown
+        local availableAbilities = getAbilitiesForSelectedUnits()
+        if AbilityDropdown then
+            AbilityDropdown:Refresh(availableAbilities, true)
+        end
+        
+        print("Restored " .. #State.SelectedUnitsForAbility .. " unit selections from config")
+    end
+end)
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "RayfieldToggle"
