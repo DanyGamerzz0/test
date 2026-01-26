@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1314,40 +1314,39 @@ local function getAbilitiesForSelectedUnits()
         if skillData then
             -- Check for Skill1 and Skill2 (multi-skill units)
             if skillData.Skill1 and type(skillData.Skill1) == "string" then
-                local abilityName = skillData.Skill1
-                if not abilitySet[abilityName] then
-                    table.insert(abilities, abilityName)
-                    abilitySet[abilityName] = true
+                local displayName = unitName .. " - " .. skillData.Skill1
+                if not abilitySet[displayName] then
+                    table.insert(abilities, displayName)
+                    abilitySet[displayName] = true
                 end
             end
             if skillData.Skill2 and type(skillData.Skill2) == "string" then
-                local abilityName = skillData.Skill2
-                if not abilitySet[abilityName] then
-                    table.insert(abilities, abilityName)
-                    abilitySet[abilityName] = true
+                local displayName = unitName .. " - " .. skillData.Skill2
+                if not abilitySet[displayName] then
+                    table.insert(abilities, displayName)
+                    abilitySet[displayName] = true
                 end
             end
-            -- For single-skill units, use "Default Ability"
+            -- For single-skill units, show as "UnitName - Ability"
             if not skillData.Skill1 and not skillData.Skill2 then
-                if not abilitySet["Default Ability"] then
-                    table.insert(abilities, "Default Ability")
-                    abilitySet["Default Ability"] = true
+                local displayName = unitName .. " - Ability"
+                if not abilitySet[displayName] then
+                    table.insert(abilities, displayName)
+                    abilitySet[displayName] = true
                 end
             end
         end
     end
     
-    -- Sort alphabetically - but verify all entries are strings first
-    local validAbilities = {}
-    for _, ability in ipairs(abilities) do
-        if type(ability) == "string" then
-            table.insert(validAbilities, ability)
-        end
+    -- Sort alphabetically
+    table.sort(abilities)
+    
+    print("Available abilities for selected units:")
+    for i, ability in ipairs(abilities) do
+        print("  " .. i .. ". " .. ability)
     end
     
-    table.sort(validAbilities)
-    
-    return validAbilities
+    return abilities
 end
 
 local AutoUseAbilityToggle = GameTab:CreateToggle({
@@ -1375,20 +1374,26 @@ local UnitDropdown = GameTab:CreateDropdown({
     Flag = "UnitAbilitySelector",
     Info = "Select which units to use abilities on",
     Callback = function(Options)
+        print("UnitDropdown callback triggered with " .. #Options .. " selections")
         State.SelectedUnitsForAbility = Options
         
         -- Update abilities dropdown based on selected units
         local availableAbilities = getAbilitiesForSelectedUnits()
         
+        print("Generated " .. #availableAbilities .. " abilities from selected units")
+        
         -- Refresh the dropdown with new abilities
         if AbilityDropdown then
-            AbilityDropdown:Refresh(availableAbilities, true) -- true parameter clears current selection
+            print("Refreshing AbilityDropdown...")
+            AbilityDropdown:Refresh(availableAbilities, true)
+        else
+            warn("AbilityDropdown is nil!")
         end
         
         -- Clear selected abilities since units changed
         State.SelectedAbilitiesToUse = {}
         
-        print(string.format("Selected %d units, showing %d abilities", #Options, #availableAbilities))
+        print(string.format("✓ Selected %d units, showing %d abilities", #Options, #availableAbilities))
     end,
 })
 
@@ -1398,10 +1403,13 @@ AbilityDropdown = GameTab:CreateDropdown({
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "AbilitySelector",
-    Info = "Select which abilities to use automatically",
+    Info = "Select which abilities to use automatically (format: UnitName - AbilityName)",
     Callback = function(Options)
         State.SelectedAbilitiesToUse = Options
-        print(string.format("Selected %d abilities to auto-use", #Options))
+        print(string.format("Selected %d abilities to auto-use:", #Options))
+        for i, ability in ipairs(Options) do
+            print("  " .. i .. ". " .. ability)
+        end
     end,
 })
 
@@ -5572,16 +5580,18 @@ task.spawn(function()
         task.wait(ABILITY_CHECK_INTERVAL)
         
         if State.AutoUseAbility and not isInLobby() then
-            if State.SelectedUnitsForAbility and #State.SelectedUnitsForAbility > 0 and
-               State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse > 0 then
+            if State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse > 0 then
                 
                 local SkillsModule = Services.ReplicatedStorage:WaitForChild("Module"):WaitForChild("Skills")
                 local SkillsData = require(SkillsModule)
                 
-                for _, unitName in ipairs(State.SelectedUnitsForAbility) do
-                    local skillData = SkillsData[unitName]
-                    if skillData then
-                        for _, abilityName in ipairs(State.SelectedAbilitiesToUse) do
+                for _, abilityDisplay in ipairs(State.SelectedAbilitiesToUse) do
+                    -- Parse "UnitName - AbilityName" format
+                    local unitName, abilityName = abilityDisplay:match("^(.+)%s*%-%s*(.+)$")
+                    
+                    if unitName and abilityName then
+                        local skillData = SkillsData[unitName]
+                        if skillData then
                             -- Handle multi-skill units
                             if skillData.Skill1 or skillData.Skill2 then
                                 if abilityName == skillData.Skill1 or abilityName == skillData.Skill2 then
@@ -5590,29 +5600,14 @@ task.spawn(function()
                                         print(string.format("✓ Auto-used: %s - %s", unitName, abilityName))
                                     end
                                 end
-                            -- Handle single-skill units
-                            elseif abilityName == "Default Ability" then
+                            -- Handle single-skill units (shown as "UnitName - Ability")
+                            elseif abilityName == "Ability" then
                                 local success = findAndUseUnitAbility(unitName, nil)
                                 if success then
                                     print(string.format("✓ Auto-used: %s", unitName))
                                 end
                             end
-                            
-                            task.wait(0.1)
                         end
-                    end
-                end
-            end
-        end
-        
-        -- Keep Sukuna abilities section as-is since it's separate
-        if State.AutoUseAbilitySukuna and not isInLobby() then
-            if State.SelectedSukunaSkills and #State.SelectedSukunaSkills > 0 then
-                for _, skillName in ipairs(State.SelectedSukunaSkills) do
-                    local success = findAndUseUnitAbility("Sukuna", skillName)
-                    
-                    if success then
-                        print(string.format("✓ Auto-used Sukuna: %s", skillName))
                     end
                     
                     task.wait(0.1)
