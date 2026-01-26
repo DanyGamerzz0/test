@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.16"
+local script_version = "V0.17"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1305,6 +1305,7 @@ local function extractAbilityName(skillTable, fallbackName)
     
     -- Try multiple possible field names for the ability name
     local possibleNames = {
+        "SkillsName",  -- Primary field used in Anime Guardians
         "SkillName",
         "Name", 
         "AbilityName",
@@ -1413,21 +1414,6 @@ local function getAbilitiesForSelectedUnits()
     
     return abilities
 end
-
-local AutoUseAbilityToggle = GameTab:CreateToggle({
-    Name = "Auto Use Ability",
-    CurrentValue = false,
-    Flag = "AutoUseAbility",
-    Info = "Automatically uses selected abilities for selected units",
-    Callback = function(Value)
-        State.AutoUseAbility = Value
-        if Value then
-            local unitCount = State.SelectedUnitsForAbility and #State.SelectedUnitsForAbility or 0
-            local abilityCount = State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse or 0
-            notify("Auto Ability", string.format("Enabled: %d units, %d abilities", unitCount, abilityCount))
-        end
-    end,
-})
 
 local AutoUseAbilityToggle = GameTab:CreateToggle({
     Name = "Auto Use Ability",
