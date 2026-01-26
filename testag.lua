@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.24"
+local script_version = "V0.09"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -243,6 +243,7 @@ local LobbyTab = Window:CreateTab("Lobby", "tv")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "tv")
+local AutoplayTab = Window:CreateTab("Autoplay", "gamepad-2")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
@@ -574,40 +575,13 @@ local function enableBlackScreen()
     end
 end
 
-local function getUnitAbilitiesList()
-    local SkillsModule = Services.ReplicatedStorage:WaitForChild("Module"):WaitForChild("Skills")
-    local SkillsData = require(SkillsModule)
-    
-    local abilitiesList = {}
-    
-    for unitName, skillData in pairs(SkillsData) do
-        -- Skip units with multiple skills
-        if not (skillData.Skill1 and skillData.Skill2) then
-            table.insert(abilitiesList, {
-                display = unitName,
-                unitName = unitName,
-                abilityName = nil,
-                cooldown = skillData.Cooldown
-            })
-        end
-    end
-    
-    -- Sort alphabetically by display name
-    table.sort(abilitiesList, function(a, b)
-        return a.display < b.display
-    end)
-    
-    return abilitiesList
-end
-
 local function findAndUseUnitAbility(unitBaseName, abilityName)
     -- Trim the target name
     unitBaseName = unitBaseName:gsub("^%s+", ""):gsub("%s+$", "")
     
-    -- ALSO TRIM ABILITY NAME IF IT EXISTS
+    -- Trim ability name if it exists
     if abilityName then
         abilityName = abilityName:gsub("^%s+", ""):gsub("%s+$", "")
-        print(string.format("🎯 Using ability: '%s' for unit: '%s'", abilityName, unitBaseName))
     end
     
     if isInLobby() then return false end
@@ -627,12 +601,8 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
             if baseUnitName == unitBaseName then
                 local args = {"SkillsButton", unit.Name}
                 
-                -- ADD THE ABILITY NAME AS THIRD ARGUMENT
                 if abilityName and abilityName ~= "" then
                     table.insert(args, abilityName)
-                    print(string.format("📋 Final args: [1]='%s', [2]='%s', [3]='%s'", args[1], args[2], args[3]))
-                else
-                    print(string.format("📋 Final args: [1]='%s', [2]='%s' (no ability name)", args[1], args[2]))
                 end
                 
                 local success, result = pcall(function()
@@ -640,26 +610,15 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
                         :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
                 end)
                 
-                if success then
-                    if result then
-                        -- Ability used successfully
-                        local abilityText = abilityName and (" - " .. abilityName) or ""
-                        print(string.format("✓ Used ability: %s%s", unitBaseName, abilityText))
-                        return true
-                    else
-                        -- Ability on cooldown or not ready
-                        return false
-                    end
+                if success and result then
+                    return true
                 else
-                    -- Error occurred
-                    warn(string.format("❌ Error using ability on %s: %s", unitBaseName, tostring(result)))
                     return false
                 end
             end
         end
     end
     
-    -- Unit not found in unitClient
     return false
 end
 
@@ -1297,7 +1256,7 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
-GameTab:CreateSection("Auto Ability")
+AutoplayTab:CreateSection("Auto Ability")
 
 local function getUnitsWithAbilities()
     local SkillsModule = Services.ReplicatedStorage:WaitForChild("Module"):WaitForChild("Skills")
@@ -1437,7 +1396,7 @@ local function getAbilitiesForSelectedUnits()
     return abilities
 end
 
-local AutoUseAbilityToggle = GameTab:CreateToggle({
+local AutoUseAbilityToggle = AutoplayTab:CreateToggle({
     Name = "Auto Use Ability",
     CurrentValue = false,
     Flag = "AutoUseAbility",
@@ -1454,7 +1413,7 @@ local AutoUseAbilityToggle = GameTab:CreateToggle({
 
 local AbilityDropdown
 
-local UnitDropdown = GameTab:CreateDropdown({
+local UnitDropdown = AutoplayTab:CreateDropdown({
     Name = "Select Units",
     Options = {},
     CurrentOption = {},
@@ -1503,7 +1462,7 @@ local UnitDropdown = GameTab:CreateDropdown({
     end,
 })
 
-AbilityDropdown = GameTab:CreateDropdown({
+AbilityDropdown = AutoplayTab:CreateDropdown({
     Name = "Select Abilities",
     Options = {},
     CurrentOption = {},
