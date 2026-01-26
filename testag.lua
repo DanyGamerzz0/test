@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.22"
+local script_version = "V0.23"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -604,27 +604,13 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
     -- Trim the target name
     unitBaseName = unitBaseName:gsub("^%s+", ""):gsub("%s+$", "")
     
-    print(string.format("🔍 findAndUseUnitAbility called: unitBaseName='%s' (len=%d), abilityName='%s'", 
-        tostring(unitBaseName), #unitBaseName, tostring(abilityName)))
-    
-    if isInLobby() then 
-        print("❌ In lobby, cannot use abilities")
-        return false 
-    end
+    if isInLobby() then return false end
     
     local ground = Services.Workspace:FindFirstChild("Ground")
-    if not ground then 
-        print("❌ Ground not found")
-        return false 
-    end
+    if not ground then return false end
     
     local unitClient = ground:FindFirstChild("unitClient")
-    if not unitClient then 
-        print("❌ unitClient not found")
-        return false 
-    end
-    
-    print("📋 Searching in unitClient with", #unitClient:GetChildren(), "units")
+    if not unitClient then return false end
     
     -- Search for the unit in unitClient
     for _, unit in pairs(unitClient:GetChildren()) do
@@ -632,28 +618,7 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
             local unitName = unit.Name
             local baseUnitName = (unitName:match("^(.+)%s+%d+$") or unitName):gsub("^%s+", ""):gsub("%s+$", "")
             
-            print(string.format("  Checking: '%s' (len=%d) vs '%s' (len=%d)", 
-                baseUnitName, #baseUnitName, unitBaseName, #unitBaseName))
-            
-            -- Debug byte comparison
             if baseUnitName == unitBaseName then
-                print("  ✓ MATCH FOUND!")
-            else
-                print("  ✗ No match")
-                -- Print character-by-character comparison
-                for i = 1, math.max(#baseUnitName, #unitBaseName) do
-                    local char1 = baseUnitName:sub(i,i)
-                    local char2 = unitBaseName:sub(i,i)
-                    if char1 ~= char2 then
-                        print(string.format("    Diff at pos %d: '%s' (byte %d) vs '%s' (byte %d)", 
-                            i, char1, char1:byte() or 0, char2, char2:byte() or 0))
-                    end
-                end
-            end
-            
-            if baseUnitName == unitBaseName then
-                print(string.format("✓ Found matching unit: %s", unitName))
-                
                 local args = {"SkillsButton", unit.Name}
                 
                 if abilityName and abilityName ~= "" then
@@ -665,16 +630,26 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
                         :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
                 end)
                 
-                if success and result then
-                    local abilityText = abilityName and (" - " .. abilityName) or ""
-                    print(string.format("✓ Successfully used ability on %s%s", unitBaseName, abilityText))
-                    return true
+                if success then
+                    if result then
+                        -- Ability used successfully
+                        local abilityText = abilityName and (" - " .. abilityName) or ""
+                        print(string.format("✓ Used ability: %s%s", unitBaseName, abilityText))
+                        return true
+                    else
+                        -- Ability on cooldown or not ready
+                        return false
+                    end
+                else
+                    -- Error occurred
+                    warn(string.format("Error using ability on %s: %s", unitBaseName, tostring(result)))
+                    return false
                 end
             end
         end
     end
     
-    print(string.format("❌ Unit not found in unitClient: %s", unitBaseName))
+    -- Unit not found in unitClient
     return false
 end
 
@@ -5675,64 +5650,43 @@ end)
 
 
 task.spawn(function()
-    local ABILITY_CHECK_INTERVAL = 0.5
+    local ABILITY_CHECK_INTERVAL = 1 -- Check every 1 second instead of 0.5
+    local lastAttemptTime = {} -- Track last attempt per ability to avoid spam
+    local COOLDOWN_RETRY_DELAY = 3 -- Wait 3 seconds before retrying failed abilities
     
     while true do
         task.wait(ABILITY_CHECK_INTERVAL)
-        
-        -- Debug: Check if auto-ability is enabled
-        if State.AutoUseAbility then
-            print("=== AUTO ABILITY DEBUG ===")
-            print("Auto Use Ability:", State.AutoUseAbility)
-            print("Is in lobby:", isInLobby())
-            print("Selected abilities count:", State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse or 0)
-            
-            if State.SelectedAbilitiesToUse then
-                print("Selected abilities:")
-                for i, ability in ipairs(State.SelectedAbilitiesToUse) do
-                    print("  " .. i .. ". " .. ability)
-                end
-            end
-            print("========================")
-        end
         
         if State.AutoUseAbility and not isInLobby() then
             if State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse > 0 then
                 
                 for _, abilityDisplay in ipairs(State.SelectedAbilitiesToUse) do
-                    print("Processing ability:", abilityDisplay)
+                    -- Check if we recently tried this ability
+                    local currentTime = tick()
+                    if lastAttemptTime[abilityDisplay] and (currentTime - lastAttemptTime[abilityDisplay]) < COOLDOWN_RETRY_DELAY then
+                        -- Skip this ability, it was recently attempted
+                        continue
+                    end
                     
                     -- Parse "UnitName - AbilityName" format
                     local unitName, abilityName = abilityDisplay:match("^(.+)%s*%-%s*(.+)$")
                     
-                    print("Parsed - Unit:", unitName, "Ability:", abilityName)
-                    
                     if unitName and abilityName then
-                        if abilityName == "Ability" then
-                            print("Attempting single-skill ability for:", unitName)
-                            local success = findAndUseUnitAbility(unitName, nil)
-                            if success then
-                                print("✓ Auto-used:", unitName)
-                            else
-                                print("✗ Failed to use ability for:", unitName)
-                            end
+                        local abilityNameToUse = (abilityName == "Ability") and nil or abilityName
+                        
+                        local success = findAndUseUnitAbility(unitName, abilityNameToUse)
+                        
+                        if success then
+                            -- Ability used successfully, reset the retry timer
+                            lastAttemptTime[abilityDisplay] = nil
                         else
-                            print("Attempting multi-skill ability for:", unitName, "-", abilityName)
-                            local success = findAndUseUnitAbility(unitName, abilityName)
-                            if success then
-                                print("✓ Auto-used:", unitName, "-", abilityName)
-                            else
-                                print("✗ Failed to use ability for:", unitName, "-", abilityName)
-                            end
+                            -- Ability failed (cooldown or not ready), mark the time
+                            lastAttemptTime[abilityDisplay] = currentTime
                         end
-                    else
-                        warn("Failed to parse ability display:", abilityDisplay)
+                        
+                        task.wait(0.1) -- Small delay between different abilities
                     end
-                    
-                    task.wait(0.1)
                 end
-            else
-                print("No abilities selected or empty list")
             end
         end
     end
