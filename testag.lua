@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -601,8 +601,11 @@ local function getUnitAbilitiesList()
 end
 
 local function findAndUseUnitAbility(unitBaseName, abilityName)
-    print(string.format("🔍 findAndUseUnitAbility called: unitBaseName='%s', abilityName='%s'", 
-        tostring(unitBaseName), tostring(abilityName)))
+    -- Trim the target name
+    unitBaseName = unitBaseName:gsub("^%s+", ""):gsub("%s+$", "")
+    
+    print(string.format("🔍 findAndUseUnitAbility called: unitBaseName='%s' (len=%d), abilityName='%s'", 
+        tostring(unitBaseName), #unitBaseName, tostring(abilityName)))
     
     if isInLobby() then 
         print("❌ In lobby, cannot use abilities")
@@ -627,10 +630,26 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
     for _, unit in pairs(unitClient:GetChildren()) do
         if unit:IsA("Model") then
             local unitName = unit.Name
-            local baseUnitName = unitName:match("^(.+)%s+%d+$") or unitName
+            local baseUnitName = (unitName:match("^(.+)%s+%d+$") or unitName):gsub("^%s+", ""):gsub("%s+$", "")
             
-            print(string.format("  Checking unit: '%s' (base: '%s') vs target: '%s'", 
-                unitName, baseUnitName, unitBaseName))
+            print(string.format("  Checking: '%s' (len=%d) vs '%s' (len=%d)", 
+                baseUnitName, #baseUnitName, unitBaseName, #unitBaseName))
+            
+            -- Debug byte comparison
+            if baseUnitName == unitBaseName then
+                print("  ✓ MATCH FOUND!")
+            else
+                print("  ✗ No match")
+                -- Print character-by-character comparison
+                for i = 1, math.max(#baseUnitName, #unitBaseName) do
+                    local char1 = baseUnitName:sub(i,i)
+                    local char2 = unitBaseName:sub(i,i)
+                    if char1 ~= char2 then
+                        print(string.format("    Diff at pos %d: '%s' (byte %d) vs '%s' (byte %d)", 
+                            i, char1, char1:byte() or 0, char2, char2:byte() or 0))
+                    end
+                end
+            end
             
             if baseUnitName == unitBaseName then
                 print(string.format("✓ Found matching unit: %s", unitName))
@@ -639,9 +658,6 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
                 
                 if abilityName and abilityName ~= "" then
                     table.insert(args, abilityName)
-                    print(string.format("  Using args: %s, %s, %s", args[1], args[2], args[3]))
-                else
-                    print(string.format("  Using args: %s, %s", args[1], args[2]))
                 end
                 
                 local success, result = pcall(function()
@@ -649,18 +665,10 @@ local function findAndUseUnitAbility(unitBaseName, abilityName)
                         :WaitForChild("Events"):WaitForChild("Skills"):InvokeServer(unpack(args))
                 end)
                 
-                if success then
-                    if result then
-                        local abilityText = abilityName and (" - " .. abilityName) or ""
-                        print(string.format("✓ Successfully used ability on %s%s", unitBaseName, abilityText))
-                        return true
-                    else
-                        print(string.format("⚠️ Server returned false for %s (cooldown or invalid?)", unitBaseName))
-                        return false
-                    end
-                else
-                    warn(string.format("❌ Error invoking ability: %s", tostring(result)))
-                    return false
+                if success and result then
+                    local abilityText = abilityName and (" - " .. abilityName) or ""
+                    print(string.format("✓ Successfully used ability on %s%s", unitBaseName, abilityText))
+                    return true
                 end
             end
         end
