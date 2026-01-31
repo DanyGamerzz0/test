@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.14"
+local script_version = "V0.15"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1259,41 +1259,38 @@ local Toggle = GameTab:CreateToggle({
 })
 
 local function checkAndBreakZafkielClock()
-    print("fired")
     if not State.AutoBreakZafkielClock then return end
-    print("fired2")
     if isInLobby() then return end
-    print("fired3")
     
     local gameStates = Services.Workspace:FindFirstChild("GameStates")
-    if not gameStates then print("gamestates not found") return end
+    if not gameStates then return end
     
     local main = Services.Workspace:FindFirstChild("Main")
-    if not main then print("main not found") return end
+    if not main then return end
     
-    -- Clock mapping
+    -- Clock mapping: BoolValue name -> Model name
     local clockMapping = {
-        firstclockactive = "FirstClock",
-        secondclockactive = "SecondClock",
-        thirdclockactive = "ThirdClock"
+        FirstClockActive = "FirstClock",
+        SecondClockActive = "SecondClock",
+        ThirdClockActive = "ThirdClock"
     }
     
     -- Get all descendants from GameStates
     local gameStatesDescendants = gameStates:GetDescendants()
     
     -- Check for active clocks
-    for stateName, clockName in pairs(clockMapping) do
+    for boolName, clockName in pairs(clockMapping) do
         -- Find the BoolValue in GameStates descendants
         local clockState = nil
         for _, desc in pairs(gameStatesDescendants) do
-            if desc.Name == stateName and desc:IsA("BoolValue") then
+            if desc.Name == boolName and desc:IsA("BoolValue") then
                 clockState = desc
                 break
             end
         end
         
         if clockState and clockState.Value == true then
-            print(string.format("Found active clock state: %s", stateName))
+            print(string.format("Found active clock state: %s", boolName))
             
             -- Find the corresponding clock model in Main descendants
             local clockModel = nil
@@ -5522,10 +5519,13 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(1) -- Check every 0.5 seconds
+        task.wait(0.5) -- Check every 0.5 seconds
         
         if State.AutoBreakZafkielClock then
-            checkAndBreakZafkielClock()
+            local success, err = pcall(checkAndBreakZafkielClock)
+            if not success then
+                warn("Auto Break Zafkiel Clock error:", err)
+            end
         end
     end
 end)
