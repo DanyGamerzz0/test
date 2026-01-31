@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1259,8 +1259,11 @@ local Toggle = GameTab:CreateToggle({
 })
 
 local function checkAndBreakZafkielClock()
+    print("fired")
     if not State.AutoBreakZafkielClock then return end
+    print("fired2")
     if isInLobby() then return end
+    print("fired3")
     
     local gameStates = Services.Workspace:FindFirstChild("GameStates")
     if not gameStates then print("gamestates not found") return end
@@ -1347,7 +1350,7 @@ local function checkAndBreakZafkielClock()
     end
 end
 
-local Toggle = GameTab:CreateToggle({
+    Toggle = GameTab:CreateToggle({
     Name = "Auto Break Zafkiel's Clock",
     CurrentValue = false,
     Flag = "AutoBreakZafkielClock",
@@ -5522,10 +5525,7 @@ task.spawn(function()
         task.wait(1) -- Check every 0.5 seconds
         
         if State.AutoBreakZafkielClock then
-            local success, err = pcall(checkAndBreakZafkielClock)
-            if not success then
-                warn("Auto Break Zafkiel Clock error:", err)
-            end
+            checkAndBreakZafkielClock()
         end
     end
 end)
