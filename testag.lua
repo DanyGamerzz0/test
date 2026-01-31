@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1262,55 +1262,51 @@ local function checkAndBreakZafkielClock()
     if not State.AutoBreakZafkielClock then return end
     if isInLobby() then return end
     
-    -- Check if Zafkiel's Clock Tower exists
     local gameStates = Services.Workspace:FindFirstChild("GameStates")
     if not gameStates then return end
     
-    local clockTower = gameStates:FindFirstChild("Zafkiel’s Clock Tower")
+    local main = Services.Workspace:FindFirstChild("Main")
+    if not main then return end
     
-    if not clockTower then return end
-    
-    -- Check for active clocks
+    -- Clock mapping
     local clockMapping = {
         firstclockactive = "FirstClock",
         secondclockactive = "SecondClock",
         thirdclockactive = "ThirdClock"
     }
     
+    -- Get all descendants from GameStates
+    local gameStatesDescendants = gameStates:GetDescendants()
+    
+    -- Check for active clocks
     for stateName, clockName in pairs(clockMapping) do
-        local clockState = clockTower:FindFirstChild(stateName)
+        -- Find the BoolValue in GameStates descendants
+        local clockState = nil
+        for _, desc in pairs(gameStatesDescendants) do
+            if desc.Name == stateName and desc:IsA("BoolValue") then
+                clockState = desc
+                break
+            end
+        end
         
-        if clockState and clockState:IsA("BoolValue") and clockState.Value == true then
-            -- Find the corresponding clock model
-            local main = Services.Workspace:FindFirstChild("Main")
-            if not main then 
-                warn("Main folder not found")
-                continue 
+        if clockState and clockState.Value == true then
+            print(string.format("Found active clock state: %s", stateName))
+            
+            -- Find the corresponding clock model in Main descendants
+            local clockModel = nil
+            for _, desc in pairs(main:GetDescendants()) do
+                if desc.Name == clockName and desc:IsA("Model") then
+                    clockModel = desc
+                    break
+                end
             end
             
-            local zafkielTower = main:FindFirstChild("Zafkiel’s Clock Tower")
-            if not zafkielTower then 
-                warn("Zafkiel's Clock Tower not found in Main")
-                continue 
-            end
-            
-            local randomSpawnPress = zafkielTower:FindFirstChild("Random_SpawnPress")
-            if not randomSpawnPress then 
-                warn("Random_SpawnPress not found")
-                continue 
-            end
-            
-            local model = randomSpawnPress:FindFirstChild("Model")
-            if not model then 
-                warn("Model not found")
-                continue 
-            end
-            
-            local clockModel = model:FindFirstChild(clockName)
             if not clockModel then 
                 warn("Clock model not found:", clockName)
                 continue 
             end
+            
+            print(string.format("Found clock model: %s", clockName))
             
             -- Teleport to the clock
             local player = Services.Players.LocalPlayer
@@ -1320,18 +1316,26 @@ local function checkAndBreakZafkielClock()
                 if targetPart then
                     player.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 5, 0)
                     
+                    print(string.format("Teleported to %s", clockName))
+                    
                     -- Wait a moment for teleportation
                     task.wait(0.3)
                     
                     -- Find and fire proximity prompt
-                    local proximityPrompt = clockModel:FindFirstChildOfClass("ProximityPrompt", true) -- recursive search
+                    local proximityPrompt = nil
+                    for _, desc in pairs(clockModel:GetDescendants()) do
+                        if desc:IsA("ProximityPrompt") then
+                            proximityPrompt = desc
+                            break
+                        end
+                    end
                     
                     if proximityPrompt then
                         fireproximityprompt(proximityPrompt)
                         print(string.format("✓ Broke %s", clockName))
                         
                         -- Wait before checking next clock
-                        task.wait(0.5)
+                        task.wait(1)
                     else
                         warn("ProximityPrompt not found in", clockName)
                     end
@@ -5515,10 +5519,13 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(1) -- Check every 0.5 seconds
         
         if State.AutoBreakZafkielClock then
-            pcall(checkAndBreakZafkielClock)
+            local success, err = pcall(checkAndBreakZafkielClock)
+            if not success then
+                warn("Auto Break Zafkiel Clock error:", err)
+            end
         end
     end
 end)
