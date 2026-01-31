@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1266,7 +1266,8 @@ local function checkAndBreakZafkielClock()
     local gameStates = Services.Workspace:FindFirstChild("GameStates")
     if not gameStates then return end
     
-    local clockTower = gameStates:FindFirstChild("Zafkiel's Clock Tower")
+    local clockTower = gameStates:FindFirstChild("Zafkiel’s Clock Tower")
+    
     if not clockTower then return end
     
     -- Check for active clocks
@@ -1287,7 +1288,7 @@ local function checkAndBreakZafkielClock()
                 continue 
             end
             
-            local zafkielTower = main:FindFirstChild("Zafkiel's Clock Tower")
+            local zafkielTower = main:FindFirstChild("Zafkiel’s Clock Tower")
             if not zafkielTower then 
                 warn("Zafkiel's Clock Tower not found in Main")
                 continue 
