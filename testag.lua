@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -1263,10 +1263,10 @@ local function checkAndBreakZafkielClock()
     if isInLobby() then return end
     
     local gameStates = Services.Workspace:FindFirstChild("GameStates")
-    if not gameStates then return end
+    if not gameStates then print("gamestates not found") return end
     
     local main = Services.Workspace:FindFirstChild("Main")
-    if not main then return end
+    if not main then print("main not found") return end
     
     -- Clock mapping
     local clockMapping = {
