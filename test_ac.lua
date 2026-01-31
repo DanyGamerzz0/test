@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.27"
+    local script_version = "V0.28"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -356,6 +356,7 @@ local macro = {}
         AutoRetryAttempts = 3,
         AutoRetryDelay = 2,
         SelectedBossRush = nil,
+        AutoRedeemQuests = false,
     }
 
     -- ========== CREATE TABS ==========
@@ -4627,7 +4628,7 @@ local function sendSummonWebhook()
     end
 end
 
-    LobbyTab:CreateSection("🏨 Lobby 🏨")
+    LobbyTab:CreateSection("Lobby")
 
      LobbyTab:CreateButton({
             Name = "Return to lobby",
@@ -4636,6 +4637,67 @@ end
                 game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
         end,
     })
+
+    LobbyTab:CreateSection("Auto Redeem Quests")
+
+    local AutoRedeemQuestsToggle = LobbyTab:CreateToggle({
+    Name = "Auto Redeem Quests",
+    CurrentValue = false,
+    Flag = "AutoRedeemQuests",
+    Info = "Automatically redeem completed quests",
+    Callback = function(Value)
+        State.AutoRedeemQuests = Value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        
+        if State.AutoRedeemQuests and isInLobby() then
+            local success, result = pcall(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                local Loader = require(ReplicatedStorage.Framework.Loader)
+                local GUIService = Loader.load_client_service(script, "GUIService")
+                local QuestClassesCore = Loader.load_core_service(script, "QuestClassesCore")
+                
+                if not (GUIService and GUIService.map_select_ui) then
+                    return 0
+                end
+                
+                local session = GUIService.map_select_ui.session
+                local quest_handler = session.quest_handler
+                local quest_data = quest_handler.quest_profile_data
+                
+                local redeemed_count = 0
+                
+                for uuid, quest in pairs(quest_data.quests) do
+                    local is_complete = QuestClassesCore.is_quest_complete(session, quest)
+                    
+                    if is_complete then
+                        local redeem_success = pcall(function()
+                            Services.ReplicatedStorage:WaitForChild("endpoints")
+                                :WaitForChild("client_to_server")
+                                :WaitForChild("redeem_quest")
+                                :InvokeServer(uuid)
+                        end)
+                        
+                        if redeem_success then
+                            redeemed_count = redeemed_count + 1
+                            task.wait(0.2)
+                        end
+                    end
+                end
+                
+                return redeemed_count
+            end)
+            
+            if success and result > 0 then
+                print(string.format("Auto-redeemed %d quest(s)", result))
+            end
+        end
+    end
+end)
 
     local function isGameDataLoaded()
         return Services.ReplicatedStorage:FindFirstChild("Framework") and
