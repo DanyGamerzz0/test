@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.15"
+local script_version = "V0.1"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -749,7 +749,7 @@ end)
     end,
 })
 
-     JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
+     JoinerSection = JoinerTab:CreateSection("Story Joiner")
 
 
      AutoJoinStoryToggle = JoinerTab:CreateToggle({
@@ -799,7 +799,7 @@ end)
     end,
     })
 
-     JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
+     JoinerSection00 = JoinerTab:CreateSection("Raid Joiner")
 
      AutoJoinRaidToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
@@ -821,7 +821,7 @@ end)
     end,
 })
 
-     JoinerSection00 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
+     JoinerSection00 = JoinerTab:CreateSection("Challenge Joiner")
 
      AutoJoinChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Challenge",
@@ -832,7 +832,7 @@ end)
     end,
     })
 
-     JoinerSection00 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
+     JoinerSection00 = JoinerTab:CreateSection("Portal Joiner")
 
      AutoJoinPortalToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Portal",
@@ -854,7 +854,7 @@ end)
     end,
 })
 
-     JoinerSection00 = JoinerTab:CreateSection("👹 Event Joiner 👹")
+     JoinerSection00 = JoinerTab:CreateSection("Event Joiner")
 
      AutoJoinEventToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Event",
@@ -903,7 +903,7 @@ end)
     end,
 })
 
-     JoinerSection00 = JoinerTab:CreateSection("🏆 Worldline Joiner 🏆")
+     JoinerSection00 = JoinerTab:CreateSection("Worldline Joiner")
 
      AutoJoinWorldlineToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Worldlines",
@@ -926,7 +926,7 @@ end)
     end,
 })
 
-     JoinerSection00 = JoinerTab:CreateSection("🪜 Tower Joiner 🪜")
+     JoinerSection00 = JoinerTab:CreateSection("Tower Joiner")
 
      AutoJoinTowerToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Tower",
@@ -948,7 +948,7 @@ end)
     end,
 }) 
 
-     JoinerSection00 = JoinerTab:CreateSection("🚪 Gate Joiner 🚪")
+     JoinerSection00 = JoinerTab:CreateSection("Gate Joiner")
 
      AutoJoinGateToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Gate",
@@ -959,7 +959,7 @@ end)
     end,
     })
 
-local GameSection = GameTab:CreateSection("👥 Player 👥")
+local GameSection = GameTab:CreateSection("Player")
 
 local Toggle = GameTab:CreateToggle({
     Name = "Black Screen",
@@ -1050,7 +1050,7 @@ end
    end,
 })
 
-local GameSection = GameTab:CreateSection("🎮 Game 🎮")
+local GameSection = GameTab:CreateSection("Game")
 
 local Toggle = GameTab:CreateToggle({
     Name = "Delete Enemies",
@@ -3807,94 +3807,6 @@ local function processAbilityQueue(playbackStartTime)
     end
 end
 
-local function monitorAndReplaceDeletedUnits()
-    if not State.ReplaceDeletedUnits then return end
-    
-    print("🛡️ Unit replacement monitor started")
-    
-    while State.ReplaceDeletedUnits and isPlaybacking and gameInProgress do
-        task.wait(1) -- Check every second
-        
-        local playerUnitsFolder = getPlayerUnitsFolder()
-        if not playerUnitsFolder then 
-            task.wait(1)
-            continue 
-        end
-        
-        -- Check each tracked placement
-        for placementId, serverUnitName in pairs(playbackUnitMapping) do
-            -- If unit no longer exists in the game
-            if not playerUnitsFolder:FindFirstChild(serverUnitName) then
-                print(string.format("⚠️ DELETED UNIT DETECTED: %s (was: %s)", placementId, serverUnitName))
-                
-                -- Find the original placement action in macro
-                local placementAction = nil
-                local upgradeActions = {}
-                
-                for _, action in ipairs(macro) do
-                    if action.Unit == placementId then
-                        if action.Type == "spawn_unit" then
-                            placementAction = action
-                        elseif action.Type == "upgrade_unit_ingame" then
-                            table.insert(upgradeActions, action)
-                        end
-                    end
-                end
-                
-                if placementAction then
-                    print(string.format("🔄 Re-placing deleted unit: %s", placementId))
-                    updateDetailedStatus(string.format("Replacing %s...", placementId))
-                    
-                    -- Remove old mapping (it's dead anyway)
-                    playbackUnitMapping[placementId] = nil
-                    
-                    -- Wait for sufficient money if needed
-                    if placementAction.PlacementCost then
-                        if not waitForSufficientMoneyForPlacement(placementAction.Unit, placementAction.PlacementCost, placementAction.Unit) then
-                            warn("Failed to get enough money for replacement:", placementAction.Unit)
-                            continue
-                        end
-                    end
-                    
-                    -- Re-execute placement
-                    local success = executePlacementAction(placementAction, 0, 0)
-                    
-                    if success then
-                        print(string.format("✅ Successfully replaced: %s", placementId))
-                        
-                        -- Re-apply upgrades if any existed
-                        if #upgradeActions > 0 then
-                            print(string.format("⬆️ Re-applying %d upgrades to %s", #upgradeActions, placementId))
-                            task.wait(0.5) -- Let placement settle
-                            
-                            for _, upgradeAction in ipairs(upgradeActions) do
-                                local upgradeSuccess = executeUnitUpgrade(upgradeAction)
-                                if upgradeSuccess then
-                                    print(string.format("✅ Upgrade restored for %s", placementId))
-                                    task.wait(0.3) -- Small delay between upgrades
-                                else
-                                    warn(string.format("❌ Failed to restore upgrade for %s", placementId))
-                                end
-                            end
-                        end
-                        
-                        updateDetailedStatus(string.format("✅ Replaced %s", placementId))
-                    else
-                        warn(string.format("❌ Failed to replace: %s", placementId))
-                        updateDetailedStatus(string.format("❌ Failed to replace %s", placementId))
-                    end
-                    
-                    task.wait(1) -- Cooldown between replacements to avoid spam
-                else
-                    warn(string.format("❌ No placement action found for: %s", placementId))
-                end
-            end
-        end
-    end
-    
-    print("🛡️ Unit replacement monitor stopped")
-end
-
 local function playMacroOnce()
     if not macro or #macro == 0 then
         print("No macro data to play")
@@ -3920,8 +3832,6 @@ local function playMacroOnce()
         task.cancel(abilityQueueThread)
     end
     abilityQueueThread = task.spawn(processAbilityQueue, playbackStartTime)
-
-    task.spawn(monitorAndReplaceDeletedUnits)
     
     for actionIndex, action in ipairs(macro) do
         if not isPlaybacking or not gameInProgress then
@@ -4228,7 +4138,7 @@ local IgnoreTimingToggle = MacroTab:CreateToggle({
     end,
 })
 
-local ReplaceDeletedUnitsToggle = MacroTab:CreateToggle({
+--[[local ReplaceDeletedUnitsToggle = MacroTab:CreateToggle({
     Name = "Replace Deleted Units",
     CurrentValue = false,
     Flag = "ReplaceDeletedUnits",
@@ -4241,7 +4151,7 @@ local ReplaceDeletedUnitsToggle = MacroTab:CreateToggle({
             updateDetailedStatus("Unit replacement disabled")
         end
     end,
-})
+})--]]
 
 local Divider = MacroTab:CreateDivider()
 
@@ -4346,50 +4256,24 @@ local SendWebhookButton = MacroTab:CreateButton({
             return
         end
         
-        -- Extract unique units from macro
+        -- Extract units from macro
         local unitsUsed = {}
-        local unitCounts = {}
-        local actionCounts = {
-            spawn_unit = 0,
-            upgrade_unit_ingame = 0,
-            sell_unit_ingame = 0,
-            skip_wave = 0,
-            use_ability = 0
-        }
+        local unitSet = {}
         
         for _, action in ipairs(macroData) do
-            -- Count action types
-            if actionCounts[action.Type] then
-                actionCounts[action.Type] = actionCounts[action.Type] + 1
-            end
-            
-            -- Extract units from spawn actions
             if action.Type == "spawn_unit" and action.Unit then
-                local unitName = action.Unit
+                local baseUnitName = action.Unit:match("^(.+) #%d+$") or action.Unit
                 
-                -- Extract base unit name (remove instance number like "#1", "#2")
-                local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
-                
-                if not unitsUsed[baseUnitName] then
-                    unitsUsed[baseUnitName] = true
-                    unitCounts[baseUnitName] = 0
+                if not unitSet[baseUnitName] then
+                    unitSet[baseUnitName] = true
+                    table.insert(unitsUsed, baseUnitName)
                 end
-                unitCounts[baseUnitName] = unitCounts[baseUnitName] + 1
             end
         end
         
-        -- Create units list for webhook message
-        local unitsText = ""
-        if next(unitCounts) then
-            local unitsList = {}
-            for unitName, count in pairs(unitCounts) do
-                table.insert(unitsList, unitName)
-            end
-            table.sort(unitsList)
-            unitsText = table.concat(unitsList, ", ")
-        else
-            unitsText = "No units found"
-        end
+        -- Sort units alphabetically
+        table.sort(unitsUsed)
+        local unitsText = #unitsUsed > 0 and table.concat(unitsUsed, ", ") or "No units"
         
         -- Create the JSON data
         local jsonData = Services.HttpService:JSONEncode(macroData)
@@ -4399,38 +4283,12 @@ local SendWebhookButton = MacroTab:CreateButton({
         local boundary = "----WebKitFormBoundary" .. tostring(tick())
         local body = ""
         
-        -- Add payload_json field with enhanced message
+        -- Add payload_json field with simple content
         body = body .. "--" .. boundary .. "\r\n"
         body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
         body = body .. "Content-Type: application/json\r\n\r\n"
         body = body .. Services.HttpService:JSONEncode({
-            embeds = {{
-                title = "📁 Macro Shared: " .. currentMacroName,
-                color = 0x5865F2,
-                fields = {
-                    {
-                        name = "📊 Action Summary",
-                        value = string.format("**Total Actions:** %d\n🏗️ **Placements:** %d\n⬆️ **Upgrades:** %d\n💸 **Sells:** %d\n⚡ **Abilities:** %d\n⏩ **Wave Skips:** %d",
-                            #macroData,
-                            actionCounts.spawn_unit,
-                            actionCounts.upgrade_unit_ingame, 
-                            actionCounts.sell_unit_ingame,
-                            actionCounts.use_ability,
-                            actionCounts.skip_wave
-                        ),
-                        inline = false
-                    },
-                    {
-                        name = "🎯 Units Used",
-                        value = unitsText,
-                        inline = false
-                    },
-                },
-                footer = {
-                    text = "LixHub"
-                },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            }}
+            content = "**Units:** " .. unitsText
         }) .. "\r\n"
         
         -- Add file field
@@ -4556,7 +4414,7 @@ local CheckUnitsButton = MacroTab:CreateButton({
             local displayText = table.concat(unitList, "\n")
             
             Rayfield:Notify({
-                Title = "Macro Units (" .. #unitList .. " types)",
+                Title = "Macro Units",
                 Content = displayText,
                 Duration = 8
             })
@@ -5292,11 +5150,10 @@ end
 
 local function sendWebhook(messageType, rewards, clearTime, matchResult)
     if not ValidWebhook then 
-        warn("❌ No webhook URL configured")
+        warn("No webhook URL configured")
         return 
     end
 
-    print("🔔 Preparing webhook:", messageType)
     
     local data
     if messageType == "test" then
@@ -5304,10 +5161,10 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
             username = "LixHub Bot",
             content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
-                title = "📢 LixHub Notification",
-                description = "🧪 Test webhook sent successfully",
+                title = "LixHub Notification",
+                description = "Test webhook sent successfully",
                 color = 0x5865F2,
-                footer = { text = "LixHub Auto Logger" },
+                footer = { text = "LixHub discord.gg/cYKnXE2Nf8"},
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         }
@@ -5333,18 +5190,16 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
             formattedTime = string.format("%02d:%02d:%02d", hours, minutes, seconds)
         end
 
-        print("📊 Building rewards text...")
         local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
-        print("✅ Rewards text built. Units detected:", #detectedUnits)
         
         local shouldPing = #detectedUnits > 0
 
         if #detectedUnits > 1 then 
-            print("⚠️ Multiple units detected, skipping webhook")
+            --print("Multiple units detected, skipping webhook")
             return 
         end
 
-        local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID or "000000000000000000") or ""
+        local pingText = shouldPing and string.format("<@%s> **UNIT OBTAINED**", Config.DISCORD_USER_ID or "000000000000000000") or ""
 
         local stageResult = stageName.." - Act "..gameMode .. " - " .. gameDif .. " - " .. resultText
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -5353,17 +5208,16 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
             username = "LixHub Bot",
             content = shouldPing and pingText or "",
             embeds = {{
-                title = shouldPing and "🌟 UNIT DROP! 🌟" or "🎯 Stage Finished!",
+                title = "Stage Finished!",
                 description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
                 color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
                 fields = {
-                    { name = "👤 Player", value = "||" .. tostring(Services.Players.LocalPlayer.Name) .. " [" .. tostring(plrlevel) .. "]||", inline = true },
-                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = formattedTime, inline = true },
-                    { name = "🏆 Rewards", value = rewardsText, inline = false },
-                    shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
-                    { name = "📈 Script Version", value = script_version, inline = true },
+                    { name = "Player", value = "||" .. tostring(Services.Players.LocalPlayer.Name) .. " [" .. tostring(plrlevel) .. "]||", inline = true },
+                    { name = isWin and "Won in:" or "Lost after:", value = formattedTime, inline = true },
+                    { name = "Rewards", value = rewardsText, inline = false },
+                    shouldPing and { name = "Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
                 },
-                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                footer = { text = "discord.gg/cYKnXE2Nf8"},
                 timestamp = timestamp
             }}
         }
@@ -5377,13 +5231,10 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
         end
         data.embeds[1].fields = filteredFields
     else
-        warn("❌ Unknown message type:", messageType)
+        warn("Unknown message type:", messageType)
         return
     end
-
-    print("🔄 Encoding payload...")
     local payload = Services.HttpService:JSONEncode(data)
-    print("✅ Payload encoded (" .. #payload .. " bytes)")
     
     -- Try multiple request functions
     local requestFunc = request or 
@@ -5392,12 +5243,12 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
                        http_request
 
     if not requestFunc then
-        warn("❌ No HTTP request function available!")
+        warn("No HTTP request function available!")
         notify("Webhook Error", "No HTTP request method available.")
         return
     end
     
-    print("📤 Sending webhook request...")
+    print("Sending webhook request...")
     local success, result = pcall(function()
         return requestFunc({
             Url = ValidWebhook,
@@ -5410,22 +5261,19 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult)
     end)
 
     if success and result then
-        print("📥 Response received:")
-        print("  StatusCode:", result.StatusCode)
-        print("  Success:", result.Success)
         
         if result.Success or (result.StatusCode >= 200 and result.StatusCode < 300) then
-            print("✅ Webhook sent successfully!")
+            print("Webhook sent successfully!")
             notify("Webhook", "Webhook sent successfully.", 2)
         else
-            warn("❌ Webhook failed with status:", result.StatusCode)
+            warn("Webhook failed with status:", result.StatusCode)
             if result.Body then
                 warn("Response body:", result.Body)
             end
             notify("Webhook Error", "HTTP " .. tostring(result.StatusCode))
         end
     else
-        warn("❌ Webhook request failed:", tostring(result))
+        warn("Webhook request failed:", tostring(result))
         notify("Webhook Error", tostring(result))
     end
 end
