@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -200,7 +200,9 @@ local State = {
     AutoPurchaseRagnaSelected = {},
     AutoJoinDelay = 0,
     SelectedUnitsForAbility = {},
-    SelectedAbilitiesToUse = {}
+    SelectedAbilitiesToUse = {},
+
+    AutoBreakZafkielClock = false,
 }
 
 local abilityQueue = {}
@@ -1256,6 +1258,100 @@ local Toggle = GameTab:CreateToggle({
     end,
 })
 
+local function checkAndBreakZafkielClock()
+    if not State.AutoBreakZafkielClock then return end
+    if isInLobby() then return end
+    
+    -- Check if Zafkiel's Clock Tower exists
+    local gameStates = Services.Workspace:FindFirstChild("GameStates")
+    if not gameStates then return end
+    
+    local clockTower = gameStates:FindFirstChild("Zafkiel's Clock Tower")
+    if not clockTower then return end
+    
+    -- Check for active clocks
+    local clockMapping = {
+        firstclockactive = "FirstClock",
+        secondclockactive = "SecondClock",
+        thirdclockactive = "ThirdClock"
+    }
+    
+    for stateName, clockName in pairs(clockMapping) do
+        local clockState = clockTower:FindFirstChild(stateName)
+        
+        if clockState and clockState:IsA("BoolValue") and clockState.Value == true then
+            -- Find the corresponding clock model
+            local main = Services.Workspace:FindFirstChild("Main")
+            if not main then 
+                warn("Main folder not found")
+                continue 
+            end
+            
+            local zafkielTower = main:FindFirstChild("Zafkiel's Clock Tower")
+            if not zafkielTower then 
+                warn("Zafkiel's Clock Tower not found in Main")
+                continue 
+            end
+            
+            local randomSpawnPress = zafkielTower:FindFirstChild("Random_SpawnPress")
+            if not randomSpawnPress then 
+                warn("Random_SpawnPress not found")
+                continue 
+            end
+            
+            local model = randomSpawnPress:FindFirstChild("Model")
+            if not model then 
+                warn("Model not found")
+                continue 
+            end
+            
+            local clockModel = model:FindFirstChild(clockName)
+            if not clockModel then 
+                warn("Clock model not found:", clockName)
+                continue 
+            end
+            
+            -- Teleport to the clock
+            local player = Services.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                -- Find a part in the clock model to teleport to
+                local targetPart = clockModel:FindFirstChildWhichIsA("BasePart")
+                if targetPart then
+                    player.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 5, 0)
+                    
+                    -- Wait a moment for teleportation
+                    task.wait(0.3)
+                    
+                    -- Find and fire proximity prompt
+                    local proximityPrompt = clockModel:FindFirstChildOfClass("ProximityPrompt", true) -- recursive search
+                    
+                    if proximityPrompt then
+                        fireproximityprompt(proximityPrompt)
+                        print(string.format("✓ Broke %s", clockName))
+                        
+                        -- Wait before checking next clock
+                        task.wait(0.5)
+                    else
+                        warn("ProximityPrompt not found in", clockName)
+                    end
+                else
+                    warn("No BasePart found in", clockName)
+                end
+            end
+        end
+    end
+end
+
+local Toggle = GameTab:CreateToggle({
+    Name = "Auto Break Zafkiel's Clock",
+    CurrentValue = false,
+    Flag = "AutoBreakZafkielClock",
+    Info = "Automatically breaks Zafkiel's Clock(s)",
+    Callback = function(Value)
+        State.AutoBreakZafkielClock = Value
+    end,
+})
+
 AutoplayTab:CreateSection("Auto Ability")
 
 local function getUnitsWithAbilities()
@@ -1403,11 +1499,6 @@ local AutoUseAbilityToggle = AutoplayTab:CreateToggle({
     Info = "Automatically uses selected abilities for selected units",
     Callback = function(Value)
         State.AutoUseAbility = Value
-        if Value then
-            local unitCount = State.SelectedUnitsForAbility and #State.SelectedUnitsForAbility or 0
-            local abilityCount = State.SelectedAbilitiesToUse and #State.SelectedAbilitiesToUse or 0
-            --notify("Auto Ability", string.format("Enabled: %d units, %d abilities", unitCount, abilityCount))
-        end
     end,
 })
 
@@ -1421,12 +1512,6 @@ local UnitDropdown = AutoplayTab:CreateDropdown({
     Flag = "UnitAbilitySelector",
     Info = "Select which units to use abilities on",
     Callback = function(Options)
-        print("\n=== UnitDropdown callback triggered ===")
-        print("Received " .. #Options .. " unit selections:")
-        for i, unit in ipairs(Options) do
-            print("  " .. i .. ". " .. unit)
-        end
-        
         State.SelectedUnitsForAbility = Options
         
         -- Update abilities dropdown based on selected units
@@ -1457,8 +1542,8 @@ local UnitDropdown = AutoplayTab:CreateDropdown({
         
         State.SelectedAbilitiesToUse = preservedSelections
         
-        print(string.format("Preserved %d/%d ability selections", #preservedSelections, #previousSelections))
-        print("=====================================\n")
+        --print(string.format("Preserved %d/%d ability selections", #preservedSelections, #previousSelections))
+        --print("=====================================\n")
     end,
 })
 
@@ -1467,16 +1552,10 @@ AbilityDropdown = AutoplayTab:CreateDropdown({
     Options = {},
     CurrentOption = {},
     MultipleOptions = true,
-    Flag = "AbilitySelector",  -- ✓ This is already set, good!
+    Flag = "AbilitySelector",
     Info = "Select which abilities to use automatically",
     Callback = function(Options)
         State.SelectedAbilitiesToUse = Options
-        print("\n=== AbilityDropdown callback ===")
-        print(string.format("Selected %d abilities to auto-use:", #Options))
-        for i, ability in ipairs(Options) do
-            print("  " .. i .. ". " .. ability)
-        end
-        print("================================\n")
     end,
 })
 
@@ -5430,6 +5509,16 @@ task.spawn(function()
     while true do
     task.wait(0.5)
     checkAndExecuteHighestPriority()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        
+        if State.AutoBreakZafkielClock then
+            pcall(checkAndBreakZafkielClock)
+        end
     end
 end)
 
