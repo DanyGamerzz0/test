@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -203,6 +203,9 @@ local State = {
     SelectedAbilitiesToUse = {},
 
     AutoBreakZafkielClock = false,
+
+    AutoRetryAttempts = 3,
+    AutoRetryDelay = 2,
 }
 
 local abilityQueue = {}
@@ -5393,18 +5396,18 @@ if not isInLobby() then
         State.gameEndRealTime = tick()
         
         -- Capture rewards and result FIRST
-        capturedRewards = rewards or {} -- Array of {rewardName, amount}
+        capturedRewards = rewards or {}
         
         print("=== REWARDS CAPTURED ===")
         print("Result:", result)
         print("Rewards:")
         if rewards and type(rewards) == "table" then
-        for _, reward in ipairs(rewards) do
-            print(string.format("  %s: %d", reward[1], reward[2]))
+            for _, reward in ipairs(rewards) do
+                print(string.format("  %s: %d", reward[1], reward[2]))
+            end
+        else
+            print("  No rewards received")
         end
-    else
-        print("  No rewards received")
-    end
         print("========================")
         
         if isRecording and recordingHasStarted then
@@ -5431,124 +5434,155 @@ if not isInLobby() then
             sendWebhook("stage")
         end
 
-         task.delay(WEBHOOK_DEBOUNCE_TIME, function()
+        task.delay(WEBHOOK_DEBOUNCE_TIME, function()
             webhookDebounce = false
         end)
         
-        -- Handle auto voting logic with priority system
+        -- Handle auto voting logic with retry system
         task.spawn(function()
             task.wait(3) -- Small delay to ensure game state is stable
             
-            local MAX_RETRIES = 5
-            local RETRY_DELAY = 2
+            -- Helper function to check if EndGUI is still visible
+            local function isEndGUIVisible()
+                local endGUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("EndGUI")
+                return endGUI and endGUI.Enabled
+            end
             
-            -- Priority 1: Auto Next (highest priority) - only for victories
-            if State.AutoVoteNext and result == "VICTORY" then
-                print("Auto Next enabled and game won - Voting for next stage...")
+            -- Helper function to try an action with validation
+            local function tryAutoAction(actionName, remoteCall, maxAttempts)
+                for attempt = 1, maxAttempts do
+                    print(string.format("Attempting %s (attempt %d/%d)", actionName, attempt, maxAttempts))
+                    
+                    local success, err = pcall(remoteCall)
+                    
+                    if not success then
+                        warn(string.format("%s remote call failed: %s", actionName, tostring(err)))
+                        
+                        if attempt < maxAttempts then
+                            Rayfield:Notify({
+                                Title = "Auto Vote",
+                                Content = string.format("%s remote error, retrying... (%d/%d)", actionName, attempt, maxAttempts),
+                                Duration = 2
+                            })
+                            task.wait(State.AutoRetryDelay)
+                            continue
+                        else
+                            return false
+                        end
+                    end
+                    
+                    print(string.format("%s remote fired, validating action took effect...", actionName))
+                    
+                    local validationStart = tick()
+                    local validationTimeout = 5
+                    local actionWorked = false
+                    
+                    while tick() - validationStart < validationTimeout do
+                        if not isEndGUIVisible() then
+                            actionWorked = true
+                            print(string.format("✓ %s validated - EndGUI closed", actionName))
+                            Rayfield:Notify({
+                                Title = "Auto Vote",
+                                Content = string.format("%s succeeded!", actionName),
+                                Duration = 3
+                            })
+                            break
+                        end
+                        
+                        task.wait(0.2)
+                    end
+                    
+                    if actionWorked then
+                        return true
+                    else
+                        warn(string.format("✗ %s validation failed - EndGUI still visible after %ds", actionName, validationTimeout))
+                        
+                        if attempt < maxAttempts then
+                            Rayfield:Notify({
+                                Title = "Auto Vote",
+                                Content = string.format("%s didn't work, retrying... (%d/%d)", actionName, attempt, maxAttempts),
+                                Duration = 3
+                            })
+                            task.wait(State.AutoRetryDelay)
+                        else
+                            Rayfield:Notify({
+                                Title = "Auto Vote",
+                                Content = string.format("%s failed after %d attempts, trying fallback", actionName, maxAttempts),
+                                Duration = 3
+                            })
+                            return false
+                        end
+                    end
+                end
                 
-                for attempt = 1, MAX_RETRIES do
-                    local success, err = pcall(function()
+                return false
+            end
+            
+            -- Build actions list based on priority and conditions
+            local actionsToTry = {}
+            
+            -- Priority 1: Auto Next (only for victories)
+            if State.AutoVoteNext and result == "VICTORY" then
+                table.insert(actionsToTry, {
+                    name = "Auto Next",
+                    call = function()
                         game:GetService("ReplicatedStorage"):WaitForChild("PlayMode")
                             :WaitForChild("Events"):WaitForChild("Control"):FireServer("Next Stage Vote")
-                    end)
-                    
-                    if success then
-                        print(string.format("✓ Successfully voted for next stage (attempt %d/%d)", attempt, MAX_RETRIES))
-                        Rayfield:Notify({
-                            Title = "Auto Vote",
-                            Content = "Voted for next stage",
-                            Duration = 3
-                        })
-                        return
-                    else
-                        warn(string.format("❌ Failed to vote for next stage (attempt %d/%d): %s", attempt, MAX_RETRIES, tostring(err)))
-                        
-                        if attempt < MAX_RETRIES then
-                            print(string.format("⏳ Retrying in %d seconds...", RETRY_DELAY))
-                            task.wait(RETRY_DELAY)
-                        else
-                            Rayfield:Notify({
-                                Title = "Auto Vote Failed",
-                                Content = "Failed to vote for next stage after " .. MAX_RETRIES .. " attempts",
-                                Duration = 5
-                            })
-                        end
-                    end
-                end
-                return
-            end
-
-            -- Priority 2: Auto Retry (medium priority)
-            if State.AutoVoteRetry then
-                print("Auto Retry enabled - Voting to replay...")
-                
-                for attempt = 1, MAX_RETRIES do
-                    local success, err = pcall(function()
-                        for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.EndGUI.Main.Stage.Button.Retry.Button.MouseButton1Click)) do
-                        connection:Enable()
-                        connection:Fire()
-                        end
-                    end)
-                    
-                    if success then
-                        print(string.format("✓ Successfully voted for retry (attempt %d/%d)", attempt, MAX_RETRIES))
-                        Rayfield:Notify({
-                            Title = "Auto Vote",
-                            Content = "Voted to retry the stage",
-                            Duration = 3
-                        })
-                        return
-                    else
-                        warn(string.format("❌ Failed to vote for retry (attempt %d/%d): %s", attempt, MAX_RETRIES, tostring(err)))
-                        
-                        if attempt < MAX_RETRIES then
-                            print(string.format("⏳ Retrying in %d seconds...", RETRY_DELAY))
-                            task.wait(RETRY_DELAY)
-                        else
-                            Rayfield:Notify({
-                                Title = "Auto Vote Failed",
-                                Content = "Failed to vote for retry after " .. MAX_RETRIES .. " attempts",
-                                Duration = 5
-                            })
-                        end
-                    end
-                end
-                return
+                    end,
+                    attempts = State.AutoRetryAttempts
+                })
             end
             
-            -- Priority 3: Auto Lobby (lowest priority)
-            if State.AutoVoteLobby then
-                print("Auto Lobby enabled - Returning to lobby...")
-                task.wait(1)
-                
-                for attempt = 1, MAX_RETRIES do
-                    local success, err = pcall(function()
-                        Services.TeleportService:Teleport(17282336195, LocalPlayer)
-                    end)
-                    
-                    if success then
-                        print(string.format("✓ Successfully returned to lobby (attempt %d/%d)", attempt, MAX_RETRIES))
-                        Rayfield:Notify({
-                            Title = "Auto Vote",
-                            Content = "Returned to lobby",
-                            Duration = 3
-                        })
-                        return
-                    else
-                        warn(string.format("❌ Failed to return to lobby (attempt %d/%d): %s", attempt, MAX_RETRIES, tostring(err)))
-                        
-                        if attempt < MAX_RETRIES then
-                            print(string.format("⏳ Retrying in %d seconds...", RETRY_DELAY))
-                            task.wait(RETRY_DELAY)
-                        else
-                            Rayfield:Notify({
-                                Title = "Auto Vote Failed",
-                                Content = "Failed to return to lobby after " .. MAX_RETRIES .. " attempts",
-                                Duration = 5
-                            })
+            -- Priority 2: Auto Retry
+            if State.AutoVoteRetry then
+                table.insert(actionsToTry, {
+                    name = "Auto Retry",
+                    call = function()
+                        for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.EndGUI.Main.Stage.Button.Retry.Button.MouseButton1Click)) do
+                            connection:Enable()
+                            connection:Fire()
                         end
-                    end
+                    end,
+                    attempts = State.AutoRetryAttempts
+                })
+            end
+            
+            -- Priority 3: Auto Lobby
+            if State.AutoVoteLobby then
+                table.insert(actionsToTry, {
+                    name = "Auto Lobby",
+                    call = function()
+                        task.wait(1)
+                        Services.TeleportService:Teleport(17282336195, LocalPlayer)
+                    end,
+                    attempts = State.AutoRetryAttempts
+                })
+            end
+            
+            -- Execute actions with fallback
+            for _, action in ipairs(actionsToTry) do
+                local success = tryAutoAction(action.name, action.call, action.attempts)
+                
+                if success then
+                    print(string.format("✓ %s succeeded and validated, stopping fallback chain", action.name))
+                    break
+                else
+                    print(string.format("✗ %s failed validation, trying next fallback option...", action.name))
+                    task.wait(1)
                 end
+            end
+            
+            -- Final validation check
+            task.wait(1)
+            if isEndGUIVisible() then
+                warn("⚠️ All auto-vote actions failed - EndGUI still visible")
+                Rayfield:Notify({
+                    Title = "Auto Vote Failed",
+                    Content = "All retry attempts exhausted",
+                    Duration = 5
+                })
+            else
+                print("✅ At least one action worked - EndGUI closed")
             end
         end)
     end)
