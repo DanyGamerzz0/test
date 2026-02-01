@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.43"
+    local script_version = "V0.44"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5999,28 +5999,6 @@ end
     })
 LobbyTab:CreateSection("Auto Reroll Stats")
 
-local function createDisplayName(unit)
-    local rawUnitId = unit.unit_id or "Unknown"
-    if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
-    rawUnitId = tostring(rawUnitId)
-    
-    local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-    local worthiness = unit.stat_luck or 0
-    displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-    if unit.shiny == true then displayName = displayName .. " (Shiny)" end
-    
-    return displayName, rawUnitId -- Return both display name and raw ID
-end
-
-local function getBaseNameFromSelection(selectedDisplayName)
-    -- Strip worthiness: "Shadow (Worthiness: 150)" -> "Shadow"
-    local baseName = selectedDisplayName:match("^(.-)%s*%(Worthiness:")
-    if baseName then
-        return baseName
-    end
-    return selectedDisplayName
-end
-
 local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Name = "Select Units to Reroll",
     Options = {},
@@ -6072,14 +6050,8 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
 })
 
 local function refreshUnitDropdown()
-    local units = UnitCache.isLoaded and UnitCache.units or buildUnitCache()
+    local units = findAllUnits()
     local unitOptions = {}
-
-    if #units == 0 then
-        notify("Unit List", "No units found - are you in lobby?")
-        UnitSelectionDropdown:Refresh({"No units found"})
-        return
-    end
 
     for _, unit in ipairs(units) do
         local rawUnitId = unit.unit_id or "Unknown"
@@ -6087,14 +6059,16 @@ local function refreshUnitDropdown()
         rawUnitId = tostring(rawUnitId)
 
         if not rawUnitId:match("^%d+$") and rawUnitId ~= "Unknown" then
-            local displayName = createDisplayName(unit)
+            local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+            local worthiness = unit.stat_luck or 0
+            displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+            if unit.shiny == true then displayName = displayName .. " (Shiny)" end
             table.insert(unitOptions, displayName)
         end
     end
 
     table.sort(unitOptions)
     UnitSelectionDropdown:Refresh(unitOptions)
-    print(string.format("Loaded %d units to dropdown", #unitOptions))
 end
 
 LobbyTab:CreateDropdown({
