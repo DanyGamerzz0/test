@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.46"
+    local script_version = "V0.47"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5999,6 +5999,8 @@ end
     })
 LobbyTab:CreateSection("Auto Reroll Stats")
 
+local selectedUnitUUIDs = {}
+
 local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Name = "Select Units to Reroll",
     Options = {},
@@ -6007,9 +6009,11 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Flag = "UnitSelection",
     Info = "Select which units to reroll stats on",
     Callback = function(Options)
-        AutoRerollState.selectedUnits = {}
+        -- When user changes selection, update both the UUIDs and the state
         local units = findAllUnits()
-
+        local newSelectedUUIDs = {}
+        
+        -- Map display names back to UUIDs
         for _, selectedDisplayName in ipairs(Options) do
             for _, unit in ipairs(units) do
                 local rawUnitId = unit.unit_id or "Unknown"
@@ -6018,15 +6022,25 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
 
                 local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
                 local worthiness = unit.stat_luck or 0
-                displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-                if unit.shiny == true then displayName = displayName .. " (Shiny)" end
+                local fullName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+                if unit.shiny == true then fullName = fullName .. " (Shiny)" end
 
-                if displayName == selectedDisplayName then
-                    table.insert(AutoRerollState.selectedUnits, unit.uuid)
+                if fullName == selectedDisplayName then
+                    newSelectedUUIDs[unit.uuid] = true
                     break
                 end
             end
         end
+        
+        -- Update our UUID tracking
+        selectedUnitUUIDs = newSelectedUUIDs
+        
+        -- Update the state array
+        AutoRerollState.selectedUnits = {}
+        for uuid, _ in pairs(selectedUnitUUIDs) do
+            table.insert(AutoRerollState.selectedUnits, uuid)
+        end
+        
         print("Selected units for reroll:", #AutoRerollState.selectedUnits)
     end,
 })
@@ -6034,6 +6048,7 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
 local function refreshUnitDropdown()
     local units = findAllUnits()
     local unitOptions = {}
+    local uuidToDisplayName = {} -- Map UUID to its current display name
 
     for _, unit in ipairs(units) do
         local rawUnitId = unit.unit_id or "Unknown"
@@ -6043,14 +6058,31 @@ local function refreshUnitDropdown()
         if not rawUnitId:match("^%d+$") and rawUnitId ~= "Unknown" then
             local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
             local worthiness = unit.stat_luck or 0
-            displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-            if unit.shiny == true then displayName = displayName .. " (Shiny)" end
-            table.insert(unitOptions, displayName)
+            local fullName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+            if unit.shiny == true then fullName = fullName .. " (Shiny)" end
+            
+            table.insert(unitOptions, fullName)
+            uuidToDisplayName[unit.uuid] = fullName
         end
     end
 
     table.sort(unitOptions)
     UnitSelectionDropdown:Refresh(unitOptions)
+    
+    -- Restore selections based on UUIDs
+    local selectionsToRestore = {}
+    for uuid, _ in pairs(selectedUnitUUIDs) do
+        local newDisplayName = uuidToDisplayName[uuid]
+        if newDisplayName then
+            table.insert(selectionsToRestore, newDisplayName)
+        end
+    end
+    
+    if #selectionsToRestore > 0 then
+        -- Set the dropdown to show the updated display names for the same UUIDs
+        UnitSelectionDropdown:Set(selectionsToRestore)
+        print("Restored", #selectionsToRestore, "selections with updated worthiness values")
+    end
 end
 
 LobbyTab:CreateDropdown({
@@ -6190,7 +6222,6 @@ local function rollSingleUnit(uuid)
 
         rolls = rolls + 1
 
-        -- Poll unit data until it reflects the change
         local waitStart = tick()
         local confirmed = false
 
@@ -6208,7 +6239,6 @@ local function rollSingleUnit(uuid)
             end
         end
 
-        -- Same values rolled by chance — wait then accept and continue
         if not confirmed then
             task.wait(SAME_STAT_WAIT)
             stats = readCurrentStats(uuid) or stats
@@ -6217,9 +6247,10 @@ local function rollSingleUnit(uuid)
 
     print(string.format("[Reroll] %s | Finished in %d rolls. Final: ATK=%s CD=%s RNG=%s",
         uuid, rolls, stats.Attack, stats.Cooldown, stats.Range))
-
+    
+    -- Refresh dropdown to show updated worthiness while preserving UUID-based selections
     refreshUnitDropdown()
-
+    
     return rolls
 end
 
