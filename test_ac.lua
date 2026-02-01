@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.37"
+    local script_version = "V0.38"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6251,82 +6251,90 @@ end
 
 -- Master function: iterates every selected unit, checks worthiness, rolls each one.
 local function runAutoReroll()
-    AutoRerollState.isRolling = true
-    AutoRerollState.rollsUsed = 0
-    AutoRerollState.unitsCompleted = 0
-    AutoRerollState.totalUnits = #AutoRerollState.selectedUnits
+	AutoRerollState.isRolling = true
+	AutoRerollState.rollsUsed = 0
+	AutoRerollState.unitsCompleted = 0
+	AutoRerollState.totalUnits = #AutoRerollState.selectedUnits
 
-    if AutoRerollState.totalUnits == 0 then
-        notify("Auto Reroll", "No units selected!")
-        AutoRerollState.isRolling = false
-        return
-    end
+	if AutoRerollState.totalUnits == 0 then
+		notify("Auto Reroll", "No units selected!")
+		AutoRerollState.isRolling = false
+		return
+	end
 
-    if #AutoRerollState.selectedStats == 0 then
-        notify("Auto Reroll", "No target stat tiers selected!")
-        AutoRerollState.isRolling = false
-        return
-    end
+	if #AutoRerollState.selectedStats == 0 then
+		notify("Auto Reroll", "No target stat tiers selected!")
+		AutoRerollState.isRolling = false
+		return
+	end
 
-    notify("Auto Reroll", string.format("Starting on %d unit(s)...", AutoRerollState.totalUnits))
+	notify("Auto Reroll", string.format("Starting on %d unit(s)...", AutoRerollState.totalUnits))
 
-    -- Teleport once at the start
-    teleportToRerollArea()
-    task.wait(0.5)
+	-- Teleport once at the start
+	teleportToRerollArea()
+	task.wait(0.5)
 
-    for i, uuid in ipairs(AutoRerollState.selectedUnits) do
-        if not AutoRerollState.autoRollEnabled then
-            print("[Reroll] Stopped by user.")
-            break
-        end
+	-- Wait until the StatReroll GUI is actually enabled/visible before we do anything
+	local statRerollGui = Services.Players.LocalPlayer.PlayerGui:WaitForChild("StatReroll")
+	while not statRerollGui.Enabled do
+		task.wait(0.25)
+		if not AutoRerollState.autoRollEnabled then
+			AutoRerollState.isRolling = false
+			return
+		end
+	end
 
-        AutoRerollState.currentUnit = uuid
+	for i, uuid in ipairs(AutoRerollState.selectedUnits) do
+		if not AutoRerollState.autoRollEnabled then
+			print("[Reroll] Stopped by user.")
+			break
+		end
 
-        -- ── Worthiness check ──────────────────────────────────────────
-        -- If the slider is above 0, look up this unit's stat_luck.
-        -- If stat_luck is below the threshold, skip this unit entirely.
-        if AutoRerollState.minWorthiness > 0 then
-            local unitData = findUnitByUUID(uuid)
-            local worthiness = (unitData and unitData.stat_luck) or 0
+		AutoRerollState.currentUnit = uuid
 
-            if worthiness < AutoRerollState.minWorthiness then
-                print(string.format("[Reroll] Skipping %s — worthiness %d < threshold %d",
-                    uuid, worthiness, AutoRerollState.minWorthiness))
-                AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
-                notify("Auto Reroll",
-                    string.format("Skipped unit %d/%d (worthiness %d < %d)",
-                        i, AutoRerollState.totalUnits, worthiness, AutoRerollState.minWorthiness))
-                continue
-            end
+		-- Worthiness check: if slider > 0, look up stat_luck and skip if too low
+		if AutoRerollState.minWorthiness > 0 then
+			local unitData = findUnitByUUID(uuid)
+			local worthiness = (unitData and unitData.stat_luck) or 0
 
-            print(string.format("[Reroll] %s passed worthiness check (%d >= %d)",
-                uuid, worthiness, AutoRerollState.minWorthiness))
-        end
-        -- ────────────────────────────────────────────────────────────────
+			if worthiness < AutoRerollState.minWorthiness then
+				print(string.format("[Reroll] Skipping %s — worthiness %d < threshold %d",
+					uuid, worthiness, AutoRerollState.minWorthiness))
+				AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
+				notify("Auto Reroll",
+					string.format("Skipped unit %d/%d (worthiness %d < %d)",
+						i, AutoRerollState.totalUnits, worthiness, AutoRerollState.minWorthiness))
+				continue
+			end
 
-        notify("Auto Reroll",
-            string.format("Rolling unit %d/%d...", i, AutoRerollState.totalUnits))
+			print(string.format("[Reroll] %s passed worthiness check (%d >= %d)",
+				uuid, worthiness, AutoRerollState.minWorthiness))
+		end
 
-        -- Re-open the collection popup for each unit so we can pick a different one
-        openCollectionPopup()
-        task.wait(0.5)
+		notify("Auto Reroll", string.format("Rolling unit %d/%d...", i, AutoRerollState.totalUnits))
 
-        local unitRolls = rollSingleUnit(uuid)
-        AutoRerollState.rollsUsed = AutoRerollState.rollsUsed + unitRolls
-        AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
+		-- Open the collection popup, select the unit, THEN roll.
+		-- The popup stays open the entire time we're rolling this unit —
+		-- no need to re-open it between rolls.
+		openCollectionPopup()
+		task.wait(0.5)
 
-        notify("Auto Reroll",
-            string.format("Unit %d/%d done (%d rolls). Total rolls: %d",
-                i, AutoRerollState.totalUnits, unitRolls, AutoRerollState.rollsUsed))
-    end
+		local unitRolls = rollSingleUnit(uuid)
+		AutoRerollState.rollsUsed = AutoRerollState.rollsUsed + unitRolls
+		AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
 
-    AutoRerollState.isRolling = false
-    AutoRerollState.currentUnit = "None"
-    notify("Auto Reroll",
-        string.format("Finished! All %d units processed. Total rolls: %d",
-            AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
-    print(string.format("[Reroll] Complete. %d units, %d total rolls.",
-        AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
+		notify("Auto Reroll",
+			string.format("Unit %d/%d done (%d rolls). Total rolls: %d",
+				i, AutoRerollState.totalUnits, unitRolls, AutoRerollState.rollsUsed))
+	end
+
+	AutoRerollState.isRolling = false
+	AutoRerollState.currentUnit = "None"
+	notify("Auto Reroll",
+		string.format("Finished! All %d units processed. Total rolls: %d",
+			AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
+	print(string.format("[Reroll] Complete. %d units, %d total rolls.",
+		AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
 end
 
 LobbyTab:CreateToggle({
