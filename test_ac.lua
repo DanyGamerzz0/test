@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.39"
+    local script_version = "V0.4"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6102,6 +6102,8 @@ end
 local function readCurrentStats(uuid)
     local unitData = findUnitByUUID(uuid)
     if not unitData then return nil end
+    local Loader = require(Services.ReplicatedStorage.Framework.Loader)
+    local TraitServiceCore = Loader.load_core_service(script, "TraitServiceCore")
 
     local atkRank  = TraitServiceCore.calculate_stat_rank(unitData, "Attack",   nil)
     local cdRank   = TraitServiceCore.calculate_stat_rank(unitData, "Cooldown", nil)
