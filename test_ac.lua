@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.4"
+    local script_version = "V0.41"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6098,21 +6098,34 @@ local function findUnitByUUID(uuid)
     return nil
 end
 
--- Helper: read the 3 stat labels from the StatReroll UI
+local STAT_RANKS = {"C-","C","C+","B-","B","B+","A-","A","A+","S-","S","S+","SS","SSS"}
+
+local function getStatRank(statKey, value)
+    -- Iterate ranks low to high. Each rank owns [min, max).
+    -- SSS is special (point value from bias_random) so it's the final catch-all.
+    for i = 1, #STAT_RANKS - 1 do
+        local min, max = TraitServiceCore.get_stat_range_for_rank(STAT_RANKS[i], statKey)
+        if value >= min and value < max then
+            return STAT_RANKS[i]
+        end
+    end
+    -- If nothing matched below SSS, check if it's at or above SS max -> SSS
+    local ssMin, ssMax = TraitServiceCore.get_stat_range_for_rank("SS", statKey)
+    if value >= ssMax then
+        return "SSS"
+    end
+    -- Fallback: below everything is C-
+    return "C-"
+end
+
 local function readCurrentStats(uuid)
     local unitData = findUnitByUUID(uuid)
-    if not unitData then return nil end
-    local Loader = require(Services.ReplicatedStorage.Framework.Loader)
-    local TraitServiceCore = Loader.load_core_service(script, "TraitServiceCore")
-
-    local atkRank  = TraitServiceCore.calculate_stat_rank(unitData, "Attack",   nil)
-    local cdRank   = TraitServiceCore.calculate_stat_rank(unitData, "Cooldown", nil)
-    local rngRank  = TraitServiceCore.calculate_stat_rank(unitData, "Range",    nil)
+    if not unitData or not unitData.trait_stats then return nil end
 
     return {
-        Attack   = atkRank,
-        Cooldown = cdRank,
-        Range    = rngRank,
+        Attack   = getStatRank("potency_stat", unitData.trait_stats.potency_stat or 0),
+        Cooldown = getStatRank("speed_stat",   unitData.trait_stats.speed_stat   or 0),
+        Range    = getStatRank("range_stat",   unitData.trait_stats.range_stat   or 0),
     }
 end
 
