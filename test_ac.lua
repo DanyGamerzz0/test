@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.3"
+    local script_version = "V0.31"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6271,22 +6271,30 @@ local function refreshUnitDropdown()
     local unitOptions = {}
     
     for _, unit in ipairs(units) do
-        local displayName = unit.unit_id or "Unknown"
+        local rawUnitId = unit.unit_id or "Unknown"
         
-        -- FIX: Ensure displayName is a string, not a table
-        if type(displayName) == "table" then
-            displayName = displayName[1] or "Unknown"
+        -- FIX: Ensure rawUnitId is a string, not a table
+        if type(rawUnitId) == "table" then
+            rawUnitId = rawUnitId[1] or "Unknown"
         end
-        displayName = tostring(displayName) -- Extra safety
+        rawUnitId = tostring(rawUnitId)
         
-        if unit.shiny == true then
-            displayName = "Shiny " .. displayName
+        -- FILTER: Skip units that are just numbers
+        if not rawUnitId:match("^%d+$") then
+            -- Get display name from unit ID
+            local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+            
+            -- Add shiny prefix if applicable
+            if unit.shiny == true then
+                displayName = "Shiny " .. displayName
+            end
+            
+            -- Add worthiness
+            local worthiness = unit.stat_luck or 0
+            displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+            
+            table.insert(unitOptions, displayName)
         end
-        
-        local worthiness = unit.stat_luck or 0
-        displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-        
-        table.insert(unitOptions, displayName)
     end
     
     table.sort(unitOptions)
