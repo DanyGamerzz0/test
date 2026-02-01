@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.33"
+    local script_version = "V0.34"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6249,11 +6249,24 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
         
         for _, selectedDisplayName in ipairs(Options) do
             for _, unit in ipairs(units) do
-                local displayName = unit.unit_id or "Unknown"
-                if unit.shiny == true then
-                    displayName = "Shiny " .. displayName
+                local rawUnitId = unit.unit_id or "Unknown"
+                
+                -- FIX: Ensure rawUnitId is a string, not a table
+                if type(rawUnitId) == "table" then
+                    rawUnitId = rawUnitId[1] or "Unknown"
                 end
-                displayName = displayName .. string.format(" (Worthiness: %d)", unit.stat_luck or 0)
+                rawUnitId = tostring(rawUnitId)
+                
+                -- Get display name
+                local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+                
+                -- Build the full display name with worthiness and shiny
+                local worthiness = unit.stat_luck or 0
+                displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+                
+                if unit.shiny == true then
+                    displayName = displayName .. " (Shiny)"
+                end
                 
                 if displayName == selectedDisplayName then
                     table.insert(AutoRerollState.selectedUnits, unit.uuid)
@@ -6300,7 +6313,7 @@ local function refreshUnitDropdown()
     table.sort(unitOptions)
     UnitSelectionDropdown:Refresh(unitOptions)
     
-    notify("Unit Refresh", string.format("Found %d units", #units))
+    --notify("Unit Refresh", string.format("Found %d units", #units))
 end
 
 LobbyTab:CreateDropdown({
@@ -6323,6 +6336,7 @@ LobbyTab:CreateSlider({
     CurrentValue = 0,
     Flag = "MinWorthiness",
     Info = "Only roll on selected units if worthiness is equal to or higher this value (0 = disable)",
+    TextScaled = true,
     Callback = function(Value)
         AutoRerollState.minWorthiness = Value
     end,
