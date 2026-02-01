@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.45"
+    local script_version = "V0.46"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6217,6 +6217,9 @@ local function rollSingleUnit(uuid)
 
     print(string.format("[Reroll] %s | Finished in %d rolls. Final: ATK=%s CD=%s RNG=%s",
         uuid, rolls, stats.Attack, stats.Cooldown, stats.Range))
+
+    refreshUnitDropdown()
+
     return rolls
 end
 
