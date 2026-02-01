@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.38"
+    local script_version = "V0.39"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6098,20 +6098,19 @@ local function findUnitByUUID(uuid)
     return nil
 end
 
--- Helper: fire all connections on a gui event
-local function fireGuiEvent(instance, eventName)
-    for _, conn in pairs(getconnections(instance[eventName])) do
-        conn:Fire()
-    end
-end
-
 -- Helper: read the 3 stat labels from the StatReroll UI
-local function readCurrentStats()
-    local statsRoot = Services.Players.LocalPlayer.PlayerGui.StatReroll.grid.UnitStats
+local function readCurrentStats(uuid)
+    local unitData = findUnitByUUID(uuid)
+    if not unitData then return nil end
+
+    local atkRank  = TraitServiceCore.calculate_stat_rank(unitData, "Attack",   nil)
+    local cdRank   = TraitServiceCore.calculate_stat_rank(unitData, "Cooldown", nil)
+    local rngRank  = TraitServiceCore.calculate_stat_rank(unitData, "Range",    nil)
+
     return {
-        Attack   = statsRoot.Attack.Rank.TextLabel.Text,
-        Cooldown = statsRoot.Cooldown.Rank.TextLabel.Text,
-        Range    = statsRoot.Range.Rank.TextLabel.Text,
+        Attack   = atkRank,
+        Cooldown = cdRank,
+        Range    = rngRank,
     }
 end
 
@@ -6135,48 +6134,6 @@ local function getMissingStatKeys(stats)
     return missing
 end
 
--- Teleport player to the reroll area and wait for arrival
-local function teleportToRerollArea()
-    local char = Services.Players.LocalPlayer.Character or Services.Players.LocalPlayer.CharacterAdded:Wait()
-    char:WaitForChild("HumanoidRootPart").CFrame =
-        workspace.Areas.Evolve_Area.Evolve_Area.Rank_Dice:GetPivot() + Vector3.new(0, 3, 0)
-
-    task.wait(1.5)
-end
-
--- Click the TrialUnit blank frame to open the collection popup
-local function openCollectionPopup()
-    fireGuiEvent(
-        Services.Players.LocalPlayer.PlayerGui.StatReroll.grid.TrialUnit.NewUnitBlankFrame,
-        "MouseButton1Click"
-    )
-    task.wait(1)
-end
-
--- Find the unit frame in the collection grid by uuid, click it, then click Use.
--- Returns true if successful.
-local function selectUnitInPopup(uuid)
-    local frames = Services.Players.LocalPlayer.PlayerGui.collection.grid.Frames:GetChildren()
-
-    for _, frame in ipairs(frames) do
-        local uuidVal = frame:FindFirstChild("uuid")
-        if uuidVal and uuidVal:IsA("StringValue") and uuidVal.Value == uuid then
-            fireGuiEvent(frame, "MouseButton1Click")
-            task.wait(0.5)
-
-            fireGuiEvent(
-                Services.Players.LocalPlayer.PlayerGui.collection.grid.UnitOptions.Main.Options.ScrollingFrame.Use,
-                "MouseButton1Click"
-            )
-            task.wait(1) -- let the stat panel populate
-            return true
-        end
-    end
-
-    warn("[Reroll] UUID not found in collection grid:", uuid)
-    return false
-end
-
 -- Core loop: rolls one unit until all 3 stats match or we hit the safety cap.
 -- Returns the number of rolls performed.
 local function rollSingleUnit(uuid)
@@ -6185,12 +6142,12 @@ local function rollSingleUnit(uuid)
     local SAME_STAT_WAIT = 2.0
     local CONFIRM_TIMEOUT = 5.0
 
-    if not selectUnitInPopup(uuid) then
-        warn("[Reroll] Could not select unit, skipping:", uuid)
+    local stats = readCurrentStats(uuid)
+    if not stats then
+        warn("[Reroll] Could not read unit data, skipping:", uuid)
         return 0
     end
 
-    local stats = readCurrentStats()
     print(string.format("[Reroll] %s | Starting: ATK=%s CD=%s RNG=%s",
         uuid, stats.Attack, stats.Cooldown, stats.Range))
 
@@ -6203,13 +6160,11 @@ local function rollSingleUnit(uuid)
         local missing = getMissingStatKeys(stats)
 
         if #missing == 3 then
-            -- All 3 are bad -> reroll all at once
             Services.ReplicatedStorage:WaitForChild("endpoints")
                 :WaitForChild("client_to_server")
                 :WaitForChild("reroll_base_stats_all")
                 :InvokeServer(uuid)
         else
-            -- 1 or 2 bad -> roll only the first bad one, then re-evaluate
             Services.ReplicatedStorage:WaitForChild("endpoints")
                 :WaitForChild("client_to_server")
                 :WaitForChild("reroll_base_stats_specific")
@@ -6218,7 +6173,7 @@ local function rollSingleUnit(uuid)
 
         rolls = rolls + 1
 
-        -- Poll until the UI shows a different stat combo (confirms the roll landed)
+        -- Poll unit data until it reflects the change
         local waitStart = tick()
         local confirmed = false
 
@@ -6226,21 +6181,20 @@ local function rollSingleUnit(uuid)
             if not AutoRerollState.autoRollEnabled then return rolls end
             task.wait(0.15)
 
-            local newStats = readCurrentStats()
-            if newStats.Attack ~= stats.Attack or
-               newStats.Cooldown ~= stats.Cooldown or
-               newStats.Range ~= stats.Range then
+            local newStats = readCurrentStats(uuid)
+            if newStats and (newStats.Attack ~= stats.Attack or
+                             newStats.Cooldown ~= stats.Cooldown or
+                             newStats.Range ~= stats.Range) then
                 stats = newStats
                 confirmed = true
                 break
             end
         end
 
-        -- If we timed out, the roll probably landed on the exact same values by chance.
-        -- Wait a bit longer then just accept the current read and continue.
+        -- Same values rolled by chance — wait then accept and continue
         if not confirmed then
             task.wait(SAME_STAT_WAIT)
-            stats = readCurrentStats()
+            stats = readCurrentStats(uuid) or stats
         end
     end
 
@@ -6251,90 +6205,65 @@ end
 
 -- Master function: iterates every selected unit, checks worthiness, rolls each one.
 local function runAutoReroll()
-	AutoRerollState.isRolling = true
-	AutoRerollState.rollsUsed = 0
-	AutoRerollState.unitsCompleted = 0
-	AutoRerollState.totalUnits = #AutoRerollState.selectedUnits
+    AutoRerollState.isRolling = true
+    AutoRerollState.rollsUsed = 0
+    AutoRerollState.unitsCompleted = 0
+    AutoRerollState.totalUnits = #AutoRerollState.selectedUnits
 
-	if AutoRerollState.totalUnits == 0 then
-		notify("Auto Reroll", "No units selected!")
-		AutoRerollState.isRolling = false
-		return
-	end
+    if AutoRerollState.totalUnits == 0 then
+        notify("Auto Reroll", "No units selected!")
+        AutoRerollState.isRolling = false
+        return
+    end
 
-	if #AutoRerollState.selectedStats == 0 then
-		notify("Auto Reroll", "No target stat tiers selected!")
-		AutoRerollState.isRolling = false
-		return
-	end
+    if #AutoRerollState.selectedStats == 0 then
+        notify("Auto Reroll", "No target stat tiers selected!")
+        AutoRerollState.isRolling = false
+        return
+    end
 
-	notify("Auto Reroll", string.format("Starting on %d unit(s)...", AutoRerollState.totalUnits))
+    notify("Auto Reroll", string.format("Starting on %d unit(s)...", AutoRerollState.totalUnits))
 
-	-- Teleport once at the start
-	teleportToRerollArea()
-	task.wait(0.5)
+    for i, uuid in ipairs(AutoRerollState.selectedUnits) do
+        if not AutoRerollState.autoRollEnabled then
+            print("[Reroll] Stopped by user.")
+            break
+        end
 
-	-- Wait until the StatReroll GUI is actually enabled/visible before we do anything
-	local statRerollGui = Services.Players.LocalPlayer.PlayerGui:WaitForChild("StatReroll")
-	while not statRerollGui.Enabled do
-		task.wait(0.25)
-		if not AutoRerollState.autoRollEnabled then
-			AutoRerollState.isRolling = false
-			return
-		end
-	end
+        AutoRerollState.currentUnit = uuid
 
-	for i, uuid in ipairs(AutoRerollState.selectedUnits) do
-		if not AutoRerollState.autoRollEnabled then
-			print("[Reroll] Stopped by user.")
-			break
-		end
+        -- Worthiness check: if slider > 0, look up stat_luck and skip if too low
+        if AutoRerollState.minWorthiness > 0 then
+            local unitData = findUnitByUUID(uuid)
+            local worthiness = (unitData and unitData.stat_luck) or 0
 
-		AutoRerollState.currentUnit = uuid
+            if worthiness < AutoRerollState.minWorthiness then
+                print(string.format("[Reroll] Skipping %s — worthiness %d < threshold %d",
+                    uuid, worthiness, AutoRerollState.minWorthiness))
+                AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
+                notify("Auto Reroll",
+                    string.format("Skipped unit %d/%d (worthiness %d < %d)",
+                        i, AutoRerollState.totalUnits, worthiness, AutoRerollState.minWorthiness))
+                continue
+            end
+        end
 
-		-- Worthiness check: if slider > 0, look up stat_luck and skip if too low
-		if AutoRerollState.minWorthiness > 0 then
-			local unitData = findUnitByUUID(uuid)
-			local worthiness = (unitData and unitData.stat_luck) or 0
+        notify("Auto Reroll", string.format("Rolling unit %d/%d...", i, AutoRerollState.totalUnits))
 
-			if worthiness < AutoRerollState.minWorthiness then
-				print(string.format("[Reroll] Skipping %s — worthiness %d < threshold %d",
-					uuid, worthiness, AutoRerollState.minWorthiness))
-				AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
-				notify("Auto Reroll",
-					string.format("Skipped unit %d/%d (worthiness %d < %d)",
-						i, AutoRerollState.totalUnits, worthiness, AutoRerollState.minWorthiness))
-				continue
-			end
+        local unitRolls = rollSingleUnit(uuid)
+        AutoRerollState.rollsUsed = AutoRerollState.rollsUsed + unitRolls
+        AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
 
-			print(string.format("[Reroll] %s passed worthiness check (%d >= %d)",
-				uuid, worthiness, AutoRerollState.minWorthiness))
-		end
+        notify("Auto Reroll",
+            string.format("Unit %d/%d done (%d rolls). Total rolls: %d",
+                i, AutoRerollState.totalUnits, unitRolls, AutoRerollState.rollsUsed))
+    end
 
-		notify("Auto Reroll", string.format("Rolling unit %d/%d...", i, AutoRerollState.totalUnits))
-
-		-- Open the collection popup, select the unit, THEN roll.
-		-- The popup stays open the entire time we're rolling this unit —
-		-- no need to re-open it between rolls.
-		openCollectionPopup()
-		task.wait(0.5)
-
-		local unitRolls = rollSingleUnit(uuid)
-		AutoRerollState.rollsUsed = AutoRerollState.rollsUsed + unitRolls
-		AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
-
-		notify("Auto Reroll",
-			string.format("Unit %d/%d done (%d rolls). Total rolls: %d",
-				i, AutoRerollState.totalUnits, unitRolls, AutoRerollState.rollsUsed))
-	end
-
-	AutoRerollState.isRolling = false
-	AutoRerollState.currentUnit = "None"
-	notify("Auto Reroll",
-		string.format("Finished! All %d units processed. Total rolls: %d",
-			AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
-	print(string.format("[Reroll] Complete. %d units, %d total rolls.",
-		AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
+    AutoRerollState.isRolling = false
+    AutoRerollState.currentUnit = "None"
+    notify("Auto Reroll",
+        string.format("Finished! All %d units processed. Total rolls: %d",
+            AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
 end
 
 LobbyTab:CreateToggle({
