@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.41"
+    local script_version = "V0.42"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6101,6 +6101,8 @@ end
 local STAT_RANKS = {"C-","C","C+","B-","B","B+","A-","A","A+","S-","S","S+","SS","SSS"}
 
 local function getStatRank(statKey, value)
+    local Loader = require(game:GetService("ReplicatedStorage").Framework.Loader)
+    local TraitServiceCore = Loader.load_core_service(script, "TraitServiceCore")
     -- Iterate ranks low to high. Each rank owns [min, max).
     -- SSS is special (point value from bias_random) so it's the final catch-all.
     for i = 1, #STAT_RANKS - 1 do
