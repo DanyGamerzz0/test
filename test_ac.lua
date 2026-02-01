@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.44"
+    local script_version = "V0.45"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6008,43 +6008,25 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Info = "Select which units to reroll stats on",
     Callback = function(Options)
         AutoRerollState.selectedUnits = {}
-        
-        if not Options or #Options == 0 then
-            return
-        end
-        
-        -- Get fresh units
         local units = findAllUnits()
 
         for _, selectedDisplayName in ipairs(Options) do
-            -- Extract base name (without worthiness)
-            local selectedBaseName = getBaseNameFromSelection(selectedDisplayName)
-            local isShiny = selectedDisplayName:find("%(Shiny%)") ~= nil
-            
-            print(string.format("Looking for: '%s' (Shiny: %s)", selectedBaseName, tostring(isShiny)))
-            
             for _, unit in ipairs(units) do
                 local rawUnitId = unit.unit_id or "Unknown"
                 if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
                 rawUnitId = tostring(rawUnitId)
 
-                if rawUnitId:match("^%d+$") or rawUnitId == "Unknown" then
-                    continue
-                end
+                local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+                local worthiness = unit.stat_luck or 0
+                displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+                if unit.shiny == true then displayName = displayName .. " (Shiny)" end
 
-                local unitDisplayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-                local unitIsShiny = unit.shiny == true
-                
-                -- Match based on name and shiny status (ignore worthiness!)
-                if unitDisplayName == selectedBaseName and unitIsShiny == isShiny then
+                if displayName == selectedDisplayName then
                     table.insert(AutoRerollState.selectedUnits, unit.uuid)
-                    print(string.format("  ✓ Matched: %s (UUID: %s, Current Worthiness: %d)", 
-                        unitDisplayName, unit.uuid, unit.stat_luck or 0))
                     break
                 end
             end
         end
-        
         print("Selected units for reroll:", #AutoRerollState.selectedUnits)
     end,
 })
