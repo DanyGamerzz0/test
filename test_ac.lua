@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.29"
+    local script_version = "V0.3"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -3094,6 +3094,9 @@ end
     
     return units
 end
+
+-- Call the function to execute
+findAllUnits()
 
     local function isInLobby()
         return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
@@ -6269,6 +6272,13 @@ local function refreshUnitDropdown()
     
     for _, unit in ipairs(units) do
         local displayName = unit.unit_id or "Unknown"
+        
+        -- FIX: Ensure displayName is a string, not a table
+        if type(displayName) == "table" then
+            displayName = displayName[1] or "Unknown"
+        end
+        displayName = tostring(displayName) -- Extra safety
+        
         if unit.shiny == true then
             displayName = "Shiny " .. displayName
         end
