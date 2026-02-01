@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.34"
+    local script_version = "V0.35"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -786,9 +786,8 @@ end
     end
 
     local function getPlayerMoney()
-        local player = Services.Players.LocalPlayer
-        if player and player:FindFirstChild("_stats") and player._stats:FindFirstChild("resource") then
-            return player._stats.resource.Value
+        if Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChild("_stats") and Services.Players.LocalPlayer._stats:FindFirstChild("resource") then
+            return Services.Players.LocalPlayer._stats.resource.Value
         end
         return 0
     end
@@ -2476,11 +2475,10 @@ end
 
     -- Function to capture current stats
     local function captureStats()
-        local player = Services.Players.LocalPlayer
         local stats = {}
         
-        if player and player:FindFirstChild("_stats") then
-            for _, statObj in pairs(player._stats:GetChildren()) do
+        if Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChild("_stats") then
+            for _, statObj in pairs(Services.Players.LocalPlayer._stats:GetChildren()) do
                 if statObj:IsA("IntValue") or statObj:IsA("NumberValue") then
                     stats[statObj.Name] = statObj.Value
                 end
@@ -4433,32 +4431,6 @@ end
         end
     end
 
-    local function getCurrencyForBanner(bannerName)
-    local player = Services.Players.LocalPlayer
-    if not player or not player:FindFirstChild("_stats") then
-        return 0
-    end
-    
-    if bannerName == "Banner 1" then
-        local gemAmount = player._stats:FindFirstChild("gem_amount")
-        return gemAmount and gemAmount.Value or 0
-    elseif bannerName == "Banner 2" then
-        local tokenAmount = player._stats:FindFirstChild("_resourceGingerBeardToken")
-        return tokenAmount and tokenAmount.Value or 0
-    end
-    
-    return 0
-end
-
-local function getCostForBanner(bannerName)
-    if bannerName == "Banner 1" then
-        return 50
-    elseif bannerName == "Banner 2" then
-        return 150
-    end
-    return 0
-end
-
 local function getBannerIdFromName(bannerName)
     if bannerName == "Banner 1" then
         return "EventClover"
@@ -4503,79 +4475,6 @@ local function compareUnitCounts(beforeCounts, afterCounts)
     end
     
     return newUnits
-end
-
-local function performBatchSummon(bannerName, amount)
-    local bannerId = getBannerIdFromName(bannerName)
-    
-    if not bannerId then
-        return false, "Invalid banner", 0
-    end
-    
-    if amount <= 0 then
-        return false, "Invalid amount", 0
-    end
-    
-    local currencyType = amount >= 10 and "gems10" or "gems"
-    local currencyBefore = getCurrencyForBanner(bannerName)
-    
-    -- Capture BEFORE snapshot
-    local beforeCounts = captureUnitCounts()
-    
-    -- Perform summon
-    local success, result = pcall(function()
-        local args = currencyType == "gems10" and {bannerId, currencyType} or {bannerId, currencyType, amount}
-        return Services.ReplicatedStorage:WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-            :WaitForChild("buy_from_banner")
-            :InvokeServer(unpack(args))
-    end)
-    
-    if not success then
-        return false, "Summon failed: " .. tostring(result), 0
-    end
-    
-    -- Wait for game to update collection
-    task.wait(5.0)
-    
-    -- Capture AFTER snapshot
-    local afterCounts = captureUnitCounts()
-    
-    local currencyAfter = getCurrencyForBanner(bannerName)
-    local actualCostSpent = currencyBefore - currencyAfter
-    local summonCost = getCostForBanner(bannerName)
-    local actualSummons = summonCost > 0 and math.floor(actualCostSpent / summonCost) or 0
-    
-    -- Compare snapshots to find new units
-    local newUnits = compareUnitCounts(beforeCounts, afterCounts)
-    
-    -- Merge into session tracking
-    for displayName, count in pairs(newUnits) do
-        if not State.SummonedUnits[displayName] then
-            State.SummonedUnits[displayName] = 0
-        end
-        State.SummonedUnits[displayName] = State.SummonedUnits[displayName] + count
-        
-    end
-    
-    return true, string.format("Summoned %dx", actualSummons), actualCostSpent
-end
-
-local function getMaxAffordableSummons(bannerName)
-    local currentCurrency = getCurrencyForBanner(bannerName)
-    local summonCost = getCostForBanner(bannerName)
-    
-    if summonCost <= 0 then return 0 end
-    
-    local maxSummons = math.floor(currentCurrency / summonCost)
-    
-    -- If we can afford 10+, always do 10x (mass summon)
-    if maxSummons >= 10 then
-        return 10
-    end
-    
-    -- Otherwise do whatever we can afford (1-9)
-    return maxSummons
 end
 
 local function sendSummonWebhook()
@@ -4672,8 +4571,7 @@ task.spawn(function()
         
         if State.AutoRedeemQuests and isInLobby() then
             local success, result = pcall(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local Loader = require(ReplicatedStorage.Framework.Loader)
+                local Loader = require(Services.ReplicatedStorage.Framework.Loader)
                 local GUIService = Loader.load_client_service(script, "GUIService")
                 local QuestClassesCore = Loader.load_core_service(script, "QuestClassesCore")
                 
@@ -5017,64 +4915,6 @@ ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
         end,
     })
 
-    --[[section = JoinerTab:CreateSection("Gate Joiner")
-
-    local GateStatusLabel = JoinerTab:CreateLabel("Gate Status: Checking...")
-
-        JoinerTab:CreateToggle({
-        Name = "Auto Join Gate",
-        CurrentValue = false,
-        Flag = "AutoJoinGate",
-        Callback = function(Value)
-            State.AutoJoinGate = Value
-        end,
-    })
-
-    AvoidGatesDropdown = JoinerTab:CreateDropdown({
-        Name = "Avoid Gate Types",
-        Options = {"National","S", "A", "B", "C", "D"},
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "AvoidGatesSelector",
-        Info = "Select gate types to avoid. Will join best available from remaining types.",
-        Callback = function(Options)
-            State.AvoidGateTypes = Options or {}
-            print("Avoiding gate types:", table.concat(State.AvoidGateTypes, ", "))
-        end,
-    })
-
-    AvoidModifiersDropdown = JoinerTab:CreateDropdown({
-        Name = "Avoid Modifiers",
-        Options = {"fast_enemies", "tank_enemies", "regen_enemies", "shield_enemies", "double_cost"},
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "AvoidModifiersSelector",
-        Info = "Select modifiers to avoid. Will join best available gate with acceptable modifier.",
-        Callback = function(Options)
-            State.AvoidModifiers = Options or {}
-            print("Avoiding modifiers:", table.concat(State.AvoidModifiers, ", "))
-        end,
-    })
-
-    JoinerTab:CreateToggle({
-    Name = "Auto Next Gate",
-    CurrentValue = false,
-    Flag = "AutoNextGate",
-    Info = "Automatically pick and join next gate after game ends (requires Auto Join Gate enabled)",
-    Callback = function(Value)
-            State.AutoNextGate = Value
-    end,
-    })
-
-    JoinerTab:CreateToggle({
-    Name = "Auto Matchmake Gate",
-    CurrentValue = false,
-    Flag = "AutoMatchmakeGateStage",
-    Callback = function(Value)
-        State.AutoMatchmakeGateStage = Value
-    end,
-})--]]
-
 JoinerTab:CreateSection("Portal Joiner")
 
    JoinerTab:CreateToggle({
@@ -5229,34 +5069,6 @@ RefreshPortalsButton = JoinerTab:CreateButton({
         end
     end,
 })
-
-    --[[task.spawn(function()
-        while true do
-            task.wait(2)
-            
-            if State.AutoJoinGate then
-                local availableGates = getAvailableGates()
-                local acceptableGates = {}
-                
-                -- Count acceptable gates
-                for _, gate in ipairs(availableGates) do
-                    if isGateTypeAllowed(gate.type) and isModifierAllowed(gate.modifier) then
-                        table.insert(acceptableGates, gate.type)
-                    end
-                end
-                
-                local statusText = string.format("Gates: %d total, %d acceptable", #availableGates, #acceptableGates)
-                
-                if #acceptableGates > 0 then
-                    statusText = statusText .. " (" .. table.concat(acceptableGates, ", ") .. ")"
-                end
-                
-                GateStatusLabel:Set(statusText)
-            else
-                GateStatusLabel:Set("Gate Status: Auto-join disabled")
-            end
-        end
-    end)--]]
 
 section = JoinerTab:CreateSection("Event Joiner")
 
@@ -5584,8 +5396,7 @@ CardPriorityTab:CreateSlider({
 })
 
 local function getCardButtons()
-    local playerGui = Services.Players.LocalPlayer.PlayerGui
-    local promptGui = playerGui:FindFirstChild("Prompt")
+    local promptGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt")
     
     if not promptGui then return nil end
     
@@ -5889,52 +5700,6 @@ task.spawn(setupCardSelectionMonitoring)
             end
         end
     end
-
-local function autoNextPortal()
-    if not State.AutoNextPortal or not State.SelectedPortal or State.SelectedPortal == "" then
-        return false
-    end
-    
-    -- IMPORTANT: We need to look for the INVENTORY name, not the module ID
-    -- So we need to reverse-map: ChristmasLevel -> portal_christmas
-    local portalIdToInventoryName = {
-        ["ChristmasLevel"] = "portal_christmas",
-        ["portal_christmas_secret"] = "portal_christmas_secret",
-        -- Add more reverse mappings as needed
-    }
-    
-    local inventoryName = portalIdToInventoryName[State.SelectedPortal] or State.SelectedPortal
-    
-    print("Auto Next Portal - Looking for portal ID:", State.SelectedPortal, "| Inventory name:", inventoryName)
-    task.wait(1)
-    
-    local ownedPortals = getOwnedPortalsFromInventory()
-    local portalUUID = ownedPortals[State.SelectedPortal]
-    
-    if not portalUUID then
-        notify("Auto Next Portal", "Portal not found in inventory", 3)
-        return false
-    end
-    
-    print("Found portal UUID for auto-next:", portalUUID)
-    
-    local success = pcall(function()
-        local args = {"replay_portal", portalUUID}
-        game:GetService("ReplicatedStorage")
-            :WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-            :WaitForChild("set_game_finished_vote")
-            :InvokeServer(unpack(args))
-    end)
-    
-    if success then
-        notify("Auto Next Portal", "Replaying portal", 3)
-        return true
-    else
-        notify("Auto Next Portal", "Failed to replay portal", 3)
-        return false
-    end
-end
 
 -- Load portals function (simplified - no more retry logic needed)
 local function loadPortals()
@@ -6243,77 +6008,49 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Info = "Select which units to reroll stats on",
     Callback = function(Options)
         AutoRerollState.selectedUnits = {}
-        
-        -- Options will be the display names, we need to map back to UUIDs
         local units = findAllUnits()
-        
+
         for _, selectedDisplayName in ipairs(Options) do
             for _, unit in ipairs(units) do
                 local rawUnitId = unit.unit_id or "Unknown"
-                
-                -- FIX: Ensure rawUnitId is a string, not a table
-                if type(rawUnitId) == "table" then
-                    rawUnitId = rawUnitId[1] or "Unknown"
-                end
+                if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
                 rawUnitId = tostring(rawUnitId)
-                
-                -- Get display name
+
                 local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-                
-                -- Build the full display name with worthiness and shiny
                 local worthiness = unit.stat_luck or 0
                 displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-                
-                if unit.shiny == true then
-                    displayName = displayName .. " (Shiny)"
-                end
-                
+                if unit.shiny == true then displayName = displayName .. " (Shiny)" end
+
                 if displayName == selectedDisplayName then
                     table.insert(AutoRerollState.selectedUnits, unit.uuid)
                     break
                 end
             end
         end
-        
-        print("Selected units:", #AutoRerollState.selectedUnits)
+        print("Selected units for reroll:", #AutoRerollState.selectedUnits)
     end,
 })
 
 local function refreshUnitDropdown()
     local units = findAllUnits()
     local unitOptions = {}
-    
+
     for _, unit in ipairs(units) do
         local rawUnitId = unit.unit_id or "Unknown"
-        
-        -- FIX: Ensure rawUnitId is a string, not a table
-        if type(rawUnitId) == "table" then
-            rawUnitId = rawUnitId[1] or "Unknown"
-        end
+        if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
         rawUnitId = tostring(rawUnitId)
-        
-        -- FILTER: Skip units that are just numbers or "Unknown"
+
         if not rawUnitId:match("^%d+$") and rawUnitId ~= "Unknown" then
-            -- Get display name from unit ID
             local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-            
-            -- Add worthiness
             local worthiness = unit.stat_luck or 0
             displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-            
-            -- Add shiny suffix if applicable
-            if unit.shiny == true then
-                displayName = displayName .. " (Shiny)"
-            end
-            
+            if unit.shiny == true then displayName = displayName .. " (Shiny)" end
             table.insert(unitOptions, displayName)
         end
     end
-    
+
     table.sort(unitOptions)
     UnitSelectionDropdown:Refresh(unitOptions)
-    
-    --notify("Unit Refresh", string.format("Found %d units", #units))
 end
 
 LobbyTab:CreateDropdown({
@@ -6352,15 +6089,257 @@ LobbyTab:CreateToggle({
     end,
 })
 
+local function findUnitByUUID(uuid)
+    for _, unit in ipairs(findAllUnits()) do
+        if unit.uuid == uuid then
+            return unit
+        end
+    end
+    return nil
+end
+
+-- Helper: fire all connections on a gui event
+local function fireGuiEvent(instance, eventName)
+    for _, conn in pairs(getconnections(instance[eventName])) do
+        conn:Fire()
+    end
+end
+
+-- Helper: read the 3 stat labels from the StatReroll UI
+local function readCurrentStats()
+    local statsRoot = Services.Players.LocalPlayer.PlayerGui.StatReroll.grid.UnitStats
+    return {
+        Attack   = statsRoot.Attack.Rank.TextLabel.Text,
+        Cooldown = statsRoot.Cooldown.Rank.TextLabel.Text,
+        Range    = statsRoot.Range.Rank.TextLabel.Text,
+    }
+end
+
+-- Helper: check if all 3 stats are inside the selected tier set
+local function statsMatchTarget(stats)
+    if #AutoRerollState.selectedStats == 0 then return true end
+    local tierSet = {}
+    for _, t in ipairs(AutoRerollState.selectedStats) do tierSet[t] = true end
+    return tierSet[stats.Attack] and tierSet[stats.Cooldown] and tierSet[stats.Range]
+end
+
+-- Helper: returns list of remote stat keys that still need rerolling
+local function getMissingStatKeys(stats)
+    local tierSet = {}
+    for _, t in ipairs(AutoRerollState.selectedStats) do tierSet[t] = true end
+
+    local missing = {}
+    if not tierSet[stats.Attack]   then table.insert(missing, "potency_stat") end
+    if not tierSet[stats.Cooldown] then table.insert(missing, "speed_stat")    end
+    if not tierSet[stats.Range]    then table.insert(missing, "range_stat")    end
+    return missing
+end
+
+-- Teleport player to the reroll area and wait for arrival
+local function teleportToRerollArea()
+    local rankDice = workspace.Areas.Evolve_Area.Evolve_Area.Rank_Dice
+    Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame =
+        CFrame.new(rankDice.Position + Vector3.new(0, 3, 0))
+    task.wait(1.5)
+end
+
+-- Click the TrialUnit blank frame to open the collection popup
+local function openCollectionPopup()
+    fireGuiEvent(
+        Services.Players.LocalPlayer.PlayerGui.StatReroll.grid.TrialUnit.NewUnitBlankFrame,
+        "MouseButton1Up"
+    )
+    task.wait(1)
+end
+
+-- Find the unit frame in the collection grid by uuid, click it, then click Use.
+-- Returns true if successful.
+local function selectUnitInPopup(uuid)
+    local frames = Services.Players.LocalPlayer.PlayerGui.collection.grid.Frames:GetChildren()
+
+    for _, frame in ipairs(frames) do
+        local uuidVal = frame:FindFirstChild("uuid")
+        if uuidVal and uuidVal:IsA("StringValue") and uuidVal.Value == uuid then
+            fireGuiEvent(frame, "MouseButton1Click")
+            task.wait(0.5)
+
+            fireGuiEvent(
+                Services.Players.LocalPlayer.PlayerGui.collection.grid.UnitOptions.Main.Options.ScrollingFrame.Use,
+                "MouseButton1Click"
+            )
+            task.wait(1) -- let the stat panel populate
+            return true
+        end
+    end
+
+    warn("[Reroll] UUID not found in collection grid:", uuid)
+    return false
+end
+
+-- Core loop: rolls one unit until all 3 stats match or we hit the safety cap.
+-- Returns the number of rolls performed.
+local function rollSingleUnit(uuid)
+    local rolls = 0
+    local SAFETY_CAP = 50000
+    local SAME_STAT_WAIT = 2.0
+    local CONFIRM_TIMEOUT = 5.0
+
+    if not selectUnitInPopup(uuid) then
+        warn("[Reroll] Could not select unit, skipping:", uuid)
+        return 0
+    end
+
+    local stats = readCurrentStats()
+    print(string.format("[Reroll] %s | Starting: ATK=%s CD=%s RNG=%s",
+        uuid, stats.Attack, stats.Cooldown, stats.Range))
+
+    if statsMatchTarget(stats) then
+        print("[Reroll] Already matches target, skipping.")
+        return 0
+    end
+
+    while not statsMatchTarget(stats) and rolls < SAFETY_CAP and AutoRerollState.autoRollEnabled do
+        local missing = getMissingStatKeys(stats)
+
+        if #missing == 3 then
+            -- All 3 are bad -> reroll all at once
+            Services.ReplicatedStorage:WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+                :WaitForChild("reroll_base_stats_all")
+                :InvokeServer(uuid)
+        else
+            -- 1 or 2 bad -> roll only the first bad one, then re-evaluate
+            Services.ReplicatedStorage:WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+                :WaitForChild("reroll_base_stats_specific")
+                :InvokeServer(uuid, missing[1])
+        end
+
+        rolls = rolls + 1
+
+        -- Poll until the UI shows a different stat combo (confirms the roll landed)
+        local waitStart = tick()
+        local confirmed = false
+
+        while tick() - waitStart < CONFIRM_TIMEOUT do
+            if not AutoRerollState.autoRollEnabled then return rolls end
+            task.wait(0.15)
+
+            local newStats = readCurrentStats()
+            if newStats.Attack ~= stats.Attack or
+               newStats.Cooldown ~= stats.Cooldown or
+               newStats.Range ~= stats.Range then
+                stats = newStats
+                confirmed = true
+                break
+            end
+        end
+
+        -- If we timed out, the roll probably landed on the exact same values by chance.
+        -- Wait a bit longer then just accept the current read and continue.
+        if not confirmed then
+            task.wait(SAME_STAT_WAIT)
+            stats = readCurrentStats()
+        end
+    end
+
+    print(string.format("[Reroll] %s | Finished in %d rolls. Final: ATK=%s CD=%s RNG=%s",
+        uuid, rolls, stats.Attack, stats.Cooldown, stats.Range))
+    return rolls
+end
+
+-- Master function: iterates every selected unit, checks worthiness, rolls each one.
+local function runAutoReroll()
+    AutoRerollState.isRolling = true
+    AutoRerollState.rollsUsed = 0
+    AutoRerollState.unitsCompleted = 0
+    AutoRerollState.totalUnits = #AutoRerollState.selectedUnits
+
+    if AutoRerollState.totalUnits == 0 then
+        notify("Auto Reroll", "No units selected!")
+        AutoRerollState.isRolling = false
+        return
+    end
+
+    if #AutoRerollState.selectedStats == 0 then
+        notify("Auto Reroll", "No target stat tiers selected!")
+        AutoRerollState.isRolling = false
+        return
+    end
+
+    notify("Auto Reroll", string.format("Starting on %d unit(s)...", AutoRerollState.totalUnits))
+
+    -- Teleport once at the start
+    teleportToRerollArea()
+    task.wait(0.5)
+
+    for i, uuid in ipairs(AutoRerollState.selectedUnits) do
+        if not AutoRerollState.autoRollEnabled then
+            print("[Reroll] Stopped by user.")
+            break
+        end
+
+        AutoRerollState.currentUnit = uuid
+
+        -- ── Worthiness check ──────────────────────────────────────────
+        -- If the slider is above 0, look up this unit's stat_luck.
+        -- If stat_luck is below the threshold, skip this unit entirely.
+        if AutoRerollState.minWorthiness > 0 then
+            local unitData = findUnitByUUID(uuid)
+            local worthiness = (unitData and unitData.stat_luck) or 0
+
+            if worthiness < AutoRerollState.minWorthiness then
+                print(string.format("[Reroll] Skipping %s — worthiness %d < threshold %d",
+                    uuid, worthiness, AutoRerollState.minWorthiness))
+                AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
+                notify("Auto Reroll",
+                    string.format("Skipped unit %d/%d (worthiness %d < %d)",
+                        i, AutoRerollState.totalUnits, worthiness, AutoRerollState.minWorthiness))
+                continue
+            end
+
+            print(string.format("[Reroll] %s passed worthiness check (%d >= %d)",
+                uuid, worthiness, AutoRerollState.minWorthiness))
+        end
+        -- ────────────────────────────────────────────────────────────────
+
+        notify("Auto Reroll",
+            string.format("Rolling unit %d/%d...", i, AutoRerollState.totalUnits))
+
+        -- Re-open the collection popup for each unit so we can pick a different one
+        openCollectionPopup()
+        task.wait(0.5)
+
+        local unitRolls = rollSingleUnit(uuid)
+        AutoRerollState.rollsUsed = AutoRerollState.rollsUsed + unitRolls
+        AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
+
+        notify("Auto Reroll",
+            string.format("Unit %d/%d done (%d rolls). Total rolls: %d",
+                i, AutoRerollState.totalUnits, unitRolls, AutoRerollState.rollsUsed))
+    end
+
+    AutoRerollState.isRolling = false
+    AutoRerollState.currentUnit = "None"
+    notify("Auto Reroll",
+        string.format("Finished! All %d units processed. Total rolls: %d",
+            AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
+    print(string.format("[Reroll] Complete. %d units, %d total rolls.",
+        AutoRerollState.totalUnits, AutoRerollState.rollsUsed))
+end
+
 LobbyTab:CreateToggle({
     Name = "Auto Roll Stats",
     CurrentValue = false,
     Flag = "AutoRollStats",
     Callback = function(Value)
         AutoRerollState.autoRollEnabled = Value
+
+        if Value then
+            task.spawn(runAutoReroll)
+        end
     end,
 })
-
 
 LobbyTab:CreateSection("Auto Summon")
 
@@ -9889,7 +9868,7 @@ end)
     sendAnalyticsWebhook()
     Rayfield:SetVisibility(false)
 
-        local screenGui = Instance.new("ScreenGui")
+    --[[    local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "RayfieldToggle"
     screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
     screenGui.ResetOnSpawn = false
@@ -9970,7 +9949,7 @@ end)
                 end
             end
         end
-    end)
+    end)--]]
 
     Rayfield:TopNotify({
         Title = "UI is hidden",
