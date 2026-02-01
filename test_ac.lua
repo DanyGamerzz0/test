@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.36"
+    local script_version = "V0.37"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6148,7 +6148,7 @@ end
 local function openCollectionPopup()
     fireGuiEvent(
         Services.Players.LocalPlayer.PlayerGui.StatReroll.grid.TrialUnit.NewUnitBlankFrame,
-        "MouseButton1Up"
+        "MouseButton1Click"
     )
     task.wait(1)
 end
