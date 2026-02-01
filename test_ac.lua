@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.31"
+    local script_version = "V0.33"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6279,19 +6279,19 @@ local function refreshUnitDropdown()
         end
         rawUnitId = tostring(rawUnitId)
         
-        -- FILTER: Skip units that are just numbers
-        if not rawUnitId:match("^%d+$") then
+        -- FILTER: Skip units that are just numbers or "Unknown"
+        if not rawUnitId:match("^%d+$") and rawUnitId ~= "Unknown" then
             -- Get display name from unit ID
             local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-            
-            -- Add shiny prefix if applicable
-            if unit.shiny == true then
-                displayName = "Shiny " .. displayName
-            end
             
             -- Add worthiness
             local worthiness = unit.stat_luck or 0
             displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+            
+            -- Add shiny suffix if applicable
+            if unit.shiny == true then
+                displayName = displayName .. " (Shiny)"
+            end
             
             table.insert(unitOptions, displayName)
         end
@@ -6322,7 +6322,7 @@ LobbyTab:CreateSlider({
     Suffix = "",
     CurrentValue = 0,
     Flag = "MinWorthiness",
-    Info = "Only roll on units with this worthiness or higher, 0 = disable",
+    Info = "Only roll on selected units if worthiness is equal to or higher this value (0 = disable)",
     Callback = function(Value)
         AutoRerollState.minWorthiness = Value
     end,
