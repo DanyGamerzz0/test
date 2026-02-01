@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.42"
+    local script_version = "V0.43"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5999,6 +5999,28 @@ end
     })
 LobbyTab:CreateSection("Auto Reroll Stats")
 
+local function createDisplayName(unit)
+    local rawUnitId = unit.unit_id or "Unknown"
+    if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
+    rawUnitId = tostring(rawUnitId)
+    
+    local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+    local worthiness = unit.stat_luck or 0
+    displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+    if unit.shiny == true then displayName = displayName .. " (Shiny)" end
+    
+    return displayName, rawUnitId -- Return both display name and raw ID
+end
+
+local function getBaseNameFromSelection(selectedDisplayName)
+    -- Strip worthiness: "Shadow (Worthiness: 150)" -> "Shadow"
+    local baseName = selectedDisplayName:match("^(.-)%s*%(Worthiness:")
+    if baseName then
+        return baseName
+    end
+    return selectedDisplayName
+end
+
 local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Name = "Select Units to Reroll",
     Options = {},
@@ -6008,32 +6030,56 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Info = "Select which units to reroll stats on",
     Callback = function(Options)
         AutoRerollState.selectedUnits = {}
+        
+        if not Options or #Options == 0 then
+            return
+        end
+        
+        -- Get fresh units
         local units = findAllUnits()
 
         for _, selectedDisplayName in ipairs(Options) do
+            -- Extract base name (without worthiness)
+            local selectedBaseName = getBaseNameFromSelection(selectedDisplayName)
+            local isShiny = selectedDisplayName:find("%(Shiny%)") ~= nil
+            
+            print(string.format("Looking for: '%s' (Shiny: %s)", selectedBaseName, tostring(isShiny)))
+            
             for _, unit in ipairs(units) do
                 local rawUnitId = unit.unit_id or "Unknown"
                 if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
                 rawUnitId = tostring(rawUnitId)
 
-                local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-                local worthiness = unit.stat_luck or 0
-                displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-                if unit.shiny == true then displayName = displayName .. " (Shiny)" end
+                if rawUnitId:match("^%d+$") or rawUnitId == "Unknown" then
+                    continue
+                end
 
-                if displayName == selectedDisplayName then
+                local unitDisplayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+                local unitIsShiny = unit.shiny == true
+                
+                -- Match based on name and shiny status (ignore worthiness!)
+                if unitDisplayName == selectedBaseName and unitIsShiny == isShiny then
                     table.insert(AutoRerollState.selectedUnits, unit.uuid)
+                    print(string.format("  ✓ Matched: %s (UUID: %s, Current Worthiness: %d)", 
+                        unitDisplayName, unit.uuid, unit.stat_luck or 0))
                     break
                 end
             end
         end
+        
         print("Selected units for reroll:", #AutoRerollState.selectedUnits)
     end,
 })
 
 local function refreshUnitDropdown()
-    local units = findAllUnits()
+    local units = UnitCache.isLoaded and UnitCache.units or buildUnitCache()
     local unitOptions = {}
+
+    if #units == 0 then
+        notify("Unit List", "No units found - are you in lobby?")
+        UnitSelectionDropdown:Refresh({"No units found"})
+        return
+    end
 
     for _, unit in ipairs(units) do
         local rawUnitId = unit.unit_id or "Unknown"
@@ -6041,16 +6087,14 @@ local function refreshUnitDropdown()
         rawUnitId = tostring(rawUnitId)
 
         if not rawUnitId:match("^%d+$") and rawUnitId ~= "Unknown" then
-            local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-            local worthiness = unit.stat_luck or 0
-            displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
-            if unit.shiny == true then displayName = displayName .. " (Shiny)" end
+            local displayName = createDisplayName(unit)
             table.insert(unitOptions, displayName)
         end
     end
 
     table.sort(unitOptions)
     UnitSelectionDropdown:Refresh(unitOptions)
+    print(string.format("Loaded %d units to dropdown", #unitOptions))
 end
 
 LobbyTab:CreateDropdown({
@@ -6066,7 +6110,7 @@ LobbyTab:CreateDropdown({
 })
 
 LobbyTab:CreateSlider({
-    Name = "Roll if Worthiness >=",
+    Name = "Minimum Worthiness",
     Range = {0, 300},
     Increment = 1,
     Suffix = "",
