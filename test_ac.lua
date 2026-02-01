@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.28"
+    local script_version = "V0.29"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -358,6 +358,19 @@ local macro = {}
         SelectedBossRush = nil,
         AutoRedeemQuests = false,
     }
+
+    local AutoRerollState = {
+    selectedUnits = {},
+    selectedStats = {},
+    minWorthiness = 0,
+    delayAutoJoin = false,
+    autoRollEnabled = false,
+    isRolling = false,
+    unitsCompleted = 0,
+    totalUnits = 0,
+    currentUnit = "None",
+    rollsUsed = 0
+}
 
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
@@ -6193,6 +6206,8 @@ end
         end,
     })
 
+    LobbyTab:CreateSection("Auto Execute Script")
+
         LobbyTab:CreateToggle({
         Name = "Auto Execute Script",
         CurrentValue = false,
@@ -6214,6 +6229,106 @@ end
             end
         end,
     })
+LobbyTab:CreateSection("Auto Reroll Stats")
+
+local UnitSelectionDropdown = LobbyTab:CreateDropdown({
+    Name = "Select Units to Reroll",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "UnitSelection",
+    Info = "Select which units to reroll stats on",
+    Callback = function(Options)
+        AutoRerollState.selectedUnits = {}
+        
+        -- Options will be the display names, we need to map back to UUIDs
+        local units = findAllUnits()
+        
+        for _, selectedDisplayName in ipairs(Options) do
+            for _, unit in ipairs(units) do
+                local displayName = unit.unit_id or "Unknown"
+                if unit.shiny == true then
+                    displayName = "Shiny " .. displayName
+                end
+                displayName = displayName .. string.format(" (Worthiness: %d)", unit.stat_luck or 0)
+                
+                if displayName == selectedDisplayName then
+                    table.insert(AutoRerollState.selectedUnits, unit.uuid)
+                    break
+                end
+            end
+        end
+        
+        print("Selected units:", #AutoRerollState.selectedUnits)
+    end,
+})
+
+local function refreshUnitDropdown()
+    local units = findAllUnits()
+    local unitOptions = {}
+    
+    for _, unit in ipairs(units) do
+        local displayName = unit.unit_id or "Unknown"
+        if unit.shiny == true then
+            displayName = "Shiny " .. displayName
+        end
+        
+        local worthiness = unit.stat_luck or 0
+        displayName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+        
+        table.insert(unitOptions, displayName)
+    end
+    
+    table.sort(unitOptions)
+    UnitSelectionDropdown:Refresh(unitOptions)
+    
+    notify("Unit Refresh", string.format("Found %d units", #units))
+end
+
+LobbyTab:CreateDropdown({
+    Name = "Select Stat Tiers",
+    Options = {"C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+", "S-", "S", "S+", "SS", "SSS"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "StatTierSelection",
+    Info = "Will reroll until ALL 3 stats match one of selected options",
+    Callback = function(Options)
+        AutoRerollState.selectedStats = Options or {}
+    end,
+})
+
+LobbyTab:CreateSlider({
+    Name = "Roll if Worthiness >=",
+    Range = {0, 300},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "MinWorthiness",
+    Info = "Only roll on units with this worthiness or higher, 0 = disable",
+    Callback = function(Value)
+        AutoRerollState.minWorthiness = Value
+    end,
+})
+
+LobbyTab:CreateToggle({
+    Name = "Delay Auto Join",
+    CurrentValue = false,
+    Flag = "DelayAutoJoin",
+    Info = "Don't join games until auto roll stats finishes",
+    Callback = function(Value)
+        AutoRerollState.delayAutoJoin = Value
+    end,
+})
+
+LobbyTab:CreateToggle({
+    Name = "Auto Roll Stats",
+    CurrentValue = false,
+    Flag = "AutoRollStats",
+    Callback = function(Value)
+        AutoRerollState.autoRollEnabled = Value
+    end,
+})
+
 
 LobbyTab:CreateSection("Auto Summon")
 
@@ -9699,6 +9814,10 @@ task.delay(1, function()
 end)
 
 Rayfield:LoadConfiguration()
+
+task.delay(1, function()
+    refreshUnitDropdown()
+end)
 
     -- Restore saved macro from config after a delay
     task.delay(1, function()
