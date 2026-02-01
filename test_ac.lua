@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.35"
+    local script_version = "V0.36"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6137,9 +6137,10 @@ end
 
 -- Teleport player to the reroll area and wait for arrival
 local function teleportToRerollArea()
-    local rankDice = workspace.Areas.Evolve_Area.Evolve_Area.Rank_Dice
-    Services.Players.LocalPlayer.Character.HumanoidRootPart.CFrame =
-        CFrame.new(rankDice.Position + Vector3.new(0, 3, 0))
+    local char = Services.Players.LocalPlayer.Character or Services.Players.LocalPlayer.CharacterAdded:Wait()
+    char:WaitForChild("HumanoidRootPart").CFrame =
+        workspace.Areas.Evolve_Area.Evolve_Area.Rank_Dice:GetPivot() + Vector3.new(0, 3, 0)
+
     task.wait(1.5)
 end
 
