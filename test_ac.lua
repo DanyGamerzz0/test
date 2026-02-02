@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.48"
+    local script_version = "V0.49"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9545,10 +9545,12 @@ if gameFinishedRemote then
         
         -- WIN/LOSS DETECTION
         GameTracking.gameResult = "Defeat" -- Default to defeat
+        local resultFound = false
         
         -- Look for victory field in table arguments or direct boolean
 for i, arg in ipairs(args) do
     if type(arg) == "table" and arg.victory ~= nil then
+        resultFound = true
         if arg.victory == true then
             GameTracking.gameResult = "Victory"
             State.TotalWins = State.TotalWins + 1
@@ -9560,6 +9562,7 @@ for i, arg in ipairs(args) do
         end
         break
     elseif type(arg) == "boolean" then
+        resultFound = true
         if arg == true then
             GameTracking.gameResult = "Victory"
             State.TotalWins = State.TotalWins + 1
@@ -9573,10 +9576,17 @@ for i, arg in ipairs(args) do
     end
 end
 
+-- If no result was found in args, count as defeat
+if not resultFound then
+    State.TotalLosses = State.TotalLosses + 1
+    print("No victory field found -> Defaulting to Defeat")
+end
+
+-- Increment total games counter
 State.TotalGamesPlayed = State.TotalGamesPlayed + 1
-        
-        print("Final game result:", GameTracking.gameResult)
-        print(string.format("Session Stats - Games: %d | Wins: %d | Losses: %d | Win Rate: %.1f%%",
+
+print("Final game result:", GameTracking.gameResult)
+print(string.format("Session Stats - Games: %d | Wins: %d | Losses: %d | Win Rate: %.1f%%",
     State.TotalGamesPlayed,
     State.TotalWins,
     State.TotalLosses,
