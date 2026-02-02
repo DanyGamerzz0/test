@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.54"
+    local script_version = "V0.55"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6047,12 +6047,13 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
                 rawUnitId = tostring(rawUnitId)
 
                 local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-                local worthiness = unit.stat_luck or 0
-                local fullName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+                -- NEW: Build name WITHOUT worthiness (just like in refreshUnitDropdown)
+                local fullName = displayName
                 if unit.shiny == true then fullName = fullName .. " (Shiny)" end
 
                 if fullName == selectedDisplayName then
                     newSelectedUUIDs[unit.uuid] = true
+                    print("Matched selection:", selectedDisplayName, "-> UUID:", unit.uuid)
                     break
                 end
             end
@@ -6068,6 +6069,14 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
         end
         
         print("Updated selected units:", #AutoRerollState.selectedUnits, "UUIDs tracked")
+        
+        -- Debug: Show what was selected
+        if #AutoRerollState.selectedUnits > 0 then
+            print("=== Selected Unit UUIDs ===")
+            for _, uuid in ipairs(AutoRerollState.selectedUnits) do
+                print("  " .. uuid)
+            end
+        end
     end,
 })
 
