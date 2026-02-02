@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.5"
+    local script_version = "V0.51"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6026,12 +6026,12 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Flag = "UnitSelection",
     Info = "Select which units to reroll stats on",
     Callback = function(Options)
-        -- When user changes selection, update both the UUIDs and the state
+        -- Map display names back to UUIDs
         local units = findAllUnits()
         local newSelectedUUIDs = {}
         
-        -- Map display names back to UUIDs
         for _, selectedDisplayName in ipairs(Options) do
+            -- Find the unit with this exact display name
             for _, unit in ipairs(units) do
                 local rawUnitId = unit.unit_id or "Unknown"
                 if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
@@ -6058,7 +6058,7 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
             table.insert(AutoRerollState.selectedUnits, uuid)
         end
         
-        print("Selected units for reroll:", #AutoRerollState.selectedUnits)
+        print("Updated selected units:", #AutoRerollState.selectedUnits, "UUIDs tracked")
     end,
 })
 
