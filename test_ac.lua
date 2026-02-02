@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.52"
+    local script_version = "V0.53"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -5936,6 +5936,15 @@ local function loadRaidStagesWithRetry()
     end
 end
 
+local function findUnitByUUID(uuid)
+    for _, unit in ipairs(findAllUnits()) do
+        if unit.uuid == uuid then
+            return unit
+        end
+    end
+    return nil
+end
+
     GameTab:CreateSection("👥 Player 👥")
 
     GameTab:CreateSlider({
@@ -6062,10 +6071,59 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
+LobbyTab:CreateButton({
+    Name = "View Selected Units",
+    Callback = function()
+        if next(selectedUnitUUIDs) == nil then
+            Rayfield:Notify({
+                Title = "Auto Reroll",
+                Content = "No units currently selected",
+                Duration = 3
+            })
+            return
+        end
+        
+        -- Get current worthiness values for selected units
+        local selectedUnitsInfo = {}
+        for uuid, _ in pairs(selectedUnitUUIDs) do
+            local unit = findUnitByUUID(uuid)
+            if unit then
+                local rawUnitId = unit.unit_id or "Unknown"
+                if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
+                rawUnitId = tostring(rawUnitId)
+                
+                local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+                local worthiness = unit.stat_luck or 0
+                local shinyText = unit.shiny and " (Shiny)" or ""
+                
+                table.insert(selectedUnitsInfo, string.format("%s%s - Worthiness: %d", 
+                    displayName, shinyText, worthiness))
+            end
+        end
+        
+        if #selectedUnitsInfo > 0 then
+            table.sort(selectedUnitsInfo)
+            local message = table.concat(selectedUnitsInfo, "\n")
+            
+            Rayfield:Notify({
+                Title = string.format("Selected Units (%d)", #selectedUnitsInfo),
+                Content = message,
+                Duration = 8
+            })
+        else
+            Rayfield:Notify({
+                Title = "Auto Reroll",
+                Content = "Selected units no longer exist",
+                Duration = 3
+            })
+        end
+    end,
+})
+
 local function refreshUnitDropdown()
     local units = findAllUnits()
     local unitOptions = {}
-    local uuidToDisplayName = {} -- Map UUID to its current display name
+    local uuidToDisplayName = {}
 
     for _, unit in ipairs(units) do
         local rawUnitId = unit.unit_id or "Unknown"
@@ -6074,8 +6132,8 @@ local function refreshUnitDropdown()
 
         if not rawUnitId:match("^%d+$") and rawUnitId ~= "Unknown" then
             local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-            local worthiness = unit.stat_luck or 0
-            local fullName = displayName .. string.format(" (Worthiness: %d)", worthiness)
+            -- NEW: Don't include worthiness in dropdown name
+            local fullName = displayName
             if unit.shiny == true then fullName = fullName .. " (Shiny)" end
             
             table.insert(unitOptions, fullName)
@@ -6096,9 +6154,8 @@ local function refreshUnitDropdown()
     end
     
     if #selectionsToRestore > 0 then
-        -- Set the dropdown to show the updated display names for the same UUIDs
         UnitSelectionDropdown:Set(selectionsToRestore)
-        print("Restored", #selectionsToRestore, "selections with updated worthiness values")
+        print("Restored", #selectionsToRestore, "selections (worthiness removed from display)")
     end
 end
 
@@ -6137,15 +6194,6 @@ LobbyTab:CreateToggle({
         AutoRerollState.delayAutoJoin = Value
     end,
 })
-
-local function findUnitByUUID(uuid)
-    for _, unit in ipairs(findAllUnits()) do
-        if unit.uuid == uuid then
-            return unit
-        end
-    end
-    return nil
-end
 
 local STAT_RANKS = {"C-","C","C+","B-","B","B+","A-","A","A+","S-","S","S+","SS","SSS"}
 
