@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.53"
+    local script_version = "V0.54"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -375,6 +375,8 @@ local macro = {}
     currentUnit = "None",
     rollsUsed = 0
 }
+
+local selectedUnitUUIDs = {}
 
     -- ========== CREATE TABS ==========
     local LobbyTab = Window:CreateTab("Lobby", "tv")
@@ -6025,8 +6027,6 @@ end
     })
 LobbyTab:CreateSection("Auto Reroll Stats")
 
-local selectedUnitUUIDs = {}
-
 local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     Name = "Select Units to Reroll",
     Options = {},
@@ -6071,10 +6071,10 @@ local UnitSelectionDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-LobbyTab:CreateButton({
+local ViewSelectedUnitsButton = LobbyTab:CreateButton({
     Name = "View Selected Units",
     Callback = function()
-        if next(selectedUnitUUIDs) == nil then
+        if not selectedUnitUUIDs or next(selectedUnitUUIDs) == nil then
             Rayfield:Notify({
                 Title = "Auto Reroll",
                 Content = "No units currently selected",
@@ -6110,6 +6110,13 @@ LobbyTab:CreateButton({
                 Content = message,
                 Duration = 8
             })
+            
+            -- Also print to console for debugging
+            print("=== SELECTED UNITS ===")
+            for _, info in ipairs(selectedUnitsInfo) do
+                print(info)
+            end
+            print("======================")
         else
             Rayfield:Notify({
                 Title = "Auto Reroll",
