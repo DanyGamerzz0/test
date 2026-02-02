@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.47"
+    local script_version = "V0.48"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -357,6 +357,9 @@ local macro = {}
         AutoRetryDelay = 2,
         SelectedBossRush = nil,
         AutoRedeemQuests = false,
+        TotalGamesPlayed = 0,
+        TotalWins = 0,
+        TotalLosses = 0,
     }
 
     local AutoRerollState = {
@@ -2596,8 +2599,7 @@ end
             }}
         }
 
-        elseif messageType == "stage" then
-    -- Keep existing stage webhook code unchanged
+     elseif messageType == "stage" then
     local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
     local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     local gameDuration = tick() - GameTracking.gameStartTime
@@ -2652,13 +2654,16 @@ end
         embedColor = 0xED4245
     end
 
-     local description = GameTracking.currentMapName
+    local description = GameTracking.currentMapName
     if GameTracking.portalDepth then
         description = description .. " - Tier " .. GameTracking.portalDepth
     end
     description = description .. " - " .. GameTracking.gameResult
     
-     data = {
+    local winRate = State.TotalGamesPlayed > 0 and 
+        string.format("%.1f%%", (State.TotalWins / State.TotalGamesPlayed) * 100) or "0.0%"
+    
+    data = {
         username = "LixHub",
         embeds = {{
             title = titleText,
@@ -2666,15 +2671,25 @@ end
             color = embedColor,
             fields = {
                 { name = "Player", value = playerName, inline = true },
-                { name = "Duration", value = durationText, inline = true }, -- This now includes challenge info
+                { name = "Duration", value = durationText, inline = true },
                 { name = "Waves Completed", value = tostring(GameTracking.lastWave), inline = true },
                 { name = "Rewards", value = rewardsText, inline = false },
+                { 
+                    name = "Session Stats", 
+                    value = string.format("**Games:** %d | **Wins:** %d | **Losses:** %d | **Win Rate:** %s",
+                        State.TotalGamesPlayed,
+                        State.TotalWins,
+                        State.TotalLosses,
+                        winRate
+                    ), 
+                    inline = false 
+                },
             },
             footer = { text = "discord.gg/cYKnXE2Nf8" },
             timestamp = timestamp
         }}
     }
-        end
+end
         
         local payload = Services.HttpService:JSONEncode(data)
         
@@ -4046,6 +4061,7 @@ end
         if not isInLobby() then return end
         if AutoJoinState.isProcessing then return end
         if not canPerformAction() then return end
+        if AutoRerollState.delayAutoJoin and AutoRerollState.isRolling then return end
 
         --if checkGateJoin() then return end
 
@@ -6105,7 +6121,7 @@ LobbyTab:CreateSlider({
     CurrentValue = 0,
     Flag = "MinWorthiness",
     Info = "Only roll on selected units if worthiness is equal to or higher this value (0 = disable)",
-    TextScaled = true,
+    TextScaled = false,
     Callback = function(Value)
         AutoRerollState.minWorthiness = Value
     end,
@@ -6115,7 +6131,7 @@ LobbyTab:CreateToggle({
     Name = "Delay Auto Join",
     CurrentValue = false,
     Flag = "DelayAutoJoin",
-    Info = "Don't join games until auto roll stats finishes",
+    Info = "Don't join games until auto roll stats finishes (used for worthiness farming)",
     Callback = function(Value)
         AutoRerollState.delayAutoJoin = Value
     end,
@@ -6206,6 +6222,19 @@ local function rollSingleUnit(uuid)
     end
 
     while not statsMatchTarget(stats) and rolls < SAFETY_CAP and AutoRerollState.autoRollEnabled do
+        -- Check worthiness before each roll (if minimum is set)
+        if AutoRerollState.minWorthiness > 0 then
+            local unitData = findUnitByUUID(uuid)
+            local currentWorthiness = (unitData and unitData.stat_luck) or 0
+            
+            if currentWorthiness <= 0 then
+                print(string.format("[Reroll] %s | Stopped - worthiness hit 0 (rolled %d times)", uuid, rolls))
+                notify("Auto Reroll", 
+                    string.format("Unit worthiness depleted (%d rolls) - moving to next unit", rolls))
+                break
+            end
+        end
+        
         local missing = getMissingStatKeys(stats)
 
         if #missing == 3 then
@@ -6245,10 +6274,21 @@ local function rollSingleUnit(uuid)
         end
     end
 
-    print(string.format("[Reroll] %s | Finished in %d rolls. Final: ATK=%s CD=%s RNG=%s",
-        uuid, rolls, stats.Attack, stats.Cooldown, stats.Range))
+    -- Final check - why did we stop?
+    local finalReason = "completed"
+    if statsMatchTarget(stats) then
+        finalReason = "stats matched"
+    elseif AutoRerollState.minWorthiness > 0 then
+        local unitData = findUnitByUUID(uuid)
+        local finalWorthiness = (unitData and unitData.stat_luck) or 0
+        if finalWorthiness <= 0 then
+            finalReason = "worthiness depleted"
+        end
+    end
+
+    print(string.format("[Reroll] %s | Finished in %d rolls (%s). Final: ATK=%s CD=%s RNG=%s",
+        uuid, rolls, finalReason, stats.Attack, stats.Cooldown, stats.Range))
     
-    -- Refresh dropdown to show updated worthiness while preserving UUID-based selections
     refreshUnitDropdown()
     
     return rolls
@@ -6283,12 +6323,13 @@ local function runAutoReroll()
 
         AutoRerollState.currentUnit = uuid
 
-        -- Worthiness check: if slider > 0, look up stat_luck and skip if too low
+        -- UPDATED: Worthiness check logic
         if AutoRerollState.minWorthiness > 0 then
             local unitData = findUnitByUUID(uuid)
             local worthiness = (unitData and unitData.stat_luck) or 0
 
             if worthiness < AutoRerollState.minWorthiness then
+                -- Skip this unit - worthiness too low
                 print(string.format("[Reroll] Skipping %s — worthiness %d < threshold %d",
                     uuid, worthiness, AutoRerollState.minWorthiness))
                 AutoRerollState.unitsCompleted = AutoRerollState.unitsCompleted + 1
@@ -6296,6 +6337,10 @@ local function runAutoReroll()
                     string.format("Skipped unit %d/%d (worthiness %d < %d)",
                         i, AutoRerollState.totalUnits, worthiness, AutoRerollState.minWorthiness))
                 continue
+            else
+                -- Worthiness is high enough - roll until desired stats OR worthiness hits 0
+                print(string.format("[Reroll] Starting %s — worthiness %d >= threshold %d (will roll to 0 or until stats match)",
+                    uuid, worthiness, AutoRerollState.minWorthiness))
             end
         end
 
@@ -9502,29 +9547,41 @@ if gameFinishedRemote then
         GameTracking.gameResult = "Defeat" -- Default to defeat
         
         -- Look for victory field in table arguments or direct boolean
-        for i, arg in ipairs(args) do
-            if type(arg) == "table" and arg.victory ~= nil then
-                if arg.victory == true then
-                    GameTracking.gameResult = "Victory"
-                    print("Found victory field: true -> Result: Victory")
-                else
-                    GameTracking.gameResult = "Defeat"
-                    print("Found victory field: false -> Result: Defeat")
-                end
-                break
-            elseif type(arg) == "boolean" then
-                if arg == true then
-                    GameTracking.gameResult = "Victory"
-                    print("Found boolean argument: true -> Result: Victory")
-                else
-                    GameTracking.gameResult = "Defeat"
-                    print("Found boolean argument: false -> Result: Defeat")
-                end
-                break
-            end
+for i, arg in ipairs(args) do
+    if type(arg) == "table" and arg.victory ~= nil then
+        if arg.victory == true then
+            GameTracking.gameResult = "Victory"
+            State.TotalWins = State.TotalWins + 1
+            print("Found victory field: true -> Result: Victory")
+        else
+            GameTracking.gameResult = "Defeat"
+            State.TotalLosses = State.TotalLosses + 1
+            print("Found victory field: false -> Result: Defeat")
         end
+        break
+    elseif type(arg) == "boolean" then
+        if arg == true then
+            GameTracking.gameResult = "Victory"
+            State.TotalWins = State.TotalWins + 1
+            print("Found boolean argument: true -> Result: Victory")
+        else
+            GameTracking.gameResult = "Defeat"
+            State.TotalLosses = State.TotalLosses + 1
+            print("Found boolean argument: false -> Result: Defeat")
+        end
+        break
+    end
+end
+
+State.TotalGamesPlayed = State.TotalGamesPlayed + 1
         
         print("Final game result:", GameTracking.gameResult)
+        print(string.format("Session Stats - Games: %d | Wins: %d | Losses: %d | Win Rate: %.1f%%",
+    State.TotalGamesPlayed,
+    State.TotalWins,
+    State.TotalLosses,
+    State.TotalGamesPlayed > 0 and (State.TotalWins / State.TotalGamesPlayed) * 100 or 0
+))
         
         -- SEND WEBHOOK IMMEDIATELY (BEFORE AUTO-VOTE LOGIC)
         if GameTracking.gameInProgress then
