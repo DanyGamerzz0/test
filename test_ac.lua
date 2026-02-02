@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.49"
+    local script_version = "V0.5"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -360,6 +360,7 @@ local macro = {}
         TotalGamesPlayed = 0,
         TotalWins = 0,
         TotalLosses = 0,
+        ReturnToLobbyAfterGames = 0,
     }
 
     local AutoRerollState = {
@@ -7240,6 +7241,21 @@ end)
         end,
     })
 
+    GameTab:CreateSection("Failsafes")
+
+    GameTab:CreateSlider({
+    Name = "Return to Lobby on X Games",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = " games",
+    CurrentValue = 0,
+    Flag = "ReturnToLobbyAfterGames",
+    Info = "Automatically return to lobby after X games (0 = disable)",
+    Callback = function(Value)
+        State.ReturnToLobbyAfterGames = Value
+    end,
+})
+
     -- Macro Tab
     local MacroStatusLabel = MacroTab:CreateLabel("Macro Status: Ready")
     MacroSystem.detailedStatusLabel = MacroTab:CreateLabel("Macro Details: Ready")
@@ -9809,6 +9825,33 @@ print(string.format("Session Stats - Games: %d | Wins: %d | Losses: %d | Win Rat
                 warn("All auto-vote actions failed")
             else
                 print("At least one action worked")
+            end
+            
+            if State.ReturnToLobbyAfterGames > 0 and State.TotalGamesPlayed >= State.ReturnToLobbyAfterGames then
+                notify("Game Counter", string.format("Reached %d games - returning to lobby", State.ReturnToLobbyAfterGames))
+                task.wait(2)
+                
+                local lobbySuccess = pcall(function()
+                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("teleport_back_to_lobby"):InvokeServer()
+                end)
+                
+                if lobbySuccess then
+                    print(string.format("Successfully returned to lobby after %d games", State.TotalGamesPlayed))
+                    
+                    -- Reset game counter
+                    State.TotalGamesPlayed = 0
+                    State.TotalWins = 0
+                    State.TotalLosses = 0
+                    
+                    State.failsafeActive = false
+                    GameTracking.gameInProgress = false
+                    GameTracking.gameStartTime = 0
+                    GameTracking.gameResult = "Unknown"
+                    GameTracking.portalDepth = nil
+                    return
+                else
+                    warn("Failed to return to lobby after game counter")
+                end
             end
             
             -- Fully end game tracking after all auto-vote logic completes
