@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.51"
+    local script_version = "V0.52"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6223,7 +6223,7 @@ local function rollSingleUnit(uuid)
     end
 
     while not statsMatchTarget(stats) and rolls < SAFETY_CAP and AutoRerollState.autoRollEnabled do
-        -- Check worthiness before each roll (if minimum is set)
+        -- Check worthiness BEFORE each roll
         if AutoRerollState.minWorthiness > 0 then
             local unitData = findUnitByUUID(uuid)
             local currentWorthiness = (unitData and unitData.stat_luck) or 0
