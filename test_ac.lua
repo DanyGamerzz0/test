@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.66"
+    local script_version = "V0.67"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7254,14 +7254,12 @@ CardSelectionDropdown = GameTab:CreateDropdown({
 
 task.spawn(function()
     while true do
-        if not isInLobby() then
         task.wait(1)
         if State.AutoSelectCardBossRush then
             if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("Prompt").Enabled and State.AutoSelectCardBossRushSelection then
                     game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_makima_sacrifice"):InvokeServer(State.AutoSelectCardBossRushSelection)
                     task.wait(0.1)
             end
-        end
         end
     end
 end)
