@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.6"
+    local script_version = "V0.61"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -335,11 +335,6 @@ local function clearSpawnIdMappings()
     MacroSystem.playbackPlacementToSpawnId = {}
 end
 
-    -- Utility Functions
-    local function getLocalPlayer()
-        return Services.Players.LocalPlayer
-    end
-
     local function getUnitOwner(unit)
         local stats = unit:FindFirstChild("_stats")
         if not stats then return nil end
@@ -352,7 +347,7 @@ end
 
 local function isOwnedByLocalPlayer(unit)
     local owner = getUnitOwner(unit)
-    if owner ~= getLocalPlayer() then
+    if owner ~= Services.Players.LocalPlayer then
         return false
     end
     
@@ -1281,6 +1276,126 @@ local function processFrierenAbilityRecording(actionInfo)
     })
 end
 
+local function processGokuAbilityRecording(actionInfo)
+    local gokuSpawnId = actionInfo.args[1]
+    
+    if not gokuSpawnId then
+        warn("Missing arguments for Goku ability")
+        return
+    end
+    
+    -- Find Goku's placement ID by spawn_id
+    local gokuPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(gokuSpawnId) then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            gokuPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if gokuPlacementId then
+                                print(string.format("Found Goku: spawn_id=%s -> placement=%s", 
+                                    tostring(gokuSpawnId), gokuPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not gokuPlacementId then
+        warn("Could not find placement ID for Goku spawn ID:", gokuSpawnId)
+        return
+    end
+
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    
+    local abilityRecord = {
+        Type = "goku_ability",
+        Goku = gokuPlacementId,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Goku ability: %s", gokuPlacementId),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
+local function processVegetaAbilityRecording(actionInfo)
+    local vegetaSpawnId = actionInfo.args[1]
+    
+    if not vegetaSpawnId then
+        warn("Missing arguments for Vegeta ability")
+        return
+    end
+    
+    -- Find Vegeta's placement ID by spawn_id
+    local vegetaPlacementId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(vegetaSpawnId) then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            vegetaPlacementId = MacroSystem.recordingSpawnIdToPlacement[combinedIdentifier]
+                            
+                            if vegetaPlacementId then
+                                print(string.format("Found Vegeta: spawn_id=%s -> placement=%s", 
+                                    tostring(vegetaSpawnId), vegetaPlacementId))
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if not vegetaPlacementId then
+        warn("Could not find placement ID for Vegeta spawn ID:", vegetaSpawnId)
+        return
+    end
+
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    
+    local abilityRecord = {
+        Type = "vegeta_ability",
+        Vegeta = vegetaPlacementId,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
+    
+    table.insert(macro, abilityRecord)
+    
+    Rayfield:Notify({
+        Title = "Macro Recorder",
+        Content = string.format("Recorded Vegeta ability: %s", vegetaPlacementId),
+        Duration = 2,
+        Image = 4483362458
+    })
+end
+
 local function processActionResponseWithSpawnIdMapping(actionInfo)
     if actionInfo.remoteName == MACRO_CONFIG.SPAWN_REMOTE then
         Rayfield:Notify({
@@ -1310,6 +1425,10 @@ elseif actionInfo.remoteName == "LelouchChoosePiece" then
         processDioAbilityRecording(actionInfo)
     elseif actionInfo.remoteName == "FrierenMagics" then
         processFrierenAbilityRecording(actionInfo)
+    elseif actionInfo.remoteName == "UseAbilityGoku" then
+    processGokuAbilityRecording(actionInfo)
+elseif actionInfo.remoteName == "UseAbilityVegeta" then
+    processVegetaAbilityRecording(actionInfo)
     end
     -- Note: upgrade branch removed - now handled by Heartbeat monitor
 end
@@ -1396,6 +1515,26 @@ elseif self.Name == "FrierenMagics" then
         processActionResponseWithSpawnIdMapping({
             remoteName = "FrierenMagics",
             args = {frierenSpawnId, magicType},
+            timestamp = tick()
+        })
+    end)
+elseif self.Name == "UseAbilityGoku" then
+    local gokuSpawnId = args[1]
+    
+    task.spawn(function()
+        processActionResponseWithSpawnIdMapping({
+            remoteName = "UseAbilityGoku",
+            args = {gokuSpawnId},
+            timestamp = tick()
+        })
+    end)
+elseif self.Name == "UseAbilityVegeta" then
+    local vegetaSpawnId = args[1]
+    
+    task.spawn(function()
+        processActionResponseWithSpawnIdMapping({
+            remoteName = "UseAbilityVegeta",
+            args = {vegetaSpawnId},
             timestamp = tick()
         })
     end)
@@ -2280,6 +2419,122 @@ local function validateFrierenAbilityAction(action, actionIndex, totalActionCoun
     return false
 end
 
+local function validateGokuAbilityAction(action, actionIndex, totalActionCount)
+    local gokuPlacementId = action.Goku
+    
+    -- Get Goku's spawn_id
+    local gokuSpawnId = MacroSystem.playbackPlacementToSpawnId[gokuPlacementId]
+    
+    if not gokuSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Goku %s", 
+            actionIndex, totalActionCount, gokuPlacementId))
+        return false
+    end
+    
+    -- Extract actual spawn_id value
+    local gokuActualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == gokuSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        gokuActualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not gokuActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Goku spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Goku ability: %s", 
+        actionIndex, totalActionCount, gokuPlacementId))
+    
+    local success = pcall(function()
+        task.wait(0.3)
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("UseAbilityGoku")
+            :FireServer(gokuActualSpawnId)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Goku ability used", 
+            actionIndex, totalActionCount))
+        return true
+    end
+    return false
+end
+
+local function validateVegetaAbilityAction(action, actionIndex, totalActionCount)
+    local vegetaPlacementId = action.Vegeta
+    
+    -- Get Vegeta's spawn_id
+    local vegetaSpawnId = MacroSystem.playbackPlacementToSpawnId[vegetaPlacementId]
+    
+    if not vegetaSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: No mapping for Vegeta %s", 
+            actionIndex, totalActionCount, vegetaPlacementId))
+        return false
+    end
+    
+    -- Extract actual spawn_id value
+    local vegetaActualSpawnId = nil
+    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+    
+    if unitsFolder then
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == vegetaSpawnId then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                    if spawnIdValue then
+                        vegetaActualSpawnId = spawnIdValue.Value
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if not vegetaActualSpawnId then
+        updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find Vegeta spawn_id", 
+            actionIndex, totalActionCount))
+        return false
+    end
+    
+    updateDetailedStatus(string.format("(%d/%d) Using Vegeta ability: %s", 
+        actionIndex, totalActionCount, vegetaPlacementId))
+    
+    local success = pcall(function()
+        task.wait(0.3)
+        
+        Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("UseAbilityVegeta")
+            :FireServer(vegetaActualSpawnId)
+    end)
+    
+    if success then
+        task.wait(0.2)
+        updateDetailedStatus(string.format("(%d/%d) ✓ Vegeta ability used", 
+            actionIndex, totalActionCount))
+        return true
+    end
+    return false
+end
+
 local function executeActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
     if action.Type == "spawn_unit" then
         return validatePlacementActionWithSpawnIdMapping(action, actionIndex, totalActionCount)
@@ -2298,6 +2553,10 @@ elseif action.Type == "lelouch_choose_piece" then
         return validateDioAbilityAction(action, actionIndex, totalActionCount)
     elseif action.Type == "frieren_magics" then
         return validateFrierenAbilityAction(action, actionIndex, totalActionCount)
+    elseif action.Type == "goku_ability" then
+    return validateGokuAbilityAction(action, actionIndex, totalActionCount)
+elseif action.Type == "vegeta_ability" then
+    return validateVegetaAbilityAction(action, actionIndex, totalActionCount)
     elseif action.Type == "vote_wave_skip" then
         -- Wave skip logic remains unchanged
         updateDetailedStatus(string.format("(%d/%d) Skipping wave", actionIndex, totalActionCount))
@@ -2530,8 +2789,6 @@ end
     return units
 end
 
-findAllUnits()
-
 local function getUnitDisplayNameFromUUID(uuid)
     local allUnits = findAllUnits()
     
@@ -2758,29 +3015,6 @@ local function startGameTracking()
     if MacroSystem.currentChallenge then
         print("Challenge: " .. MacroSystem.currentChallenge)
     end
-end
-
-    -- Function to end game tracking
-local function endGameTracking()
-    if not GameTracking.gameInProgress then return end
-    
-    print("Game ended! Sending summary...")
-    
-    -- Send summary webhook
-    if State.SendStageCompletedWebhook then
-        sendWebhook("stage")
-    end
-    
-    -- Reset tracking
-    GameTracking.gameInProgress = false
-    GameTracking.sessionItems = {}
-    GameTracking.gameStartTime = 0
-    GameTracking.lastWave = 0
-    GameTracking.startStats = {}
-    GameTracking.endStats = {}
-    GameTracking.currentMapName = "Unknown Map"
-    MacroSystem.currentChallenge = nil -- Clear challenge info
-    GameTracking.gameResult = "Unknown"
 end
 
 local function monitorWaves()
@@ -3314,7 +3548,7 @@ end
             if GameTracking.gameStartTime > 0 then
                 local elapsed = tick() - GameTracking.gameStartTime
 
-                if elapsed >= 60 then -- 20 minutes = 1200 seconds
+                if elapsed >= 1200 then -- 20 minutes = 1200 seconds
                     notify("20-Min Failsafe", string.format("Game has been running for %.1f minutes — returning to lobby!", elapsed / 60))
                     print(string.format("[20-Min Failsafe] Triggered after %.1f minutes", elapsed / 60))
 
@@ -3653,126 +3887,6 @@ end
         return false
     end
 end
-
-    --[[local function getAvailableGates()
-        local gates = {}
-        local gatesFolder = Services.Workspace:FindFirstChild("_GATES")
-        
-        if not gatesFolder or not gatesFolder:FindFirstChild("gates") then
-            return gates
-        end
-        
-        for i = 1, 6 do
-            local gateFolder = gatesFolder.gates:FindFirstChild(tostring(i))
-            if gateFolder then
-                local gateType = gateFolder:FindFirstChild("GateType")
-                 MacroSystem.currentChallenge = gateFolder:FindFirstChild("current_challenge")
-                
-                if gateType and MacroSystem.currentChallenge then
-                    table.insert(gates, {
-                        id = i,
-                        type = gateType.Value,
-                        modifier = MacroSystem.currentChallenge.Value
-                    })
-                end
-            end
-        end
-        
-        return gates
-    end
-
-    local function isGateTypeAllowed(gateType)
-        for _, avoidType in ipairs(State.AvoidGateTypes) do
-            if gateType == avoidType then
-                return false
-            end
-        end
-        return true
-    end
-
-    local function isModifierAllowed(modifier)
-        for _, avoidModifier in ipairs(State.AvoidModifiers) do
-            if modifier == avoidModifier then
-                return false
-            end
-        end
-        return true
-    end
-
-    local function findBestGate()
-        local availableGates = getAvailableGates()
-        
-        if #availableGates == 0 then
-            return nil
-        end
-        
-        -- Filter out avoided gates and modifiers
-        local acceptableGates = {}
-        for _, gate in ipairs(availableGates) do
-            if isGateTypeAllowed(gate.type) and isModifierAllowed(gate.modifier) then
-                table.insert(acceptableGates, gate)
-            end
-        end
-        
-        if #acceptableGates == 0 then
-            print("No acceptable gates found after filtering")
-            return nil
-        end
-        
-        -- Priority order for gates (S is best, D is worst)
-        local gatePriorityOrder = {"National","S", "A", "B", "C", "D"}
-        
-        -- Sort acceptable gates by priority (best first)
-        table.sort(acceptableGates, function(a, b)
-            local aPriority = 999
-            local bPriority = 999
-            
-            for i, priority in ipairs(gatePriorityOrder) do
-                if a.type == priority then aPriority = i end
-                if b.type == priority then bPriority = i end
-            end
-            
-            return aPriority < bPriority
-        end)
-        
-        -- Return the best acceptable gate
-        return acceptableGates[1]
-    end
-
-    local function joinGate(gateInfo, useMatchmaking)
-        if not gateInfo then return false end
-        
-        if useMatchmaking then
-        local success = pcall(function()
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_matchmaking"):InvokeServer("_GATE",{GateUuid = tonumber(gateInfo.id)})
-        end)
-        if success then
-            notify("Gate Matchmaking", string.format("Matchmaking for %s Gate with %s modifier", gateInfo.type, gateInfo.modifier))
-            return true
-        else
-            notify("Gate Joiner", "Failed to matchmake gate")
-            return false
-        end
-    else
-        local success = pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_GATE"..gateInfo.id)
-
-            task.wait(0.5)
-
-            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_GATE"..gateInfo.id)
-
-            print("Would join gate", gateInfo.id, "with type", gateInfo.type, "and modifier", gateInfo.modifier)
-        end)
-        
-        if success then
-            notify("Gate Joiner", string.format("Joining %s Gate with %s modifier", gateInfo.type, gateInfo.modifier))
-            return true
-        else
-            notify("Gate Joiner", "Failed to join gate")
-            return false
-        end
-    end
-end--]]
 
 local function getOwnedPortalsFromInventory()
     local ownedPortals = {} -- {id = uuid}
@@ -5748,17 +5862,19 @@ local function loadPortals()
     end
 end
 
-local function loadLegendStagesWithRetry()
-    loadingRetries.legend = loadingRetries.legend + 1
+local function loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
+    local retryKey = stageType:lower()
+    loadingRetries[retryKey] = (loadingRetries[retryKey] or 0) + 1
     
     if not isGameDataLoaded() then
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
+        if loadingRetries[retryKey] <= maxRetries then
+            print(string.format("%s stages loading failed (attempt %d/%d) - game data not ready, retrying...", 
+                stageType, loadingRetries[retryKey], maxRetries))
             task.wait(retryDelay)
-            task.spawn(loadLegendStagesWithRetry)
+            task.spawn(function() loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc) end)
         else
-            warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
-            LegendStageDropdown:Refresh({"Failed to load - check console"})
+            warn(string.format("Failed to load %s stages after %d attempts - giving up", stageType, maxRetries))
+            dropdown:Refresh({"Failed to load - check console"})
         end
         return
     end
@@ -5767,148 +5883,26 @@ local function loadLegendStagesWithRetry()
         local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
         local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
         
-        if not WorldLevelOrder or not WorldLevelOrder.LEGEND_WORLD_ORDER then
-            error("WorldLevelOrder or LEGEND_WORLD_ORDER not found")
-        end
-
-        local displayNames = {}
-        
-        for _, orderedWorldKey in ipairs(WorldLevelOrder.LEGEND_WORLD_ORDER) do
-            local worldModules = WorldsFolder:GetChildren()
-            
-            for _, worldModule in ipairs(worldModules) do
-                if worldModule:IsA("ModuleScript") then
-                    local moduleSuccess, worldData = pcall(require, worldModule)
-                    
-                    if moduleSuccess and worldData and worldData[orderedWorldKey] then
-                        local worldInfo = worldData[orderedWorldKey]
-                        
-                        if type(worldInfo) == "table" and worldInfo.name and worldInfo.legend_stage then
-                            table.insert(displayNames, worldInfo.name)
-                            print(string.format("Loaded legend stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
-                        end
-                        break
-                    end
-                end
-            end
-        end
-        
-        if #displayNames == 0 then
-            error("No legend stages found")
-        end
-        
-        return displayNames
-    end)
-    
-    if success and result and #result > 0 then
-        LegendStageDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d legend stages (attempt %d)", #result, loadingRetries.legend))
-    else
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadLegendStagesWithRetry)
+        -- Determine which world order to use based on stage type
+        local worldOrder
+        if stageType == "Story" then
+            worldOrder = WorldLevelOrder.WORLD_ORDER
+        elseif stageType == "Legend" then
+            worldOrder = WorldLevelOrder.LEGEND_WORLD_ORDER
+        elseif stageType == "Raid" then
+            worldOrder = WorldLevelOrder.RAID_WORLD_ORDER
         else
-            warn("Failed to load legend stages after", maxRetries, "attempts:", result)
-            LegendStageDropdown:Refresh({"Failed to load - check console"})
-        end
-    end
-end
-
-local function loadStoryStagesWithRetry()
-    loadingRetries.story = loadingRetries.story + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.story <= maxRetries then
-            print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadStoryStagesWithRetry)
-        else
-            warn("Failed to load story stages after", maxRetries, "attempts - giving up")
-            StoryStageDropdown:Refresh({"Failed to load - check console"})
-        end
-        return
-    end
-    
-    local success, result = pcall(function()
-        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-        
-        if not WorldLevelOrder or not WorldLevelOrder.WORLD_ORDER then
-            error("WorldLevelOrder or WORLD_ORDER not found")
-        end
-
-        local displayNames = {}
-        
-        for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
-            local worldModules = WorldsFolder:GetChildren()
-            
-            for _, worldModule in ipairs(worldModules) do
-                if worldModule:IsA("ModuleScript") then
-                    local moduleSuccess, worldData = pcall(require, worldModule)
-                    
-                    if moduleSuccess and worldData and worldData[orderedWorldKey] then
-                        local worldInfo = worldData[orderedWorldKey]
-                        
-                        if type(worldInfo) == "table" and worldInfo.name then
-                            table.insert(displayNames, worldInfo.name)
-                            print(string.format("Loaded story stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
-                        end
-                        break
-                    end
-                end
-            end
+            error("Unknown stage type: " .. stageType)
         end
         
-        if #displayNames == 0 then
-            error("No story stages found")
-        end
-        
-        return displayNames
-    end)
-    
-    if success and result and #result > 0 then
-        StoryStageDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
-    else
-        if loadingRetries.story <= maxRetries then
-            print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadStoryStagesWithRetry)
-        else
-            warn("Failed to load story stages after", maxRetries, "attempts:", result)
-            StoryStageDropdown:Refresh({"Failed to load - check console"})
-        end
-    end
-end
-
-local function loadRaidStagesWithRetry()
-    loadingRetries.raid = loadingRetries.raid + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.raid <= maxRetries then
-            print(string.format("Raid stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.raid, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadRaidStagesWithRetry)
-        else
-            warn("Failed to load raid stages after", maxRetries, "attempts - giving up")
-            RaidStageDropdown:Refresh({"Failed to load - check console"})
-        end
-        return
-    end
-    
-    local success, result = pcall(function()
-        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
-        
-        if not WorldLevelOrder or not WorldLevelOrder.RAID_WORLD_ORDER then
-            error("WorldLevelOrder or RAID_WORLD_ORDER not found")
+        if not worldOrder then
+            error(string.format("%s_WORLD_ORDER not found", stageType:upper()))
         end
 
         local displayNames = {}
         local addedWorlds = {}
         
-        for _, orderedWorldKey in ipairs(WorldLevelOrder.RAID_WORLD_ORDER) do
+        for _, orderedWorldKey in ipairs(worldOrder) do
             local worldModules = WorldsFolder:GetChildren()
             
             for _, worldModule in ipairs(worldModules) do
@@ -5918,12 +5912,21 @@ local function loadRaidStagesWithRetry()
                     if moduleSuccess and worldData and worldData[orderedWorldKey] then
                         local worldInfo = worldData[orderedWorldKey]
                         
-                        if type(worldInfo) == "table" and worldInfo.name and worldInfo.raid_world then
-                            if not addedWorlds[orderedWorldKey] then
-                                table.insert(displayNames, worldInfo.name)
-                                addedWorlds[orderedWorldKey] = true
-                                print(string.format("Loaded raid stage: %s -> backend key: %s", worldInfo.name, orderedWorldKey))
-                            end
+                        -- Validation based on stage type
+                        local isValid = false
+                        if stageType == "Story" then
+                            isValid = type(worldInfo) == "table" and worldInfo.name
+                        elseif stageType == "Legend" then
+                            isValid = type(worldInfo) == "table" and worldInfo.name and worldInfo.legend_stage
+                        elseif stageType == "Raid" then
+                            isValid = type(worldInfo) == "table" and worldInfo.name and worldInfo.raid_world
+                        end
+                        
+                        if isValid and not addedWorlds[orderedWorldKey] then
+                            table.insert(displayNames, worldInfo.name)
+                            addedWorlds[orderedWorldKey] = true
+                            print(string.format("Loaded %s stage: %s -> backend key: %s", 
+                                stageType, worldInfo.name, orderedWorldKey))
                         end
                         break
                     end
@@ -5932,23 +5935,26 @@ local function loadRaidStagesWithRetry()
         end
         
         if #displayNames == 0 then
-            error("No raid stages found")
+            error(string.format("No %s stages found", stageType))
         end
         
         return displayNames
     end)
     
     if success and result and #result > 0 then
-        RaidStageDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d raid stages (attempt %d)", #result, loadingRetries.raid))
+        dropdown:Refresh(result)
+        print(string.format("Successfully loaded %d %s stages (attempt %d)", 
+            #result, stageType, loadingRetries[retryKey]))
     else
-        if loadingRetries.raid <= maxRetries then
-            print(string.format("Raid stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.raid, maxRetries, tostring(result)))
+        if loadingRetries[retryKey] <= maxRetries then
+            print(string.format("%s stages loading failed (attempt %d/%d): %s - retrying...", 
+                stageType, loadingRetries[retryKey], maxRetries, tostring(result)))
             task.wait(retryDelay)
-            task.spawn(loadRaidStagesWithRetry)
+            task.spawn(function() loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc) end)
         else
-            warn("Failed to load raid stages after", maxRetries, "attempts:", result)
-            RaidStageDropdown:Refresh({"Failed to load - check console"})
+            warn(string.format("Failed to load %s stages after %d attempts: %s", 
+                stageType, maxRetries, result))
+            dropdown:Refresh({"Failed to load - check console"})
         end
     end
 end
@@ -9981,9 +9987,9 @@ task.delay(1, function()
     loadAllMacros()
     
     -- Start all dropdown loading processes concurrently
-    task.spawn(loadStoryStagesWithRetry)
-    task.spawn(loadLegendStagesWithRetry) 
-    task.spawn(loadRaidStagesWithRetry)
+    task.spawn(loadStagesWithRetry("Story", StoryStageDropdown, getBackendWorldKeyFromDisplayName))
+    task.spawn(loadStagesWithRetry("Legend", LegendStageDropdown, getBackendLegendWorldKeyFromDisplayName))
+    task.spawn(loadStagesWithRetry("Raid", RaidStageDropdown, getBackendRaidWorldKeyFromDisplayName))
     task.spawn(loadIgnoreWorldsWithRetry)
     task.spawn(loadPortals)
     
