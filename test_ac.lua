@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.58"
+    local script_version = "V0.59"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -153,6 +153,7 @@ local GameTracking = {
     isAutoLoopEnabled = false,
     portalDepth = nil,
     newUnitsThisGame = {},
+    playerLoadoutUUIDs = {},
 }
 
 local VALIDATION_CONFIG = {
@@ -2591,21 +2592,11 @@ local function sendWebhook(messageType, unitData)
         -- Get inventory totals for items that need them
         local inventoryTotals = getItemTotalsFromInventory()
         
-        -- Format rewards text
+        -- Format rewards text (items + stats together)
         local rewardsText = ""
-        
-        -- NEW: Add unit drops first if any
-        if next(GameTracking.newUnitsThisGame) then
-            rewardsText = rewardsText .. "**🎉 Units Obtained:**\n"
-            for _, unitName in ipairs(GameTracking.newUnitsThisGame) do
-                rewardsText = rewardsText .. "• " .. unitName .. "\n"
-            end
-            rewardsText = rewardsText .. "\n"
-        end
         
         -- Add items if any were collected
         if next(GameTracking.sessionItems) then
-            rewardsText = rewardsText .. "**📦 Items:**\n"
             for itemName, quantity in pairs(GameTracking.sessionItems) do
                 local displayName = getItemDisplayName(itemName)
                 
@@ -2630,8 +2621,6 @@ local function sendWebhook(messageType, unitData)
         
         -- Add stat changes if any with total amounts (excluding resource)
         if next(statChanges) then
-            if rewardsText ~= "" then rewardsText = rewardsText .. "\n" end
-            rewardsText = rewardsText .. "**📊 Stats:**\n"
             for statName, change in pairs(statChanges) do
                 local totalAmount = GameTracking.endStats[statName] or 0
                 local displayStatName = getStatDisplayName(statName)
@@ -2644,6 +2633,20 @@ local function sendWebhook(messageType, unitData)
             rewardsText = "No rewards gained this match"
         else
             rewardsText = rewardsText:gsub("\n$", "")
+        end
+        
+        -- NEW: Get player's loadout from game_finished data
+        local loadoutText = ""
+        if GameTracking.playerLoadoutUUIDs and #GameTracking.playerLoadoutUUIDs > 0 then
+            for _, unitUUID in ipairs(GameTracking.playerLoadoutUUIDs) do
+                local unitDisplayName = getUnitDisplayNameFromUUID(unitUUID)
+                -- Remove the shiny emoji if present
+                unitDisplayName = unitDisplayName:gsub(" ✨", "")
+                loadoutText = loadoutText .. unitDisplayName .. "\n"
+            end
+            loadoutText = loadoutText:gsub("\n$", "") -- Remove trailing newline
+        else
+            loadoutText = "No loadout data available"
         end
         
         -- Determine title and color based on game result
@@ -2685,9 +2688,10 @@ local function sendWebhook(messageType, unitData)
                     { name = "Duration", value = durationText, inline = true },
                     { name = "Waves Completed", value = tostring(GameTracking.lastWave), inline = true },
                     { name = "Rewards", value = rewardsText, inline = false },
+                    { name = "Loadout", value = loadoutText, inline = false }, -- NEW: Loadout field
                     { 
                         name = "Session Stats", 
-                        value = string.format("**Games:** %d | **Wins:** %d | **Losses:** %d | **Win Rate:** %s",
+                        value = string.format("Games: %d | Wins: %d | Losses: %d | Win Rate: %s",
                             State.TotalGamesPlayed,
                             State.TotalWins,
                             State.TotalLosses,
@@ -2725,8 +2729,9 @@ local function sendWebhook(messageType, unitData)
     if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
         notify(nil, "Webhook sent successfully!")
         
-        -- Clear unit tracking after successful send
+        -- Clear tracking after successful send
         GameTracking.newUnitsThisGame = {}
+        GameTracking.playerLoadoutUUIDs = {}
     else
         print("Webhook failed:", response and response.StatusCode or "No response")
     end
@@ -9554,16 +9559,30 @@ if gameFinishedRemote then
         startFailsafeTimer()
         MacroSystem.macroHasPlayedThisGame = false
         
-        -- NEW: Process unit drops from game_finished data
+        -- NEW: Process both unit drops AND loadout from game_finished data
         for i, arg in ipairs(args) do
-            if type(arg) == "table" and arg.new_units then
-                print("Found new_units field in game_finished!")
-                GameTracking.newUnitsThisGame = {}
+            if type(arg) == "table" then
+                -- Extract unit drops
+                if arg.new_units then
+                    print("Found new_units field in game_finished!")
+                    GameTracking.newUnitsThisGame = {}
+                    
+                    for _, unitUUID in ipairs(arg.new_units) do
+                        local unitDisplayName = getUnitDisplayNameFromUUID(unitUUID)
+                        table.insert(GameTracking.newUnitsThisGame, unitDisplayName)
+                        print("Unit obtained this game:", unitDisplayName, "(UUID:", unitUUID, ")")
+                    end
+                end
                 
-                for _, unitUUID in ipairs(arg.new_units) do
-                    local unitDisplayName = getUnitDisplayNameFromUUID(unitUUID)
-                    table.insert(GameTracking.newUnitsThisGame, unitDisplayName)
-                    print("Unit obtained this game:", unitDisplayName, "(UUID:", unitUUID, ")")
+                -- NEW: Extract player loadout from xp_updates
+                if arg.xp_updates then
+                    print("Found xp_updates field - extracting loadout UUIDs!")
+                    GameTracking.playerLoadoutUUIDs = {}
+                    
+                    for unitUUID, xpData in pairs(arg.xp_updates) do
+                        table.insert(GameTracking.playerLoadoutUUIDs, unitUUID)
+                        print("Loadout unit UUID:", unitUUID)
+                    end
                 end
             end
         end
