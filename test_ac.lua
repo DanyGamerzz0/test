@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.59"
+    local script_version = "V0.6"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -249,6 +249,7 @@ local macro = {}
         AutoSellFarmEnabled = false,
         AutoSellFarmWave = 15,
         ReturnToLobbyFailsafe = false,
+        ReturnToLobbyIfGameNeverEnds = false,
         failsafeActive = false,
         AutoMatchmakeLegendStage = false,
         AutoMatchmakeRaidStage = false,
@@ -3304,6 +3305,37 @@ end
             end
         end
     end)
+
+    task.spawn(function()
+    while true do
+        task.wait(1)
+
+        if State.ReturnToLobbyIfGameNeverEnds and GameTracking.gameInProgress and not isInLobby() then
+            if GameTracking.gameStartTime > 0 then
+                local elapsed = tick() - GameTracking.gameStartTime
+
+                if elapsed >= 60 then -- 20 minutes = 1200 seconds
+                    notify("20-Min Failsafe", string.format("Game has been running for %.1f minutes — returning to lobby!", elapsed / 60))
+                    print(string.format("[20-Min Failsafe] Triggered after %.1f minutes", elapsed / 60))
+
+                    GameTracking.gameHasEnded = true
+                    MacroSystem.isPlaybacking = false
+
+                    pcall(function()
+                        Services.ReplicatedStorage:WaitForChild("endpoints")
+                            :WaitForChild("client_to_server")
+                            :WaitForChild("teleport_back_to_lobby")
+                            :InvokeServer()
+                    end)
+
+                    -- Reset tracking so it doesn't fire again
+                    GameTracking.gameInProgress = false
+                    GameTracking.gameStartTime = 0
+                end
+            end
+        end
+    end
+end)
 
     local function getItemIdFromDisplayName(displayName)
         local success, itemId = pcall(function()
@@ -7318,10 +7350,10 @@ end)
     GameTab:CreateToggle({
     Name = "Return to Lobby if game never ends",
     CurrentValue = false,
-    Flag = "ReturnToLobbyFailsafe",
+    Flag = "ReturnToLobbyIfGameNeverEnds",
     Info = "Return to lobby if game doesn't end after 20 minutes",
     Callback = function(Value)
-        
+        State.ReturnToLobbyIfGameNeverEnds = Value
     end,
 })
 
