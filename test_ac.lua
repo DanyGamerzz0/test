@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.61"
+    local script_version = "V0.62"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9987,11 +9987,10 @@ task.delay(1, function()
     loadAllMacros()
     
     -- Start all dropdown loading processes concurrently
-    task.spawn(loadStagesWithRetry("Story", StoryStageDropdown, getBackendWorldKeyFromDisplayName))
-    task.spawn(loadStagesWithRetry("Legend", LegendStageDropdown, getBackendLegendWorldKeyFromDisplayName))
-    task.spawn(loadStagesWithRetry("Raid", RaidStageDropdown, getBackendRaidWorldKeyFromDisplayName))
-    task.spawn(loadIgnoreWorldsWithRetry)
-    task.spawn(loadPortals)
+task.spawn(function() loadStagesWithRetry("Story", StoryStageDropdown, getBackendWorldKeyFromDisplayName) end)
+task.spawn(function() loadStagesWithRetry("Legend", LegendStageDropdown, getBackendLegendWorldKeyFromDisplayName) end)
+task.spawn(function() loadStagesWithRetry("Raid", RaidStageDropdown, getBackendRaidWorldKeyFromDisplayName) end)
+task.spawn(function() loadIgnoreWorldsWithRetry() end)
     
     -- Wait for ALL dropdowns to load FIRST
     task.wait(3) -- Increased wait time
