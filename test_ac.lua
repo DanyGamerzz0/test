@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.65"
+    local script_version = "V0.66"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9993,7 +9993,6 @@ task.spawn(function() loadStagesWithRetry("Story", StoryStageDropdown, getBacken
 task.spawn(function() loadStagesWithRetry("Legend", LegendStageDropdown, getBackendLegendWorldKeyFromDisplayName) end)
 task.spawn(function() loadStagesWithRetry("Raid", RaidStageDropdown, getBackendRaidWorldKeyFromDisplayName) end)
 task.spawn(function() loadIgnoreWorldsWithRetry() end)
-task.spawn(function() loadPortals() end)
     
     -- Wait for ALL dropdowns to load FIRST
     task.wait(3) -- Increased wait time
