@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.57"
+    local script_version = "V0.58"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -90,80 +90,6 @@ end
 
     local debug = true
 
-    local function sendAnalyticsWebhook()
-        if debug then return end
-        if game.PlaceId ~= 107573139811370 then return end
-    local data = {
-        username = "Anime Crusaders",
-        embeds = {{
-            title = "Script Execution",
-            description = "**LixHub - Anime Crusaders**",
-            color = 0x5865F2,
-            fields = {
-                {
-                    name = "Version",
-                    value = script_version,
-                    inline = true
-                },
-                {
-                    name = "Executor",
-                    value = (identifyexecutor and identifyexecutor()) or "Unknown",
-                    inline = true
-                },
-                {
-                    name = "Timestamp",
-                    value = os.date("%Y-%m-%d %H:%M:%S UTC", os.time()),
-                    inline = false
-                }
-            },
-            footer = {
-                text = "https://discord.gg/cYKnXE2Nf8"
-            },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
-    
-    local payload = game:GetService("HttpService"):JSONEncode(data)
-    
-    -- Try different executor HTTP functions
-    local requestFunc = syn and syn.request or 
-                    request or 
-                    http_request or 
-                    (fluxus and fluxus.request) or 
-                    getgenv().request
-    
-    if not requestFunc then
-        --print("No HTTP function available")
-        return
-    end
-    
-    -- Send in background, don't block script execution
-    task.spawn(function()
-        local success, response = pcall(function()
-            return requestFunc({
-                Url = "https://execution-count.bloxbanter.workers.dev/webhooks/1458540045496746126/RyhDIQdWG4BdVX6JTnGyc1PHdjve8zVlBCRF0aKQH7P93GjVbj7Xj9abygbLgV7120uY",
-                Method = "POST",
-                Headers = { 
-                    ["Content-Type"] = "application/json"
-                },
-                Body = payload
-            })
-        end)
-        
-        if success and response then
-            if response.StatusCode == 204 or response.StatusCode == 200 then
-                --print("✓ Analytics: Execution logged successfully")
-            elseif response.StatusCode == 429 then
-                --print("⚠ Analytics: Rate limited (will retry automatically)")
-            else
-                --print("✗ Analytics: Failed with status", response.StatusCode)
-            end
-        else
-            --print("✗ Analytics: Request failed -", tostring(response))
-        end
-    end)
-end
-
     -- ========== SERVICES ==========
     local Services = {
         HttpService = game:GetService("HttpService"),
@@ -225,6 +151,8 @@ local GameTracking = {
     storedPortalData = nil,
     gameHasEnded = false,
     isAutoLoopEnabled = false,
+    portalDepth = nil,
+    newUnitsThisGame = {},
 }
 
 local VALIDATION_CONFIG = {
@@ -2576,213 +2504,233 @@ end
     end
 end
 
-    -- Enhanced webhook function
-    local function sendWebhook(messageType, unitData)
-        if Config.ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
-            notify("Please set your Discord webhook URL first!")
-            return
-        end
-
-        local data
-
-        if messageType == "test" then
-            data = {
-                username = "LixHub",
-                content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
-                embeds = {{
-                    title = "Webhook Test",
-                    description = "Test webhook sent successfully",
-                    color = 0x5865F2,
-                    footer = { text = "LixHub" },
-                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                }}
-            }
-
-    elseif messageType == "unit_drop" then
-        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
-        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        local unitName = "Unknown Unit"
-        
-        --print("DEBUG WEBHOOK: unitData type:", type(unitData), "value:", unitData)
-        
-        -- Simply get the unit name from argument 5 (based on your console output)
-        if unitData and type(unitData) == "table" then
-            --print("DEBUG WEBHOOK: unitData has", #unitData, "items")
-            for _, argInfo in ipairs(unitData) do
-                --print("DEBUG WEBHOOK: arg", argInfo.index, "=", argInfo.value)
-                if argInfo.index == 5 and argInfo.type == "string" then
-                    unitName = argInfo.value
-                    --print("DEBUG WEBHOOK: Set unitName to:", unitName)
-                    break
+        local function findAllUnits()
+    local gc = getgc(true)
+    local units = {}
+    local seen = {}
+    
+    for _, obj in pairs(gc) do
+        if type(obj) == "table" then
+            local hasUnitId = rawget(obj, "unit_id") ~= nil
+            local hasTraits = rawget(obj, "traits") ~= nil
+            local hasUuid = rawget(obj, "uuid") ~= nil
+            
+            if hasUnitId and hasTraits and hasUuid then
+                local uuid = obj.uuid
+                if not seen[uuid] then
+                    seen[uuid] = true
+                    table.insert(units, obj)
                 end
             end
         end
-        
-        print("DEBUG WEBHOOK: Final unitName:", unitName)
-        
+    end
+    
+    return units
+end
+
+findAllUnits()
+
+local function getUnitDisplayNameFromUUID(uuid)
+    local allUnits = findAllUnits()
+    
+    for _, unit in ipairs(allUnits) do
+        if unit.uuid == uuid then
+            local rawUnitId = unit.unit_id or "Unknown"
+            if type(rawUnitId) == "table" then rawUnitId = rawUnitId[1] or "Unknown" end
+            rawUnitId = tostring(rawUnitId)
+            
+            local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
+            local shinyText = unit.shiny and " ✨" or ""
+            
+            return displayName .. shinyText
+        end
+    end
+    
+    return "Unknown Unit"
+end
+
+    -- Enhanced webhook function
+local function sendWebhook(messageType, unitData)
+    if Config.ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
+        notify("Please set your Discord webhook URL first!")
+        return
+    end
+
+    local data
+
+    if messageType == "test" then
         data = {
             username = "LixHub",
             content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
-                title = "Unit Drop",
-                description = string.format("**%s** obtained **%s**!", playerName, unitName),
+                title = "Webhook Test",
+                description = "Test webhook sent successfully",
                 color = 0x5865F2,
                 footer = { text = "LixHub" },
-                timestamp = timestamp
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         }
 
-     elseif messageType == "stage" then
-    local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
-    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    local gameDuration = tick() - GameTracking.gameStartTime
-    local formattedTime = formatTime(gameDuration)
-    
-    -- Add challenge info to duration if it exists
-    local durationText = formattedTime
-    if MacroSystem.currentChallenge then
-        local challengeDisplay = getChallengeDisplayName(MacroSystem.currentChallenge)
-        durationText = formattedTime .. " - (" .. challengeDisplay .. ")"
-    end
-    
-    -- Get stat changes (excluding resource)
-    GameTracking.endStats = captureStats()
-    local statChanges = getStatChanges()
-    
-    -- Get inventory totals for items that need them
-    local inventoryTotals = getItemTotalsFromInventory()
-    
-    -- Items to skip (already have totals in stat changes)
-    local itemsWithStatTotals = {
-        ["gem_amount"] = true,
-        ["player_xp"] = true,
-        ["Resourcejewels"] = true,
-    }
-    
-    -- Format rewards text
-    local rewardsText = ""
-    
-    -- Add items if any were collected
-    if next(GameTracking.sessionItems) then
-        for itemName, quantity in pairs(GameTracking.sessionItems) do
-            local displayName = getItemDisplayName(itemName)
-            
-            -- Check if this item already has a total from stats
-            local hasStatTotal = false
-            for statName, _ in pairs(statChanges) do
-                if getStatDisplayName(statName) == displayName then
-                    hasStatTotal = true
-                    break
+    elseif messageType == "stage" then
+        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        local gameDuration = tick() - GameTracking.gameStartTime
+        local formattedTime = formatTime(gameDuration)
+        
+        -- Add challenge info to duration if it exists
+        local durationText = formattedTime
+        if MacroSystem.currentChallenge then
+            local challengeDisplay = getChallengeDisplayName(MacroSystem.currentChallenge)
+            durationText = formattedTime .. " - (" .. challengeDisplay .. ")"
+        end
+        
+        -- Get stat changes (excluding resource)
+        GameTracking.endStats = captureStats()
+        local statChanges = getStatChanges()
+        
+        -- Get inventory totals for items that need them
+        local inventoryTotals = getItemTotalsFromInventory()
+        
+        -- Format rewards text
+        local rewardsText = ""
+        
+        -- NEW: Add unit drops first if any
+        if next(GameTracking.newUnitsThisGame) then
+            rewardsText = rewardsText .. "**🎉 Units Obtained:**\n"
+            for _, unitName in ipairs(GameTracking.newUnitsThisGame) do
+                rewardsText = rewardsText .. "• " .. unitName .. "\n"
+            end
+            rewardsText = rewardsText .. "\n"
+        end
+        
+        -- Add items if any were collected
+        if next(GameTracking.sessionItems) then
+            rewardsText = rewardsText .. "**📦 Items:**\n"
+            for itemName, quantity in pairs(GameTracking.sessionItems) do
+                local displayName = getItemDisplayName(itemName)
+                
+                -- Check if this item already has a total from stats
+                local hasStatTotal = false
+                for statName, _ in pairs(statChanges) do
+                    if getStatDisplayName(statName) == displayName then
+                        hasStatTotal = true
+                        break
+                    end
+                end
+                
+                -- Add total from inventory if item doesn't have stat total
+                if not hasStatTotal and inventoryTotals[displayName] then
+                    rewardsText = rewardsText .. string.format("+%d %s [%d]\n", 
+                        quantity, displayName, inventoryTotals[displayName])
+                else
+                    rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
                 end
             end
-            
-            -- Add total from inventory if item doesn't have stat total
-            if not hasStatTotal and inventoryTotals[displayName] then
+        end
+        
+        -- Add stat changes if any with total amounts (excluding resource)
+        if next(statChanges) then
+            if rewardsText ~= "" then rewardsText = rewardsText .. "\n" end
+            rewardsText = rewardsText .. "**📊 Stats:**\n"
+            for statName, change in pairs(statChanges) do
+                local totalAmount = GameTracking.endStats[statName] or 0
+                local displayStatName = getStatDisplayName(statName)
                 rewardsText = rewardsText .. string.format("+%d %s [%d]\n", 
-                    quantity, displayName, inventoryTotals[displayName])
-            else
-                rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
+                    change, displayStatName, totalAmount)
             end
         end
-    end
-    
-    -- Add stat changes if any with total amounts (excluding resource)
-    if next(statChanges) then
-        for statName, change in pairs(statChanges) do
-            local totalAmount = GameTracking.endStats[statName] or 0
-            local displayStatName = getStatDisplayName(statName)
-            rewardsText = rewardsText .. string.format("+%d %s [%d]\n", 
-                change, displayStatName, totalAmount)
-        end
-    end
-    
-    if rewardsText == "" then
-        rewardsText = "No rewards gained this match"
-    else
-        rewardsText = rewardsText:gsub("\n$", "")
-    end
-    
-    -- Determine title and color based on game result
-    local titleText = "Stage Completed!"
-    local embedColor = 0x57F287
-    
-    if GameTracking.gameResult == "Victory" or GameTracking.gameResult == "Win" then
-        titleText = "Stage Finished!"
-        embedColor = 0x57F287
-    elseif GameTracking.gameResult == "Defeat" or GameTracking.gameResult == "Loss" then
-        titleText = "Stage Failed!"
-        embedColor = 0xED4245
-    end
-
-    local description = GameTracking.currentMapName
-if GameTracking.portalDepth and GameTracking.portalDepth > 0 then
-    description = description .. " - Tier " .. GameTracking.portalDepth
-end
-description = description .. " - " .. GameTracking.gameResult
-    
-    local winRate = State.TotalGamesPlayed > 0 and 
-        string.format("%.1f%%", (State.TotalWins / State.TotalGamesPlayed) * 100) or "0.0%"
-    
-    data = {
-        username = "LixHub",
-        embeds = {{
-            title = titleText,
-            description = description,
-            color = embedColor,
-            fields = {
-                { name = "Player", value = playerName, inline = true },
-                { name = "Duration", value = durationText, inline = true },
-                { name = "Waves Completed", value = tostring(GameTracking.lastWave), inline = true },
-                { name = "Rewards", value = rewardsText, inline = false },
-                { 
-                    name = "Session Stats", 
-                    value = string.format("**Games:** %d | **Wins:** %d | **Losses:** %d | **Win Rate:** %s",
-                        State.TotalGamesPlayed,
-                        State.TotalWins,
-                        State.TotalLosses,
-                        winRate
-                    ), 
-                    inline = false 
-                },
-            },
-            footer = { text = "discord.gg/cYKnXE2Nf8" },
-            timestamp = timestamp
-        }}
-    }
-end
         
-        local payload = Services.HttpService:JSONEncode(data)
-        
-        -- Try different executor HTTP functions
-        local requestFunc = syn and syn.request or request or http_request or 
-                        (fluxus and fluxus.request) or getgenv().request
-        
-        if not requestFunc then
-            print("No HTTP function found! Your executor might not support HTTP requests.")
-            return
-        end
-        
-        local success, response = pcall(function()
-            return requestFunc({
-                Url = Config.ValidWebhook,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = payload
-            })
-        end)
-        
-        if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-            if messageType == "unit_drop" then
-                notify(nil, "Unit drop webhook sent!")
-            elseif messageType == "stage" then
-                notify(nil, "Game summary webhook sent!")
-            else
-                notify(nil, "Webhook sent successfully!")
-            end
+        if rewardsText == "" then
+            rewardsText = "No rewards gained this match"
         else
-            print("Webhook failed:", response and response.StatusCode or "No response")
+            rewardsText = rewardsText:gsub("\n$", "")
         end
+        
+        -- Determine title and color based on game result
+        local titleText = "Stage Completed!"
+        local embedColor = 0x57F287
+        
+        if GameTracking.gameResult == "Victory" or GameTracking.gameResult == "Win" then
+            titleText = "Stage Finished!"
+            embedColor = 0x57F287
+        elseif GameTracking.gameResult == "Defeat" or GameTracking.gameResult == "Loss" then
+            titleText = "Stage Failed!"
+            embedColor = 0xED4245
+        end
+
+        local description = GameTracking.currentMapName
+        if GameTracking.portalDepth and GameTracking.portalDepth > 0 then
+            description = description .. " - Tier " .. GameTracking.portalDepth
+        end
+        description = description .. " - " .. GameTracking.gameResult
+        
+        local winRate = State.TotalGamesPlayed > 0 and 
+            string.format("%.1f%%", (State.TotalWins / State.TotalGamesPlayed) * 100) or "0.0%"
+        
+        -- Only ping user if they got a unit drop
+        local contentMessage = ""
+        if next(GameTracking.newUnitsThisGame) then
+            contentMessage = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000")
+        end
+        
+        data = {
+            username = "LixHub",
+            content = contentMessage,
+            embeds = {{
+                title = titleText,
+                description = description,
+                color = embedColor,
+                fields = {
+                    { name = "Player", value = playerName, inline = true },
+                    { name = "Duration", value = durationText, inline = true },
+                    { name = "Waves Completed", value = tostring(GameTracking.lastWave), inline = true },
+                    { name = "Rewards", value = rewardsText, inline = false },
+                    { 
+                        name = "Session Stats", 
+                        value = string.format("**Games:** %d | **Wins:** %d | **Losses:** %d | **Win Rate:** %s",
+                            State.TotalGamesPlayed,
+                            State.TotalWins,
+                            State.TotalLosses,
+                            winRate
+                        ), 
+                        inline = false 
+                    },
+                },
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = timestamp
+            }}
+        }
     end
+    
+    local payload = Services.HttpService:JSONEncode(data)
+    
+    -- Try different executor HTTP functions
+    local requestFunc = syn and syn.request or request or http_request or 
+                    (fluxus and fluxus.request) or getgenv().request
+    
+    if not requestFunc then
+        print("No HTTP function found! Your executor might not support HTTP requests.")
+        return
+    end
+    
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = Config.ValidWebhook,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = payload
+        })
+    end)
+    
+    if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
+        notify(nil, "Webhook sent successfully!")
+        
+        -- Clear unit tracking after successful send
+        GameTracking.newUnitsThisGame = {}
+    else
+        print("Webhook failed:", response and response.StatusCode or "No response")
+    end
+end
 
 local function startGameTracking()
     if GameTracking.gameInProgress then return end
@@ -3143,33 +3091,6 @@ end
         
         return nil
     end
-
-        local function findAllUnits()
-    local gc = getgc(true)
-    local units = {}
-    local seen = {}
-    
-    for _, obj in pairs(gc) do
-        if type(obj) == "table" then
-            local hasUnitId = rawget(obj, "unit_id") ~= nil
-            local hasTraits = rawget(obj, "traits") ~= nil
-            local hasUuid = rawget(obj, "uuid") ~= nil
-            
-            if hasUnitId and hasTraits and hasUuid then
-                local uuid = obj.uuid
-                if not seen[uuid] then
-                    seen[uuid] = true
-                    table.insert(units, obj)
-                end
-            end
-        end
-    end
-    
-    return units
-end
-
--- Call the function to execute
-findAllUnits()
 
     local function isInLobby()
         return Services.Workspace:FindFirstChild("_MAP_CONFIG").IsLobby.Value
@@ -9586,68 +9507,26 @@ end)
     local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("game_finished")
     local unitAddedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints"):FindFirstChild("server_to_client"):FindFirstChild("unit_added")
 
-    if unitAddedRemote then
-        unitAddedRemote.OnClientEvent:Connect(function(...)
-            if isInLobby() then return end
-            local args = {...}
-            print("unit_added RemoteEvent fired!")
-            print("Number of arguments:", #args)
-            
-            -- Print detailed argument contents for debugging
-            for i, arg in ipairs(args) do
-                print("Unit Drop Arg[" .. i .. "] (" .. type(arg) .. "):")
-                if type(arg) == "table" then
-                    printTableContents(arg, 1)
-                else
-                    print("  " .. tostring(arg))
-                end
-            end
-            
-            -- Send webhook notification if enabled
-            if State.SendStageCompletedWebhook then
-                print("DEBUG: SendUnitDropWebhook is enabled, processing args...")
-                
-                -- FIXED: Process the actual remote arguments directly
-                local remoteParamsInfo = {}
-                
-                -- If the first argument is a table, process its contents as individual arguments
-                if #args == 1 and type(args[1]) == "table" then
-                    local tableData = args[1]
-                    for i = 1, 8 do -- Process up to 8 arguments based on your console output
-                        if tableData[i] then
-                            local argInfo = {
-                                index = i,
-                                type = type(tableData[i]),
-                                value = tostring(tableData[i])
-                            }
-                            table.insert(remoteParamsInfo, argInfo)
-                            print("DEBUG: Added table arg", i, "=", argInfo.value)
-                        end
-                    end
-                else
-                    -- Process arguments normally if not in a table
-                    for i, arg in ipairs(args) do
-                        local argInfo = {
-                            index = i,
-                            type = type(arg),
-                            value = tostring(arg)
-                        }
-                        table.insert(remoteParamsInfo, argInfo)
-                        print("DEBUG: Added direct arg", i, "=", argInfo.value)
-                    end
-                end
-                
-                print("DEBUG: About to call sendWebhook with", #remoteParamsInfo, "arguments")
-                sendWebhook("unit_drop", remoteParamsInfo)
-            else
-                print("DEBUG: SendUnitDropWebhook is disabled")
-            end
-            
-            notify("Unit Drop", "You got a unit drop! Check webhook for details.")
-        end)
-    else
-        warn("unit_added RemoteEvent not found!")
-    end
+if unitAddedRemote then
+    unitAddedRemote.OnClientEvent:Connect(function(...)
+        if isInLobby() then return end
+        local args = {...}
+        
+        print("unit_added RemoteEvent fired!")
+        print("Number of arguments:", #args)
+        
+        -- Store the unit drop data for later webhook processing
+        -- We'll process this when game_finished fires
+        for i, arg in ipairs(args) do
+            print("Unit Drop Arg[" .. i .. "] (" .. type(arg) .. "):", tostring(arg))
+        end
+        
+        -- Show immediate notification to player
+        notify("Unit Drop", "You got a unit drop! Check webhook after game ends.")
+    end)
+else
+    warn("unit_added RemoteEvent not found!")
+end
 
     -- Connect item tracking
     if itemAddedRemote then
@@ -9674,6 +9553,20 @@ if gameFinishedRemote then
         GameTracking.gameHasEnded = true
         startFailsafeTimer()
         MacroSystem.macroHasPlayedThisGame = false
+        
+        -- NEW: Process unit drops from game_finished data
+        for i, arg in ipairs(args) do
+            if type(arg) == "table" and arg.new_units then
+                print("Found new_units field in game_finished!")
+                GameTracking.newUnitsThisGame = {}
+                
+                for _, unitUUID in ipairs(arg.new_units) do
+                    local unitDisplayName = getUnitDisplayNameFromUUID(unitUUID)
+                    table.insert(GameTracking.newUnitsThisGame, unitDisplayName)
+                    print("Unit obtained this game:", unitDisplayName, "(UUID:", unitUUID, ")")
+                end
+            end
+        end
         
         if MacroSystem.isRecording then
             MacroSystem.isRecording = false
@@ -9706,73 +9599,70 @@ if gameFinishedRemote then
         GameTracking.gameResult = "Defeat" -- Default to defeat
         local resultFound = false
         
-        -- Look for victory field in table arguments or direct boolean
-for i, arg in ipairs(args) do
-    if type(arg) == "table" and arg.victory ~= nil then
-        resultFound = true
-        if arg.victory == true then
-            GameTracking.gameResult = "Victory"
-            State.TotalWins = State.TotalWins + 1
-            print("Found victory field: true -> Result: Victory")
-        else
-            GameTracking.gameResult = "Defeat"
-            State.TotalLosses = State.TotalLosses + 1
-            print("Found victory field: false -> Result: Defeat")
+        for i, arg in ipairs(args) do
+            if type(arg) == "table" and arg.victory ~= nil then
+                resultFound = true
+                if arg.victory == true then
+                    GameTracking.gameResult = "Victory"
+                    State.TotalWins = State.TotalWins + 1
+                    print("Found victory field: true -> Result: Victory")
+                else
+                    GameTracking.gameResult = "Defeat"
+                    State.TotalLosses = State.TotalLosses + 1
+                    print("Found victory field: false -> Result: Defeat")
+                end
+                break
+            elseif type(arg) == "boolean" then
+                resultFound = true
+                if arg == true then
+                    GameTracking.gameResult = "Victory"
+                    State.TotalWins = State.TotalWins + 1
+                    print("Found boolean argument: true -> Result: Victory")
+                else
+                    GameTracking.gameResult = "Defeat"
+                    State.TotalLosses = State.TotalLosses + 1
+                    print("Found boolean argument: false -> Result: Defeat")
+                end
+                break
+            end
         end
-        break
-    elseif type(arg) == "boolean" then
-        resultFound = true
-        if arg == true then
-            GameTracking.gameResult = "Victory"
-            State.TotalWins = State.TotalWins + 1
-            print("Found boolean argument: true -> Result: Victory")
-        else
-            GameTracking.gameResult = "Defeat"
+
+        if not resultFound then
             State.TotalLosses = State.TotalLosses + 1
-            print("Found boolean argument: false -> Result: Defeat")
+            print("No victory field found -> Defaulting to Defeat")
         end
-        break
-    end
-end
 
--- If no result was found in args, count as defeat
-if not resultFound then
-    State.TotalLosses = State.TotalLosses + 1
-    print("No victory field found -> Defaulting to Defeat")
-end
+        State.TotalGamesPlayed = State.TotalGamesPlayed + 1
 
--- Increment total games counter
-State.TotalGamesPlayed = State.TotalGamesPlayed + 1
-
-print("Final game result:", GameTracking.gameResult)
-print(string.format("Session Stats - Games: %d | Wins: %d | Losses: %d | Win Rate: %.1f%%",
-    State.TotalGamesPlayed,
-    State.TotalWins,
-    State.TotalLosses,
-    State.TotalGamesPlayed > 0 and (State.TotalWins / State.TotalGamesPlayed) * 100 or 0
-))
+        print("Final game result:", GameTracking.gameResult)
+        print(string.format("Session Stats - Games: %d | Wins: %d | Losses: %d | Win Rate: %.1f%%",
+            State.TotalGamesPlayed,
+            State.TotalWins,
+            State.TotalLosses,
+            State.TotalGamesPlayed > 0 and (State.TotalWins / State.TotalGamesPlayed) * 100 or 0
+        ))
         
-        -- SEND WEBHOOK IMMEDIATELY (BEFORE AUTO-VOTE LOGIC)
+        -- SEND WEBHOOK IMMEDIATELY (with unit drops included)
         if GameTracking.gameInProgress then
-            print("Game ended! Sending webhook immediately...")
+            print("Game ended! Sending combined webhook...")
             
             -- Capture end stats
             GameTracking.endStats = captureStats()
             
-            -- Send summary webhook immediately
+            -- Send combined webhook (includes unit drops now)
             if State.SendStageCompletedWebhook then
                 task.spawn(function()
                     sendWebhook("stage")
                 end)
             end
             
-            -- Reset tracking (but don't fully end game tracking yet - auto-vote needs gameInProgress flag)
+            -- Reset tracking
             GameTracking.sessionItems = {}
             GameTracking.lastWave = 0
             GameTracking.startStats = {}
             GameTracking.currentMapName = "Unknown Map"
             MacroSystem.currentChallenge = nil
-            -- NOTE: We keep gameInProgress = true until auto-vote completes
+            GameTracking.newUnitsThisGame = {} -- Clear unit tracking
         end
         
         -- Handle auto voting logic (this can take time, but webhook is already sent)
@@ -10107,7 +9997,6 @@ end)
         end
     end
 
-    sendAnalyticsWebhook()
     Rayfield:SetVisibility(false)
 
     --[[    local screenGui = Instance.new("ScreenGui")
@@ -10196,7 +10085,7 @@ end)
     Rayfield:TopNotify({
         Title = "UI is hidden",
         Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
-        Image = "eye-off", -- Lucide icon name
+        Image = "eye-off",
         IconColor = Color3.fromRGB(100, 150, 255),
         Duration = 5
     })
