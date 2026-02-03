@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.63"
+    local script_version = "V0.64"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -7254,12 +7254,14 @@ CardSelectionDropdown = GameTab:CreateDropdown({
 
 task.spawn(function()
     while true do
+        if not isInLobby() then
         task.wait(1)
         if State.AutoSelectCardBossRush then
             if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("Prompt").Enabled and State.AutoSelectCardBossRushSelection then
                     game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_makima_sacrifice"):InvokeServer(State.AutoSelectCardBossRushSelection)
                     task.wait(0.1)
             end
+        end
         end
     end
 end)
@@ -9980,7 +9982,7 @@ end
 
 
 task.delay(1, function()
-    print("Starting dropdown loading with retry logic...")
+    print("Starting loading with retry logic...")
     
     -- Load world mappings and macros
     loadWorldMappings()
@@ -9991,6 +9993,8 @@ task.spawn(function() loadStagesWithRetry("Story", StoryStageDropdown, getBacken
 task.spawn(function() loadStagesWithRetry("Legend", LegendStageDropdown, getBackendLegendWorldKeyFromDisplayName) end)
 task.spawn(function() loadStagesWithRetry("Raid", RaidStageDropdown, getBackendRaidWorldKeyFromDisplayName) end)
 task.spawn(function() loadIgnoreWorldsWithRetry() end)
+task.spawn(function() loadPortals() end)
+end)
     
     -- Wait for ALL dropdowns to load FIRST
     task.wait(3) -- Increased wait time
