@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.56"
+    local script_version = "V0.57"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2546,6 +2546,36 @@ end
         return statMappings[statName] or getItemDisplayName(statName)
     end
 
+    local function getItemTotalsFromInventory()
+    local itemTotals = {}
+    
+    local success, result = pcall(function()
+        local Loader = require(Services.ReplicatedStorage.Framework.Loader)
+        local GUIService = Loader.load_client_service(script, "GUIService")
+        
+        if GUIService and GUIService.inventory_ui then
+            local inventory = GUIService.inventory_ui.session.inventory
+            
+            -- Get normal items (stackable)
+            for itemId, quantity in pairs(inventory.inventory_profile_data.normal_items) do
+                local displayName = getItemDisplayName(itemId)
+                itemTotals[displayName] = quantity
+            end
+            
+            return itemTotals
+        end
+        
+        return {}
+    end)
+    
+    if success then
+        return result
+    else
+        warn("Failed to get inventory totals:", result)
+        return {}
+    end
+end
+
     -- Enhanced webhook function
     local function sendWebhook(messageType, unitData)
         if Config.ValidWebhook == "YOUR_WEBHOOK_URL_HERE" then
@@ -2619,6 +2649,16 @@ end
     GameTracking.endStats = captureStats()
     local statChanges = getStatChanges()
     
+    -- Get inventory totals for items that need them
+    local inventoryTotals = getItemTotalsFromInventory()
+    
+    -- Items to skip (already have totals in stat changes)
+    local itemsWithStatTotals = {
+        ["gem_amount"] = true,
+        ["player_xp"] = true,
+        ["Resourcejewels"] = true,
+    }
+    
     -- Format rewards text
     local rewardsText = ""
     
@@ -2626,7 +2666,23 @@ end
     if next(GameTracking.sessionItems) then
         for itemName, quantity in pairs(GameTracking.sessionItems) do
             local displayName = getItemDisplayName(itemName)
-            rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
+            
+            -- Check if this item already has a total from stats
+            local hasStatTotal = false
+            for statName, _ in pairs(statChanges) do
+                if getStatDisplayName(statName) == displayName then
+                    hasStatTotal = true
+                    break
+                end
+            end
+            
+            -- Add total from inventory if item doesn't have stat total
+            if not hasStatTotal and inventoryTotals[displayName] then
+                rewardsText = rewardsText .. string.format("+%d %s [%d]\n", 
+                    quantity, displayName, inventoryTotals[displayName])
+            else
+                rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
+            end
         end
     end
     
@@ -2635,7 +2691,8 @@ end
         for statName, change in pairs(statChanges) do
             local totalAmount = GameTracking.endStats[statName] or 0
             local displayStatName = getStatDisplayName(statName)
-            rewardsText = rewardsText .. "+" .. change .. " " .. displayStatName .. " [" .. totalAmount .. "]\n"
+            rewardsText = rewardsText .. string.format("+%d %s [%d]\n", 
+                change, displayStatName, totalAmount)
         end
     end
     
@@ -2658,10 +2715,10 @@ end
     end
 
     local description = GameTracking.currentMapName
-    if GameTracking.portalDepth then
-        description = description .. " - Tier " .. GameTracking.portalDepth
-    end
-    description = description .. " - " .. GameTracking.gameResult
+if GameTracking.portalDepth and GameTracking.portalDepth > 0 then
+    description = description .. " - Tier " .. GameTracking.portalDepth
+end
+description = description .. " - " .. GameTracking.gameResult
     
     local winRate = State.TotalGamesPlayed > 0 and 
         string.format("%.1f%%", (State.TotalWins / State.TotalGamesPlayed) * 100) or "0.0%"
@@ -6270,7 +6327,7 @@ local function rollSingleUnit(uuid)
     local rolls = 0
     local SAFETY_CAP = 50000
     local SAME_STAT_WAIT = 2.0
-    local CONFIRM_TIMEOUT = 5.0
+    local CONFIRM_TIMEOUT = 2.0
 
     local stats = readCurrentStats(uuid)
     if not stats then
@@ -6372,6 +6429,7 @@ end
 
 -- Master function: iterates every selected unit, checks worthiness, rolls each one.
 local function runAutoReroll()
+    if not isInLobby() then return end
     AutoRerollState.isRolling = true
     AutoRerollState.rollsUsed = 0
     AutoRerollState.unitsCompleted = 0
@@ -7137,16 +7195,6 @@ end
     })
 
     GameTab:CreateToggle({
-    Name = "Return to Lobby Failsafe",
-    CurrentValue = false,
-    Flag = "ReturnToLobbyFailsafe",
-    Info = "Return to lobby if no auto-vote happens within 2 minutes after game ends",
-    Callback = function(Value)
-        State.ReturnToLobbyFailsafe = Value
-    end,
-})
-
-    GameTab:CreateToggle({
     Name = "Auto Skip Waves",
     CurrentValue = false,
     Flag = "AutoSkipWaves",
@@ -7328,6 +7376,26 @@ end)
     Info = "Automatically return to lobby after X games (0 = disable)",
     Callback = function(Value)
         State.ReturnToLobbyAfterGames = Value
+    end,
+})
+
+    GameTab:CreateToggle({
+    Name = "Return to Lobby Failsafe",
+    CurrentValue = false,
+    Flag = "ReturnToLobbyFailsafe",
+    Info = "Return to lobby if no auto-vote happens within 2 minutes after game ends",
+    Callback = function(Value)
+        State.ReturnToLobbyFailsafe = Value
+    end,
+})
+
+    GameTab:CreateToggle({
+    Name = "Return to Lobby if game never ends",
+    CurrentValue = false,
+    Flag = "ReturnToLobbyFailsafe",
+    Info = "Return to lobby if game doesn't end after 20 minutes",
+    Callback = function(Value)
+        
     end,
 })
 
