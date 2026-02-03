@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.55"
+    local script_version = "V0.56"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -6286,32 +6286,46 @@ local function rollSingleUnit(uuid)
         return 0
     end
 
+    -- NEW: Get initial worthiness and track it manually
+    local unitData = findUnitByUUID(uuid)
+    local manualWorthiness = (unitData and unitData.stat_luck) or 0
+    local initialWorthiness = manualWorthiness
+    
+    print(string.format("[Reroll] Starting worthiness: %d (Min threshold: %d)", 
+        manualWorthiness, AutoRerollState.minWorthiness))
+
     while not statsMatchTarget(stats) and rolls < SAFETY_CAP and AutoRerollState.autoRollEnabled do
-        -- Check worthiness BEFORE each roll
-        if AutoRerollState.minWorthiness > 0 then
-            local unitData = findUnitByUUID(uuid)
-            local currentWorthiness = (unitData and unitData.stat_luck) or 0
-            
-            if currentWorthiness <= 0 then
-                print(string.format("[Reroll] %s | Stopped - worthiness hit 0 (rolled %d times)", uuid, rolls))
-                notify("Auto Reroll", 
-                    string.format("Unit worthiness depleted (%d rolls) - moving to next unit", rolls))
-                break
-            end
+        -- Check worthiness BEFORE each roll using our manual tracking
+        if AutoRerollState.minWorthiness > 0 and manualWorthiness <= 0 then
+            print(string.format("[Reroll] %s | Stopped - manual worthiness hit 0 (started at %d, rolled %d times)", 
+                uuid, initialWorthiness, rolls))
+            notify("Auto Reroll", 
+                string.format("Unit worthiness depleted (%d rolls) - moving to next unit", rolls))
+            break
         end
         
         local missing = getMissingStatKeys(stats)
 
         if #missing == 3 then
+            -- All 3 stats need rerolling
             Services.ReplicatedStorage:WaitForChild("endpoints")
                 :WaitForChild("client_to_server")
                 :WaitForChild("reroll_base_stats_all")
                 :InvokeServer(uuid)
+            
+            -- NEW: Manually subtract 100 worthiness for "all" roll
+            manualWorthiness = manualWorthiness - 100
+            print(string.format("[Reroll] All-stat roll (-100) | Remaining worthiness: %d", manualWorthiness))
         else
+            -- Single stat reroll
             Services.ReplicatedStorage:WaitForChild("endpoints")
                 :WaitForChild("client_to_server")
                 :WaitForChild("reroll_base_stats_specific")
                 :InvokeServer(uuid, missing[1])
+            
+            -- NEW: Manually subtract 100 worthiness for specific roll
+            manualWorthiness = manualWorthiness - 100
+            print(string.format("[Reroll] Single-stat roll (-100) | Remaining worthiness: %d", manualWorthiness))
         end
 
         rolls = rolls + 1
@@ -6343,16 +6357,13 @@ local function rollSingleUnit(uuid)
     local finalReason = "completed"
     if statsMatchTarget(stats) then
         finalReason = "stats matched"
-    elseif AutoRerollState.minWorthiness > 0 then
-        local unitData = findUnitByUUID(uuid)
-        local finalWorthiness = (unitData and unitData.stat_luck) or 0
-        if finalWorthiness <= 0 then
-            finalReason = "worthiness depleted"
-        end
+    elseif manualWorthiness <= 0 then
+        finalReason = "worthiness depleted (manual tracking)"
     end
 
-    print(string.format("[Reroll] %s | Finished in %d rolls (%s). Final: ATK=%s CD=%s RNG=%s",
-        uuid, rolls, finalReason, stats.Attack, stats.Cooldown, stats.Range))
+    print(string.format("[Reroll] %s | Finished in %d rolls (%s). Started: %d worthiness, Ended: %d worthiness (-%d total). Final stats: ATK=%s CD=%s RNG=%s",
+        uuid, rolls, finalReason, initialWorthiness, manualWorthiness, initialWorthiness - manualWorthiness,
+        stats.Attack, stats.Cooldown, stats.Range))
     
     refreshUnitDropdown()
     
