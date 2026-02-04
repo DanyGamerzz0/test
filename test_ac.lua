@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.71"
+    local script_version = "V0.72"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2797,12 +2797,15 @@ local function findAllUnits()
     if getgenv().filtergc then
         local filtered = getgenv().filtergc({
             trait_stats = "table",
-            uuid = "string",
-            unit_id = "table"
+            uuid = "string"
         })
         
         for _, obj in pairs(filtered) do
-            if obj.uuid and not seen[obj.uuid] then
+            local hasUnitId = rawget(obj, "unit_id") ~= nil
+            local hasTraits = rawget(obj, "trait_stats") ~= nil
+            local hasUuid = rawget(obj, "uuid") ~= nil
+            
+            if hasUnitId and hasTraits and hasUuid and not seen[obj.uuid] then
                 seen[obj.uuid] = true
                 table.insert(units, obj)
             end
