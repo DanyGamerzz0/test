@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.73"
+    local script_version = "V0.74"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9649,22 +9649,29 @@ if gameFinishedRemote then
         startFailsafeTimer()
         MacroSystem.macroHasPlayedThisGame = false
         
-        -- NEW: Process both unit drops AND loadout from game_finished data
+        -- Process both unit drops AND loadout from game_finished data
         for i, arg in ipairs(args) do
             if type(arg) == "table" then
-                -- Extract unit drops
+                -- Extract unit drops - these are unit IDs, not UUIDs
                 if arg.new_units then
                     print("Found new_units field in game_finished!")
                     GameTracking.newUnitsThisGame = {}
                     
-                    for _, unitUUID in ipairs(arg.new_units) do
-                        local unitDisplayName = getUnitDisplayNameFromUUID(unitUUID)
-                        table.insert(GameTracking.newUnitsThisGame, unitDisplayName)
-                        print("Unit obtained this game:", unitDisplayName, "(UUID:", unitUUID, ")")
+                    for _, unitID in ipairs(arg.new_units) do
+                        -- Convert unit ID to display name
+                        local unitDisplayName = getDisplayNameFromUnitId(unitID)
+                        if unitDisplayName then
+                            table.insert(GameTracking.newUnitsThisGame, unitDisplayName)
+                            print("Unit obtained this game:", unitDisplayName, "(Unit ID:", unitID, ")")
+                        else
+                            -- Fallback if display name lookup fails
+                            table.insert(GameTracking.newUnitsThisGame, unitID)
+                            print("Unit obtained this game (raw ID):", unitID)
+                        end
                     end
                 end
                 
-                -- NEW: Extract player loadout from xp_updates
+                -- Extract player loadout from xp_updates
                 if arg.xp_updates then
                     print("Found xp_updates field - extracting loadout UUIDs!")
                     GameTracking.playerLoadoutUUIDs = {}
