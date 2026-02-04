@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.68"
+    local script_version = "V0.69"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2799,7 +2799,7 @@ local function getUnitDisplayNameFromUUID(uuid)
             rawUnitId = tostring(rawUnitId)
             
             local displayName = getDisplayNameFromUnitId(rawUnitId) or rawUnitId
-            local shinyText = unit.shiny and " ✨" or ""
+            local shinyText = unit.shiny and " (Shiny)" or ""
             
             return displayName .. shinyText
         end
@@ -2854,28 +2854,35 @@ local function sendWebhook(messageType, unitData)
         local rewardsText = ""
         
         -- Add items if any were collected
-        if next(GameTracking.sessionItems) then
-            for itemName, quantity in pairs(GameTracking.sessionItems) do
-                local displayName = getItemDisplayName(itemName)
-                
-                -- Check if this item already has a total from stats
-                local hasStatTotal = false
-                for statName, _ in pairs(statChanges) do
-                    if getStatDisplayName(statName) == displayName then
-                        hasStatTotal = true
-                        break
-                    end
-                end
-                
-                -- Add total from inventory if item doesn't have stat total
-                if not hasStatTotal and inventoryTotals[displayName] then
-                    rewardsText = rewardsText .. string.format("+%d %s [%d]\n", 
-                        quantity, displayName, inventoryTotals[displayName])
-                else
-                    rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
-                end
+        if next(GameTracking.newUnitsThisGame) then
+    for _, unitDisplayName in ipairs(GameTracking.newUnitsThisGame) do
+        rewardsText = rewardsText .. "+1 " .. unitDisplayName .. "\n"
+    end
+end
+
+-- Add items if any were collected
+if next(GameTracking.sessionItems) then
+    for itemName, quantity in pairs(GameTracking.sessionItems) do
+        local displayName = getItemDisplayName(itemName)
+        
+        -- Check if this item already has a total from stats
+        local hasStatTotal = false
+        for statName, _ in pairs(statChanges) do
+            if getStatDisplayName(statName) == displayName then
+                hasStatTotal = true
+                break
             end
         end
+        
+        -- Add total from inventory if item doesn't have stat total
+        if not hasStatTotal and inventoryTotals[displayName] then
+            rewardsText = rewardsText .. string.format("+%d %s [%d]\n", 
+                quantity, displayName, inventoryTotals[displayName])
+        else
+            rewardsText = rewardsText .. "+" .. quantity .. " " .. displayName .. "\n"
+        end
+    end
+end
         
         -- Add stat changes if any with total amounts (excluding resource)
         if next(statChanges) then
