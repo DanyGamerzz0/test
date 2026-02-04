@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.69"
+    local script_version = "V0.7"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -8066,12 +8066,11 @@ local function playMacroWithGameTimingRefactored()
                 if MacroSystem.isPlaybacking and not GameTracking.gameHasEnded then
                     print(string.format("[Wave Skip %d/%d] Executing wave skip", 
                         waveSkipIndex, scheduledWaveSkips))
-                    
-                    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
                     local success = pcall(function()
-                        endpoints:WaitForChild(MACRO_CONFIG.WAVE_SKIP_REMOTE):InvokeServer()
+                        for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.VoteSkip.Holder.ButtonHolder.Yes.Activated)) do
+                            connection:Fire()
+                        end
                     end)
-                    
                     if success then
                         print(string.format("[Wave Skip %d/%d] Successfully executed", waveSkipIndex, scheduledWaveSkips))
                     else
