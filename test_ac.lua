@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.7"
+    local script_version = "V0.71"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2765,7 +2765,7 @@ end
     end
 end
 
-        local function findAllUnits()
+       --[[ local function findAllUnits()
     local gc = getgc(true)
     local units = {}
     local seen = {}
@@ -2782,6 +2782,29 @@ end
                     seen[uuid] = true
                     table.insert(units, obj)
                 end
+            end
+        end
+    end
+    
+    return units
+end--]]
+
+local function findAllUnits()
+    local units = {}
+    local seen = {}
+    
+    -- Use filtergc to find units efficiently
+    if getgenv().filtergc then
+        local filtered = getgenv().filtergc({
+            trait_stats = "table",
+            uuid = "string",
+            unit_id = "table"
+        })
+        
+        for _, obj in pairs(filtered) do
+            if obj.uuid and not seen[obj.uuid] then
+                seen[obj.uuid] = true
+                table.insert(units, obj)
             end
         end
     end
