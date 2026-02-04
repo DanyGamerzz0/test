@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.72"
+    local script_version = "V0.73"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -2793,21 +2793,41 @@ local function findAllUnits()
     local units = {}
     local seen = {}
     
-    -- Use filtergc to find units efficiently
-    if getgenv().filtergc then
-        local filtered = getgenv().filtergc({
-            trait_stats = "table",
-            uuid = "string"
-        })
-        
+    -- Try to use filtergc if available (more efficient)
+    local success, filtered = pcall(function()
+        if filtergc then
+            return filtergc("trait_stats")
+        end
+        return nil
+    end)
+    
+    if success and filtered then
+        -- filtergc returned results, filter them further
         for _, obj in pairs(filtered) do
-            local hasUnitId = rawget(obj, "unit_id") ~= nil
-            local hasTraits = rawget(obj, "trait_stats") ~= nil
-            local hasUuid = rawget(obj, "uuid") ~= nil
-            
-            if hasUnitId and hasTraits and hasUuid and not seen[obj.uuid] then
-                seen[obj.uuid] = true
-                table.insert(units, obj)
+            if type(obj) == "table" then
+                local hasUnitId = rawget(obj, "unit_id") ~= nil
+                local hasTraits = rawget(obj, "trait_stats") ~= nil
+                local hasUuid = rawget(obj, "uuid") ~= nil
+                
+                if hasUnitId and hasTraits and hasUuid and not seen[obj.uuid] then
+                    seen[obj.uuid] = true
+                    table.insert(units, obj)
+                end
+            end
+        end
+    else
+        -- Fallback to getgc if filtergc not available or failed
+        local gc = getgc(true)
+        for _, obj in pairs(gc) do
+            if type(obj) == "table" then
+                local hasUnitId = rawget(obj, "unit_id") ~= nil
+                local hasTraits = rawget(obj, "trait_stats") ~= nil
+                local hasUuid = rawget(obj, "uuid") ~= nil
+                
+                if hasUnitId and hasTraits and hasUuid and not seen[obj.uuid] then
+                    seen[obj.uuid] = true
+                    table.insert(units, obj)
+                end
             end
         end
     end
