@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.77"
+    local script_version = "V0.78"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1278,9 +1278,11 @@ end
 
 local function processGokuAbilityRecording(actionInfo)
     local gokuSpawnId = actionInfo.args[1]
+    local abilityType = actionInfo.args[2]  -- NEW: Get ability type
     
-    if not gokuSpawnId then
+    if not gokuSpawnId or not abilityType then
         warn("Missing arguments for Goku ability")
+        print("DEBUG: gokuSpawnId =", gokuSpawnId, "abilityType =", abilityType)
         return
     end
     
@@ -1323,6 +1325,7 @@ local function processGokuAbilityRecording(actionInfo)
     local abilityRecord = {
         Type = "goku_ability",
         Goku = gokuPlacementId,
+        Ability = abilityType,  -- NEW: Store ability type
         Time = string.format("%.2f", gameRelativeTime)
     }
     
@@ -1338,9 +1341,11 @@ end
 
 local function processVegetaAbilityRecording(actionInfo)
     local vegetaSpawnId = actionInfo.args[1]
+    local abilityType = actionInfo.args[2]  -- NEW: Get ability type
     
-    if not vegetaSpawnId then
+    if not vegetaSpawnId or not abilityType then
         warn("Missing arguments for Vegeta ability")
+        print("DEBUG: vegetaSpawnId =", vegetaSpawnId, "abilityType =", abilityType)
         return
     end
     
@@ -1383,6 +1388,7 @@ local function processVegetaAbilityRecording(actionInfo)
     local abilityRecord = {
         Type = "vegeta_ability",
         Vegeta = vegetaPlacementId,
+        Ability = abilityType,  -- NEW: Store ability type
         Time = string.format("%.2f", gameRelativeTime)
     }
     
@@ -1520,21 +1526,23 @@ elseif self.Name == "FrierenMagics" then
     end)
 elseif self.Name == "UseAbilityGoku" then
     local gokuSpawnId = args[1]
+    local abilityType = args[2]  -- NEW: Capture ability type ("Fusion")
     
     task.spawn(function()
         processActionResponseWithSpawnIdMapping({
             remoteName = "UseAbilityGoku",
-            args = {gokuSpawnId},
+            args = {gokuSpawnId, abilityType},  -- FIXED: Pass both args
             timestamp = tick()
         })
     end)
 elseif self.Name == "UseAbilityVegeta" then
     local vegetaSpawnId = args[1]
+    local abilityType = args[2]  -- NEW: Capture ability type ("MajinMark", "Fusion")
     
     task.spawn(function()
         processActionResponseWithSpawnIdMapping({
             remoteName = "UseAbilityVegeta",
-            args = {vegetaSpawnId},
+            args = {vegetaSpawnId, abilityType},  -- FIXED: Pass both args
             timestamp = tick()
         })
     end)
@@ -2421,6 +2429,7 @@ end
 
 local function validateGokuAbilityAction(action, actionIndex, totalActionCount)
     local gokuPlacementId = action.Goku
+    local abilityType = action.Ability
     
     -- Get Goku's spawn_id
     local gokuSpawnId = MacroSystem.playbackPlacementToSpawnId[gokuPlacementId]
@@ -2456,8 +2465,8 @@ local function validateGokuAbilityAction(action, actionIndex, totalActionCount)
         return false
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Using Goku ability: %s", 
-        actionIndex, totalActionCount, gokuPlacementId))
+    updateDetailedStatus(string.format("(%d/%d) Using Goku ability: %s (%s)",  -- UPDATED
+        actionIndex, totalActionCount, gokuPlacementId, abilityType))
     
     local success = pcall(function()
         task.wait(0.3)
@@ -2465,7 +2474,7 @@ local function validateGokuAbilityAction(action, actionIndex, totalActionCount)
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("UseAbilityGoku")
-            :FireServer(gokuActualSpawnId)
+            :FireServer(gokuActualSpawnId, abilityType)
     end)
     
     if success then
@@ -2479,6 +2488,7 @@ end
 
 local function validateVegetaAbilityAction(action, actionIndex, totalActionCount)
     local vegetaPlacementId = action.Vegeta
+    local abilityType = action.Ability
     
     -- Get Vegeta's spawn_id
     local vegetaSpawnId = MacroSystem.playbackPlacementToSpawnId[vegetaPlacementId]
@@ -2514,8 +2524,8 @@ local function validateVegetaAbilityAction(action, actionIndex, totalActionCount
         return false
     end
     
-    updateDetailedStatus(string.format("(%d/%d) Using Vegeta ability: %s", 
-        actionIndex, totalActionCount, vegetaPlacementId))
+    updateDetailedStatus(string.format("(%d/%d) Using Vegeta ability: %s (%s)",  -- UPDATED
+        actionIndex, totalActionCount, vegetaPlacementId, abilityType))
     
     local success = pcall(function()
         task.wait(0.3)
@@ -2523,7 +2533,7 @@ local function validateVegetaAbilityAction(action, actionIndex, totalActionCount
         Services.ReplicatedStorage:WaitForChild("endpoints")
             :WaitForChild("client_to_server")
             :WaitForChild("UseAbilityVegeta")
-            :FireServer(vegetaActualSpawnId)
+            :FireServer(vegetaActualSpawnId, abilityType)
     end)
     
     if success then
