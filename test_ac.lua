@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.75"
+    local script_version = "V0.76"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -64,8 +64,8 @@ end
         PlaceholderColor = Color3.fromRGB(178, 178, 178)
     },
     ToggleUIKeybind = "K",
-    DisableRayfieldPrompts = false,
-    DisableBuildWarnings = false,
+    DisableRayfieldPrompts = true,
+    DisableBuildWarnings = true,
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "LixHub",
@@ -9644,6 +9644,7 @@ if gameFinishedRemote then
         local args = {...}
         print("game_finished RemoteEvent fired!")
         print("Number of arguments:", #args)
+        Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI").Enabled = true
 
         GameTracking.gameHasEnded = true
         startFailsafeTimer()
