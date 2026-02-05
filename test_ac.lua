@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.78"
+    local script_version = "V0.8"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1587,9 +1587,9 @@ elseif self.Name == "UseAbilityVegeta" then
     end)
 
     -- Heartbeat: watch for level changes on all our units
-    local RunService = game:GetService("RunService")
-    RunService.Heartbeat:Connect(function()
-    if not MacroSystem.isRecording then return end -- Removed the debug print
+local RunService = game:GetService("RunService")
+RunService.Heartbeat:Connect(function()
+    if not MacroSystem.isRecording then return end
 
     local unitsFolder = workspace:FindFirstChild("_UNITS")
     if not unitsFolder then return end
@@ -1599,19 +1599,41 @@ elseif self.Name == "UseAbilityVegeta" then
             local stats = unit:FindFirstChild("_stats")
             if not stats then continue end
             
-            -- Create combined identifier (UUID + spawn_id) to match placement mapping
+            -- Get unit identifiers
             local uuidValue = stats:FindFirstChild("uuid")
             local spawnIdValue = stats:FindFirstChild("spawn_id")
             
             if not uuidValue or not uuidValue:IsA("StringValue") then continue end
             
+            -- Create combined identifier (UUID + spawn_id)
             local combinedId = uuidValue.Value
             if spawnIdValue then
                 combinedId = combinedId .. spawnIdValue.Value
             end
             
-            -- Find placement ID from our mapping
+            -- Try to find placement ID from our mapping
             local placementId = MacroSystem.recordingSpawnIdToPlacement[combinedId]
+            
+            -- If no mapping exists, create one on-the-fly from the unit's name
+            if not placementId then
+                local internalName = getInternalSpawnName(unit)
+                local displayName = getDisplayNameFromUnitId(internalName)
+                
+                if displayName then
+                    -- Increment counter for this unit type
+                    MacroSystem.recordingPlacementCounter[displayName] = (MacroSystem.recordingPlacementCounter[displayName] or 0) + 1
+                    local placementNumber = MacroSystem.recordingPlacementCounter[displayName]
+                    
+                    -- Create placement ID
+                    placementId = string.format("%s #%d", displayName, placementNumber)
+                    
+                    -- Map it for future reference
+                    MacroSystem.recordingSpawnIdToPlacement[combinedId] = placementId
+                    
+                    print(string.format("Auto-mapped existing unit for upgrade tracking: %s (Combined ID: %s)", 
+                        placementId, combinedId))
+                end
+            end
             
             if placementId then
                 local currentLevel = getUnitUpgradeLevel(unit)
