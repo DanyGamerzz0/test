@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.74"
+    local script_version = "V0.75"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -9652,21 +9652,34 @@ if gameFinishedRemote then
         -- Process both unit drops AND loadout from game_finished data
         for i, arg in ipairs(args) do
             if type(arg) == "table" then
-                -- Extract unit drops - these are unit IDs, not UUIDs
+                -- Extract unit drops
                 if arg.new_units then
                     print("Found new_units field in game_finished!")
                     GameTracking.newUnitsThisGame = {}
                     
-                    for _, unitID in ipairs(arg.new_units) do
-                        -- Convert unit ID to display name
-                        local unitDisplayName = getDisplayNameFromUnitId(unitID)
-                        if unitDisplayName then
-                            table.insert(GameTracking.newUnitsThisGame, unitDisplayName)
-                            print("Unit obtained this game:", unitDisplayName, "(Unit ID:", unitID, ")")
-                        else
-                            -- Fallback if display name lookup fails
-                            table.insert(GameTracking.newUnitsThisGame, unitID)
-                            print("Unit obtained this game (raw ID):", unitID)
+                    for _, unitData in ipairs(arg.new_units) do
+                        if type(unitData) == "table" and unitData.unit_id then
+                            local unitID = unitData.unit_id
+                            local isShiny = unitData.shiny or false
+                            
+                            -- Convert unit ID to display name
+                            local unitDisplayName = getDisplayNameFromUnitId(unitID)
+                            if unitDisplayName then
+                                -- Add " (Shiny)" suffix if applicable
+                                if isShiny then
+                                    unitDisplayName = unitDisplayName .. " (Shiny)"
+                                end
+                                table.insert(GameTracking.newUnitsThisGame, unitDisplayName)
+                                print("Unit obtained this game:", unitDisplayName, "(Unit ID:", unitID, ")")
+                            else
+                                -- Fallback if display name lookup fails
+                                local fallbackName = unitID
+                                if isShiny then
+                                    fallbackName = fallbackName .. " (Shiny)"
+                                end
+                                table.insert(GameTracking.newUnitsThisGame, fallbackName)
+                                print("Unit obtained this game (raw ID):", fallbackName)
+                            end
                         end
                     end
                 end
