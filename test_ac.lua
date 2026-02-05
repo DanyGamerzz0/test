@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.76"
+    local script_version = "V0.77"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -8809,51 +8809,30 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             return
         end
         
-        -- Extract unique units from macro (new format with "Type" field)
-        local unitsUsed = {}
+        -- Extract unique units from macro
         local unitCounts = {}
-        local actionCounts = {
-            spawn_unit = 0,
-            upgrade_unit_ingame = 0,
-            sell_unit_ingame = 0,
-            vote_wave_skip = 0
-        }
         
         for _, action in ipairs(macroData) do
-            -- Count action types
-            if actionCounts[action.Type] then
-                actionCounts[action.Type] = actionCounts[action.Type] + 1
-            end
-            
-            -- Extract units from spawn actions
             if action.Type == "spawn_unit" and action.Unit then
                 local unitName = action.Unit
-                
-                -- Extract base unit name (remove instance number like "#1", "#2")
                 local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
                 
-                if not unitsUsed[baseUnitName] then
-                    unitsUsed[baseUnitName] = true
+                if not unitCounts[baseUnitName] then
                     unitCounts[baseUnitName] = 0
                 end
                 unitCounts[baseUnitName] = unitCounts[baseUnitName] + 1
             end
         end
         
-        -- Create units list for webhook message
-        local unitsText = ""
-        if next(unitCounts) then
-            local unitsList = {}
-            for unitName, count in pairs(unitCounts) do
-                table.insert(unitsList, unitName .. " (x" .. count .. ")")
-            end
-            table.sort(unitsList)
-            unitsText = table.concat(unitsList, ", ")
-        else
-            unitsText = "No units found"
+        -- Create units list
+        local unitsList = {}
+        for unitName, count in pairs(unitCounts) do
+            table.insert(unitsList, unitName .. " (x" .. count .. ")")
         end
+        table.sort(unitsList)
+        local unitsText = table.concat(unitsList, ", ")
         
-        -- Create the JSON data in the new format
+        -- Create the JSON data
         local jsonData = Services.HttpService:JSONEncode(macroData)
         local fileName = MacroSystem.currentMacroName .. ".json"
         
@@ -8861,50 +8840,22 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         local boundary = "----WebKitFormBoundary" .. tostring(tick())
         local body = ""
         
-        -- Add payload_json field with enhanced message
+        -- Add simple message with just units list
         body = body .. "--" .. boundary .. "\r\n"
         body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
         body = body .. "Content-Type: application/json\r\n\r\n"
         body = body .. Services.HttpService:JSONEncode({
-            username = "LixHub Macro Share",
-            embeds = {{
-                title = "📁 Macro Shared: " .. MacroSystem.currentMacroName,
-                color = 0x5865F2,
-                fields = {
-                    {
-                        name = "📊 Action Summary",
-                        value = string.format("**Total Actions:** %d\n🏗️ **Placements:** %d\n⬆️ **Upgrades:** %d\n💸 **Sells:** %d\n➡️ **Wave Skips:** %d",
-                            #macroData,
-                            actionCounts.spawn_unit,
-                            actionCounts.upgrade_unit_ingame, 
-                            actionCounts.sell_unit_ingame,
-                            actionCounts.vote_wave_skip
-                        ),
-                        inline = false
-                    },
-                    {
-                        name = "🎯 Units Used",
-                        value = unitsText,
-                        inline = false
-                    },
-                },
-                footer = {
-                    text = script_version
-                },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            }}
+            content = "**Units:** " .. unitsText
         }) .. "\r\n"
         
-        -- Add file field
+        -- Add file
         body = body .. "--" .. boundary .. "\r\n"
         body = body .. "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" .. fileName .. "\"\r\n"
         body = body .. "Content-Type: application/json\r\n\r\n"
         body = body .. jsonData .. "\r\n"
-        
-        -- End boundary
         body = body .. "--" .. boundary .. "--\r\n"
         
-        -- Try multiple request functions
+        -- Send request
         local requestFunc = (syn and syn.request) or 
                         (http and http.request) or 
                         (http_request) or 
@@ -8931,59 +8882,18 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
             })
         end)
         
-        if success and result then
-            -- Check if the HTTP request was actually successful
-            if result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
-                Rayfield:Notify({
-                    Title = "Webhook Success", 
-                    Content = string.format("Macro '%s' sent successfully!\nUnits: %s", MacroSystem.currentMacroName, unitsText:sub(1, 50) .. (unitsText:len() > 50 and "..." or "")),
-                    Duration = 5
-                })
-            elseif result.StatusCode then
-                -- Handle Discord webhook specific errors
-                local errorMsg = "HTTP Error " .. tostring(result.StatusCode)
-                if result.StatusCode == 400 then
-                    errorMsg = errorMsg .. " (Bad Request)"
-                elseif result.StatusCode == 401 then
-                    errorMsg = errorMsg .. " (Unauthorized)"
-                elseif result.StatusCode == 404 then
-                    errorMsg = errorMsg .. " (Webhook Not Found)"
-                elseif result.StatusCode == 413 then
-                    errorMsg = errorMsg .. " (File Too Large)"
-                elseif result.StatusCode == 429 then
-                    errorMsg = errorMsg .. " (Rate Limited)"
-                end
-                
-                Rayfield:Notify({
-                    Title = "Webhook Error",
-                    Content = errorMsg,
-                    Duration = 5
-                })
-                
-                print("Webhook failed - StatusCode:", result.StatusCode)
-                if result.Body then
-                    print("Response body:", result.Body)
-                end
-            else
-                Rayfield:Notify({
-                    Title = "Webhook Error",
-                    Content = "Request failed with no status code",
-                    Duration = 3
-                })
-            end
-        else
-            local errorMsg = "Failed to send request"
-            if result then
-                errorMsg = errorMsg .. ": " .. tostring(result)
-            end
-            
+        if success and result and result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
             Rayfield:Notify({
-                Title = "Webhook Error",
-                Content = errorMsg,
+                Title = "Webhook Success", 
+                Content = "Macro '" .. MacroSystem.currentMacroName .. "' sent!",
                 Duration = 3
             })
-            
-            print("Request failed:", result)
+        else
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "Failed to send macro.",
+                Duration = 3
+            })
         end
     end,
 })
