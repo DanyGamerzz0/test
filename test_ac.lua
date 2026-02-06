@@ -22,7 +22,7 @@ end
         return
     end
 
-    local script_version = "V0.8"
+    local script_version = "V0.9"
 
     local Window = Rayfield:CreateWindow({
     Name = "LixHub - Anime Crusaders",
@@ -1838,39 +1838,123 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
     local maxRetries = VALIDATION_CONFIG.UPGRADE_MAX_RETRIES
     local placementId = action.Unit
     local upgradeAmount = action.Amount or 1
+    
+    -- Try to find unit by existing mapping first
     local currentSpawnId = MacroSystem.playbackPlacementToSpawnId[placementId]
+    local targetUnit = nil
+    local combinedId = nil
     
+    -- If no mapping exists, try to find the unit by matching display name and instance number
     if not currentSpawnId then
-        updateDetailedStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
-            actionIndex, totalActionCount, placementId))
-        return false
-    end
-    
-    local temp -- Reusable
-    
-    for attempt = 1, maxRetries do
-        if not MacroSystem.isPlaybacking then return false end
+        print(string.format("No spawn_id mapping for %s - searching for unit manually", placementId))
         
-        -- Find unit by spawn_id
-        local targetUnit = nil
-        temp = Services.Workspace:FindFirstChild("_UNITS")
-        
-        if temp then
-            for _, unit in pairs(temp:GetChildren()) do
-                if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
-                    targetUnit = unit
-                    break
+        local displayName, instanceNumber = parseUnitString(placementId)
+        if displayName and instanceNumber then
+            local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+            if unitsFolder then
+                -- Count instances of this unit type to match the instance number
+                local instanceCount = 0
+                local unitsOfType = {}
+                
+                for _, unit in pairs(unitsFolder:GetChildren()) do
+                    if isOwnedByLocalPlayer(unit) then
+                        local internalName = getInternalSpawnName(unit)
+                        local unitDisplayName = getDisplayNameFromUnitId(internalName)
+                        
+                        if unitDisplayName == displayName then
+                            instanceCount = instanceCount + 1
+                            
+                            local stats = unit:FindFirstChild("_stats")
+                            if stats then
+                                local uuidValue = stats:FindFirstChild("uuid")
+                                local spawnIdValue = stats:FindFirstChild("spawn_id")
+                                
+                                if uuidValue and uuidValue:IsA("StringValue") then
+                                    local unitCombinedId = uuidValue.Value
+                                    if spawnIdValue then
+                                        unitCombinedId = unitCombinedId .. spawnIdValue.Value
+                                    end
+                                    
+                                    table.insert(unitsOfType, {
+                                        unit = unit,
+                                        instanceNum = instanceCount,
+                                        combinedId = unitCombinedId,
+                                        spawnId = getUnitSpawnId(unit)
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                -- Find the matching instance
+                for _, unitData in ipairs(unitsOfType) do
+                    if unitData.instanceNum == instanceNumber then
+                        targetUnit = unitData.unit
+                        combinedId = unitData.combinedId
+                        currentSpawnId = unitData.spawnId
+                        
+                        -- Create mapping for future reference
+                        if currentSpawnId then
+                            MacroSystem.playbackPlacementToSpawnId[placementId] = currentSpawnId
+                            print(string.format("Auto-mapped unit for upgrade: %s -> combined_id %s (spawn_id: %s)", 
+                                placementId, combinedId, tostring(currentSpawnId)))
+                        end
+                        break
+                    end
                 end
             end
         end
         
         if not targetUnit then
+            updateDetailedStatus(string.format("(%d/%d) FAILED: Could not find unit %s", 
+                actionIndex, totalActionCount, placementId))
+            print(string.format("Could not find unit %s for upgrade (searched %d instances)", 
+                placementId, instanceCount or 0))
+            return false
+        end
+    end
+    
+    for attempt = 1, maxRetries do
+        if not MacroSystem.isPlaybacking then return false end
+        
+        -- Find unit by spawn_id (or use already found unit)
+        if not targetUnit or not combinedId then
+            local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+            
+            if unitsFolder then
+                for _, unit in pairs(unitsFolder:GetChildren()) do
+                    if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
+                        targetUnit = unit
+                        
+                        -- Get combined ID
+                        local stats = unit:FindFirstChild("_stats")
+                        if stats then
+                            local uuidValue = stats:FindFirstChild("uuid")
+                            local spawnIdValue = stats:FindFirstChild("spawn_id")
+                            
+                            if uuidValue and uuidValue:IsA("StringValue") then
+                                combinedId = uuidValue.Value
+                                if spawnIdValue then
+                                    combinedId = combinedId .. spawnIdValue.Value
+                                end
+                            end
+                        end
+                        break
+                    end
+                end
+            end
+        end
+        
+        if not targetUnit or not combinedId then
             updateDetailedStatus(string.format("(%d/%d) FAILED: Unit not found for %s (spawn_id: %s)", 
                 actionIndex, totalActionCount, placementId, tostring(currentSpawnId)))
             if attempt < maxRetries then
                 updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed - unit not found, retrying...", 
                     actionIndex, totalActionCount, attempt, maxRetries))
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                targetUnit = nil
+                combinedId = nil
                 continue
             else
                 return false
@@ -1882,8 +1966,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
             string.format("Multi-upgrading x%d", upgradeAmount) or "Upgrading"
         
         -- Calculate required money
-        temp = parseUnitString(action.Unit)
-        local unitId = temp and getUnitIdFromDisplayName(temp)
+        local displayName = parseUnitString(action.Unit)
+        local unitId = displayName and getUnitIdFromDisplayName(displayName)
         local requiredCost = 0
         
         if unitId then
@@ -1914,29 +1998,46 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 actionIndex, totalActionCount, attempt, maxRetries))
             if attempt < maxRetries then
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                targetUnit = nil
+                combinedId = nil
                 continue
             else
                 return false
             end
         end
         
-        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: %s %s (Level %d)", 
-            actionIndex, totalActionCount, attempt, maxRetries, upgradeText, placementId, originalLevel))
+        updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d: %s %s (Level %d, Combined ID: %s)", 
+            actionIndex, totalActionCount, attempt, maxRetries, upgradeText, placementId, originalLevel, combinedId))
         
-        -- Perform upgrades
+        -- Perform upgrades using combined ID
         local successfulUpgrades = 0
         local lastKnownLevel = originalLevel
         
         for upgradeIndex = 1, upgradeAmount do
-            -- Re-find unit
-            temp = Services.Workspace:FindFirstChild("_UNITS")
+            -- Re-find unit by combined ID
             local currentTargetUnit = nil
+            local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
             
-            if temp then
-                for _, unit in pairs(temp:GetChildren()) do
-                    if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
-                        currentTargetUnit = unit
-                        break
+            if unitsFolder then
+                for _, unit in pairs(unitsFolder:GetChildren()) do
+                    if isOwnedByLocalPlayer(unit) then
+                        local stats = unit:FindFirstChild("_stats")
+                        if stats then
+                            local uuidValue = stats:FindFirstChild("uuid")
+                            local spawnIdValue = stats:FindFirstChild("spawn_id")
+                            
+                            if uuidValue and uuidValue:IsA("StringValue") then
+                                local unitCombinedId = uuidValue.Value
+                                if spawnIdValue then
+                                    unitCombinedId = unitCombinedId .. spawnIdValue.Value
+                                end
+                                
+                                if unitCombinedId == combinedId then
+                                    currentTargetUnit = unit
+                                    break
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -1956,6 +2057,7 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 break
             end
             
+            -- CRITICAL: Use unit.Name for the upgrade remote, NOT combined ID
             local upgradeSuccess = pcall(function()
                 endpoints:WaitForChild(MACRO_CONFIG.UPGRADE_REMOTE):InvokeServer(currentTargetUnit.Name)
             end)
@@ -1966,21 +2068,36 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 break
             end
             
-            -- Validate upgrade
+            -- Validate upgrade using combined ID
             local upgradeValidated = false
             local validationStart = tick()
             
             while tick() - validationStart < 2.0 do
                 if not MacroSystem.isPlaybacking then return false end
                 
-                temp = Services.Workspace:FindFirstChild("_UNITS")
                 local validationUnit = nil
+                local unitsFolder2 = Services.Workspace:FindFirstChild("_UNITS")
                 
-                if temp then
-                    for _, unit in pairs(temp:GetChildren()) do
-                        if isOwnedByLocalPlayer(unit) and getUnitSpawnId(unit) == currentSpawnId then
-                            validationUnit = unit
-                            break
+                if unitsFolder2 then
+                    for _, unit in pairs(unitsFolder2:GetChildren()) do
+                        if isOwnedByLocalPlayer(unit) then
+                            local stats = unit:FindFirstChild("_stats")
+                            if stats then
+                                local uuidValue = stats:FindFirstChild("uuid")
+                                local spawnIdValue = stats:FindFirstChild("spawn_id")
+                                
+                                if uuidValue and uuidValue:IsA("StringValue") then
+                                    local unitCombinedId = uuidValue.Value
+                                    if spawnIdValue then
+                                        unitCombinedId = unitCombinedId .. spawnIdValue.Value
+                                    end
+                                    
+                                    if unitCombinedId == combinedId then
+                                        validationUnit = unit
+                                        break
+                                    end
+                                end
+                            end
                         end
                     end
                 end
@@ -2030,6 +2147,8 @@ local function validateUpgradeActionWithSpawnIdMapping(action, actionIndex, tota
                 updateDetailedStatus(string.format("(%d/%d) Attempt %d/%d failed, retrying in %.1fs...", 
                     actionIndex, totalActionCount, attempt, maxRetries, VALIDATION_CONFIG.RETRY_DELAY))
                 task.wait(VALIDATION_CONFIG.RETRY_DELAY)
+                targetUnit = nil
+                combinedId = nil
             else
                 updateDetailedStatus(string.format("(%d/%d) All upgrade attempts failed - continuing macro", 
                     actionIndex, totalActionCount))
@@ -8859,7 +8978,7 @@ local PlayToggleEnhanced = MacroTab:CreateToggle({
         -- Create units list
         local unitsList = {}
         for unitName, count in pairs(unitCounts) do
-            table.insert(unitsList, unitName .. " (x" .. count .. ")")
+            table.insert(unitsList, unitName)
         end
         table.sort(unitsList)
         local unitsText = table.concat(unitsList, ", ")
