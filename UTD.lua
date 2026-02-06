@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.45"
+local script_version = "V0.46"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -521,15 +521,18 @@ local function getPlayerLoadout()
     return loadout
 end
 
+local function cleanUnitName(unitName)
+    return unitName:gsub(":[Ss]hiny", "")
+end
+
 local function getSlotForUnit(unitName)
-    -- Returns the slot number where this unit is equipped
-    -- Returns nil if unit not in loadout
     local loadout = getPlayerLoadout()
 
-    local cleanSearchName = unitName:gsub(":[Ss]hiny$", "")
+    -- Clean BOTH names using the new function
+    local cleanSearchName = cleanUnitName(unitName)
     
     for slot, name in pairs(loadout) do
-        local cleanLoadoutName = name:gsub(":[Ss]hiny$", "")
+        local cleanLoadoutName = cleanUnitName(name)
 
         if cleanLoadoutName == cleanSearchName then
             return slot
@@ -540,15 +543,15 @@ local function getSlotForUnit(unitName)
 end
 
 local function getUnitData(unitName)
-    -- Clean the unit name (remove :shiny suffix)
-    local cleanUnitName = unitName:gsub(":[Ss]hiny$", "")
+    -- Clean the unit name (remove :shiny from anywhere)
+    local cleanUnitName = cleanUnitName(unitName)
     
     local success, result = pcall(function()
         local module = game:GetService("ReplicatedStorage")
             .Shared
             .Data
             .Towers
-            :FindFirstChild(cleanUnitName)  -- Use cleaned name here
+            :FindFirstChild(cleanUnitName)  -- Use cleaned name
         
         if not module then
             return nil
@@ -595,12 +598,10 @@ local function getUnitByUUID(uuid)
 end
 
 local function findNewUnitInGC(unitName, excludeUUIDs)
-    --print(string.format("🔍 Searching GC for new unit: %s", unitName))
-    
     excludeUUIDs = excludeUUIDs or {}
     
-    -- Clean the search name (remove :shiny suffix)
-    local cleanUnitName = unitName:gsub(":[Ss]hiny$", "")
+    -- Clean the search name
+    local cleanUnitName = cleanUnitName(unitName)
     
     local candidates = {}
     
@@ -617,8 +618,8 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
                 local objName = rawget(obj, "Name")
                 
                 -- Clean the unit names from GC too
-                local cleanObjUnitId = objUnitId and objUnitId:gsub(":[Ss]hiny$", "") or nil
-                local cleanObjName = objName and objName:gsub(":[Ss]hiny$", "") or nil
+                local cleanObjUnitId = objUnitId and cleanUnitName(objUnitId) or nil
+                local cleanObjName = objName and cleanUnitName(objName) or nil
                 
                 -- Compare cleaned names
                 if cleanObjUnitId == cleanUnitName or cleanObjName == cleanUnitName then
@@ -859,7 +860,7 @@ local generalHook = newcclosure(function(self, ...)
     
     if uuid then
 
-        local cleanUnitName = unitName:gsub(":[Ss]hiny$", "")
+        local cleanUnitName = cleanUnitName(unitName)
         -- Verify the unit exists in workspace
         local unit = getUnitByUUID(uuid)
         if not unit then
@@ -869,8 +870,8 @@ local generalHook = newcclosure(function(self, ...)
         
         -- Increment counter for this unit type
         recordingUnitCounter[cleanUnitName] = (recordingUnitCounter[cleanUnitName] or 0) + 1
-    local unitNumber = recordingUnitCounter[cleanUnitName]
-    local unitTag = string.format("%s #%d", cleanUnitName, unitNumber)
+        local unitNumber = recordingUnitCounter[cleanUnitName]
+        local unitTag = string.format("%s #%d", cleanUnitName, unitNumber)
         
         -- Track this unit
         recordingUUIDToTag[uuid] = unitTag
@@ -1093,34 +1094,35 @@ end
 local function executePlacementAction(action, actionIndex, totalActions)
     local unitName = getUnitNameFromTag(action.Unit)
     
+    -- Clean the unit name 
+    local cleanUnitName = cleanUnitName(unitName)
+    
     updateMacroStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
 
-    local unitData = getUnitData(unitName)
+    local unitData = getUnitData(cleanUnitName)  -- Use cleaned name
     local placementCost = 0
     
     if unitData and unitData.Stats and unitData.Stats.Upgrades and #unitData.Stats.Upgrades > 0 then
         placementCost = unitData.Stats.Upgrades[1].Cost or 0
     end
     
-    -- Show waiting status if we need money
     if placementCost > 0 then
         local currentMoney = getPlayerMoney()
         if currentMoney and currentMoney < placementCost then
             updateDetailedStatus(string.format("Waiting for ¥%d to place %s", placementCost, action.Unit))
         end
         
-        -- CHECK IF WAIT WAS ABORTED
-        local canContinue = waitForMoney(placementCost, unitName)
+        local canContinue = waitForMoney(placementCost, cleanUnitName)
         if not canContinue then
             updateDetailedStatus("Game ended while waiting for money")
             return false
         end
     end
     
-    local slot = getSlotForUnit(unitName)
+    local slot = getSlotForUnit(cleanUnitName)  -- Use cleaned name
     
     if not slot then
-        updateDetailedStatus(string.format("Error: %s not in loadout", unitName))
+        updateDetailedStatus(string.format("Error: %s not in loadout", cleanUnitName))
         return false
     end
     
@@ -1148,7 +1150,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     local uuid = nil
     
     for attempt = 1, 10 do
-        uuid = findNewUnitInGC(unitName, excludeUUIDs)
+        uuid = findNewUnitInGC(cleanUnitName, excludeUUIDs)
         if uuid then break end
         task.wait(0.3)
     end
