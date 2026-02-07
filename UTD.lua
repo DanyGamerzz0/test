@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.47"
+local script_version = "V0.48"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -601,8 +601,8 @@ end
 local function findNewUnitInGC(unitName, excludeUUIDs)
     excludeUUIDs = excludeUUIDs or {}
     
-    -- Clean the search name
-    local cleanUnitName = cleanUnitName(unitName)
+    -- Clean the search name (use different variable name!)
+    local cleanedUnitName = cleanUnitName(unitName)  -- ✅ FIXED
     
     local candidates = {}
     
@@ -622,8 +622,8 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
                 local cleanObjUnitId = objUnitId and cleanUnitName(objUnitId) or nil
                 local cleanObjName = objName and cleanUnitName(objName) or nil
                 
-                -- Compare cleaned names
-                if cleanObjUnitId == cleanUnitName or cleanObjName == cleanUnitName then
+                -- Compare cleaned names (use new variable name)
+                if cleanObjUnitId == cleanedUnitName or cleanObjName == cleanedUnitName then
                     local hasUpgrade = rawget(obj, "Upgrade") ~= nil
                     local hasModel = rawget(obj, "Model") ~= nil
                     
