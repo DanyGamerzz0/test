@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.46"
+local script_version = "V0.47"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -447,6 +447,10 @@ local function updateDetailedStatus(message)
     DetailLabel:Set(message)
 end
 
+local function cleanUnitName(unitName)
+    return unitName:gsub(":[Ss]hiny", "")
+end
+
 local function getPlayerLoadout()
     local loadout = {}
     
@@ -471,8 +475,6 @@ local function getPlayerLoadout()
             return a.AbsolutePosition.X < b.AbsolutePosition.X
         end)
         
-        --print(string.format("Total containers found: %d", #containers))
-        
         -- Extract unit names in order
         for slot, container in ipairs(containers) do
             local unitPath = container:FindFirstChild("Unit")
@@ -481,10 +483,9 @@ local function getPlayerLoadout()
                 if unitPath then
                     unitPath = unitPath:FindFirstChild("Unit")
                     if unitPath then
-                        -- FIX: Look for the FIRST Model that is NOT "WorldModel"
+                        -- Find the FIRST Model that is NOT "WorldModel"
                         local unitModel = nil
                         
-                        -- Method 1: Find by excluding WorldModel
                         for _, child in pairs(unitPath:GetChildren()) do
                             if child:IsA("Model") and child.Name ~= "WorldModel" then
                                 unitModel = child
@@ -492,7 +493,7 @@ local function getPlayerLoadout()
                             end
                         end
                         
-                        -- Method 2: If still not found, check descendants
+                        -- Fallback: check descendants
                         if not unitModel then
                             for _, descendant in pairs(unitPath:GetDescendants()) do
                                 if descendant:IsA("Model") and descendant.Name ~= "WorldModel" then
@@ -503,10 +504,14 @@ local function getPlayerLoadout()
                         end
                         
                         if unitModel then
-                            loadout[slot] = unitModel.Name
-                            --print(string.format("✅ Slot %d: %s", slot, unitModel.Name))
+                            -- ✅ CLEAN THE UNIT NAME HERE
+                            local rawName = unitModel.Name
+                            local cleanedName = cleanUnitName(rawName)  -- Remove :shiny
+                            
+                            loadout[slot] = cleanedName
+                            --print(string.format("✅ Slot %d: %s (raw: %s)", slot, cleanedName, rawName))
                         else
-                            warn(string.format("⚠️ Slot %d: Could not find unit model (found WorldModel)", slot))
+                            warn(string.format("⚠️ Slot %d: Could not find unit model", slot))
                         end
                     end
                 end
@@ -519,10 +524,6 @@ local function getPlayerLoadout()
     end
     
     return loadout
-end
-
-local function cleanUnitName(unitName)
-    return unitName:gsub(":[Ss]hiny", "")
 end
 
 local function getSlotForUnit(unitName)
