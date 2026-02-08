@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -123,7 +123,8 @@ local State = {
     AutoRetry = false,
     AutoLobby = false,
     AutoStartGame = false,
-    AutoSkipWaves = false,
+    AntiAfkKickEnabled = false,
+    enableAutoExecute = false,
 }
 
 local loadingRetries = {
@@ -1426,12 +1427,270 @@ local function handleEndGameActions()
     warn("All auto end game actions failed")
 end
 
+local function exportMacroToClipboard(macroName, format)
+    if not macroName or macroName == "" then
+        notify("Export Error", "No macro selected for export.", 3)
+        return
+    end
+    
+    local macroData = MacroManager.macros[macroName]
+    if not macroData or #macroData == 0 then
+        notify("Export Error", "Selected macro is empty.", 3)
+        return
+    end
+    
+    -- Try different clipboard functions
+    local setclipboard = setclipboard or toclipboard or (Clipboard and Clipboard.set)
+    
+    if not setclipboard then
+        notify("Clipboard Error", "Your executor doesn't support clipboard.", 3)
+        return
+    end
+    
+    -- Create JSON with metadata
+    local exportData = {
+        macroName = macroName,
+        version = script_version,
+        exportDate = os.date("%Y-%m-%d %H:%M:%S"),
+        actionCount = #macroData,
+        actions = macroData
+    }
+    
+    local success, jsonData = pcall(function()
+        return Services.HttpService:JSONEncode(exportData)
+    end)
+    
+    if not success then
+        notify("Export Error", "Failed to encode macro.", 3)
+        return
+    end
+    
+    success = pcall(function()
+        setclipboard(jsonData)
+    end)
+    
+    if success then
+        notify("Export Success", "'" .. macroName .. "' copied to clipboard!", 3)
+    else
+        notify("Clipboard Error", "Failed to copy to clipboard.", 3)
+    end
+end
+
+local function importMacroFromURL(url, macroName)
+    local requestFunc = (syn and syn.request) or 
+                        (http and http.request) or 
+                        (http_request) or 
+                        request
+    
+    if not requestFunc then
+        notify("HTTP Error", "Your executor doesn't support HTTP requests.", 3)
+        return
+    end
+    
+    notify("Importing", "Downloading from URL...", 2)
+    
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = url,
+            Method = "GET"
+        })
+    end)
+    
+    if not success or not response or response.StatusCode ~= 200 then
+        notify("Import Error", "Failed to download from URL.", 3)
+        return
+    end
+    
+    importMacroFromContent(response.Body, macroName)
+end
+
+local function importMacroFromContent(jsonContent, macroName)
+    if not jsonContent or jsonContent:match("^%s*$") then
+        notify("Import Error", "Content is empty.", 3)
+        return
+    end
+    
+    local success, decodedData = pcall(function()
+        return Services.HttpService:JSONDecode(jsonContent)
+    end)
+    
+    if not success then
+        notify("Import Error", "Invalid JSON format.", 3)
+        return
+    end
+    
+    -- Extract macro data
+    local importedActions = nil
+    local importedName = macroName
+    
+    -- Check if it has the export wrapper format
+    if decodedData.actions and type(decodedData.actions) == "table" then
+        importedActions = decodedData.actions
+        importedName = macroName or decodedData.macroName or ("ImportedMacro_" .. os.time())
+    -- Or if it's a raw action array
+    elseif type(decodedData) == "table" and #decodedData > 0 then
+        importedActions = decodedData
+        importedName = macroName or ("ImportedMacro_" .. os.time())
+    else
+        notify("Import Error", "Unrecognized macro format.", 3)
+        return
+    end
+    
+    if not importedActions or #importedActions == 0 then
+        notify("Import Error", "Macro has no actions.", 3)
+        return
+    end
+    
+    -- Clean the macro name
+    importedName = importedName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    
+    if importedName == "" then
+        importedName = "ImportedMacro_" .. os.time()
+    end
+    
+    -- Check if macro already exists
+    if MacroManager.macros[importedName] then
+        notify("Import Cancelled", "'" .. importedName .. "' already exists.", 3)
+        return
+    end
+    
+    -- Save the imported macro
+    MacroManager.macros[importedName] = importedActions
+    saveMacroToFile(importedName, importedActions)
+    
+    -- Refresh dropdown and select new macro
+    MacroDropdown:Refresh(getMacroList(), importedName)
+    MacroManager.currentMacroName = importedName
+    MacroManager.currentMacro = importedActions
+    
+    notify("Import Success", "'" .. importedName .. "' imported (" .. #importedActions .. " actions)!", 3)
+end
+
+local function importMacroFromTXT(txtContent, macroName)
+    if not txtContent or txtContent:match("^%s*$") then
+        notify("Import Error", "Content is empty.", 3)
+        return
+    end
+    
+    local actions = {}
+    
+    for line in txtContent:gmatch("[^\r\n]+") do
+        line = line:match("^%s*(.-)%s*$")
+        
+        if line ~= "" and not line:match("^#") then
+            local parts = {}
+            for part in line:gmatch("%S+") do
+                table.insert(parts, part)
+            end
+            
+            if #parts >= 3 then
+                local actionType = parts[1]
+                
+                if actionType == "spawn_unit" then
+                    local unit = parts[2] .. " " .. parts[3]
+                    local time = tonumber(parts[4])
+                    local x, y, z = parts[5]:match("([^,]+),([^,]+),([^,]+)")
+                    
+                    if time and x and y and z then
+                        table.insert(actions, {
+                            Type = "spawn_unit",
+                            Unit = unit,
+                            Time = string.format("%.2f", time),
+                            Position = {tonumber(x), tonumber(y), tonumber(z)}
+                        })
+                    end
+                    
+                elseif actionType == "upgrade_unit" then
+                    local unit = parts[2] .. " " .. parts[3]
+                    local time = tonumber(parts[4])
+                    
+                    if time then
+                        table.insert(actions, {
+                            Type = "upgrade_unit",
+                            Unit = unit,
+                            Time = string.format("%.2f", time)
+                        })
+                    end
+                    
+                elseif actionType == "sell_unit" then
+                    local unit = parts[2] .. " " .. parts[3]
+                    local time = tonumber(parts[4])
+                    
+                    if time then
+                        table.insert(actions, {
+                            Type = "sell_unit",
+                            Unit = unit,
+                            Time = string.format("%.2f", time)
+                        })
+                    end
+                    
+                elseif actionType == "use_ability" then
+                    local unit = parts[2] .. " " .. parts[3]
+                    local abilitySlot = parts[4]
+                    local time = tonumber(parts[5])
+                    
+                    if time then
+                        table.insert(actions, {
+                            Type = "use_ability",
+                            Unit = unit,
+                            AbilitySlot = abilitySlot,
+                            Time = string.format("%.2f", time)
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    if #actions == 0 then
+        notify("Import Error", "No valid actions found in TXT.", 3)
+        return
+    end
+    
+    local cleanedName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    
+    if cleanedName == "" then
+        cleanedName = "ImportedTXT_" .. os.time()
+    end
+    
+    MacroManager.macros[cleanedName] = actions
+    saveMacroToFile(cleanedName, actions)
+    
+    MacroDropdown:Refresh(getMacroList(), cleanedName)
+    MacroManager.currentMacroName = cleanedName
+    MacroManager.currentMacro = actions
+    
+    notify("Import Success", "'" .. cleanedName .. "' imported from TXT (" .. #actions .. " actions)!", 3)
+end
+
 Button = LobbyTab:CreateButton({
    Name = "Return to lobby",
    Callback = function()
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("StageEnd"):FireServer("Lobby")
    end,
 })
+
+        LobbyTab:CreateToggle({
+        Name = "Auto Execute Script",
+        CurrentValue = false,
+        Flag = "enableAutoExecute",
+        Info = "This auto executes and persists through teleports until you disable it or leave the game.",
+        TextScaled = false,
+        Callback = function(Value)
+            State.enableAutoExecute = Value
+            if State.enableAutoExecute then
+                if queue_on_teleport then
+                    queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+                else
+                    warn("queue_on_teleport not supported by this executor")
+                end
+            else
+                if queue_on_teleport then
+                    queue_on_teleport("") -- Empty string clears queue in most executors
+                end
+            end
+        end,
+    })
 
    Toggle = LobbyTab:CreateToggle({
    Name = "Disable Script Notifications",
@@ -1441,6 +1700,27 @@ Button = LobbyTab:CreateButton({
    State.DisableNotifications = Value
    end,
 })
+
+     Toggle = GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Info = "Prevents roblox kick message.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
 
 local AutoStartGameToggle = GameTab:CreateToggle({
    Name = "Auto Start Game",
@@ -1483,7 +1763,7 @@ local AutoSkipWavesToggle = GameTab:CreateToggle({
    CurrentValue = false,
    Flag = "AutoSkipWaves",
    Callback = function(Value)
-       State.AutoSkipWaves = Value
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ChangeSetting"):FireServer("AutoSkipWaves",Value)
    end,
 })
 
@@ -1736,22 +2016,159 @@ IgnoreTimingButton = MacroTab:CreateToggle({
 Div = MacroTab:CreateDivider()
 
 ExportMacroJSONButton = MacroTab:CreateButton({
-    Name = "Export Macro (Copy JSON)",
+    Name = "Export Macro To Clipboard",
     Callback = function()
+        if not MacroManager.currentMacroName or MacroManager.currentMacroName == "" then
+            notify("Export Error", "No macro selected for export.", 3)
+            return
+        end
+        exportMacroToClipboard(MacroManager.currentMacroName, "compact")
     end,
 })
 
 ExportMacroViaWebhookButton = MacroTab:CreateButton({
     Name = "Export Macro via Webhook",
     Callback = function()
+        if not MacroManager.currentMacroName or MacroManager.currentMacroName == "" then
+            notify("Webhook Error", "No macro selected.", 3)
+            return
+        end
+        
+        if not Config.VALID_WEBHOOK then
+            notify("Webhook Error", "No webhook URL configured.", 3)
+            return
+        end
+        
+        local macroData = MacroManager.macros[MacroManager.currentMacroName]
+        if not macroData or #macroData == 0 then
+            notify("Webhook Error", "Selected macro is empty.", 3)
+            return
+        end
+        
+        -- Extract unique units from macro
+        local unitCounts = {}
+        
+        for _, action in ipairs(macroData) do
+            if action.Type == "spawn_unit" and action.Unit then
+                local unitName = action.Unit
+                local baseUnitName = unitName:match("^(.+) #%d+$") or unitName
+                
+                if not unitCounts[baseUnitName] then
+                    unitCounts[baseUnitName] = 0
+                end
+                unitCounts[baseUnitName] = unitCounts[baseUnitName] + 1
+            end
+        end
+        
+        -- Create units list
+        local unitsList = {}
+        for unitName, count in pairs(unitCounts) do
+            table.insert(unitsList, unitName)
+        end
+        table.sort(unitsList)
+        local unitsText = table.concat(unitsList, ", ")
+        
+        -- Create the JSON data
+        local jsonData = Services.HttpService:JSONEncode(macroData)
+        local fileName = MacroManager.currentMacroName .. ".json"
+        
+        -- Create multipart form data for file upload
+        local boundary = "----WebKitFormBoundary" .. tostring(tick())
+        local body = ""
+        
+        -- Add simple message with just units list
+        body = body .. "--" .. boundary .. "\r\n"
+        body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+        body = body .. "Content-Type: application/json\r\n\r\n"
+        body = body .. Services.HttpService:JSONEncode({
+            content = "**Units:** " .. unitsText
+        }) .. "\r\n"
+        
+        -- Add file
+        body = body .. "--" .. boundary .. "\r\n"
+        body = body .. "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" .. fileName .. "\"\r\n"
+        body = body .. "Content-Type: application/json\r\n\r\n"
+        body = body .. jsonData .. "\r\n"
+        body = body .. "--" .. boundary .. "--\r\n"
+        
+        -- Send request
+        local requestFunc = (syn and syn.request) or 
+                        (http and http.request) or 
+                        (http_request) or 
+                        request
+        
+        if not requestFunc then
+            notify("Webhook Error", "No HTTP request function available.", 3)
+            return
+        end
+        
+        local success, result = pcall(function()
+            return requestFunc({
+                Url = Config.VALID_WEBHOOK,
+                Method = "POST",
+                Headers = { 
+                    ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
+                    ["User-Agent"] = "LixHub-Webhook/1.0"
+                },
+                Body = body
+            })
+        end)
+        
+        if success and result and result.Success and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
+            notify("Webhook Success", "Macro '" .. MacroManager.currentMacroName .. "' sent!", 3)
+        else
+            notify("Webhook Error", "Failed to send macro.", 3)
+        end
     end,
 })
 
-    ImportInput = MacroTab:CreateInput({
-    Name = "Import Macro (Paste JSON)",
-    PlaceholderText = "Paste JSON here...",
+ImportInput = MacroTab:CreateInput({
+    Name = "Import Macro",
+    CurrentValue = "",
+    PlaceholderText = "Paste content here...",
     RemoveTextAfterFocusLost = true,
     Callback = function(text)
+        if not text or text:match("^%s*$") then
+            return
+        end
+        
+        local macroName = nil
+        
+        -- Detect if it's a URL, JSON content, or TXT content
+        if text:match("^https?://") then
+            -- Extract filename from URL for macro name (handle query parameters)
+            local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)%.txt") or text:match("/([^/?]+)$")
+            if fileName then
+                macroName = fileName:gsub("%.json.*$", ""):gsub("%.txt.*$", "")
+            else
+                macroName = "ImportedMacro_" .. os.time()
+            end
+            
+            -- Import from URL (will handle both JSON and TXT)
+            importMacroFromURL(text, macroName)
+        else
+            -- Check if it's JSON format
+            local isJSON = false
+            pcall(function()
+                local testDecode = Services.HttpService:JSONDecode(text)
+                isJSON = true
+            end)
+            
+            if isJSON then
+                -- Handle JSON import
+                local jsonData = nil
+                pcall(function()
+                    jsonData = Services.HttpService:JSONDecode(text)
+                end)
+                
+                macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
+                importMacroFromContent(text, macroName)
+            else
+                -- Handle TXT format - assume it's line-by-line action format
+                macroName = "ImportedTXT_" .. os.time()
+                importMacroFromTXT(text, macroName)
+            end
+        end
     end,
 })
 
@@ -1882,29 +2299,6 @@ end
                 end
             end
         end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        
-        if not State.AutoSkipWaves then
-            continue
-        end
-
-        if isInLobby() then 
-            continue 
-        end
-        
-        local success = pcall(function()
-            local voteFrame = Services.Players.LocalPlayer.PlayerGui.GameHUD.VoteSkipFrame
-            
-            if voteFrame.Visible and voteFrame.TitleLabel.Text == "Vote Skip:" then
-                print("voting to skip")
-                autoStartGame()
-            end
-        end)
     end
 end)
 
