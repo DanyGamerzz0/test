@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1766,7 +1766,9 @@ local AutoSkipWavesToggle = GameTab:CreateToggle({
    CurrentValue = false,
    Flag = "AutoSkipWaves",
    Callback = function(Value)
+    if not isInLobby() then
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ChangeSetting"):FireServer("AutoSkipWaves",Value)
+        end
    end,
 })
 
