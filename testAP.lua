@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.04"
+local script_version = "V0.01"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -626,33 +626,6 @@ end)
 mt.__namecall = generalHook
 setreadonly(mt, true)
 
-task.spawn(function()
-    local ViewNewRemote = Services.ReplicatedStorage.Remotes:WaitForChild("ViewNew")
-    
-    local mt = getrawmetatable(game)
-    setreadonly(mt, false)
-    local originalNamecall = mt.__namecall
-    
-    local hookFunc = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        
-        -- Block ViewNew remote if toggle is enabled
-        if not checkcaller() and State.RemoveGamePopups then
-            if self == ViewNewRemote and (method == "FireServer" or method == "InvokeServer") then
-                -- Silently block the remote call
-                return
-            end
-        end
-        
-        return originalNamecall(self, ...)
-    end)
-    
-    mt.__namecall = hookFunc
-    setreadonly(mt, true)
-    
-    print("disable game popups")
-end)
-
 local function getUnitNameFromTag(unitTag)
     return unitTag:match("^(.+) #%d+$") or unitTag
 end
@@ -667,7 +640,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     
     if not slot then
         updateDetailedStatus(string.format("Error: %s not equipped!", unitName))
-        warn(string.format("❌ %s is not in your loadout - skipping placement", unitName))
+        warn(string.format("%s is not in loadout - skipping placement", unitName))
         return false
     end
     
@@ -678,7 +651,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
         return false
     end
     
-    print(string.format("✓ Found %s in slot %d (GUID: %s)", unitName, slot, unitInfo.GUID))
+    print(string.format("Found %s in slot %d (GUID: %s)", unitName, slot, unitInfo.GUID))
     
     -- Get unit data to check cost
     local unitData = getUnitData(unitName)
@@ -733,7 +706,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
     
     if unitInstance then
         playbackUnitTagToInstance[action.Unit] = unitInstance
-        updateDetailedStatus(string.format("Placed %s ✓", action.Unit))
+        updateDetailedStatus(string.format("Placed %s", action.Unit))
         return true
     end
     
@@ -755,7 +728,7 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
     local unitName = getUnitNameFromTag(action.Unit)
     local currentUpgrade = unitInstance:GetAttribute("Upgrades") or 0
     
-    print(string.format("🔧 Attempting to upgrade %s (Current Level: %d)", action.Unit, currentUpgrade))
+    print(string.format("Attempting to upgrade %s (Current Level: %d)", action.Unit, currentUpgrade))
     
     -- Get unit data to determine upgrade cost
     local unitData = getUnitData(unitName)
@@ -769,22 +742,22 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
         
         if upgradeData and upgradeData.Cost then
             upgradeCost = upgradeData.Cost
-            print(string.format("💰 Upgrade cost for level %d->%d: $%d", currentUpgrade, nextUpgradeIndex, upgradeCost))
+            print(string.format("Upgrade cost for level %d->%d: $%d", currentUpgrade, nextUpgradeIndex, upgradeCost))
         else
-            print(string.format("⚠️ No upgrade data found for level %d (max level may be %d)", nextUpgradeIndex, #unitData.UpgradeStats))
+            print(string.format("No upgrade data found for level %d (max level may be %d)", nextUpgradeIndex, #unitData.UpgradeStats))
             -- If no more upgrades available, skip
             updateDetailedStatus(string.format("%s is max level (%d)", action.Unit, currentUpgrade))
             return true
         end
     else
-        print("⚠️ No UpgradeStats found in unit data for: " .. unitName)
+        print("No UpgradeStats found in unit data for: " .. unitName)
         updateDetailedStatus("Could not get upgrade data")
         return false
     end
     
     -- Wait for money if needed
     local currentMoney = getPlayerMoney()
-    print(string.format("💵 Current money: $%d | Need: $%d", currentMoney or 0, upgradeCost))
+    print(string.format("Current money: $%d | Need: $%d", currentMoney or 0, upgradeCost))
     
     if currentMoney and currentMoney < upgradeCost then
         updateDetailedStatus(string.format("Waiting for $%d to upgrade %s (have $%d)", upgradeCost, action.Unit, currentMoney))
@@ -810,10 +783,10 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
         -- Verify upgrade went through
         local newUpgrade = unitInstance:GetAttribute("Upgrades") or 0
         if newUpgrade > currentUpgrade then
-            print(string.format("✅ Upgrade successful: %d -> %d", currentUpgrade, newUpgrade))
+            print(string.format("Upgrade successful: %d -> %d", currentUpgrade, newUpgrade))
             updateDetailedStatus(string.format("Upgraded %s to level %d ✓", action.Unit, newUpgrade))
         else
-            print(string.format("⚠️ Upgrade may have failed: level still at %d", newUpgrade))
+            print(string.format("Upgrade may have failed: level still at %d", newUpgrade))
             updateDetailedStatus(string.format("Upgrade attempt for %s (level %d)", action.Unit, newUpgrade))
         end
         return true
@@ -842,7 +815,7 @@ local function executeUnitSell(action, actionIndex, totalActions)
     
     if success then
         playbackUnitTagToInstance[action.Unit] = nil
-        updateDetailedStatus(string.format("Sold %s ✓", action.Unit))
+        updateDetailedStatus(string.format("Sold %s", action.Unit))
         return true
     end
     
@@ -854,13 +827,13 @@ local function executeAbilityAction(action)
     local unitInstance = playbackUnitTagToInstance[action.Unit]
     
     if not unitInstance or not unitInstance.Parent then
-        print(string.format("⚠️ Cannot use ability - %s not found or sold", action.Unit))
+        print(string.format("Cannot use ability - %s not found or sold", action.Unit))
         return false
     end
     
     local abilitySlot = action.AbilitySlot
     
-    print(string.format("🔥 Using ability: %s slot %s", action.Unit, abilitySlot))
+    print(string.format("Using ability: %s slot %s", action.Unit, abilitySlot))
     
     local success = pcall(function()
         local remote = Services.Players.LocalPlayer.Character.CharacterHandler.Remotes.UnitAction
@@ -868,11 +841,11 @@ local function executeAbilityAction(action)
     end)
     
     if success then
-        print(string.format("✅ Ability fired: %s slot %s", action.Unit, abilitySlot))
+        print(string.format("Ability fired: %s slot %s", action.Unit, abilitySlot))
         return true
     end
     
-    print(string.format("❌ Ability failed: %s slot %s", action.Unit, abilitySlot))
+    print(string.format("Ability failed: %s slot %s", action.Unit, abilitySlot))
     return false
 end
 
@@ -910,10 +883,10 @@ local function scheduleAbility(action, targetTime)
         
         -- Game ended before ability fired
         MacroState.scheduledAbilities[schedulerId] = nil
-        print(string.format("⚠️ Scheduled ability cancelled - game ended"))
+        print(string.format("Scheduled ability cancelled - game ended"))
     end)
     
-    print(string.format("📅 Scheduled ability: %s slot %s for %.2fs", 
+    print(string.format("Scheduled ability: %s slot %s for %.2fs", 
         action.Unit, action.AbilitySlot, targetTime))
 end
 
@@ -931,19 +904,19 @@ local function playMacro()
     local totalActions = #MacroState.currentMacro
     local playbackStartTime = tick() - MacroState.gameStartTime
     
-    print(string.format("📼 Starting playback: %d actions", totalActions))
-    print(string.format("📼 Playback starting %.2fs into game", playbackStartTime))
+    print(string.format("Starting playback: %d actions", totalActions))
+    print(string.format("Playback starting %.2fs into game", playbackStartTime))
     
     for i, action in ipairs(MacroState.currentMacro) do
         if not MacroState.isPlaybackEnabled or not MacroState.gameInProgress then
-            print(string.format("⚠️ Stopping playback at action %d/%d", i, totalActions))
+            print(string.format("Stopping playback at action %d/%d", i, totalActions))
             updateDetailedStatus("Game ended - stopped playback")
             clearSpawnIdMappings()
             MacroState.scheduledAbilities = {}
             return
         end
         
-        print(string.format("📼 Action %d: Type=%s, Time=%s", 
+        print(string.format("Action %d: Type=%s, Time=%s", 
             i, action.Type, tostring(action.Time)))
         
         -- Handle abilities specially - always respect timing
@@ -975,19 +948,19 @@ local function playMacro()
             local actionTime = tonumber(action.Time)
             
             if not actionTime then
-                print("⚠️ Action missing Time, executing immediately")
+                print("Action missing Time, executing immediately")
             else
                 local currentGameTime = tick() - MacroState.gameStartTime
                 local waitTime = actionTime - currentGameTime
                 
-                print(string.format("📼 Game time: %.2fs | Action time: %.2fs | Wait: %.2fs", 
+                print(string.format("Game time: %.2fs | Action time: %.2fs | Wait: %.2fs", 
                     currentGameTime, actionTime, waitTime))
                 
                 if waitTime > 1 then
                     local waitStart = tick()
                     while (tick() - waitStart) < waitTime do
                         if not MacroState.isPlaybackEnabled or not MacroState.gameInProgress then
-                            print("⚠️ Game ended while waiting - stopping playback")
+                            print("Game ended while waiting - stopping playback")
                             updateDetailedStatus("Game ended - stopped playback")
                             clearSpawnIdMappings()
                             MacroState.scheduledAbilities = {}
@@ -1006,7 +979,7 @@ local function playMacro()
                     task.wait(waitTime)
                 else
                     -- Action time already passed, execute immediately
-                    print(string.format("⚠️ Action time already passed (%.2fs late), executing now", -waitTime))
+                    print(string.format("Action time already passed (%.2fs late), executing now", -waitTime))
                     updateDetailedStatus(string.format("(%d/%d) Catching up - executing %s", 
                         i, totalActions, action.Unit or "action"))
                 end
@@ -1019,7 +992,7 @@ local function playMacro()
         end
         
         if not MacroState.isPlaybackEnabled or not MacroState.gameInProgress then
-            print("⚠️ Game ended before action execution")
+            print("Game ended before action execution")
             updateDetailedStatus("Game ended - stopped playback")
             clearSpawnIdMappings()
             MacroState.scheduledAbilities = {}
@@ -1802,7 +1775,11 @@ local RemoveGamePopupsToggle = GameTab:CreateToggle({
    CurrentValue = false,
    Flag = "RemoveGamePopups",
    Callback = function(Value)
-        State.RemoveGamePopups = Value
+        if Value then
+            if not isInLobby() then
+                game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("ViewNew"):Destroy()
+            end
+        end
    end,
 })
 
