@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -125,6 +125,8 @@ local State = {
     AutoStartGame = false,
     AntiAfkKickEnabled = false,
     enableAutoExecute = false,
+    RemoveGamePopups = false,
+    SendStageCompletedWebhook = false,
 }
 
 local loadingRetries = {
@@ -458,7 +460,7 @@ local generalHook = newcclosure(function(self, ...)
                 local unitGUID = args[2]
                 local position = args[3]
                 
-                print(string.format("📝 Placement detected: GUID=%s at (%.1f, %.1f, %.1f)", 
+                print(string.format("Placement detected: GUID=%s at (%.1f, %.1f, %.1f)", 
                     unitGUID, position.X, position.Y, position.Z))
                 
                 local unitName = nil
@@ -474,11 +476,11 @@ local generalHook = newcclosure(function(self, ...)
                 end
                 
                 if not unitName then
-                    warn("❌ Could not determine unit name from GUID:", unitGUID)
+                    warn("Could not determine unit name from GUID:", unitGUID)
                     return
                 end
                 
-                print(string.format("✅ Placing unit: %s (Slot %d)", unitName, slot))
+                print(string.format("Placing unit: %s (Slot %d)", unitName, slot))
                 
                 task.wait(0.5)
                 
@@ -523,7 +525,7 @@ local generalHook = newcclosure(function(self, ...)
                         
                         if candidates[1].distance < 10 then
                             unitInstance = candidates[1].instance
-                            print(string.format("✅ Found unit at distance %.2f on attempt %d", 
+                            print(string.format("Found unit at distance %.2f on attempt %d", 
                                 candidates[1].distance, attempt))
                             break
                         end
@@ -548,10 +550,10 @@ local generalHook = newcclosure(function(self, ...)
     
     table.insert(MacroState.currentMacro, record)
     
-    print(string.format("✓ Recorded: %s at %.2fs from game start (Instance=%s)", 
+    print(string.format("Recorded: %s at %.2fs from game start (Instance=%s)", 
         unitTag, timeFromGameStart, unitInstance.Name))
 else
-    warn("❌ Failed to find placed unit in workspace!")
+    warn("Failed to find placed unit in workspace!")
 end
                 
             -- UPGRADE HOOK
@@ -560,7 +562,7 @@ end
                 
                 local unitTag = recordingInstanceToTag[unitInstance]
                 if not unitTag then
-                    warn("⚠️ Upgrade detected for untracked unit:", unitInstance.Name)
+                    warn("Upgrade detected for untracked unit:", unitInstance.Name)
                     return
                 end
                 
@@ -570,7 +572,7 @@ end
                     Time = string.format("%.2f", timeFromGameStart)
                 })
                 
-                print(string.format("✓ Recorded upgrade: %s at %.2fs from game start (Instance=%s)", 
+                print(string.format("Recorded upgrade: %s at %.2fs from game start (Instance=%s)", 
                     unitTag, timeFromGameStart, unitInstance.Name))
                 
             -- SELL HOOK
@@ -579,7 +581,7 @@ end
                 
                 local unitTag = recordingInstanceToTag[unitInstance]
                 if not unitTag then
-                    warn("⚠️ Sell detected for untracked unit:", unitInstance.Name)
+                    warn("Sell detected for untracked unit:", unitInstance.Name)
                     return
                 end
                 
@@ -589,7 +591,7 @@ end
                     Time = string.format("%.2f", timeFromGameStart)
                 })
                 
-                print(string.format("✓ Recorded sell: %s at %.2fs from game start (Instance=%s)", 
+                print(string.format("Recorded sell: %s at %.2fs from game start (Instance=%s)", 
                     unitTag, timeFromGameStart, unitInstance.Name))
                 
                 recordingInstanceToTag[unitInstance] = nil
@@ -599,7 +601,7 @@ end
     
     local unitTag = recordingInstanceToTag[unitInstance]
     if not unitTag then
-        warn("⚠️ Ability detected for untracked unit:", unitInstance.Name)
+        warn("Ability detected for untracked unit:", unitInstance.Name)
         return
     end
     
@@ -612,7 +614,7 @@ end
         Time = string.format("%.2f", timeFromGameStart)
     })
     
-    print(string.format("✓ Recorded ability: %s used ability slot %s at %.2fs from game start", 
+    print(string.format("Recorded ability: %s used ability slot %s at %.2fs from game start", 
         unitTag, abilitySlot, timeFromGameStart))
 end
         end)
@@ -623,6 +625,33 @@ end)
 
 mt.__namecall = generalHook
 setreadonly(mt, true)
+
+task.spawn(function()
+    local ViewNewRemote = Services.ReplicatedStorage.Remotes:WaitForChild("ViewNew")
+    
+    local mt = getrawmetatable(game)
+    setreadonly(mt, false)
+    local originalNamecall = mt.__namecall
+    
+    local hookFunc = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        
+        -- Block ViewNew remote if toggle is enabled
+        if not checkcaller() and State.RemoveGamePopups then
+            if self == ViewNewRemote and (method == "FireServer" or method == "InvokeServer") then
+                -- Silently block the remote call
+                return
+            end
+        end
+        
+        return originalNamecall(self, ...)
+    end)
+    
+    mt.__namecall = hookFunc
+    setreadonly(mt, true)
+    
+    print("disable game popups")
+end)
 
 local function getUnitNameFromTag(unitTag)
     return unitTag:match("^(.+) #%d+$") or unitTag
@@ -1667,7 +1696,7 @@ end
 Button = LobbyTab:CreateButton({
    Name = "Return to lobby",
    Callback = function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("StageEnd"):FireServer("Lobby")
+        Services.TeleportService:Teleport(76806550943352, Services.Players.LocalPlayer)
    end,
 })
 
@@ -1769,7 +1798,7 @@ local AutoSkipWavesToggle = GameTab:CreateToggle({
 })
 
 local RemoveGamePopupsToggle = GameTab:CreateToggle({
-   Name = "Remove game popups",
+   Name = "Disable game popups",
    CurrentValue = false,
    Flag = "RemoveGamePopups",
    Callback = function(Value)
@@ -2197,20 +2226,95 @@ CheckMacroUnitsButton = MacroTab:CreateButton({
         
         local macro = MacroManager.macros[MacroManager.currentMacroName] or loadMacroFromFile(MacroManager.currentMacroName)
         
-        if not macro then
+        if not macro or #macro == 0 then
             notify("Error", "Could not load macro", 3)
             return
         end
         
-        local isValid, message = validateMacro(macro)
-        
-        if isValid then
-            notify("Macro Valid", message, 4)
-        else
-            notify("Macro Invalid", message, 6)
+        -- Collect all unique units from macro
+        local requiredUnits = {}
+        for _, action in ipairs(macro) do
+            if action.Type == "spawn_unit" and action.Unit then
+                local unitName = getUnitNameFromTag(action.Unit)
+                if not requiredUnits[unitName] then
+                    requiredUnits[unitName] = {
+                        count = 0,
+                        equipped = false,
+                        slot = nil
+                    }
+                end
+                requiredUnits[unitName].count = requiredUnits[unitName].count + 1
+            end
         end
+        
+        if not next(requiredUnits) then
+            notify("No Units", "This macro doesn't spawn any units", 3)
+            return
+        end
+        
+        -- Get equipped units
+        local equipped = getEquippedUnits()
+        
+        if not next(equipped) then
+            notify("Error", "Could not load equipped units data", 3)
+            return
+        end
+        
+        -- Check which units are equipped
+        for slot, data in pairs(equipped) do
+            if requiredUnits[data.Name] then
+                requiredUnits[data.Name].equipped = true
+                requiredUnits[data.Name].slot = slot
+            end
+        end
+        
+        -- Build result message
+        local equippedList = {}
+        local missingList = {}
+        
+        for unitName, info in pairs(requiredUnits) do
+            local unitText = unitName
+            if info.equipped then
+                unitText = unitText .. string.format(" (Slot %d)", info.slot)
+                table.insert(equippedList, unitText)
+            else
+                table.insert(missingList, unitText)
+            end
+        end
+        
+        table.sort(equippedList)
+        table.sort(missingList)
+        
+        -- Create notification message
+        local message = ""
+        
+        if #equippedList > 0 then
+            message = message .. "Equipped:\n" .. table.concat(equippedList, "\n")
+        end
+        
+        if #missingList > 0 then
+            if message ~= "" then
+                message = message .. "\n\n"
+            end
+            message = message .. "Missing:\n" .. table.concat(missingList, "\n")
+        end
+        
+        -- Determine title and duration
+        local title = ""
+        local duration = 5
+        
+        if #missingList > 0 then
+            title = "Missing Units"
+            duration = 5
+        else
+            title = "All Units Equipped"
+            duration = 5
+        end
+        
+        notify(title, message, duration)
     end,
 })
+
 
 Div2 = MacroTab:CreateDivider()
 
