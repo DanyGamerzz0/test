@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1145,7 +1145,7 @@ local function validateMacro(macro)
     end
     
     -- Get equipped units
-    print("🔍 Checking equipped units...")
+    print("Checking equipped units...")
     local equipped = getEquippedUnits()
     
     if not next(equipped) then
@@ -1169,7 +1169,7 @@ local function validateMacro(macro)
         return false, "Missing units in loadout:\n" .. table.concat(missingUnits, ", ")
     end
     
-    return true, "✓ All required units equipped"
+    return true, "All required units equipped"
 end
 
 local function sendWebhook(messageType, stageInfo, playerStats, rewardsData, playerData)
@@ -1447,17 +1447,9 @@ local function exportMacroToClipboard(macroName, format)
         return
     end
     
-    -- Create JSON with metadata
-    local exportData = {
-        macroName = macroName,
-        version = script_version,
-        exportDate = os.date("%Y-%m-%d %H:%M:%S"),
-        actionCount = #macroData,
-        actions = macroData
-    }
-    
+    -- Export just the raw actions array (no metadata wrapper)
     local success, jsonData = pcall(function()
-        return Services.HttpService:JSONEncode(exportData)
+        return Services.HttpService:JSONEncode(macroData)
     end)
     
     if not success then
@@ -1526,11 +1518,17 @@ local function importMacroFromContent(jsonContent, macroName)
     -- Check if it has the export wrapper format
     if decodedData.actions and type(decodedData.actions) == "table" then
         importedActions = decodedData.actions
-        importedName = macroName or decodedData.macroName or ("ImportedMacro_" .. os.time())
+        -- Priority: provided macroName > macroName from JSON > fallback
+        if not macroName or macroName == "" then
+            importedName = decodedData.macroName or ("ImportedMacro_" .. os.time())
+        end
     -- Or if it's a raw action array
     elseif type(decodedData) == "table" and #decodedData > 0 then
         importedActions = decodedData
-        importedName = macroName or ("ImportedMacro_" .. os.time())
+        -- Use provided macroName or fallback
+        if not macroName or macroName == "" then
+            importedName = "ImportedMacro_" .. os.time()
+        end
     else
         notify("Import Error", "Unrecognized macro format.", 3)
         return
@@ -1558,8 +1556,7 @@ local function importMacroFromContent(jsonContent, macroName)
     MacroManager.macros[importedName] = importedActions
     saveMacroToFile(importedName, importedActions)
     
-    -- Refresh dropdown and select new macro
-    MacroDropdown:Refresh(getMacroList(), importedName)
+    -- Store name for later dropdown refresh
     MacroManager.currentMacroName = importedName
     MacroManager.currentMacro = importedActions
     
@@ -1647,7 +1644,11 @@ local function importMacroFromTXT(txtContent, macroName)
         return
     end
     
-    local cleanedName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    -- Use provided macroName or fallback
+    local cleanedName = ""
+    if macroName and macroName ~= "" then
+        cleanedName = macroName:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    end
     
     if cleanedName == "" then
         cleanedName = "ImportedTXT_" .. os.time()
@@ -1656,7 +1657,7 @@ local function importMacroFromTXT(txtContent, macroName)
     MacroManager.macros[cleanedName] = actions
     saveMacroToFile(cleanedName, actions)
     
-    MacroDropdown:Refresh(getMacroList(), cleanedName)
+    -- Store name for later dropdown refresh
     MacroManager.currentMacroName = cleanedName
     MacroManager.currentMacro = actions
     
@@ -1764,6 +1765,15 @@ local AutoSkipWavesToggle = GameTab:CreateToggle({
    Flag = "AutoSkipWaves",
    Callback = function(Value)
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ChangeSetting"):FireServer("AutoSkipWaves",Value)
+   end,
+})
+
+local RemoveGamePopupsToggle = GameTab:CreateToggle({
+   Name = "Remove game popups",
+   CurrentValue = false,
+   Flag = "RemoveGamePopups",
+   Callback = function(Value)
+        State.RemoveGamePopups = Value
    end,
 })
 
@@ -1967,7 +1977,7 @@ PlaybackToggle = MacroTab:CreateToggle({
             end
             
             if MacroState.playbackLoopRunning then
-                print("⚠️ Playback loop already running")
+                print("Playback loop already running")
                 return
             end
             
@@ -2140,9 +2150,8 @@ ImportInput = MacroTab:CreateInput({
             local fileName = text:match("/([^/?]+)%.json") or text:match("/([^/?]+)%.txt") or text:match("/([^/?]+)$")
             if fileName then
                 macroName = fileName:gsub("%.json.*$", ""):gsub("%.txt.*$", "")
-            else
-                macroName = "ImportedMacro_" .. os.time()
             end
+            -- macroName could be nil here, import functions will handle it
             
             -- Import from URL (will handle both JSON and TXT)
             importMacroFromURL(text, macroName)
@@ -2161,13 +2170,19 @@ ImportInput = MacroTab:CreateInput({
                     jsonData = Services.HttpService:JSONDecode(text)
                 end)
                 
-                macroName = (jsonData and jsonData.macroName) or ("ImportedMacro_" .. os.time())
+                macroName = (jsonData and jsonData.macroName) or nil
                 importMacroFromContent(text, macroName)
             else
                 -- Handle TXT format - assume it's line-by-line action format
-                macroName = "ImportedTXT_" .. os.time()
+                macroName = nil -- Let TXT import use fallback
                 importMacroFromTXT(text, macroName)
             end
+        end
+        
+        -- Refresh dropdown after any import
+        task.wait(0.1)
+        if MacroDropdown then
+            MacroDropdown:Refresh(getMacroList())
         end
     end,
 })
@@ -2190,9 +2205,9 @@ CheckMacroUnitsButton = MacroTab:CreateButton({
         local isValid, message = validateMacro(macro)
         
         if isValid then
-            notify("✓ Macro Valid", message, 4)
+            notify("Macro Valid", message, 4)
         else
-            notify("⚠️ Macro Invalid", message, 6)
+            notify("Macro Invalid", message, 6)
         end
     end,
 })
