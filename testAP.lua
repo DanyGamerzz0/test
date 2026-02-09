@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -262,10 +262,21 @@ local function loadAllMacros()
     end
 end
 
-local function getEquippedUnits()
+local function getEquippedUnits(forceRefresh)
+    -- Cache for 5 seconds to avoid expensive GC scan
+    if not forceRefresh and tick() - MacroState.lastEquippedUnitsCheck < 5 then
+        return MacroState.cachedEquippedUnits
+    end
+    
     local equippedUnits = {}
     
-    for _, obj in pairs(getgc(true)) do
+    -- Use filtergc to only get tables, much faster than getgc(true)
+    local tables = filtergc and filtergc({
+        ["Mode"] = "Table"
+    }) or getgc(true)
+    
+    for _, obj in pairs(tables) do
+        -- Skip if it's an Instance (only relevant if using getgc fallback)
         if typeof(obj) == "Instance" then continue end
         
         if type(obj) == "table" then
@@ -295,6 +306,8 @@ local function getEquippedUnits()
                         end
                     end
                     
+                    MacroState.cachedEquippedUnits = equippedUnits
+                    MacroState.lastEquippedUnitsCheck = tick()
                     return equippedUnits
                 end
             end
