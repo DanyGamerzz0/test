@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -263,52 +263,64 @@ local function loadAllMacros()
 end
 
 local function getEquippedUnits(forceRefresh)
-    -- Cache for 5 seconds to avoid expensive GC scan
-    if not forceRefresh and tick() - MacroState.lastEquippedUnitsCheck < 5 then
+    -- Return cached if valid
+    if not forceRefresh and MacroState.equippedUnitsValid and next(MacroState.cachedEquippedUnits) then
         return MacroState.cachedEquippedUnits
     end
     
     local equippedUnits = {}
     
-    -- Use filtergc to only get tables, much faster than getgc(true)
-    local tables = filtergc and filtergc({
-        ["Mode"] = "Table"
-    }) or getgc(true)
+    local success, tables = pcall(function()
+        -- Use filtergc if available, otherwise fallback to getgc
+        if filtergc then
+            return filtergc({
+                ["Mode"] = "Table"
+            })
+        else
+            return getgc(true)
+        end
+    end)
+    
+    if not success or not tables then
+        warn("Failed to get GC tables")
+        return equippedUnits
+    end
     
     for _, obj in pairs(tables) do
-        -- Skip if it's an Instance (only relevant if using getgc fallback)
         if typeof(obj) == "Instance" then continue end
         
         if type(obj) == "table" then
             local reqFunc = rawget(obj, "RequestPlayerData")
             
             if type(reqFunc) == "function" then
-                local success, data = pcall(function()
+                local dataSuccess, data = pcall(function()
                     return reqFunc(obj, Services.Players.LocalPlayer)
                 end)
                 
-                if success and data and data.EquippedUnits then
+                if dataSuccess and data and data.EquippedUnits and data.Inventory and data.Inventory.Units then
                     local equipped = data.EquippedUnits
                     local inventory = data.Inventory.Units
                     
                     for slot = 1, 6 do
                         local guid = equipped[tostring(slot)]
                         
-                        if guid then
+                        if guid and inventory[guid] then
                             local unit = inventory[guid]
-                            if unit then
+                            if unit and unit.Name then
                                 equippedUnits[slot] = {
                                     GUID = guid,
                                     Name = unit.Name,
-                                    Level = unit.Level
+                                    Level = unit.Level or 1
                                 }
                             end
                         end
                     end
                     
-                    MacroState.cachedEquippedUnits = equippedUnits
-                    MacroState.lastEquippedUnitsCheck = tick()
-                    return equippedUnits
+                    if next(equippedUnits) then
+                        MacroState.cachedEquippedUnits = equippedUnits
+                        MacroState.equippedUnitsValid = true
+                        return equippedUnits
+                    end
                 end
             end
         end
@@ -2244,17 +2256,20 @@ CheckMacroUnitsButton = MacroTab:CreateButton({
             return
         end
         
-        -- Get equipped units
-        local equipped = getEquippedUnits()
+        -- Get equipped units with error handling
+        local equipped = nil
+        local success = pcall(function()
+            equipped = getEquippedUnits(true)  -- Force refresh
+        end)
         
-        if not next(equipped) then
+        if not success or not equipped or not next(equipped) then
             notify("Error", "Could not load equipped units data", 3)
             return
         end
         
         -- Check which units are equipped
         for slot, data in pairs(equipped) do
-            if requiredUnits[data.Name] then
+            if data and data.Name and requiredUnits[data.Name] then
                 requiredUnits[data.Name].equipped = true
                 requiredUnits[data.Name].slot = slot
             end
@@ -2266,7 +2281,7 @@ CheckMacroUnitsButton = MacroTab:CreateButton({
         
         for unitName, info in pairs(requiredUnits) do
             local unitText = unitName
-            if info.equipped then
+            if info.equipped and info.slot then
                 unitText = unitText .. string.format(" (Slot %d)", info.slot)
                 table.insert(equippedList, unitText)
             else
@@ -2306,7 +2321,6 @@ CheckMacroUnitsButton = MacroTab:CreateButton({
         notify(title, message, duration)
     end,
 })
-
 
 Div2 = MacroTab:CreateDivider()
 
