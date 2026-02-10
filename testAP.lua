@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.06"
+local script_version = "V0.07"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -266,6 +266,21 @@ local function loadAllMacros()
             end
         end
     end
+end
+
+local function waitForLoadout()
+    local timeout = 0
+    while not PlayerLoadout.loaded and timeout < 30 do
+        task.wait(0.5)
+        timeout = timeout + 0.5
+    end
+    
+    if not PlayerLoadout.loaded then
+        warn("Loadout never loaded - proceeding anyway")
+        return false
+    end
+    
+    return true
 end
 
 local function prewarmUnitDataCache()
@@ -1170,6 +1185,10 @@ local function validateMacro(macro)
     if not macro or #macro == 0 then
         return false, "Macro is empty"
     end
+
+    if not PlayerLoadout.loaded then
+        waitForLoadout()
+    end
     
     -- Collect all unique unit names from macro
     local requiredUnits = {}
@@ -1746,6 +1765,11 @@ Button = LobbyTab:CreateButton({
     TextScaled = false,
     Callback = function(Value)
         State.AntiAfkKickEnabled = Value
+        if Value then
+            if game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("TPAFK") then
+                game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("TPAFK"):Destroy()
+            end
+        end
     end,
 })
 
@@ -1920,6 +1944,10 @@ RecordToggle = MacroTab:CreateToggle({
                 RecordToggle:Set(false)
                 return
             end
+
+            if not waitForLoadout() then
+                notify("Recording Warning", "Could not load unit data", 4)
+            end
             
             -- Wait for client to be fully loaded
             if not waitForClientLoaded() then
@@ -2001,6 +2029,12 @@ PlaybackToggle = MacroTab:CreateToggle({
             
             if not loadedMacro or #loadedMacro == 0 then
                 notify("Playback Error", "Macro is empty or doesn't exist")
+                PlaybackToggle:Set(false)
+                return
+            end
+
+            if not waitForLoadout() then
+                notify("Playback Error", "Could not load unit data", 4)
                 PlaybackToggle:Set(false)
                 return
             end
