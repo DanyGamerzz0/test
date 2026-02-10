@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -180,6 +180,7 @@ local MacroState = {
 local recordingUnitCounter = {} -- Maps "UnitName" -> count
 local recordingInstanceToTag = {} -- Maps Instance -> "UnitName #N"
 local playbackUnitTagToInstance = {} -- Maps "UnitName #N" -> Instance (for playback)
+local UnitDataCache = {}
 
 local function isInLobby()
     return Services.Workspace:FindFirstChild("Lobby") or false
@@ -267,6 +268,15 @@ local function loadAllMacros()
     end
 end
 
+local function prewarmUnitDataCache()
+    for slot, data in pairs(PlayerLoadout.units) do
+        if data and data.Name then
+            getUnitData(data.Name)
+        end
+    end
+    print("✓ Unit data cached for all equipped units")
+end
+
 local function fetchPlayerLoadout()
         print("Waiting for client data...")
     local timeout = 0
@@ -319,6 +329,7 @@ local function fetchPlayerLoadout()
                 if next(PlayerLoadout.units) then
                     PlayerLoadout.loaded = true
                     print("✓ Loadout cached:")
+                    prewarmUnitDataCache()
                     for slot, data in pairs(PlayerLoadout.units) do
                         print(string.format("  Slot %d: %s (GUID: %s)", slot, data.Name, data.GUID))
                     end
@@ -350,26 +361,21 @@ local function getSlotFromUnitName(unitName)
 end
 
 local function getUnitData(unitName)
+    if UnitDataCache[unitName] then
+        return UnitDataCache[unitName]
+    end
+    
     local success, result = pcall(function()
         local module = Services.ReplicatedStorage.Modules.Shared.Data.UnitData.Units:FindFirstChild(unitName)
-        
-        if not module then
-            return nil
-        end
-        
-        if module:IsA("ModuleScript") then
-            return require(module)
-        end
-        
-        return nil
+        if not module or not module:IsA("ModuleScript") then return nil end
+        return require(module)
     end)
     
     if success and result then
-        return result
+        UnitDataCache[unitName] = result
     end
     
-    warn(string.format("❌ Could not find unit data for: %s", unitName))
-    return nil
+    return success and result or nil
 end
 
 local function getPlayerMoney()
