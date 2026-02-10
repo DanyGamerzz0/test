@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -156,6 +156,11 @@ local MacroManager = {
     currentMacro = nil,
 }
 
+local PlayerLoadout = {
+    units = {},
+    loaded = false,
+}
+
 local MacroState = {
     isRecording = false,
     recordingHasStarted = false,
@@ -262,87 +267,85 @@ local function loadAllMacros()
     end
 end
 
-local function getEquippedUnits(forceRefresh)
-    -- Return cached if valid
-    if not forceRefresh and MacroState.equippedUnitsValid and next(MacroState.cachedEquippedUnits) then
-        return MacroState.cachedEquippedUnits
-    end
-    
-    local equippedUnits = {}
-    
-    local success, tables = pcall(function()
-        -- Use filtergc if available, otherwise fallback to getgc
-        if filtergc then
-            return filtergc({
-                ["Mode"] = "Table"
-            })
-        else
-            return getgc(true)
-        end
-    end)
-    
-    if not success or not tables then
-        warn("Failed to get GC tables")
-        return equippedUnits
-    end
-    
-    for _, obj in pairs(tables) do
-        if typeof(obj) == "Instance" then continue end
+local function fetchPlayerLoadout()
+        print("Waiting for client data...")
+    local timeout = 0
+    while timeout < 60 do
+        local clientIsLoaded = Services.Players.LocalPlayer:GetAttribute("ClientIsLoaded")
+        local clientLoaded = Services.Players.LocalPlayer:GetAttribute("ClientLoaded")
         
-        if type(obj) == "table" then
-            local reqFunc = rawget(obj, "RequestPlayerData")
+        if clientIsLoaded and clientLoaded then
+            break
+        end
+        
+        task.wait(0.5)
+        timeout = timeout + 0.5
+    end
+    
+    if timeout >= 60 then
+        warn("Client load timeout - proceeding anyway")
+    end
+    
+    print("Client loaded, fetching loadout...")
+    for _, obj in pairs(getgc(true)) do
+        if typeof(obj) == "Instance" then continue end
+        if type(obj) ~= "table" then continue end
+        
+        local reqFunc = rawget(obj, "RequestPlayerData")
+        
+        if type(reqFunc) == "function" then
+            local success, data = pcall(function()
+                return reqFunc(obj, Services.Players.LocalPlayer)
+            end)
             
-            if type(reqFunc) == "function" then
-                local dataSuccess, data = pcall(function()
-                    return reqFunc(obj, Services.Players.LocalPlayer)
-                end)
+            if success and data and data.EquippedUnits and data.Inventory and data.Inventory.Units then
+                local equipped = data.EquippedUnits
+                local inventory = data.Inventory.Units
                 
-                if dataSuccess and data and data.EquippedUnits and data.Inventory and data.Inventory.Units then
-                    local equipped = data.EquippedUnits
-                    local inventory = data.Inventory.Units
-                    
-                    for slot = 1, 6 do
-                        local guid = equipped[tostring(slot)]
-                        
-                        if guid and inventory[guid] then
-                            local unit = inventory[guid]
-                            if unit and unit.Name then
-                                equippedUnits[slot] = {
-                                    GUID = guid,
-                                    Name = unit.Name,
-                                    Level = unit.Level or 1
-                                }
-                            end
+                for slot = 1, 6 do
+                    local guid = equipped[tostring(slot)]
+                    if guid and inventory[guid] then
+                        local unit = inventory[guid]
+                        if unit and unit.Name then
+                            PlayerLoadout.units[slot] = {
+                                GUID = guid,
+                                Name = unit.Name,
+                                Level = unit.Level or 1
+                            }
                         end
                     end
-                    
-                    if next(equippedUnits) then
-                        MacroState.cachedEquippedUnits = equippedUnits
-                        MacroState.equippedUnitsValid = true
-                        return equippedUnits
+                end
+                
+                if next(PlayerLoadout.units) then
+                    PlayerLoadout.loaded = true
+                    print("✓ Loadout cached:")
+                    for slot, data in pairs(PlayerLoadout.units) do
+                        print(string.format("  Slot %d: %s (GUID: %s)", slot, data.Name, data.GUID))
                     end
+                    return true
                 end
             end
         end
     end
     
-    return equippedUnits
+    warn("Failed to fetch player loadout")
+    return false
+end
+
+local function getEquippedUnits()
+    return PlayerLoadout.units
 end
 
 local function getUnitFromSlot(slot)
-    local equipped = getEquippedUnits()
-    return equipped[slot]
+    return PlayerLoadout.units[slot]
 end
 
 local function getSlotFromUnitName(unitName)
-    local equipped = getEquippedUnits()
-    
-    for slot, data in pairs(equipped) do
+    for slot, data in pairs(PlayerLoadout.units) do
         if data.Name == unitName then
             return slot
         end
     end
-    
     return nil
 end
 
@@ -2509,6 +2512,9 @@ loadAllMacros()
 MacroDropdown:Refresh(getMacroList())
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
+task.spawn(function()
+    fetchPlayerLoadout()
+end)
 
 Rayfield:TopNotify({
     Title = "UI is hidden",
