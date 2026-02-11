@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -421,7 +421,7 @@ local function purchaseFromDioShop(itemName)
     local presents = game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory") and game:GetService("Players").LocalPlayer.ItemsInventory:FindFirstChild("Dio Presents")
     if not presents or not presents:FindFirstChild("Amount") then return nil end
     
-    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(math.floor(presents.Amount.Value / actualCost), itemName, "Dio Presents")
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(math.floor(presents.Amount.Value / actualCost), itemName, "OverHeaven")
 end
 
 local function purchaseFromGriffithShop(itemName)
