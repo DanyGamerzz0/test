@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.14"
+local script_version = "V0.15"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -106,7 +106,6 @@ local LocalPlayer = Services.Players.LocalPlayer
 local capturedRewards = {}
 
 local pendingUpgrades = {}
-local lastUseTime = {}
 local UPGRADE_VALIDATION_TIMEOUT = 1.5
 
 local webhookDebounce = false
@@ -299,7 +298,7 @@ CodeButton = LobbyTab:CreateButton({
 
     Section = LobbyTab:CreateSection("Auto Purchase")
 
-        local Toggle = LobbyTab:CreateToggle({
+         Toggle = LobbyTab:CreateToggle({
     Name = "Auto Purchase Dio Shop",
     CurrentValue = false,
     Flag = "AutoPurchaseDio",
@@ -324,7 +323,7 @@ CodeButton = LobbyTab:CreateButton({
     end,
 })
 
-    local Toggle = LobbyTab:CreateToggle({
+     Toggle = LobbyTab:CreateToggle({
     Name = "Auto Purchase Griffith Shop",
     CurrentValue = false,
     Flag = "AutoPurchaseGriffith",
@@ -1418,6 +1417,16 @@ end
     end,
 })
 
+    Toggle = GameTab:CreateToggle({
+    Name = "Auto Collect Dio Presents",
+    CurrentValue = false,
+    Flag = "AutoCollectDioPresents",
+    Info = "Automatically collects Dio Presents",
+    Callback = function(Value)
+        State.AutoCollectDioPresents = Value
+    end,
+})
+
 AutoplayTab:CreateSection("Auto Ability")
 
 local function getUnitsWithAbilities()
@@ -2394,21 +2403,6 @@ local function getPlayerUnitsFolder()
     end
     
     return playerUnitsFolder
-end
-
-local function getUnitUUIDFromInventory(displayName)
-    local unitsInventory = Services.Players.LocalPlayer:FindFirstChild("UnitsInventory")
-    if not unitsInventory then return nil end
-    
-    for _, folder in pairs(unitsInventory:GetChildren()) do
-        if folder:IsA("Folder") then
-            local unitValue = folder:FindFirstChild("Unit")
-            if unitValue and unitValue.Value == displayName then
-                return folder.Name -- This is the UUID
-            end
-        end
-    end
-    return nil
 end
 
 local function getEquippedUnitUUID(displayName)
@@ -5344,7 +5338,6 @@ local function onGameStart()
     gameStartTime = tick()
     State.gameStartRealTime = tick()
     capturedRewards = nil
-    lastUseTime = {}
 
     -- STOP ANY ONGOING PLAYBACK AND LET THE LOOP RESTART IT
     if isPlaybacking then
@@ -5434,6 +5427,43 @@ task.spawn(function()
             local success, err = pcall(checkAndBreakZafkielClock)
             if not success then
                 warn("Auto Break Zafkiel Clock error:", err)
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        if State.AutoCollectDioPresents and not isInLobby() then
+            if Services.Workspace:FindFirstChild("DioPresents") then
+                local hrp = Services.Players.LocalPlayer.Character and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                
+                if hrp then
+                    for _, present in pairs(Services.Workspace:FindFirstChild("DioPresents"):GetChildren()) do
+                        local activeValue = present:FindFirstChild("Active")
+                        if activeValue and activeValue:IsA("BoolValue") and activeValue.Value then
+                            -- Find proximity prompt
+                            local prompt = present:FindFirstChildOfClass("ProximityPrompt", true)
+                            if prompt then
+                                -- Save original position
+                                local originalPos = hrp.CFrame
+                                
+                                -- Teleport to present
+                                hrp.CFrame = present:IsA("Part") and present.CFrame
+                                task.wait(0.1)
+                                
+                                -- Collect it
+                                fireproximityprompt(prompt)
+                                task.wait(0.2)
+                                
+                                -- Teleport back
+                                hrp.CFrame = originalPos
+                            end
+                        end
+                    end
+                end
             end
         end
     end
@@ -5805,89 +5835,6 @@ task.spawn(function()
     end
     
     print("====================================")
-end)
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RayfieldToggle"
-screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
-screenGui.ResetOnSpawn = false
-
--- Create the circular image button
-local toggleButton = Instance.new("ImageButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Parent = screenGui
-toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-toggleButton.BorderSizePixel = 0
-toggleButton.Position = UDim2.new(0, 50, 0, 50)
-toggleButton.Size = UDim2.new(0, 50, 0, 50)
-toggleButton.Image = "rbxassetid://139436994731049" -- Put your logo image ID here like "rbxassetid://123456789"
-toggleButton.ScaleType = Enum.ScaleType.Fit
-
--- Make it circular
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(1, 0)
-corner.Parent = toggleButton
-
--- Rayfield visibility state
-local rayfieldVisible = true
-
--- Toggle function
-local function toggleRayfield()
-    rayfieldVisible = not rayfieldVisible
-    
-    if Rayfield then
-        Rayfield:SetVisibility(rayfieldVisible)
-    end
-end
-
--- Dragging variables
-local dragging = false
-local dragStart = nil
-local startPos = nil
-
--- Mouse input handling
-toggleButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = toggleButton.Position
-        
-        local connection
-        connection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-                connection:Disconnect()
-            end
-        end)
-    end
-end)
-
-toggleButton.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
--- Click to toggle
-local clickStartPos = nil
-toggleButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        clickStartPos = input.Position
-    end
-end)
-
-toggleButton.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if clickStartPos then
-            local deltaMove = input.Position - clickStartPos
-            local moveDistance = math.sqrt(deltaMove.X^2 + deltaMove.Y^2)
-            
-            if moveDistance < 10 then
-                toggleRayfield()
-            end
-        end
-    end
 end)
 
 task.spawn(function()
