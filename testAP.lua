@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -183,6 +183,7 @@ local recordingUnitCounter = {} -- Maps "UnitName" -> count
 local recordingInstanceToTag = {} -- Maps Instance -> "UnitName #N"
 local playbackUnitTagToInstance = {} -- Maps "UnitName #N" -> Instance (for playback)
 local UnitDataCache = {}
+local DEBUG = false
 
 local function isInLobby()
     return Services.Workspace:FindFirstChild("Lobby") or false
@@ -194,6 +195,10 @@ local function getCurrentWave()
     end)
     
     return success and wave or 0
+end
+
+local function debugPrint(...)
+    if DEBUG then print(...) end
 end
 
 local function notify(title, content, duration)
@@ -239,7 +244,7 @@ local function saveMacroToFile(name, macroData)
     local json = Services.HttpService:JSONEncode(macroData)
     writefile(getMacroFilename(name), json)
     
-    print(string.format("Saved macro: %s (%d actions)", name, #macroData))
+    debugPrint(string.format("Saved macro: %s (%d actions)", name, #macroData))
 end
 
 local function loadMacroFromFile(name)
@@ -264,7 +269,7 @@ local function loadAllMacros()
             local data = loadMacroFromFile(name)
             if data then
                 MacroManager.macros[name] = data
-                print(string.format("Loaded macro: %s (%d actions)", name, #data))
+                debugPrint(string.format("Loaded macro: %s (%d actions)", name, #data))
             end
         end
     end
@@ -285,17 +290,35 @@ local function waitForLoadout()
     return true
 end
 
+local function getUnitData(unitName)
+    if UnitDataCache[unitName] then
+        return UnitDataCache[unitName]
+    end
+    
+    local success, result = pcall(function()
+        local module = Services.ReplicatedStorage.Modules.Shared.Data.UnitData.Units:FindFirstChild(unitName)
+        if not module or not module:IsA("ModuleScript") then return nil end
+        return require(module)
+    end)
+    
+    if success and result then
+        UnitDataCache[unitName] = result
+    end
+    
+    return success and result or nil
+end
+
 local function prewarmUnitDataCache()
     for slot, data in pairs(PlayerLoadout.units) do
         if data and data.Name then
             getUnitData(data.Name)
         end
     end
-    print("✓ Unit data cached for all equipped units")
+    debugPrint("✓ Unit data cached for all equipped units")
 end
 
 local function fetchPlayerLoadout()
-        print("Waiting for client data...")
+        debugPrint("Waiting for client data...")
     local timeout = 0
     while timeout < 60 do
         local clientIsLoaded = Services.Players.LocalPlayer:GetAttribute("ClientIsLoaded")
@@ -313,7 +336,7 @@ local function fetchPlayerLoadout()
         warn("Client load timeout - proceeding anyway")
     end
     
-    print("Client loaded, fetching loadout...")
+    debugPrint("Client loaded, fetching loadout...")
     for _, obj in pairs(getgc(true)) do
         if typeof(obj) == "Instance" then continue end
         if type(obj) ~= "table" then continue end
@@ -345,10 +368,10 @@ local function fetchPlayerLoadout()
                 
                 if next(PlayerLoadout.units) then
                     PlayerLoadout.loaded = true
-                    print("✓ Loadout cached:")
+                    debugPrint("✓ Loadout cached:")
                     prewarmUnitDataCache()
                     for slot, data in pairs(PlayerLoadout.units) do
-                        print(string.format("  Slot %d: %s (GUID: %s)", slot, data.Name, data.GUID))
+                        debugPrint(string.format("  Slot %d: %s (GUID: %s)", slot, data.Name, data.GUID))
                     end
                     return true
                 end
@@ -377,24 +400,6 @@ local function getSlotFromUnitName(unitName)
     return nil
 end
 
-local function getUnitData(unitName)
-    if UnitDataCache[unitName] then
-        return UnitDataCache[unitName]
-    end
-    
-    local success, result = pcall(function()
-        local module = Services.ReplicatedStorage.Modules.Shared.Data.UnitData.Units:FindFirstChild(unitName)
-        if not module or not module:IsA("ModuleScript") then return nil end
-        return require(module)
-    end)
-    
-    if success and result then
-        UnitDataCache[unitName] = result
-    end
-    
-    return success and result or nil
-end
-
 local function getPlayerMoney()
     local success, money = pcall(function()
         return Services.Players.LocalPlayer:GetAttribute("Yen") or 0
@@ -412,7 +417,7 @@ local function canAffordUnit(unitName)
     local placementCost = unitData.BaseStats.Cost or 0
     local money = getPlayerMoney()
     
-    print(string.format("💰 Money: $%d | %s Placement Cost: $%d", money, unitName, placementCost))
+    debugPrint(string.format("💰 Money: $%d | %s Placement Cost: $%d", money, unitName, placementCost))
     
     return money >= placementCost
 end
@@ -433,7 +438,7 @@ local function waitForMoney(requiredAmount, actionDescription)
     while true do
         -- Check if game ended
         if not MacroState.isPlaybackEnabled or not MacroState.gameInProgress then
-            print("⚠️ Game ended while waiting for money - aborting wait")
+            debugPrint("⚠️ Game ended while waiting for money - aborting wait")
             return false
         end
         
@@ -522,7 +527,7 @@ local generalHook = newcclosure(function(self, ...)
                 local unitGUID = args[2]
                 local position = args[3]
                 
-                print(string.format("Placement detected: GUID=%s at (%.1f, %.1f, %.1f)", 
+                debugPrint(string.format("Placement detected: GUID=%s at (%.1f, %.1f, %.1f)", 
                     unitGUID, position.X, position.Y, position.Z))
                 
                 local unitName = nil
@@ -542,7 +547,7 @@ local generalHook = newcclosure(function(self, ...)
                     return
                 end
                 
-                print(string.format("Placing unit: %s (Slot %d)", unitName, slot))
+                debugPrint(string.format("Placing unit: %s (Slot %d)", unitName, slot))
                 
                 task.wait(0.5)
                 
@@ -587,7 +592,7 @@ local generalHook = newcclosure(function(self, ...)
                         
                         if candidates[1].distance < 10 then
                             unitInstance = candidates[1].instance
-                            print(string.format("Found unit at distance %.2f on attempt %d", 
+                            debugPrint(string.format("Found unit at distance %.2f on attempt %d", 
                                 candidates[1].distance, attempt))
                             break
                         end
@@ -612,7 +617,7 @@ local generalHook = newcclosure(function(self, ...)
     
     table.insert(MacroState.currentMacro, record)
     
-    print(string.format("Recorded: %s at %.2fs from game start (Instance=%s)", 
+    debugPrint(string.format("Recorded: %s at %.2fs from game start (Instance=%s)", 
         unitTag, timeFromGameStart, unitInstance.Name))
 else
     warn("Failed to find placed unit in workspace!")
@@ -634,7 +639,7 @@ end
                     Time = string.format("%.2f", timeFromGameStart)
                 })
                 
-                print(string.format("Recorded upgrade: %s at %.2fs from game start (Instance=%s)", 
+                debugPrint(string.format("Recorded upgrade: %s at %.2fs from game start (Instance=%s)", 
                     unitTag, timeFromGameStart, unitInstance.Name))
                 
             -- SELL HOOK
@@ -653,7 +658,7 @@ end
                     Time = string.format("%.2f", timeFromGameStart)
                 })
                 
-                print(string.format("Recorded sell: %s at %.2fs from game start (Instance=%s)", 
+                debugPrint(string.format("Recorded sell: %s at %.2fs from game start (Instance=%s)", 
                     unitTag, timeFromGameStart, unitInstance.Name))
                 
                 recordingInstanceToTag[unitInstance] = nil
@@ -676,7 +681,7 @@ end
         Time = string.format("%.2f", timeFromGameStart)
     })
     
-    print(string.format("Recorded ability: %s used ability slot %s at %.2fs from game start", 
+    debugPrint(string.format("Recorded ability: %s used ability slot %s at %.2fs from game start", 
         unitTag, abilitySlot, timeFromGameStart))
 end
         end)
@@ -713,7 +718,7 @@ local function executePlacementAction(action, actionIndex, totalActions)
         return false
     end
     
-    print(string.format("Found %s in slot %d (GUID: %s)", unitName, slot, unitInfo.GUID))
+    debugPrint(string.format("Found %s in slot %d (GUID: %s)", unitName, slot, unitInfo.GUID))
     
     -- Get unit data to check cost
     local unitData = getUnitData(unitName)
@@ -790,7 +795,7 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
     local unitName = getUnitNameFromTag(action.Unit)
     local currentUpgrade = unitInstance:GetAttribute("Upgrades") or 0
     
-    print(string.format("Attempting to upgrade %s (Current Level: %d)", action.Unit, currentUpgrade))
+    debugPrint(string.format("Attempting to upgrade %s (Current Level: %d)", action.Unit, currentUpgrade))
     
     -- Get unit data to determine upgrade cost
     local unitData = getUnitData(unitName)
@@ -804,22 +809,22 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
         
         if upgradeData and upgradeData.Cost then
             upgradeCost = upgradeData.Cost
-            print(string.format("Upgrade cost for level %d->%d: $%d", currentUpgrade, nextUpgradeIndex, upgradeCost))
+            debugPrint(string.format("Upgrade cost for level %d->%d: $%d", currentUpgrade, nextUpgradeIndex, upgradeCost))
         else
-            print(string.format("No upgrade data found for level %d (max level may be %d)", nextUpgradeIndex, #unitData.UpgradeStats))
+            debugPrint(string.format("No upgrade data found for level %d (max level may be %d)", nextUpgradeIndex, #unitData.UpgradeStats))
             -- If no more upgrades available, skip
             updateDetailedStatus(string.format("%s is max level (%d)", action.Unit, currentUpgrade))
             return true
         end
     else
-        print("No UpgradeStats found in unit data for: " .. unitName)
+        debugPrint("No UpgradeStats found in unit data for: " .. unitName)
         updateDetailedStatus("Could not get upgrade data")
         return false
     end
     
     -- Wait for money if needed
     local currentMoney = getPlayerMoney()
-    print(string.format("Current money: $%d | Need: $%d", currentMoney or 0, upgradeCost))
+    debugPrint(string.format("Current money: $%d | Need: $%d", currentMoney or 0, upgradeCost))
     
     if currentMoney and currentMoney < upgradeCost then
         updateDetailedStatus(string.format("Waiting for $%d to upgrade %s (have $%d)", upgradeCost, action.Unit, currentMoney))
@@ -845,10 +850,10 @@ local function executeUnitUpgrade(action, actionIndex, totalActions)
         -- Verify upgrade went through
         local newUpgrade = unitInstance:GetAttribute("Upgrades") or 0
         if newUpgrade > currentUpgrade then
-            print(string.format("Upgrade successful: %d -> %d", currentUpgrade, newUpgrade))
+            debugPrint(string.format("Upgrade successful: %d -> %d", currentUpgrade, newUpgrade))
             updateDetailedStatus(string.format("Upgraded %s to level %d ✓", action.Unit, newUpgrade))
         else
-            print(string.format("Upgrade may have failed: level still at %d", newUpgrade))
+            debugPrint(string.format("Upgrade may have failed: level still at %d", newUpgrade))
             updateDetailedStatus(string.format("Upgrade attempt for %s (level %d)", action.Unit, newUpgrade))
         end
         return true
@@ -889,13 +894,13 @@ local function executeAbilityAction(action)
     local unitInstance = playbackUnitTagToInstance[action.Unit]
     
     if not unitInstance or not unitInstance.Parent then
-        print(string.format("Cannot use ability - %s not found or sold", action.Unit))
+        debugPrint(string.format("Cannot use ability - %s not found or sold", action.Unit))
         return false
     end
     
     local abilitySlot = action.AbilitySlot
     
-    print(string.format("Using ability: %s slot %s", action.Unit, abilitySlot))
+    debugPrint(string.format("Using ability: %s slot %s", action.Unit, abilitySlot))
     
     local success = pcall(function()
         local remote = Services.Players.LocalPlayer.Character.CharacterHandler.Remotes.UnitAction
@@ -903,11 +908,11 @@ local function executeAbilityAction(action)
     end)
     
     if success then
-        print(string.format("Ability fired: %s slot %s", action.Unit, abilitySlot))
+        debugPrint(string.format("Ability fired: %s slot %s", action.Unit, abilitySlot))
         return true
     end
     
-    print(string.format("Ability failed: %s slot %s", action.Unit, abilitySlot))
+    debugPrint(string.format("Ability failed: %s slot %s", action.Unit, abilitySlot))
     return false
 end
 
@@ -961,19 +966,19 @@ local function playMacro()
     local totalActions = #MacroState.currentMacro
     local playbackStartTime = tick() - MacroState.gameStartTime
     
-    print(string.format("Starting playback: %d actions", totalActions))
-    print(string.format("Playback starting %.2fs into game", playbackStartTime))
+    debugPrint(string.format("Starting playback: %d actions", totalActions))
+    debugPrint(string.format("Playback starting %.2fs into game", playbackStartTime))
     
     for i, action in ipairs(MacroState.currentMacro) do
         if not MacroState.isPlaybackEnabled or not MacroState.gameInProgress then
-            print(string.format("Stopping playback at action %d/%d", i, totalActions))
+            debugPrint(string.format("Stopping playback at action %d/%d", i, totalActions))
             updateDetailedStatus("Game ended - stopped playback")
             clearSpawnIdMappings()
             MacroState.scheduledAbilities = {}
             return
         end
         
-        print(string.format("Action %d: Type=%s, Time=%s", 
+        debugPrint(string.format("Action %d: Type=%s, Time=%s", 
             i, action.Type, tostring(action.Time)))
         
         -- Handle abilities specially - always respect timing
@@ -1005,19 +1010,19 @@ local function playMacro()
             local actionTime = tonumber(action.Time)
             
             if not actionTime then
-                print("Action missing Time, executing immediately")
+                debugPrint("Action missing Time, executing immediately")
             else
                 local currentGameTime = tick() - MacroState.gameStartTime
                 local waitTime = actionTime - currentGameTime
                 
-                print(string.format("Game time: %.2fs | Action time: %.2fs | Wait: %.2fs", 
+                debugPrint(string.format("Game time: %.2fs | Action time: %.2fs | Wait: %.2fs", 
                     currentGameTime, actionTime, waitTime))
                 
                 if waitTime > 1 then
                     local waitStart = tick()
                     while (tick() - waitStart) < waitTime do
                         if not MacroState.isPlaybackEnabled or not MacroState.gameInProgress then
-                            print("Game ended while waiting - stopping playback")
+                            debugPrint("Game ended while waiting - stopping playback")
                             updateDetailedStatus("Game ended - stopped playback")
                             clearSpawnIdMappings()
                             MacroState.scheduledAbilities = {}
@@ -1036,7 +1041,7 @@ local function playMacro()
                     task.wait(waitTime)
                 else
                     -- Action time already passed, execute immediately
-                    print(string.format("Action time already passed (%.2fs late), executing now", -waitTime))
+                    debugPrint(string.format("Action time already passed (%.2fs late), executing now", -waitTime))
                     updateDetailedStatus(string.format("(%d/%d) Catching up - executing %s", 
                         i, totalActions, action.Unit or "action"))
                 end
@@ -1049,7 +1054,7 @@ local function playMacro()
         end
         
         if not MacroState.isPlaybackEnabled or not MacroState.gameInProgress then
-            print("Game ended before action execution")
+            debugPrint("Game ended before action execution")
             updateDetailedStatus("Game ended - stopped playback")
             clearSpawnIdMappings()
             MacroState.scheduledAbilities = {}
@@ -1117,8 +1122,7 @@ local function autoPlaybackLoop()
     
     MacroState.playbackLoopRunning = true
     MacroState.playbackLoopThread = coroutine.running()
-    MacroState.playbackLoopThread = nil
-    MacroState.playbackLoopRunning = false
+
     while MacroState.isPlaybackEnabled do
         -- Wait for game to start
         while not MacroState.gameInProgress and MacroState.isPlaybackEnabled do
@@ -1153,14 +1157,10 @@ local function autoPlaybackLoop()
             break
         end
         
-        local loadedMacro = loadMacroFromFile(MacroManager.currentMacroName)
-        if not loadedMacro or #loadedMacro == 0 then
-            updateMacroStatus("Error: Failed to load macro")
-            updateDetailedStatus("Could not load: " .. tostring(MacroManager.currentMacroName))
+        if not MacroState.currentMacro or #MacroState.currentMacro == 0 then
+            updateMacroStatus("Error: No macro loaded")
             break
         end
-        
-        MacroState.currentMacro = loadedMacro
         clearSpawnIdMappings()
         
         updateMacroStatus(string.format("Executing: %s (%d actions)", MacroManager.currentMacroName, #MacroState.currentMacro))
@@ -1189,6 +1189,7 @@ local function autoPlaybackLoop()
     updateMacroStatus("Playback Stopped")
     updateDetailedStatus("Ready")
     MacroState.playbackLoopRunning = false
+    MacroState.playbackLoopThread = nil
 end
 
 local function validateMacro(macro)
@@ -1210,7 +1211,7 @@ local function validateMacro(macro)
     end
     
     -- Get equipped units
-    print("Checking equipped units...")
+    debugPrint("Checking equipped units...")
     local equipped = getEquippedUnits()
     
     if not next(equipped) then
@@ -1383,7 +1384,7 @@ end
     end)
     
     if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-        print("Webhook sent successfully")
+        debugPrint("Webhook sent successfully")
         notify("Webhook Sent", "Successfully sent to Discord!", 2)
     else
         warn("Webhook failed:", response and response.StatusCode or "No response")
@@ -1395,14 +1396,14 @@ local function waitForClientLoaded()
     local maxWait = 60
     local startTime = tick()
     
-    print("Waiting for client to load...")
+    debugPrint("Waiting for client to load...")
     
     while (tick() - startTime) < maxWait do
         local clientIsLoaded = Services.Players.LocalPlayer:GetAttribute("ClientIsLoaded")
         local clientsLoaded = Services.Players.LocalPlayer:GetAttribute("ClientLoaded")
         
         if clientIsLoaded and clientsLoaded then
-            print("Client fully loaded!")
+            debugPrint("Client fully loaded!")
             return true
         end
         
@@ -1455,13 +1456,13 @@ local function handleEndGameActions()
     end
     
     if #actions == 0 then
-        print("ℹNo auto end game actions enabled")
+        debugPrint("ℹNo auto end game actions enabled")
         return
     end
     
     -- Try each action until UI closes
     for _, action in ipairs(actions) do
-        print(string.format("Attempting auto %s...", action.name))
+        debugPrint(string.format("Attempting auto %s...", action.name))
         
         for attempt = 1, 5 do
             local success = pcall(function()
@@ -1469,7 +1470,7 @@ local function handleEndGameActions()
             end)
             
             if success then
-                print(string.format("Fired %s remote (attempt %d)", action.name, attempt))
+                debugPrint(string.format("Fired %s remote (attempt %d)", action.name, attempt))
             end
             
             -- Wait and check if UI closed (action succeeded)
@@ -1480,13 +1481,13 @@ local function handleEndGameActions()
             end)
             
             if uiClosed or not endGameUI.Parent then
-                print(string.format("Auto %s successful!", action.name))
+                debugPrint(string.format("Auto %s successful!", action.name))
                 notify("Auto Action", string.format("Auto %s activated", action.name), 2)
                 return
             end
         end
         
-        print(string.format("Auto %s failed after 5 attempts, trying next action...", action.name))
+        debugPrint(string.format("Auto %s failed after 5 attempts, trying next action...", action.name))
     end
     
     warn("All auto end game actions failed")
@@ -1969,7 +1970,7 @@ RecordToggle = MacroTab:CreateToggle({
                 currentWave = Services.ReplicatedStorage.GameConfig.Wave.Value
             end)
             
-            print(string.format("Recording enabled - Current wave: %d", currentWave))
+            debugPrint(string.format("Recording enabled - Current wave: %d", currentWave))
             
             -- Auto-skip intermission to start game
             autoStartGame()
@@ -2035,7 +2036,7 @@ PlaybackToggle = MacroTab:CreateToggle({
             end
             
             -- Load the macro
-            local loadedMacro = MacroManager.macros[MacroManager.currentMacroName] or loadMacroFromFile(MacroManager.currentMacroName)
+            local loadedMacro = loadMacroFromFile(MacroManager.currentMacroName)
             
             if not loadedMacro or #loadedMacro == 0 then
                 notify("Playback Error", "Macro is empty or doesn't exist")
@@ -2063,7 +2064,7 @@ PlaybackToggle = MacroTab:CreateToggle({
             end
             
             if MacroState.playbackLoopRunning then
-                print("Playback loop already running")
+                debugPrint("Playback loop already running")
                 return
             end
             
@@ -2451,7 +2452,7 @@ task.spawn(function()
         
         -- Track wave changes for timing
         if wave ~= MacroState.lastWave and wave >= 1 then
-            print(string.format("Wave changed: %d -> %d", MacroState.lastWave, wave))
+            debugPrint(string.format("Wave changed: %d -> %d", MacroState.lastWave, wave))
             MacroState.currentWave = wave
             MacroState.waveStartTime = tick()
             MacroState.lastWave = wave
@@ -2463,11 +2464,11 @@ task.spawn(function()
                 MacroState.waveStartTime = tick()
                 MacroState.currentWave = 1
                 
-                print(string.format("✓ GAME STARTED (Wave %d)", wave))
+                debugPrint(string.format("✓ GAME STARTED (Wave %d)", wave))
                 
                 -- Auto-start recording if enabled
                 if MacroState.isRecording and not MacroState.recordingHasStarted then
-    print("Starting recording now")
+    debugPrint("Starting recording now")
     MacroState.recordingHasStarted = true
     MacroState.recordingStartTime = tick()  -- Reset start time
     
@@ -2483,7 +2484,7 @@ end
                 
                 -- Playback will auto-start via the autoPlaybackLoop
                 if MacroState.isPlaybackEnabled then
-                    print("Game started - playback loop will start macro")
+                    debugPrint("Game started - playback loop will start macro")
                 end
             end
         end
@@ -2506,7 +2507,7 @@ task.spawn(function()
             local voteFrame = Services.Players.LocalPlayer.PlayerGui.GameHUD.VoteSkipFrame
             
             if voteFrame.Visible and voteFrame.TitleLabel.Text == "Vote Start:" then
-                print("voting to start")
+                debugPrint("voting to start")
                 autoStartGame()
             end
         end)
@@ -2551,7 +2552,7 @@ local success = pcall(function()
                 clearSpawnIdMappings()
                 updateMacroStatus("Game ended - waiting for next...")
                 updateDetailedStatus("Ready for next game")
-                print("Game ended - playback will restart on next game")
+                debugPrint("Game ended - playback will restart on next game")
             end
             
             -- Send webhook if enabled
