@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -5539,7 +5539,6 @@ if not isInLobby() then
                     name = "Auto Retry",
                     call = function()
                         for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.EndGUI.Main.Stage.Button.Retry.Button.MouseButton1Click)) do
-                            connection:Enable()
                             connection:Fire()
                         end
                     end,
