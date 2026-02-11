@@ -11,7 +11,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Guardians",
@@ -196,6 +196,8 @@ local State = {
     AutoStartGame = false,
     AutoPurchaseGriffith = false,
     AutoPurchaseGriffithSelected = {},
+    AutoPurchaseDio = false,
+    AutoPurchaseDioSelected = {},
     AutoPurchaseRagna = false,
     AutoPurchaseRagnaSelected = {},
     AutoJoinDelay = 0,
@@ -297,6 +299,31 @@ CodeButton = LobbyTab:CreateButton({
 
     Section = LobbyTab:CreateSection("Auto Purchase")
 
+        local Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Purchase Dio Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseDio",
+    Callback = function(Value)
+        State.AutoPurchaseDio = Value
+    end,
+})
+
+ Dropdown = LobbyTab:CreateDropdown({
+    Name = "Select Dio Item",
+    Options = {
+        "Artifacts Trait Reroll",
+        "TraitReroll",
+        "SuperStatReroll",
+        "StatReroll",
+    },
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "DioItemSelector",
+    Callback = function(Options)
+        State.AutoPurchaseDioSelected = Options
+    end,
+})
+
     local Toggle = LobbyTab:CreateToggle({
     Name = "Auto Purchase Griffith Shop",
     CurrentValue = false,
@@ -380,6 +407,23 @@ local ragnaItemMap = {
     ["Night Market Coins"] = 50,
 }
 
+local dioItemMap = {
+    ["Artifacts Trait Reroll"] = 750,
+    ["TraitReroll"] = 500,
+    ["SuperStatReroll"] = 250,
+    ["StatReroll"] = 500,
+}
+
+local function purchaseFromDioShop(itemName)
+    local actualCost = dioItemMap[itemName]
+    if not actualCost then return nil end
+    
+    local presents = game:GetService("Players").LocalPlayer:FindFirstChild("ItemsInventory") and game:GetService("Players").LocalPlayer.ItemsInventory:FindFirstChild("Dio Presents")
+    if not presents or not presents:FindFirstChild("Amount") then return nil end
+    
+    return Services.ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("EventShop"):InvokeServer(math.floor(presents.Amount.Value / actualCost), itemName, "Dio Presents")
+end
+
 local function purchaseFromGriffithShop(itemName)
     local actualCost = griffithItemMap[itemName]
     if not actualCost then return nil end
@@ -402,6 +446,17 @@ end
 
     local function isInLobby()
     return workspace:FindFirstChild("RoomCreation") ~= nil
+end
+
+local function checkDioShop()
+    if not State.AutoPurchaseDio then return end
+    if not State.AutoPurchaseDioSelected or #State.AutoPurchaseDioSelected == 0 then return end
+    if not isInLobby() then return end
+    
+    for _, itemName in ipairs(State.AutoPurchaseDioSelected) do
+        purchaseFromDioShop(itemName)
+        task.wait(3)
+    end
 end
 
 local function checkGriffithShop()
@@ -433,6 +488,9 @@ task.spawn(function()
         end
         if State.AutoPurchaseRagna and State.AutoPurchaseRagnaSelected then
             checkRagnaShop()
+        end
+        if State.AutoPurchaseDio and State.AutoPurchaseDioSelected then
+            checkDioShop()
         end
         task.wait(1)
     end
