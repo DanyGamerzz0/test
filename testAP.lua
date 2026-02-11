@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.07"
+local script_version = "V0.08"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -175,6 +175,8 @@ local MacroState = {
     currentPlaybackThread = nil,
     recordingStartTime = 0,
     scheduledAbilities = {},
+    activeThreads = {},
+    playbackLoopThread = nil,
 }
 
 local recordingUnitCounter = {} -- Maps "UnitName" -> count
@@ -485,7 +487,18 @@ local function findNewUnitInWorkspace(unitName, excludeInstances)
     return candidates[#candidates]
 end
 
+local function cancelAllThreads()
+    for _, thread in ipairs(MacroState.activeThreads) do
+        pcall(function()
+            task.cancel(thread)
+        end)
+    end
+    MacroState.activeThreads = {}
+    MacroState.scheduledAbilities = {}
+end
+
 local function clearSpawnIdMappings()
+    cancelAllThreads()
     playbackUnitTagToInstance = {}
     recordingUnitCounter = {}
     recordingInstanceToTag = {}
@@ -907,21 +920,18 @@ end
 local function scheduleAbility(action, targetTime)
     local schedulerId = tostring(action) .. "_" .. tostring(targetTime)
     
-    -- Don't schedule if already scheduled
     if MacroState.scheduledAbilities[schedulerId] then
         return
     end
     
     MacroState.scheduledAbilities[schedulerId] = true
     
-    task.spawn(function()
-        -- Wait until target time
+    local thread = task.spawn(function()
         while MacroState.isPlaybackEnabled and MacroState.gameInProgress do
             local currentGameTime = tick() - MacroState.gameStartTime
             local waitTime = targetTime - currentGameTime
             
             if waitTime <= 0 then
-                -- Time to fire!
                 executeAbilityAction(action)
                 MacroState.scheduledAbilities[schedulerId] = nil
                 return
@@ -930,13 +940,11 @@ local function scheduleAbility(action, targetTime)
             task.wait(0.1)
         end
         
-        -- Game ended before ability fired
         MacroState.scheduledAbilities[schedulerId] = nil
-        print(string.format("Scheduled ability cancelled - game ended"))
     end)
     
-    print(string.format("Scheduled ability: %s slot %s for %.2fs", 
-        action.Unit, action.AbilitySlot, targetTime))
+    -- Track the thread so we can cancel it
+    table.insert(MacroState.activeThreads, thread)
 end
 
 local function playMacro()
@@ -1108,7 +1116,9 @@ local function autoPlaybackLoop()
     end
     
     MacroState.playbackLoopRunning = true
-    
+    MacroState.playbackLoopThread = coroutine.running()
+    MacroState.playbackLoopThread = nil
+    MacroState.playbackLoopRunning = false
     while MacroState.isPlaybackEnabled do
         -- Wait for game to start
         while not MacroState.gameInProgress and MacroState.isPlaybackEnabled do
@@ -2071,6 +2081,16 @@ PlaybackToggle = MacroTab:CreateToggle({
         else
             -- Stop playback
             MacroState.isPlaybackEnabled = false
+            cancelAllThreads()
+
+            if MacroState.playbackLoopThread then
+    pcall(function()
+        task.cancel(MacroState.playbackLoopThread)
+    end)
+    MacroState.playbackLoopThread = nil
+end
+
+MacroState.playbackLoopRunning = false
             
             -- Wait for loop to stop
             local timeout = 0
@@ -2498,6 +2518,8 @@ local success = pcall(function()
     
     StageEndRemote.OnClientEvent:Connect(function(eventType, stageInfo, playerStats, rewards, playerData)
         if eventType == "ShowResults" then
+
+            cancelAllThreads()
             
             -- Reset game state
             MacroState.gameInProgress = false
