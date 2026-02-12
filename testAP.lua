@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1775,11 +1775,13 @@ end
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
-    if not tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown then return end
+    --if not tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown then return end
 
 -- STORY
 if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
     setProcessingState("Story Auto Join")
+
+    debugPrint("storystage: " .. tostring(State.StoryStageSelected) .. " storyact: " .. tostring(State.StoryActSelected) .. " storydiff: " .. tostring(State.StoryDifficultySelected))
 
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.StoryStageSelected), "Story", tostring(State.StoryActSelected), true, tostring(State.StoryDifficultySelected), nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
@@ -1792,6 +1794,8 @@ end
 if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
     setProcessingState("Legend Stage Auto Join")
 
+    debugPrint("legendstage: " .. tostring(State.LegendStageSelected) .. " legendact: " .. tostring(State.LegendActSelected))
+
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.LegendStageSelected), "Legend", tostring(State.LegendActSelected), true, "Normal", nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
 
@@ -1802,6 +1806,8 @@ end
 -- RAID
 if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
     setProcessingState("Raid Auto Join")
+
+    debugPrint("raidstage: " .. tostring(State.RaidStageSelected) .. " raidact: " .. tostring(State.RaidActSelected))
 
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.RaidStageSelected), "Raid", tostring(State.RaidActSelected), true, "Normal", nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
@@ -1814,6 +1820,8 @@ end
 if State.AutoJoinSiege and State.SiegeStageSelected and State.SiegeActSelected then
     setProcessingState("Siege Auto Join")
 
+    debugPrint("siegestage: " .. tostring(State.SiegeStageSelected) .. " siegeact: " .. tostring(State.SiegeActSelected))
+
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.SiegeStageSelected), "Siege", tostring(State.SiegeActSelected), true, "Normal", nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
 
@@ -1824,6 +1832,8 @@ end
 -- CHALLENGE
 if State.AutoJoinChallenge and State.ChallengeStageSelected and State.ChallengeActSelected then
     setProcessingState("Challenge Auto Join")
+
+    debugPrint("challenge: " .. tostring(State.ChallengeStageSelected) .. " challengeact: " .. tostring(State.ChallengeActSelected) .. " challengetype: " .. tostring(State.ChallengeTypeSelected))
 
     -- ID = 1 is challenge id that we want to join
     -- type is the challenge type (Weekly,Daily,Regular)
@@ -1851,7 +1861,7 @@ local function loadStageData()
         
         -- Load all worlds
         for _, worldFolder in pairs(stageDataFolder:GetChildren()) do
-            if worldFolder.Name == "Templates" or not worldFolder:IsA("Folder") then continue end
+            if worldFolder.Name == "Templates" or not worldFolder:IsA("ModuleScript") then continue end
             
             local worldDisplayName = worldFolder.Name:gsub("_", " ")
             
