@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -90,6 +90,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 local LobbyTab = Window:CreateTab("Lobby", "tv")
+local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local MacroTab = Window:CreateTab("Macro", "tv")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -127,15 +128,45 @@ local State = {
     enableAutoExecute = false,
     RemoveGamePopups = false,
     SendStageCompletedWebhook = false,
+
+    --story
+    AutoJoinStory = false,
+    StoryStageSelected = nil,
+    StoryActSelected = nil,
+    StoryDifficultySelected = nil,
+    --legend
+    AutoJoinLegendStage = false,
+    LegendStageSelected = nil,
+    LegendActSelected = nil,
+    --challenge
+    AutoJoinChallenge = false,
+    ChallengeStageSelected = nil,
+    ChallengeActSelected = nil,
+    --raid
+    AutoJoinRaid = false,
+    RaidStageSelected = nil,
+    RaidActSelected = nil,
+    --siege
+    AutoJoinSiege = false,
+    SiegeStageSelected = nil,
+    SiegeActSelected = nil,
 }
 
 local loadingRetries = {
     story = 0,
     legend = 0,
-    portal = 0,
+    raid = 0,
+    siege = 0,
     ignoreWorlds = 0,
     modifiers = 0,
-    raid = 0,
+}
+
+local StageDataCache = {
+    story = {},
+    legend = {},
+    raid = {},
+    siege = {},
+    challenge = {}
 }
 
 local AutoJoinState = {
@@ -1730,6 +1761,142 @@ local function importMacroFromTXT(txtContent, macroName)
     notify("Import Success", "'" .. cleanedName .. "' imported from TXT (" .. #actions .. " actions)!", 3)
 end
 
+local function setProcessingState(action)
+    AutoJoinState.isProcessing = true
+    AutoJoinState.currentAction = action
+    AutoJoinState.lastActionTime = tick()
+end
+
+local function clearProcessingState()
+    AutoJoinState.isProcessing = false
+    AutoJoinState.currentAction = nil
+end
+
+local function checkAndExecuteHighestPriority()
+    if not isInLobby() then return end
+    if AutoJoinState.isProcessing then return end
+    if not tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown then return end
+
+-- STORY
+if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
+    setProcessingState("Story Auto Join")
+
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.StoryStageSelected), "Story", tostring(State.StoryActSelected), true, tostring(State.StoryDifficultySelected), nil)
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+
+    task.delay(5, clearProcessingState)
+    return
+end
+
+-- LEGEND STAGE
+if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
+    setProcessingState("Legend Stage Auto Join")
+
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.LegendStageSelected), "Legend", tostring(State.LegendActSelected), true, "Normal", nil)
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+
+    task.delay(5, clearProcessingState)
+    return
+end
+
+-- RAID
+if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
+    setProcessingState("Raid Auto Join")
+
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.RaidStageSelected), "Raid", tostring(State.RaidActSelected), true, "Normal", nil)
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+
+    task.delay(5, clearProcessingState)
+    return
+end
+
+-- SIEGE
+if State.AutoJoinSiege and State.SiegeStageSelected and State.SiegeActSelected then
+    setProcessingState("Siege Auto Join")
+
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.SiegeStageSelected), "Siege", tostring(State.SiegeActSelected), true, "Normal", nil)
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+
+    task.delay(5, clearProcessingState)
+    return
+end
+
+-- CHALLENGE
+if State.AutoJoinChallenge and State.ChallengeStageSelected and State.ChallengeActSelected then
+    setProcessingState("Challenge Auto Join")
+
+    -- ID = 1 is challenge id that we want to join
+    -- type is the challenge type (Weekly,Daily,Regular)
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create","Leaf_Village","Story","5",false,"Normal",{ID = 1,Type = "Daily"})
+    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+
+    task.delay(5, clearProcessingState)
+    return
+end
+end
+
+local function loadStageData()
+    local stageDataFolder = Services.ReplicatedStorage.Modules.Shared.Data.StageData
+    
+    if not stageDataFolder then
+        warn("StageData folder not found")
+        return false
+    end
+    
+    local success, err = pcall(function()
+        -- Clear cache
+        for category in pairs(StageDataCache) do
+            StageDataCache[category] = {}
+        end
+        
+        -- Load all worlds
+        for _, worldFolder in pairs(stageDataFolder:GetChildren()) do
+            if worldFolder.Name == "Templates" or not worldFolder:IsA("ModuleScript") then continue end
+            
+            local worldDisplayName = worldFolder.Name:gsub("_", " ")
+            
+            -- Check each category folder
+            for _, categoryFolder in pairs(worldFolder:GetChildren()) do
+                if not categoryFolder:IsA("Folder") then continue end
+                
+                local category = categoryFolder.Name:lower()
+                
+                if category == "story" or category == "legend" or category == "raid" or category == "siege" or category == "challenge" then
+                    -- Initialize world entry
+                    if not StageDataCache[category][worldFolder.Name] then
+                        StageDataCache[category][worldFolder.Name] = {
+                            displayName = worldDisplayName,
+                            internalName = worldFolder.Name,
+                            acts = {}
+                        }
+                    end
+                    
+                    -- Load acts
+                    for _, actModule in pairs(categoryFolder:GetChildren()) do
+                        if actModule:IsA("ModuleScript") then
+                            local success2, actData = pcall(require, actModule)
+                            if success2 and actData and actData.Name then
+                                table.insert(StageDataCache[category][worldFolder.Name].acts, {
+                                    displayName = actData.Name,
+                                    internalName = actModule.Name
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    if not success then
+        warn("Error loading stage data:", err)
+        return false
+    end
+    
+    debugPrint("✓ Stage data loaded")
+    return true
+end
+
 Button = LobbyTab:CreateButton({
    Name = "Return to lobby",
    Callback = function()
@@ -1767,6 +1934,267 @@ Button = LobbyTab:CreateButton({
    State.DisableNotifications = Value
    end,
 })
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Story",
+    CurrentValue = false,
+    Flag = "AutoJoinStory",
+    Callback = function(Value)
+        State.AutoJoinStory = Value
+    end,
+})
+
+local StoryStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Story - Select Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "StoryStageDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        
+        -- Find internal name
+        for _, world in pairs(StageDataCache.story) do
+            if world.displayName == name then
+                State.StoryStageSelected = world.internalName
+            end
+        end
+    end,
+})
+
+local StoryActDropdown = JoinerTab:CreateDropdown({
+    Name = "Story - Select Act",
+    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+    CurrentOption = {},
+    Flag = "StoryActDropdown",
+    Callback = function(Option)
+            local selectedOption = type(Option) == "table" and Option[1] or Option
+            if selectedOption == "Infinite" then
+                State.StoryActSelected = "Infinite"
+            else
+                local num = selectedOption:match("%d+")
+            if num then
+                State.StoryActSelected = num
+            end
+        end
+    end,
+})
+
+local StoryDifficultyDropdown = JoinerTab:CreateDropdown({
+    Name = "Story - Select Difficulty",
+    Options = {"Normal", "Nightmare"},
+    CurrentOption = {},
+    Flag = "StoryDifficultyDropdown",
+    Callback = function(selected)
+        State.StoryDifficultySelected = type(selected) == "table" and selected[1] or selected
+    end,
+})
+
+JoinerTab:CreateDivider()
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Legend Stage",
+    CurrentValue = false,
+    Flag = "AutoJoinLegendStage",
+    Callback = function(Value)
+        State.AutoJoinLegendStage = Value
+    end,
+})
+
+local LegendStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Legend - Select Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "LegendStageDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        
+        for _, world in pairs(StageDataCache.legend) do
+            if world.displayName == name then
+                State.LegendStageSelected = world.internalName
+                
+                local acts = {}
+                for _, act in ipairs(world.acts) do
+                    table.insert(acts, act.displayName)
+                end
+                LegendActDropdown:Refresh(acts)
+                break
+            end
+        end
+    end,
+})
+
+local LegendActDropdown = JoinerTab:CreateDropdown({
+    Name = "Legend - Select Act",
+    Options = {"Act 1", "Act 2", "Act 3"},
+    CurrentOption = {},
+    Flag = "LegendActDropdown",
+    Callback = function(selected)
+        local selectedOption = type(selected) == "table" and selected[1] or selected
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.LegendStageActSelected = num
+        end
+    end,
+})
+
+JoinerTab:CreateDivider()
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Raid",
+    CurrentValue = false,
+    Flag = "AutoJoinRaid",
+    Callback = function(Value)
+        State.AutoJoinRaid = Value
+    end,
+})
+
+local RaidStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Raid - Select Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "RaidStageDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        
+        for _, world in pairs(StageDataCache.raid) do
+            if world.displayName == name then
+                State.RaidStageSelected = world.internalName
+                
+                local acts = {}
+                for _, act in ipairs(world.acts) do
+                    table.insert(acts, act.displayName)
+                end
+                RaidActDropdown:Refresh(acts)
+                break
+            end
+        end
+    end,
+})
+
+local RaidActDropdown = JoinerTab:CreateDropdown({
+    Name = "Raid - Select Act",
+    Options = {"Act 1", "Act 2", "Act 3"},
+    CurrentOption = {},
+    Flag = "RaidActDropdown",
+    Callback = function(selected)
+        local selectedOption = type(selected) == "table" and selected[1] or selected
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.RaidActSelected = num
+            end
+    end,
+})
+
+JoinerTab:CreateDivider()
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Siege",
+    CurrentValue = false,
+    Flag = "AutoJoinSiege",
+    Callback = function(Value)
+        State.AutoJoinSiege = Value
+    end,
+})
+
+local SiegeStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Siege - Select Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "SiegeStageDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        
+        for _, world in pairs(StageDataCache.siege) do
+            if world.displayName == name then
+                State.SiegeStageSelected = world.internalName
+                
+                local acts = {}
+                for _, act in ipairs(world.acts) do
+                    table.insert(acts, act.displayName)
+                end
+                SiegeActDropdown:Refresh(acts)
+                break
+            end
+        end
+    end,
+})
+
+local SiegeActDropdown = JoinerTab:CreateDropdown({
+    Name = "Siege - Select Act",
+    Options = {"Act 1"},
+    CurrentOption = {},
+    Flag = "SiegeActDropdown",
+    Callback = function(selected)
+        local selectedOption = type(selected) == "table" and selected[1] or selected
+            
+            local num = selectedOption:match("%d+")
+            if num then
+                State.SiegeActSelected = num
+            end
+    end,
+})
+
+JoinerTab:CreateDivider()
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Challenge",
+    CurrentValue = false,
+    Flag = "AutoJoinChallenge",
+    Callback = function(Value)
+        State.AutoJoinChallenge = Value
+    end,
+})
+
+local ChallengeStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Challenge - Select Stage",
+    Options = {},
+    CurrentOption = {},
+    Flag = "ChallengeStageDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        
+        for _, world in pairs(StageDataCache.challenge) do
+            if world.displayName == name then
+                State.ChallengeStageSelected = world.internalName
+                
+                local acts = {}
+                for _, act in ipairs(world.acts) do
+                    table.insert(acts, act.displayName)
+                end
+                ChallengeActDropdown:Refresh(acts)
+                break
+            end
+        end
+    end,
+})
+
+local ChallengeActDropdown = JoinerTab:CreateDropdown({
+    Name = "Challenge - Select Act",
+    Options = {},
+    CurrentOption = {},
+    Flag = "ChallengeActDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        
+        if State.ChallengeStageSelected then
+            for _, world in pairs(StageDataCache.challenge) do
+                if world.internalName == State.ChallengeStageSelected then
+                    for _, act in ipairs(world.acts) do
+                        if act.displayName == name then
+                            State.ChallengeActSelected = act.internalName
+                            break
+                        end
+                    end
+                    break
+                end
+            end
+        end
+    end,
+})
+
+JoinerTab:CreateDivider()
 
      Toggle = GameTab:CreateToggle({
     Name = "Anti AFK (No kick message)",
@@ -2511,6 +2939,62 @@ task.spawn(function()
                 autoStartGame()
             end
         end)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        checkAndExecuteHighestPriority()
+    end
+end)
+
+task.spawn(function()
+    for attempt = 1, 3 do
+        if loadStageData() then
+            -- Populate all dropdowns
+            local storyList = {}
+            for _, world in pairs(StageDataCache.story) do
+                table.insert(storyList, world.displayName)
+            end
+            table.sort(storyList)
+            
+            local legendList = {}
+            for _, world in pairs(StageDataCache.legend) do
+                table.insert(legendList, world.displayName)
+            end
+            table.sort(legendList)
+            
+            local raidList = {}
+            for _, world in pairs(StageDataCache.raid) do
+                table.insert(raidList, world.displayName)
+            end
+            table.sort(raidList)
+            
+            local siegeList = {}
+            for _, world in pairs(StageDataCache.siege) do
+                table.insert(siegeList, world.displayName)
+            end
+            table.sort(siegeList)
+            
+            local challengeList = {}
+            for _, world in pairs(StageDataCache.challenge) do
+                table.insert(challengeList, world.displayName)
+            end
+            table.sort(challengeList)
+            
+            StoryStageDropdown:Refresh(storyList)
+            LegendStageDropdown:Refresh(legendList)
+            RaidStageDropdown:Refresh(raidList)
+            SiegeStageDropdown:Refresh(siegeList)
+            ChallengeStageDropdown:Refresh(challengeList)
+            
+            debugPrint("✓ Stage dropdowns populated")
+            break
+        end
+        
+        warn(string.format("Failed to load stages (attempt %d/3)", attempt))
+        task.wait(1)
     end
 end)
 
