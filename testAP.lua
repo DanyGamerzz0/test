@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.15"
+local script_version = "V0.16"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1860,13 +1860,21 @@ local function loadStageData()
         end
         
         -- Load all worlds
-        for _, worldFolder in pairs(stageDataFolder:GetChildren()) do
-            if worldFolder.Name == "Templates" or not worldFolder:IsA("ModuleScript") then continue end
+        for _, worldModule in pairs(stageDataFolder:GetChildren()) do
+            if worldModule.Name == "Templates" or not worldModule:IsA("ModuleScript") then continue end
             
-            local worldDisplayName = worldFolder.Name:gsub("_", " ")
+            -- Require the world module to get display name (StageName field)
+            local worldSuccess, worldData = pcall(require, worldModule)
+            if not worldSuccess then continue end
+            
+            -- Use StageName from module or fallback to formatted folder name
+            local worldDisplayName = worldData.StageName or worldModule.Name:gsub("_", " ")
+            local worldInternalName = worldModule.Name
+            
+            debugPrint(string.format("Found world: %s (Display: %s)", worldInternalName, worldDisplayName))
             
             -- Check each category folder within this world
-            for _, categoryFolder in pairs(worldFolder:GetChildren()) do
+            for _, categoryFolder in pairs(worldModule:GetChildren()) do
                 if not categoryFolder:IsA("Folder") then continue end
                 
                 local category = categoryFolder.Name:lower()
@@ -1890,11 +1898,12 @@ local function loadStageData()
                     
                     -- Only add this world to the category if it has acts
                     if #acts > 0 then
-                        StageDataCache[category][worldFolder.Name] = {
+                        StageDataCache[category][worldInternalName] = {
                             displayName = worldDisplayName,
-                            internalName = worldFolder.Name,
+                            internalName = worldInternalName,
                             acts = acts
                         }
+                        debugPrint(string.format("  Added %s: %s with %d acts", category, worldDisplayName, #acts))
                     end
                 end
             end
