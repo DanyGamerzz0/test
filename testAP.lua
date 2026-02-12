@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1861,7 +1861,7 @@ local function loadStageData()
         
         -- Load all worlds
         for _, worldFolder in pairs(stageDataFolder:GetChildren()) do
-            if worldFolder.Name == "Templates" or not worldFolder:IsA("ModuleScript") then continue end
+            if worldFolder.Name == "Templates" or not worldFolder:IsA("Folder") then continue end
             
             local worldDisplayName = worldFolder.Name:gsub("_", " ")
             
@@ -1873,26 +1873,28 @@ local function loadStageData()
                 
                 -- Only process if it's a valid category
                 if category == "story" or category == "legend" or category == "raid" or category == "siege" or category == "challenge" then
-                    -- Initialize world entry for THIS category only
-                    if not StageDataCache[category][worldFolder.Name] then
-                        StageDataCache[category][worldFolder.Name] = {
-                            displayName = worldDisplayName,
-                            internalName = worldFolder.Name,
-                            acts = {}
-                        }
-                    end
+                    local acts = {}
                     
                     -- Load acts from this category folder
                     for _, actModule in pairs(categoryFolder:GetChildren()) do
                         if actModule:IsA("ModuleScript") then
                             local success2, actData = pcall(require, actModule)
                             if success2 and actData and actData.Name then
-                                table.insert(StageDataCache[category][worldFolder.Name].acts, {
+                                table.insert(acts, {
                                     displayName = actData.Name,
                                     internalName = actModule.Name
                                 })
                             end
                         end
+                    end
+                    
+                    -- Only add this world to the category if it has acts
+                    if #acts > 0 then
+                        StageDataCache[category][worldFolder.Name] = {
+                            displayName = worldDisplayName,
+                            internalName = worldFolder.Name,
+                            acts = acts
+                        }
                     end
                 end
             end
