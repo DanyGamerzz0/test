@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.14"
+local script_version = "V0.15"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -3035,6 +3035,90 @@ local success = pcall(function()
                 task.wait(1)
                 handleEndGameActions()
             end)
+        end
+    end)
+end)
+
+task.spawn(function()
+    local InventoryRemote = Services.ReplicatedStorage.Remotes.Inventory
+    
+    InventoryRemote.OnClientEvent:Connect(function(eventType, unitGUID, unitData)
+        if eventType == "UnitAdded" and unitData then
+            -- Only send webhook if configured
+            if not Config.VALID_WEBHOOK or Config.VALID_WEBHOOK == "" then
+                return
+            end
+            
+            -- Build unit display name
+            local unitDisplayName = unitData.Name or "Unknown Unit"
+            if unitData.Shiny then
+                unitDisplayName = "[Shiny] " .. unitDisplayName
+            end
+            
+            -- Determine rarity color based on unit
+            local embedColor = unitData.Shiny and 0xFFD700 or 0x00FF00 -- Gold for shiny, green for normal
+            
+            -- Format unit stats
+            local statsText = ""
+            if unitData.Level then
+                statsText = statsText .. string.format("Level: %d\n", unitData.Level)
+            end
+            if unitData.Trait and unitData.Trait ~= "" then
+                statsText = statsText .. string.format("Trait: %s\n", unitData.Trait)
+            end
+            if unitData.DMG then
+                statsText = statsText .. string.format("DMG: %.2f%%\n", unitData.DMG)
+            end
+            if unitData.HEA then
+                statsText = statsText .. string.format("HEA: %.2f%%\n", unitData.HEA)
+            end
+            if unitData.CDR then
+                statsText = statsText .. string.format("CDR: %.2f%%\n", unitData.CDR)
+            end
+            if unitData.RNG then
+                statsText = statsText .. string.format("RNG: %.2f%%", unitData.RNG)
+            end
+            
+            if statsText == "" then
+                statsText = "No stats available"
+            end
+            
+            -- Build webhook data
+            local webhookData = {
+                username = "LixHub",
+                content = Config.DISCORD_USER_ID and string.format("<@%s> 🎉 **Unit Drop!**", Config.DISCORD_USER_ID) or "🎉 **Unit Drop!**",
+                embeds = {{
+                    title = unitDisplayName,
+                    description = unitData.Shiny and "✨ You got a Shiny unit! ✨" or "New unit obtained!",
+                    color = embedColor,
+                    fields = {
+                        { name = "Stats", value = statsText, inline = false }
+                    },
+                    footer = { text = "discord.gg/cYKnXE2Nf8" },
+                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                }}
+            }
+            
+            -- Send webhook
+            local payload = Services.HttpService:JSONEncode(webhookData)
+            
+            local requestFunc = syn and syn.request or request or http_request or 
+                              (fluxus and fluxus.request) or getgenv().request
+            
+            if not requestFunc then
+                return
+            end
+            
+            pcall(function()
+                requestFunc({
+                    Url = Config.VALID_WEBHOOK,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = payload
+                })
+            end)
+            
+            debugPrint(string.format("Unit drop webhook sent: %s", unitDisplayName))
         end
     end)
 end)
