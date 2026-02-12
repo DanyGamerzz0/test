@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1861,7 +1861,7 @@ local function loadStageData()
         
         -- Load all worlds
         for _, worldFolder in pairs(stageDataFolder:GetChildren()) do
-            if worldFolder.Name == "Templates" or not worldFolder:IsA("Folder") then continue end
+            if worldFolder.Name == "Templates" or not worldFolder:IsA("ModuleScript") then continue end
             
             local worldDisplayName = worldFolder.Name:gsub("_", " ")
             
