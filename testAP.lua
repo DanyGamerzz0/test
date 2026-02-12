@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1851,18 +1851,19 @@ local function loadStageData()
         
         -- Load all worlds
         for _, worldFolder in pairs(stageDataFolder:GetChildren()) do
-            if worldFolder.Name == "Templates" or not worldFolder:IsA("ModuleScript") then continue end
+            if worldFolder.Name == "Templates" or not worldFolder:IsA("Folder") then continue end
             
             local worldDisplayName = worldFolder.Name:gsub("_", " ")
             
-            -- Check each category folder
+            -- Check each category folder within this world
             for _, categoryFolder in pairs(worldFolder:GetChildren()) do
                 if not categoryFolder:IsA("Folder") then continue end
                 
                 local category = categoryFolder.Name:lower()
                 
+                -- Only process if it's a valid category
                 if category == "story" or category == "legend" or category == "raid" or category == "siege" or category == "challenge" then
-                    -- Initialize world entry
+                    -- Initialize world entry for THIS category only
                     if not StageDataCache[category][worldFolder.Name] then
                         StageDataCache[category][worldFolder.Name] = {
                             displayName = worldDisplayName,
@@ -1871,7 +1872,7 @@ local function loadStageData()
                         }
                     end
                     
-                    -- Load acts
+                    -- Load acts from this category folder
                     for _, actModule in pairs(categoryFolder:GetChildren()) do
                         if actModule:IsA("ModuleScript") then
                             local success2, actData = pcall(require, actModule)
@@ -2011,13 +2012,6 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
         for _, world in pairs(StageDataCache.legend) do
             if world.displayName == name then
                 State.LegendStageSelected = world.internalName
-                
-                local acts = {}
-                for _, act in ipairs(world.acts) do
-                    table.insert(acts, act.displayName)
-                end
-                LegendActDropdown:Refresh(acts)
-                break
             end
         end
     end,
@@ -2060,13 +2054,6 @@ local RaidStageDropdown = JoinerTab:CreateDropdown({
         for _, world in pairs(StageDataCache.raid) do
             if world.displayName == name then
                 State.RaidStageSelected = world.internalName
-                
-                local acts = {}
-                for _, act in ipairs(world.acts) do
-                    table.insert(acts, act.displayName)
-                end
-                RaidActDropdown:Refresh(acts)
-                break
             end
         end
     end,
@@ -2109,13 +2096,6 @@ local SiegeStageDropdown = JoinerTab:CreateDropdown({
         for _, world in pairs(StageDataCache.siege) do
             if world.displayName == name then
                 State.SiegeStageSelected = world.internalName
-                
-                local acts = {}
-                for _, act in ipairs(world.acts) do
-                    table.insert(acts, act.displayName)
-                end
-                SiegeActDropdown:Refresh(acts)
-                break
             end
         end
     end,
@@ -2158,13 +2138,6 @@ local ChallengeStageDropdown = JoinerTab:CreateDropdown({
         for _, world in pairs(StageDataCache.challenge) do
             if world.displayName == name then
                 State.ChallengeStageSelected = world.internalName
-                
-                local acts = {}
-                for _, act in ipairs(world.acts) do
-                    table.insert(acts, act.displayName)
-                end
-                ChallengeActDropdown:Refresh(acts)
-                break
             end
         end
     end,
