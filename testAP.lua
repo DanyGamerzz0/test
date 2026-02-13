@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.23"
+local script_version = "V0.24"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1894,6 +1894,108 @@ local function doesChallengePassFilters(challengeFolder, challengeType)
     return true
 end
 
+local function isChallengeCompleted(challengeType, challengeFolder)
+    if not challengeFolder or not challengeFolder:IsA("Folder") then
+        return true -- Skip if invalid
+    end
+    
+    -- Get challenge data we need to match
+    local stageNameObj = challengeFolder:FindFirstChild("StageName")
+    local actObj = challengeFolder:FindFirstChild("Act")
+    local stageTypeObj = challengeFolder:FindFirstChild("StageType")
+    
+    if not stageNameObj or not actObj or not stageTypeObj then
+        return true -- Skip if missing data
+    end
+    
+    local targetStageName = stageNameObj.Value
+    local targetAct = "Act " .. tostring(actObj.Value)
+    local targetStageType = stageTypeObj.Value
+    
+    debugPrint(string.format("Checking completion for: %s - %s (%s)", challengeType, targetStageName, targetAct))
+    
+    -- Fire the appropriate button based on challenge type
+    local success = pcall(function()
+        local podsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Pods")
+        if not podsUI then return end
+        
+        local challengeSelection = podsUI:FindFirstChild("ChallengeSelection")
+        if not challengeSelection then return end
+        
+        local buttonPath = nil
+        if challengeType == "Daily" then
+            buttonPath = challengeSelection.List.DailyChallenges.Content.ChallengeHolder.Btn
+        elseif challengeType == "Weekly" then
+            buttonPath = challengeSelection.List.WeeklyChallenges.Content.ChallengeHolder.Btn
+        elseif challengeType == "Regular" then
+            buttonPath = challengeSelection.List.RegularChallenges.Content.ChallengeHolder.Btn
+        end
+        
+        if buttonPath then
+            for _, connection in pairs(getconnections(buttonPath.MouseButton1Up)) do
+                connection:Fire()
+            end
+            task.wait(0.3) -- Wait for UI to update
+        end
+    end)
+    
+    if not success then
+        warn("Failed to fire challenge button")
+        return false -- Assume not completed if we can't check
+    end
+    
+    -- Check the Quests folder for completed challenges
+    local questsFolder = nil
+    success = pcall(function()
+        questsFolder = Services.Players.LocalPlayer.PlayerGui.Pods.ChallengeSelection.Quests
+    end)
+    
+    if not success or not questsFolder then
+        warn("Could not access Quests folder")
+        return false
+    end
+    
+    -- Check all ChallengeEX frames
+    for _, frame in pairs(questsFolder:GetChildren()) do
+        if frame.Name == "ChallengeEX" and frame:IsA("Frame") then
+            local claimed = frame:FindFirstChild("Claimed")
+            local info = frame:FindFirstChild("Info")
+            
+            if claimed and info then
+                -- Check if this challenge matches our target
+                local actFrame = info:FindFirstChild("Act")
+                local stageNameFrame = info:FindFirstChild("StageName")
+                local stageTypeFrame = info:FindFirstChild("StageType")
+                
+                if actFrame and stageNameFrame and stageTypeFrame then
+                    local actText = actFrame:FindFirstChild("MainContent") and 
+                                   actFrame.MainContent:FindFirstChild("Txt") and 
+                                   actFrame.MainContent.Txt.Text
+                    local stageNameText = stageNameFrame:FindFirstChild("MainContent") and 
+                                         stageNameFrame.MainContent:FindFirstChild("Txt") and 
+                                         stageNameFrame.MainContent.Txt.Text
+                    local stageTypeText = stageTypeFrame:FindFirstChild("MainContent") and 
+                                         stageTypeFrame.MainContent:FindFirstChild("Txt") and 
+                                         stageTypeFrame.MainContent.Txt.Text
+                    
+                    -- Match the challenge
+                    if actText == targetAct and 
+                       stageNameText and stageNameText:find(targetStageName) and
+                       stageTypeText == targetStageType then
+                        
+                        local isCompleted = claimed.Visible
+                        debugPrint(string.format("Challenge match found - Completed: %s", tostring(isCompleted)))
+                        return isCompleted
+                    end
+                end
+            end
+        end
+    end
+    
+    debugPrint("No matching challenge found - assuming not completed")
+    return false
+end
+
 local function findAndJoinChallenge()
     local challengesFolder = Services.ReplicatedStorage:FindFirstChild("Challenges")
     if not challengesFolder then
@@ -1909,6 +2011,13 @@ local function findAndJoinChallenge()
             -- Loop through numbered challenge folders (1, 2, 3, etc.)
             for _, challengeFolder in pairs(typeFolder:GetChildren()) do
                 if challengeFolder:IsA("Folder") and doesChallengePassFilters(challengeFolder, challengeType) then
+                    
+                    -- Check if challenge is already completed
+                    if isChallengeCompleted(challengeType, challengeFolder) then
+                        debugPrint(string.format("Skipping completed %s challenge", challengeType))
+                        continue
+                    end
+                    
                     -- Get challenge data
                     local idObj = challengeFolder:FindFirstChild("ID")
                     local stageNameObj = challengeFolder:FindFirstChild("StageName")
@@ -1927,7 +2036,7 @@ local function findAndJoinChallenge()
                     local stageType = stageTypeObj and stageTypeObj.Value or "Story"
                     local challengeName = challengeNameObj and challengeNameObj.Value or challengeFolder.Name
                     
-                    debugPrint(string.format("Found valid challenge: %s (%s) - Stage: %s, Act: %s, ID: %s", 
+                    debugPrint(string.format("Found valid uncompleted challenge: %s (%s) - Stage: %s, Act: %s, ID: %s", 
                         challengeName, challengeType, stageName, act, tostring(id)))
                     
                     -- Join the challenge
@@ -1959,8 +2068,8 @@ local function findAndJoinChallenge()
         end
     end
     
-    debugPrint("No valid challenges found matching filters")
-    notify("No Challenges", "No challenges match your filters", 3)
+    debugPrint("All matching challenges are completed or no valid challenges found")
+    notify("All Challenges Complete", "Moving to next auto-join option", 3)
     return false
 end
 
@@ -2712,13 +2821,13 @@ PlaybackToggle = MacroTab:CreateToggle({
             
             if not loadedMacro or #loadedMacro == 0 then
                 notify("Playback Error", "Macro is empty or doesn't exist")
-                PlaybackToggle:Set(false)
+                --PlaybackToggle:Set(false)
                 return
             end
 
             if not waitForLoadout() then
                 notify("Playback Error", "Could not load unit data", 4)
-                PlaybackToggle:Set(false)
+                --PlaybackToggle:Set(false)
                 return
             end
             
@@ -2731,7 +2840,7 @@ PlaybackToggle = MacroTab:CreateToggle({
             local isValid, validationMessage = validateMacro(loadedMacro)
             if not isValid then
                 notify("Playback Error", validationMessage, 6)
-                PlaybackToggle:Set(false)
+                --PlaybackToggle:Set(false)
                 return
             end
             
