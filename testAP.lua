@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.17"
+local script_version = "V0.18"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -142,7 +142,6 @@ local State = {
     AutoJoinChallenge = false,
     ChallengeStageSelected = nil,
     ChallengeRewardsFilter = {},
-    IgnoreModifiers = {},
     IgnoreWorlds = {},
     ReturnToLobbyOnNewChallenge = false,
     NewChallengeDetected = false,
@@ -2393,19 +2392,6 @@ ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-IgnoreModifierDropdown = JoinerTab:CreateDropdown({
-    Name = "Ignore Modifier",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "IgnoreModifierSelector",
-    Info = "Skip challenges that have these modifiers",
-    Callback = function(Options)
-        State.IgnoreModifiers = Options or {}
-        print("Ignore modifiers updated:", table.concat(State.IgnoreModifiers, ", "))
-    end,
-})
-
 local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
     Name = "Ignore Worlds",
     Options = {},
@@ -3236,18 +3222,11 @@ task.spawn(function()
             end
             table.sort(siegeList)
             
-            local challengeList = {}
-            for _, world in pairs(StageDataCache.challenge) do
-                table.insert(challengeList, world.displayName)
-            end
-            table.sort(challengeList)
-            
             StoryStageDropdown:Refresh(storyList)
             IgnoreWorldsDropdown:Refresh(storyList)
             LegendStageDropdown:Refresh(legendList)
             RaidStageDropdown:Refresh(raidList)
             SiegeStageDropdown:Refresh(siegeList)
-            ChallengeStageDropdown:Refresh(challengeList)
             
             debugPrint("✓ Stage dropdowns populated")
             break
