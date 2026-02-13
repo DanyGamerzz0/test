@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2703,7 +2703,7 @@ PlaybackToggle = MacroTab:CreateToggle({
             -- Check if macro is selected
             if not MacroManager.currentMacroName or MacroManager.currentMacroName == "" then
                 notify("Playback Error", "Please select a macro first!")
-                PlaybackToggle:Set(false)
+                --PlaybackToggle:Set(false)
                 return
             end
             
