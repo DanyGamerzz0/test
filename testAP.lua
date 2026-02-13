@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.32"
+local script_version = "V0.33"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -176,6 +176,7 @@ local StageDataCache = {
 
 local AutoJoinState = {
     isProcessing = false,
+    clientReady = false,
     currentAction = nil,
     lastActionTime = 0,
     actionCooldown = 2
@@ -1429,24 +1430,29 @@ end
 end
 
 local function waitForClientLoaded()
+    if AutoJoinState.clientReady then
+        return true
+    end
+
     local maxWait = 60
     local startTime = tick()
-    
+
     debugPrint("Waiting for client to load...")
-    
+
     while (tick() - startTime) < maxWait do
         local clientIsLoaded = Services.Players.LocalPlayer:GetAttribute("ClientIsLoaded")
         local clientsLoaded = Services.Players.LocalPlayer:GetAttribute("ClientLoaded")
-        
+
         if clientIsLoaded and clientsLoaded then
             debugPrint("Client fully loaded!")
+            AutoJoinState.clientReady = true
             return true
         end
-        
+
         task.wait(0.5)
     end
-    
-    warn("Client load timeout - proceeding anyway")
+
+    warn("Client load timeout")
     return false
 end
 
@@ -2148,6 +2154,7 @@ if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected a
     return
 end
 
+debugPrint(State.AutoJoinLegendStage,State.LegendStageSelected,State.LegendActSelected)
 -- LEGEND STAGE
 if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
     setProcessingState("Legend Stage Auto Join")
