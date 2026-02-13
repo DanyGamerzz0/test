@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.24"
+local script_version = "V0.25"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2053,7 +2053,7 @@ local function findAndJoinChallenge()
                                 Type = challengeType
                             }
                         )
-                        Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+                        --Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
                     end)
                     
                     if success then
