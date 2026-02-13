@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.27"
+local script_version = "V0.28"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1968,7 +1968,7 @@ local function isChallengeCompleted(challengeType, challengeFolder)
         end
         
         if buttonPath then
-            for _, connection in pairs(getconnections(buttonPath.MouseButton1Up)) do
+            for _, connection in pairs(getconnections(buttonPath.Activated)) do
                 connection:Fire()
             end
             task.wait(0.3) -- Wait for UI to update
@@ -2115,6 +2115,7 @@ end
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
+    if not waitForClientLoaded() then return end
     --if not tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown then return end
 
     if State.AutoJoinChallenge then
