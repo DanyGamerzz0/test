@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.16"
+local script_version = "V0.17"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -141,7 +141,12 @@ local State = {
     --challenge
     AutoJoinChallenge = false,
     ChallengeStageSelected = nil,
-    ChallengeActSelected = nil,
+    ChallengeRewardsFilter = {},
+    IgnoreModifiers = {},
+    IgnoreWorlds = {},
+    ReturnToLobbyOnNewChallenge = false,
+    NewChallengeDetected = false,
+    LastChallengeCheckTime = 0,
     --raid
     AutoJoinRaid = false,
     RaidStageSelected = nil,
@@ -1471,7 +1476,39 @@ local function handleEndGameActions()
         return
     end
     
-    -- Priority order: Next > Retry > Lobby
+    -- Check if we should return to lobby for new challenges
+    if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected and State.AutoJoinChallenge then
+        State.NewChallengeDetected = false -- Reset flag
+        
+        debugPrint("New challenge detected - returning to lobby")
+        
+        for attempt = 1, 5 do
+            local success = pcall(function()
+                Services.ReplicatedStorage.Remotes.StageEnd:FireServer("Lobby")
+            end)
+            
+            if success then
+                debugPrint("Fired Lobby remote (attempt " .. attempt .. ")")
+            end
+            
+            task.wait(1)
+            
+            local uiClosed = pcall(function()
+                return not endGameUI.Enabled
+            end)
+            
+            if uiClosed or not endGameUI.Parent then
+                debugPrint("Auto Lobby successful for new challenge!")
+                notify("Auto Action", "Returned to lobby for new challenge", 2)
+                return
+            end
+        end
+        
+        warn("Failed to return to lobby for new challenge")
+        return
+    end
+    
+    -- Normal priority order: Next > Retry > Lobby
     local actions = {}
     
     if State.AutoNext then
@@ -1772,10 +1809,180 @@ local function clearProcessingState()
     AutoJoinState.currentAction = nil
 end
 
+local function doesChallengePassFilters(challengeFolder, challengeType)
+    if not challengeFolder or not challengeFolder:IsA("Folder") then
+        return false
+    end
+    
+    -- Get challenge data
+    local stageNameObj = challengeFolder:FindFirstChild("StageName")
+    local modifierObj = challengeFolder:FindFirstChild("Modifier")
+    local rewardsFolder = challengeFolder:FindFirstChild("Rewards")
+    
+    if not stageNameObj then
+        return false
+    end
+    
+    -- Check if challenge type matches selection
+    if State.ChallengeStageSelected and State.ChallengeStageSelected ~= "" then
+        if challengeType ~= State.ChallengeStageSelected then
+            debugPrint(string.format("Challenge type %s doesn't match filter %s", challengeType, State.ChallengeStageSelected))
+            return false
+        end
+    end
+    
+    -- Check if world is in ignore list
+    if State.IgnoreWorlds and #State.IgnoreWorlds > 0 then
+        local stageName = stageNameObj.Value
+        
+        -- Check against internal names in ignore list
+        for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
+            if stageName == ignoredWorld then
+                debugPrint(string.format("Challenge world %s is in ignore list", stageName))
+                return false
+            end
+        end
+    end
+    
+    -- Check if modifier is in ignore list
+    if State.IgnoreModifiers and #State.IgnoreModifiers > 0 and modifierObj then
+        local modifierValue = modifierObj.Value
+        if modifierValue and modifierValue ~= "" then
+            for _, ignoredModifier in ipairs(State.IgnoreModifiers) do
+                if modifierValue == ignoredModifier then
+                    debugPrint(string.format("Challenge modifier %s is in ignore list", modifierValue))
+                    return false
+                end
+            end
+        end
+    end
+    
+    -- Check if rewards match filter
+    if State.ChallengeRewardsFilter and #State.ChallengeRewardsFilter > 0 and rewardsFolder then
+        local hasMatchingReward = false
+        
+        -- Loop through reward items in the Rewards folder
+        for _, rewardObj in pairs(rewardsFolder:GetChildren()) do
+            local rewardName = rewardObj.Name
+            
+            -- Check if this reward is in our filter
+            for _, filteredReward in ipairs(State.ChallengeRewardsFilter) do
+                -- Match exact name or if the reward name contains the filter
+                -- e.g., "BlueEssence" matches "Blue Essence"
+                local normalizedReward = filteredReward:gsub(" ", "")
+                if rewardName == filteredReward or 
+                   rewardName == normalizedReward or 
+                   rewardName:find(filteredReward) or
+                   filteredReward:find(rewardName) then
+                    hasMatchingReward = true
+                    debugPrint(string.format("Found matching reward: %s", rewardName))
+                    break
+                end
+            end
+            
+            if hasMatchingReward then
+                break
+            end
+        end
+        
+        if not hasMatchingReward then
+            debugPrint("Challenge rewards don't match filter")
+            return false
+        end
+    end
+    
+    return true
+end
+
+local function findAndJoinChallenge()
+    local challengesFolder = Services.ReplicatedStorage:FindFirstChild("Challenges")
+    if not challengesFolder then
+        warn("Challenges folder not found!")
+        return false
+    end
+    
+    -- Loop through Daily, Weekly, Regular folders
+    for _, typeFolder in pairs(challengesFolder:GetChildren()) do
+        if typeFolder:IsA("Folder") then
+            local challengeType = typeFolder.Name -- "Daily", "Weekly", or "Regular"
+            
+            -- Loop through numbered challenge folders (1, 2, 3, etc.)
+            for _, challengeFolder in pairs(typeFolder:GetChildren()) do
+                if challengeFolder:IsA("Folder") and doesChallengePassFilters(challengeFolder, challengeType) then
+                    -- Get challenge data
+                    local idObj = challengeFolder:FindFirstChild("ID")
+                    local stageNameObj = challengeFolder:FindFirstChild("StageName")
+                    local actObj = challengeFolder:FindFirstChild("Act")
+                    local stageTypeObj = challengeFolder:FindFirstChild("StageType")
+                    local challengeNameObj = challengeFolder:FindFirstChild("ChallengeName")
+                    
+                    if not idObj or not stageNameObj or not actObj then
+                        warn("Challenge missing required data: " .. challengeFolder.Name)
+                        continue
+                    end
+                    
+                    local id = idObj.Value
+                    local stageName = stageNameObj.Value
+                    local act = tostring(actObj.Value)
+                    local stageType = stageTypeObj and stageTypeObj.Value or "Story"
+                    local challengeName = challengeNameObj and challengeNameObj.Value or challengeFolder.Name
+                    
+                    debugPrint(string.format("Found valid challenge: %s (%s) - Stage: %s, Act: %s, ID: %s", 
+                        challengeName, challengeType, stageName, act, tostring(id)))
+                    
+                    -- Join the challenge
+                    local success = pcall(function()
+                        Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer(
+                            "Create",
+                            stageName,
+                            stageType,
+                            act,
+                            false,
+                            "Normal",
+                            {
+                                ID = id,
+                                Type = challengeType
+                            }
+                        )
+                        Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+                    end)
+                    
+                    if success then
+                        notify("Challenge Started", string.format("Joined %s challenge: %s", challengeType, challengeName), 3)
+                        return true
+                    else
+                        warn("Failed to join challenge")
+                        return false
+                    end
+                end
+            end
+        end
+    end
+    
+    debugPrint("No valid challenges found matching filters")
+    notify("No Challenges", "No challenges match your filters", 3)
+    return false
+end
+
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     --if not tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown then return end
+
+    if State.AutoJoinChallenge then
+        setProcessingState("Challenge Auto Join")
+        
+        local success = findAndJoinChallenge()
+        
+        if success then
+            debugPrint("Successfully joined challenge")
+        else
+            debugPrint("No valid challenges found")
+        end
+        
+        task.delay(5, clearProcessingState)
+        return
+    end
 
 -- STORY
 if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
@@ -1917,6 +2124,20 @@ local function loadStageData()
     
     debugPrint("✓ Stage data loaded")
     return true
+end
+
+-- Function to check for new challenges (runs every hour at xx:00)
+local function checkForNewChallenges()
+    local currentTime = os.time()
+    local currentDate = os.date("*t", currentTime)
+    
+    -- Check if we're at the start of a new hour (within first 2 minutes)
+    if currentDate.min <= 1 and currentTime - State.LastChallengeCheckTime > 300 then
+        State.LastChallengeCheckTime = currentTime
+        State.NewChallengeDetected = true
+        debugPrint("New hour detected - new challenges may be available")
+        notify("New Challenges", "New challenges may be available!", 3)
+    end
 end
 
 Button = LobbyTab:CreateButton({
@@ -2148,43 +2369,75 @@ JoinerTab:CreateToggle({
     end,
 })
 
-local ChallengeStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Challenge - Select Stage",
-    Options = {},
+ChallengeStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Challenge Stage",
+    Options = {"Regular", "Daily", "Weekly"},
     CurrentOption = {},
+    MultipleOptions = true,
     Flag = "ChallengeStageDropdown",
     Callback = function(selected)
-        local name = type(selected) == "table" and selected[1] or selected
-        
-        for _, world in pairs(StageDataCache.challenge) do
-            if world.displayName == name then
-                State.ChallengeStageSelected = world.internalName
-            end
-        end
+        State.ChallengeStageSelected = selected[1]
     end,
 })
 
-local ChallengeActDropdown = JoinerTab:CreateDropdown({
-    Name = "Challenge - Select Act",
+ChallengeRewardsDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Challenge Rewards",
+    Options = {"Red Essence", "Blue Essence", "Green Essence", "Yellow Essence", "Purple Essence", "Pink Essence", "Rainbow Essence","Stat Chip","Super Stat Chip","Trait Rerolls","Gold","Gems"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "ChallengeRewardsSelector",
+    Info = "Only join challenges that contain one or more of these rewards",
+    Callback = function(Options)
+        State.ChallengeRewardsFilter = Options or {}
+        print("Challenge rewards filter updated:", table.concat(State.ChallengeRewardsFilter, ", "))
+    end,
+})
+
+IgnoreModifierDropdown = JoinerTab:CreateDropdown({
+    Name = "Ignore Modifier",
     Options = {},
     CurrentOption = {},
-    Flag = "ChallengeActDropdown",
-    Callback = function(selected)
-        local name = type(selected) == "table" and selected[1] or selected
+    MultipleOptions = true,
+    Flag = "IgnoreModifierSelector",
+    Info = "Skip challenges that have these modifiers",
+    Callback = function(Options)
+        State.IgnoreModifiers = Options or {}
+        print("Ignore modifiers updated:", table.concat(State.IgnoreModifiers, ", "))
+    end,
+})
+
+local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
+    Name = "Ignore Worlds",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "IgnoreWorldsSelector",
+    Info = "Skip challenges based on these worlds",
+    Callback = function(Options)
+        State.IgnoreWorlds = {}
         
-        if State.ChallengeStageSelected then
-            for _, world in pairs(StageDataCache.challenge) do
-                if world.internalName == State.ChallengeStageSelected then
-                    for _, act in ipairs(world.acts) do
-                        if act.displayName == name then
-                            State.ChallengeActSelected = act.internalName
-                            break
-                        end
-                    end
+        -- Convert display names to internal names
+        for _, displayName in ipairs(Options or {}) do
+            -- Find the internal name from StageDataCache
+            for internalName, worldData in pairs(StageDataCache.story) do
+                if worldData.displayName == displayName then
+                    table.insert(State.IgnoreWorlds, internalName)
                     break
                 end
             end
         end
+        
+        debugPrint("Ignore worlds updated: " .. table.concat(State.IgnoreWorlds, ", "))
+    end,
+})
+
+ReturnToLobbyOnNewChallenge = JoinerTab:CreateToggle({
+    Name = "Return to Lobby on New Challenge",
+    CurrentValue = false,
+    Flag = "ReturnToLobbyOnNewChallenge",
+    Info = "Return to lobby when new challenge appears instead of using retry/next",
+    Callback = function(Value)
+        State.ReturnToLobbyOnNewChallenge = Value
     end,
 })
 
@@ -2944,6 +3197,18 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    while true do
+        task.wait(1) -- Check every minute
+        
+        if not isInLobby() then
+        if State.AutoJoinChallenge and State.ReturnToLobbyOnNewChallenge then
+            checkForNewChallenges()
+            end
+        end
+    end
+end)
+
+task.spawn(function()
     for attempt = 1, 3 do
         if loadStageData() then
             -- Populate all dropdowns
@@ -2978,6 +3243,7 @@ task.spawn(function()
             table.sort(challengeList)
             
             StoryStageDropdown:Refresh(storyList)
+            IgnoreWorldsDropdown:Refresh(storyList)
             LegendStageDropdown:Refresh(legendList)
             RaidStageDropdown:Refresh(raidList)
             SiegeStageDropdown:Refresh(siegeList)
