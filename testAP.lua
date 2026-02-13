@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1551,29 +1551,6 @@ local function handleEndGameActions()
             if uiClosed or not endGameUI.Parent then
                 debugPrint(string.format("Auto %s successful!", action.name))
                 notify("Auto Action", string.format("Auto %s activated", action.name), 2)
-                
-                -- ADD THIS: Start failsafe timer if retry/next was used
-                if State.ReturnToLobbyFailsafe and (action.name == "Next" or action.name == "Retry") then
-                    task.spawn(function()
-                        local failsafeStartTime = tick()
-                        local initialGameState = MacroState.gameInProgress
-                        
-                        debugPrint("Failsafe: Starting 60 second timer...")
-                        debugPrint(string.format("Failsafe: Initial game state = %s", tostring(initialGameState)))
-                        
-                        -- Wait 60 seconds
-                        task.wait(60)
-                        
-                        -- Check if game started (gameInProgress should be true if game started)
-                        if not MacroState.gameInProgress then
-                            debugPrint("Failsafe: Game didn't start within 60s - returning to lobby")
-                            notify("Failsafe", "Game didn't start - returning to lobby", 3)
-                            Services.TeleportService:Teleport(76806550943352, Services.Players.LocalPlayer)
-                        else
-                            debugPrint("Failsafe: Game started successfully - timer cancelled")
-                        end
-                    end)
-                end
                 return
             end
         end
@@ -3276,6 +3253,10 @@ local success = pcall(function()
     
     StageEndRemote.OnClientEvent:Connect(function(eventType, stageInfo, playerStats, rewards, playerData)
         if eventType == "ShowResults" then
+
+            if stageInfo and stageInfo.IsChallenge then
+                State.NewChallengeDetected = true
+            end
 
             cancelAllThreads()
             
