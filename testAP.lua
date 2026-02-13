@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.22"
+local script_version = "V0.23"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -3254,7 +3254,7 @@ local success = pcall(function()
     StageEndRemote.OnClientEvent:Connect(function(eventType, stageInfo, playerStats, rewards, playerData)
         if eventType == "ShowResults" then
 
-            if stageInfo and stageInfo.IsChallenge then
+            if stageInfo and stageInfo.IsChallenge and stageInfo.Result == "Win" then
                 State.NewChallengeDetected = true
             end
 
