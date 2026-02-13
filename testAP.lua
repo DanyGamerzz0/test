@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.25"
+local script_version = "V0.26"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1980,9 +1980,7 @@ local function isChallengeCompleted(challengeType, challengeFolder)
                     
                     -- Match the challenge
                     if actText == targetAct and 
-                       stageNameText and stageNameText:find(targetStageName) and
-                       stageTypeText == targetStageType then
-                        
+                       stageNameText and stageNameText:find(targetStageName) then
                         local isCompleted = claimed.Visible
                         debugPrint(string.format("Challenge match found - Completed: %s", tostring(isCompleted)))
                         return isCompleted
