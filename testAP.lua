@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.33"
+local script_version = "V0.34"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2142,6 +2142,7 @@ local function checkAndExecuteHighestPriority()
     end
 
 -- STORY
+debugPrint(State.AutoJoinStory,State.StoryStageSelected,State.StoryActSelected,State.StoryDifficultySelected)
 if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
     setProcessingState("Story Auto Join")
 
@@ -2169,6 +2170,7 @@ if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSe
 end
 
 -- RAID
+debugPrint(State.AutoJoinRaid,State.RaidStageSelected,State.RaidActSelected)
 if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
     setProcessingState("Raid Auto Join")
 
@@ -2182,6 +2184,7 @@ if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
 end
 
 -- SIEGE
+debugPrint(State.AutoJoinSiege,State.SiegeStageSelected,State.SiegeActSelected)
 if State.AutoJoinSiege and State.SiegeStageSelected and State.SiegeActSelected then
     setProcessingState("Siege Auto Join")
 
@@ -2412,7 +2415,7 @@ local LegendActDropdown = JoinerTab:CreateDropdown({
             
             local num = selectedOption:match("%d+")
             if num then
-                State.LegendStageActSelected = num
+                State.LegendActSelected = num
         end
     end,
 })
