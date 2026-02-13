@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.34"
+local script_version = "V0.35"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -220,6 +220,8 @@ local recordingUnitCounter = {} -- Maps "UnitName" -> count
 local recordingInstanceToTag = {} -- Maps Instance -> "UnitName #N"
 local playbackUnitTagToInstance = {} -- Maps "UnitName #N" -> Instance (for playback)
 local UnitDataCache = {}
+local worldMacroMappings = {}
+local worldDropdowns = {}
 local DEBUG = true
 
 local function isInLobby()
@@ -282,6 +284,170 @@ local function saveMacroToFile(name, macroData)
     writefile(getMacroFilename(name), json)
     
     debugPrint(string.format("Saved macro: %s (%d actions)", name, #macroData))
+end
+
+local function saveWorldMappings()
+    local filePath = "LixHub/"..Services.Players.LocalPlayer.Name.."_WorldMappings_AP.json"
+    ensureMacroFolders()
+    
+    local data = {
+        mappings = worldMacroMappings
+    }
+    
+    local json = Services.HttpService:JSONEncode(data)
+    writefile(filePath, json)
+    debugPrint("Saved world macro mappings")
+end
+
+local function loadWorldMappings()
+    local filePath = "LixHub/"..Services.Players.LocalPlayer.Name.."_WorldMappings_AP.json"
+    
+    if not isfile(filePath) then return end
+    
+    local success, data = pcall(function()
+        local json = readfile(filePath)
+        return Services.HttpService:JSONDecode(json)
+    end)
+    
+    if success and data and data.mappings then
+        worldMacroMappings = data.mappings
+        debugPrint("Loaded world macro mappings")
+    end
+end
+
+local function getMacroForCurrentWorld()
+    local success, gameConfig = pcall(function()
+        return Services.ReplicatedStorage.GameConfig
+    end)
+    
+    if not success or not gameConfig then
+        return nil
+    end
+    
+    -- Get current stage info
+    local map = gameConfig:FindFirstChild("Map")
+    local stageType = gameConfig:FindFirstChild("StageType")
+    
+    if not map or not stageType then
+        return nil
+    end
+    
+    local mapValue = map.Value
+    local stageTypeValue = stageType.Value
+    
+    -- Build key: "map_stageType"
+    local key = string.format("%s_%s", mapValue, stageTypeValue)
+    
+    debugPrint(string.format("Looking for macro mapping: %s", key))
+    
+    return worldMacroMappings[key]
+end
+
+local function refreshWorldDropdowns()
+    local macroOptions = {"None"}
+    for macroName in pairs(MacroManager.macros) do
+        table.insert(macroOptions, macroName)
+    end
+    table.sort(macroOptions)
+    
+    for key, dropdown in pairs(worldDropdowns) do
+        if dropdown and dropdown.Refresh then
+            local currentMapping = worldMacroMappings[key] or "None"
+            dropdown:Refresh(macroOptions, currentMapping)
+        end
+    end
+    
+    debugPrint("Refreshed all world dropdowns")
+end
+
+local function createAutoSelectDropdowns()
+    debugPrint("Creating auto-select dropdowns...")
+    
+    -- Get initial macro options
+    local initialMacroOptions = {"None"}
+    for macroName in pairs(MacroManager.macros) do
+        table.insert(initialMacroOptions, macroName)
+    end
+    table.sort(initialMacroOptions)
+    
+    -- Create collapsibles for each category
+    local categoryCollapsibles = {}
+    
+    -- Story Collapsible
+    categoryCollapsibles.Story = MacroTab:CreateCollapsible({
+        Name = "Story Auto-Select",
+        DefaultExpanded = false,
+        Flag = "StoryAutoSelectCollapsible"
+    })
+    
+    -- Legend Collapsible
+    categoryCollapsibles.Legend = MacroTab:CreateCollapsible({
+        Name = "Legend Auto-Select",
+        DefaultExpanded = false,
+        Flag = "LegendAutoSelectCollapsible"
+    })
+    
+    -- Raid Collapsible
+    categoryCollapsibles.Raid = MacroTab:CreateCollapsible({
+        Name = "Raid Auto-Select",
+        DefaultExpanded = false,
+        Flag = "RaidAutoSelectCollapsible"
+    })
+    
+    -- Siege Collapsible
+    categoryCollapsibles.Siege = MacroTab:CreateCollapsible({
+        Name = "Siege Auto-Select",
+        DefaultExpanded = false,
+        Flag = "SiegeAutoSelectCollapsible"
+    })
+    
+    -- Create dropdowns for each world in each category
+    for category, worlds in pairs(StageDataCache) do
+        if category == "challenge" then continue end -- Skip challenge
+        
+        local categoryName = category:sub(1,1):upper() .. category:sub(2) -- Capitalize
+        local collapsible = categoryCollapsibles[categoryName]
+        
+        if not collapsible then continue end
+        
+        debugPrint(string.format("Creating dropdowns for %s category (%d worlds)", categoryName, #worlds))
+        
+        for internalName, worldData in pairs(worlds) do
+            local displayName = worldData.displayName
+            
+            -- Build key: "map_stageType"
+            local key = string.format("%s_%s", internalName, categoryName)
+            
+            local currentMapping = worldMacroMappings[key] or "None"
+            
+            local dropdown = collapsible.Tab:CreateDropdown({
+                Name = displayName,
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
+                MultipleOptions = false,
+                Flag = "AutoSelect_" .. key,
+                Info = string.format("Auto-select macro for %s", displayName),
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    
+                    if selectedMacro == "None" or selectedMacro == "" then
+                        worldMacroMappings[key] = nil
+                        debugPrint(string.format("Cleared auto-select for %s", key))
+                    else
+                        worldMacroMappings[key] = selectedMacro
+                        debugPrint(string.format("Set auto-select: %s -> %s", key, selectedMacro))
+                    end
+                    
+                    saveWorldMappings()
+                end,
+            })
+            
+            worldDropdowns[key] = dropdown
+            debugPrint(string.format("  Created dropdown: %s (key: %s)", displayName, key))
+        end
+    end
+    
+    debugPrint("✓ Auto-select dropdowns created")
 end
 
 local function loadMacroFromFile(name)
@@ -1183,27 +1349,39 @@ local function autoPlaybackLoop()
         end
         
         if MacroState.waveStartTime == 0 then
-            -- Initialize it now if it hasn't been set
             MacroState.waveStartTime = tick()
             MacroState.currentWave = getCurrentWave()
         end
         
-        if not MacroManager.currentMacroName or MacroManager.currentMacroName == "" then
+        -- Get macro to use (world-specific or manual selection)
+        local worldSpecificMacro = getMacroForCurrentWorld()
+        local macroToUse = worldSpecificMacro or MacroManager.currentMacroName
+        
+        if not macroToUse or macroToUse == "" then
             updateMacroStatus("Error: No macro selected")
-            updateDetailedStatus("Select a macro to continue")
+            updateDetailedStatus("Select a macro or configure auto-select")
+            notify("Playback Error", "No macro selected for this world")
             break
         end
         
-        if not MacroState.currentMacro or #MacroState.currentMacro == 0 then
-            updateMacroStatus("Error: No macro loaded")
+        -- Load the macro
+        local loadedMacro = loadMacroFromFile(macroToUse)
+        
+        if not loadedMacro or #loadedMacro == 0 then
+            updateMacroStatus("Error: Failed to load macro")
+            notify("Playback Error", "Failed to load macro: " .. tostring(macroToUse))
             break
         end
+        
+        MacroState.currentMacro = loadedMacro
+        
         clearSpawnIdMappings()
         
-        updateMacroStatus(string.format("Executing: %s (%d actions)", MacroManager.currentMacroName, #MacroState.currentMacro))
+        local macroSource = worldSpecificMacro and " (Auto-selected)" or " (Manual)"
+        updateMacroStatus(string.format("Executing: %s%s (%d actions)", macroToUse, macroSource, #loadedMacro))
         updateDetailedStatus("Starting playback...")
         
-        notify("Playback Started", MacroManager.currentMacroName .. " (" .. #MacroState.currentMacro .. " actions)")
+        notify("Playback Started", macroToUse .. macroSource .. " (" .. #loadedMacro .. " actions)")
         
         MacroState.currentPlaybackThread = coroutine.running()
         playMacro()
@@ -3540,11 +3718,15 @@ end)
 
 ensureMacroFolders()
 loadAllMacros()
+loadWorldMappings()
 MacroDropdown:Refresh(getMacroList())
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
 task.spawn(function()
     fetchPlayerLoadout()
+    createAutoSelectDropdowns()
+    task.wait(0.5)
+    refreshWorldDropdowns()
 end)
 
 Rayfield:TopNotify({
