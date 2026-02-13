@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.31"
+local script_version = "V0.32"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2116,15 +2116,18 @@ local function checkAndExecuteHighestPriority()
     if not isInLobby() then return end
     if AutoJoinState.isProcessing then return end
     if not waitForClientLoaded() then return end
-    --if not tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown then return end
+    if tick() - AutoJoinState.lastActionTime < AutoJoinState.actionCooldown then return end
 
     if State.AutoJoinChallenge then
         setProcessingState("Challenge Auto Join")
         
         local success = findAndJoinChallenge()
+
+        AutoJoinState.lastActionTime = tick()
         
         if success then
             debugPrint("Successfully joined challenge")
+            task.delay(5, clearProcessingState)
             return
         else
             debugPrint("No valid challenges found")
@@ -2182,22 +2185,7 @@ if State.AutoJoinSiege and State.SiegeStageSelected and State.SiegeActSelected t
 
     task.delay(5, clearProcessingState)
     return
-end
-
--- CHALLENGE
-if State.AutoJoinChallenge and State.ChallengeStageSelected and State.ChallengeActSelected then
-    setProcessingState("Challenge Auto Join")
-
-    debugPrint("challenge: " .. tostring(State.ChallengeStageSelected) .. " challengeact: " .. tostring(State.ChallengeActSelected) .. " challengetype: " .. tostring(State.ChallengeTypeSelected))
-
-    -- ID = 1 is challenge id that we want to join
-    -- type is the challenge type (Weekly,Daily,Regular)
-    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create","Leaf_Village","Story","5",false,"Normal",{ID = 1,Type = "Daily"})
-    Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
-
-    task.delay(5, clearProcessingState)
-    return
-end
+    end
 end
 
 local function loadStageData()
