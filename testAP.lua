@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.3"
+local script_version = "V0.31"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2125,12 +2125,11 @@ local function checkAndExecuteHighestPriority()
         
         if success then
             debugPrint("Successfully joined challenge")
+            return
         else
             debugPrint("No valid challenges found")
+            clearProcessingState()
         end
-        
-        task.delay(5, clearProcessingState)
-        return
     end
 
 -- STORY
