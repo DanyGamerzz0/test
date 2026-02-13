@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.26"
+local script_version = "V0.27"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1908,11 +1908,47 @@ local function isChallengeCompleted(challengeType, challengeFolder)
         return true -- Skip if missing data
     end
     
-    local targetStageName = stageNameObj.Value
+    local targetStageNameInternal = stageNameObj.Value
     local targetAct = "Act " .. tostring(actObj.Value)
     local targetStageType = stageTypeObj.Value
     
-    debugPrint(string.format("Checking completion for: %s - %s (%s)", challengeType, targetStageName, targetAct))
+    -- Convert internal stage name to display name
+    local targetStageNameDisplay = targetStageNameInternal
+    
+    -- First try to find it in StageDataCache
+    for category, worlds in pairs(StageDataCache) do
+        for internalName, worldData in pairs(worlds) do
+            if internalName == targetStageNameInternal then
+                targetStageNameDisplay = worldData.displayName
+                debugPrint(string.format("Converted stage name: %s -> %s", targetStageNameInternal, targetStageNameDisplay))
+                break
+            end
+        end
+        if targetStageNameDisplay ~= targetStageNameInternal then
+            break
+        end
+    end
+    
+    -- If not found in cache, try to get it from StageData modules
+    if targetStageNameDisplay == targetStageNameInternal then
+        pcall(function()
+            local stageDataFolder = Services.ReplicatedStorage.Modules.Shared.Data.StageData
+            local worldModule = stageDataFolder:FindFirstChild(targetStageNameInternal)
+            if worldModule and worldModule:IsA("ModuleScript") then
+                local worldData = require(worldModule)
+                if worldData.StageName then
+                    targetStageNameDisplay = worldData.StageName
+                    debugPrint(string.format("Converted stage name from module: %s -> %s", targetStageNameInternal, targetStageNameDisplay))
+                else
+                    -- Fallback: format the internal name
+                    targetStageNameDisplay = targetStageNameInternal:gsub("_", " ")
+                    debugPrint(string.format("Formatted stage name: %s -> %s", targetStageNameInternal, targetStageNameDisplay))
+                end
+            end
+        end)
+    end
+    
+    debugPrint(string.format("Checking completion for: %s - %s (%s)", challengeType, targetStageNameDisplay, targetAct))
     
     -- Fire the appropriate button based on challenge type
     local success = pcall(function()
@@ -1978,9 +2014,13 @@ local function isChallengeCompleted(challengeType, challengeFolder)
                                          stageTypeFrame.MainContent:FindFirstChild("Txt") and 
                                          stageTypeFrame.MainContent.Txt.Text
                     
-                    -- Match the challenge
+                    debugPrint(string.format("Checking frame - Act: %s, Stage: %s, Type: %s", 
+                        tostring(actText), tostring(stageNameText), tostring(stageTypeText)))
+                    
+                    -- Match the challenge using display name
                     if actText == targetAct and 
-                       stageNameText and stageNameText:find(targetStageName) then
+                       stageNameText == targetStageNameDisplay then
+                        
                         local isCompleted = claimed.Visible
                         debugPrint(string.format("Challenge match found - Completed: %s", tostring(isCompleted)))
                         return isCompleted
@@ -2019,6 +2059,7 @@ local function findAndJoinChallenge()
                     -- Get challenge data
                     local idObj = challengeFolder:FindFirstChild("ID")
                     local stageNameObj = challengeFolder:FindFirstChild("StageName")
+
                     local actObj = challengeFolder:FindFirstChild("Act")
                     local stageTypeObj = challengeFolder:FindFirstChild("StageType")
                     local challengeNameObj = challengeFolder:FindFirstChild("ChallengeName")
