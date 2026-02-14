@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.36"
+local script_version = "V0.37"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -147,6 +147,7 @@ local State = {
     ReturnToLobbyOnNewChallenge = false,
     NewChallengeDetected = false,
     LastChallengeCheckTime = 0,
+    ChallengeWin = false,
     --raid
     AutoJoinRaid = false,
     RaidStageSelected = nil,
@@ -1658,6 +1659,10 @@ local function handleEndGameActions()
     if not endGameUI then
         warn("End game UI not found - skipping auto actions")
         return
+    end
+
+    if State.ChallengeWin then
+        Services.ReplicatedStorage.Remotes.StageEnd:FireServer("Lobby")
     end
     
     -- Check if we should return to lobby for new challenges
@@ -3625,7 +3630,7 @@ local success = pcall(function()
             task.spawn(function()
                 task.wait(1)
                 if stageInfo and stageInfo.IsChallenge and stageInfo.Result == "Win" then
-                Services.ReplicatedStorage.Remotes.StageEnd:FireServer("Lobby")
+                State.ChallengeWin = true
             end
                 handleEndGameActions()
             end)
