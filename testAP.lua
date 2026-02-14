@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.37"
+local script_version = "V0.38"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2087,140 +2087,71 @@ local function isChallengeCompleted(challengeType, challengeFolder)
     if not challengeFolder or not challengeFolder:IsA("Folder") then
         return true -- Skip if invalid
     end
+
+    local PeriodKeys = require(Services.Players.LocalPlayer.PlayerScripts.ClientCache.Handlers.UIHandler.Pods.PodsMapSelection.PeriodKeys)
+    local ReplicaHandler = require(Services.ReplicatedStorage.Modules.Shared.Handlers.ReplicaHandler)
     
-    -- Get challenge data we need to match
-    local stageNameObj = challengeFolder:FindFirstChild("StageName")
-    local actObj = challengeFolder:FindFirstChild("Act")
-    local stageTypeObj = challengeFolder:FindFirstChild("StageType")
-    
-    if not stageNameObj or not actObj or not stageTypeObj then
-        return true -- Skip if missing data
-    end
-    
-    local targetStageNameInternal = stageNameObj.Value
-    local targetAct = "Act " .. tostring(actObj.Value)
-    local targetStageType = stageTypeObj.Value
-    
-    -- Convert internal stage name to display name
-    local targetStageNameDisplay = targetStageNameInternal
-    
-    -- First try to find it in StageDataCache
-    for category, worlds in pairs(StageDataCache) do
-        for internalName, worldData in pairs(worlds) do
-            if internalName == targetStageNameInternal then
-                targetStageNameDisplay = worldData.displayName
-                debugPrint(string.format("Converted stage name: %s -> %s", targetStageNameInternal, targetStageNameDisplay))
-                break
-            end
-        end
-        if targetStageNameDisplay ~= targetStageNameInternal then
-            break
+    -- Make sure modules are loaded
+    if not ReplicaHandler or not PeriodKeys then
+        if not initializeChallengeSystem() then
+            warn("Challenge system not initialized - assuming not completed")
+            return false
         end
     end
     
-    -- If not found in cache, try to get it from StageData modules
-    if targetStageNameDisplay == targetStageNameInternal then
-        pcall(function()
-            local stageDataFolder = Services.ReplicatedStorage.Modules.Shared.Data.StageData
-            local worldModule = stageDataFolder:FindFirstChild(targetStageNameInternal)
-            if worldModule and worldModule:IsA("ModuleScript") then
-                local worldData = require(worldModule)
-                if worldData.StageName then
-                    targetStageNameDisplay = worldData.StageName
-                    debugPrint(string.format("Converted stage name from module: %s -> %s", targetStageNameInternal, targetStageNameDisplay))
-                else
-                    -- Fallback: format the internal name
-                    targetStageNameDisplay = targetStageNameInternal:gsub("_", " ")
-                    debugPrint(string.format("Formatted stage name: %s -> %s", targetStageNameInternal, targetStageNameDisplay))
-                end
-            end
-        end)
+    -- Get the challenge index from the folder name (should be "1", "2", "3", etc.)
+    local challengeIndex = tonumber(challengeFolder.Name)
+    if not challengeIndex then
+        warn("Invalid challenge folder name:", challengeFolder.Name)
+        return true -- Skip if we can't determine index
     end
     
-    debugPrint(string.format("Checking completion for: %s - %s (%s)", challengeType, targetStageNameDisplay, targetAct))
-    
-    -- Fire the appropriate button based on challenge type
-    local success = pcall(function()
-        local podsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Pods")
-        if not podsUI then return end
-        
-        local challengeSelection = podsUI:FindFirstChild("ChallengeSelection")
-        if not challengeSelection then return end
-        
-        local buttonPath = nil
-        if challengeType == "Daily" then
-            buttonPath = challengeSelection.List.DailyChallenges.Content.ChallengeHolder.Btn
-        elseif challengeType == "Weekly" then
-            buttonPath = challengeSelection.List.WeeklyChallenges.Content.ChallengeHolder.Btn
-        elseif challengeType == "Regular" then
-            buttonPath = challengeSelection.List.RegularChallenges.Content.ChallengeHolder.Btn
-        end
-        
-        if buttonPath then
-            for _, connection in pairs(getconnections(buttonPath.Activated)) do
-                connection:Fire()
-            end
-            task.wait(0.3) -- Wait for UI to update
-        end
+    -- Get player data
+    local success, playerData = pcall(function()
+        return ReplicaHandler:RequestPlayerData(Services.Players.LocalPlayer)
     end)
     
-    if not success then
-        warn("Failed to fire challenge button")
+    if not success or not playerData or not playerData.Challenges then
+        warn("Failed to get player challenge data")
         return false -- Assume not completed if we can't check
     end
     
-    -- Check the Quests folder for completed challenges
-    local questsFolder = nil
-    success = pcall(function()
-        questsFolder = Services.Players.LocalPlayer.PlayerGui.Pods.ChallengeSelection.Quests
-    end)
+    local challenges = playerData.Challenges
     
-    if not success or not questsFolder then
-        warn("Could not access Quests folder")
+    -- Get current period key based on challenge type
+    local currentKey = nil
+    local challengeData = nil
+    
+    if challengeType == "Weekly" then
+        currentKey = PeriodKeys.GetCurrentWeekKey()
+        challengeData = challenges.Weekly[challengeIndex]
+        
+    elseif challengeType == "Daily" then
+        currentKey = PeriodKeys.GetCurrentDayKey()
+        challengeData = challenges.Daily[challengeIndex]
+        
+    elseif challengeType == "Regular" then
+        currentKey = PeriodKeys.GetCurrentHourKey()
+        challengeData = challenges.Regular[challengeIndex]
+    else
+        warn("Unknown challenge type:", challengeType)
         return false
     end
     
-    -- Check all ChallengeEX frames
-    for _, frame in pairs(questsFolder:GetChildren()) do
-        if frame.Name == "ChallengeEX" and frame:IsA("Frame") then
-            local claimed = frame:FindFirstChild("Claimed")
-            local info = frame:FindFirstChild("Info")
-            
-            if claimed and info then
-                -- Check if this challenge matches our target
-                local actFrame = info:FindFirstChild("Act")
-                local stageNameFrame = info:FindFirstChild("StageName")
-                local stageTypeFrame = info:FindFirstChild("StageType")
-                
-                if actFrame and stageNameFrame and stageTypeFrame then
-                    local actText = actFrame:FindFirstChild("MainContent") and 
-                                   actFrame.MainContent:FindFirstChild("Txt") and 
-                                   actFrame.MainContent.Txt.Text
-                    local stageNameText = stageNameFrame:FindFirstChild("MainContent") and 
-                                         stageNameFrame.MainContent:FindFirstChild("Txt") and 
-                                         stageNameFrame.MainContent.Txt.Text
-                    local stageTypeText = stageTypeFrame:FindFirstChild("MainContent") and 
-                                         stageTypeFrame.MainContent:FindFirstChild("Txt") and 
-                                         stageTypeFrame.MainContent.Txt.Text
-                    
-                    debugPrint(string.format("Checking frame - Act: %s, Stage: %s, Type: %s", 
-                        tostring(actText), tostring(stageNameText), tostring(stageTypeText)))
-                    
-                    -- Match the challenge using display name
-                    if actText == targetAct and 
-                       stageNameText == targetStageNameDisplay then
-                        
-                        local isCompleted = claimed.Visible
-                        debugPrint(string.format("Challenge match found - Completed: %s", tostring(isCompleted)))
-                        return isCompleted
-                    end
-                end
-            end
-        end
-    end
+    -- Check completion status
+    -- If challengeData equals currentKey, it means it was completed this period
+    local isCompleted = (type(challengeData) == "string" and challengeData == currentKey)
     
-    debugPrint("No matching challenge found - assuming not completed")
-    return false
+    debugPrint(string.format(
+        "%s Challenge %d: %s (Data: %s, Current Key: %s)",
+        challengeType,
+        challengeIndex,
+        isCompleted and "COMPLETED" or "AVAILABLE",
+        tostring(challengeData),
+        tostring(currentKey)
+    ))
+    
+    return isCompleted
 end
 
 local function findAndJoinChallenge()
@@ -2895,7 +2826,6 @@ local MacroInput = MacroTab:CreateInput({
         
         -- Refresh dropdown and select new macro
         MacroDropdown:Refresh(getMacroList(), cleanedName)
-        refreshWorldDropdowns()
 
         notify("Macro Created", "Created macro: " .. cleanedName, 3)
     end,
