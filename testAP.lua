@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.35"
+local script_version = "V0.36"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2890,6 +2890,7 @@ local MacroInput = MacroTab:CreateInput({
         
         -- Refresh dropdown and select new macro
         MacroDropdown:Refresh(getMacroList(), cleanedName)
+        refreshWorldDropdowns()
 
         notify("Macro Created", "Created macro: " .. cleanedName, 3)
     end,
@@ -3578,10 +3579,6 @@ local success = pcall(function()
     StageEndRemote.OnClientEvent:Connect(function(eventType, stageInfo, playerStats, rewards, playerData)
         if eventType == "ShowResults" then
 
-            if stageInfo and stageInfo.IsChallenge and stageInfo.Result == "Win" then
-                State.NewChallengeDetected = true
-            end
-
             cancelAllThreads()
             
             -- Reset game state
@@ -3596,6 +3593,7 @@ local success = pcall(function()
             if MacroState.isRecording and MacroState.recordingHasStarted then
                 local actionCount = #MacroState.currentMacro
                 stopRecording()
+                RecordToggle:Set(false)
                 
                 notify("Recording Stopped", string.format("Game ended - saved %d actions", actionCount))
             end
@@ -3626,6 +3624,9 @@ local success = pcall(function()
             
             task.spawn(function()
                 task.wait(1)
+                if stageInfo and stageInfo.IsChallenge and stageInfo.Result == "Win" then
+                Services.ReplicatedStorage.Remotes.StageEnd:FireServer("Lobby")
+            end
                 handleEndGameActions()
             end)
         end
