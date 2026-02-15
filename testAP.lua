@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.44"
+local script_version = "V0.45"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -3630,12 +3630,21 @@ task.spawn(function()
                 table.insert(siegeList, world.displayName)
             end
             table.sort(siegeList)
+
+            task.wait(3)
+
+            local portalList = {}
+            for _, portal in pairs(StageDataCache.portal) do
+                table.insert(portalList, portal.displayName)
+            end
+            table.sort(portalList)
             
             StoryStageDropdown:Refresh(storyList)
             IgnoreWorldsDropdown:Refresh(storyList)
             LegendStageDropdown:Refresh(legendList)
             RaidStageDropdown:Refresh(raidList)
             SiegeStageDropdown:Refresh(siegeList)
+            PortalStageDropdown:Refresh(portalList)
             
             debugPrint("✓ Stage dropdowns populated")
             break
