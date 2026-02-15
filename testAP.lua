@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.51"
+local script_version = "V0.52"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -339,10 +339,19 @@ local function getMacroForCurrentWorld()
     local mapValue = map.Value
     local stageTypeValue = stageType.Value
     
-    -- Build key: "map_stageType"
-    local key = string.format("%s_%s", mapValue, stageTypeValue)
+    -- Build key based on stage type
+    local key = nil
     
-    debugPrint(string.format("Looking for macro mapping: %s", key))
+    if stageTypeValue == "Portal" then
+        -- For portals, use "JJK_Portal_Portal" format
+        -- This matches the key we created in the auto-select dropdown
+        key = "JJK_Portal_Portal"
+    else
+        -- For regular stages: "map_stageType"
+        key = string.format("%s_%s", mapValue, stageTypeValue)
+    end
+    
+    debugPrint(string.format("Looking for macro mapping: %s (Map: %s, Type: %s)", key, mapValue, stageTypeValue))
     
     return worldMacroMappings[key]
 end
@@ -405,6 +414,13 @@ local function createAutoSelectDropdowns()
         Flag = "SiegeAutoSelectCollapsible"
     })
     
+    -- Portal Collapsible
+    categoryCollapsibles.Portal = MacroTab:CreateCollapsible({
+        Name = "Portal Auto-Select",
+        DefaultExpanded = false,
+        Flag = "PortalAutoSelectCollapsible"
+    })
+    
     -- Create dropdowns for each world in each category
     for category, worlds in pairs(StageDataCache) do
         if category == "challenge" then continue end -- Skip challenge
@@ -414,40 +430,92 @@ local function createAutoSelectDropdowns()
         
         if not collapsible then continue end
         
-        debugPrint(string.format("Creating dropdowns for %s category (%d worlds)", categoryName, #worlds))
+        debugPrint(string.format("Creating dropdowns for %s category", categoryName))
         
-        for internalName, worldData in pairs(worlds) do
-            local displayName = worldData.displayName
+        -- Special handling for portals
+        if category == "portal" then
+            -- Group portals by their base name (ignoring level)
+            local portalTypes = {}
+            for itemId, portalData in pairs(worlds) do
+                -- Extract base name (e.g., "JJK Portal Lv.1" -> "JJK Portal")
+                local baseName = portalData.displayName:match("^(.+)%s+Lv%.%d+$") or portalData.displayName
+                
+                if not portalTypes[baseName] then
+                    portalTypes[baseName] = {
+                        displayName = baseName,
+                        internalName = baseName -- We'll use base name as key
+                    }
+                end
+            end
             
-            -- Build key: "map_stageType"
-            local key = string.format("%s_%s", internalName, categoryName)
-            
-            local currentMapping = worldMacroMappings[key] or "None"
-            
-            local dropdown = collapsible.Tab:CreateDropdown({
-                Name = displayName,
-                Options = initialMacroOptions,
-                CurrentOption = {currentMapping},
-                MultipleOptions = false,
-                Flag = "AutoSelect_" .. key,
-                Info = string.format("Auto-select macro for %s", displayName),
-                Callback = function(Option)
-                    local selectedMacro = type(Option) == "table" and Option[1] or Option
-                    
-                    if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[key] = nil
-                        debugPrint(string.format("Cleared auto-select for %s", key))
-                    else
-                        worldMacroMappings[key] = selectedMacro
-                        debugPrint(string.format("Set auto-select: %s -> %s", key, selectedMacro))
-                    end
-                    
-                    saveWorldMappings()
-                end,
-            })
-            
-            worldDropdowns[key] = dropdown
-            debugPrint(string.format("  Created dropdown: %s (key: %s)", displayName, key))
+            -- Create dropdown for each portal type
+            for baseName, portalData in pairs(portalTypes) do
+                -- Build key: "map_Portal" (e.g., "Shibuya_Station_Portal")
+                -- For now we'll use a generic key since we don't know the map yet
+                local key = string.format("%s_Portal", baseName:gsub(" ", "_"))
+                
+                local currentMapping = worldMacroMappings[key] or "None"
+                
+                local dropdown = collapsible.Tab:CreateDropdown({
+                    Name = baseName,
+                    Options = initialMacroOptions,
+                    CurrentOption = {currentMapping},
+                    MultipleOptions = false,
+                    Flag = "AutoSelect_" .. key,
+                    Info = string.format("Auto-select macro for %s portals", baseName),
+                    Callback = function(Option)
+                        local selectedMacro = type(Option) == "table" and Option[1] or Option
+                        
+                        if selectedMacro == "None" or selectedMacro == "" then
+                            worldMacroMappings[key] = nil
+                            debugPrint(string.format("Cleared auto-select for %s", key))
+                        else
+                            worldMacroMappings[key] = selectedMacro
+                            debugPrint(string.format("Set auto-select: %s -> %s", key, selectedMacro))
+                        end
+                        
+                        saveWorldMappings()
+                    end,
+                })
+                
+                worldDropdowns[key] = dropdown
+                debugPrint(string.format("  Created dropdown: %s (key: %s)", baseName, key))
+            end
+        else
+            -- Regular world handling (story, legend, raid, siege)
+            for internalName, worldData in pairs(worlds) do
+                local displayName = worldData.displayName
+                
+                -- Build key: "map_stageType"
+                local key = string.format("%s_%s", internalName, categoryName)
+                
+                local currentMapping = worldMacroMappings[key] or "None"
+                
+                local dropdown = collapsible.Tab:CreateDropdown({
+                    Name = displayName,
+                    Options = initialMacroOptions,
+                    CurrentOption = {currentMapping},
+                    MultipleOptions = false,
+                    Flag = "AutoSelect_" .. key,
+                    Info = string.format("Auto-select macro for %s", displayName),
+                    Callback = function(Option)
+                        local selectedMacro = type(Option) == "table" and Option[1] or Option
+                        
+                        if selectedMacro == "None" or selectedMacro == "" then
+                            worldMacroMappings[key] = nil
+                            debugPrint(string.format("Cleared auto-select for %s", key))
+                        else
+                            worldMacroMappings[key] = selectedMacro
+                            debugPrint(string.format("Set auto-select: %s -> %s", key, selectedMacro))
+                        end
+                        
+                        saveWorldMappings()
+                    end,
+                })
+                
+                worldDropdowns[key] = dropdown
+                debugPrint(string.format("  Created dropdown: %s (key: %s)", displayName, key))
+            end
         end
     end
     
@@ -2815,7 +2883,7 @@ local PortalStageDropdown = JoinerTab:CreateDropdown({
 JoinerTab:CreateButton({
     Name = "Refresh Portal List",
     Callback = function()
-        if PortalStageDropdown then
+        if loadPortals() then
             local portalList = {}
             for _, portal in pairs(StageDataCache.portal) do
                 table.insert(portalList, portal.displayName)
@@ -2836,16 +2904,6 @@ JoinerTab:CreateToggle({
     Info = "Joins the highest level portal you own",
     Callback = function(Value)
         State.AutoNextPortal = Value
-    end,
-})
-
-JoinerTab:CreateToggle({
-    Name = "Auto Pick Portal Reward",
-    CurrentValue = false,
-    Flag = "AutoPickPortalReward",
-    Info = "Automatically picks the highest level reward when finishing a portal",
-    Callback = function(Value)
-        State.AutoPickPortalReward = Value
     end,
 })
 
@@ -3809,11 +3867,28 @@ loadWorldMappings()
 MacroDropdown:Refresh(getMacroList())
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
+
 task.spawn(function()
     fetchPlayerLoadout()
-    createAutoSelectDropdowns()
-    task.wait(0.5)
-    refreshWorldDropdowns()
+    
+    -- Wait for portals to load before creating dropdowns
+    task.spawn(function()
+        if loadPortals() then
+            local portalList = {}
+            for _, portal in pairs(StageDataCache.portal) do
+                table.insert(portalList, portal.displayName)
+            end
+            table.sort(portalList)
+            
+            PortalStageDropdown:Refresh(portalList)
+            debugPrint(string.format("✓ Portal dropdown refreshed with %d portals", #portalList))
+        end
+        
+        -- Create auto-select dropdowns AFTER portals are loaded
+        createAutoSelectDropdowns()
+        task.wait(0.5)
+        refreshWorldDropdowns()
+    end)
 end)
 
 Rayfield:TopNotify({
