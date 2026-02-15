@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.49"
+local script_version = "V0.5"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2786,8 +2786,12 @@ local PortalStageDropdown = JoinerTab:CreateDropdown({
         local name = type(selected) == "table" and selected[1] or selected
         
         for _, world in pairs(StageDataCache.portal) do
+            print(world.displayName)
+            print(name)
             if world.displayName == name then
                 State.PortalStageSelected = world.internalName -- PORTAL ITEM ID
+                debugPrint(string.format("Selected portal: %s (Item ID: %s)", name, world.internalName))
+                break
             end
         end
     end,
