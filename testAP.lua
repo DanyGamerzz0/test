@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.53"
+local script_version = "V0.54"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -200,6 +200,11 @@ local MacroManager = {
 local PlayerLoadout = {
     units = {},
     loaded = false,
+}
+
+local AutoSelectState = {
+    isReady = false,
+    portalsLoaded = false
 }
 
 local MacroState = {
@@ -1405,6 +1410,8 @@ local function autoPlaybackLoop()
     MacroState.playbackLoopRunning = true
     MacroState.playbackLoopThread = coroutine.running()
 
+    debugPrint("🔄 Playback loop started")
+
     while MacroState.isPlaybackEnabled do
         -- Wait for game to start
         while not MacroState.gameInProgress and MacroState.isPlaybackEnabled do
@@ -1420,6 +1427,44 @@ local function autoPlaybackLoop()
             continue
         end
         
+        debugPrint("🎮 Game detected, checking stage type...")
+        
+        -- Check if this is a portal stage
+        local isPortal = false
+        pcall(function()
+            local stageType = Services.ReplicatedStorage.GameConfig.StageType.Value
+            isPortal = (stageType == "Portal")
+        end)
+        
+        -- Wait for auto-select to be ready
+        if isPortal and not AutoSelectState.portalsLoaded then
+            debugPrint("⏳ Portal detected but portal auto-select not ready yet, waiting...")
+            updateMacroStatus("Waiting for portal data to load...")
+            
+            local waitTime = 0
+            while not AutoSelectState.portalsLoaded and waitTime < 30 do
+                task.wait(0.5)
+                waitTime = waitTime + 0.5
+            end
+            
+            if not AutoSelectState.portalsLoaded then
+                warn("Portal auto-select never loaded - proceeding anyway")
+            else
+                debugPrint("✓ Portal auto-select ready!")
+            end
+        elseif not AutoSelectState.isReady then
+            debugPrint("⏳ Auto-select not ready yet, waiting...")
+            updateMacroStatus("Waiting for auto-select to load...")
+            
+            local waitTime = 0
+            while not AutoSelectState.isReady and waitTime < 10 do
+                task.wait(0.5)
+                waitTime = waitTime + 0.5
+            end
+        end
+        
+        debugPrint("📂 Checking for macro...")
+        
         -- Wait for wave timing to be initialized
         local timeout = 0
         while MacroState.waveStartTime == 0 and timeout < 20 do
@@ -1434,6 +1479,9 @@ local function autoPlaybackLoop()
         
         -- Get macro to use (world-specific or manual selection)
         local worldSpecificMacro = getMacroForCurrentWorld()
+        debugPrint(string.format("World-specific macro: %s", tostring(worldSpecificMacro)))
+        debugPrint(string.format("Manual macro: %s", tostring(MacroManager.currentMacroName)))
+        
         local macroToUse = worldSpecificMacro or MacroManager.currentMacroName
         
         if not macroToUse or macroToUse == "" then
@@ -1442,6 +1490,8 @@ local function autoPlaybackLoop()
             notify("Playback Error", "No macro selected for this world")
             break
         end
+        
+        debugPrint(string.format("✓ Using macro: %s", macroToUse))
         
         -- Load the macro
         local loadedMacro = loadMacroFromFile(macroToUse)
@@ -3877,7 +3927,16 @@ Rayfield:SetVisibility(false)
 task.spawn(function()
     fetchPlayerLoadout()
     
-    -- Wait for portals to load before creating dropdowns
+    -- Create auto-select dropdowns for stages (portals come later)
+    createAutoSelectDropdowns()
+    task.wait(0.5)
+    refreshWorldDropdowns()
+    
+    -- Mark auto-select as ready for non-portal stages
+    AutoSelectState.isReady = true
+    debugPrint("✓ Auto-select ready (stages only)")
+    
+    -- Load portals asynchronously
     task.spawn(function()
         if loadPortals() then
             local portalList = {}
@@ -3888,12 +3947,14 @@ task.spawn(function()
             
             PortalStageDropdown:Refresh(portalList)
             debugPrint(string.format("✓ Portal dropdown refreshed with %d portals", #portalList))
+            
+            -- Refresh auto-select to include portals
+            createAutoSelectDropdowns() -- Re-create to include portal dropdowns
+            refreshWorldDropdowns()
+            
+            AutoSelectState.portalsLoaded = true
+            debugPrint("✓ Auto-select ready (including portals)")
         end
-        
-        -- Create auto-select dropdowns AFTER portals are loaded
-        createAutoSelectDropdowns()
-        task.wait(0.5)
-        refreshWorldDropdowns()
     end)
 end)
 
