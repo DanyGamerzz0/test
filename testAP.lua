@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.58"
+local script_version = "V0.59"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1837,6 +1837,68 @@ local function waitForClientLoaded()
     return false
 end
 
+local function getHighestPortal()
+    debugPrint("Checking for highest level portal...")
+    
+    -- Reload portals to get current inventory
+    local inventoryModule = nil
+    local success = pcall(function()
+        inventoryModule = require(
+            Services.Players.LocalPlayer.PlayerScripts
+                :WaitForChild("ClientCache", 10)
+                :WaitForChild("Handlers", 10)
+                :WaitForChild("UIHandler", 10)
+                :WaitForChild("ItemsInventory", 10)
+        )
+    end)
+    
+    if not success or not inventoryModule then
+        warn("Failed to load inventory module for portal check")
+        return nil
+    end
+    
+    local inventory = nil
+    success = pcall(function()
+        inventory = inventoryModule.getInventory()
+    end)
+    
+    if not success or not inventory then
+        warn("Failed to get inventory for portal check")
+        return nil
+    end
+    
+    -- Find all portals and get the highest level
+    local highestPortal = nil
+    local highestLevel = 0
+    
+    for itemId, itemProfile in pairs(inventory) do
+        if itemProfile.BaseData and itemProfile.BaseData.Type == "Portal" then
+            local displayName = itemProfile.BaseData.DisplayName or ""
+            
+            -- Extract level from name (e.g., "JJK Portal Lv.2" -> 2)
+            local level = tonumber(displayName:match("Lv%.(%d+)"))
+            
+            if level and level > highestLevel then
+                highestLevel = level
+                -- Get the base name for the remote (e.g., "JJK_Portal_Lv2")
+                local baseName = displayName:match("^(.+)%s+Lv") or displayName
+                baseName = baseName:gsub(" ", "_")
+                highestPortal = string.format("%s_Lv%d", baseName, level)
+                
+                debugPrint(string.format("  Found portal: %s (Level %d)", displayName, level))
+            end
+        end
+    end
+    
+    if highestPortal then
+        debugPrint(string.format("✓ Highest portal: %s (Level %d)", highestPortal, highestLevel))
+    else
+        debugPrint("✗ No portals found in inventory")
+    end
+    
+    return highestPortal
+end
+
 local function handleEndGameActions()
     local endGameUI = nil
     local maxWait = 10
@@ -1914,11 +1976,11 @@ local function handleEndGameActions()
         
         -- Check result from StageEnd UI or other sources
         pcall(function()
-            local resultsFrame = endGameUI:FindFirstChild("ResultsFrame")
+            local resultsFrame = endGameUI:FindFirstChild("StageEnd")
             if resultsFrame then
-                local resultLabel = resultsFrame:FindFirstChild("Result")
+                local resultLabel = resultsFrame:FindFirstChild("VictoryHeader"):FindFirstChild("NameTitle")
                 if resultLabel and resultLabel.Text then
-                    didWin = resultLabel.Text:lower():find("victory") or resultLabel.Text:lower():find("win")
+                    didWin = resultLabel.Text:lower():find("victory")
                 end
             end
         end)
@@ -2741,68 +2803,6 @@ local function checkForNewChallenges()
         debugPrint("New hour detected - new challenges may be available")
         notify("New Challenges", "New challenges may be available!", 3)
     end
-end
-
-local function getHighestPortal()
-    debugPrint("Checking for highest level portal...")
-    
-    -- Reload portals to get current inventory
-    local inventoryModule = nil
-    local success = pcall(function()
-        inventoryModule = require(
-            Services.Players.LocalPlayer.PlayerScripts
-                :WaitForChild("ClientCache", 10)
-                :WaitForChild("Handlers", 10)
-                :WaitForChild("UIHandler", 10)
-                :WaitForChild("ItemsInventory", 10)
-        )
-    end)
-    
-    if not success or not inventoryModule then
-        warn("Failed to load inventory module for portal check")
-        return nil
-    end
-    
-    local inventory = nil
-    success = pcall(function()
-        inventory = inventoryModule.getInventory()
-    end)
-    
-    if not success or not inventory then
-        warn("Failed to get inventory for portal check")
-        return nil
-    end
-    
-    -- Find all portals and get the highest level
-    local highestPortal = nil
-    local highestLevel = 0
-    
-    for itemId, itemProfile in pairs(inventory) do
-        if itemProfile.BaseData and itemProfile.BaseData.Type == "Portal" then
-            local displayName = itemProfile.BaseData.DisplayName or ""
-            
-            -- Extract level from name (e.g., "JJK Portal Lv.2" -> 2)
-            local level = tonumber(displayName:match("Lv%.(%d+)"))
-            
-            if level and level > highestLevel then
-                highestLevel = level
-                -- Get the base name for the remote (e.g., "JJK_Portal_Lv2")
-                local baseName = displayName:match("^(.+)%s+Lv") or displayName
-                baseName = baseName:gsub(" ", "_")
-                highestPortal = string.format("%s_Lv%d", baseName, level)
-                
-                debugPrint(string.format("  Found portal: %s (Level %d)", displayName, level))
-            end
-        end
-    end
-    
-    if highestPortal then
-        debugPrint(string.format("✓ Highest portal: %s (Level %d)", highestPortal, highestLevel))
-    else
-        debugPrint("✗ No portals found in inventory")
-    end
-    
-    return highestPortal
 end
 
 Button = LobbyTab:CreateButton({
