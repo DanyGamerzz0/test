@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.41"
+local script_version = "V0.42"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2441,7 +2441,7 @@ local function loadStageData()
         task.spawn(function()
             task.wait(2) -- Wait for inventory to load
             
-            local inventoryModule = Services.Players.LocalPlayer.PlayerGui:WaitForChild("UIController"):WaitForChild("Handlers"):WaitForChild("ItemsInventory")
+            local inventoryModule = require(Services.Players.LocalPlayer.PlayerGui:WaitForChild("ClientCache"):WaitForChild("Handlers"):WaitForChild("UIHandler"):WaitForChild("ItemsInventory"))
             local inventory = inventoryModule.getInventory()
             
             local addedPortals = {} -- Track unique portal names
