@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.55"
+local script_version = "V0.56"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -336,9 +336,6 @@ local function getMacroForCurrentWorld()
     -- Get current stage info
     local map = gameConfig:FindFirstChild("Map")
     local stageType = gameConfig:FindFirstChild("StageType")
-
-    print("MAP: "..mapValue)
-    print("STAGE TYPE: "..stageTypeValue)
     
     if not map or not stageType then
         return nil
@@ -3922,7 +3919,7 @@ task.spawn(function()
     -- Create auto-select dropdowns for stages (portals come later)
     createAutoSelectDropdowns()
     task.wait(0.5)
-    refreshWorldDropdowns()
+    --refreshWorldDropdowns()
     
     -- Mark auto-select as ready for non-portal stages
     AutoSelectState.isReady = true
@@ -3942,7 +3939,7 @@ task.spawn(function()
             
             -- Refresh auto-select to include portals
             createAutoSelectDropdowns() -- Re-create to include portal dropdowns
-            refreshWorldDropdowns()
+            --refreshWorldDropdowns()
             
             AutoSelectState.portalsLoaded = true
             debugPrint("✓ Auto-select ready (including portals)")
