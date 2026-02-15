@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.4"
+local script_version = "V0.41"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1534,6 +1534,7 @@ if playerData and playerData.Inventory and playerData.Inventory.Items then
 end
 
 local unitsDropped = {}
+local unitCounts = {}
 local shouldPingUser = false
 
     if rewardsData then
@@ -1562,11 +1563,18 @@ local shouldPingUser = false
                 if newestUnit and newestUnit.Shiny then
                     unitDisplayName = "[Shiny] " .. itemName
                 end
-                
-                table.insert(unitsDropped, unitDisplayName)
+
+                if not unitCounts[unitDisplayName] then
+                unitCounts[unitDisplayName] = 0
+            end
+            unitCounts[unitDisplayName] = unitCounts[unitDisplayName] + 1
             end
         end
     end
+
+    for unitName, count in pairs(unitCounts) do
+    table.insert(unitsDropped, {name = unitName, count = count})
+end
     
     -- Format rewards
     local rewardsText = ""
@@ -1583,10 +1591,10 @@ if rewardsData then
     end
 
     if #unitsDropped > 0 then
-            for _, unitName in ipairs(unitsDropped) do
-                rewardsText = rewardsText .. string.format("%s\n", unitName)
-            end
+        for _, unitData in ipairs(unitsDropped) do
+            rewardsText = rewardsText .. string.format("+%d %s\n", unitData.count, unitData.name)
         end
+    end
     
     -- Add Items (like Ramen, TraitRerolls, RaidCoin, etc)
     for itemName, amount in pairs(rewardsData) do
@@ -2313,11 +2321,10 @@ local function checkAndExecuteHighestPriority()
     end
 
 -- STORY
-debugPrint(State.AutoJoinStory,State.StoryStageSelected,State.StoryActSelected,State.StoryDifficultySelected)
 if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected then
     setProcessingState("Story Auto Join")
 
-    debugPrint("storystage: " .. tostring(State.StoryStageSelected) .. " storyact: " .. tostring(State.StoryActSelected) .. " storydiff: " .. tostring(State.StoryDifficultySelected))
+    debugPrint(State.AutoJoinStory,State.StoryStageSelected,State.StoryActSelected,State.StoryDifficultySelected)
 
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.StoryStageSelected), "Story", tostring(State.StoryActSelected), true, tostring(State.StoryDifficultySelected), nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
@@ -2326,12 +2333,11 @@ if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected a
     return
 end
 
-debugPrint(State.AutoJoinLegendStage,State.LegendStageSelected,State.LegendActSelected)
 -- LEGEND STAGE
 if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected then
     setProcessingState("Legend Stage Auto Join")
 
-    debugPrint("legendstage: " .. tostring(State.LegendStageSelected) .. " legendact: " .. tostring(State.LegendActSelected))
+    debugPrint(State.AutoJoinLegendStage,State.LegendStageSelected,State.LegendActSelected)
 
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.LegendStageSelected), "Legend", tostring(State.LegendActSelected), true, "Normal", nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
@@ -2341,11 +2347,10 @@ if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSe
 end
 
 -- RAID
-debugPrint(State.AutoJoinRaid,State.RaidStageSelected,State.RaidActSelected)
 if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
     setProcessingState("Raid Auto Join")
 
-    debugPrint("raidstage: " .. tostring(State.RaidStageSelected) .. " raidact: " .. tostring(State.RaidActSelected))
+    debugPrint(State.AutoJoinRaid,State.RaidStageSelected,State.RaidActSelected)
 
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.RaidStageSelected), "Raid", tostring(State.RaidActSelected), true, "Normal", nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
@@ -2355,11 +2360,10 @@ if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
 end
 
 -- SIEGE
-debugPrint(State.AutoJoinSiege,State.SiegeStageSelected,State.SiegeActSelected)
 if State.AutoJoinSiege and State.SiegeStageSelected and State.SiegeActSelected then
     setProcessingState("Siege Auto Join")
 
-    debugPrint("siegestage: " .. tostring(State.SiegeStageSelected) .. " siegeact: " .. tostring(State.SiegeActSelected))
+    debugPrint(State.AutoJoinSiege,State.SiegeStageSelected,State.SiegeActSelected)
 
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.SiegeStageSelected), "Siege", tostring(State.SiegeActSelected), true, "Normal", nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
@@ -2432,6 +2436,43 @@ local function loadStageData()
                 end
             end
         end
+        
+        -- Load portals from inventory
+        task.spawn(function()
+            task.wait(2) -- Wait for inventory to load
+            
+            local inventoryModule = Services.Players.LocalPlayer.PlayerGui:WaitForChild("UIController"):WaitForChild("Handlers"):WaitForChild("ItemsInventory")
+            local inventory = inventoryModule.getInventory()
+            
+            local addedPortals = {} -- Track unique portal names
+            
+            for itemId, itemProfile in pairs(inventory) do
+                if itemProfile.BaseData and itemProfile.BaseData.Type == "Portal" then
+                    local displayName = itemProfile.BaseData.DisplayName or "Unknown Portal"
+                    
+                    -- Only add if we haven't added this portal name yet
+                    if not addedPortals[displayName] then
+                        StageDataCache.portal[itemId] = {
+                            displayName = displayName,
+                            internalName = itemId, -- Item ID from inventory
+                        }
+                        addedPortals[displayName] = true
+                        debugPrint(string.format("  Added portal: %s (ID: %s)", displayName, itemId))
+                    end
+                end
+            end
+            
+            -- Refresh portal dropdown
+            if PortalStageDropdown then
+                local portalList = {}
+                for _, portal in pairs(StageDataCache.portal) do
+                    table.insert(portalList, portal.displayName)
+                end
+                table.sort(portalList)
+                PortalStageDropdown:Refresh(portalList)
+                debugPrint("✓ Portal dropdown populated")
+            end
+        end)
     end)
     
     if not success then
@@ -2672,6 +2713,53 @@ local SiegeActDropdown = JoinerTab:CreateDropdown({
             if num then
                 State.SiegeActSelected = num
             end
+    end,
+})
+
+JoinerTab:CreateDivider()
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Portal",
+    CurrentValue = false,
+    Flag = "AutoJoinPortal",
+    Callback = function(Value)
+        State.AutoJoinPortal = Value
+    end,
+})
+
+local PortalStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Portal",
+    Options = {},
+    CurrentOption = {},
+    Flag = "PortalStageDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        
+        for _, world in pairs(StageDataCache.portal) do
+            if world.displayName == name then
+                State.PortalStageSelected = world.internalName -- PORTAL ITEM ID
+            end
+        end
+    end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Auto Next Portal",
+    CurrentValue = false,
+    Flag = "AutoNextPortal",
+    Info = "Joins the highest level portal you own",
+    Callback = function(Value)
+        State.AutoNextPortal = Value
+    end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Auto Pick Portal Reward",
+    CurrentValue = false,
+    Flag = "AutoPickPortalReward",
+    Info = "Automatically picks the highest level reward when finishing a portal",
+    Callback = function(Value)
+        State.AutoPickPortalReward = Value
     end,
 })
 
