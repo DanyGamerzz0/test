@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.45"
+local script_version = "V0.46"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2441,12 +2441,35 @@ local function loadStageData()
             end
         end
         
-        -- Load portals from inventory
+        -- Load portals from inventory (spawn async to not block main load)
         task.spawn(function()
-            task.wait(2) -- Wait for inventory to load
+            -- Wait for client to be loaded
+            debugPrint("Waiting for client to load before fetching portals...")
+            if not waitForClientLoaded() then
+                warn("Client load timeout - portals may not load")
+                return
+            end
             
-            local inventoryModule = require(Services.Players.LocalPlayer.PlayerScripts:WaitForChild("ClientCache"):WaitForChild("Handlers"):WaitForChild("UIHandler"):WaitForChild("ItemsInventory"))
-            local inventory = inventoryModule.getInventory()
+            task.wait(1) -- Extra delay to ensure inventory module is ready
+            
+            local success3, inventoryModule = pcall(function()
+                return require(Services.Players.LocalPlayer.PlayerScripts:WaitForChild("ClientCache", 10):WaitForChild("Handlers", 10):WaitForChild("UIHandler", 10):WaitForChild("ItemsInventory", 10))
+            end)
+            
+            if not success3 or not inventoryModule then
+                warn("Could not find inventory module")
+                return
+            end
+            
+            local success4, inventory = pcall(function()
+                return inventoryModule.getInventory()
+            end)
+            
+            if not success4 or not inventory then
+                warn("Could not get inventory")
+                return
+            end
+            
             local addedPortals = {} -- Track unique portal names
             
             for itemId, itemProfile in pairs(inventory) do
@@ -2473,7 +2496,7 @@ local function loadStageData()
                 end
                 table.sort(portalList)
                 PortalStageDropdown:Refresh(portalList)
-                debugPrint("✓ Portal dropdown populated")
+                debugPrint("✓ Portal dropdown populated with " .. #portalList .. " portals")
             end
         end)
     end)
