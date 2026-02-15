@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.56"
+local script_version = "V0.57"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1399,6 +1399,52 @@ local function stopRecording()
     return MacroState.currentMacro
 end
 
+local function validateMacro(macro)
+    if not macro or #macro == 0 then
+        return false, "Macro is empty"
+    end
+
+    if not PlayerLoadout.loaded then
+        waitForLoadout()
+    end
+    
+    -- Collect all unique unit names from macro
+    local requiredUnits = {}
+    for _, action in ipairs(macro) do
+        if action.Type == "spawn_unit" and action.Unit then
+            local unitName = getUnitNameFromTag(action.Unit)
+            requiredUnits[unitName] = true
+        end
+    end
+    
+    -- Get equipped units
+    debugPrint("Checking equipped units...")
+    local equipped = getEquippedUnits()
+    
+    if not next(equipped) then
+        return false, "Could not load equipped units data"
+    end
+    
+    local equippedUnitNames = {}
+    for slot, data in pairs(equipped) do
+        equippedUnitNames[data.Name] = true
+    end
+    
+    -- Check for missing units
+    local missingUnits = {}
+    for unitName, _ in pairs(requiredUnits) do
+        if not equippedUnitNames[unitName] then
+            table.insert(missingUnits, unitName)
+        end
+    end
+    
+    if #missingUnits > 0 then
+        return false, "Missing units in loadout:\n" .. table.concat(missingUnits, ", ")
+    end
+    
+    return true, "All required units equipped"
+end
+
 local function autoPlaybackLoop()
     if MacroState.playbackLoopRunning then
         return
@@ -1541,52 +1587,6 @@ debugPrint("✓ Macro validated successfully")
     updateDetailedStatus("Ready")
     MacroState.playbackLoopRunning = false
     MacroState.playbackLoopThread = nil
-end
-
-local function validateMacro(macro)
-    if not macro or #macro == 0 then
-        return false, "Macro is empty"
-    end
-
-    if not PlayerLoadout.loaded then
-        waitForLoadout()
-    end
-    
-    -- Collect all unique unit names from macro
-    local requiredUnits = {}
-    for _, action in ipairs(macro) do
-        if action.Type == "spawn_unit" and action.Unit then
-            local unitName = getUnitNameFromTag(action.Unit)
-            requiredUnits[unitName] = true
-        end
-    end
-    
-    -- Get equipped units
-    debugPrint("Checking equipped units...")
-    local equipped = getEquippedUnits()
-    
-    if not next(equipped) then
-        return false, "Could not load equipped units data"
-    end
-    
-    local equippedUnitNames = {}
-    for slot, data in pairs(equipped) do
-        equippedUnitNames[data.Name] = true
-    end
-    
-    -- Check for missing units
-    local missingUnits = {}
-    for unitName, _ in pairs(requiredUnits) do
-        if not equippedUnitNames[unitName] then
-            table.insert(missingUnits, unitName)
-        end
-    end
-    
-    if #missingUnits > 0 then
-        return false, "Missing units in loadout:\n" .. table.concat(missingUnits, ", ")
-    end
-    
-    return true, "All required units equipped"
 end
 
 local function sendWebhook(messageType, stageInfo, playerStats, rewardsData, playerData)
