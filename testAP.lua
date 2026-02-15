@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.54"
+local script_version = "V0.55"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -1502,6 +1502,16 @@ local function autoPlaybackLoop()
             break
         end
         
+        debugPrint("Validating macro: " .. macroToUse)
+local isValid, validationMessage = validateMacro(loadedMacro)
+if not isValid then
+    updateMacroStatus("Error: Macro validation failed")
+    notify("Playback Error", validationMessage, 6)
+    break
+end
+
+debugPrint("✓ Macro validated successfully")
+
         MacroState.currentMacro = loadedMacro
         
         clearSpawnIdMappings()
@@ -3295,25 +3305,13 @@ PlaybackToggle = MacroTab:CreateToggle({
         if Value then
             task.wait(0.1)
             
-            -- Check if macro is selected
+            -- Check if macro is selected (only for warning, not blocking)
             if not MacroManager.currentMacroName or MacroManager.currentMacroName == "" then
-                notify("Playback Error", "Please select a macro first!")
-                --PlaybackToggle:Set(false)
-                return
+                debugPrint("⚠️ No macro selected, but auto-select may provide one")
             end
             
-            -- Load the macro
-            local loadedMacro = loadMacroFromFile(MacroManager.currentMacroName)
-            
-            if not loadedMacro or #loadedMacro == 0 then
-                notify("Playback Error", "Macro is empty or doesn't exist")
-                --PlaybackToggle:Set(false)
-                return
-            end
-
             if not waitForLoadout() then
                 notify("Playback Error", "Could not load unit data", 4)
-                --PlaybackToggle:Set(false)
                 return
             end
             
@@ -3322,24 +3320,18 @@ PlaybackToggle = MacroTab:CreateToggle({
                 notify("Playback Warning", "Client data may not be fully loaded", 4)
             end
             
-            -- Validate macro
-            local isValid, validationMessage = validateMacro(loadedMacro)
-            if not isValid then
-                notify("Playback Error", validationMessage, 6)
-                --PlaybackToggle:Set(false)
-                return
-            end
+            -- DON'T validate here - we don't know which macro will be used yet!
+            -- Validation will happen in autoPlaybackLoop after auto-select determines the macro
             
             if MacroState.playbackLoopRunning then
                 debugPrint("Playback loop already running")
                 return
             end
             
-            MacroState.currentMacro = loadedMacro
             MacroState.isPlaybackEnabled = true
             
             updateMacroStatus("Playback Enabled - Starting game...")
-            notify("Playback Enabled", "Macro will playback: " .. MacroManager.currentMacroName)
+            notify("Playback Enabled", "Macro playback enabled")
             
             -- Auto-skip intermission to start game
             autoStartGame()
@@ -3352,13 +3344,13 @@ PlaybackToggle = MacroTab:CreateToggle({
             cancelAllThreads()
 
             if MacroState.playbackLoopThread then
-    pcall(function()
-        task.cancel(MacroState.playbackLoopThread)
-    end)
-    MacroState.playbackLoopThread = nil
-end
+                pcall(function()
+                    task.cancel(MacroState.playbackLoopThread)
+                end)
+                MacroState.playbackLoopThread = nil
+            end
 
-MacroState.playbackLoopRunning = false
+            MacroState.playbackLoopRunning = false
             
             -- Wait for loop to stop
             local timeout = 0
