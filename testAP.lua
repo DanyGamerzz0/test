@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.48"
+local script_version = "V0.49"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2371,6 +2371,20 @@ if State.AutoJoinSiege and State.SiegeStageSelected and State.SiegeActSelected t
 
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Create", tostring(State.SiegeStageSelected), "Siege", tostring(State.SiegeActSelected), true, "Normal", nil)
     Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Pod"):FireServer("Start")
+
+    task.delay(5, clearProcessingState)
+    return
+end
+
+-- PORTAL
+if State.AutoJoinPortal and State.PortalStageSelected then
+    setProcessingState("Portal Auto Join")
+
+    debugPrint(State.AutoJoinPortal,State.PortalStageSelected)
+
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UseItem"):FireServer(tostring(State.PortalStageSelected))
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Portal"):FireServer("Start")
+
 
     task.delay(5, clearProcessingState)
     return
