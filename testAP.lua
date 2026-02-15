@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.52"
+local script_version = "V0.53"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -331,6 +331,9 @@ local function getMacroForCurrentWorld()
     -- Get current stage info
     local map = gameConfig:FindFirstChild("Map")
     local stageType = gameConfig:FindFirstChild("StageType")
+
+    print("MAP: "..mapValue)
+    print("STAGE TYPE: "..stageTypeValue)
     
     if not map or not stageType then
         return nil
@@ -341,6 +344,9 @@ local function getMacroForCurrentWorld()
     
     -- Build key based on stage type
     local key = nil
+
+    print("MAP: "..mapValue)
+    print("STAGE TYPE: "..stageTypeValue)
     
     if stageTypeValue == "Portal" then
         -- For portals, use "JJK_Portal_Portal" format
@@ -453,6 +459,7 @@ local function createAutoSelectDropdowns()
                 -- Build key: "map_Portal" (e.g., "Shibuya_Station_Portal")
                 -- For now we'll use a generic key since we don't know the map yet
                 local key = string.format("%s_Portal", baseName:gsub(" ", "_"))
+                print("KEY "..key)
                 
                 local currentMapping = worldMacroMappings[key] or "None"
                 
@@ -2892,7 +2899,6 @@ JoinerTab:CreateButton({
             
             PortalStageDropdown:Refresh(portalList)
             debugPrint(string.format("✓ Portal dropdown refreshed with %d portals", #portalList))
-            notify("Portals Loaded", string.format("Found %d portals", #portalList), 3)
         end
     end,
 })
