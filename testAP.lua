@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.57"
+local script_version = "V0.58"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -158,6 +158,7 @@ local State = {
     --portal
     AutoJoinPortal = false,
     PortalStageSelected = nil,
+    AutoNextPortal = false,
 }
 
 local loadingRetries = {
@@ -1862,13 +1863,15 @@ local function handleEndGameActions()
         return
     end
 
+    -- Challenge win priority
     if State.ChallengeWin then
         Services.ReplicatedStorage.Remotes.StageEnd:FireServer("Lobby")
+        return
     end
     
     -- Check if we should return to lobby for new challenges
     if State.ReturnToLobbyOnNewChallenge and State.NewChallengeDetected and State.AutoJoinChallenge then
-        State.NewChallengeDetected = false -- Reset flag
+        State.NewChallengeDetected = false
         
         debugPrint("New challenge detected - returning to lobby")
         
@@ -1898,6 +1901,66 @@ local function handleEndGameActions()
         return
     end
     
+    -- Auto Next Portal (priority after challenge lobby)
+    if State.AutoNextPortal then
+        local wasPortal = false
+        local didWin = false
+        
+        -- Check if this was a portal stage and if we won
+        pcall(function()
+            local stageType = Services.ReplicatedStorage.GameConfig.StageType.Value
+            wasPortal = (stageType == "Portal")
+        end)
+        
+        -- Check result from StageEnd UI or other sources
+        pcall(function()
+            local resultsFrame = endGameUI:FindFirstChild("ResultsFrame")
+            if resultsFrame then
+                local resultLabel = resultsFrame:FindFirstChild("Result")
+                if resultLabel and resultLabel.Text then
+                    didWin = resultLabel.Text:lower():find("victory") or resultLabel.Text:lower():find("win")
+                end
+            end
+        end)
+        
+        if wasPortal and didWin then
+            debugPrint("Portal completed with victory - checking for next portal...")
+            
+            local highestPortal = getHighestPortal()
+            
+            if highestPortal then
+                debugPrint(string.format("Attempting to start next portal: %s", highestPortal))
+                
+                for attempt = 1, 5 do
+                    local success = pcall(function()
+                        Services.ReplicatedStorage.Remotes.StageEnd:FireServer("UsePortal", highestPortal)
+                    end)
+                    
+                    if success then
+                        debugPrint(string.format("Fired UsePortal remote (attempt %d)", attempt))
+                    end
+                    
+                    task.wait(1)
+                    
+                    local uiClosed = pcall(function()
+                        return not endGameUI.Enabled
+                    end)
+                    
+                    if uiClosed or not endGameUI.Parent then
+                        debugPrint("Auto Next Portal successful!")
+                        notify("Auto Action", string.format("Started next portal: %s", highestPortal), 2)
+                        return
+                    end
+                end
+                
+                warn("Failed to start next portal")
+            else
+                debugPrint("No portals available - falling back to normal actions")
+                notify("Auto Portal", "No portals available", 3)
+            end
+        end
+    end
+    
     -- Normal priority order: Next > Retry > Lobby
     local actions = {}
     
@@ -1914,7 +1977,7 @@ local function handleEndGameActions()
     end
     
     if #actions == 0 then
-        debugPrint("ℹNo auto end game actions enabled")
+        debugPrint("ℹ️ No auto end game actions enabled")
         return
     end
     
@@ -2678,6 +2741,68 @@ local function checkForNewChallenges()
         debugPrint("New hour detected - new challenges may be available")
         notify("New Challenges", "New challenges may be available!", 3)
     end
+end
+
+local function getHighestPortal()
+    debugPrint("Checking for highest level portal...")
+    
+    -- Reload portals to get current inventory
+    local inventoryModule = nil
+    local success = pcall(function()
+        inventoryModule = require(
+            Services.Players.LocalPlayer.PlayerScripts
+                :WaitForChild("ClientCache", 10)
+                :WaitForChild("Handlers", 10)
+                :WaitForChild("UIHandler", 10)
+                :WaitForChild("ItemsInventory", 10)
+        )
+    end)
+    
+    if not success or not inventoryModule then
+        warn("Failed to load inventory module for portal check")
+        return nil
+    end
+    
+    local inventory = nil
+    success = pcall(function()
+        inventory = inventoryModule.getInventory()
+    end)
+    
+    if not success or not inventory then
+        warn("Failed to get inventory for portal check")
+        return nil
+    end
+    
+    -- Find all portals and get the highest level
+    local highestPortal = nil
+    local highestLevel = 0
+    
+    for itemId, itemProfile in pairs(inventory) do
+        if itemProfile.BaseData and itemProfile.BaseData.Type == "Portal" then
+            local displayName = itemProfile.BaseData.DisplayName or ""
+            
+            -- Extract level from name (e.g., "JJK Portal Lv.2" -> 2)
+            local level = tonumber(displayName:match("Lv%.(%d+)"))
+            
+            if level and level > highestLevel then
+                highestLevel = level
+                -- Get the base name for the remote (e.g., "JJK_Portal_Lv2")
+                local baseName = displayName:match("^(.+)%s+Lv") or displayName
+                baseName = baseName:gsub(" ", "_")
+                highestPortal = string.format("%s_Lv%d", baseName, level)
+                
+                debugPrint(string.format("  Found portal: %s (Level %d)", displayName, level))
+            end
+        end
+    end
+    
+    if highestPortal then
+        debugPrint(string.format("✓ Highest portal: %s (Level %d)", highestPortal, highestLevel))
+    else
+        debugPrint("✗ No portals found in inventory")
+    end
+    
+    return highestPortal
 end
 
 Button = LobbyTab:CreateButton({
