@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.5"
+local script_version = "V0.51"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2785,15 +2785,30 @@ local PortalStageDropdown = JoinerTab:CreateDropdown({
     Callback = function(selected)
         local name = type(selected) == "table" and selected[1] or selected
         
-        for _, world in pairs(StageDataCache.portal) do
-            print(world.displayName)
-            print(name)
-            if world.displayName == name then
-                State.PortalStageSelected = world.internalName -- PORTAL ITEM ID
-                debugPrint(string.format("Selected portal: %s (Item ID: %s)", name, world.internalName))
-                break
+        -- Try to find and set immediately
+        for _, portal in pairs(StageDataCache.portal) do
+            if portal.displayName == name then
+                State.PortalStageSelected = portal.internalName
+                debugPrint(string.format("✓ Selected portal: %s (Item ID: %s)", name, portal.internalName))
+                return -- Found it, we're done
             end
         end
+        
+        -- Not found yet - portals still loading, so wait async
+        debugPrint(string.format("Portal '%s' not in cache yet, waiting for loadPortals()...", name))
+        task.spawn(function()
+            for i = 1, 60 do -- Wait up to 30 seconds
+                task.wait(0.5)
+                for _, portal in pairs(StageDataCache.portal) do
+                    if portal.displayName == name then
+                        State.PortalStageSelected = portal.internalName
+                        debugPrint(string.format("✓ Selected portal (delayed): %s (Item ID: %s)", name, portal.internalName))
+                        return
+                    end
+                end
+            end
+            warn(string.format("Failed to find portal '%s' after waiting", name))
+        end)
     end,
 })
 
