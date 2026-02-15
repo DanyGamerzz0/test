@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.38"
+local script_version = "V0.39"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -128,7 +128,6 @@ local State = {
     enableAutoExecute = false,
     RemoveGamePopups = false,
     SendStageCompletedWebhook = false,
-    ReturnToLobbyFailsafe = false,
 
     --story
     AutoJoinStory = false,
@@ -1511,41 +1510,51 @@ local function sendWebhook(messageType, stageInfo, playerStats, rewardsData, pla
     local currentGold = 0
     local currentItems = {}
     
-    if playerData and playerData.ClientData then
-        currentGems = playerData.ClientData.Gems or 0
-        currentGold = playerData.ClientData.Gold or 0
-    end
+if playerData and playerData.ClientData then
+    currentGems = playerData.ClientData.Gems or 0
+    currentGold = playerData.ClientData.Gold or 0
     
-    if playerData and playerData.Inventory and playerData.Inventory.Items then
-        for itemId, itemData in pairs(playerData.Inventory.Items) do
-            if itemData.BaseDataRef and itemData.Amount then
+    -- Also check ClientData for other currency items (RaidCoin, SiegeCoin, etc.)
+    for key, value in pairs(playerData.ClientData) do
+        if type(value) == "number" and key ~= "Gems" and key ~= "Gold" then
+            currentItems[key] = value
+        end
+    end
+end
+
+if playerData and playerData.Inventory and playerData.Inventory.Items then
+    for itemId, itemData in pairs(playerData.Inventory.Items) do
+        if itemData.BaseDataRef and itemData.Amount then
+            -- Only add if not already found in ClientData (ClientData takes priority)
+            if not currentItems[itemData.BaseDataRef] then
                 currentItems[itemData.BaseDataRef] = itemData.Amount
             end
         end
     end
+end
     
     -- Format rewards
     local rewardsText = ""
     
-    if rewardsData then
-        -- Add Gems
-        if rewardsData.Gems and rewardsData.Gems > 0 then
-            rewardsText = rewardsText .. string.format("+%d Gems [%d]\n", rewardsData.Gems, currentGems)
-        end
-        
-        -- Add Gold
-        if rewardsData.Gold and rewardsData.Gold > 0 then
-            rewardsText = rewardsText .. string.format("+%d Gold [%d]\n", rewardsData.Gold, currentGold)
-        end
-        
-        -- Add Items (like Ramen, TraitRerolls, etc)
-        for itemName, amount in pairs(rewardsData) do
-            if itemName ~= "Gems" and itemName ~= "Gold" and type(amount) == "number" and amount > 0 then
-                local currentTotal = currentItems[itemName] or 0
-                rewardsText = rewardsText .. string.format("+%d %s [%d]\n", amount, itemName, currentTotal)
-            end
+if rewardsData then
+    -- Add Gems
+    if rewardsData.Gems and rewardsData.Gems > 0 then
+        rewardsText = rewardsText .. string.format("+%d Gems [%d]\n", rewardsData.Gems, currentGems)
+    end
+    
+    -- Add Gold
+    if rewardsData.Gold and rewardsData.Gold > 0 then
+        rewardsText = rewardsText .. string.format("+%d Gold [%d]\n", rewardsData.Gold, currentGold)
+    end
+    
+    -- Add Items (like Ramen, TraitRerolls, RaidCoin, etc)
+    for itemName, amount in pairs(rewardsData) do
+        if itemName ~= "Gems" and itemName ~= "Gold" and type(amount) == "number" and amount > 0 then
+            local currentTotal = currentItems[itemName] or 0
+            rewardsText = rewardsText .. string.format("+%d %s [%d]\n", amount, itemName, currentTotal)
         end
     end
+end
     
     if rewardsText == "" then
         rewardsText = "No rewards obtained"
@@ -2773,16 +2782,6 @@ local RemoveGamePopupsToggle = GameTab:CreateToggle({
                 game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("ViewNew"):Destroy()
             end
         end
-   end,
-})
-
-local ReturnToLobbyFailsafeToggle = GameTab:CreateToggle({
-   Name = "Return to Lobby Failsafe",
-   CurrentValue = false,
-   Flag = "ReturnToLobbyFailsafe",
-   Info = "Teleports to lobby if game doesn't start within 1 minute after retry/next",
-   Callback = function(Value)
-       State.ReturnToLobbyFailsafe = Value
    end,
 })
 
