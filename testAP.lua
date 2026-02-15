@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.47"
+local script_version = "V0.48"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -2378,72 +2378,76 @@ if State.AutoJoinSiege and State.SiegeStageSelected and State.SiegeActSelected t
 end
 
 local function loadPortals()
-    task.spawn(function()
-        debugPrint("Starting portal loading process...")
-        
-        -- Wait for client to be loaded
-        if not waitForClientLoaded() then
-            warn("Client load timeout - portals will not load")
-            return
-        end
-        
-        debugPrint("Client loaded, waiting for inventory module...")
-        task.wait(2) -- Give it extra time
-        
-        -- Try to get the inventory module
-        local inventoryModule = nil
-        local success = pcall(function()
-            inventoryModule = require(
-                Services.Players.LocalPlayer.PlayerScripts
-                    :WaitForChild("ClientCache", 15)
-                    :WaitForChild("Handlers", 15)
-                    :WaitForChild("UIHandler", 15)
-                    :WaitForChild("ItemsInventory", 15)
-            )
-        end)
-        
-        if not success or not inventoryModule then
-            warn("Failed to load inventory module for portals")
-            return
-        end
-        
-        debugPrint("Got inventory module, fetching inventory...")
-        
-        -- Get the inventory
-        local inventory = nil
-        success = pcall(function()
-            inventory = inventoryModule.getInventory()
-        end)
-        
-        if not success or not inventory then
-            warn("Failed to get inventory")
-            return
-        end
-        
-        debugPrint("Got inventory, scanning for portals...")
-        
-        local addedPortals = {} -- Track unique portal names
-        local portalCount = 0
-        
-        for itemId, itemProfile in pairs(inventory) do
-            if itemProfile.BaseData and itemProfile.BaseData.Type == "Portal" then
-                local displayName = itemProfile.BaseData.DisplayName or "Unknown Portal"
-                
-                -- Only add if we haven't added this portal name yet
-                if not addedPortals[displayName] then
-                    StageDataCache.portal[itemId] = {
-                        displayName = displayName,
-                        internalName = itemId,
-                    }
-                    addedPortals[displayName] = true
-                    portalCount = portalCount + 1
-                    debugPrint(string.format("  Found portal: %s (ID: %s)", displayName, itemId))
-                end
+    debugPrint("Starting portal loading process...")
+    
+    -- Wait for client to be loaded
+    if not waitForClientLoaded() then
+        warn("Client load timeout - portals will not load")
+        return false
+    end
+    
+    debugPrint("Client loaded, waiting for inventory module...")
+    task.wait(2) -- Give it extra time
+    
+    -- Try to get the inventory module
+    local inventoryModule = nil
+    local success = pcall(function()
+        inventoryModule = require(
+            Services.Players.LocalPlayer.PlayerScripts
+                :WaitForChild("ClientCache", 15)
+                :WaitForChild("Handlers", 15)
+                :WaitForChild("UIHandler", 15)
+                :WaitForChild("ItemsInventory", 15)
+        )
+    end)
+    
+    if not success or not inventoryModule then
+        warn("Failed to load inventory module for portals")
+        return false
+    end
+    
+    debugPrint("Got inventory module, fetching inventory...")
+    
+    -- Get the inventory
+    local inventory = nil
+    success = pcall(function()
+        inventory = inventoryModule.getInventory()
+    end)
+    
+    if not success or not inventory then
+        warn("Failed to get inventory")
+        return false
+    end
+    
+    debugPrint("Got inventory, scanning for portals...")
+    
+    local addedPortals = {} -- Track unique portal names
+    local portalCount = 0
+    
+    for itemId, itemProfile in pairs(inventory) do
+        if itemProfile.BaseData and itemProfile.BaseData.Type == "Portal" then
+            local displayName = itemProfile.BaseData.DisplayName or "Unknown Portal"
+            
+            -- Only add if we haven't added this portal name yet
+            if not addedPortals[displayName] then
+                StageDataCache.portal[itemId] = {
+                    displayName = displayName,
+                    internalName = itemId,
+                }
+                addedPortals[displayName] = true
+                portalCount = portalCount + 1
+                debugPrint(string.format("  Found portal: %s (ID: %s)", displayName, itemId))
             end
         end
-        
-        debugPrint(string.format("✓ Loaded %d unique portals", portalCount))
-    end)
+    end
+    
+    debugPrint(string.format("✓ Loaded %d unique portals", portalCount))
+    
+    if portalCount > 0 then
+        notify("Portals Loaded", string.format("Found %d portals", portalCount), 3)
+    end
+    
+    return true
 end
 
 local function loadStageData()
@@ -3676,25 +3680,27 @@ task.spawn(function()
                 table.insert(siegeList, world.displayName)
             end
             table.sort(siegeList)
-
-            task.wait(3)
-
-            local portalList = {}
-            for _, portal in pairs(StageDataCache.portal) do
-                table.insert(portalList, portal.displayName)
-            end
-            table.sort(portalList)
             
             StoryStageDropdown:Refresh(storyList)
             IgnoreWorldsDropdown:Refresh(storyList)
             LegendStageDropdown:Refresh(legendList)
             RaidStageDropdown:Refresh(raidList)
             SiegeStageDropdown:Refresh(siegeList)
-            PortalStageDropdown:Refresh(portalList)
             
             debugPrint("✓ Stage dropdowns populated")
 
-            loadPortals()
+            task.spawn(function()
+                if loadPortals() then
+                    local portalList = {}
+                    for _, portal in pairs(StageDataCache.portal) do
+                        table.insert(portalList, portal.displayName)
+                    end
+                    table.sort(portalList)
+                    
+                    PortalStageDropdown:Refresh(portalList)
+                    debugPrint(string.format("✓ Portal dropdown refreshed with %d portals", #portalList))
+                end
+            end)
 
             break
         end
