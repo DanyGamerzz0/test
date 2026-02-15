@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.43"
+local script_version = "V0.44"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -155,6 +155,9 @@ local State = {
     AutoJoinSiege = false,
     SiegeStageSelected = nil,
     SiegeActSelected = nil,
+    --portal
+    AutoJoinPortal = false,
+    PortalStageSelected = nil,
 }
 
 local loadingRetries = {
@@ -171,6 +174,7 @@ local StageDataCache = {
     legend = {},
     raid = {},
     siege = {},
+    portal = {},
     challenge = {}
 }
 
