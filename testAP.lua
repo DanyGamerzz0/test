@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
 
-local script_version = "V0.59"
+local script_version = "V0.6"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Paradox",
@@ -232,7 +232,7 @@ local playbackUnitTagToInstance = {} -- Maps "UnitName #N" -> Instance (for play
 local UnitDataCache = {}
 local worldMacroMappings = {}
 local worldDropdowns = {}
-local DEBUG = true
+local DEBUG = false
 
 local function isInLobby()
     return Services.Workspace:FindFirstChild("Lobby") or false
