@@ -549,46 +549,21 @@ function Macro.onPlace(displayName, cframe, uuid)
     end)
 end
 
--- Called by the hook for upgrades (validated via Heartbeat)
 function Macro.onUpgradeRemote(serverName)
-    debugPrint("fired")
-    if not Macro.isRecording or not Macro.hasStarted then debugPrint("not isrecording or not hasstarted") return end
+    if not Macro.isRecording or not Macro.hasStarted then return end
     local tag = Macro.serverToTag[serverName]
     if not tag then 
         debugPrint("[Macro] Upgrade remote fired but unit not tracked:", serverName)
         return 
     end
-    -- Store pending; Heartbeat validates by comparing levels
-    Macro._pendingUpgrade = {
-        serverName = serverName,
-        tag        = tag,
-        startLevel = Units.getLevel(serverName),
-        time       = tick(),
-    }
-    debugPrint("[Macro] Pending upgrade:", tag, "from level", Macro._pendingUpgrade.startLevel)
-end
-
-function Macro.validatePendingUpgrade()
-    -- Called from Heartbeat
-    local p = Macro._pendingUpgrade
-    if not p then return end
-    if tick() - p.time > 2 then 
-        debugPrint("[Macro] Pending upgrade expired (no level change detected)")
-        Macro._pendingUpgrade = nil 
-        return 
-    end
-
-    local now = Units.getLevel(p.serverName)
-    if now > p.startLevel then
-        local t = p.time - State.gameStartTime
-        table.insert(Macro.actions, {
-            Type = "upgrade",
-            Unit = p.tag,
-            Time = string.format("%.2f", t),
-        })
-        debugPrint("[Macro] Recorded upgrade:", p.tag, "level", p.startLevel, "→", now)
-        Macro._pendingUpgrade = nil
-    end
+    
+    local t = tick() - State.gameStartTime
+    table.insert(Macro.actions, {
+        Type = "upgrade",
+        Unit = tag,
+        Time = string.format("%.2f", t),
+    })
+    debugPrint("[Macro] Recorded upgrade:", tag, "at", string.format("%.2f", t))
 end
 
 function Macro.onSell(serverName)
@@ -1139,13 +1114,6 @@ do
 
     setreadonly(mt, true)
 end
-
--- Heartbeat: validate pending upgrades only (not per-unit polling)
-Svc.RunService.Heartbeat:Connect(function()
-    if Macro.isRecording and Macro.hasStarted then
-        Macro.validatePendingUpgrade()
-    end
-end)
 
 -- ============================================================
 -- GAME EVENT TRACKING
