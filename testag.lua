@@ -108,7 +108,7 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
-local DEBUG = true  -- Set to true when testing to see all debug prints
+local DEBUG = false  -- Set to true when testing to see all debug prints
 
 local State = {
     -- system
@@ -549,6 +549,7 @@ function Macro.onPlace(displayName, cframe, uuid)
     end)
 end
 
+-- Called by the hook for upgrades - record immediately, no validation needed
 function Macro.onUpgradeRemote(serverName)
     if not Macro.isRecording or not Macro.hasStarted then return end
     local tag = Macro.serverToTag[serverName]
@@ -632,7 +633,7 @@ function Macro.execSpawn(action, idx, total)
         return false
     end
 
-    if not Macro.waitForMoney(action.PlacementCost, displayName) then return false end
+    -- Money check is now done in playOnce loop before this function is called
 
     local pos    = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
@@ -679,8 +680,7 @@ function Macro.execUpgrade(action, idx, total)
         return true
     end
 
-    local cost = Units.getUpgradeCost(serverName, curLevel)
-    if not Macro.waitForMoney(cost, "upgrade " .. tag) then return false end
+    -- Money check is now done in playOnce loop before this function is called
 
     Macro.setDetail("Upgrading " .. tag .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.upgrade(serverName, curLevel + 1)
@@ -796,6 +796,23 @@ function Macro.playOnce()
         if action.Type == "ability" or action.Type == "skip_wave" then
             Macro.scheduleTimedAction(action, actionTime)
             continue
+        end
+
+        -- CRITICAL FIX: Wait for money BEFORE checking timing
+        -- This ensures money check happens even when IgnoreTiming is enabled
+        if action.Type == "spawn" then
+            if not Macro.waitForMoney(action.PlacementCost, Util.getDisplayFromTag(action.Unit)) then
+                return false
+            end
+        elseif action.Type == "upgrade" then
+            local serverName = Macro.unitMapping[action.Unit]
+            if serverName then
+                local curLevel = Units.getLevel(serverName)
+                local cost = Units.getUpgradeCost(serverName, curLevel)
+                if not Macro.waitForMoney(cost, "upgrade " .. action.Unit) then
+                    return false
+                end
+            end
         end
 
         -- For placements/upgrades/sells: wait for timing unless IgnoreTiming
@@ -1004,7 +1021,7 @@ function Webhook.send(msgType, extraData)
         local secs = math.floor(clearTime % 60)
         local timeStr = string.format("%02d:%02d", mins, secs)
 
-        -- Build rewards text
+        -- Build rewards text with item totals
         local rewardLines = {}
         local unitGained  = {}
         if _capturedRewards then
@@ -1018,7 +1035,33 @@ function Webhook.send(msgType, extraData)
                     unitGained[#unitGained+1] = name
                     rewardLines[#rewardLines+1] = "🌟 " .. name .. " x" .. amt
                 else
-                    rewardLines[#rewardLines+1] = "+ " .. amt .. " " .. name
+                    -- Get item total from ItemsInventory
+                    local itemTotal = nil
+                    local itemsInv = LP:FindFirstChild("ItemsInventory")
+                    if itemsInv then
+                        local item = itemsInv:FindFirstChild(name)
+                        if item and item:FindFirstChild("Amount") then
+                            itemTotal = item.Amount.Value
+                        end
+                    end
+                    
+                    -- Also check player Data for common currencies
+                    if not itemTotal and LP.Data then
+                        if name == "Coins" or name == "Gold" then
+                            itemTotal = LP.Data.Coins and LP.Data.Coins.Value
+                        elseif name == "Gems" then
+                            itemTotal = LP.Data.Tokens and LP.Data.Tokens.Value
+                        elseif name == "TraitReroll" then
+                            itemTotal = LP.Data.Reroll_Tokens and LP.Data.Reroll_Tokens.Value
+                        elseif name == "StatReroll" then
+                            itemTotal = LP.Data.StatReroll and LP.Data.StatReroll.Value
+                        elseif name == "SuperStatReroll" then
+                            itemTotal = LP.Data.SuperStatReroll and LP.Data.SuperStatReroll.Value
+                        end
+                    end
+                    
+                    local totalText = itemTotal and string.format(" [%d]", itemTotal) or ""
+                    rewardLines[#rewardLines+1] = "+ " .. amt .. " " .. name .. totalText
                 end
             end
         end
@@ -1632,7 +1675,7 @@ local Tabs = {
     Joiner  = Window:CreateTab("Joiner",   "plug-zap"),
     Game    = Window:CreateTab("Game",     "gamepad-2"),
     Macro   = Window:CreateTab("Macro",    "tv"),
-    Auto    = Window:CreateTab("Autoplay",     "gamepad-2"),
+    Auto    = Window:CreateTab("Auto",     "gamepad-2"),
     Webhook = Window:CreateTab("Webhook",  "bluetooth"),
 }
 
@@ -1757,20 +1800,20 @@ local PortalDD = Tabs.Joiner:CreateDropdown({ Name="Portal Stage", Options={}, F
 Tabs.Joiner:CreateSection("Challenge")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Challenge",  Flag="AutoJoinChallenge",  Callback=function(v) State.AutoJoinChallenge=v end })
 
-Tabs.Joiner:CreateSection("Gate")
-Tabs.Joiner:CreateToggle({ Name="Auto Join Gate",       Flag="AutoJoinGate",       Callback=function(v) State.AutoJoinGate=v end })
-
-Tabs.Joiner:CreateSection("Events")
-Tabs.Joiner:CreateDropdown({ Name="Event Stage", Options={"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)","Shibuya Event (Shibuya)"}, Flag="EventStage", Callback=function(o) State.EventStage=o[1]:match("%((.-)%)") end })
+Tabs.Joiner:CreateSection("Event")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Event",      Flag="AutoJoinEvent",      Callback=function(v) State.AutoJoinEvent=v end })
+Tabs.Joiner:CreateDropdown({ Name="Event Stage", Options={"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)","Shibuya Event (Shibuya)"}, Flag="EventStage", Callback=function(o) State.EventStage=o[1]:match("%((.-)%)") end })
 
 Tabs.Joiner:CreateSection("Worldlines")
-Tabs.Joiner:CreateDropdown({ Name="Worldlines Stage", Options={"Double Dungeon (doubledungeon)","Double Dungeon 2 (doubledungeon2)","Lingxian Academy (lingxianacademy)","Lingxian Yard (lingxianyard)"}, Flag="WorldlinesStage", Callback=function(o) State.WorldlinesStage=o[1]:match("%((.-)%)") end })
 Tabs.Joiner:CreateToggle({ Name="Auto Join Worldlines", Flag="AutoJoinWorldlines", Callback=function(v) State.AutoJoinWorldlines=v end })
+Tabs.Joiner:CreateDropdown({ Name="Worldlines Stage", Options={"Double Dungeon (doubledungeon)","Double Dungeon 2 (doubledungeon2)","Lingxian Academy (lingxianacademy)","Lingxian Yard (lingxianyard)"}, Flag="WorldlinesStage", Callback=function(o) State.WorldlinesStage=o[1]:match("%((.-)%)") end })
 
 Tabs.Joiner:CreateSection("Tower")
-Tabs.Joiner:CreateDropdown({ Name="Tower Stage", Options={"Cursed Place","The Lost Ancient World"}, Flag="TowerStage", Callback=function(o) State.TowerStage=o[1] end })
 Tabs.Joiner:CreateToggle({ Name="Auto Join Tower",      Flag="AutoJoinTower",      Callback=function(v) State.AutoJoinTower=v end })
+Tabs.Joiner:CreateDropdown({ Name="Tower Stage", Options={"Cursed Place","The Lost Ancient World"}, Flag="TowerStage", Callback=function(o) State.TowerStage=o[1] end })
+
+Tabs.Joiner:CreateSection("Gate")
+Tabs.Joiner:CreateToggle({ Name="Auto Join Gate",       Flag="AutoJoinGate",       Callback=function(v) State.AutoJoinGate=v end })
 
 -- ============================================================
 -- GAME TAB
@@ -2019,7 +2062,7 @@ Tabs.Macro:CreateButton({
             end
         end
         local lines = {}
-        for k,v in pairs(seen) do lines[#lines+1] = k .. ""..v end
+        for k,v in pairs(seen) do lines[#lines+1] = k .. " x"..v end
         table.sort(lines)
         Util.notify("Macro Units", table.concat(lines,"\n"), 8)
     end,
@@ -2061,7 +2104,7 @@ task.spawn(function()
 
     -- Story = stages in LP.Stages that are NOT in rewardsData (non-raid/portal)
     if LP:FindFirstChild("Stages") then
-        local excluded = {["Easter Event"] = true,["Moonbase Sci-Fi"] = true,["Nazarick Mausoleum"] = true,["Hell Devil"] = true,["Lingxian Academy"] = true,["Lingxian Yard"] = true,["The Lost Halloween"] = true}
+        local excluded = {}
         for cat, catData in pairs(rewardsData) do
             if cat ~= "Story" and cat ~= "Infinity" and type(catData) == "table" then
                 for name in pairs(catData) do excluded[name] = true end
@@ -2132,7 +2175,7 @@ task.spawn(function()
                             local bp  = clk:FindFirstChildWhichIsA("BasePart")
                             if hrp and bp then
                                 hrp.CFrame = bp.CFrame + Vector3.new(0,5,0)
-                                task.wait(1)
+                                task.wait(0.3)
                                 local pp = clk:FindFirstChildOfClass("ProximityPrompt", true)
                                 if pp then fireproximityprompt(pp) task.wait(1) end
                             end
@@ -2155,7 +2198,7 @@ task.spawn(function()
                         if pp then
                             local orig = hrp.CFrame
                             hrp.CFrame = present:IsA("BasePart") and present.CFrame or hrp.CFrame
-                            task.wait(1)
+                            task.wait(0.1)
                             fireproximityprompt(pp)
                             task.wait(0.2)
                             hrp.CFrame = orig
@@ -2176,7 +2219,7 @@ task.spawn(function()
                     if pp then
                         local orig = hrp.CFrame
                         hrp.CFrame = chest:IsA("BasePart") and chest.CFrame + Vector3.new(0,5,0) or hrp.CFrame
-                        task.wait(1)
+                        task.wait(0.1)
                         fireproximityprompt(pp)
                         task.wait(0.3)
                         hrp.CFrame = orig
