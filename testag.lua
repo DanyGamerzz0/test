@@ -1663,7 +1663,7 @@ local Tabs = {
     Joiner  = Window:CreateTab("Joiner",   "plug-zap"),
     Game    = Window:CreateTab("Game",     "gamepad-2"),
     Macro   = Window:CreateTab("Macro",    "tv"),
-    Auto    = Window:CreateTab("Auto",     "gamepad-2"),
+    Auto    = Window:CreateTab("Autoplay",     "gamepad-2"),
     Webhook = Window:CreateTab("Webhook",  "bluetooth"),
 }
 
@@ -1785,13 +1785,21 @@ Tabs.Joiner:CreateSection("Portal")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Portal", Flag="AutoJoinPortal", Callback=function(v) State.AutoJoinPortal=v end })
 local PortalDD = Tabs.Joiner:CreateDropdown({ Name="Portal Stage", Options={}, Flag="PortalStage", Callback=function(o) State.PortalStage=o[1] end })
 
-Tabs.Joiner:CreateSection("Challenge / Event / Tower / Worldlines / Gate")
+Tabs.Joiner:CreateSection("Challenge")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Challenge",  Flag="AutoJoinChallenge",  Callback=function(v) State.AutoJoinChallenge=v end })
+
+Tabs.Joiner:CreateSection("Gate")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Gate",       Flag="AutoJoinGate",       Callback=function(v) State.AutoJoinGate=v end })
+
+Tabs.Joiner:CreateSection("Events")
 Tabs.Joiner:CreateDropdown({ Name="Event Stage", Options={"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)","Shibuya Event (Shibuya)"}, Flag="EventStage", Callback=function(o) State.EventStage=o[1]:match("%((.-)%)") end })
 Tabs.Joiner:CreateToggle({ Name="Auto Join Event",      Flag="AutoJoinEvent",      Callback=function(v) State.AutoJoinEvent=v end })
+
+Tabs.Joiner:CreateSection("Worldlines")
 Tabs.Joiner:CreateDropdown({ Name="Worldlines Stage", Options={"Double Dungeon (doubledungeon)","Double Dungeon 2 (doubledungeon2)","Lingxian Academy (lingxianacademy)","Lingxian Yard (lingxianyard)"}, Flag="WorldlinesStage", Callback=function(o) State.WorldlinesStage=o[1]:match("%((.-)%)") end })
 Tabs.Joiner:CreateToggle({ Name="Auto Join Worldlines", Flag="AutoJoinWorldlines", Callback=function(v) State.AutoJoinWorldlines=v end })
+
+Tabs.Joiner:CreateSection("Tower")
 Tabs.Joiner:CreateDropdown({ Name="Tower Stage", Options={"Cursed Place","The Lost Ancient World"}, Flag="TowerStage", Callback=function(o) State.TowerStage=o[1] end })
 Tabs.Joiner:CreateToggle({ Name="Auto Join Tower",      Flag="AutoJoinTower",      Callback=function(v) State.AutoJoinTower=v end })
 
@@ -2042,7 +2050,7 @@ Tabs.Macro:CreateButton({
             end
         end
         local lines = {}
-        for k,v in pairs(seen) do lines[#lines+1] = k .. " x"..v end
+        for k,v in pairs(seen) do lines[#lines+1] = k .. ""..v end
         table.sort(lines)
         Util.notify("Macro Units", table.concat(lines,"\n"), 8)
     end,
@@ -2084,7 +2092,7 @@ task.spawn(function()
 
     -- Story = stages in LP.Stages that are NOT in rewardsData (non-raid/portal)
     if LP:FindFirstChild("Stages") then
-        local excluded = {}
+        local excluded = {["Easter Event"] = true,["Moonbase Sci-Fi"] = true,["Nazarick Mausoleum"] = true,["Hell Devil"] = true,["Lingxian Academy"] = true,["Lingxian Yard"] = true,["The Lost Halloween"] = true}
         for cat, catData in pairs(rewardsData) do
             if cat ~= "Story" and cat ~= "Infinity" and type(catData) == "table" then
                 for name in pairs(catData) do excluded[name] = true end
@@ -2155,7 +2163,7 @@ task.spawn(function()
                             local bp  = clk:FindFirstChildWhichIsA("BasePart")
                             if hrp and bp then
                                 hrp.CFrame = bp.CFrame + Vector3.new(0,5,0)
-                                task.wait(0.3)
+                                task.wait(1)
                                 local pp = clk:FindFirstChildOfClass("ProximityPrompt", true)
                                 if pp then fireproximityprompt(pp) task.wait(1) end
                             end
@@ -2178,7 +2186,7 @@ task.spawn(function()
                         if pp then
                             local orig = hrp.CFrame
                             hrp.CFrame = present:IsA("BasePart") and present.CFrame or hrp.CFrame
-                            task.wait(0.1)
+                            task.wait(1)
                             fireproximityprompt(pp)
                             task.wait(0.2)
                             hrp.CFrame = orig
@@ -2199,7 +2207,7 @@ task.spawn(function()
                     if pp then
                         local orig = hrp.CFrame
                         hrp.CFrame = chest:IsA("BasePart") and chest.CFrame + Vector3.new(0,5,0) or hrp.CFrame
-                        task.wait(0.1)
+                        task.wait(1)
                         fireproximityprompt(pp)
                         task.wait(0.3)
                         hrp.CFrame = orig
