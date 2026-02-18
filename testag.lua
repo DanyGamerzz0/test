@@ -551,7 +551,8 @@ end
 
 -- Called by the hook for upgrades (validated via Heartbeat)
 function Macro.onUpgradeRemote(serverName)
-    if not Macro.isRecording or not Macro.hasStarted then return end
+    debugPrint("fired")
+    if not Macro.isRecording or not Macro.hasStarted then debugPrint("not isrecording or not hasstarted") return end
     local tag = Macro.serverToTag[serverName]
     if not tag then 
         debugPrint("[Macro] Upgrade remote fired but unit not tracked:", serverName)
