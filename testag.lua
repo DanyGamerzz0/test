@@ -108,7 +108,11 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
+local DEBUG = false  -- Set to true when testing to see all debug prints
+
 local State = {
+    -- system
+    DisableNotifications    = false,
     -- joiner
     AutoJoinStory           = false,
     StoryStage              = nil,
@@ -160,8 +164,6 @@ local State = {
     AutoPurchaseGriffithItem= nil,
     AutoPurchaseRagna       = false,
     AutoPurchaseRagnaItem   = nil,
-    AutoPurchaseBlackMarket = false,
-    BlackMarketUnit         = "",
     enableAutoExecute       = false,
     -- webhook
     WebhookURL              = nil,
@@ -186,7 +188,7 @@ end
 function Joiner.begin(label)
     Joiner.processing = true
     Joiner.lastTime   = tick()
-    print("[Joiner] Begin:", label)
+    debugPrint("[Joiner] Begin:", label)
 end
 function Joiner.finish()
     task.delay(4, function() Joiner.processing = false end)
@@ -197,7 +199,12 @@ end
 -- ============================================================
 local Util = {}
 
+local function debugPrint(...)
+    if DEBUG then print("[DEBUG]", ...) end
+end
+
 function Util.notify(title, body, dur)
+    if State.DisableNotifications then return end
     Rayfield:Notify({ Title = title or "LixHub", Content = body or "", Duration = dur or 4, Image = "info" })
 end
 
@@ -474,8 +481,8 @@ function Macro.startRecording()
     Macro.hasStarted         = true
     Macro.actions            = {}
     Macro.clearTracking()
-    Macro.setStatus("Recording...")
-    print("[Macro] Recording started")
+    Macro.setStatus("Recording in progress...")
+    debugPrint("[Macro] Recording started")
 end
 
 function Macro.stopRecording(autoSave)
@@ -485,7 +492,7 @@ function Macro.stopRecording(autoSave)
     if autoSave and Macro.currentName ~= "" then
         Macro.library[Macro.currentName] = Macro.actions
         Macro.saveToFile(Macro.currentName)
-        Macro.setStatus("Saved " .. n .. " actions → " .. Macro.currentName)
+        Macro.setStatus("Saved " .. n .. " actions")
         Util.notify("Recording Saved", Macro.currentName .. " (" .. n .. " actions)")
     else
         Macro.setStatus("Recording stopped (" .. n .. " actions, not saved)")
@@ -538,7 +545,7 @@ function Macro.onPlace(displayName, cframe, uuid)
             Rotation     = 0,
             PlacementCost= cost,
         })
-        print("[Macro] Recorded spawn:", tag, "t=" .. t)
+        debugPrint("[Macro] Recorded spawn:", tag, "t=" .. t)
     end)
 end
 
@@ -546,7 +553,10 @@ end
 function Macro.onUpgradeRemote(serverName)
     if not Macro.isRecording or not Macro.hasStarted then return end
     local tag = Macro.serverToTag[serverName]
-    if not tag then return end
+    if not tag then 
+        debugPrint("[Macro] Upgrade remote fired but unit not tracked:", serverName)
+        return 
+    end
     -- Store pending; Heartbeat validates by comparing levels
     Macro._pendingUpgrade = {
         serverName = serverName,
@@ -554,13 +564,18 @@ function Macro.onUpgradeRemote(serverName)
         startLevel = Units.getLevel(serverName),
         time       = tick(),
     }
+    debugPrint("[Macro] Pending upgrade:", tag, "from level", Macro._pendingUpgrade.startLevel)
 end
 
 function Macro.validatePendingUpgrade()
     -- Called from Heartbeat
     local p = Macro._pendingUpgrade
     if not p then return end
-    if tick() - p.time > 2 then Macro._pendingUpgrade = nil return end
+    if tick() - p.time > 2 then 
+        debugPrint("[Macro] Pending upgrade expired (no level change detected)")
+        Macro._pendingUpgrade = nil 
+        return 
+    end
 
     local now = Units.getLevel(p.serverName)
     if now > p.startLevel then
@@ -570,7 +585,7 @@ function Macro.validatePendingUpgrade()
             Unit = p.tag,
             Time = string.format("%.2f", t),
         })
-        print("[Macro] Recorded upgrade:", p.tag)
+        debugPrint("[Macro] Recorded upgrade:", p.tag, "level", p.startLevel, "→", now)
         Macro._pendingUpgrade = nil
     end
 end
@@ -586,7 +601,7 @@ function Macro.onSell(serverName)
         Time = string.format("%.2f", t),
     })
     Macro.serverToTag[serverName] = nil
-    print("[Macro] Recorded sell:", tag)
+    debugPrint("[Macro] Recorded sell:", tag)
 end
 
 function Macro.onAbility(clientName, abilityName)
@@ -604,7 +619,7 @@ function Macro.onAbility(clientName, abilityName)
         Time        = string.format("%.2f", t),
         AbilityName = abilityName or "",
     })
-    print("[Macro] Recorded ability:", tag, abilityName)
+    debugPrint("[Macro] Recorded ability:", tag, abilityName)
 end
 
 function Macro.onSkipWave()
@@ -614,6 +629,7 @@ function Macro.onSkipWave()
         Type = "skip_wave",
         Time = string.format("%.2f", t),
     })
+    debugPrint("[Macro] Recorded skip wave at", t)
 end
 
 -- ─── PLAYBACK ────────────────────────────────────────────────
@@ -636,7 +652,7 @@ function Macro.execSpawn(action, idx, total)
 
     if not uuid then
         warn("[Macro.execSpawn] Unit not equipped:", displayName)
-        Macro.setDetail("(" .. idx .. "/" .. total .. ") ERROR: " .. displayName .. " not equipped")
+        Macro.setDetail(displayName .. " not equipped!")
         return false
     end
 
@@ -645,7 +661,7 @@ function Macro.execSpawn(action, idx, total)
     local pos    = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
 
-    Macro.setDetail("(" .. idx .. "/" .. total .. ") Placing " .. tag)
+    Macro.setDetail("Placing " .. tag .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.place(displayName, cframe, action.Rotation or 0, uuid)
     if not ok then return false end
 
@@ -662,8 +678,8 @@ function Macro.execSpawn(action, idx, total)
 
     if serverName then
         Macro.unitMapping[tag] = serverName
-        Macro.setDetail("(" .. idx .. "/" .. total .. ") Placed " .. tag)
-        print("[Macro] Placed:", tag, "→", serverName)
+        Macro.setDetail("✓ Placed " .. tag)
+        debugPrint("[Macro] Placed:", tag, "→", serverName)
         return true
     end
 
@@ -683,16 +699,19 @@ function Macro.execUpgrade(action, idx, total)
     local curLevel = Units.getLevel(serverName)
     local maxLevel = Units.getMaxLevel(serverName)
     if curLevel >= maxLevel then
-        print("[Macro] Already max:", tag)
+        debugPrint("[Macro] Already max:", tag)
         return true
     end
 
     local cost = Units.getUpgradeCost(serverName, curLevel)
     if not Macro.waitForMoney(cost, "upgrade " .. tag) then return false end
 
-    Macro.setDetail("(" .. idx .. "/" .. total .. ") Upgrading " .. tag)
+    Macro.setDetail("Upgrading " .. tag .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.upgrade(serverName, curLevel + 1)
     task.wait(0.4)
+    if ok then
+        Macro.setDetail("✓ Upgraded " .. tag)
+    end
     return ok
 end
 
@@ -700,9 +719,12 @@ end
 function Macro.execSell(action, idx, total)
     local serverName = Macro.unitMapping[action.Unit]
     if not serverName then return false end
-    Macro.setDetail("(" .. idx .. "/" .. total .. ") Selling " .. action.Unit)
+    Macro.setDetail("Selling " .. action.Unit .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.sell(serverName)
-    if ok then Macro.unitMapping[action.Unit] = nil end
+    if ok then 
+        Macro.unitMapping[action.Unit] = nil 
+        Macro.setDetail("✓ Sold " .. action.Unit)
+    end
     return ok
 end
 
@@ -766,13 +788,13 @@ end
 -- Run one full pass of the macro
 function Macro.playOnce()
     if not Macro.currentName or Macro.currentName == "" then
-        Macro.setStatus("Error: no macro selected")
+        Macro.setStatus("No macro selected")
         return false
     end
 
     local actions = Macro.loadFromFile(Macro.currentName)
     if not actions or #actions == 0 then
-        Macro.setStatus("Error: macro empty or not found")
+        Macro.setStatus("Macro is empty or not found")
         return false
     end
 
@@ -780,7 +802,8 @@ function Macro.playOnce()
     Macro.abilityQueue = {}
 
     local total = #actions
-    Macro.setStatus("Playing: " .. Macro.currentName .. " (" .. total .. " actions)")
+    Macro.setStatus("Playing: " .. Macro.currentName)
+    Macro.setDetail("Loading " .. total .. " actions...")
 
     -- Start the scheduled-queue drainer
     task.spawn(Macro.runScheduledQueue)
@@ -804,8 +827,7 @@ function Macro.playOnce()
             local gameTime = tick() - State.gameStartTime
             local remaining = actionTime - gameTime
             if remaining > 0.2 then
-                Macro.setDetail("(" .. i .. "/" .. total .. ") Waiting " ..
-                    string.format("%.1f", remaining) .. "s…")
+                Macro.setDetail("Waiting " .. string.format("%.1fs", remaining) .. " for next action...")
                 local waited = 0
                 while waited < remaining and Macro.isPlaying and State.gameInProgress do
                     task.wait(0.2)
@@ -830,7 +852,7 @@ function Macro.playOnce()
     end
 
     Macro.setStatus("Playback complete")
-    Macro.setDetail("Waiting for next game…")
+    Macro.setDetail("Waiting for next game...")
     return true
 end
 
@@ -840,7 +862,8 @@ function Macro.autoLoop()
     Macro.loopRunning = true
 
     while Macro.isPlaying do
-        Macro.setStatus("Waiting for game to start…")
+        Macro.setStatus("Waiting for game to start...")
+        Macro.setDetail("Standby")
 
         -- Wait for game to end first if mid-game
         while Util.getWave() > 0 and Macro.isPlaying do task.wait(1) end
@@ -859,6 +882,7 @@ function Macro.autoLoop()
 
     Macro.loopRunning = false
     Macro.setStatus("Playback stopped")
+    Macro.setDetail("Ready")
 end
 
 -- Import from JSON string
@@ -896,6 +920,78 @@ function Macro.exportClipboard()
     if not fn then Util.notify("Clipboard Error", "Not supported by your executor") return end
     fn(Svc.HttpService:JSONEncode(data))
     Util.notify("Exported", Macro.currentName .. " copied to clipboard")
+end
+
+-- Export via webhook
+function Macro.exportWebhook()
+    if not Macro.currentName or Macro.currentName == "" then
+        Util.notify("Webhook Error", "No macro selected")
+        return
+    end
+    
+    if not State.WebhookURL then
+        Util.notify("Webhook Error", "No webhook URL configured")
+        return
+    end
+    
+    local data = Macro.library[Macro.currentName]
+    if not data or #data == 0 then
+        Util.notify("Webhook Error", "Macro is empty")
+        return
+    end
+    
+    -- Extract units from macro
+    local unitsUsed, seen = {}, {}
+    for _, action in ipairs(data) do
+        if action.Type == "spawn" and action.Unit then
+            local baseName = Util.getDisplayFromTag(action.Unit)
+            if not seen[baseName] then
+                seen[baseName] = true
+                unitsUsed[#unitsUsed+1] = baseName
+            end
+        end
+    end
+    table.sort(unitsUsed)
+    local unitsText = #unitsUsed > 0 and table.concat(unitsUsed, ", ") or "No units"
+    
+    -- Create JSON
+    local jsonData = Svc.HttpService:JSONEncode(data)
+    local fileName = Macro.currentName .. ".json"
+    
+    -- Multipart form data
+    local boundary = "----WebKitFormBoundary" .. tostring(tick())
+    local body = ""
+    
+    -- Payload with units list
+    body = body .. "--" .. boundary .. "\r\n"
+    body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+    body = body .. "Content-Type: application/json\r\n\r\n"
+    body = body .. Svc.HttpService:JSONEncode({
+        content = "**Units:** " .. unitsText
+    }) .. "\r\n"
+    
+    -- File
+    body = body .. "--" .. boundary .. "\r\n"
+    body = body .. "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" .. fileName .. "\"\r\n"
+    body = body .. "Content-Type: application/json\r\n\r\n"
+    body = body .. jsonData .. "\r\n"
+    body = body .. "--" .. boundary .. "--\r\n"
+    
+    local resp = Util.httpRequest({
+        Url     = State.WebhookURL,
+        Method  = "POST",
+        Headers = { 
+            ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
+            ["User-Agent"] = "LixHub-Webhook/1.0"
+        },
+        Body    = body,
+    })
+    
+    if resp and resp.StatusCode >= 200 and resp.StatusCode < 300 then
+        Util.notify("Webhook Success", "Macro '" .. Macro.currentName .. "' sent!", 3)
+    else
+        Util.notify("Webhook Error", "Failed to send (HTTP " .. tostring(resp and resp.StatusCode or "?") .. ")", 3)
+    end
 end
 
 -- ============================================================
@@ -1062,7 +1158,7 @@ local function onGameStart()
     if Macro.isRecording and not Macro.hasStarted then
         Macro.startRecording()
     end
-    print("[Game] Started")
+    debugPrint("[Game] Started")
 end
 
 local function onGameEnd(rewards)
@@ -1081,7 +1177,7 @@ local function onGameEnd(rewards)
         task.spawn(Webhook.send, "stage")
     end
 
-    print("[Game] Ended")
+    debugPrint("[Game] Ended")
 end
 
 -- Wave tracking
@@ -1130,7 +1226,7 @@ local function doAutoVote()
             pcall(fn)
             task.wait(1.5)
             if guiClosed() then
-                print("[AutoVote] Success:", label)
+                debugPrint("[AutoVote] Success:", label)
                 return true
             end
         end
@@ -1506,24 +1602,6 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- BLACK MARKET SNIPER
--- ============================================================
-task.spawn(function()
-    while true do
-        task.wait(0.15)
-        if State.AutoPurchaseBlackMarket and State.BlackMarketUnit ~= "" and Util.isInLobby() then
-            local bm  = LP:FindFirstChild("BlackMarket")
-            local mkt = bm and bm:FindFirstChild("Market")
-            if mkt and mkt:FindFirstChild(State.BlackMarketUnit) then
-                pcall(function()
-                    RS.PlayMode.Events.EventShop:InvokeServer(1, State.BlackMarketUnit, "NightMarket")
-                end)
-            end
-        end
-    end
-end)
-
--- ============================================================
 -- LOW PERFORMANCE MODE
 -- ============================================================
 local function applyLowPerf()
@@ -1581,6 +1659,7 @@ end
 -- ============================================================
 local Tabs = {
     Lobby   = Window:CreateTab("Lobby",    "tv"),
+    Shop    = Window:CreateTab("Shop",     "shopping-cart"),
     Joiner  = Window:CreateTab("Joiner",   "plug-zap"),
     Game    = Window:CreateTab("Game",     "gamepad-2"),
     Macro   = Window:CreateTab("Macro",    "tv"),
@@ -1612,6 +1691,14 @@ Tabs.Lobby:CreateButton({
 })
 
 Tabs.Lobby:CreateToggle({
+    Name     = "Disable Script Notifications",
+    Flag     = "DisableNotifications",
+    Callback = function(v)
+        State.DisableNotifications = v
+    end,
+})
+
+Tabs.Lobby:CreateToggle({
     Name     = "Auto Execute Script",
     Flag     = "enableAutoExecute",
     Callback = function(v)
@@ -1631,16 +1718,53 @@ Tabs.Lobby:CreateButton({
     end,
 })
 
-Tabs.Lobby:CreateSection("Shop Auto-Purchase")
+-- ============================================================
+-- SHOP TAB
+-- ============================================================
+Tabs.Shop:CreateSection("Dio Shop (Over Heaven)")
 
-Tabs.Lobby:CreateToggle({ Name="Auto Purchase Dio Shop",      Flag="AutoPurchaseDio",      Callback=function(v) State.AutoPurchaseDio=v end })
-Tabs.Lobby:CreateDropdown({ Name="Dio Item", Options={"Artifacts Trait Reroll","TraitReroll","SuperStatReroll","StatReroll"}, Flag="DioItem", Callback=function(o) State.AutoPurchaseDioItem=o[1] end })
-Tabs.Lobby:CreateToggle({ Name="Auto Purchase Griffith Shop", Flag="AutoPurchaseGriffith", Callback=function(v) State.AutoPurchaseGriffith=v end })
-Tabs.Lobby:CreateDropdown({ Name="Griffith Item", Options={"Capsule Fortune Potion","Festival Coin Potion","Blessed Luck Potion","Event Discount Potion","Guts","Dragonslayer","Artifacts Trait Reroll","SuperStatReroll","StatReroll"}, Flag="GriffithItem", Callback=function(o) State.AutoPurchaseGriffithItem=o[1] end })
-Tabs.Lobby:CreateToggle({ Name="Auto Purchase Ragna Shop",    Flag="AutoPurchaseRagna",    Callback=function(v) State.AutoPurchaseRagna=v end })
-Tabs.Lobby:CreateDropdown({ Name="Ragna Item", Options={"Artifacts Trait Reroll","Ragna Capsule","Dango","Mystic Coins","Fullsteak","Ramen","TraitReroll","Night Market Coins"}, Flag="RagnaItem", Callback=function(o) State.AutoPurchaseRagnaItem=o[1] end })
-Tabs.Lobby:CreateToggle({ Name="Snipe Black Market Unit",     Flag="SnipeBlackMarket",     Callback=function(v) State.AutoPurchaseBlackMarket=v end })
-Tabs.Lobby:CreateInput({ Name="Black Market Unit Name", PlaceholderText="e.g. Yuji Itadori", RemoveTextAfterFocusLost=false, Flag="BMUnit", Callback=function(t) State.BlackMarketUnit=t:match("^%s*(.-)%s*$") end })
+Tabs.Shop:CreateToggle({ 
+    Name     = "Auto Purchase", 
+    Flag     = "AutoPurchaseDio", 
+    Callback = function(v) State.AutoPurchaseDio=v end 
+})
+
+Tabs.Shop:CreateDropdown({ 
+    Name    = "Select Item", 
+    Options = {"Artifacts Trait Reroll","TraitReroll","SuperStatReroll","StatReroll"}, 
+    Flag    = "DioItem", 
+    Callback= function(o) State.AutoPurchaseDioItem=o[1] end 
+})
+
+Tabs.Shop:CreateSection("Griffith Shop (Beherit)")
+
+Tabs.Shop:CreateToggle({ 
+    Name     = "Auto Purchase", 
+    Flag     = "AutoPurchaseGriffith", 
+    Callback = function(v) State.AutoPurchaseGriffith=v end 
+})
+
+Tabs.Shop:CreateDropdown({ 
+    Name    = "Select Item", 
+    Options = {"Capsule Fortune Potion","Festival Coin Potion","Blessed Luck Potion","Event Discount Potion","Guts","Dragonslayer","Artifacts Trait Reroll","SuperStatReroll","StatReroll"}, 
+    Flag    = "GriffithItem", 
+    Callback= function(o) State.AutoPurchaseGriffithItem=o[1] end 
+})
+
+Tabs.Shop:CreateSection("Ragna Shop")
+
+Tabs.Shop:CreateToggle({ 
+    Name     = "Auto Purchase", 
+    Flag     = "AutoPurchaseRagna", 
+    Callback = function(v) State.AutoPurchaseRagna=v end 
+})
+
+Tabs.Shop:CreateDropdown({ 
+    Name    = "Select Item", 
+    Options = {"Artifacts Trait Reroll","Ragna Capsule","Dango","Mystic Coins","Fullsteak","Ramen","TraitReroll","Night Market Coins"}, 
+    Flag    = "RagnaItem", 
+    Callback= function(o) State.AutoPurchaseRagnaItem=o[1] end 
+})
 
 -- ============================================================
 -- JOINER TAB
@@ -1877,6 +2001,8 @@ Tabs.Macro:CreateToggle({
 Tabs.Macro:CreateDivider()
 
 Tabs.Macro:CreateButton({ Name="Export to Clipboard", Callback=Macro.exportClipboard })
+
+Tabs.Macro:CreateButton({ Name="Export via Webhook", Callback=Macro.exportWebhook })
 
 Tabs.Macro:CreateInput({
     Name            = "Import (URL or JSON)",
