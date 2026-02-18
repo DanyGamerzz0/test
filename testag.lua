@@ -831,7 +831,13 @@ function Macro.playOnce()
 
         if not Macro.isPlaying or not State.gameInProgress then return false end
 
-        if     action.Type == "spawn"   then Macro.execSpawn  (action, i, total)
+        if     action.Type == "spawn"   then 
+            Macro.execSpawn(action, i, total)
+            -- CRITICAL: When IgnoreTiming is on, we need a small delay after placement
+            -- to give the server time to spawn the unit before the next action
+            if State.IgnoreTiming then
+                task.wait(0.5)
+            end
         elseif action.Type == "upgrade" then Macro.execUpgrade(action, i, total)
         elseif action.Type == "sell"    then Macro.execSell   (action, i, total)
         end
