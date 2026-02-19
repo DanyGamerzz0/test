@@ -108,7 +108,7 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
-local DEBUG = true  -- Set to true when testing to see all debug prints
+local DEBUG = false  -- Set to true when testing to see all debug prints
 
 local State = {
     -- system
@@ -633,7 +633,10 @@ function Macro.execSpawn(action, idx, total)
         return false
     end
 
-    -- Money check is now done in playOnce loop before this function is called
+    -- Wait for money
+    if not Macro.waitForMoney(action.PlacementCost, displayName) then 
+        return false 
+    end
 
     local pos    = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
@@ -689,7 +692,11 @@ function Macro.execUpgrade(action, idx, total)
         return true
     end
 
-    -- Money check is now done in playOnce loop before this function is called
+    -- Wait for money
+    local cost = Units.getUpgradeCost(serverName, curLevel)
+    if not Macro.waitForMoney(cost, "upgrade " .. tag) then 
+        return false 
+    end
 
     Macro.setDetail("Upgrading " .. tag .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.upgrade(serverName, curLevel + 1)
@@ -805,23 +812,6 @@ function Macro.playOnce()
         if action.Type == "ability" or action.Type == "skip_wave" then
             Macro.scheduleTimedAction(action, actionTime)
             continue
-        end
-
-        -- CRITICAL FIX: Wait for money BEFORE checking timing
-        -- This ensures money check happens even when IgnoreTiming is enabled
-        if action.Type == "spawn" then
-            if not Macro.waitForMoney(action.PlacementCost, Util.getDisplayFromTag(action.Unit)) then
-                return false
-            end
-        elseif action.Type == "upgrade" then
-            local serverName = Macro.unitMapping[action.Unit]
-            if serverName then
-                local curLevel = Units.getLevel(serverName)
-                local cost = Units.getUpgradeCost(serverName, curLevel)
-                if not Macro.waitForMoney(cost, "upgrade " .. action.Unit) then
-                    return false
-                end
-            end
         end
 
         -- For placements/upgrades/sells: wait for timing unless IgnoreTiming
