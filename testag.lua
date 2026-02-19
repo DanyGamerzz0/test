@@ -108,7 +108,7 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
-local DEBUG = false  -- Set to true when testing to see all debug prints
+local DEBUG = true  -- Set to true when testing to see all debug prints
 
 local State = {
     -- system
