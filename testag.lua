@@ -108,7 +108,7 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
-local DEBUG = true  -- Set to true when testing to see all debug prints
+local DEBUG = false  -- Set to true when testing to see all debug prints
 
 local State = {
     -- system
@@ -527,12 +527,14 @@ function Macro.onPlace(displayName, cframe, uuid)
         local cost = nil
         for slot = 1, 6 do
             local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
+            print(pkg.Unit.Value .. "vs " .. displayName)
             if pkg and pkg.Unit and pkg.Unit.Value == displayName then
                 local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot
                              :FindFirstChild("unit" .. slot)
                 local yen   = frame and frame:FindFirstChild(displayName, true)
                              and frame[displayName]:FindFirstChild("yen")
                 cost = yen and tonumber(yen.Text:match("%d+"))
+                print("Found cost:", cost)
                 break
             end
         end
