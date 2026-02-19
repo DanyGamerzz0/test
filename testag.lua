@@ -647,12 +647,12 @@ function Macro.execSpawn(action, idx, total)
     for _, sn in pairs(Macro.unitMapping) do alreadyMapped[sn] = true end
 
     local serverName = nil
-    local maxAttempts = State.IgnoreTiming and 20 or 12  -- More attempts when ignoring timing
-    local waitTime = State.IgnoreTiming and 0.3 or 0.4   -- Slightly faster checks when ignoring timing
+    local maxAttempts = 15  -- Consistent attempts regardless of timing mode
+    local waitTime = 0.5    -- Consistent wait time
     
     for attempt = 1, maxAttempts do
         task.wait(waitTime)
-        serverName = Units.findByPosition(displayName, cframe.Position, alreadyMapped, 8)
+        serverName = Units.findByPosition(displayName, cframe.Position, alreadyMapped, 5)  -- Use 5 stud tolerance like old script
         if serverName then break end
         
         -- Update detail to show we're searching
@@ -836,10 +836,6 @@ function Macro.playOnce()
                     waited = waited + 0.2
                 end
             end
-        else
-            -- CRITICAL: Even with IgnoreTiming on, we need a minimum delay
-            -- between actions to prevent server rate limiting/rejection
-            task.wait(0.3)
         end
 
         if not Macro.isPlaying or not State.gameInProgress then return false end
