@@ -647,10 +647,18 @@ function Macro.execSpawn(action, idx, total)
     for _, sn in pairs(Macro.unitMapping) do alreadyMapped[sn] = true end
 
     local serverName = nil
-    for attempt = 1, 12 do
-        task.wait(0.4)
+    local maxAttempts = State.IgnoreTiming and 20 or 12  -- More attempts when ignoring timing
+    local waitTime = State.IgnoreTiming and 0.3 or 0.4   -- Slightly faster checks when ignoring timing
+    
+    for attempt = 1, maxAttempts do
+        task.wait(waitTime)
         serverName = Units.findByPosition(displayName, cframe.Position, alreadyMapped, 8)
         if serverName then break end
+        
+        -- Update detail to show we're searching
+        if attempt % 3 == 0 then
+            Macro.setDetail("Searching for " .. tag .. " (attempt " .. attempt .. "/" .. maxAttempts .. ")")
+        end
     end
 
     if serverName then
@@ -661,6 +669,7 @@ function Macro.execSpawn(action, idx, total)
     end
 
     warn("[Macro.execSpawn] Failed to detect unit after placement:", tag)
+    Macro.setDetail("❌ Failed to detect " .. tag)
     return false
 end
 
@@ -831,13 +840,7 @@ function Macro.playOnce()
 
         if not Macro.isPlaying or not State.gameInProgress then return false end
 
-        if     action.Type == "spawn"   then 
-            Macro.execSpawn(action, i, total)
-            -- CRITICAL: When IgnoreTiming is on, we need a small delay after placement
-            -- to give the server time to spawn the unit before the next action
-            if State.IgnoreTiming then
-                task.wait(0.5)
-            end
+        if     action.Type == "spawn"   then Macro.execSpawn  (action, i, total)
         elseif action.Type == "upgrade" then Macro.execUpgrade(action, i, total)
         elseif action.Type == "sell"    then Macro.execSell   (action, i, total)
         end
