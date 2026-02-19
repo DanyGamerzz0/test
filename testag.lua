@@ -613,12 +613,28 @@ end
 
 -- Wait for money, returns false if playback stopped
 function Macro.waitForMoney(amount, label)
-    if not amount or amount <= 0 then return true end
+    if not amount or amount <= 0 then 
+        debugPrint("[Macro] No cost specified for:", label)
+        return true 
+    end
+    
+    local currentMoney = Util.getMoney()
+    debugPrint(string.format("[Macro] Checking money: have %d, need %d for %s", currentMoney, amount, label))
+    
     while Util.getMoney() < amount and Macro.isPlaying and State.gameInProgress do
         Macro.setDetail("Waiting for money: " .. Util.getMoney() .. "/" .. amount .. " (" .. label .. ")")
         task.wait(0.5)
     end
-    return Macro.isPlaying and State.gameInProgress
+    
+    if Macro.isPlaying and State.gameInProgress then
+        -- CRITICAL: Add small delay after money is available to ensure server sync
+        task.wait(0.2)
+        local finalMoney = Util.getMoney()
+        debugPrint(string.format("[Macro] Money ready: %d >= %d for %s", finalMoney, amount, label))
+        return true
+    end
+    
+    return false
 end
 
 -- Execute one placement action
@@ -642,8 +658,14 @@ function Macro.execSpawn(action, idx, total)
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
 
     Macro.setDetail("Placing " .. tag .. " (" .. idx .. "/" .. total .. ")")
+    debugPrint(string.format("[Macro] Calling placement remote: %s at (%.1f, %.1f, %.1f), money: %d", 
+        displayName, pos[1], pos[2], pos[3], Util.getMoney()))
+    
     local ok = Units.place(displayName, cframe, action.Rotation or 0, uuid)
-    if not ok then return false end
+    if not ok then 
+        warn("[Macro.execSpawn] Placement remote returned false!")
+        return false 
+    end
 
     -- Detect spawned unit
     local alreadyMapped = {}
