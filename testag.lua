@@ -525,19 +525,32 @@ function Macro.onPlace(displayName, cframe, uuid)
 
         -- Get cost
         local cost = nil
-        for slot = 1, 6 do
-            local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
-            print(pkg.Unit.Value .. "vs " .. displayName)
-            if pkg and pkg.Unit and pkg.Unit.Value == displayName then
-                local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot
-                             :FindFirstChild("unit" .. slot)
-                local yen   = frame and frame:FindFirstChild(displayName, true)
-                             and frame[displayName]:FindFirstChild("yen")
-                cost = yen and tonumber(yen.Text:match("%d+"))
-                print("Found cost:", cost)
-                break
+for slot = 1, 6 do
+    local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
+    if pkg and pkg.Unit and pkg.Unit.Value == displayName then
+        local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot:FindFirstChild("unit" .. slot)
+        if frame then
+            -- Find the actual Frame object with the unit's name (not StringValue)
+            local unitFrame = nil
+            for _, obj in ipairs(frame:GetDescendants()) do
+                if obj.Name == displayName and obj:IsA("Frame") then
+                    unitFrame = obj
+                    break
+                end
+            end
+            
+            if unitFrame then
+                local yen = unitFrame:FindFirstChild("yen")
+                if yen then
+                    local number = yen.Text:gsub("[^%d]", "")
+                    cost = tonumber(number)
+                    debugPrint("[Macro] Found cost from UI slot " .. slot .. ":", cost)
+                end
             end
         end
+        break
+    end
+end
 
         table.insert(Macro.actions, {
             Type         = "spawn",
