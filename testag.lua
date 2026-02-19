@@ -836,6 +836,10 @@ function Macro.playOnce()
                     waited = waited + 0.2
                 end
             end
+        else
+            -- CRITICAL: Even with IgnoreTiming on, we need a minimum delay
+            -- between actions to prevent server rate limiting/rejection
+            task.wait(0.3)
         end
 
         if not Macro.isPlaying or not State.gameInProgress then return false end
