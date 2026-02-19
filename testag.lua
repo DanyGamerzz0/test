@@ -108,7 +108,7 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
-local DEBUG = false  -- Set to true when testing to see all debug prints
+local DEBUG = true  -- Set to true when testing to see all debug prints
 
 local State = {
     -- system
@@ -656,7 +656,6 @@ function Macro.execSpawn(action, idx, total)
     local pos    = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
 
-    task.wait(10)
     Macro.setDetail("Placing " .. tag .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.place(displayName, cframe, action.Rotation or 0, uuid)
     if not ok then return false end
