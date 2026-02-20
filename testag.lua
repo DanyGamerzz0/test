@@ -171,6 +171,13 @@ local State = {
     SendWebhookOnFinish     = false,
     -- macro
     IgnoreTiming            = false,
+    -- autoplay
+    AutoPlayEnabled         = false,
+    AutoPlayUpgrade         = false,
+    AutoPlayFocusFarms      = false,
+    AutoPlayPositions       = {nil, nil, nil, nil, nil, nil}, -- 6 unit positions
+    AutoPlayPlacementCaps   = {1, 1, 1, 1, 1, 1}, -- How many of each unit to place
+    AutoPlayUpgradeCaps     = {0, 0, 0, 0, 0, 0}, -- How many times to upgrade each
     -- game tracking (internal)
     gameInProgress          = false,
     gameStartTime           = 0,
@@ -525,32 +532,17 @@ function Macro.onPlace(displayName, cframe, uuid)
 
         -- Get cost
         local cost = nil
-for slot = 1, 6 do
-    local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
-    if pkg and pkg.Unit and pkg.Unit.Value == displayName then
-        local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot:FindFirstChild("unit" .. slot)
-        if frame then
-            -- Find the actual Frame object with the unit's name (not StringValue)
-            local unitFrame = nil
-            for _, obj in ipairs(frame:GetDescendants()) do
-                if obj.Name == displayName and obj:IsA("Frame") then
-                    unitFrame = obj
-                    break
-                end
-            end
-            
-            if unitFrame then
-                local yen = unitFrame:FindFirstChild("yen")
-                if yen then
-                    local number = yen.Text:gsub("[^%d]", "")
-                    cost = tonumber(number)
-                    debugPrint("[Macro] Found cost from UI slot " .. slot .. ":", cost)
-                end
+        for slot = 1, 6 do
+            local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
+            if pkg and pkg.Unit and pkg.Unit.Value == displayName then
+                local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot
+                             :FindFirstChild("unit" .. slot)
+                local yen   = frame and frame:FindFirstChild(displayName, true)
+                             and frame[displayName]:FindFirstChild("yen")
+                cost = yen and tonumber(yen.Text:match("%d+"))
+                break
             end
         end
-        break
-    end
-end
 
         table.insert(Macro.actions, {
             Type         = "spawn",
@@ -628,12 +620,28 @@ end
 
 -- Wait for money, returns false if playback stopped
 function Macro.waitForMoney(amount, label)
-    if not amount or amount <= 0 then return true end
+    if not amount or amount <= 0 then 
+        debugPrint("[Macro] No cost specified for:", label)
+        return true 
+    end
+    
+    local currentMoney = Util.getMoney()
+    debugPrint(string.format("[Macro] Checking money: have %d, need %d for %s", currentMoney, amount, label))
+    
     while Util.getMoney() < amount and Macro.isPlaying and State.gameInProgress do
         Macro.setDetail("Waiting for money: " .. Util.getMoney() .. "/" .. amount .. " (" .. label .. ")")
         task.wait(0.5)
     end
-    return Macro.isPlaying and State.gameInProgress
+    
+    if Macro.isPlaying and State.gameInProgress then
+        -- CRITICAL: Add small delay after money is available to ensure server sync
+        task.wait(0.2)
+        local finalMoney = Util.getMoney()
+        debugPrint(string.format("[Macro] Money ready: %d >= %d for %s", finalMoney, amount, label))
+        return true
+    end
+    
+    return false
 end
 
 -- Execute one placement action
@@ -657,8 +665,14 @@ function Macro.execSpawn(action, idx, total)
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
 
     Macro.setDetail("Placing " .. tag .. " (" .. idx .. "/" .. total .. ")")
+    debugPrint(string.format("[Macro] Calling placement remote: %s at (%.1f, %.1f, %.1f), money: %d", 
+        displayName, pos[1], pos[2], pos[3], Util.getMoney()))
+    
     local ok = Units.place(displayName, cframe, action.Rotation or 0, uuid)
-    if not ok then return false end
+    if not ok then 
+        warn("[Macro.execSpawn] Placement remote returned false!")
+        return false 
+    end
 
     -- Detect spawned unit
     local alreadyMapped = {}
@@ -1002,6 +1016,268 @@ function Macro.exportWebhook()
 end
 
 -- ============================================================
+-- AUTOPLAY MODULE
+-- ============================================================
+local AutoPlay = {
+    placedUnits = {}, -- Tracks {slotNum, serverName, position}
+    holograms = {},   -- Visual placement indicators
+    settingPosition = nil, -- Which slot we're currently setting position for
+}
+
+-- Create or update hologram for a position
+function AutoPlay.createHologram(slotNum, position)
+    -- Remove old hologram if exists
+    if AutoPlay.holograms[slotNum] then
+        AutoPlay.holograms[slotNum]:Destroy()
+    end
+    
+    -- Create new hologram
+    local part = Instance.new("Part")
+    part.Name = "AutoPlayMarker_" .. slotNum
+    part.Size = Vector3.new(4, 8, 4)
+    part.Position = position
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 0.5
+    part.Material = Enum.Material.Neon
+    
+    -- Color based on slot
+    local colors = {
+        Color3.fromRGB(255, 85, 85),   -- Slot 1: Red
+        Color3.fromRGB(85, 170, 255),  -- Slot 2: Blue
+        Color3.fromRGB(85, 255, 127),  -- Slot 3: Green
+        Color3.fromRGB(255, 255, 85),  -- Slot 4: Yellow
+        Color3.fromRGB(255, 170, 255), -- Slot 5: Pink
+        Color3.fromRGB(255, 170, 85),  -- Slot 6: Orange
+    }
+    part.Color = colors[slotNum] or Color3.new(1, 1, 1)
+    
+    -- Add text label
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = part
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 0.3
+    label.BackgroundColor3 = Color3.new(0, 0, 0)
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextScaled = true
+    label.Font = Enum.Font.SourceSansBold
+    label.Text = "Slot " .. slotNum
+    label.Parent = billboard
+    
+    part.Parent = Svc.Workspace
+    AutoPlay.holograms[slotNum] = part
+    
+    debugPrint("[AutoPlay] Created hologram for slot", slotNum, "at", position)
+end
+
+-- Remove all holograms
+function AutoPlay.clearHolograms()
+    for _, hologram in pairs(AutoPlay.holograms) do
+        if hologram then hologram:Destroy() end
+    end
+    AutoPlay.holograms = {}
+end
+
+-- Start position setting mode
+function AutoPlay.startSetPosition(slotNum)
+    AutoPlay.settingPosition = slotNum
+    Util.notify("Set Position", "Click on the map to set Unit " .. slotNum .. " position", 5)
+    
+    local mouse = LP:GetMouse()
+    mouse.Icon = "rbxasset://textures/ArrowCursor.png"
+    
+    local connection
+    connection = mouse.Button1Down:Connect(function()
+        if not AutoPlay.settingPosition then 
+            connection:Disconnect()
+            return 
+        end
+        
+        local target = mouse.Target
+        if target then
+            local hitPos = mouse.Hit.Position
+            State.AutoPlayPositions[slotNum] = {hitPos.X, hitPos.Y, hitPos.Z}
+            AutoPlay.createHologram(slotNum, hitPos)
+            Util.notify("Position Set", "Unit " .. slotNum .. " position saved!", 3)
+            debugPrint("[AutoPlay] Set position for slot", slotNum, ":", hitPos)
+        end
+        
+        AutoPlay.settingPosition = nil
+        connection:Disconnect()
+    end)
+end
+
+-- Get unit info from slot
+function AutoPlay.getUnitFromSlot(slotNum)
+    local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slotNum))
+    if not pkg or not pkg.Unit then return nil end
+    return pkg.Unit.Value
+end
+
+-- Check if unit is a farm unit
+function AutoPlay.isFarmUnit(displayName)
+    -- Get unit's PlaceType from modules
+    local modules = RS:FindFirstChild("PlayMode")
+                 and RS.PlayMode:FindFirstChild("Modules")
+                 and RS.PlayMode.Modules:FindFirstChild("UnitsSettings")
+    if not modules then return false end
+    
+    local mod = modules:FindFirstChild(displayName)
+    if not mod then return false end
+    
+    local ok, data = pcall(require, mod)
+    if not ok or not data then return false end
+    
+    local settings = type(data.settings) == "function" and data.settings() or nil
+    return settings and settings.PlaceType == "Farm"
+end
+
+-- Main autoplay loop
+function AutoPlay.loop()
+    while State.AutoPlayEnabled and State.gameInProgress do
+        task.wait(1)
+        
+        -- Check each slot
+        for slotNum = 1, 6 do
+            local position = State.AutoPlayPositions[slotNum]
+            if not position then continue end
+            
+            local displayName = AutoPlay.getUnitFromSlot(slotNum)
+            if not displayName then continue end
+            
+            -- Check if we should skip non-farm units
+            if State.AutoPlayFocusFarms and not AutoPlay.isFarmUnit(displayName) then
+                continue
+            end
+            
+            -- Count how many of this slot we've placed
+            local placedCount = 0
+            for _, unit in ipairs(AutoPlay.placedUnits) do
+                if unit.slotNum == slotNum then
+                    placedCount = placedCount + 1
+                end
+            end
+            
+            -- Place more if under cap
+            local placementCap = State.AutoPlayPlacementCaps[slotNum]
+            if placedCount < placementCap then
+                AutoPlay.placeUnit(slotNum, displayName, position)
+                task.wait(0.5)
+            end
+            
+            -- Upgrade existing units if enabled
+            if State.AutoPlayUpgrade then
+                AutoPlay.upgradeUnits(slotNum)
+            end
+        end
+    end
+    
+    debugPrint("[AutoPlay] Loop ended")
+end
+
+-- Place a unit
+function AutoPlay.placeUnit(slotNum, displayName, position)
+    local uuid = Units.getUUID(displayName)
+    if not uuid then
+        debugPrint("[AutoPlay] Unit not equipped:", displayName)
+        return false
+    end
+    
+    -- Check money
+    local cost = AutoPlay.getUnitCost(displayName)
+    if cost and Util.getMoney() < cost then
+        debugPrint("[AutoPlay] Not enough money for", displayName, "need", cost)
+        return false
+    end
+    
+    local cframe = CFrame.new(position[1], position[2], position[3])
+    
+    debugPrint("[AutoPlay] Placing", displayName, "from slot", slotNum)
+    local ok = Units.place(displayName, cframe, 0, uuid)
+    if not ok then return false end
+    
+    task.wait(1)
+    
+    -- Find the placed unit
+    local serverName = Units.findByPosition(displayName, Vector3.new(position[1], position[2], position[3]), {}, 8)
+    if serverName then
+        table.insert(AutoPlay.placedUnits, {
+            slotNum = slotNum,
+            serverName = serverName,
+            position = position,
+            upgrades = 0
+        })
+        debugPrint("[AutoPlay] Placed:", serverName)
+        return true
+    end
+    
+    return false
+end
+
+-- Upgrade units from a slot
+function AutoPlay.upgradeUnits(slotNum)
+    local upgradeCap = State.AutoPlayUpgradeCaps[slotNum]
+    if upgradeCap == 0 then return end
+    
+    for _, unit in ipairs(AutoPlay.placedUnits) do
+        if unit.slotNum == slotNum and unit.upgrades < upgradeCap then
+            local curLevel = Units.getLevel(unit.serverName)
+            local maxLevel = Units.getMaxLevel(unit.serverName)
+            
+            if curLevel < maxLevel and curLevel < upgradeCap then
+                local cost = Units.getUpgradeCost(unit.serverName, curLevel)
+                if cost and Util.getMoney() >= cost then
+                    debugPrint("[AutoPlay] Upgrading", unit.serverName, "to level", curLevel + 1)
+                    Units.upgrade(unit.serverName, curLevel + 1)
+                    unit.upgrades = unit.upgrades + 1
+                    task.wait(0.5)
+                end
+            end
+        end
+    end
+end
+
+-- Get unit cost from UI
+function AutoPlay.getUnitCost(displayName)
+    for slot = 1, 6 do
+        local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
+        if pkg and pkg.Unit and pkg.Unit.Value == displayName then
+            local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot:FindFirstChild("unit" .. slot)
+            if frame then
+                local unitFrame = nil
+                for _, obj in ipairs(frame:GetDescendants()) do
+                    if obj.Name == displayName and obj:IsA("Frame") then
+                        unitFrame = obj
+                        break
+                    end
+                end
+                
+                if unitFrame then
+                    local yen = unitFrame:FindFirstChild("yen")
+                    if yen then
+                        local number = yen.Text:gsub("[^%d]", "")
+                        return tonumber(number)
+                    end
+                end
+            end
+            break
+        end
+    end
+    return nil
+end
+
+-- Reset autoplay state
+function AutoPlay.reset()
+    AutoPlay.placedUnits = {}
+    debugPrint("[AutoPlay] Reset state")
+end
+
+-- ============================================================
 -- WEBHOOK MODULE
 -- ============================================================
 local Webhook = {}
@@ -1184,6 +1460,13 @@ local function onGameStart()
     if Macro.isRecording and not Macro.hasStarted then
         Macro.startRecording()
     end
+    
+    -- Start autoplay if enabled
+    if State.AutoPlayEnabled then
+        AutoPlay.reset()
+        task.spawn(AutoPlay.loop)
+    end
+    
     debugPrint("[Game] Started")
 end
 
@@ -1196,6 +1479,11 @@ local function onGameEnd(rewards)
     if Macro.isRecording and Macro.hasStarted then
         Macro.stopRecording(true)
         if RecordToggle then RecordToggle:Set(false) end
+    end
+    
+    -- Reset autoplay
+    if State.AutoPlayEnabled then
+        AutoPlay.reset()
     end
 
     -- Webhook
@@ -1871,8 +2159,97 @@ Tabs.Game:CreateToggle({ Name="Auto Sell Farm Units", Flag="AutoSellFarm", Callb
 Tabs.Game:CreateSlider({ Name="Sell Farm on Wave",    Range={1,50}, Increment=1, CurrentValue=15, Flag="AutoSellFarmWave", Callback=function(v) State.AutoSellFarmWave=v end })
 
 -- ============================================================
--- AUTO TAB  (abilities)
+-- AUTO TAB  (abilities + autoplay)
 -- ============================================================
+Tabs.Auto:CreateSection("AutoPlay System")
+
+Tabs.Auto:CreateToggle({
+    Name = "Enable AutoPlay",
+    Flag = "AutoPlayEnabled",
+    Info = "Automatically place and upgrade units based on configured positions",
+    Callback = function(v)
+        State.AutoPlayEnabled = v
+        if v and State.gameInProgress then
+            AutoPlay.reset()
+            task.spawn(AutoPlay.loop)
+        end
+    end,
+})
+
+Tabs.Auto:CreateToggle({
+    Name = "Auto Upgrade to Max",
+    Flag = "AutoPlayUpgrade",
+    Info = "Automatically upgrade placed units based on upgrade caps",
+    Callback = function(v)
+        State.AutoPlayUpgrade = v
+    end,
+})
+
+Tabs.Auto:CreateToggle({
+    Name = "Focus Farm Units Only",
+    Flag = "AutoPlayFocusFarms",
+    Info = "Only place and upgrade farm units",
+    Callback = function(v)
+        State.AutoPlayFocusFarms = v
+    end,
+})
+
+Tabs.Auto:CreateDivider()
+
+-- Position setting buttons
+for i = 1, 6 do
+    Tabs.Auto:CreateButton({
+        Name = "Set Unit " .. i .. " Position",
+        Callback = function()
+            AutoPlay.startSetPosition(i)
+        end,
+    })
+end
+
+Tabs.Auto:CreateDivider()
+
+-- Placement caps
+Tabs.Auto:CreateSection("Placement Caps (How many to place)")
+for i = 1, 6 do
+    Tabs.Auto:CreateSlider({
+        Name = "Unit " .. i .. " Placement Cap",
+        Range = {1, 6},
+        Increment = 1,
+        CurrentValue = 1,
+        Flag = "AutoPlayPlaceCap" .. i,
+        Callback = function(v)
+            State.AutoPlayPlacementCaps[i] = v
+        end,
+    })
+end
+
+Tabs.Auto:CreateDivider()
+
+-- Upgrade caps
+Tabs.Auto:CreateSection("Upgrade Caps (Max upgrade level)")
+for i = 1, 6 do
+    Tabs.Auto:CreateSlider({
+        Name = "Unit " .. i .. " Upgrade Cap",
+        Range = {0, 20},
+        Increment = 1,
+        CurrentValue = 0,
+        Flag = "AutoPlayUpgradeCap" .. i,
+        Callback = function(v)
+            State.AutoPlayUpgradeCaps[i] = v
+        end,
+    })
+end
+
+Tabs.Auto:CreateDivider()
+
+Tabs.Auto:CreateButton({
+    Name = "Clear All Holograms",
+    Callback = function()
+        AutoPlay.clearHolograms()
+        Util.notify("Holograms Cleared", "All position markers removed")
+    end,
+})
+
 Tabs.Auto:CreateSection("Auto Ability")
 
 local AbilityDD
@@ -2072,11 +2449,11 @@ Tabs.Macro:CreateButton({
         for _, a in ipairs(data) do
             if a.Type == "spawn" then
                 local base = Util.getDisplayFromTag(a.Unit)
-                seen[base] = (seen[base] or 0) + 1
+                seen[base] = true
             end
         end
         local lines = {}
-        for k,v in pairs(seen) do lines[#lines+1] = k .. " x"..v end
+        for k in pairs(seen) do lines[#lines+1] = k end
         table.sort(lines)
         Util.notify("Macro Units", table.concat(lines,"\n"), 8)
     end,
@@ -2281,6 +2658,14 @@ task.spawn(function()
         Macro.isPlaying = true
         task.spawn(Macro.autoLoop)
         Macro.setStatus("Playback restored: " .. Macro.currentName)
+    end
+    
+    -- Restore AutoPlay holograms
+    for i = 1, 6 do
+        local pos = State.AutoPlayPositions[i]
+        if pos and pos[1] and pos[2] and pos[3] then
+            AutoPlay.createHologram(i, Vector3.new(pos[1], pos[2], pos[3]))
+        end
     end
 end)
 
