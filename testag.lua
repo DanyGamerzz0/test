@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    -autoplay6
+    -autoplay7
 --]]
 
 -- ============================================================
@@ -966,6 +966,7 @@ end
     - A compact "Slot N" label on the bounding box (no quantity, less cluttered).
 ]]
 function AutoPlay.createHologram(slotNum, basePos)
+    if Util.isInLobby() then return end
     -- Remove old hologram
     if AutoPlay.holograms[slotNum] then
         AutoPlay.holograms[slotNum]:Destroy()
@@ -1464,22 +1465,17 @@ function AutoPlay.loop()
 
         -- ── STEP 3: Upgrades — farm upgrades always before non-farm ──
         if State.AutoPlayUpgrade then
-            --[[
-                Priority order each tick:
-                  1. Upgrade ALL farm slots first (maximize income ASAP)
-                  2. Then upgrade non-farm slots
-                When FocusFarms is OFF, all slots are in farmSlots so
-                order is simply sequential by slot number.
-            ]]
-
-            -- Farm upgrades first — boost income so non-farms can be afforded sooner
+            local allFarmsDone = true
             for _, slotNum in ipairs(farmSlots) do
-                AutoPlay.upgradeUnits(slotNum)
+                local done = AutoPlay.upgradeUnits(slotNum)
+                if not done then allFarmsDone = false end
             end
 
-            -- Non-farm upgrades after farms are handled
-            for _, slotNum in ipairs(otherSlots) do
-                AutoPlay.upgradeUnits(slotNum)
+            -- Only start upgrading non-farm units once every farm slot is fully upgraded
+            if allFarmsDone then
+                for _, slotNum in ipairs(otherSlots) do
+                    AutoPlay.upgradeUnits(slotNum)
+                end
             end
         end
     end
