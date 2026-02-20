@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    -autoplay3
+    -autoplay4
 --]]
 
 -- ============================================================
@@ -1325,23 +1325,42 @@ function AutoPlay.monitorUnits()
     end
 end
 
+--[[
+    Upgrade all placed units in a slot up to the effective cap.
+    effectiveCap = min(upgradeCap setting, unit's actual MaxUpgrade.Value)
+    so a cap of 20 on a 10-upgrade unit stops at 10, not 20.
+    
+    Returns true if every unit in this slot is already at its effective cap
+    (used by the prioritize-farms logic to know when farms are "done").
+]]
 function AutoPlay.upgradeUnits(slotNum)
     local upgradeCap = State.AutoPlayUpgradeCaps[slotNum]
-    if upgradeCap == 0 then return end
+    if upgradeCap == 0 then return true end  -- cap=0 means "don't upgrade", counts as done
+
+    local allDone = true
     for _, u in ipairs(AutoPlay.placedUnits) do
         if u.slotNum ~= slotNum then continue end
-        local curLevel = Units.getLevel(u.serverName)
-        local maxLevel = Units.getMaxLevel(u.serverName)
-        if curLevel < maxLevel and curLevel < upgradeCap then
+        local curLevel  = Units.getLevel(u.serverName)
+        local maxLevel  = Units.getMaxLevel(u.serverName)
+        -- Clamp the user cap to the unit's real maximum
+        local effective = math.min(upgradeCap, maxLevel)
+
+        if curLevel >= effective then
+            -- This unit is already done
+        else
+            allDone = false
             local cost = Units.getUpgradeCost(u.serverName, curLevel)
             if cost and Util.getMoney() >= cost then
-                debugPrint("[AutoPlay] Upgrading", u.serverName, "to level", curLevel + 1)
+                debugPrint("[AutoPlay] Upgrading", u.serverName,
+                    "level", curLevel, "→", curLevel + 1,
+                    "(cap=" .. effective .. ", max=" .. maxLevel .. ")")
                 Units.upgrade(u.serverName, curLevel + 1)
                 u.upgrades = u.upgrades + 1
                 task.wait(0.5)
             end
         end
     end
+    return allDone
 end
 
 -- ─── MAIN LOOP ───────────────────────────────────────────────
@@ -1352,68 +1371,64 @@ function AutoPlay.reset()
 end
 
 --[[
-    Build an ordered list of slot numbers to process.
-    When FocusFarms is on:
-      1. Farm slots get processed first (place + upgrade).
-      2. Non-farm slots are only processed if ALL farm slots are fully placed AND upgraded.
-    When FocusFarms is off: process all slots 1-6 in order.
+    Check if a slot has all units placed AND upgraded to effective cap.
+    Used to decide whether a farm slot is "fully done".
 ]]
-local function buildSlotOrder()
-    if not State.AutoPlayFocusFarms then
-        return {1, 2, 3, 4, 5, 6}
+local function slotIsFullyDone(slotNum)
+    local cap = State.AutoPlayPlacementCaps[slotNum]
+    local placed = 0
+    for _, u in ipairs(AutoPlay.placedUnits) do
+        if u.slotNum == slotNum then placed = placed + 1 end
     end
+    if placed < cap then return false end
 
-    local farmSlots, otherSlots = {}, {}
-    for slotNum = 1, 6 do
-        if State.AutoPlayPositions[slotNum] then
-            local displayName = AutoPlay.getUnitFromSlot(slotNum)
-            if displayName then
-                if AutoPlay.isFarmUnit(displayName) then
-                    farmSlots[#farmSlots + 1] = slotNum
-                else
-                    otherSlots[#otherSlots + 1] = slotNum
+    -- Check upgrades if enabled
+    if State.AutoPlayUpgrade then
+        local upgCap = State.AutoPlayUpgradeCaps[slotNum]
+        if upgCap > 0 then
+            for _, u in ipairs(AutoPlay.placedUnits) do
+                if u.slotNum == slotNum then
+                    local curLevel = Units.getLevel(u.serverName)
+                    local maxLevel = Units.getMaxLevel(u.serverName)
+                    local effective = math.min(upgCap, maxLevel)
+                    if curLevel < effective then return false end
                 end
             end
         end
     end
+    return true
+end
 
-    -- Check if all farm slots are fully placed and maxed
-    local farmsDone = true
-    for _, slotNum in ipairs(farmSlots) do
-        local cap = State.AutoPlayPlacementCaps[slotNum]
-        local placed = 0
-        for _, u in ipairs(AutoPlay.placedUnits) do
-            if u.slotNum == slotNum then placed = placed + 1 end
+--[[
+    Handle placement for a single slot.
+    Returns true if all positions for this slot are filled.
+]]
+local function processPlacement(slotNum, displayName, basePos)
+    local cap = State.AutoPlayPlacementCaps[slotNum]
+    local placedByIndex = {}
+    for _, u in ipairs(AutoPlay.placedUnits) do
+        if u.slotNum == slotNum then
+            placedByIndex[u.posIndex] = true
         end
-        if placed < cap then
-            farmsDone = false
-            break
-        end
-        -- Check upgrades too if enabled
-        if State.AutoPlayUpgrade then
-            local upgCap = State.AutoPlayUpgradeCaps[slotNum]
-            if upgCap > 0 then
-                for _, u in ipairs(AutoPlay.placedUnits) do
-                    if u.slotNum == slotNum then
-                        local curLevel = Units.getLevel(u.serverName)
-                        if curLevel < upgCap then
-                            farmsDone = false
-                            break
-                        end
-                    end
-                end
+    end
+
+    local allFilled = true
+    for posIndex = 1, cap do
+        if not placedByIndex[posIndex] then
+            allFilled = false
+            local serverName = AutoPlay.placeUnitAtIndex(slotNum, displayName, basePos, posIndex)
+            if serverName then
+                table.insert(AutoPlay.placedUnits, {
+                    slotNum    = slotNum,
+                    serverName = serverName,
+                    posIndex   = posIndex,
+                    upgrades   = 0,
+                })
             end
+            task.wait(0.6)
         end
-        if not farmsDone then break end
     end
-
-    -- Farms first; only append others if farms are all done
-    local order = {}
-    for _, s in ipairs(farmSlots)  do order[#order + 1] = s end
-    if farmsDone then
-        for _, s in ipairs(otherSlots) do order[#order + 1] = s end
-    end
-    return order
+    return allFilled
 end
 
 function AutoPlay.loop()
@@ -1422,44 +1437,65 @@ function AutoPlay.loop()
         task.wait(1)
         AutoPlay.monitorUnits()
 
-        local slotOrder = buildSlotOrder()
-
-        for _, slotNum in ipairs(slotOrder) do
+        -- Categorise slots into farm vs non-farm (only slots with a position set)
+        local farmSlots, otherSlots = {}, {}
+        for slotNum = 1, 6 do
             local basePos = State.AutoPlayPositions[slotNum]
-            if basePos then
-                local displayName = AutoPlay.getUnitFromSlot(slotNum)
-                if displayName then
-                    local cap = State.AutoPlayPlacementCaps[slotNum]
+            if not basePos then continue end
+            local displayName = AutoPlay.getUnitFromSlot(slotNum)
+            if not displayName then continue end
 
-                    -- Which positions are already filled?
-                    local placedByIndex = {}
-                    for _, u in ipairs(AutoPlay.placedUnits) do
-                        if u.slotNum == slotNum then
-                            placedByIndex[u.posIndex] = true
-                        end
-                    end
+            if State.AutoPlayFocusFarms and AutoPlay.isFarmUnit(displayName) then
+                farmSlots[#farmSlots + 1] = slotNum
+            else
+                otherSlots[#otherSlots + 1] = slotNum
+            end
+        end
 
-                    -- Place any missing positions
-                    for posIndex = 1, cap do
-                        if not placedByIndex[posIndex] then
-                            local serverName = AutoPlay.placeUnitAtIndex(slotNum, displayName, basePos, posIndex)
-                            if serverName then
-                                table.insert(AutoPlay.placedUnits, {
-                                    slotNum    = slotNum,
-                                    serverName = serverName,
-                                    posIndex   = posIndex,
-                                    upgrades   = 0,
-                                })
-                            end
-                            task.wait(0.6)
-                        end
-                    end
+        -- When FocusFarms is OFF, just merge everything into one list
+        if not State.AutoPlayFocusFarms then
+            for _, s in ipairs(otherSlots) do farmSlots[#farmSlots + 1] = s end
+            otherSlots = {}
+        end
 
-                    -- Upgrade if enabled
-                    if State.AutoPlayUpgrade then
-                        AutoPlay.upgradeUnits(slotNum)
-                    end
-                end
+        -- ── STEP 1: Place all farm slots (placement is always top priority) ──
+        for _, slotNum in ipairs(farmSlots) do
+            local basePos     = State.AutoPlayPositions[slotNum]
+            local displayName = AutoPlay.getUnitFromSlot(slotNum)
+            if basePos and displayName then
+                processPlacement(slotNum, displayName, basePos)
+            end
+        end
+
+        -- ── STEP 2: Place all non-farm slots ──
+        for _, slotNum in ipairs(otherSlots) do
+            local basePos     = State.AutoPlayPositions[slotNum]
+            local displayName = AutoPlay.getUnitFromSlot(slotNum)
+            if basePos and displayName then
+                processPlacement(slotNum, displayName, basePos)
+            end
+        end
+
+        -- ── STEP 3: Upgrades (farm-first money priority) ──
+        if State.AutoPlayUpgrade then
+            --[[
+                For each farm unit that still needs upgrading, spend money on it
+                before moving on to non-farm units.  The key difference from the old
+                approach: we don't skip non-farm units entirely — we just try farm
+                upgrades first each tick.  If a farm unit can't afford its next
+                upgrade, we still try non-farm upgrades (money might be enough for
+                those and not the farm).
+            ]]
+
+            -- Attempt farm upgrades first
+            for _, slotNum in ipairs(farmSlots) do
+                AutoPlay.upgradeUnits(slotNum)
+            end
+
+            -- Then attempt non-farm upgrades regardless of whether farms are done
+            -- (if farm upgrade couldn't afford, maybe non-farm can)
+            for _, slotNum in ipairs(otherSlots) do
+                AutoPlay.upgradeUnits(slotNum)
             end
         end
     end
