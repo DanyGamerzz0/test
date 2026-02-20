@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    -autoplay4
+    -autoplay5.5
 --]]
 
 -- ============================================================
@@ -32,7 +32,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V1.0"
+local SCRIPT_VERSION = "V0.11"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -76,7 +76,7 @@ local Window = Rayfield:CreateWindow({
     ToggleUIKeybind       = "K",
     DisableRayfieldPrompts= true,
     DisableBuildWarnings  = true,
-    ConfigurationSaving   = { Enabled = true, FolderName = "LixHub", FileName = "LixHub_AG_v2" },
+    ConfigurationSaving   = { Enabled = true, FolderName = "LixHub", FileName = game:GetService("Players").LocalPlayer.Name .. "_AnimeGuardians" },
     Discord               = { Enabled = true, Invite = "cYKnXE2Nf8", RememberJoins = true },
     KeySystem             = true,
     KeySettings = {
@@ -109,7 +109,7 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
-local DEBUG = true  -- Set to true when testing to see all debug prints
+local DEBUG = false  -- Set to true when testing to see all debug prints
 
 local State = {
     -- system
@@ -140,9 +140,9 @@ local State = {
     AutoSkipWaves           = false,
     AutoSkipUntilWave       = 0,
     AutoSellEnabled         = false,
-    AutoSellWave            = 10,
+    AutoSellWave            = 0,
     AutoSellFarmEnabled     = false,
-    AutoSellFarmWave        = 15,
+    AutoSellFarmWave        = 0,
     AutoUseAbility          = false,
     SelectedUnitsForAbility = {},
     SelectedAbilitiesToUse  = {},
@@ -196,6 +196,11 @@ local Joiner = { processing = false, lastTime = 0, cooldown = 2.5 }
 function Joiner.canAct()
     return not Joiner.processing and (tick() - Joiner.lastTime) >= Joiner.cooldown
 end
+
+local function debugPrint(...)
+    if DEBUG then print("[DEBUG]", ...) end
+end
+
 function Joiner.begin(label)
     Joiner.processing = true
     Joiner.lastTime   = tick()
@@ -209,10 +214,6 @@ end
 -- UTILITY HELPERS
 -- ============================================================
 local Util = {}
-
-local function debugPrint(...)
-    if DEBUG then print("[DEBUG]", ...) end
-end
 
 function Util.notify(title, body, dur)
     if State.DisableNotifications then return end
@@ -962,7 +963,7 @@ end
     Rebuild the hologram for a slot.
     - One glowing cylinder per unit position (at the actual placement location).
     - A bounding box sized to fit all positions (not fixed).
-    - A label showing slot number and cap.
+    - A compact "Slot N" label on the bounding box (no quantity, less cluttered).
 ]]
 function AutoPlay.createHologram(slotNum, basePos)
     -- Remove old hologram
@@ -1055,21 +1056,22 @@ function AutoPlay.createHologram(slotNum, basePos)
     selBox.Transparency  = 0.4
     selBox.Parent        = bbox
 
-    -- Main label centred over the group
+    -- ── CHANGED: compact "Slot N" label on the bounding box, no ×quantity ──
+    -- Sits just above the floor plate, small and unobtrusive
     local mainBB = Instance.new("BillboardGui")
-    mainBB.Size        = UDim2.new(0, 160, 0, 50)
-    mainBB.StudsOffset = Vector3.new(0, 7, 0)
+    mainBB.Size        = UDim2.new(0, 80, 0, 22)
+    mainBB.StudsOffset = Vector3.new(0, 2.0, 0)
     mainBB.AlwaysOnTop = true
     mainBB.Parent      = bbox
 
     local mainLbl = Instance.new("TextLabel")
     mainLbl.Size                 = UDim2.new(1, 0, 1, 0)
-    mainLbl.BackgroundTransparency = 0.3
+    mainLbl.BackgroundTransparency = 0.45
     mainLbl.BackgroundColor3     = Color3.new(0, 0, 0)
     mainLbl.TextColor3           = Color3.new(1, 1, 1)
     mainLbl.TextScaled           = true
     mainLbl.Font                 = Enum.Font.SourceSansBold
-    mainLbl.Text                 = "Slot " .. slotNum .. "  ×" .. cap
+    mainLbl.Text                 = "Slot " .. slotNum
     mainLbl.Parent               = mainBB
 
     model.Parent = Svc.Workspace
@@ -1458,7 +1460,8 @@ function AutoPlay.loop()
             otherSlots = {}
         end
 
-        -- ── STEP 1: Place all farm slots (placement is always top priority) ──
+        -- ── STEP 1: Place ALL farm slots first ──
+        -- Farm units must be placed before combat units so income starts ASAP.
         for _, slotNum in ipairs(farmSlots) do
             local basePos     = State.AutoPlayPositions[slotNum]
             local displayName = AutoPlay.getUnitFromSlot(slotNum)
@@ -1476,24 +1479,22 @@ function AutoPlay.loop()
             end
         end
 
-        -- ── STEP 3: Upgrades (farm-first money priority) ──
+        -- ── STEP 3: Upgrades — farm upgrades always before non-farm ──
         if State.AutoPlayUpgrade then
             --[[
-                For each farm unit that still needs upgrading, spend money on it
-                before moving on to non-farm units.  The key difference from the old
-                approach: we don't skip non-farm units entirely — we just try farm
-                upgrades first each tick.  If a farm unit can't afford its next
-                upgrade, we still try non-farm upgrades (money might be enough for
-                those and not the farm).
+                Priority order each tick:
+                  1. Upgrade ALL farm slots first (maximize income ASAP)
+                  2. Then upgrade non-farm slots
+                When FocusFarms is OFF, all slots are in farmSlots so
+                order is simply sequential by slot number.
             ]]
 
-            -- Attempt farm upgrades first
+            -- Farm upgrades first — boost income so non-farms can be afforded sooner
             for _, slotNum in ipairs(farmSlots) do
                 AutoPlay.upgradeUnits(slotNum)
             end
 
-            -- Then attempt non-farm upgrades regardless of whether farms are done
-            -- (if farm upgrade couldn't afford, maybe non-farm can)
+            -- Non-farm upgrades after farms are handled
             for _, slotNum in ipairs(otherSlots) do
                 AutoPlay.upgradeUnits(slotNum)
             end
@@ -2240,19 +2241,19 @@ Tabs.Game:CreateToggle({ Name="Auto Collect Dio Presents",  Flag="AutoCollectDio
 
 Tabs.Game:CreateSection("Auto Sell")
 Tabs.Game:CreateToggle({ Name="Auto Sell All Units",  Flag="AutoSell",     Callback=function(v) State.AutoSellEnabled=v end })
-Tabs.Game:CreateSlider({ Name="Sell on Wave",         Range={1,50}, Increment=1, CurrentValue=10, Flag="AutoSellWave",     Callback=function(v) State.AutoSellWave=v end })
+Tabs.Game:CreateSlider({ Name="Sell on Wave",         Range={1,500}, Increment=1, CurrentValue=10, Flag="AutoSellWave",     Callback=function(v) State.AutoSellWave=v end })
 Tabs.Game:CreateToggle({ Name="Auto Sell Farm Units", Flag="AutoSellFarm", Callback=function(v) State.AutoSellFarmEnabled=v end })
-Tabs.Game:CreateSlider({ Name="Sell Farm on Wave",    Range={1,50}, Increment=1, CurrentValue=15, Flag="AutoSellFarmWave", Callback=function(v) State.AutoSellFarmWave=v end })
+Tabs.Game:CreateSlider({ Name="Sell Farm on Wave",    Range={1,500}, Increment=1, CurrentValue=15, Flag="AutoSellFarmWave", Callback=function(v) State.AutoSellFarmWave=v end })
 
 -- ============================================================
 -- AUTO TAB
 -- ============================================================
-Tabs.Auto:CreateSection("AutoPlay System")
+Tabs.Auto:CreateSection("AutoPlay")
 
 Tabs.Auto:CreateToggle({
     Name = "Enable AutoPlay",
     Flag = "AutoPlayEnabled",
-    Info = "Automatically place and upgrade units based on configured positions",
+    Info = "Automatically place and upgrade units based on selected positions",
     Callback = function(v)
         State.AutoPlayEnabled = v
         if v and State.gameInProgress then
@@ -2270,9 +2271,9 @@ Tabs.Auto:CreateToggle({
 })
 
 Tabs.Auto:CreateToggle({
-    Name = "Focus Farm Units Only",
+    Name = "Prioritize Farm Units",
     Flag = "AutoPlayFocusFarms",
-    Info = "Only place and upgrade farm-type units",
+    Info = "Place & upgrade all farm slots before combat slots each tick",
     Callback = function(v) State.AutoPlayFocusFarms = v end,
 })
 
@@ -2476,8 +2477,8 @@ local RecordToggle = Tabs.Macro:CreateToggle({
         if v then
             if State.gameInProgress then Macro.startRecording()
             else
-                Macro.setStatus("Recording armed — starts with next game")
-                Util.notify("Recording Armed", "Will start recording on next game start")
+                Macro.setStatus("Recording enabled — starts with next game")
+                Util.notify("Recording enabled", "Will start recording on next game start")
             end
         else
             Macro.stopRecording(true)
