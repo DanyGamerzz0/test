@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    -autoplay5.5
+    -autoplay6
 --]]
 
 -- ============================================================
@@ -1000,25 +1000,8 @@ function AutoPlay.createHologram(slotNum, basePos)
         dot.Transparency = 0.35
         dot.Material     = Enum.Material.Neon
         dot.Color        = color
-        dot.Shape        = Enum.PartType.Cylinder
+        dot.Shape        = Enum.PartType.Ball
         dot.Parent       = model
-        
-        -- Number label above each dot
-        local bb = Instance.new("BillboardGui")
-        bb.Size          = UDim2.new(0, 60, 0, 30)
-        bb.StudsOffset   = Vector3.new(0, 4.5, 0)
-        bb.AlwaysOnTop   = true
-        bb.Parent        = dot
-
-        local lbl = Instance.new("TextLabel")
-        lbl.Size                 = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundTransparency = 0.4
-        lbl.BackgroundColor3     = Color3.new(0, 0, 0)
-        lbl.TextColor3           = color
-        lbl.TextScaled           = true
-        lbl.Font                 = Enum.Font.SourceSansBold
-        lbl.Text                 = tostring(i)
-        lbl.Parent               = bb
     end
 
     -- Compute a tight bounding box around all positions
@@ -1068,7 +1051,7 @@ function AutoPlay.createHologram(slotNum, basePos)
     mainLbl.Size                 = UDim2.new(1, 0, 1, 0)
     mainLbl.BackgroundTransparency = 0.45
     mainLbl.BackgroundColor3     = Color3.new(0, 0, 0)
-    mainLbl.TextColor3           = Color3.new(1, 1, 1)
+    mainLbl.TextColor3           = color
     mainLbl.TextScaled           = true
     mainLbl.Font                 = Enum.Font.SourceSansBold
     mainLbl.Text                 = "Slot " .. slotNum
@@ -2273,7 +2256,7 @@ Tabs.Auto:CreateToggle({
 Tabs.Auto:CreateToggle({
     Name = "Prioritize Farm Units",
     Flag = "AutoPlayFocusFarms",
-    Info = "Place & upgrade all farm slots before combat slots each tick",
+    Info = "Prioritize placing/upgrading farm units",
     Callback = function(v) State.AutoPlayFocusFarms = v end,
 })
 
