@@ -8,6 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
+    - autoplay
 --]]
 
 -- ============================================================
@@ -1024,22 +1025,12 @@ local AutoPlay = {
     settingPosition = nil, -- Which slot we're currently setting position for
 }
 
--- Create or update hologram for a position
+-- Create or update hologram for a position (with dots for placement cap)
 function AutoPlay.createHologram(slotNum, position)
     -- Remove old hologram if exists
     if AutoPlay.holograms[slotNum] then
         AutoPlay.holograms[slotNum]:Destroy()
     end
-    
-    -- Create new hologram
-    local part = Instance.new("Part")
-    part.Name = "AutoPlayMarker_" .. slotNum
-    part.Size = Vector3.new(4, 8, 4)
-    part.Position = position
-    part.Anchored = true
-    part.CanCollide = false
-    part.Transparency = 0.5
-    part.Material = Enum.Material.Neon
     
     -- Color based on slot
     local colors = {
@@ -1050,14 +1041,63 @@ function AutoPlay.createHologram(slotNum, position)
         Color3.fromRGB(255, 170, 255), -- Slot 5: Pink
         Color3.fromRGB(255, 170, 85),  -- Slot 6: Orange
     }
-    part.Color = colors[slotNum] or Color3.new(1, 1, 1)
+    local color = colors[slotNum] or Color3.new(1, 1, 1)
     
-    -- Add text label
+    -- Create container model
+    local model = Instance.new("Model")
+    model.Name = "AutoPlayMarker_" .. slotNum
+    
+    -- Get placement cap to know how many dots to show
+    local placementCap = State.AutoPlayPlacementCaps[slotNum]
+    
+    -- Create dots in a grid pattern (2x3 max)
+    local dotPositions = {
+        Vector3.new(-2, 0, -2), Vector3.new(2, 0, -2),  -- Row 1
+        Vector3.new(-2, 0, 0),  Vector3.new(2, 0, 0),   -- Row 2
+        Vector3.new(-2, 0, 2),  Vector3.new(2, 0, 2),   -- Row 3
+    }
+    
+    for i = 1, math.min(placementCap, 6) do
+        local dot = Instance.new("Part")
+        dot.Name = "Dot" .. i
+        dot.Size = Vector3.new(2, 6, 2)
+        dot.Position = position + dotPositions[i]
+        dot.Anchored = true
+        dot.CanCollide = false
+        dot.Transparency = 0.4
+        dot.Material = Enum.Material.Neon
+        dot.Color = color
+        dot.Shape = Enum.PartType.Cylinder
+        dot.Orientation = Vector3.new(0, 0, 90)  -- Make cylinder vertical
+        dot.Parent = model
+    end
+    
+    -- Add bounding box
+    local boundingBox = Instance.new("Part")
+    boundingBox.Name = "BoundingBox"
+    boundingBox.Size = Vector3.new(10, 0.5, 10)
+    boundingBox.Position = position
+    boundingBox.Anchored = true
+    boundingBox.CanCollide = false
+    boundingBox.Transparency = 0.8
+    boundingBox.Material = Enum.Material.Neon
+    boundingBox.Color = color
+    boundingBox.Parent = model
+    
+    -- Add selection box for outline
+    local selectionBox = Instance.new("SelectionBox")
+    selectionBox.Adornee = boundingBox
+    selectionBox.LineThickness = 0.05
+    selectionBox.Color3 = color
+    selectionBox.Transparency = 0.5
+    selectionBox.Parent = boundingBox
+    
+    -- Add text label above
     local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 100, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 5, 0)
+    billboard.Size = UDim2.new(0, 150, 0, 60)
+    billboard.StudsOffset = Vector3.new(0, 6, 0)
     billboard.AlwaysOnTop = true
-    billboard.Parent = part
+    billboard.Parent = boundingBox
     
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
@@ -1066,13 +1106,21 @@ function AutoPlay.createHologram(slotNum, position)
     label.TextColor3 = Color3.new(1, 1, 1)
     label.TextScaled = true
     label.Font = Enum.Font.SourceSansBold
-    label.Text = "Slot " .. slotNum
+    label.Text = "Slot " .. slotNum .. " (" .. placementCap .. "x)"
     label.Parent = billboard
     
-    part.Parent = Svc.Workspace
-    AutoPlay.holograms[slotNum] = part
+    model.Parent = Svc.Workspace
+    AutoPlay.holograms[slotNum] = model
     
-    debugPrint("[AutoPlay] Created hologram for slot", slotNum, "at", position)
+    debugPrint("[AutoPlay] Created hologram for slot", slotNum, "with", placementCap, "dots at", position)
+end
+
+-- Update hologram when placement cap changes
+function AutoPlay.updateHologram(slotNum)
+    local position = State.AutoPlayPositions[slotNum]
+    if position and position[1] and position[2] and position[3] then
+        AutoPlay.createHologram(slotNum, Vector3.new(position[1], position[2], position[3]))
+    end
 end
 
 -- Remove all holograms
@@ -1089,8 +1137,8 @@ function AutoPlay.startSetPosition(slotNum)
     Util.notify("Set Position", "Click on the map to set Unit " .. slotNum .. " position", 5)
     
     local mouse = LP:GetMouse()
-    mouse.Icon = "rbxasset://textures/ArrowCursor.png"
     
+    -- Create a one-time connection that auto-disconnects
     local connection
     connection = mouse.Button1Down:Connect(function()
         if not AutoPlay.settingPosition then 
@@ -1102,13 +1150,22 @@ function AutoPlay.startSetPosition(slotNum)
         if target then
             local hitPos = mouse.Hit.Position
             State.AutoPlayPositions[slotNum] = {hitPos.X, hitPos.Y, hitPos.Z}
-            AutoPlay.createHologram(slotNum, hitPos)
+            AutoPlay.updateHologram(slotNum)
             Util.notify("Position Set", "Unit " .. slotNum .. " position saved!", 3)
             debugPrint("[AutoPlay] Set position for slot", slotNum, ":", hitPos)
         end
         
         AutoPlay.settingPosition = nil
         connection:Disconnect()
+    end)
+    
+    -- Auto-disconnect after 30 seconds if no click
+    task.delay(30, function()
+        if connection and connection.Connected then
+            connection:Disconnect()
+            AutoPlay.settingPosition = nil
+            Util.notify("Timeout", "Position setting cancelled", 2)
+        end
     end)
 end
 
@@ -1141,6 +1198,9 @@ end
 function AutoPlay.loop()
     while State.AutoPlayEnabled and State.gameInProgress do
         task.wait(1)
+        
+        -- Monitor existing units and replace lost ones
+        AutoPlay.monitorUnits()
         
         -- Check each slot
         for slotNum = 1, 6 do
@@ -1178,6 +1238,26 @@ function AutoPlay.loop()
     end
     
     debugPrint("[AutoPlay] Loop ended")
+end
+
+-- Monitor units and detect losses
+function AutoPlay.monitorUnits()
+    local folder = Units.serverFolder()
+    if not folder then return end
+    
+    -- Check each tracked unit
+    for i = #AutoPlay.placedUnits, 1, -1 do
+        local unit = AutoPlay.placedUnits[i]
+        local serverUnit = folder:FindFirstChild(unit.serverName)
+        
+        if not serverUnit then
+            -- Unit is gone!
+            debugPrint("[AutoPlay] Unit lost:", unit.serverName, "from slot", unit.slotNum)
+            table.remove(AutoPlay.placedUnits, i)
+            
+            -- We'll replace it on the next loop iteration since placedCount will be lower
+        end
+    end
 end
 
 -- Place a unit
@@ -2219,6 +2299,7 @@ for i = 1, 6 do
         Flag = "AutoPlayPlaceCap" .. i,
         Callback = function(v)
             State.AutoPlayPlacementCaps[i] = v
+            AutoPlay.updateHologram(i)  -- Update hologram to show new dot count
         end,
     })
 end
