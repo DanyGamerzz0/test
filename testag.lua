@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    -autoplay8
+    -autoplay9
 --]]
 
 -- ============================================================
@@ -2340,7 +2340,7 @@ Tabs.Auto:CreateButton({
     end,
 })
 
-Tabs.Auto:CreateSection("Auto Ability")
+Tabs.Auto:CreateSection("Auto Ability (Set in game)")
 
 local AbilityDD
 local UnitDD = Tabs.Auto:CreateDropdown({
@@ -2755,9 +2755,9 @@ if not Util.isInLobby() then
 end
 
 Rayfield:TopNotify({
-    Title    = "UI Hidden",
-    Content  = "Press K to toggle the UI",
-    Image    = "eye-off",
-    IconColor= Color3.fromRGB(100,150,255),
-    Duration = 5,
+    Title = "UI is hidden",
+    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+    Image = "eye-off",
+    IconColor = Color3.fromRGB(100, 150, 255),
+    Duration = 5
 })
