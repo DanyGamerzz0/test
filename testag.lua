@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    - autoplay2
+    -autoplay3
 --]]
 
 -- ============================================================
@@ -181,6 +181,7 @@ local State = {
     AutoPlayPositions       = {nil, nil, nil, nil, nil, nil}, -- base position per slot
     AutoPlayPlacementCaps   = {1, 1, 1, 1, 1, 1},
     AutoPlayUpgradeCaps     = {0, 0, 0, 0, 0, 0},
+    AutoPlayShowHolograms   = true,
     -- game tracking (internal)
     gameInProgress          = false,
     gameStartTime           = 0,
@@ -1090,6 +1091,58 @@ function AutoPlay.clearHolograms()
     AutoPlay.holograms = {}
 end
 
+-- ─── POSITION PERSISTENCE ────────────────────────────────────
+
+local POSITIONS_FILE = "LixHub/AutoPlay_Positions.json"
+
+function AutoPlay.savePositions()
+    Util.ensureFolders()
+    local data = {
+        positions    = State.AutoPlayPositions,
+        caps         = State.AutoPlayPlacementCaps,
+        upgradeCaps  = State.AutoPlayUpgradeCaps,
+    }
+    local ok = pcall(writefile, POSITIONS_FILE, Svc.HttpService:JSONEncode(data))
+    if not ok then warn("[AutoPlay] Failed to save positions") end
+    debugPrint("[AutoPlay] Positions saved to", POSITIONS_FILE)
+end
+
+function AutoPlay.loadPositions()
+    if not isfile(POSITIONS_FILE) then return end
+    local ok, data = pcall(function()
+        return Svc.HttpService:JSONDecode(readfile(POSITIONS_FILE))
+    end)
+    if not ok or not data then
+        warn("[AutoPlay] Failed to load positions from file")
+        return
+    end
+
+    if type(data.positions) == "table" then
+        for i = 1, 6 do
+            local p = data.positions[i] or data.positions[tostring(i)]
+            if p and p[1] and p[2] and p[3] then
+                State.AutoPlayPositions[i] = { p[1], p[2], p[3] }
+            end
+        end
+    end
+
+    if type(data.caps) == "table" then
+        for i = 1, 6 do
+            local c = data.caps[i] or data.caps[tostring(i)]
+            if c then State.AutoPlayPlacementCaps[i] = c end
+        end
+    end
+
+    if type(data.upgradeCaps) == "table" then
+        for i = 1, 6 do
+            local c = data.upgradeCaps[i] or data.upgradeCaps[tostring(i)]
+            if c then State.AutoPlayUpgradeCaps[i] = c end
+        end
+    end
+
+    debugPrint("[AutoPlay] Positions loaded from", POSITIONS_FILE)
+end
+
 -- ─── POSITION SETTING ────────────────────────────────────────
 
 function AutoPlay.startSetPosition(slotNum)
@@ -1104,8 +1157,11 @@ function AutoPlay.startSetPosition(slotNum)
         if target then
             local hitPos = mouse.Hit.Position
             State.AutoPlayPositions[slotNum] = { hitPos.X, hitPos.Y, hitPos.Z }
+            -- Rebuild hologram at new position
             AutoPlay.updateHologram(slotNum)
-            Util.notify("Position Set", "Slot " .. slotNum .. " base position saved!", 3)
+            -- Persist to disk immediately
+            AutoPlay.savePositions()
+            Util.notify("Position Set", "Slot " .. slotNum .. " saved & hologram updated!", 3)
             debugPrint("[AutoPlay] Set base position for slot", slotNum, ":", hitPos)
         end
         AutoPlay.settingPosition = nil
@@ -1129,17 +1185,51 @@ function AutoPlay.getUnitFromSlot(slotNum)
     return pkg.Unit.Value
 end
 
+-- Cache so we don't re-require the same module every loop tick
+local _farmCache = {}
+
 function AutoPlay.isFarmUnit(displayName)
+    if _farmCache[displayName] ~= nil then
+        return _farmCache[displayName]
+    end
+
     local modules = RS:FindFirstChild("PlayMode")
                  and RS.PlayMode:FindFirstChild("Modules")
                  and RS.PlayMode.Modules:FindFirstChild("UnitsSettings")
-    if not modules then return false end
+    if not modules then
+        _farmCache[displayName] = false
+        return false
+    end
+
     local mod = modules:FindFirstChild(displayName)
-    if not mod then return false end
+    if not mod then
+        _farmCache[displayName] = false
+        return false
+    end
+
     local ok, data = pcall(require, mod)
-    if not ok or not data then return false end
+    if not ok or not data then
+        _farmCache[displayName] = false
+        return false
+    end
+
     local settings = type(data.settings) == "function" and data.settings() or nil
-    return settings and settings.PlaceType == "Farm"
+    if not settings then
+        _farmCache[displayName] = false
+        return false
+    end
+
+    -- Farm units have an "Income" field in their Upgrading entries.
+    -- Combat units have ATK/SPA/RNG but no Income.
+    local upgrading = settings.Upgrading
+    local isFarm = false
+    if type(upgrading) == "table" and upgrading[1] then
+        isFarm = upgrading[1].Income ~= nil
+    end
+
+    debugPrint("[AutoPlay] isFarmUnit", displayName, "=", isFarm)
+    _farmCache[displayName] = isFarm
+    return isFarm
 end
 
 function AutoPlay.getUnitCost(displayName)
@@ -1261,52 +1351,113 @@ function AutoPlay.reset()
     debugPrint("[AutoPlay] State reset")
 end
 
+--[[
+    Build an ordered list of slot numbers to process.
+    When FocusFarms is on:
+      1. Farm slots get processed first (place + upgrade).
+      2. Non-farm slots are only processed if ALL farm slots are fully placed AND upgraded.
+    When FocusFarms is off: process all slots 1-6 in order.
+]]
+local function buildSlotOrder()
+    if not State.AutoPlayFocusFarms then
+        return {1, 2, 3, 4, 5, 6}
+    end
+
+    local farmSlots, otherSlots = {}, {}
+    for slotNum = 1, 6 do
+        if State.AutoPlayPositions[slotNum] then
+            local displayName = AutoPlay.getUnitFromSlot(slotNum)
+            if displayName then
+                if AutoPlay.isFarmUnit(displayName) then
+                    farmSlots[#farmSlots + 1] = slotNum
+                else
+                    otherSlots[#otherSlots + 1] = slotNum
+                end
+            end
+        end
+    end
+
+    -- Check if all farm slots are fully placed and maxed
+    local farmsDone = true
+    for _, slotNum in ipairs(farmSlots) do
+        local cap = State.AutoPlayPlacementCaps[slotNum]
+        local placed = 0
+        for _, u in ipairs(AutoPlay.placedUnits) do
+            if u.slotNum == slotNum then placed = placed + 1 end
+        end
+        if placed < cap then
+            farmsDone = false
+            break
+        end
+        -- Check upgrades too if enabled
+        if State.AutoPlayUpgrade then
+            local upgCap = State.AutoPlayUpgradeCaps[slotNum]
+            if upgCap > 0 then
+                for _, u in ipairs(AutoPlay.placedUnits) do
+                    if u.slotNum == slotNum then
+                        local curLevel = Units.getLevel(u.serverName)
+                        if curLevel < upgCap then
+                            farmsDone = false
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        if not farmsDone then break end
+    end
+
+    -- Farms first; only append others if farms are all done
+    local order = {}
+    for _, s in ipairs(farmSlots)  do order[#order + 1] = s end
+    if farmsDone then
+        for _, s in ipairs(otherSlots) do order[#order + 1] = s end
+    end
+    return order
+end
+
 function AutoPlay.loop()
     debugPrint("[AutoPlay] Loop starting")
     while State.AutoPlayEnabled and State.gameInProgress do
         task.wait(1)
         AutoPlay.monitorUnits()
 
-        for slotNum = 1, 6 do
+        local slotOrder = buildSlotOrder()
+
+        for _, slotNum in ipairs(slotOrder) do
             local basePos = State.AutoPlayPositions[slotNum]
-            if not basePos then
-                -- No position set for this slot, skip
-            else
+            if basePos then
                 local displayName = AutoPlay.getUnitFromSlot(slotNum)
                 if displayName then
-                    -- Respect farm-focus mode
-                    local skip = State.AutoPlayFocusFarms and not AutoPlay.isFarmUnit(displayName)
-                    if not skip then
-                        local cap = State.AutoPlayPlacementCaps[slotNum]
+                    local cap = State.AutoPlayPlacementCaps[slotNum]
 
-                        -- Count how many of each posIndex we've already placed for this slot
-                        local placedByIndex = {}
-                        for _, u in ipairs(AutoPlay.placedUnits) do
-                            if u.slotNum == slotNum then
-                                placedByIndex[u.posIndex] = true
+                    -- Which positions are already filled?
+                    local placedByIndex = {}
+                    for _, u in ipairs(AutoPlay.placedUnits) do
+                        if u.slotNum == slotNum then
+                            placedByIndex[u.posIndex] = true
+                        end
+                    end
+
+                    -- Place any missing positions
+                    for posIndex = 1, cap do
+                        if not placedByIndex[posIndex] then
+                            local serverName = AutoPlay.placeUnitAtIndex(slotNum, displayName, basePos, posIndex)
+                            if serverName then
+                                table.insert(AutoPlay.placedUnits, {
+                                    slotNum    = slotNum,
+                                    serverName = serverName,
+                                    posIndex   = posIndex,
+                                    upgrades   = 0,
+                                })
                             end
+                            task.wait(0.6)
                         end
+                    end
 
-                        -- Place any missing positions
-                        for posIndex = 1, cap do
-                            if not placedByIndex[posIndex] then
-                                local serverName = AutoPlay.placeUnitAtIndex(slotNum, displayName, basePos, posIndex)
-                                if serverName then
-                                    table.insert(AutoPlay.placedUnits, {
-                                        slotNum    = slotNum,
-                                        serverName = serverName,
-                                        posIndex   = posIndex,
-                                        upgrades   = 0,
-                                    })
-                                end
-                                task.wait(0.6)
-                            end
-                        end
-
-                        -- Upgrade if enabled
-                        if State.AutoPlayUpgrade then
-                            AutoPlay.upgradeUnits(slotNum)
-                        end
+                    -- Upgrade if enabled
+                    if State.AutoPlayUpgrade then
+                        AutoPlay.upgradeUnits(slotNum)
                     end
                 end
             end
@@ -2111,6 +2262,7 @@ for i = 1, 6 do
         Callback      = function(v)
             State.AutoPlayPlacementCaps[i] = v
             AutoPlay.updateHologram(i)
+            AutoPlay.savePositions()  -- persist cap changes
         end,
     })
 end
@@ -2125,17 +2277,50 @@ for i = 1, 6 do
         Increment    = 1,
         CurrentValue = 0,
         Flag         = "AutoPlayUpgradeCap" .. i,
-        Callback     = function(v) State.AutoPlayUpgradeCaps[i] = v end,
+        Callback     = function(v)
+            State.AutoPlayUpgradeCaps[i] = v
+            AutoPlay.savePositions()  -- persist cap changes
+        end,
     })
 end
 
 Tabs.Auto:CreateDivider()
 
+Tabs.Auto:CreateToggle({
+    Name     = "Show Holograms",
+    Flag     = "AutoPlayShowHolograms",
+    Info     = "Toggle visibility of all slot position markers",
+    Callback = function(v)
+        State.AutoPlayShowHolograms = v
+        if v then
+            -- Rebuild any that exist
+            for i = 1, 6 do
+                local pos = State.AutoPlayPositions[i]
+                if pos and pos[1] then
+                    AutoPlay.createHologram(i, Vector3.new(pos[1], pos[2], pos[3]))
+                end
+            end
+        else
+            AutoPlay.clearHolograms()
+        end
+    end,
+})
+
 Tabs.Auto:CreateButton({
-    Name = "Clear All Holograms",
+    Name = "Reset All Slot Positions",
     Callback = function()
+        -- Clear state
+        for i = 1, 6 do
+            State.AutoPlayPositions[i] = nil
+        end
+        -- Clear holograms
         AutoPlay.clearHolograms()
-        Util.notify("Holograms Cleared", "All position markers removed")
+        -- Delete save file
+        if isfile(POSITIONS_FILE) then
+            pcall(delfile, POSITIONS_FILE)
+        end
+        Util.notify("Reset", "All slot positions cleared")
+        debugPrint("[AutoPlay] All positions reset")
     end,
 })
 
@@ -2490,6 +2675,11 @@ end)
 -- INIT
 -- ============================================================
 Util.ensureFolders()
+
+-- Load saved AutoPlay positions/caps BEFORE LoadConfiguration
+-- so sliders get default values from file if Rayfield config doesn't override them
+AutoPlay.loadPositions()
+
 Macro.loadAll()
 refreshMacroDD()
 Rayfield:LoadConfiguration()
@@ -2525,11 +2715,18 @@ task.spawn(function()
         Macro.setStatus("Playback restored: " .. Macro.currentName)
     end
 
-    -- Restore holograms
-    for i = 1, 6 do
-        local pos = State.AutoPlayPositions[i]
-        if pos and pos[1] and pos[2] and pos[3] then
-            AutoPlay.createHologram(i, Vector3.new(pos[1], pos[2], pos[3]))
+    -- Restore holograms from saved positions (only if ShowHolograms is on)
+    if State.AutoPlayShowHolograms ~= false then
+        local restoredCount = 0
+        for i = 1, 6 do
+            local pos = State.AutoPlayPositions[i]
+            if pos and pos[1] and pos[2] and pos[3] then
+                AutoPlay.createHologram(i, Vector3.new(pos[1], pos[2], pos[3]))
+                restoredCount = restoredCount + 1
+            end
+        end
+        if restoredCount > 0 then
+            debugPrint("[AutoPlay] Restored", restoredCount, "holograms from saved positions")
         end
     end
 end)
