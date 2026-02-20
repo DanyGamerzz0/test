@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    - autoplay
+    - autoplay2
 --]]
 
 -- ============================================================
@@ -176,9 +176,11 @@ local State = {
     AutoPlayEnabled         = false,
     AutoPlayUpgrade         = false,
     AutoPlayFocusFarms      = false,
-    AutoPlayPositions       = {nil, nil, nil, nil, nil, nil}, -- 6 unit positions
-    AutoPlayPlacementCaps   = {1, 1, 1, 1, 1, 1}, -- How many of each unit to place
-    AutoPlayUpgradeCaps     = {0, 0, 0, 0, 0, 0}, -- How many times to upgrade each
+    -- Each slot stores a TABLE of positions {x,y,z} per unit (indexed 1..placementCap)
+    -- We keep a single "base position" per slot and compute staggered positions from it
+    AutoPlayPositions       = {nil, nil, nil, nil, nil, nil}, -- base position per slot
+    AutoPlayPlacementCaps   = {1, 1, 1, 1, 1, 1},
+    AutoPlayUpgradeCaps     = {0, 0, 0, 0, 0, 0},
     -- game tracking (internal)
     gameInProgress          = false,
     gameStartTime           = 0,
@@ -285,19 +287,40 @@ function Units.getMaxLevel(serverName)
 end
 
 -- UUID from UnitsInventory for a display name
+-- Fixed: no longer requires equip == "t", just finds any matching unit
 function Units.getUUID(displayName)
     local inv = LP:FindFirstChild("UnitsInventory")
-    if not inv then return nil end
+    if not inv then 
+        debugPrint("[Units.getUUID] No UnitsInventory found")
+        return nil 
+    end
+    
+    local firstMatch = nil
+    
     for _, folder in ipairs(inv:GetChildren()) do
         if folder:IsA("Folder") then
-            local uv  = folder:FindFirstChild("Unit")
-            local ds  = folder:FindFirstChild("data")
-            local eq  = ds and ds:FindFirstChild("setting") and ds.setting:FindFirstChild("equip")
-            if uv and uv.Value == displayName and eq and eq.Value == "t" then
-                return folder.Name
+            local uv = folder:FindFirstChild("Unit")
+            if uv and uv.Value == displayName then
+                local ds  = folder:FindFirstChild("data")
+                local eq  = ds and ds:FindFirstChild("setting") and ds.setting:FindFirstChild("equip")
+                -- Prefer equipped units, but fall back to any match
+                if eq and eq.Value == "t" then
+                    debugPrint("[Units.getUUID] Found equipped UUID for", displayName, ":", folder.Name)
+                    return folder.Name
+                elseif not firstMatch then
+                    firstMatch = folder.Name
+                end
             end
         end
     end
+    
+    if firstMatch then
+        debugPrint("[Units.getUUID] Found non-equipped UUID for", displayName, ":", firstMatch)
+        return firstMatch
+    end
+    
+    debugPrint("[Units.getUUID] No UUID found for", displayName)
+    return nil
 end
 
 --[[
@@ -315,8 +338,8 @@ function Units.findByPosition(displayName, targetPos, alreadyMapped, tolerance)
     local best, bestDist = nil, math.huge
 
     for _, unit in ipairs(folder:GetChildren()) do
-        if unit.Name == "PLACEMENTFOLDER"   then continue end
-        if alreadyMapped[unit.Name]         then continue end
+        if unit.Name == "PLACEMENTFOLDER" then continue end
+        if alreadyMapped[unit.Name]       then continue end
         if Util.getBaseName(unit.Name) ~= base then continue end
 
         local origin = unit:GetAttribute("origin")
@@ -327,6 +350,8 @@ function Units.findByPosition(displayName, targetPos, alreadyMapped, tolerance)
             end
         end
     end
+    
+    debugPrint("[Units.findByPosition]", displayName, "at", targetPos, "→", tostring(best), bestDist < math.huge and string.format("(%.2f studs)", bestDist) or "(none)")
     return best
 end
 
@@ -366,7 +391,6 @@ end
 
 -- Get the cost per upgrade level from the unit's module
 function Units.getUpgradeCost(serverName, fromLevel)
-    -- Level 0 → 1: read PriceUpgrade from unitServer runtime value
     local folder = Units.serverFolder()
     local unit   = folder and folder:FindFirstChild(serverName)
     if not unit then return nil end
@@ -380,7 +404,6 @@ function Units.getUpgradeCost(serverName, fromLevel)
         return nil
     end
 
-    -- Level 1+ → read module
     local base    = Util.getBaseName(serverName)
     local modules = RS:FindFirstChild("PlayMode")
                  and RS.PlayMode:FindFirstChild("Modules")
@@ -396,7 +419,7 @@ function Units.getUpgradeCost(serverName, fromLevel)
     local settings = type(data.settings) == "function" and data.settings() or nil
     if not settings or not settings.Upgrading then return nil end
 
-    local entry = settings.Upgrading[fromLevel] -- fromLevel 1 = index 1, etc.
+    local entry = settings.Upgrading[fromLevel]
     return entry and entry.PriceUpgrade or nil
 end
 
@@ -404,24 +427,17 @@ end
 -- MACRO MODULE
 -- ============================================================
 local Macro = {
-    -- storage
-    library      = {},       -- name → action array
+    library      = {},
     currentName  = "",
-
-    -- recording state
     isRecording  = false,
     hasStarted   = false,
-    actions      = {},       -- live recording buffer
-    placementCounter = {},   -- displayName → count
-    serverToTag  = {},       -- serverName → "DisplayName #N"
-
-    -- playback state
+    actions      = {},
+    placementCounter = {},
+    serverToTag  = {},
     isPlaying    = false,
     loopRunning  = false,
-    unitMapping  = {},       -- "DisplayName #N" → serverName (playback)
-    abilityQueue = {},       -- scheduled abilities/skips
-
-    -- UI labels (set later)
+    unitMapping  = {},
+    abilityQueue = {},
     statusLabel  = nil,
     detailLabel  = nil,
 }
@@ -482,8 +498,6 @@ function Macro.clearTracking()
     Macro.abilityQueue     = {}
 end
 
--- ─── RECORDING ───────────────────────────────────────────────
-
 function Macro.startRecording()
     if not State.gameInProgress then return end
     Macro.hasStarted         = true
@@ -507,31 +521,21 @@ function Macro.stopRecording(autoSave)
     end
 end
 
--- Called by the __namecall hook for placement
 function Macro.onPlace(displayName, cframe, uuid)
     if not Macro.isRecording or not Macro.hasStarted then return end
-
     task.spawn(function()
         local t   = tick() - State.gameStartTime
-        -- wait briefly for server folder to update
         task.wait(0.5)
-
-        -- Build a set of already-tracked server names
         local tracked = {}
         for sn in pairs(Macro.serverToTag) do tracked[sn] = true end
-
         local serverName = Units.findByPosition(displayName, cframe.Position, tracked, 7)
         if not serverName then
             warn("[Macro.onPlace] Could not find placed unit:", displayName)
             return
         end
-
-        -- Assign tag
         Macro.placementCounter[displayName] = (Macro.placementCounter[displayName] or 0) + 1
         local tag = displayName .. " #" .. Macro.placementCounter[displayName]
         Macro.serverToTag[serverName] = tag
-
-        -- Get cost
         local cost = nil
         for slot = 1, 6 do
             local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
@@ -544,7 +548,6 @@ function Macro.onPlace(displayName, cframe, uuid)
                 break
             end
         end
-
         table.insert(Macro.actions, {
             Type         = "spawn",
             Unit         = tag,
@@ -557,15 +560,10 @@ function Macro.onPlace(displayName, cframe, uuid)
     end)
 end
 
--- Called by the hook for upgrades - record immediately, no validation needed
 function Macro.onUpgradeRemote(serverName)
     if not Macro.isRecording or not Macro.hasStarted then return end
     local tag = Macro.serverToTag[serverName]
-    if not tag then 
-        debugPrint("[Macro] Upgrade remote fired but unit not tracked:", serverName)
-        return 
-    end
-    
+    if not tag then return end
     local t = tick() - State.gameStartTime
     table.insert(Macro.actions, {
         Type = "upgrade",
@@ -617,149 +615,85 @@ function Macro.onSkipWave()
     debugPrint("[Macro] Recorded skip wave at", t)
 end
 
--- ─── PLAYBACK ────────────────────────────────────────────────
-
--- Wait for money, returns false if playback stopped
 function Macro.waitForMoney(amount, label)
-    if not amount or amount <= 0 then 
-        debugPrint("[Macro] No cost specified for:", label)
-        return true 
-    end
-    
-    local currentMoney = Util.getMoney()
-    debugPrint(string.format("[Macro] Checking money: have %d, need %d for %s", currentMoney, amount, label))
-    
+    if not amount or amount <= 0 then return true end
     while Util.getMoney() < amount and Macro.isPlaying and State.gameInProgress do
         Macro.setDetail("Waiting for money: " .. Util.getMoney() .. "/" .. amount .. " (" .. label .. ")")
         task.wait(0.5)
     end
-    
     if Macro.isPlaying and State.gameInProgress then
-        -- CRITICAL: Add small delay after money is available to ensure server sync
         task.wait(0.2)
-        local finalMoney = Util.getMoney()
-        debugPrint(string.format("[Macro] Money ready: %d >= %d for %s", finalMoney, amount, label))
         return true
     end
-    
     return false
 end
 
--- Execute one placement action
 function Macro.execSpawn(action, idx, total)
     local tag         = action.Unit
     local displayName = Util.getDisplayFromTag(tag)
     local uuid        = Units.getUUID(displayName)
-
     if not uuid then
         warn("[Macro.execSpawn] Unit not equipped:", displayName)
         Macro.setDetail(displayName .. " not equipped!")
         return false
     end
-
-    -- Wait for money
-    if not Macro.waitForMoney(action.PlacementCost, displayName) then 
-        return false 
-    end
-
+    if not Macro.waitForMoney(action.PlacementCost, displayName) then return false end
     local pos    = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
-
     Macro.setDetail("Placing " .. tag .. " (" .. idx .. "/" .. total .. ")")
-    debugPrint(string.format("[Macro] Calling placement remote: %s at (%.1f, %.1f, %.1f), money: %d", 
-        displayName, pos[1], pos[2], pos[3], Util.getMoney()))
-    
     local ok = Units.place(displayName, cframe, action.Rotation or 0, uuid)
-    if not ok then 
-        warn("[Macro.execSpawn] Placement remote returned false!")
-        return false 
-    end
-
-    -- Detect spawned unit
+    if not ok then return false end
     local alreadyMapped = {}
     for _, sn in pairs(Macro.unitMapping) do alreadyMapped[sn] = true end
-
     local serverName = nil
-    local maxAttempts = 15  -- Consistent attempts regardless of timing mode
-    local waitTime = 0.5    -- Consistent wait time
-    
-    for attempt = 1, maxAttempts do
-        task.wait(waitTime)
-        serverName = Units.findByPosition(displayName, cframe.Position, alreadyMapped, 5)  -- Use 5 stud tolerance like old script
+    for attempt = 1, 15 do
+        task.wait(0.5)
+        serverName = Units.findByPosition(displayName, cframe.Position, alreadyMapped, 5)
         if serverName then break end
-        
-        -- Update detail to show we're searching
         if attempt % 3 == 0 then
-            Macro.setDetail("Searching for " .. tag .. " (attempt " .. attempt .. "/" .. maxAttempts .. ")")
+            Macro.setDetail("Searching for " .. tag .. " (attempt " .. attempt .. "/15)")
         end
     end
-
     if serverName then
         Macro.unitMapping[tag] = serverName
         Macro.setDetail("✓ Placed " .. tag)
-        debugPrint("[Macro] Placed:", tag, "→", serverName)
         return true
     end
-
     warn("[Macro.execSpawn] Failed to detect unit after placement:", tag)
     Macro.setDetail("❌ Failed to detect " .. tag)
     return false
 end
 
--- Execute upgrade
 function Macro.execUpgrade(action, idx, total)
     local tag        = action.Unit
     local serverName = Macro.unitMapping[tag]
-    if not serverName then
-        warn("[Macro.execUpgrade] No mapping for:", tag)
-        return false
-    end
-
+    if not serverName then return false end
     local curLevel = Units.getLevel(serverName)
     local maxLevel = Units.getMaxLevel(serverName)
-    if curLevel >= maxLevel then
-        debugPrint("[Macro] Already max:", tag)
-        return true
-    end
-
-    -- Wait for money
+    if curLevel >= maxLevel then return true end
     local cost = Units.getUpgradeCost(serverName, curLevel)
-    if not Macro.waitForMoney(cost, "upgrade " .. tag) then 
-        return false 
-    end
-
+    if not Macro.waitForMoney(cost, "upgrade " .. tag) then return false end
     Macro.setDetail("Upgrading " .. tag .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.upgrade(serverName, curLevel + 1)
     task.wait(0.4)
-    if ok then
-        Macro.setDetail("✓ Upgraded " .. tag)
-    end
     return ok
 end
 
--- Execute sell
 function Macro.execSell(action, idx, total)
     local serverName = Macro.unitMapping[action.Unit]
     if not serverName then return false end
     Macro.setDetail("Selling " .. action.Unit .. " (" .. idx .. "/" .. total .. ")")
     local ok = Units.sell(serverName)
-    if ok then 
-        Macro.unitMapping[action.Unit] = nil 
-        Macro.setDetail("✓ Sold " .. action.Unit)
-    end
+    if ok then Macro.unitMapping[action.Unit] = nil end
     return ok
 end
 
--- Execute ability (shared for both direct and scheduled)
 function Macro.execAbility(action)
     local serverName = Macro.unitMapping[action.Unit]
     if not serverName then return false end
-
-    -- Find in unitClient
     local ground     = Svc.Workspace:FindFirstChild("Ground")
     local unitClient = ground and ground:FindFirstChild("unitClient")
     if not unitClient then return false end
-
     local base = Util.getBaseName(serverName)
     for _, model in ipairs(unitClient:GetChildren()) do
         if model:IsA("Model") then
@@ -772,7 +706,6 @@ function Macro.execAbility(action)
     return false
 end
 
--- Skip wave
 function Macro.execSkip()
     pcall(function()
         RS:WaitForChild("PlayMode"):WaitForChild("Events")
@@ -780,12 +713,10 @@ function Macro.execSkip()
     end)
 end
 
--- Schedule an ability/skip for a future game-time
 function Macro.scheduleTimedAction(action, targetTime)
     table.insert(Macro.abilityQueue, { action = action, targetTime = targetTime })
 end
 
--- Drain the scheduled queue; run in a task.spawn
 function Macro.runScheduledQueue()
     while Macro.isPlaying and State.gameInProgress do
         local now = tick() - State.gameStartTime
@@ -807,46 +738,34 @@ function Macro.runScheduledQueue()
     end
 end
 
--- Run one full pass of the macro
 function Macro.playOnce()
     if not Macro.currentName or Macro.currentName == "" then
         Macro.setStatus("No macro selected")
         return false
     end
-
     local actions = Macro.loadFromFile(Macro.currentName)
     if not actions or #actions == 0 then
         Macro.setStatus("Macro is empty or not found")
         return false
     end
-
     Macro.clearTracking()
     Macro.abilityQueue = {}
-
     local total = #actions
     Macro.setStatus("Playing: " .. Macro.currentName)
     Macro.setDetail("Loading " .. total .. " actions...")
-
-    -- Start the scheduled-queue drainer
     task.spawn(Macro.runScheduledQueue)
-
     for i, action in ipairs(actions) do
         if not Macro.isPlaying or not State.gameInProgress then
             Macro.setStatus("Playback stopped")
             return false
         end
-
         local actionTime = tonumber(action.Time) or 0
-
-        -- Abilities and wave-skips are always scheduled to preserve timing
         if action.Type == "ability" or action.Type == "skip_wave" then
             Macro.scheduleTimedAction(action, actionTime)
             continue
         end
-
-        -- For placements/upgrades/sells: wait for timing unless IgnoreTiming
         if not State.IgnoreTiming then
-            local gameTime = tick() - State.gameStartTime
+            local gameTime  = tick() - State.gameStartTime
             local remaining = actionTime - gameTime
             if remaining > 0.2 then
                 Macro.setDetail("Waiting " .. string.format("%.1fs", remaining) .. " for next action...")
@@ -857,112 +776,75 @@ function Macro.playOnce()
                 end
             end
         end
-
         if not Macro.isPlaying or not State.gameInProgress then return false end
-
         if     action.Type == "spawn"   then Macro.execSpawn  (action, i, total)
         elseif action.Type == "upgrade" then Macro.execUpgrade(action, i, total)
         elseif action.Type == "sell"    then Macro.execSell   (action, i, total)
         end
-
         task.wait(0.1)
     end
-
-    -- Wait for remaining scheduled actions
     while #Macro.abilityQueue > 0 and Macro.isPlaying and State.gameInProgress do
         task.wait(0.3)
     end
-
     Macro.setStatus("Playback complete")
     Macro.setDetail("Waiting for next game...")
     return true
 end
 
--- The main auto-loop (one game per iteration)
 function Macro.autoLoop()
     if Macro.loopRunning then return end
     Macro.loopRunning = true
-
     while Macro.isPlaying do
         Macro.setStatus("Waiting for game to start...")
         Macro.setDetail("Standby")
-
-        -- Wait for game to end first if mid-game
         while Util.getWave() > 0 and Macro.isPlaying do task.wait(1) end
-        -- Then wait for next game
         while Util.getWave() < 1 and Macro.isPlaying do task.wait(0.5) end
-
         if not Macro.isPlaying then break end
-
         Macro.clearTracking()
         Macro.playOnce()
-
-        -- Wait for game to fully end before looping
         while State.gameInProgress and Macro.isPlaying do task.wait(0.5) end
         task.wait(1)
     end
-
     Macro.loopRunning = false
     Macro.setStatus("Playback stopped")
     Macro.setDetail("Ready")
 end
 
--- Import from JSON string
 function Macro.importJSON(jsonStr, name)
     if not jsonStr or jsonStr:match("^%s*$") then return false, "Empty content" end
     if not name or name == "" then return false, "No name given" end
     if Macro.library[name] and #Macro.library[name] > 0 then
         return false, "Macro '" .. name .. "' already exists"
     end
-
     local ok, decoded = pcall(function() return Svc.HttpService:JSONDecode(jsonStr) end)
     if not ok then return false, "Invalid JSON" end
-
     local actions = (type(decoded) == "table" and decoded.actions) or
                     (type(decoded) == "table" and #decoded > 0 and decoded) or nil
     if not actions or #actions == 0 then return false, "No actions found" end
-
     Macro.library[name] = actions
     Macro.saveToFile(name)
     return true, #actions
 end
 
--- Export current macro to clipboard
 function Macro.exportClipboard()
     if not Macro.currentName or Macro.currentName == "" then
-        Util.notify("Export Error", "No macro selected")
-        return
+        Util.notify("Export Error", "No macro selected") return
     end
     local data = Macro.library[Macro.currentName]
-    if not data or #data == 0 then
-        Util.notify("Export Error", "Macro is empty")
-        return
-    end
+    if not data or #data == 0 then Util.notify("Export Error", "Macro is empty") return end
     local fn = setclipboard or toclipboard
     if not fn then Util.notify("Clipboard Error", "Not supported by your executor") return end
     fn(Svc.HttpService:JSONEncode(data))
     Util.notify("Exported", Macro.currentName .. " copied to clipboard")
 end
 
--- Export via webhook
 function Macro.exportWebhook()
     if not Macro.currentName or Macro.currentName == "" then
-        Util.notify("Webhook Error", "No macro selected")
-        return
+        Util.notify("Webhook Error", "No macro selected") return
     end
-    
-    if not State.WebhookURL then
-        Util.notify("Webhook Error", "No webhook URL configured")
-        return
-    end
-    
+    if not State.WebhookURL then Util.notify("Webhook Error", "No webhook URL configured") return end
     local data = Macro.library[Macro.currentName]
-    if not data or #data == 0 then
-        Util.notify("Webhook Error", "Macro is empty")
-        return
-    end
-    
-    -- Extract units from macro
+    if not data or #data == 0 then Util.notify("Webhook Error", "Macro is empty") return end
     local unitsUsed, seen = {}, {}
     for _, action in ipairs(data) do
         if action.Type == "spawn" and action.Unit then
@@ -975,40 +857,25 @@ function Macro.exportWebhook()
     end
     table.sort(unitsUsed)
     local unitsText = #unitsUsed > 0 and table.concat(unitsUsed, ", ") or "No units"
-    
-    -- Create JSON
-    local jsonData = Svc.HttpService:JSONEncode(data)
-    local fileName = Macro.currentName .. ".json"
-    
-    -- Multipart form data
-    local boundary = "----WebKitFormBoundary" .. tostring(tick())
+    local jsonData  = Svc.HttpService:JSONEncode(data)
+    local fileName  = Macro.currentName .. ".json"
+    local boundary  = "----WebKitFormBoundary" .. tostring(tick())
     local body = ""
-    
-    -- Payload with units list
     body = body .. "--" .. boundary .. "\r\n"
     body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
     body = body .. "Content-Type: application/json\r\n\r\n"
-    body = body .. Svc.HttpService:JSONEncode({
-        content = "**Units:** " .. unitsText
-    }) .. "\r\n"
-    
-    -- File
+    body = body .. Svc.HttpService:JSONEncode({ content = "**Units:** " .. unitsText }) .. "\r\n"
     body = body .. "--" .. boundary .. "\r\n"
     body = body .. "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" .. fileName .. "\"\r\n"
     body = body .. "Content-Type: application/json\r\n\r\n"
     body = body .. jsonData .. "\r\n"
     body = body .. "--" .. boundary .. "--\r\n"
-    
     local resp = Util.httpRequest({
         Url     = State.WebhookURL,
         Method  = "POST",
-        Headers = { 
-            ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
-            ["User-Agent"] = "LixHub-Webhook/1.0"
-        },
+        Headers = { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary, ["User-Agent"] = "LixHub-Webhook/1.0" },
         Body    = body,
     })
-    
     if resp and resp.StatusCode >= 200 and resp.StatusCode < 300 then
         Util.notify("Webhook Success", "Macro '" .. Macro.currentName .. "' sent!", 3)
     else
@@ -1020,146 +887,231 @@ end
 -- AUTOPLAY MODULE
 -- ============================================================
 local AutoPlay = {
-    placedUnits = {}, -- Tracks {slotNum, serverName, position}
-    holograms = {},   -- Visual placement indicators
-    settingPosition = nil, -- Which slot we're currently setting position for
+    -- placedUnits: array of { slotNum, serverName, posIndex, upgrades }
+    placedUnits     = {},
+    holograms       = {},
+    settingPosition = nil,
 }
 
--- Create or update hologram for a position (with dots for placement cap)
-function AutoPlay.createHologram(slotNum, position)
-    -- Remove old hologram if exists
+--[[
+    Compute the staggered world positions for all units in a slot.
+    Given a base position and a cap N, returns N Vector3 positions
+    arranged in a neat row/grid near the base position.
+    
+    Layout (top-down view, X = offset axis):
+    Cap 1: [0]
+    Cap 2: [-1.5]  [+1.5]
+    Cap 3: [-3]    [0]    [+3]
+    Cap 4: [-2.25] [-0.75] [+0.75] [+2.25]
+    Cap 5: row of 3 + row of 2 shifted in Z
+    Cap 6: 2 rows of 3
+    
+    Spacing = 3 studs between units (typical unit footprint)
+]]
+local UNIT_SPACING = 3.0
+
+local function computeSlotPositions(basePos, cap)
+    local positions = {}
+    
+    if cap <= 3 then
+        -- Single row along X
+        local totalWidth = (cap - 1) * UNIT_SPACING
+        local startX     = basePos.X - totalWidth / 2
+        for i = 0, cap - 1 do
+            positions[#positions + 1] = Vector3.new(
+                startX + i * UNIT_SPACING,
+                basePos.Y,
+                basePos.Z
+            )
+        end
+    else
+        -- Two rows: row1 = ceil(cap/2), row2 = floor(cap/2)
+        local row1Count = math.ceil(cap / 2)
+        local row2Count = math.floor(cap / 2)
+        
+        -- Row 1 (Z - UNIT_SPACING/2)
+        local totalWidth1 = (row1Count - 1) * UNIT_SPACING
+        local startX1     = basePos.X - totalWidth1 / 2
+        for i = 0, row1Count - 1 do
+            positions[#positions + 1] = Vector3.new(
+                startX1 + i * UNIT_SPACING,
+                basePos.Y,
+                basePos.Z - UNIT_SPACING / 2
+            )
+        end
+        
+        -- Row 2 (Z + UNIT_SPACING/2)
+        local totalWidth2 = (row2Count - 1) * UNIT_SPACING
+        local startX2     = basePos.X - totalWidth2 / 2
+        for i = 0, row2Count - 1 do
+            positions[#positions + 1] = Vector3.new(
+                startX2 + i * UNIT_SPACING,
+                basePos.Y,
+                basePos.Z + UNIT_SPACING / 2
+            )
+        end
+    end
+    
+    return positions
+end
+
+-- ─── HOLOGRAM ────────────────────────────────────────────────
+
+--[[
+    Rebuild the hologram for a slot.
+    - One glowing cylinder per unit position (at the actual placement location).
+    - A bounding box sized to fit all positions (not fixed).
+    - A label showing slot number and cap.
+]]
+function AutoPlay.createHologram(slotNum, basePos)
+    -- Remove old hologram
     if AutoPlay.holograms[slotNum] then
         AutoPlay.holograms[slotNum]:Destroy()
+        AutoPlay.holograms[slotNum] = nil
     end
+
+    local cap = State.AutoPlayPlacementCaps[slotNum]
     
-    -- Color based on slot
     local colors = {
-        Color3.fromRGB(255, 85, 85),   -- Slot 1: Red
-        Color3.fromRGB(85, 170, 255),  -- Slot 2: Blue
-        Color3.fromRGB(85, 255, 127),  -- Slot 3: Green
-        Color3.fromRGB(255, 255, 85),  -- Slot 4: Yellow
-        Color3.fromRGB(255, 170, 255), -- Slot 5: Pink
-        Color3.fromRGB(255, 170, 85),  -- Slot 6: Orange
+        Color3.fromRGB(255, 85,  85),   -- Slot 1: Red
+        Color3.fromRGB(85,  170, 255),  -- Slot 2: Blue
+        Color3.fromRGB(85,  255, 127),  -- Slot 3: Green
+        Color3.fromRGB(255, 255, 85),   -- Slot 4: Yellow
+        Color3.fromRGB(255, 170, 255),  -- Slot 5: Pink
+        Color3.fromRGB(255, 170, 85),   -- Slot 6: Orange
     }
     local color = colors[slotNum] or Color3.new(1, 1, 1)
-    
-    -- Create container model
+
+    local positions = computeSlotPositions(basePos, cap)
+
     local model = Instance.new("Model")
-    model.Name = "AutoPlayMarker_" .. slotNum
-    
-    -- Get placement cap to know how many dots to show
-    local placementCap = State.AutoPlayPlacementCaps[slotNum]
-    
-    -- Create dots in a grid pattern (2x3 max)
-    local dotPositions = {
-        Vector3.new(-2, 0, -2), Vector3.new(2, 0, -2),  -- Row 1
-        Vector3.new(-2, 0, 0),  Vector3.new(2, 0, 0),   -- Row 2
-        Vector3.new(-2, 0, 2),  Vector3.new(2, 0, 2),   -- Row 3
-    }
-    
-    for i = 1, math.min(placementCap, 6) do
+    model.Name  = "AutoPlayMarker_" .. slotNum
+
+    -- One cylinder per placement position
+    for i, pos in ipairs(positions) do
         local dot = Instance.new("Part")
-        dot.Name = "Dot" .. i
-        dot.Size = Vector3.new(2, 6, 2)
-        dot.Position = position + dotPositions[i]
-        dot.Anchored = true
-        dot.CanCollide = false
-        dot.Transparency = 0.4
-        dot.Material = Enum.Material.Neon
-        dot.Color = color
-        dot.Shape = Enum.PartType.Cylinder
-        dot.Orientation = Vector3.new(0, 0, 90)  -- Make cylinder vertical
-        dot.Parent = model
+        dot.Name         = "Dot" .. i
+        dot.Size         = Vector3.new(1.5, 6, 1.5)   -- thin pillar
+        dot.CFrame       = CFrame.new(pos) * CFrame.Angles(0, 0, math.pi / 2) -- horizontal cylinder
+        dot.Anchored     = true
+        dot.CanCollide   = false
+        dot.Transparency = 0.35
+        dot.Material     = Enum.Material.Neon
+        dot.Color        = color
+        dot.Shape        = Enum.PartType.Cylinder
+        dot.Parent       = model
+        
+        -- Number label above each dot
+        local bb = Instance.new("BillboardGui")
+        bb.Size          = UDim2.new(0, 60, 0, 30)
+        bb.StudsOffset   = Vector3.new(0, 4.5, 0)
+        bb.AlwaysOnTop   = true
+        bb.Parent        = dot
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size                 = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 0.4
+        lbl.BackgroundColor3     = Color3.new(0, 0, 0)
+        lbl.TextColor3           = color
+        lbl.TextScaled           = true
+        lbl.Font                 = Enum.Font.SourceSansBold
+        lbl.Text                 = tostring(i)
+        lbl.Parent               = bb
     end
-    
-    -- Add bounding box
-    local boundingBox = Instance.new("Part")
-    boundingBox.Name = "BoundingBox"
-    boundingBox.Size = Vector3.new(10, 0.5, 10)
-    boundingBox.Position = position
-    boundingBox.Anchored = true
-    boundingBox.CanCollide = false
-    boundingBox.Transparency = 0.8
-    boundingBox.Material = Enum.Material.Neon
-    boundingBox.Color = color
-    boundingBox.Parent = model
-    
-    -- Add selection box for outline
-    local selectionBox = Instance.new("SelectionBox")
-    selectionBox.Adornee = boundingBox
-    selectionBox.LineThickness = 0.05
-    selectionBox.Color3 = color
-    selectionBox.Transparency = 0.5
-    selectionBox.Parent = boundingBox
-    
-    -- Add text label above
-    local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 150, 0, 60)
-    billboard.StudsOffset = Vector3.new(0, 6, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = boundingBox
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 0.3
-    label.BackgroundColor3 = Color3.new(0, 0, 0)
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.TextScaled = true
-    label.Font = Enum.Font.SourceSansBold
-    label.Text = "Slot " .. slotNum .. " (" .. placementCap .. "x)"
-    label.Parent = billboard
-    
+
+    -- Compute a tight bounding box around all positions
+    local minX, maxX = math.huge, -math.huge
+    local minZ, maxZ = math.huge, -math.huge
+    for _, pos in ipairs(positions) do
+        minX = math.min(minX, pos.X)
+        maxX = math.max(maxX, pos.X)
+        minZ = math.min(minZ, pos.Z)
+        maxZ = math.max(maxZ, pos.Z)
+    end
+
+    -- Add half a unit footprint (1.5 studs) padding on each side
+    local pad     = 1.5
+    local sizeX   = math.max((maxX - minX) + UNIT_SPACING + pad * 2, UNIT_SPACING + pad * 2)
+    local sizeZ   = math.max((maxZ - minZ) + UNIT_SPACING + pad * 2, UNIT_SPACING + pad * 2)
+    local centerX = (minX + maxX) / 2
+    local centerZ = (minZ + maxZ) / 2
+
+    local bbox = Instance.new("Part")
+    bbox.Name         = "BoundingBox"
+    bbox.Size         = Vector3.new(sizeX, 0.4, sizeZ)
+    bbox.CFrame       = CFrame.new(centerX, basePos.Y - 0.1, centerZ)
+    bbox.Anchored     = true
+    bbox.CanCollide   = false
+    bbox.Transparency = 0.75
+    bbox.Material     = Enum.Material.Neon
+    bbox.Color        = color
+    bbox.Parent       = model
+
+    local selBox = Instance.new("SelectionBox")
+    selBox.Adornee       = bbox
+    selBox.LineThickness = 0.05
+    selBox.Color3        = color
+    selBox.Transparency  = 0.4
+    selBox.Parent        = bbox
+
+    -- Main label centred over the group
+    local mainBB = Instance.new("BillboardGui")
+    mainBB.Size        = UDim2.new(0, 160, 0, 50)
+    mainBB.StudsOffset = Vector3.new(0, 7, 0)
+    mainBB.AlwaysOnTop = true
+    mainBB.Parent      = bbox
+
+    local mainLbl = Instance.new("TextLabel")
+    mainLbl.Size                 = UDim2.new(1, 0, 1, 0)
+    mainLbl.BackgroundTransparency = 0.3
+    mainLbl.BackgroundColor3     = Color3.new(0, 0, 0)
+    mainLbl.TextColor3           = Color3.new(1, 1, 1)
+    mainLbl.TextScaled           = true
+    mainLbl.Font                 = Enum.Font.SourceSansBold
+    mainLbl.Text                 = "Slot " .. slotNum .. "  ×" .. cap
+    mainLbl.Parent               = mainBB
+
     model.Parent = Svc.Workspace
     AutoPlay.holograms[slotNum] = model
-    
-    debugPrint("[AutoPlay] Created hologram for slot", slotNum, "with", placementCap, "dots at", position)
+
+    debugPrint("[AutoPlay] Hologram for slot", slotNum, "| cap", cap, "| positions:", #positions)
 end
 
--- Update hologram when placement cap changes
 function AutoPlay.updateHologram(slotNum)
-    local position = State.AutoPlayPositions[slotNum]
-    if position and position[1] and position[2] and position[3] then
-        AutoPlay.createHologram(slotNum, Vector3.new(position[1], position[2], position[3]))
-    end
+    local pos = State.AutoPlayPositions[slotNum]
+    if not pos then return end
+    AutoPlay.createHologram(slotNum, Vector3.new(pos[1], pos[2], pos[3]))
 end
 
--- Remove all holograms
 function AutoPlay.clearHolograms()
-    for _, hologram in pairs(AutoPlay.holograms) do
-        if hologram then hologram:Destroy() end
+    for _, h in pairs(AutoPlay.holograms) do
+        if h then h:Destroy() end
     end
     AutoPlay.holograms = {}
 end
 
--- Start position setting mode
+-- ─── POSITION SETTING ────────────────────────────────────────
+
 function AutoPlay.startSetPosition(slotNum)
     AutoPlay.settingPosition = slotNum
-    Util.notify("Set Position", "Click on the map to set Unit " .. slotNum .. " position", 5)
-    
+    Util.notify("Set Position", "Click on the map to set the base position for Slot " .. slotNum, 5)
+
     local mouse = LP:GetMouse()
-    
-    -- Create a one-time connection that auto-disconnects
     local connection
     connection = mouse.Button1Down:Connect(function()
-        if not AutoPlay.settingPosition then 
-            connection:Disconnect()
-            return 
-        end
-        
+        if not AutoPlay.settingPosition then connection:Disconnect() return end
         local target = mouse.Target
         if target then
             local hitPos = mouse.Hit.Position
-            State.AutoPlayPositions[slotNum] = {hitPos.X, hitPos.Y, hitPos.Z}
+            State.AutoPlayPositions[slotNum] = { hitPos.X, hitPos.Y, hitPos.Z }
             AutoPlay.updateHologram(slotNum)
-            Util.notify("Position Set", "Unit " .. slotNum .. " position saved!", 3)
-            debugPrint("[AutoPlay] Set position for slot", slotNum, ":", hitPos)
+            Util.notify("Position Set", "Slot " .. slotNum .. " base position saved!", 3)
+            debugPrint("[AutoPlay] Set base position for slot", slotNum, ":", hitPos)
         end
-        
         AutoPlay.settingPosition = nil
         connection:Disconnect()
     end)
-    
-    -- Auto-disconnect after 30 seconds if no click
+
     task.delay(30, function()
         if connection and connection.Connected then
             connection:Disconnect()
@@ -1169,178 +1121,36 @@ function AutoPlay.startSetPosition(slotNum)
     end)
 end
 
--- Get unit info from slot
+-- ─── UNIT HELPERS ────────────────────────────────────────────
+
 function AutoPlay.getUnitFromSlot(slotNum)
     local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slotNum))
     if not pkg or not pkg.Unit then return nil end
     return pkg.Unit.Value
 end
 
--- Check if unit is a farm unit
 function AutoPlay.isFarmUnit(displayName)
-    -- Get unit's PlaceType from modules
     local modules = RS:FindFirstChild("PlayMode")
                  and RS.PlayMode:FindFirstChild("Modules")
                  and RS.PlayMode.Modules:FindFirstChild("UnitsSettings")
     if not modules then return false end
-    
     local mod = modules:FindFirstChild(displayName)
     if not mod then return false end
-    
     local ok, data = pcall(require, mod)
     if not ok or not data then return false end
-    
     local settings = type(data.settings) == "function" and data.settings() or nil
     return settings and settings.PlaceType == "Farm"
 end
 
--- Main autoplay loop
-function AutoPlay.loop()
-    while State.AutoPlayEnabled and State.gameInProgress do
-        task.wait(1)
-        
-        -- Monitor existing units and replace lost ones
-        AutoPlay.monitorUnits()
-        
-        -- Check each slot
-        for slotNum = 1, 6 do
-            local position = State.AutoPlayPositions[slotNum]
-            if not position then continue end
-            
-            local displayName = AutoPlay.getUnitFromSlot(slotNum)
-            if not displayName then continue end
-            
-            -- Check if we should skip non-farm units
-            if State.AutoPlayFocusFarms and not AutoPlay.isFarmUnit(displayName) then
-                continue
-            end
-            
-            -- Count how many of this slot we've placed
-            local placedCount = 0
-            for _, unit in ipairs(AutoPlay.placedUnits) do
-                if unit.slotNum == slotNum then
-                    placedCount = placedCount + 1
-                end
-            end
-            
-            -- Place more if under cap
-            local placementCap = State.AutoPlayPlacementCaps[slotNum]
-            if placedCount < placementCap then
-                AutoPlay.placeUnit(slotNum, displayName, position)
-                task.wait(0.5)
-            end
-            
-            -- Upgrade existing units if enabled
-            if State.AutoPlayUpgrade then
-                AutoPlay.upgradeUnits(slotNum)
-            end
-        end
-    end
-    
-    debugPrint("[AutoPlay] Loop ended")
-end
-
--- Monitor units and detect losses
-function AutoPlay.monitorUnits()
-    local folder = Units.serverFolder()
-    if not folder then return end
-    
-    -- Check each tracked unit
-    for i = #AutoPlay.placedUnits, 1, -1 do
-        local unit = AutoPlay.placedUnits[i]
-        local serverUnit = folder:FindFirstChild(unit.serverName)
-        
-        if not serverUnit then
-            -- Unit is gone!
-            debugPrint("[AutoPlay] Unit lost:", unit.serverName, "from slot", unit.slotNum)
-            table.remove(AutoPlay.placedUnits, i)
-            
-            -- We'll replace it on the next loop iteration since placedCount will be lower
-        end
-    end
-end
-
--- Place a unit
-function AutoPlay.placeUnit(slotNum, displayName, position)
-    local uuid = Units.getUUID(displayName)
-    if not uuid then
-        debugPrint("[AutoPlay] Unit not equipped:", displayName)
-        return false
-    end
-    
-    -- Check money
-    local cost = AutoPlay.getUnitCost(displayName)
-    if cost and Util.getMoney() < cost then
-        debugPrint("[AutoPlay] Not enough money for", displayName, "need", cost)
-        return false
-    end
-    
-    local cframe = CFrame.new(position[1], position[2], position[3])
-    
-    debugPrint("[AutoPlay] Placing", displayName, "from slot", slotNum)
-    local ok = Units.place(displayName, cframe, 0, uuid)
-    if not ok then return false end
-    
-    task.wait(1)
-    
-    -- Find the placed unit
-    local serverName = Units.findByPosition(displayName, Vector3.new(position[1], position[2], position[3]), {}, 8)
-    if serverName then
-        table.insert(AutoPlay.placedUnits, {
-            slotNum = slotNum,
-            serverName = serverName,
-            position = position,
-            upgrades = 0
-        })
-        debugPrint("[AutoPlay] Placed:", serverName)
-        return true
-    end
-    
-    return false
-end
-
--- Upgrade units from a slot
-function AutoPlay.upgradeUnits(slotNum)
-    local upgradeCap = State.AutoPlayUpgradeCaps[slotNum]
-    if upgradeCap == 0 then return end
-    
-    for _, unit in ipairs(AutoPlay.placedUnits) do
-        if unit.slotNum == slotNum and unit.upgrades < upgradeCap then
-            local curLevel = Units.getLevel(unit.serverName)
-            local maxLevel = Units.getMaxLevel(unit.serverName)
-            
-            if curLevel < maxLevel and curLevel < upgradeCap then
-                local cost = Units.getUpgradeCost(unit.serverName, curLevel)
-                if cost and Util.getMoney() >= cost then
-                    debugPrint("[AutoPlay] Upgrading", unit.serverName, "to level", curLevel + 1)
-                    Units.upgrade(unit.serverName, curLevel + 1)
-                    unit.upgrades = unit.upgrades + 1
-                    task.wait(0.5)
-                end
-            end
-        end
-    end
-end
-
--- Get unit cost from UI
 function AutoPlay.getUnitCost(displayName)
     for slot = 1, 6 do
         local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
         if pkg and pkg.Unit and pkg.Unit.Value == displayName then
             local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot:FindFirstChild("unit" .. slot)
             if frame then
-                local unitFrame = nil
                 for _, obj in ipairs(frame:GetDescendants()) do
-                    if obj.Name == displayName and obj:IsA("Frame") then
-                        unitFrame = obj
-                        break
-                    end
-                end
-                
-                if unitFrame then
-                    local yen = unitFrame:FindFirstChild("yen")
-                    if yen then
-                        local number = yen.Text:gsub("[^%d]", "")
+                    if obj.Name == "yen" and obj:IsA("TextLabel") then
+                        local number = obj.Text:gsub("[^%d]", "")
                         return tonumber(number)
                     end
                 end
@@ -1351,10 +1161,158 @@ function AutoPlay.getUnitCost(displayName)
     return nil
 end
 
--- Reset autoplay state
+-- ─── PLACEMENT ───────────────────────────────────────────────
+
+--[[
+    Place a specific unit at a specific computed position (by posIndex).
+    Returns serverName if successful, nil otherwise.
+]]
+function AutoPlay.placeUnitAtIndex(slotNum, displayName, basePos, posIndex)
+    local uuid = Units.getUUID(displayName)
+    if not uuid then
+        debugPrint("[AutoPlay] No UUID for:", displayName)
+        return nil
+    end
+
+    local allPositions = computeSlotPositions(
+        Vector3.new(basePos[1], basePos[2], basePos[3]),
+        State.AutoPlayPlacementCaps[slotNum]
+    )
+    local targetPos = allPositions[posIndex]
+    if not targetPos then return nil end
+
+    -- Check money
+    local cost = AutoPlay.getUnitCost(displayName)
+    if cost and Util.getMoney() < cost then
+        debugPrint("[AutoPlay] Not enough money for", displayName, "- need", cost, "have", Util.getMoney())
+        return nil
+    end
+
+    local cframe = CFrame.new(targetPos)
+    debugPrint("[AutoPlay] Placing", displayName, "slot", slotNum, "posIndex", posIndex, "at", targetPos)
+
+    local ok = Units.place(displayName, cframe, 0, uuid)
+    if not ok then
+        debugPrint("[AutoPlay] Place remote failed for", displayName)
+        return nil
+    end
+
+    -- Build already-mapped set
+    local alreadyMapped = {}
+    for _, u in ipairs(AutoPlay.placedUnits) do
+        alreadyMapped[u.serverName] = true
+    end
+
+    -- Wait for server to register the unit
+    local serverName = nil
+    for attempt = 1, 15 do
+        task.wait(0.5)
+        serverName = Units.findByPosition(displayName, targetPos, alreadyMapped, 6)
+        if serverName then break end
+        debugPrint("[AutoPlay] Waiting for unit detection attempt", attempt, "/15")
+    end
+
+    if serverName then
+        debugPrint("[AutoPlay] Detected:", serverName, "for slot", slotNum, "posIndex", posIndex)
+        return serverName
+    end
+
+    debugPrint("[AutoPlay] Failed to detect placed unit for slot", slotNum, "posIndex", posIndex)
+    return nil
+end
+
+-- ─── MONITOR & UPGRADE ───────────────────────────────────────
+
+function AutoPlay.monitorUnits()
+    local folder = Units.serverFolder()
+    if not folder then return end
+    for i = #AutoPlay.placedUnits, 1, -1 do
+        local u = AutoPlay.placedUnits[i]
+        if not folder:FindFirstChild(u.serverName) then
+            debugPrint("[AutoPlay] Unit lost:", u.serverName, "slot", u.slotNum, "posIndex", u.posIndex)
+            table.remove(AutoPlay.placedUnits, i)
+        end
+    end
+end
+
+function AutoPlay.upgradeUnits(slotNum)
+    local upgradeCap = State.AutoPlayUpgradeCaps[slotNum]
+    if upgradeCap == 0 then return end
+    for _, u in ipairs(AutoPlay.placedUnits) do
+        if u.slotNum ~= slotNum then continue end
+        local curLevel = Units.getLevel(u.serverName)
+        local maxLevel = Units.getMaxLevel(u.serverName)
+        if curLevel < maxLevel and curLevel < upgradeCap then
+            local cost = Units.getUpgradeCost(u.serverName, curLevel)
+            if cost and Util.getMoney() >= cost then
+                debugPrint("[AutoPlay] Upgrading", u.serverName, "to level", curLevel + 1)
+                Units.upgrade(u.serverName, curLevel + 1)
+                u.upgrades = u.upgrades + 1
+                task.wait(0.5)
+            end
+        end
+    end
+end
+
+-- ─── MAIN LOOP ───────────────────────────────────────────────
+
 function AutoPlay.reset()
     AutoPlay.placedUnits = {}
-    debugPrint("[AutoPlay] Reset state")
+    debugPrint("[AutoPlay] State reset")
+end
+
+function AutoPlay.loop()
+    debugPrint("[AutoPlay] Loop starting")
+    while State.AutoPlayEnabled and State.gameInProgress do
+        task.wait(1)
+        AutoPlay.monitorUnits()
+
+        for slotNum = 1, 6 do
+            local basePos = State.AutoPlayPositions[slotNum]
+            if not basePos then
+                -- No position set for this slot, skip
+            else
+                local displayName = AutoPlay.getUnitFromSlot(slotNum)
+                if displayName then
+                    -- Respect farm-focus mode
+                    local skip = State.AutoPlayFocusFarms and not AutoPlay.isFarmUnit(displayName)
+                    if not skip then
+                        local cap = State.AutoPlayPlacementCaps[slotNum]
+
+                        -- Count how many of each posIndex we've already placed for this slot
+                        local placedByIndex = {}
+                        for _, u in ipairs(AutoPlay.placedUnits) do
+                            if u.slotNum == slotNum then
+                                placedByIndex[u.posIndex] = true
+                            end
+                        end
+
+                        -- Place any missing positions
+                        for posIndex = 1, cap do
+                            if not placedByIndex[posIndex] then
+                                local serverName = AutoPlay.placeUnitAtIndex(slotNum, displayName, basePos, posIndex)
+                                if serverName then
+                                    table.insert(AutoPlay.placedUnits, {
+                                        slotNum    = slotNum,
+                                        serverName = serverName,
+                                        posIndex   = posIndex,
+                                        upgrades   = 0,
+                                    })
+                                end
+                                task.wait(0.6)
+                            end
+                        end
+
+                        -- Upgrade if enabled
+                        if State.AutoPlayUpgrade then
+                            AutoPlay.upgradeUnits(slotNum)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    debugPrint("[AutoPlay] Loop ended")
 end
 
 -- ============================================================
@@ -1365,7 +1323,6 @@ local _capturedRewards = nil
 
 function Webhook.send(msgType, extraData)
     if not State.WebhookURL then return end
-
     local data
     if msgType == "test" then
         data = {
@@ -1384,52 +1341,36 @@ function Webhook.send(msgType, extraData)
         local isWin    = base and base.Health and base.Health.Value > 0 or false
         local result   = isWin and "Victory" or "Defeat"
         local plrLevel = LP.Data and LP.Data.Levels and LP.Data.Levels.Value or "?"
-
         local clearTime = (State.gameEndRealTime > 0 and State.gameStartRealTime > 0)
                         and (State.gameEndRealTime - State.gameStartRealTime) or 0
         local mins = math.floor(clearTime / 60)
         local secs = math.floor(clearTime % 60)
         local timeStr = string.format("%02d:%02d", mins, secs)
-
-        -- Build rewards text with item totals
         local rewardLines = {}
         local unitGained  = {}
         if _capturedRewards then
             for _, r in ipairs(_capturedRewards) do
                 local name, amt = r[1], r[2]
-                -- Check if it's a unit module
-                local mods = RS.PlayMode and RS.PlayMode.Modules
-                            and RS.PlayMode.Modules.UnitsSettings
+                local mods   = RS.PlayMode and RS.PlayMode.Modules and RS.PlayMode.Modules.UnitsSettings
                 local isUnit = mods and mods:FindFirstChild(name) ~= nil
                 if isUnit then
                     unitGained[#unitGained+1] = name
                     rewardLines[#rewardLines+1] = "🌟 " .. name .. " x" .. amt
                 else
-                    -- Get item total from ItemsInventory
                     local itemTotal = nil
-                    local itemsInv = LP:FindFirstChild("ItemsInventory")
+                    local itemsInv  = LP:FindFirstChild("ItemsInventory")
                     if itemsInv then
                         local item = itemsInv:FindFirstChild(name)
-                        if item and item:FindFirstChild("Amount") then
-                            itemTotal = item.Amount.Value
-                        end
+                        if item and item:FindFirstChild("Amount") then itemTotal = item.Amount.Value end
                     end
-                    
-                    -- Also check player Data for common currencies
                     if not itemTotal and LP.Data then
-                        if name == "Coins" or name == "Gold" then
-                            itemTotal = LP.Data.Coins and LP.Data.Coins.Value
-                        elseif name == "Gems" then
-                            itemTotal = LP.Data.Tokens and LP.Data.Tokens.Value
-                        elseif name == "TraitReroll" then
-                            itemTotal = LP.Data.Reroll_Tokens and LP.Data.Reroll_Tokens.Value
-                        elseif name == "StatReroll" then
-                            itemTotal = LP.Data.StatReroll and LP.Data.StatReroll.Value
-                        elseif name == "SuperStatReroll" then
-                            itemTotal = LP.Data.SuperStatReroll and LP.Data.SuperStatReroll.Value
+                        if name == "Coins" or name == "Gold" then itemTotal = LP.Data.Coins and LP.Data.Coins.Value
+                        elseif name == "Gems"                then itemTotal = LP.Data.Tokens and LP.Data.Tokens.Value
+                        elseif name == "TraitReroll"         then itemTotal = LP.Data.Reroll_Tokens and LP.Data.Reroll_Tokens.Value
+                        elseif name == "StatReroll"          then itemTotal = LP.Data.StatReroll and LP.Data.StatReroll.Value
+                        elseif name == "SuperStatReroll"     then itemTotal = LP.Data.SuperStatReroll and LP.Data.SuperStatReroll.Value
                         end
                     end
-                    
                     local totalText = itemTotal and string.format(" [%d]", itemTotal) or ""
                     rewardLines[#rewardLines+1] = "+ " .. amt .. " " .. name .. totalText
                 end
@@ -1438,7 +1379,6 @@ function Webhook.send(msgType, extraData)
         local rewardsText = #rewardLines > 0 and table.concat(rewardLines, "\n") or "None"
         local ping        = #unitGained > 0 and State.DiscordUserID
                           and ("<@" .. State.DiscordUserID .. "> **UNIT OBTAINED**") or ""
-
         data = {
             username = "LixHub",
             content  = ping,
@@ -1456,7 +1396,6 @@ function Webhook.send(msgType, extraData)
             }}
         }
     end
-
     if not data then return end
     local resp = Util.httpRequest({
         Url     = State.WebhookURL,
@@ -1472,18 +1411,17 @@ function Webhook.send(msgType, extraData)
 end
 
 -- ============================================================
--- __NAMECALL HOOK  (single, clean)
+-- __NAMECALL HOOK
 -- ============================================================
 do
-    local mt               = getrawmetatable(game)
+    local mt        = getrawmetatable(game)
     setreadonly(mt, false)
-    local _original        = mt.__namecall
+    local _original = mt.__namecall
 
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
         local args   = { ... }
 
-        -- Block boss damage
         if State.BlockBossDamage
             and method == "InvokeServer"
             and self.Name == "Damages"
@@ -1494,29 +1432,17 @@ do
         local result = _original(self, ...)
 
         if not checkcaller() then
-            -- PLACEMENT
             if method == "InvokeServer" and self.Name == "spawnunit" then
-                -- args[1] = { displayName, cframe, rotation }, args[2] = uuid
                 local info = args[1]
                 if info and type(info) == "table" then
                     Macro.onPlace(info[1], info[2], args[2])
                 end
-
-            -- UPGRADE
             elseif method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Upgrade" then
                 Macro.onUpgradeRemote(args[2])
-
-            -- SELL
             elseif method == "InvokeServer" and self.Name == "ManageUnits" and args[1] == "Selling" then
                 Macro.onSell(args[2])
-
-            -- ABILITY  (only record if server approved, i.e. result is truthy)
             elseif method == "InvokeServer" and self.Name == "Skills" and args[1] == "SkillsButton" then
-                if result then
-                    Macro.onAbility(args[2], args[3])
-                end
-
-            -- WAVE SKIP
+                if result then Macro.onAbility(args[2], args[3]) end
             elseif method == "FireServer" and self.Name == "Vote" and args[1] == "Vote2" then
                 Macro.onSkipWave()
             end
@@ -1540,13 +1466,12 @@ local function onGameStart()
     if Macro.isRecording and not Macro.hasStarted then
         Macro.startRecording()
     end
-    
-    -- Start autoplay if enabled
+
     if State.AutoPlayEnabled then
         AutoPlay.reset()
         task.spawn(AutoPlay.loop)
     end
-    
+
     debugPrint("[Game] Started")
 end
 
@@ -1555,41 +1480,30 @@ local function onGameEnd(rewards)
     State.gameEndRealTime = tick()
     _capturedRewards      = rewards
 
-    -- Stop recording if active
     if Macro.isRecording and Macro.hasStarted then
         Macro.stopRecording(true)
         if RecordToggle then RecordToggle:Set(false) end
     end
-    
-    -- Reset autoplay
-    if State.AutoPlayEnabled then
-        AutoPlay.reset()
-    end
 
-    -- Webhook
-    if State.SendWebhookOnFinish then
-        task.spawn(Webhook.send, "stage")
-    end
+    if State.AutoPlayEnabled then AutoPlay.reset() end
+
+    if State.SendWebhookOnFinish then task.spawn(Webhook.send, "stage") end
 
     debugPrint("[Game] Ended")
 end
 
--- Wave tracking
 if not Util.isInLobby() then
     local gs = Svc.Workspace:FindFirstChild("GameSettings")
     if gs and gs:FindFirstChild("Wave") then
         gs.Wave.Changed:Connect(function(w)
             if w >= 1 and not State.gameInProgress then onGameStart()
             elseif w == 0 and State.gameInProgress then
-                -- wave going to 0 means game ended
                 State.gameInProgress = false
             end
         end)
-        -- Check if already in game
         if gs.Wave.Value >= 1 then onGameStart() end
     end
 
-    -- EndGame event
     local endGame = RS:FindFirstChild("EndGame")
     if endGame then
         endGame.OnClientEvent:Connect(function(_, _, rewards)
@@ -1599,10 +1513,9 @@ if not Util.isInLobby() then
 end
 
 -- ============================================================
--- AUTO-VOTE AFTER GAME (clean, validated)
+-- AUTO-VOTE
 -- ============================================================
 local function doAutoVote()
-    -- Wait for EndGUI to appear
     local endGui = nil
     for _ = 1, 20 do
         endGui = LP.PlayerGui:FindFirstChild("EndGUI")
@@ -1619,64 +1532,50 @@ local function doAutoVote()
         for _ = 1, 4 do
             pcall(fn)
             task.wait(1.5)
-            if guiClosed() then
-                debugPrint("[AutoVote] Success:", label)
-                return true
-            end
+            if guiClosed() then return true end
         end
         return false
     end
 
     if State.AutoVoteNext then
-        if tryRemote(function()
-            RS.PlayMode.Events.Control:FireServer("Next Stage Vote")
-        end, "Next") then return end
+        if tryRemote(function() RS.PlayMode.Events.Control:FireServer("Next Stage Vote") end, "Next") then return end
     end
-
     if State.AutoVoteRetry then
         if tryRemote(function()
             local btn = LP.PlayerGui.EndGUI.Main.Stage.Button.Retry.Button
             for _, c in ipairs(getconnections(btn.MouseButton1Click)) do c:Fire() end
         end, "Retry") then return end
     end
-
     if State.AutoVoteLobby then
         task.wait(1)
         Svc.TeleportService:Teleport(17282336195, LP)
     end
 end
 
--- Hook EndGame for auto-vote
 if not Util.isInLobby() then
     local endGame = RS:FindFirstChild("EndGame")
     if endGame then
         endGame.OnClientEvent:Connect(function()
-            task.spawn(function()
-                task.wait(2)
-                doAutoVote()
-            end)
+            task.spawn(function() task.wait(2) doAutoVote() end)
         end)
     end
 end
 
 -- ============================================================
--- AUTO-JOIN  (clean priority system)
+-- AUTO-JOIN
 -- ============================================================
 local function firePortal(...)
     RS.PlayMode.Events.CreatingPortal:InvokeServer(...)
 end
 
 local AutoJoin = {}
-
 AutoJoin.actions = {
-    -- Each entry: { check = fn → bool, run = fn }
     {
         check = function() return State.AutoJoinGate end,
         run   = function()
             Joiner.begin("Gate")
             local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-            local sp  = Svc.Workspace:FindFirstChild("Gatespawnpoint")
-                     and Svc.Workspace.Gatespawnpoint:FindFirstChild("1")
+            local sp  = Svc.Workspace:FindFirstChild("Gatespawnpoint") and Svc.Workspace.Gatespawnpoint:FindFirstChild("1")
             if hrp and sp then
                 hrp.CFrame = sp.CFrame
                 task.wait(0.4)
@@ -1692,7 +1591,7 @@ AutoJoin.actions = {
             Joiner.begin("Challenge")
             firePortal("Challenge", {})
             task.wait(1)
-            local pp = Svc.Workspace.CreatingRoom:FindFirstChild(LP.Name)
+            local pp   = Svc.Workspace.CreatingRoom:FindFirstChild(LP.Name)
             local part = pp and pp:FindFirstChild("PortalPart")
             if part then
                 firePortal("Create", { part:GetAttribute("Stages"), part:GetAttribute("Act"), "Challenge" })
@@ -1737,14 +1636,10 @@ AutoJoin.actions = {
             Joiner.begin("Portal")
             firePortal(State.PortalStage .. " (Portal)", {})
             task.wait(1)
-            local pp = Svc.Workspace.CreatingRoom:FindFirstChild(LP.Name)
+            local pp   = Svc.Workspace.CreatingRoom:FindFirstChild(LP.Name)
             local part = pp and pp:FindFirstChild("PortalPart")
             if part then
-                firePortal("Create", {
-                    part:GetAttribute("Stages"),
-                    part:GetAttribute("Act"),
-                    part:GetAttribute("Difficulty"),
-                })
+                firePortal("Create", { part:GetAttribute("Stages"), part:GetAttribute("Act"), part:GetAttribute("Difficulty") })
             end
             Joiner.finish()
         end,
@@ -1761,10 +1656,8 @@ AutoJoin.actions = {
     },
     {
         check = function()
-            return State.AutoJoinStory
-               and State.StoryStage ~= nil
-               and State.StoryAct ~= nil
-               and State.StoryDifficulty ~= nil
+            return State.AutoJoinStory and State.StoryStage ~= nil
+               and State.StoryAct ~= nil and State.StoryDifficulty ~= nil
         end,
         run = function()
             Joiner.begin("Story")
@@ -1776,17 +1669,13 @@ AutoJoin.actions = {
     },
 }
 
--- Poll loop for AutoJoin (lobby only)
 task.spawn(function()
     while true do
         task.wait(0.5)
         if Util.isInLobby() and Joiner.canAct() then
             if State.AutoJoinDelay > 0 then task.wait(State.AutoJoinDelay) end
             for _, entry in ipairs(AutoJoin.actions) do
-                if entry.check() then
-                    entry.run()
-                    break
-                end
+                if entry.check() then entry.run() break end
             end
         end
     end
@@ -1804,9 +1693,7 @@ task.spawn(function()
             if limit == 0 or w <= limit then
                 local frame = LP.PlayerGui.GUI and LP.PlayerGui.GUI:FindFirstChild("SkipwaveFrame")
                 if frame and frame.Visible then
-                    pcall(function()
-                        RS.PlayMode.Events.Vote:FireServer("Vote2")
-                    end)
+                    pcall(function() RS.PlayMode.Events.Vote:FireServer("Vote2") end)
                 end
             end
         end
@@ -1838,9 +1725,7 @@ do
             if unit.Name ~= "PLACEMENTFOLDER" then
                 local pt = unit:FindFirstChild("PlaceType")
                 if pt and pt.Value == "Farm" then
-                    Units.sell(unit.Name)
-                    task.wait(0.1)
-                end
+                    Units.sell(unit.Name) task.wait(0.1) end
             end
         end
     end
@@ -1849,12 +1734,10 @@ do
     if gs and gs:FindFirstChild("Wave") then
         gs.Wave.Changed:Connect(function(w)
             if State.AutoSellEnabled and w == State.AutoSellWave and w ~= lastSellWave then
-                lastSellWave = w
-                task.spawn(sellAll)
+                lastSellWave = w task.spawn(sellAll)
             end
             if State.AutoSellFarmEnabled and w == State.AutoSellFarmWave and w ~= lastFarmSellWave then
-                lastFarmSellWave = w
-                task.spawn(sellFarm)
+                lastFarmSellWave = w task.spawn(sellFarm)
             end
         end)
     end
@@ -1871,12 +1754,11 @@ task.spawn(function()
             for _, abilityDisplay in ipairs(State.SelectedAbilitiesToUse) do
                 local now = tick()
                 if (now - (lastAttempt[abilityDisplay] or 0)) < 2 then continue end
-
                 local unit, ability = abilityDisplay:match("^(.+)%s*%-%s*(.+)$")
                 if unit then
-                    local ab  = (ability == "Ability") and nil or ability
-                    local ground = Svc.Workspace:FindFirstChild("Ground")
-                    local uc     = ground and ground:FindFirstChild("unitClient")
+                    local ab      = (ability == "Ability") and nil or ability
+                    local ground  = Svc.Workspace:FindFirstChild("Ground")
+                    local uc      = ground and ground:FindFirstChild("unitClient")
                     if uc then
                         local base = unit:gsub("^%s+",""):gsub("%s+$","")
                         for _, model in ipairs(uc:GetChildren()) do
@@ -1884,11 +1766,8 @@ task.spawn(function()
                                 local mb = model.Name:match("^(.+)%s+%d+$") or model.Name
                                 if mb == base then
                                     local ok = Units.ability(model.Name, ab)
-                                    if ok then
-                                        lastAttempt[abilityDisplay] = nil
-                                    else
-                                        lastAttempt[abilityDisplay] = now
-                                    end
+                                    if ok then lastAttempt[abilityDisplay] = nil
+                                    else       lastAttempt[abilityDisplay] = now end
                                     break
                                 end
                             end
@@ -1912,9 +1791,7 @@ task.spawn(function()
                 local vf = LP.PlayerGui.GameEvent.VoteSkip
                 if vf.Visible and vf.Button.Inset.textname.Text:lower():find("start") then
                     task.wait(2)
-                    for _, c in ipairs(getconnections(vf.Button.Button.MouseButton1Click)) do
-                        c:Fire()
-                    end
+                    for _, c in ipairs(getconnections(vf.Button.Button.MouseButton1Click)) do c:Fire() end
                 end
             end)
         end
@@ -1936,48 +1813,31 @@ end)
 -- FPS CAP
 -- ============================================================
 local function applyFPS()
-    if State.LimitFPS then
-        setfpscap(State.SelectedFPS)
-    else
-        setfpscap(0)
-    end
+    if State.LimitFPS then setfpscap(State.SelectedFPS)
+    else                    setfpscap(0) end
 end
 
 -- ============================================================
--- SHOP PURCHASERS  (consolidated, not 3 separate functions)
+-- SHOP PURCHASERS
 -- ============================================================
 local ShopData = {
-    OverHeaven = {
-        ["Artifacts Trait Reroll"]=750, ["TraitReroll"]=500, ["SuperStatReroll"]=250, ["StatReroll"]=500,
-    },
-    Behelit = {
-        ["Capsule Fortune Potion"]=1000, ["Festival Coin Potion"]=1000,
-        ["Blessed Luck Potion"]=1000, ["Event Discount Potion"]=1000,
-        ["Guts"]=100, ["Dragonslayer"]=25,
-        ["Artifacts Trait Reroll"]=10, ["SuperStatReroll"]=10, ["StatReroll"]=10,
-    },
-    RagnaShop = {
-        ["Artifacts Trait Reroll"]=5, ["Ragna Capsule"]=5, ["Dango"]=1,
-        ["Mystic Coins"]=5, ["Fullsteak"]=2, ["Ramen"]=2,
-        ["TraitReroll"]=5, ["Night Market Coins"]=50,
-    },
+    OverHeaven = { ["Artifacts Trait Reroll"]=750, ["TraitReroll"]=500, ["SuperStatReroll"]=250, ["StatReroll"]=500 },
+    Behelit    = { ["Capsule Fortune Potion"]=1000, ["Festival Coin Potion"]=1000, ["Blessed Luck Potion"]=1000,
+                   ["Event Discount Potion"]=1000, ["Guts"]=100, ["Dragonslayer"]=25,
+                   ["Artifacts Trait Reroll"]=10, ["SuperStatReroll"]=10, ["StatReroll"]=10 },
+    RagnaShop  = { ["Artifacts Trait Reroll"]=5, ["Ragna Capsule"]=5, ["Dango"]=1,
+                   ["Mystic Coins"]=5, ["Fullsteak"]=2, ["Ramen"]=2,
+                   ["TraitReroll"]=5, ["Night Market Coins"]=50 },
 }
-
-local ShopCurrencyItem = {
-    OverHeaven = "Dio Presents",
-    Behelit    = "Beherit",
-    RagnaShop  = "Dragonpoints",
-}
+local ShopCurrencyItem = { OverHeaven="Dio Presents", Behelit="Beherit", RagnaShop="Dragonpoints" }
 
 local function buyFromShop(shopKey, itemName)
     local cost    = ShopData[shopKey] and ShopData[shopKey][itemName]
     local currKey = ShopCurrencyItem[shopKey]
     if not cost or not currKey then return end
-
     local inv  = LP:FindFirstChild("ItemsInventory")
     local curr = inv and inv:FindFirstChild(currKey)
     local amt  = curr and curr:FindFirstChild("Amount") and curr.Amount.Value or 0
-
     if amt < cost then return end
     pcall(function()
         RS.PlayMode.Events.EventShop:InvokeServer(math.floor(amt / cost), itemName, shopKey)
@@ -1999,45 +1859,44 @@ end)
 -- LOW PERFORMANCE MODE
 -- ============================================================
 local function applyLowPerf()
-    if State.LowPerfMode then
-        Svc.Lighting.Brightness            = 1
-        Svc.Lighting.GlobalShadows         = false
-        Svc.Lighting.Technology            = Enum.Technology.Compatibility
-        Svc.Lighting.EnvironmentDiffuseScale  = 0
-        Svc.Lighting.EnvironmentSpecularScale = 0
-        for _, v in ipairs(Svc.Lighting:GetChildren()) do
-            if v:IsA("BloomEffect") or v:IsA("BlurEffect") or
-               v:IsA("ColorCorrectionEffect") or v:IsA("SunRaysEffect") then
-                v.Enabled = false
-            end
+    if not State.LowPerfMode then return end
+    Svc.Lighting.Brightness               = 1
+    Svc.Lighting.GlobalShadows            = false
+    Svc.Lighting.Technology               = Enum.Technology.Compatibility
+    Svc.Lighting.EnvironmentDiffuseScale  = 0
+    Svc.Lighting.EnvironmentSpecularScale = 0
+    for _, v in ipairs(Svc.Lighting:GetChildren()) do
+        if v:IsA("BloomEffect") or v:IsA("BlurEffect") or
+           v:IsA("ColorCorrectionEffect") or v:IsA("SunRaysEffect") then
+            v.Enabled = false
         end
-        for _, v in ipairs(Svc.Workspace:GetDescendants()) do
-            if v:IsA("ParticleEmitter") or v:IsA("Fire") or
-               v:IsA("Smoke") or v:IsA("Sparkles") then
-                v.Enabled = false
-            end
-        end
-        pcall(function()
-            RS.Remotes.Data.Settings:FireServer("Update", {Value="ON",  Setting="Low Mode"})
-            RS.Remotes.Data.Settings:FireServer("Update", {Value="OFF", Setting="Visual Effects"})
-            RS.Remotes.Data.Settings:FireServer("Update", {Value="OFF", Setting="Damage Indicator"})
-            RS.Remotes.Data.Settings:FireServer("Update", {Value="ON",  Setting="InvisibleEnemy"})
-        end)
     end
+    for _, v in ipairs(Svc.Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Fire") or
+           v:IsA("Smoke") or v:IsA("Sparkles") then
+            v.Enabled = false
+        end
+    end
+    pcall(function()
+        RS.Remotes.Data.Settings:FireServer("Update", {Value="ON",  Setting="Low Mode"})
+        RS.Remotes.Data.Settings:FireServer("Update", {Value="OFF", Setting="Visual Effects"})
+        RS.Remotes.Data.Settings:FireServer("Update", {Value="OFF", Setting="Damage Indicator"})
+        RS.Remotes.Data.Settings:FireServer("Update", {Value="ON",  Setting="InvisibleEnemy"})
+    end)
 end
 
 -- ============================================================
--- BLACK SCREEN TOGGLE
+-- BLACK SCREEN
 -- ============================================================
 local function applyBlackScreen()
     local gui = LP.PlayerGui:FindFirstChild("LixHubBlackScreen")
     if State.BlackScreen then
         if gui then return end
         local sg = Instance.new("ScreenGui")
-        sg.Name              = "LixHubBlackScreen"
-        sg.IgnoreGuiInset    = true
-        sg.DisplayOrder      = math.huge
-        sg.Parent            = LP.PlayerGui
+        sg.Name           = "LixHubBlackScreen"
+        sg.IgnoreGuiInset = true
+        sg.DisplayOrder   = math.huge
+        sg.Parent         = LP.PlayerGui
         local fr = Instance.new("Frame", sg)
         fr.Size              = UDim2.new(1,0,1,36)
         fr.Position          = UDim2.new(0,0,0,-36)
@@ -2049,7 +1908,7 @@ local function applyBlackScreen()
 end
 
 -- ============================================================
--- UI  TABS
+-- UI TABS
 -- ============================================================
 local Tabs = {
     Lobby   = Window:CreateTab("Lobby",    "tv"),
@@ -2061,7 +1920,6 @@ local Tabs = {
     Webhook = Window:CreateTab("Webhook",  "bluetooth"),
 }
 
--- ── Status labels ──────────────────────────────────────────
 Macro.statusLabel = Tabs.Macro:CreateLabel("Status: Ready")
 Macro.detailLabel = Tabs.Macro:CreateLabel("Detail: -")
 Tabs.Macro:CreateDivider()
@@ -2074,9 +1932,7 @@ Tabs.Lobby:CreateButton({
     Callback = function()
         for _, sv in ipairs(LP.Code:GetChildren()) do
             if sv:IsA("Folder") and sv.Name ~= "Rewards" then
-                pcall(function()
-                    RS.PlayMode.Events.Codes:InvokeServer(sv.Name)
-                end)
+                pcall(function() RS.PlayMode.Events.Codes:InvokeServer(sv.Name) end)
                 task.wait(0.1)
             end
         end
@@ -2087,9 +1943,7 @@ Tabs.Lobby:CreateButton({
 Tabs.Lobby:CreateToggle({
     Name     = "Disable Script Notifications",
     Flag     = "DisableNotifications",
-    Callback = function(v)
-        State.DisableNotifications = v
-    end,
+    Callback = function(v) State.DisableNotifications = v end,
 })
 
 Tabs.Lobby:CreateToggle({
@@ -2107,58 +1961,23 @@ Tabs.Lobby:CreateToggle({
 
 Tabs.Lobby:CreateButton({
     Name = "Return to Lobby",
-    Callback = function()
-        Svc.TeleportService:Teleport(17282336195, LP)
-    end,
+    Callback = function() Svc.TeleportService:Teleport(17282336195, LP) end,
 })
 
 -- ============================================================
 -- SHOP TAB
 -- ============================================================
 Tabs.Shop:CreateSection("Dio Shop (Over Heaven)")
-
-Tabs.Shop:CreateToggle({ 
-    Name     = "Auto Purchase", 
-    Flag     = "AutoPurchaseDio", 
-    Callback = function(v) State.AutoPurchaseDio=v end 
-})
-
-Tabs.Shop:CreateDropdown({ 
-    Name    = "Select Item", 
-    Options = {"Artifacts Trait Reroll","TraitReroll","SuperStatReroll","StatReroll"}, 
-    Flag    = "DioItem", 
-    Callback= function(o) State.AutoPurchaseDioItem=o[1] end 
-})
+Tabs.Shop:CreateToggle({ Name="Auto Purchase", Flag="AutoPurchaseDio",      Callback=function(v) State.AutoPurchaseDio=v end })
+Tabs.Shop:CreateDropdown({ Name="Select Item", Options={"Artifacts Trait Reroll","TraitReroll","SuperStatReroll","StatReroll"}, Flag="DioItem", Callback=function(o) State.AutoPurchaseDioItem=o[1] end })
 
 Tabs.Shop:CreateSection("Griffith Shop (Beherit)")
-
-Tabs.Shop:CreateToggle({ 
-    Name     = "Auto Purchase", 
-    Flag     = "AutoPurchaseGriffith", 
-    Callback = function(v) State.AutoPurchaseGriffith=v end 
-})
-
-Tabs.Shop:CreateDropdown({ 
-    Name    = "Select Item", 
-    Options = {"Capsule Fortune Potion","Festival Coin Potion","Blessed Luck Potion","Event Discount Potion","Guts","Dragonslayer","Artifacts Trait Reroll","SuperStatReroll","StatReroll"}, 
-    Flag    = "GriffithItem", 
-    Callback= function(o) State.AutoPurchaseGriffithItem=o[1] end 
-})
+Tabs.Shop:CreateToggle({ Name="Auto Purchase", Flag="AutoPurchaseGriffith",  Callback=function(v) State.AutoPurchaseGriffith=v end })
+Tabs.Shop:CreateDropdown({ Name="Select Item", Options={"Capsule Fortune Potion","Festival Coin Potion","Blessed Luck Potion","Event Discount Potion","Guts","Dragonslayer","Artifacts Trait Reroll","SuperStatReroll","StatReroll"}, Flag="GriffithItem", Callback=function(o) State.AutoPurchaseGriffithItem=o[1] end })
 
 Tabs.Shop:CreateSection("Ragna Shop")
-
-Tabs.Shop:CreateToggle({ 
-    Name     = "Auto Purchase", 
-    Flag     = "AutoPurchaseRagna", 
-    Callback = function(v) State.AutoPurchaseRagna=v end 
-})
-
-Tabs.Shop:CreateDropdown({ 
-    Name    = "Select Item", 
-    Options = {"Artifacts Trait Reroll","Ragna Capsule","Dango","Mystic Coins","Fullsteak","Ramen","TraitReroll","Night Market Coins"}, 
-    Flag    = "RagnaItem", 
-    Callback= function(o) State.AutoPurchaseRagnaItem=o[1] end 
-})
+Tabs.Shop:CreateToggle({ Name="Auto Purchase", Flag="AutoPurchaseRagna",     Callback=function(v) State.AutoPurchaseRagna=v end })
+Tabs.Shop:CreateDropdown({ Name="Select Item", Options={"Artifacts Trait Reroll","Ragna Capsule","Dango","Mystic Coins","Fullsteak","Ramen","TraitReroll","Night Market Coins"}, Flag="RagnaItem", Callback=function(o) State.AutoPurchaseRagnaItem=o[1] end })
 
 -- ============================================================
 -- JOINER TAB
@@ -2183,7 +2002,7 @@ Tabs.Joiner:CreateSection("Challenge")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Challenge",  Flag="AutoJoinChallenge",  Callback=function(v) State.AutoJoinChallenge=v end })
 
 Tabs.Joiner:CreateSection("Event")
-Tabs.Joiner:CreateToggle({ Name="Auto Join Event",      Flag="AutoJoinEvent",      Callback=function(v) State.AutoJoinEvent=v end })
+Tabs.Joiner:CreateToggle({ Name="Auto Join Event", Flag="AutoJoinEvent", Callback=function(v) State.AutoJoinEvent=v end })
 Tabs.Joiner:CreateDropdown({ Name="Event Stage", Options={"Johny Joestar (JojoEvent)","Mushroom Rush (Mushroom)","Verdant Shroud (Mushroom2)","Frontline Command Post (Ragna)","Summer Beach (Summer)","Shibuya Event (Shibuya)"}, Flag="EventStage", Callback=function(o) State.EventStage=o[1]:match("%((.-)%)") end })
 
 Tabs.Joiner:CreateSection("Worldlines")
@@ -2191,11 +2010,11 @@ Tabs.Joiner:CreateToggle({ Name="Auto Join Worldlines", Flag="AutoJoinWorldlines
 Tabs.Joiner:CreateDropdown({ Name="Worldlines Stage", Options={"Double Dungeon (doubledungeon)","Double Dungeon 2 (doubledungeon2)","Lingxian Academy (lingxianacademy)","Lingxian Yard (lingxianyard)"}, Flag="WorldlinesStage", Callback=function(o) State.WorldlinesStage=o[1]:match("%((.-)%)") end })
 
 Tabs.Joiner:CreateSection("Tower")
-Tabs.Joiner:CreateToggle({ Name="Auto Join Tower",      Flag="AutoJoinTower",      Callback=function(v) State.AutoJoinTower=v end })
+Tabs.Joiner:CreateToggle({ Name="Auto Join Tower", Flag="AutoJoinTower", Callback=function(v) State.AutoJoinTower=v end })
 Tabs.Joiner:CreateDropdown({ Name="Tower Stage", Options={"Cursed Place","The Lost Ancient World"}, Flag="TowerStage", Callback=function(o) State.TowerStage=o[1] end })
 
 Tabs.Joiner:CreateSection("Gate")
-Tabs.Joiner:CreateToggle({ Name="Auto Join Gate",       Flag="AutoJoinGate",       Callback=function(v) State.AutoJoinGate=v end })
+Tabs.Joiner:CreateToggle({ Name="Auto Join Gate", Flag="AutoJoinGate", Callback=function(v) State.AutoJoinGate=v end })
 
 -- ============================================================
 -- GAME TAB
@@ -2239,7 +2058,7 @@ Tabs.Game:CreateToggle({ Name="Auto Sell Farm Units", Flag="AutoSellFarm", Callb
 Tabs.Game:CreateSlider({ Name="Sell Farm on Wave",    Range={1,50}, Increment=1, CurrentValue=15, Flag="AutoSellFarmWave", Callback=function(v) State.AutoSellFarmWave=v end })
 
 -- ============================================================
--- AUTO TAB  (abilities + autoplay)
+-- AUTO TAB
 -- ============================================================
 Tabs.Auto:CreateSection("AutoPlay System")
 
@@ -2257,67 +2076,56 @@ Tabs.Auto:CreateToggle({
 })
 
 Tabs.Auto:CreateToggle({
-    Name = "Auto Upgrade to Max",
+    Name = "Auto Upgrade",
     Flag = "AutoPlayUpgrade",
     Info = "Automatically upgrade placed units based on upgrade caps",
-    Callback = function(v)
-        State.AutoPlayUpgrade = v
-    end,
+    Callback = function(v) State.AutoPlayUpgrade = v end,
 })
 
 Tabs.Auto:CreateToggle({
     Name = "Focus Farm Units Only",
     Flag = "AutoPlayFocusFarms",
-    Info = "Only place and upgrade farm units",
-    Callback = function(v)
-        State.AutoPlayFocusFarms = v
-    end,
+    Info = "Only place and upgrade farm-type units",
+    Callback = function(v) State.AutoPlayFocusFarms = v end,
 })
 
 Tabs.Auto:CreateDivider()
 
--- Position setting buttons
 for i = 1, 6 do
     Tabs.Auto:CreateButton({
-        Name = "Set Unit " .. i .. " Position",
-        Callback = function()
-            AutoPlay.startSetPosition(i)
-        end,
+        Name = "Set Slot " .. i .. " Base Position",
+        Callback = function() AutoPlay.startSetPosition(i) end,
     })
 end
 
 Tabs.Auto:CreateDivider()
+Tabs.Auto:CreateSection("Placement Caps (units per slot)")
 
--- Placement caps
-Tabs.Auto:CreateSection("Placement Caps (How many to place)")
 for i = 1, 6 do
     Tabs.Auto:CreateSlider({
-        Name = "Unit " .. i .. " Placement Cap",
-        Range = {1, 6},
-        Increment = 1,
-        CurrentValue = 1,
-        Flag = "AutoPlayPlaceCap" .. i,
-        Callback = function(v)
+        Name          = "Slot " .. i .. " Placement Cap",
+        Range         = {1, 6},
+        Increment     = 1,
+        CurrentValue  = 1,
+        Flag          = "AutoPlayPlaceCap" .. i,
+        Callback      = function(v)
             State.AutoPlayPlacementCaps[i] = v
-            AutoPlay.updateHologram(i)  -- Update hologram to show new dot count
+            AutoPlay.updateHologram(i)
         end,
     })
 end
 
 Tabs.Auto:CreateDivider()
+Tabs.Auto:CreateSection("Upgrade Caps (max upgrade level, 0 = off)")
 
--- Upgrade caps
-Tabs.Auto:CreateSection("Upgrade Caps (Max upgrade level)")
 for i = 1, 6 do
     Tabs.Auto:CreateSlider({
-        Name = "Unit " .. i .. " Upgrade Cap",
-        Range = {0, 20},
-        Increment = 1,
+        Name         = "Slot " .. i .. " Upgrade Cap",
+        Range        = {0, 20},
+        Increment    = 1,
         CurrentValue = 0,
-        Flag = "AutoPlayUpgradeCap" .. i,
-        Callback = function(v)
-            State.AutoPlayUpgradeCaps[i] = v
-        end,
+        Flag         = "AutoPlayUpgradeCap" .. i,
+        Callback     = function(v) State.AutoPlayUpgradeCaps[i] = v end,
     })
 end
 
@@ -2341,8 +2149,7 @@ local UnitDD = Tabs.Auto:CreateDropdown({
     Flag           = "UnitAbilitySelector",
     Callback       = function(opts)
         State.SelectedUnitsForAbility = opts
-        -- Rebuild ability list
-        local skillsMod = RS.Module and RS.Module:FindFirstChild("Skills")
+        local skillsMod  = RS.Module and RS.Module:FindFirstChild("Skills")
         local skillsData = skillsMod and pcall(require, skillsMod) and require(skillsMod) or {}
         local abilities, seen = {}, {}
         for _, unitName in ipairs(opts) do
@@ -2371,17 +2178,14 @@ AbilityDD = Tabs.Auto:CreateDropdown({
     Options        = {},
     MultipleOptions= true,
     Flag           = "AbilitySelector",
-    Callback       = function(opts)
-        State.SelectedAbilitiesToUse = opts
-    end,
+    Callback       = function(opts) State.SelectedAbilitiesToUse = opts end,
 })
 
 Tabs.Auto:CreateToggle({ Name="Auto Use Ability", Flag="AutoUseAbility", Callback=function(v) State.AutoUseAbility=v end })
 
--- Populate units dropdown
 task.spawn(function()
     task.wait(1)
-    local skillsMod  = RS.Module and RS.Module:FindFirstChild("Skills")
+    local skillsMod = RS.Module and RS.Module:FindFirstChild("Skills")
     if not skillsMod then return end
     local ok, data = pcall(require, skillsMod)
     if not ok then return end
@@ -2412,8 +2216,8 @@ local function refreshMacroDD()
 end
 
 Tabs.Macro:CreateInput({
-    Name                 = "Create New Macro",
-    PlaceholderText      = "Enter name...",
+    Name                     = "Create New Macro",
+    PlaceholderText          = "Enter name...",
     RemoveTextAfterFocusLost = true,
     Callback = function(text)
         local name = text:gsub("[<>:\"/\\|?*]",""):match("^%s*(.-)%s*$")
@@ -2433,9 +2237,7 @@ Tabs.Macro:CreateButton({
     Name = "Delete Selected Macro",
     Callback = function()
         if Macro.currentName == "" then Util.notify("Error","No macro selected") return end
-        if isfile(Macro.getFilePath(Macro.currentName)) then
-            delfile(Macro.getFilePath(Macro.currentName))
-        end
+        if isfile(Macro.getFilePath(Macro.currentName)) then delfile(Macro.getFilePath(Macro.currentName)) end
         Macro.library[Macro.currentName] = nil
         Macro.currentName = ""
         refreshMacroDD()
@@ -2451,8 +2253,7 @@ local RecordToggle = Tabs.Macro:CreateToggle({
     Callback = function(v)
         Macro.isRecording = v
         if v then
-            if State.gameInProgress then
-                Macro.startRecording()
+            if State.gameInProgress then Macro.startRecording()
             else
                 Macro.setStatus("Recording armed — starts with next game")
                 Util.notify("Recording Armed", "Will start recording on next game start")
@@ -2484,17 +2285,15 @@ Tabs.Macro:CreateToggle({
 })
 
 Tabs.Macro:CreateToggle({
-    Name = "Ignore Timing",
-    Info = "Execute placements immediately; abilities/skips still respect timing",
-    Flag = "IgnoreTiming",
+    Name     = "Ignore Timing",
+    Info     = "Execute placements immediately; abilities/skips still respect timing",
+    Flag     = "IgnoreTiming",
     Callback = function(v) State.IgnoreTiming = v end,
 })
 
 Tabs.Macro:CreateDivider()
-
 Tabs.Macro:CreateButton({ Name="Export to Clipboard", Callback=Macro.exportClipboard })
-
-Tabs.Macro:CreateButton({ Name="Export via Webhook", Callback=Macro.exportWebhook })
+Tabs.Macro:CreateButton({ Name="Export via Webhook",  Callback=Macro.exportWebhook })
 
 Tabs.Macro:CreateInput({
     Name            = "Import (URL or JSON)",
@@ -2507,7 +2306,6 @@ Tabs.Macro:CreateInput({
             local ok, resp = pcall(game.HttpGet, game, text, true)
             if not ok then Util.notify("Import Error","Failed to download URL") return end
             content = resp
-            -- Derive name from URL
             local fname = text:match("/([^/?]+)%.json") or ("Import_" .. os.time())
             fname = fname:gsub("%.json.*$","")
             local success, n = Macro.importJSON(content, fname)
@@ -2528,10 +2326,7 @@ Tabs.Macro:CreateButton({
         if not data or #data == 0 then Util.notify("Error","No macro or empty") return end
         local seen = {}
         for _, a in ipairs(data) do
-            if a.Type == "spawn" then
-                local base = Util.getDisplayFromTag(a.Unit)
-                seen[base] = true
-            end
+            if a.Type == "spawn" then seen[Util.getDisplayFromTag(a.Unit)] = true end
         end
         local lines = {}
         for k in pairs(seen) do lines[#lines+1] = k end
@@ -2543,8 +2338,8 @@ Tabs.Macro:CreateButton({
 -- ============================================================
 -- WEBHOOK TAB
 -- ============================================================
-Tabs.Webhook:CreateInput({ Name="Webhook URL",    PlaceholderText="https://discord.com/api/webhooks/…", RemoveTextAfterFocusLost=false, Flag="WebhookURL",  Callback=function(t) State.WebhookURL=t:match("^%s*(.-)%s*$"):match("^https://") and t or nil end })
-Tabs.Webhook:CreateInput({ Name="Discord User ID",PlaceholderText="Your Discord ID",                     RemoveTextAfterFocusLost=false, Flag="DiscordUID",  Callback=function(t) State.DiscordUserID=t:match("^%s*(.-)%s*$") end })
+Tabs.Webhook:CreateInput({ Name="Webhook URL",     PlaceholderText="https://discord.com/api/webhooks/…", RemoveTextAfterFocusLost=false, Flag="WebhookURL",  Callback=function(t) State.WebhookURL=t:match("^%s*(.-)%s*$"):match("^https://") and t or nil end })
+Tabs.Webhook:CreateInput({ Name="Discord User ID", PlaceholderText="Your Discord ID",                     RemoveTextAfterFocusLost=false, Flag="DiscordUID",  Callback=function(t) State.DiscordUserID=t:match("^%s*(.-)%s*$") end })
 Tabs.Webhook:CreateToggle({ Name="Send on Stage Finish", Flag="SendWebhook", Callback=function(v) State.SendWebhookOnFinish=v end })
 Tabs.Webhook:CreateButton({ Name="Test Webhook", Callback=function()
     if State.WebhookURL then Webhook.send("test")
@@ -2552,19 +2347,15 @@ Tabs.Webhook:CreateButton({ Name="Test Webhook", Callback=function()
 end })
 
 -- ============================================================
--- STAGE DROPDOWNS  (story, raid, portal)
+-- STAGE DROPDOWNS
 -- ============================================================
 task.spawn(function()
-    -- Wait for player data
     task.wait(1)
-
-    -- Story
     local stageRewards = RS:FindFirstChild("Module") and RS.Module:FindFirstChild("StageRewards")
     local rewardsData  = stageRewards and pcall(require, stageRewards) and require(stageRewards) or {}
 
-    local raidStages, storyStages = {}, {}
-
     if rewardsData.Raid then
+        local raidStages = {}
         for name, data in pairs(rewardsData.Raid) do
             if type(data) == "table" and (data.Rewards or data.ChanceRewards) then
                 raidStages[#raidStages+1] = name
@@ -2574,7 +2365,6 @@ task.spawn(function()
         RaidDD:Refresh(raidStages)
     end
 
-    -- Story = stages in LP.Stages that are NOT in rewardsData (non-raid/portal)
     if LP:FindFirstChild("Stages") then
         local excluded = {}
         for cat, catData in pairs(rewardsData) do
@@ -2582,16 +2372,14 @@ task.spawn(function()
                 for name in pairs(catData) do excluded[name] = true end
             end
         end
+        local storyStages = {}
         for _, stage in ipairs(LP.Stages:GetChildren()) do
-            if not excluded[stage.Name] then
-                storyStages[#storyStages+1] = stage.Name
-            end
+            if not excluded[stage.Name] then storyStages[#storyStages+1] = stage.Name end
         end
         table.sort(storyStages)
         StoryStageDD:Refresh(storyStages)
     end
 
-    -- Portal = items in LP.ItemsInventory ending with "(Portal)"
     if LP:FindFirstChild("ItemsInventory") then
         local portals = {}
         for _, item in ipairs(LP.ItemsInventory:GetChildren()) do
@@ -2614,30 +2402,26 @@ task.spawn(function()
     local function tryPick()
         if State.AutoPickCard and State.AutoPickCardSelected then
             task.wait(0.1)
-            pcall(function()
-                RS.PlayMode.Events.StageChallenge:FireServer(State.AutoPickCardSelected)
-            end)
+            pcall(function() RS.PlayMode.Events.StageChallenge:FireServer(State.AutoPickCardSelected) end)
         end
     end
     if gui.Enabled then tryPick() end
-    gui:GetPropertyChangedSignal("Enabled"):Connect(function()
-        if gui.Enabled then tryPick() end
-    end)
+    gui:GetPropertyChangedSignal("Enabled"):Connect(function() if gui.Enabled then tryPick() end end)
 end)
 
--- Zafkiel + Dio Presents + Chests remain as simple polling loops
+-- ============================================================
+-- MISC POLLING (Zafkiel, Dio Presents, Chests)
+-- ============================================================
 task.spawn(function()
     while true do
         task.wait(0.5)
         if State.AutoBreakZafkiel and not Util.isInLobby() then
             pcall(function()
-                local gs = Svc.Workspace:FindFirstChild("GameStates")
+                local gs   = Svc.Workspace:FindFirstChild("GameStates")
                 local main = Svc.Workspace:FindFirstChild("Main")
                 if not gs or not main then return end
                 for boolName, clockName in pairs({
-                    FirstClockActive="FirstClock",
-                    SecondClockActive="SecondClock",
-                    ThirdClockActive="ThirdClock",
+                    FirstClockActive="FirstClock", SecondClockActive="SecondClock", ThirdClockActive="ThirdClock",
                 }) do
                     local bv = gs:FindFirstChild(boolName, true)
                     if bv and bv.Value then
@@ -2659,7 +2443,7 @@ task.spawn(function()
 
         if State.AutoCollectDio and not Util.isInLobby() then
             pcall(function()
-                local dp = Svc.Workspace:FindFirstChild("DioPresents")
+                local dp  = Svc.Workspace:FindFirstChild("DioPresents")
                 if not dp then return end
                 local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
                 if not hrp then return end
@@ -2682,7 +2466,7 @@ task.spawn(function()
 
         if State.AutoCollectChests and not Util.isInLobby() then
             pcall(function()
-                local cf = Svc.Workspace:FindFirstChild("ChestSpawned")
+                local cf  = Svc.Workspace:FindFirstChild("ChestSpawned")
                 if not cf then return end
                 local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
                 if not hrp then return end
@@ -2711,20 +2495,20 @@ refreshMacroDD()
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
 
--- Restore ability dropdowns after config load
 task.spawn(function()
     task.wait(1.5)
+
+    -- Restore ability dropdowns
     local savedUnits = Rayfield.Flags["UnitAbilitySelector"]
     if savedUnits and #savedUnits > 0 then
         State.SelectedUnitsForAbility = savedUnits
-        -- Trigger unit dropdown callback to rebuild abilities
         UnitDD.Callback(savedUnits)
         task.wait(0.3)
         local savedAbilities = Rayfield.Flags["AbilitySelector"]
         if savedAbilities then State.SelectedAbilitiesToUse = savedAbilities end
     end
 
-    -- Restore playback state
+    -- Restore macro
     local savedMacro = Rayfield.Flags["MacroDropdown"]
     if type(savedMacro) == "table" then savedMacro = savedMacro[1] end
     if savedMacro and savedMacro ~= "" then
@@ -2740,8 +2524,8 @@ task.spawn(function()
         task.spawn(Macro.autoLoop)
         Macro.setStatus("Playback restored: " .. Macro.currentName)
     end
-    
-    -- Restore AutoPlay holograms
+
+    -- Restore holograms
     for i = 1, 6 do
         local pos = State.AutoPlayPositions[i]
         if pos and pos[1] and pos[2] and pos[3] then
@@ -2750,7 +2534,6 @@ task.spawn(function()
     end
 end)
 
--- Check if we joined mid-game
 if not Util.isInLobby() then
     local gs = Svc.Workspace:FindFirstChild("GameSettings")
     if gs and gs.Wave and gs.Wave.Value >= 1 then
