@@ -8,7 +8,7 @@
     - Event-driven where possible, minimal polling
     - Centralized State table
     - Reliable unit tracking via origin attribute
-    -autoplay7
+    -autoplay8
 --]]
 
 -- ============================================================
@@ -1079,7 +1079,7 @@ end
 
 -- ─── POSITION PERSISTENCE ────────────────────────────────────
 
-local POSITIONS_FILE = "LixHub/AutoPlay_Positions.json"
+local POSITIONS_FILE = "LixHub/"..LP.Name.."_AnimeGuardiansPos.json"
 
 function AutoPlay.savePositions()
     Util.ensureFolders()
