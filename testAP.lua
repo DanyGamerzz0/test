@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -updated69
+    -updated76
 --]]
 
 -- ============================================================
@@ -183,6 +183,12 @@ local State = {
     gameStartTime       = 0,
     lastChallengeCheck  = 0,
     newChallengeDetected= false,
+
+    AutoJoinDelay = 0,
+    AutoJoinDelayStart = nil,
+
+    AutoGoldShop = false,
+    GoldShopItems = {},
 }
 
 local Challenge = {
@@ -203,6 +209,21 @@ local PORTAL_MAP_NAMES = {
 local PORTAL_DISPLAY_NAMES = {
     { key = "Portal_JJK_Portal", label = "JJK Portal" },
     -- add more here
+}
+
+local GoldShop = {}
+
+local GOLD_SHOP_ITEMS = {
+    { id = "StatChip",      name = "Stat Chip",       cost = 1000  },
+    { id = "SuperStatChip", name = "Super Stat Chip",  cost = 2500  },
+    { id = "TraitRerolls",  name = "Trait Rerolls",    cost = 7500  },
+    { id = "GreenEssence",  name = "Green Essence",    cost = 1000  },
+    { id = "RedEssence",    name = "Red Essence",       cost = 2500  },
+    { id = "YellowEssence", name = "Yellow Essence",   cost = 2500  },
+    { id = "BlueEssence",   name = "Blue Essence",     cost = 2500  },
+    { id = "PurpleEssence", name = "Purple Essence",   cost = 2500  },
+    { id = "PinkEssence",   name = "Pink Essence",      cost = 2500  },
+    { id = "RainbowEssence",name = "Rainbow Essence",  cost = 15000 },
 }
 
 -- ============================================================
@@ -1670,7 +1691,17 @@ function AutoJoin.execute()
     if not AutoJoin.waitForClient() then return end
     
     -- Priority: Challenge > Story > Legend > Raid > Siege > Portal
-    
+    -- Delay logic
+    if State.AutoJoinDelay > 0 then
+        if not State.AutoJoinDelayStart then
+            State.AutoJoinDelayStart = tick()
+            debugPrint(string.format("[AutoJoin] Waiting %ds before joining...", State.AutoJoinDelay))
+            return
+        elseif (tick() - State.AutoJoinDelayStart) < State.AutoJoinDelay then
+            return
+        end
+    end
+    State.AutoJoinDelayStart = nil
     -- CHALLENGE
 
     if State.AutoJoinChallenge then
@@ -1753,11 +1784,66 @@ function AutoJoin.execute()
     end
 end
 
+function GoldShop.getGold()
+    local success, amount = pcall(function()
+        local text = LP.PlayerGui.MainHUD.BottomFrame.Currency.Gold.Amount.Text
+        return tonumber(text:gsub(",", "")) or 0
+    end)
+    return success and amount or 0
+end
+
+function GoldShop.getShopStock()
+    local success, stock = pcall(function()
+        return RS.Modules.Shared.Data.ShopConfigs.Gold
+    end)
+    return success and stock or nil
+end
+
+function GoldShop.buyItems()
+    if not State.AutoGoldShop then return end
+    if not Util.isInLobby() then return end
+    if not next(State.GoldShopItems) then return end
+
+    local gold = GoldShop.getGold()
+    debugPrint(string.format("[GoldShop] Current gold: %d", gold))
+
+    for _, item in ipairs(GOLD_SHOP_ITEMS) do
+        if not State.GoldShopItems[item.id] then continue end
+
+        if gold < item.cost then
+            debugPrint(string.format("[GoldShop] Not enough gold for %s (%d/%d)", item.name, gold, item.cost))
+            continue
+        end
+
+        local success, err = pcall(function()
+            RS.Remotes.RotatingShop:FireServer("Gold", item.id, 1)
+        end)
+
+        if success then
+            gold = gold - item.cost
+            debugPrint(string.format("[GoldShop] Bought %s (remaining gold: %d)", item.name, gold))
+            Util.notify("Gold Shop", string.format("Bought %s", item.name), 2)
+            task.wait(0.3)
+        else
+            debugPrint(string.format("[GoldShop] Failed to buy %s: %s", item.name, tostring(err)))
+        end
+    end
+end
+
 -- Auto-joiner loop
 task.spawn(function()
     while true do
         task.wait(0.5)
         AutoJoin.execute()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoGoldShop and Util.isInLobby() then
+            GoldShop.buyItems()
+        end
     end
 end)
 
@@ -2183,9 +2269,55 @@ Tabs.Lobby:CreateToggle({
     end,
 })
 
+Tabs.Lobby:CreateToggle({
+    Name = "Auto Buy Gold Shop",
+    Flag = "AutoGoldShop",
+    Callback = function(v)
+        State.AutoGoldShop = v
+    end,
+})
+
+local goldShopItemNames = {}
+for _, item in ipairs(GOLD_SHOP_ITEMS) do
+    table.insert(goldShopItemNames, item.name)
+end
+
+Tabs.Lobby:CreateDropdown({
+    Name = "Gold Shop Items",
+    Options = goldShopItemNames,
+    MultipleOptions = true,
+    Flag = "GoldShopItems",
+    Info = "Items to buy when available",
+    Callback = function(opts)
+        State.GoldShopItems = {}
+        for _, selectedName in ipairs(opts or {}) do
+            for _, item in ipairs(GOLD_SHOP_ITEMS) do
+                if item.name == selectedName then
+                    State.GoldShopItems[item.id] = true
+                    break
+                end
+            end
+        end
+    end,
+})
+
 -- ============================================================
 -- JOINER TAB
 -- ============================================================
+
+Tabs.Joiner:CreateSlider({
+    Name = "Auto Join Delay (seconds)",
+    Range = {0, 60},
+    Increment = 1,
+    Suffix = "s",
+    CurrentValue = 0,
+    Flag = "AutoJoinDelay",
+    Callback = function(v)
+        State.AutoJoinDelay = v
+        State.AutoJoinDelayStart = nil -- reset if changed mid-wait
+    end,
+})
+
 Tabs.Joiner:CreateToggle({
     Name = "Auto Join Story",
     Flag = "AutoJoinStory",
