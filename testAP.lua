@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -removed2
+    -updated1
 --]]
 
 -- ============================================================
@@ -184,6 +184,14 @@ local State = {
     lastChallengeCheck  = 0,
     newChallengeDetected= false,
 }
+
+local Challenge = {
+    modules = nil,
+}
+
+local Webhook = {}
+
+local AutoSelectDropdowns = {}
 
 -- ============================================================
 -- UTILITY HELPERS
@@ -1033,6 +1041,12 @@ function Macro.playOnce()
         Macro.setDetail("No macro selected")
         return false
     end
+
+    local worldMacro = Macro.getCurrentWorld()
+    if worldMacro and worldMacro ~= "" then
+        Macro.currentName = worldMacro
+        debugPrint("Using world-specific macro: " .. worldMacro)
+    end
     
     local actions = Macro.loadFromFile(Macro.currentName)
     if not actions or #actions == 0 then
@@ -1177,6 +1191,73 @@ function Macro.autoLoop()
     Macro.setStatus("Playback Stopped")
     Macro.setDetail("Ready")
     Macro.loopRunning = false
+end
+
+function Macro.saveWorldMappings()
+    local filePath = "LixHub/" .. LP.Name .. "_WorldMappings_AP.json"
+    Util.ensureFolders()
+    
+    local data = {
+        mappings = Macro.worldMappings or {}
+    }
+    
+    writefile(filePath, Svc.HttpService:JSONEncode(data))
+    debugPrint("Saved world macro mappings")
+end
+
+function Macro.loadWorldMappings()
+    local filePath = "LixHub/" .. LP.Name .. "_WorldMappings_AP.json"
+    
+    if not isfile(filePath) then 
+        Macro.worldMappings = {}
+        return 
+    end
+    
+    local success, data = pcall(function()
+        local json = readfile(filePath)
+        return Svc.HttpService:JSONDecode(json)
+    end)
+    
+    if success and data and data.mappings then
+        Macro.worldMappings = data.mappings
+        debugPrint("Loaded world macro mappings")
+    else
+        Macro.worldMappings = {}
+    end
+end
+
+function Macro.getCurrentWorld()
+    local success, gameConfig = pcall(function()
+        return RS.GameConfig
+    end)
+    
+    if not success or not gameConfig then
+        return nil
+    end
+    
+    local map = gameConfig:FindFirstChild("Map")
+    local stageType = gameConfig:FindFirstChild("StageType")
+    
+    if not map or not stageType then
+        return nil
+    end
+    
+    local mapValue = map.Value
+    local stageTypeValue = stageType.Value
+    
+    local key = nil
+    
+    if stageTypeValue == "Portal" then
+        -- For portals, extract base name from map
+        local baseName = mapValue:match("^(.+)_Lv") or mapValue
+        key = "Portal_" .. baseName
+    else
+        key = string.format("%s_%s", mapValue, stageTypeValue)
+    end
+    
+    debugPrint(string.format("Current world key: %s (Map: %s, Type: %s)", key, mapValue, stageTypeValue))
+    
+    return Macro.worldMappings[key]
 end
 
 debugPrint("✓ Core modules loaded")
@@ -1353,6 +1434,232 @@ function AutoJoin.getHighestPortal()
     return highestPortal
 end
 
+function Challenge.init()
+    if Challenge.modules then return true end
+    
+    local success = pcall(function()
+        Challenge.modules = {
+            PeriodKeys = require(LP.PlayerScripts.ClientCache.Handlers.UIHandler.Pods.PodsMapSelection.PeriodKeys),
+            ReplicaHandler = require(RS.Modules.Shared.Handlers.ReplicaHandler)
+        }
+    end)
+    
+    if not success then
+        warn("Failed to initialize challenge system")
+        return false
+    end
+    
+    debugPrint("✓ Challenge system initialized")
+    return true
+end
+
+function Challenge.isCompleted(challengeType, challengeFolder)
+    if not challengeFolder or not challengeFolder:IsA("Folder") then
+        return true
+    end
+    
+    if not Challenge.init() then
+        return false
+    end
+    
+    local challengeIndex = tonumber(challengeFolder.Name)
+    if not challengeIndex then
+        warn("Invalid challenge folder name:", challengeFolder.Name)
+        return true
+    end
+    
+    local success, playerData = pcall(function()
+        return Challenge.modules.ReplicaHandler:RequestPlayerData(LP)
+    end)
+    
+    if not success or not playerData or not playerData.Challenges then
+        warn("Failed to get player challenge data")
+        return false
+    end
+    
+    local challenges = playerData.Challenges
+    local currentKey = nil
+    local challengeData = nil
+    
+    if challengeType == "Weekly" then
+        currentKey = Challenge.modules.PeriodKeys.GetCurrentWeekKey()
+        challengeData = challenges.Weekly[challengeIndex]
+    elseif challengeType == "Daily" then
+        currentKey = Challenge.modules.PeriodKeys.GetCurrentDayKey()
+        challengeData = challenges.Daily[challengeIndex]
+    elseif challengeType == "Regular" then
+        currentKey = Challenge.modules.PeriodKeys.GetCurrentHourKey()
+        challengeData = challenges.Regular[challengeIndex]
+    else
+        warn("Unknown challenge type:", challengeType)
+        return false
+    end
+    
+    local isCompleted = (type(challengeData) == "string" and challengeData == currentKey)
+    
+    debugPrint(string.format(
+        "%s Challenge %d: %s",
+        challengeType,
+        challengeIndex,
+        isCompleted and "COMPLETED" or "AVAILABLE"
+    ))
+    
+    return isCompleted
+end
+
+function Challenge.passesFilters(challengeFolder, challengeType)
+    if not challengeFolder or not challengeFolder:IsA("Folder") then
+        return false
+    end
+    
+    local stageNameObj = challengeFolder:FindFirstChild("StageName")
+    local modifierObj = challengeFolder:FindFirstChild("Modifier")
+    local rewardsFolder = challengeFolder:FindFirstChild("Rewards")
+    
+    if not stageNameObj then
+        return false
+    end
+    
+    -- Check challenge type filter
+    if State.ChallengeType and State.ChallengeType ~= "" then
+        if challengeType ~= State.ChallengeType then
+            return false
+        end
+    end
+    
+    -- Check ignore worlds
+    if State.IgnoreWorlds and #State.IgnoreWorlds > 0 then
+        local stageName = stageNameObj.Value
+        
+        for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
+            if stageName == ignoredWorld then
+                return false
+            end
+        end
+    end
+    
+    -- Check ignore modifiers
+    if State.IgnoreModifiers and #State.IgnoreModifiers > 0 and modifierObj then
+        local modifierValue = modifierObj.Value
+        if modifierValue and modifierValue ~= "" then
+            for _, ignoredModifier in ipairs(State.IgnoreModifiers) do
+                if modifierValue == ignoredModifier then
+                    return false
+                end
+            end
+        end
+    end
+    
+    -- Check rewards filter
+    if State.ChallengeRewards and #State.ChallengeRewards > 0 and rewardsFolder then
+        local hasMatchingReward = false
+        
+        for _, rewardObj in pairs(rewardsFolder:GetChildren()) do
+            local rewardName = rewardObj.Name
+            
+            for _, filteredReward in ipairs(State.ChallengeRewards) do
+                local normalizedReward = filteredReward:gsub(" ", "")
+                if rewardName == filteredReward or 
+                   rewardName == normalizedReward or 
+                   rewardName:find(filteredReward) or
+                   filteredReward:find(rewardName) then
+                    hasMatchingReward = true
+                    break
+                end
+            end
+            
+            if hasMatchingReward then
+                break
+            end
+        end
+        
+        if not hasMatchingReward then
+            return false
+        end
+    end
+    
+    return true
+end
+
+function Challenge.findAndJoin()
+    local challengesFolder = RS:FindFirstChild("Challenges")
+    if not challengesFolder then
+        warn("Challenges folder not found!")
+        return false
+    end
+    
+    for _, typeFolder in pairs(challengesFolder:GetChildren()) do
+        if typeFolder:IsA("Folder") then
+            local challengeType = typeFolder.Name
+            
+            for _, challengeFolder in pairs(typeFolder:GetChildren()) do
+                if challengeFolder:IsA("Folder") and Challenge.passesFilters(challengeFolder, challengeType) then
+                    
+                    if Challenge.isCompleted(challengeType, challengeFolder) then
+                        debugPrint(string.format("Skipping completed %s challenge", challengeType))
+                        continue
+                    end
+                    
+                    local idObj = challengeFolder:FindFirstChild("ID")
+                    local stageNameObj = challengeFolder:FindFirstChild("StageName")
+                    local actObj = challengeFolder:FindFirstChild("Act")
+                    local stageTypeObj = challengeFolder:FindFirstChild("StageType")
+                    local challengeNameObj = challengeFolder:FindFirstChild("ChallengeName")
+                    
+                    if not idObj or not stageNameObj or not actObj then
+                        continue
+                    end
+                    
+                    local id = idObj.Value
+                    local stageName = stageNameObj.Value
+                    local act = tostring(actObj.Value)
+                    local stageType = stageTypeObj and stageTypeObj.Value or "Story"
+                    local challengeName = challengeNameObj and challengeNameObj.Value or challengeFolder.Name
+                    
+                    debugPrint(string.format("Joining challenge: %s (%s)", challengeName, challengeType))
+                    
+                    local success = pcall(function()
+                        RS.Remotes.Pod:FireServer(
+                            "Create",
+                            stageName,
+                            stageType,
+                            act,
+                            false,
+                            "Normal",
+                            {
+                                ID = id,
+                                Type = challengeType
+                            }
+                        )
+                        RS.Remotes.Pod:FireServer("Start")
+                    end)
+                    
+                    if success then
+                        Util.notify("Challenge Started", string.format("%s: %s", challengeType, challengeName), 3)
+                        State.newChallengeDetected = false
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    
+    debugPrint("No valid challenges found")
+    return false
+end
+
+function Challenge.checkForNew()
+    local currentTime = os.time()
+    local currentDate = os.date("*t", currentTime)
+    
+    if currentDate.min <= 1 and currentTime - State.lastChallengeCheck > 300 then
+        State.lastChallengeCheck = currentTime
+        State.newChallengeDetected = true
+        debugPrint("New hour - new challenges may be available")
+        Util.notify("New Challenges", "New challenges available!", 3)
+    end
+end
+
 -- Execute highest priority auto-join
 function AutoJoin.execute()
     if not AutoJoin.canAct() then return end
@@ -1360,7 +1667,21 @@ function AutoJoin.execute()
     
     -- Priority: Challenge > Story > Legend > Raid > Siege > Portal
     
-    -- CHALLENGE (skipped for now - complex, will add later)
+    -- CHALLENGE
+
+    if State.AutoJoinChallenge then
+        AutoJoin.begin("Challenge")
+        
+        local success = Challenge.findAndJoin()
+        
+        if success then
+            AutoJoin.finish()
+            return
+        else
+            -- No valid challenges, continue to other auto-joins
+            AutoJoin.processing = false
+        end
+    end
     
     -- STORY
     if State.AutoJoinStory and State.StoryStage and State.StoryAct and State.StoryDifficulty then
@@ -1559,6 +1880,192 @@ local function handleEndGame()
     warn("All auto end game actions failed")
 end
 
+function Webhook.send(messageType, stageInfo, playerStats, rewardsData, playerData)
+    if not State.WebhookURL or State.WebhookURL == "" then
+        return
+    end
+    
+    local data
+    
+    if messageType == "test" then
+        data = {
+            username = "LixHub",
+            content = State.DiscordUserID and string.format("<@%s>", State.DiscordUserID) or "",
+            embeds = {{
+                title = "Webhook Test",
+                description = "Test webhook sent successfully!",
+                color = 0x5865F2,
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+        
+    elseif messageType == "game_end" then
+        local playerName = "||" .. LP.Name .. "||"
+        
+        local didWin = stageInfo and stageInfo.Result == "Win"
+        local resultText = didWin and "Victory" or "Defeat"
+        local embedColor = didWin and 0x57F287 or 0xED4245
+        
+        local stageName = (stageInfo and stageInfo.StageName or "Unknown"):gsub("_", " ")
+        local actName = stageInfo and stageInfo.ActName or "Unknown Act"
+        local difficulty = stageInfo and stageInfo.Difficulty or "Normal"
+        
+        local stageTitle = didWin and "Stage Completed!" or "Stage Failed"
+        local stageSubtitle = string.format("%s - %s (%s) - %s", 
+            stageName, actName, difficulty, resultText
+        )
+        
+        local playTime = stageInfo and stageInfo.PlayTime or 0
+        local minutes = math.floor(playTime / 60)
+        local seconds = playTime % 60
+        local timeText = string.format("%dm %ds", minutes, seconds)
+        
+        -- Get current totals
+        local currentGems = 0
+        local currentGold = 0
+        local currentItems = {}
+        
+        if playerData and playerData.ClientData then
+            currentGems = playerData.ClientData.Gems or 0
+            currentGold = playerData.ClientData.Gold or 0
+            
+            for key, value in pairs(playerData.ClientData) do
+                if type(value) == "number" and key ~= "Gems" and key ~= "Gold" then
+                    currentItems[key] = value
+                end
+            end
+        end
+        
+        if playerData and playerData.Inventory and playerData.Inventory.Items then
+            for itemId, itemData in pairs(playerData.Inventory.Items) do
+                if itemData.BaseDataRef and itemData.Amount then
+                    if not currentItems[itemData.BaseDataRef] then
+                        currentItems[itemData.BaseDataRef] = itemData.Amount
+                    end
+                end
+            end
+        end
+        
+        -- Check for unit drops
+        local unitsDropped = {}
+        local unitCounts = {}
+        local shouldPingUser = false
+        
+        if rewardsData then
+            for itemName, value in pairs(rewardsData) do
+                if value == "Unit" then
+                    shouldPingUser = true
+                    
+                    local newestUnit = nil
+                    local newestCreated = 0
+                    
+                    if playerData and playerData.Inventory and playerData.Inventory.Units then
+                        for unitGUID, unitData in pairs(playerData.Inventory.Units) do
+                            if unitData.Name == itemName and unitData.Created then
+                                if unitData.Created > newestCreated then
+                                    newestCreated = unitData.Created
+                                    newestUnit = unitData
+                                end
+                            end
+                        end
+                    end
+                    
+                    local unitDisplayName = itemName
+                    if newestUnit and newestUnit.Shiny then
+                        unitDisplayName = "[Shiny] " .. itemName
+                    end
+                    
+                    unitCounts[unitDisplayName] = (unitCounts[unitDisplayName] or 0) + 1
+                end
+            end
+        end
+        
+        for unitName, count in pairs(unitCounts) do
+            table.insert(unitsDropped, {name = unitName, count = count})
+        end
+        
+        -- Format rewards
+        local rewardsText = ""
+        
+        if rewardsData then
+            if rewardsData.Gems and rewardsData.Gems > 0 then
+                rewardsText = rewardsText .. string.format("+%d Gems [%d]\n", rewardsData.Gems, currentGems)
+            end
+            
+            if rewardsData.Gold and rewardsData.Gold > 0 then
+                rewardsText = rewardsText .. string.format("+%d Gold [%d]\n", rewardsData.Gold, currentGold)
+            end
+            
+            if #unitsDropped > 0 then
+                for _, unitData in ipairs(unitsDropped) do
+                    rewardsText = rewardsText .. string.format("+%d %s\n", unitData.count, unitData.name)
+                end
+            end
+            
+            for itemName, amount in pairs(rewardsData) do
+                if itemName ~= "Gems" and itemName ~= "Gold" and type(amount) == "number" and amount > 0 then
+                    local currentTotal = currentItems[itemName] or 0
+                    rewardsText = rewardsText .. string.format("+%d %s [%d]\n", amount, itemName, currentTotal)
+                end
+            end
+        end
+        
+        if rewardsText == "" then
+            rewardsText = "No rewards"
+        else
+            rewardsText = rewardsText:gsub("\n$", "")
+        end
+        
+        local macroText = "None"
+        if Macro.isPlaying and Macro.currentName then
+            macroText = Macro.currentName
+        end
+        
+        local fields = {
+            { name = "Player", value = playerName, inline = true },
+            { name = "Duration", value = timeText, inline = true },
+            { name = "Macro", value = macroText, inline = true },
+            { name = "Rewards", value = rewardsText, inline = false },
+        }
+        
+        local webhookContent = ""
+        if shouldPingUser and State.DiscordUserID then
+            webhookContent = string.format("<@%s>", State.DiscordUserID)
+        end
+        
+        data = {
+            username = "LixHub",
+            content = webhookContent,
+            embeds = {{
+                title = stageTitle,
+                description = stageSubtitle,
+                color = embedColor,
+                fields = fields,
+                footer = { text = "discord.gg/cYKnXE2Nf8" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+    end
+    
+    if not data then return end
+    
+    local payload = Svc.HttpService:JSONEncode(data)
+    
+    local resp = Util.httpRequest({
+        Url = State.WebhookURL,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = payload
+    })
+    
+    if resp and (resp.StatusCode == 204 or resp.StatusCode == 200) then
+        debugPrint("Webhook sent successfully")
+    else
+        warn("Webhook failed:", resp and resp.StatusCode or "No response")
+    end
+end
+
 -- ============================================================
 -- GAME TRACKING
 -- ============================================================
@@ -1580,6 +2087,40 @@ local function onGameEnd()
     if Macro.isRecording and Macro.hasStarted then
         Macro.stopRecording(true)
     end
+
+    if State.SendOnFinish then
+     task.spawn(function()
+         -- Get player data for webhook
+         local playerData = nil
+         pcall(function()
+             for _, obj in pairs(getgc(true)) do
+                 if type(obj) ~= "table" then continue end
+                 local reqFunc = rawget(obj, "RequestPlayerData")
+                 if type(reqFunc) == "function" then
+                     playerData = reqFunc(obj, LP)
+                     return
+                 end
+             end
+         end)
+         
+         -- Build stage info
+         local stageInfo = {
+             Result = "Unknown",
+             StageName = "Unknown",
+             ActName = "Unknown",
+             Difficulty = "Normal",
+             PlayTime = 0
+         }
+         
+         -- Try to get actual stage info from GameConfig
+         pcall(function()
+             stageInfo.StageName = RS.GameConfig.Map.Value
+             stageInfo.PlayTime = math.floor(tick() - State.gameStartTime)
+         end)
+         
+         Webhook.send("game_end", stageInfo, nil, nil, playerData)
+     end)
+end
     
     -- Handle end game actions
     task.spawn(function()
@@ -1588,6 +2129,122 @@ local function onGameEnd()
     end)
     
     debugPrint("[Game] Ended")
+end
+
+local function createAutoSelectUI()
+    debugPrint("Creating auto-select UI...")
+    
+    local macroOptions = {"None"}
+    for macroName in pairs(Macro.library) do
+        table.insert(macroOptions, macroName)
+    end
+    table.sort(macroOptions)
+    
+    -- Create collapsibles
+    local collapsibles = {
+        Story = Tabs.Macro:CreateCollapsible({
+            Name = "Story Auto-Select",
+            DefaultExpanded = false,
+            Flag = "StoryAutoSelect"
+        }),
+        Legend = Tabs.Macro:CreateCollapsible({
+            Name = "Legend Auto-Select",
+            DefaultExpanded = false,
+            Flag = "LegendAutoSelect"
+        }),
+        Raid = Tabs.Macro:CreateCollapsible({
+            Name = "Raid Auto-Select",
+            DefaultExpanded = false,
+            Flag = "RaidAutoSelect"
+        }),
+        Siege = Tabs.Macro:CreateCollapsible({
+            Name = "Siege Auto-Select",
+            DefaultExpanded = false,
+            Flag = "SiegeAutoSelect"
+        }),
+        Portal = Tabs.Macro:CreateCollapsible({
+            Name = "Portal Auto-Select",
+            DefaultExpanded = false,
+            Flag = "PortalAutoSelect"
+        }),
+    }
+    
+    -- Create dropdowns for each category
+    for category, worlds in pairs(StageData) do
+        if category == "challenge" then continue end
+        
+        local categoryName = category:sub(1,1):upper() .. category:sub(2)
+        local collapsible = collapsibles[categoryName]
+        
+        if not collapsible then continue end
+        
+        if category == "portal" then
+            -- Group portals by base name
+            local portalTypes = {}
+            for itemId, portalData in pairs(worlds) do
+                local baseName = portalData.displayName:match("^(.+)%s+Lv%.%d+$") or portalData.displayName
+                
+                if not portalTypes[baseName] then
+                    portalTypes[baseName] = true
+                end
+            end
+            
+            for baseName in pairs(portalTypes) do
+                local key = "Portal_" .. baseName:gsub(" ", "_")
+                
+                local currentMapping = Macro.worldMappings[key] or "None"
+                
+                local dropdown = collapsible.Tab:CreateDropdown({
+                    Name = baseName,
+                    Options = macroOptions,
+                    CurrentOption = {currentMapping},
+                    Flag = "AutoSelect_" .. key,
+                    Callback = function(opt)
+                        local selected = type(opt) == "table" and opt[1] or opt
+                        
+                        if selected == "None" then
+                            Macro.worldMappings[key] = nil
+                        else
+                            Macro.worldMappings[key] = selected
+                        end
+                        
+                        Macro.saveWorldMappings()
+                    end,
+                })
+                
+                AutoSelectDropdowns[key] = dropdown
+            end
+        else
+            -- Regular worlds
+            for internalName, worldData in pairs(worlds) do
+                local key = string.format("%s_%s", internalName, categoryName)
+                
+                local currentMapping = Macro.worldMappings[key] or "None"
+                
+                local dropdown = collapsible.Tab:CreateDropdown({
+                    Name = worldData.displayName,
+                    Options = macroOptions,
+                    CurrentOption = {currentMapping},
+                    Flag = "AutoSelect_" .. key,
+                    Callback = function(opt)
+                        local selected = type(opt) == "table" and opt[1] or opt
+                        
+                        if selected == "None" then
+                            Macro.worldMappings[key] = nil
+                        else
+                            Macro.worldMappings[key] = selected
+                        end
+                        
+                        Macro.saveWorldMappings()
+                    end,
+                })
+                
+                AutoSelectDropdowns[key] = dropdown
+            end
+        end
+    end
+    
+    debugPrint("✓ Auto-select UI created")
 end
 
 -- Wave tracking
@@ -1877,6 +2534,78 @@ Tabs.Joiner:CreateToggle({
     end,
 })
 
+Tabs.Joiner:CreateDivider()
+
+Tabs.Joiner:CreateToggle({
+    Name = "Auto Join Challenge",
+    Flag = "AutoJoinChallenge",
+    Callback = function(v)
+        State.AutoJoinChallenge = v
+    end,
+})
+
+local ChallengeTypeDD = Tabs.Joiner:CreateDropdown({
+    Name = "Challenge Type",
+    Options = {"Regular", "Daily", "Weekly"},
+    MultipleOptions = false,
+    Flag = "ChallengeType",
+    Callback = function(selected)
+        State.ChallengeType = type(selected) == "table" and selected[1] or selected
+    end,
+})
+
+local ChallengeRewardsDD = Tabs.Joiner:CreateDropdown({
+    Name = "Filter by Rewards",
+    Options = {"Red Essence", "Blue Essence", "Green Essence", "Yellow Essence", "Purple Essence", "Pink Essence", "Rainbow Essence", "Stat Chip", "Super Stat Chip", "Trait Rerolls", "Gold", "Gems"},
+    MultipleOptions = true,
+    Flag = "ChallengeRewards",
+    Info = "Only join challenges with these rewards",
+    Callback = function(opts)
+        State.ChallengeRewards = opts or {}
+    end,
+})
+
+local IgnoreWorldsDD = Tabs.Joiner:CreateDropdown({
+    Name = "Ignore Worlds",
+    Options = {},
+    MultipleOptions = true,
+    Flag = "IgnoreWorlds",
+    Info = "Skip challenges from these worlds",
+    Callback = function(opts)
+        State.IgnoreWorlds = {}
+        
+        -- Convert display names to internal names
+        for _, displayName in ipairs(opts or {}) do
+            for internalName, worldData in pairs(StageData.story) do
+                if worldData.displayName == displayName then
+                    table.insert(State.IgnoreWorlds, internalName)
+                    break
+                end
+            end
+        end
+    end,
+})
+
+local IgnoreModifiersDD = Tabs.Joiner:CreateDropdown({
+    Name = "Ignore Modifiers",
+    Options = {"Armor", "Speed", "Damage", "Health", "Regeneration"},
+    MultipleOptions = true,
+    Flag = "IgnoreModifiers",
+    Info = "Skip challenges with these modifiers",
+    Callback = function(opts)
+        State.IgnoreModifiers = opts or {}
+    end,
+})
+
+Tabs.Joiner:CreateToggle({
+    Name = "Return to Lobby on New Challenge",
+    Flag = "ReturnToLobbyOnNew",
+    Info = "Returns to lobby when new challenges appear",
+    Callback = function(v)
+        State.ReturnToLobbyOnNew = v
+    end,
+})
+
 -- ============================================================
 -- GAME TAB
 -- ============================================================
@@ -1991,10 +2720,25 @@ Tabs.Macro:CreateInput({
 Tabs.Macro:CreateButton({
     Name = "Refresh Macro List",
     Callback = function()
-        Macro.loadAll()
-        MacroDD:Refresh(Macro.getNames())
-        Util.notify("Refreshed", "Macro list updated", 2)
-    end,
+     Macro.loadAll()
+     MacroDD:Refresh(Macro.getNames())
+     
+     -- Also refresh auto-select dropdowns
+     local macroOptions = {"None"}
+     for macroName in pairs(Macro.library) do
+         table.insert(macroOptions, macroName)
+     end
+     table.sort(macroOptions)
+     
+     for key, dropdown in pairs(AutoSelectDropdowns) do
+         if dropdown then
+             local currentMapping = Macro.worldMappings[key] or "None"
+             dropdown:Refresh(macroOptions, currentMapping)
+         end
+     end
+     
+     Util.notify("Refreshed", "Macro list updated", 2)
+ end,
 })
 
 Tabs.Macro:CreateButton({
@@ -2360,6 +3104,8 @@ Tabs.Macro:CreateButton({
     end,
 })
 
+Tabs.Macro:CreateDivider()
+
 -- ============================================================
 -- WEBHOOK TAB
 -- ============================================================
@@ -2394,13 +3140,13 @@ Tabs.Webhook:CreateToggle({
 Tabs.Webhook:CreateButton({
     Name = "Test Webhook",
     Callback = function()
-        if State.WebhookURL then
-            -- Add webhook test function here
-            Util.notify("Webhook", "Test sent!", 2)
-        else
-            Util.notify("Error", "No webhook URL set", 3)
-        end
-    end,
+     if State.WebhookURL then
+         Webhook.send("test")
+         Util.notify("Webhook", "Test sent!", 2)
+     else
+         Util.notify("Error", "No webhook URL set", 3)
+     end
+ end,
 })
 
 -- ============================================================
@@ -2409,6 +3155,17 @@ Tabs.Webhook:CreateButton({
 Util.ensureFolders()
 Macro.loadAll()
 MacroDD:Refresh(Macro.getNames())
+Macro.loadWorldMappings()
+Challenge.init()
+
+task.spawn(function()
+    while true do
+        task.wait(60)
+        if State.AutoJoinChallenge then
+            Challenge.checkForNew()
+        end
+    end
+end)
 
 -- Load stage data
 task.spawn(function()
@@ -2446,8 +3203,10 @@ task.spawn(function()
             LegendStageDD:Refresh(legendList)
             RaidStageDD:Refresh(raidList)
             SiegeStageDD:Refresh(siegeList)
+            IgnoreWorldsDD:Refresh(storyList)
             
             debugPrint("✓ Stage dropdowns populated")
+            createAutoSelectUI()
             
             -- Load portals async
             task.spawn(function()
@@ -2461,6 +3220,7 @@ task.spawn(function()
                     
                     PortalStageDD:Refresh(portalList)
                     debugPrint(string.format("✓ Portal dropdown refreshed with %d portals", #portalList))
+                    createAutoSelectUI()
                 end
             end)
             
