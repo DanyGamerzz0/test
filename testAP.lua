@@ -1,19 +1,3 @@
---[[
-    LixHub - Anime Paradox
-    Full Rewrite - Clean Modular Architecture
-    
-    Design principles:
-    - All logic lives in module tables, not locals → no 200 local limit
-    - Single __namecall hook
-    - Event-driven where possible, minimal polling
-    - Centralized State table
-    - Reliable unit tracking
-    - PC executor compatible
---]]
-
--- ============================================================
--- EXECUTOR CHECK
--- ============================================================
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
     and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED")
@@ -213,16 +197,16 @@ local PORTAL_DISPLAY_NAMES = {
 local GoldShop = {}
 
 local GOLD_SHOP_ITEMS = {
-    { id = "StatChip",      name = "Stat Chip",       cost = 1000  },
-    { id = "SuperStatChip", name = "Super Stat Chip",  cost = 2500  },
-    { id = "TraitRerolls",  name = "Trait Rerolls",    cost = 7500  },
-    { id = "GreenEssence",  name = "Green Essence",    cost = 1000  },
-    { id = "RedEssence",    name = "Red Essence",       cost = 2500  },
-    { id = "YellowEssence", name = "Yellow Essence",   cost = 2500  },
-    { id = "BlueEssence",   name = "Blue Essence",     cost = 2500  },
-    { id = "PurpleEssence", name = "Purple Essence",   cost = 2500  },
-    { id = "PinkEssence",   name = "Pink Essence",      cost = 2500  },
-    { id = "RainbowEssence",name = "Rainbow Essence",  cost = 15000 },
+    { id = "StatChip",       name = "Stat Chip",      cost = 1000,  maxStock = 10 },
+    { id = "SuperStatChip",  name = "Super Stat Chip", cost = 2500,  maxStock = 10 },
+    { id = "TraitRerolls",   name = "Trait Rerolls",   cost = 7500,  maxStock = 3  },
+    { id = "GreenEssence",   name = "Green Essence",   cost = 1000,  maxStock = 15 },
+    { id = "RedEssence",     name = "Red Essence",     cost = 2500,  maxStock = 3  },
+    { id = "YellowEssence",  name = "Yellow Essence",  cost = 2500,  maxStock = 3  },
+    { id = "BlueEssence",    name = "Blue Essence",    cost = 2500,  maxStock = 3  },
+    { id = "PurpleEssence",  name = "Purple Essence",  cost = 2500,  maxStock = 3  },
+    { id = "PinkEssence",    name = "Pink Essence",    cost = 2500,  maxStock = 3  },
+    { id = "RainbowEssence", name = "Rainbow Essence", cost = 15000, maxStock = 1  },
 }
 
 -- ============================================================
@@ -1814,14 +1798,21 @@ function GoldShop.buyItems()
             continue
         end
 
+        -- Calculate how many we can afford up to maxstock
+        local maxAffordable = math.floor(gold / item.cost)
+        local quantity = math.min(maxAffordable, item.maxStock)
+
+        if quantity <= 0 then continue end
+
         local success, err = pcall(function()
-            RS.Remotes.RotatingShop:FireServer("Gold", item.id, 1)
+            RS.Remotes.Shop:FireServer("Buy", "Gold", item.id, quantity)
         end)
 
         if success then
-            gold = gold - item.cost
-            debugPrint(string.format("[GoldShop] Bought %s (remaining gold: %d)", item.name, gold))
-            Util.notify("Gold Shop", string.format("Bought %s", item.name), 2)
+            local spent = item.cost * quantity
+            gold = gold - spent
+            debugPrint(string.format("[GoldShop] Bought %dx %s for %d gold (remaining: %d)", quantity, item.name, spent, gold))
+            Util.notify("Gold Shop", string.format("Bought %dx %s", quantity, item.name), 2)
             task.wait(0.3)
         else
             debugPrint(string.format("[GoldShop] Failed to buy %s: %s", item.name, tostring(err)))
