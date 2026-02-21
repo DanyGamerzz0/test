@@ -9,6 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
+    -removed1
 --]]
 
 -- ============================================================
@@ -1931,6 +1932,19 @@ Tabs.Game:CreateToggle({
     end,
 })
 
+Tabs.Game:CreateToggle({
+   Name = "Disable game popups",
+   CurrentValue = false,
+   Flag = "RemoveGamePopups",
+   Callback = function(v)
+        if v then
+            if not Util.isInLobby() then
+                game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("ViewNew"):Destroy()
+            end
+        end
+   end,
+})
+
 -- ============================================================
 -- MACRO TAB
 -- ============================================================
@@ -2036,6 +2050,10 @@ local RecordToggle = Tabs.Macro:CreateToggle({
             end
             
             local currentWave = Util.getWave()
+
+            for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.GameHUD.VoteSkipFrame.BTNs.Yes.Activated)) do
+                connection:Fire()
+            end
             
             if currentWave >= 1 then
                 Macro.isRecording = true
@@ -2098,6 +2116,10 @@ local PlaybackToggle = Tabs.Macro:CreateToggle({
             Macro.isPlaying = true
             Macro.setStatus("Playback Enabled - Starting game...")
             Util.notify("Playback Enabled", "Macro playback enabled")
+
+            for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.GameHUD.VoteSkipFrame.BTNs.Yes.Activated)) do
+                connection:Fire()
+            end
             
             task.spawn(Macro.autoLoop)
         else
@@ -2211,6 +2233,99 @@ Tabs.Macro:CreateInput({
         
         MacroDD:Refresh(Macro.getNames(), name)
         Util.notify("Import Success", string.format("'%s' imported (%d actions)!", name, #actions), 3)
+    end,
+})
+
+Tabs.Macro:CreateButton({
+    Name = "Export via Webhook",
+    Callback = function()
+        if not Macro.currentName or Macro.currentName == "" then
+        Util.notify("Webhook Error", "No macro selected.", 3)
+        return
+    end
+    
+    if not State.WebhookURL then
+        Util.notify("Webhook Error", "No webhook URL configured.\nSet it in the Webhook tab.", 4)
+        return
+    end
+    
+    local macroData = Macro.library[Macro.currentName] or Macro.loadFromFile(Macro.currentName)
+    if not macroData or #macroData == 0 then
+        Util.notify("Webhook Error", "Selected macro is empty.", 3)
+        return
+    end
+    
+    -- Collect unique units and their counts
+    local unitCounts = {}
+    for _, action in ipairs(macroData) do
+        if action.Type == "spawn_unit" and action.Unit then
+            local baseUnitName = action.Unit:match("^(.+) #%d+$") or action.Unit
+            unitCounts[baseUnitName] = (unitCounts[baseUnitName] or 0) + 1
+        end
+    end
+    
+    -- Build sorted units list string
+    local unitsList = {}
+    for unitName in pairs(unitCounts) do
+        table.insert(unitsList, unitName)
+    end
+    table.sort(unitsList)
+    local unitsText = #unitsList > 0 and table.concat(unitsList, ", ") or "None"
+    
+    -- Encode macro data
+    local jsonData = Svc.HttpService:JSONEncode(macroData)
+    local fileName = Macro.currentName .. ".json"
+    
+    -- Build multipart form body
+    local boundary = "----LixHubBoundary" .. tostring(math.floor(tick()))
+    local CRLF = "\r\n"
+    local body = ""
+    
+    -- Payload JSON part (message content)
+    body = body .. "--" .. boundary .. CRLF
+    body = body .. "Content-Disposition: form-data; name=\"payload_json\"" .. CRLF
+    body = body .. "Content-Type: application/json" .. CRLF .. CRLF
+    body = body .. Svc.HttpService:JSONEncode({
+        content = string.format("**Macro:** `%s` | **Actions:** %d | **Units:** %s", 
+            Macro.currentName, #macroData, unitsText)
+    }) .. CRLF
+    
+    -- File attachment part
+    body = body .. "--" .. boundary .. CRLF
+    body = body .. string.format("Content-Disposition: form-data; name=\"files[0]\"; filename=\"%s\"", fileName) .. CRLF
+    body = body .. "Content-Type: application/json" .. CRLF .. CRLF
+    body = body .. jsonData .. CRLF
+    
+    -- Close boundary
+    body = body .. "--" .. boundary .. "--" .. CRLF
+    
+    -- Send request
+    local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+    if not requestFunc then
+        Util.notify("Webhook Error", "No HTTP request function available.", 3)
+        return
+    end
+    
+    Util.notify("Webhook", "Sending macro...", 2)
+    
+    local success, result = pcall(function()
+        return requestFunc({
+            Url = State.WebhookURL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
+                ["User-Agent"] = "LixHub-Webhook/1.0"
+            },
+            Body = body
+        })
+    end)
+    
+    if success and result and result.StatusCode and result.StatusCode >= 200 and result.StatusCode < 300 then
+        Util.notify("Webhook Success", string.format("'%s' sent! (%d actions)", Macro.currentName, #macroData), 4)
+    else
+        local code = (result and result.StatusCode) and tostring(result.StatusCode) or "unknown"
+        Util.notify("Webhook Error", string.format("Failed to send macro (HTTP %s)", code), 4)
+        end
     end,
 })
 
