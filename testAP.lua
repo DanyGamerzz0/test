@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    --updated67
+    -updated68
 --]]
 
 -- ============================================================
@@ -1251,17 +1251,30 @@ function Macro.getCurrentWorld()
 
     local mapValue = map.Value
     local stageTypeValue = stageType.Value
+    
+    debugPrint(string.format("[getCurrentWorld] Map='%s' StageType='%s'", mapValue, stageTypeValue))
+    
     local key
 
     if stageTypeValue == "Portal" then
-        local baseFromMap = mapValue:match("^(.+)_Lv%d+$") or mapValue:match("^(.+) Lv%.%d+$") or mapValue
+        local baseFromMap = mapValue:match("^(.+)_Lv%d+$") 
+                         or mapValue:match("^(.+) Lv%.%d+$") 
+                         or mapValue:match("^(.+)_Lv%d+") -- trailing chars
+                         or mapValue
         local baseNormalized = baseFromMap:gsub("_", " "):match("^%s*(.-)%s*$")
-
+        
+        debugPrint(string.format("[getCurrentWorld] Portal baseNormalized='%s'", baseNormalized))
+        debugPrint("[getCurrentWorld] Checking against portal data:")
+        
         for _, portalData in pairs(StageData.portal) do
             local portalBase = portalData.displayName:match("^(.+)%s+Lv%.?%d+$")
                             or portalData.displayName:match("^(.+)_Lv%d+$")
                             or portalData.displayName
             portalBase = portalBase:gsub("_", " "):match("^%s*(.-)%s*$")
+            
+            debugPrint(string.format("  portalBase='%s' vs baseNormalized='%s' match=%s", 
+                portalBase, baseNormalized, tostring(portalBase:lower() == baseNormalized:lower())))
+            
             if portalBase:lower() == baseNormalized:lower() then
                 key = "Portal_" .. portalBase:gsub(" ", "_")
                 break
@@ -1271,6 +1284,9 @@ function Macro.getCurrentWorld()
         key = string.format("%s_%s", mapValue, stageTypeValue)
     end
 
+    debugPrint(string.format("[getCurrentWorld] key='%s' mapping='%s'", 
+        tostring(key), tostring(key and Macro.worldMappings[key] or "nil")))
+    
     return key and Macro.worldMappings[key] or nil
 end
 
@@ -3238,3 +3254,18 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
+
+task.defer(function()
+    task.wait(2) -- Let everything initialize
+        -- Check if playback toggle was saved as on
+        local playbackFlag = Rayfield:GetFlag("PlaybackMacro")
+        if playbackFlag then
+            debugPrint("Restoring playback state after re-execute...")
+            if not Macro.loopRunning then
+                Macro.isPlaying = true
+                Macro.setStatus("Playback Restored - Waiting for game...")
+                Util.notify("Playback Restored", "Macro playback resumed", 3)
+                task.spawn(Macro.autoLoop)
+        end
+    end
+end)
