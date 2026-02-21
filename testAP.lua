@@ -2808,11 +2808,6 @@ local PlaybackToggle = Tabs.Macro:CreateToggle({
     Flag = "PlaybackMacro",
     Callback = function(v)
         if v then            
-            if not Loadout.loaded then
-                Util.notify("Playback Error", "Loadout not loaded", 4)
-                return
-            end
-            
             if not AutoJoin.waitForClient() then
                 Util.notify("Playback Warning", "Client data may not be fully loaded", 4)
             end
