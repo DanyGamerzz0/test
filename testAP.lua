@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -updated4
+    -updated5
 --]]
 
 -- ============================================================
@@ -1044,12 +1044,6 @@ function Macro.playOnce()
         Macro.setDetail("No macro selected")
         return false
     end
-
-    local worldMacro = Macro.getCurrentWorld()
-    if worldMacro and worldMacro ~= "" then
-        Macro.currentName = worldMacro
-        debugPrint("Using world-specific macro: " .. worldMacro)
-    end
     
     local actions = Macro.loadFromFile(Macro.currentName)
     if not actions or #actions == 0 then
@@ -1173,9 +1167,28 @@ function Macro.autoLoop()
         end
         
         if not Macro.isPlaying then break end
+
+        task.wait(1)
+        
+        -- ✅ Resolve world-specific macro RIGHT before playback, after game has started
+        local resolvedMacro = Macro.currentName
+        local worldMacro = Macro.getCurrentWorld()
+        if worldMacro and worldMacro ~= "" then
+            resolvedMacro = worldMacro
+            debugPrint("Auto-select resolved macro: " .. resolvedMacro)
+        else
+            debugPrint("No world-specific macro found, using selected: " .. tostring(resolvedMacro))
+        end
+        
+        -- Temporarily override currentName for this run
+        local previousName = Macro.currentName
+        Macro.currentName = resolvedMacro
         
         Macro.clearTracking()
         Macro.playOnce()
+        
+        -- Restore original selection after run
+        Macro.currentName = previousName
         
         -- Wait for game to end
         while State.gameInProgress and Macro.isPlaying do
