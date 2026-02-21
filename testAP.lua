@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -removed1
+    -removed2
 --]]
 
 -- ============================================================
@@ -2050,10 +2050,6 @@ local RecordToggle = Tabs.Macro:CreateToggle({
             end
             
             local currentWave = Util.getWave()
-
-            for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.GameHUD.VoteSkipFrame.BTNs.Yes.Activated)) do
-                connection:Fire()
-            end
             
             if currentWave >= 1 then
                 Macro.isRecording = true
@@ -2116,10 +2112,6 @@ local PlaybackToggle = Tabs.Macro:CreateToggle({
             Macro.isPlaying = true
             Macro.setStatus("Playback Enabled - Starting game...")
             Util.notify("Playback Enabled", "Macro playback enabled")
-
-            for i, connection in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.GameHUD.VoteSkipFrame.BTNs.Yes.Activated)) do
-                connection:Fire()
-            end
             
             task.spawn(Macro.autoLoop)
         else
