@@ -9,7 +9,6 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -updated76
 --]]
 
 -- ============================================================
@@ -33,7 +32,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V2.0"
+local SCRIPT_VERSION = "V0.03"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Paradox",
@@ -1787,7 +1786,7 @@ end
 function GoldShop.getGold()
     local success, amount = pcall(function()
         local text = LP.PlayerGui.MainHUD.BottomFrame.Currency.Gold.Amount.Text
-        return tonumber(text:gsub(",", "")) or 0
+        return tonumber((text:gsub(",", ""))) or 0
     end)
     return success and amount or 0
 end
