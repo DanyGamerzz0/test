@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -updated1
+    -updated2
 --]]
 
 -- ============================================================
@@ -2131,122 +2131,6 @@ end
     debugPrint("[Game] Ended")
 end
 
-local function createAutoSelectUI()
-    debugPrint("Creating auto-select UI...")
-    
-    local macroOptions = {"None"}
-    for macroName in pairs(Macro.library) do
-        table.insert(macroOptions, macroName)
-    end
-    table.sort(macroOptions)
-    
-    -- Create collapsibles
-    local collapsibles = {
-        Story = Tabs.Macro:CreateCollapsible({
-            Name = "Story Auto-Select",
-            DefaultExpanded = false,
-            Flag = "StoryAutoSelect"
-        }),
-        Legend = Tabs.Macro:CreateCollapsible({
-            Name = "Legend Auto-Select",
-            DefaultExpanded = false,
-            Flag = "LegendAutoSelect"
-        }),
-        Raid = Tabs.Macro:CreateCollapsible({
-            Name = "Raid Auto-Select",
-            DefaultExpanded = false,
-            Flag = "RaidAutoSelect"
-        }),
-        Siege = Tabs.Macro:CreateCollapsible({
-            Name = "Siege Auto-Select",
-            DefaultExpanded = false,
-            Flag = "SiegeAutoSelect"
-        }),
-        Portal = Tabs.Macro:CreateCollapsible({
-            Name = "Portal Auto-Select",
-            DefaultExpanded = false,
-            Flag = "PortalAutoSelect"
-        }),
-    }
-    
-    -- Create dropdowns for each category
-    for category, worlds in pairs(StageData) do
-        if category == "challenge" then continue end
-        
-        local categoryName = category:sub(1,1):upper() .. category:sub(2)
-        local collapsible = collapsibles[categoryName]
-        
-        if not collapsible then continue end
-        
-        if category == "portal" then
-            -- Group portals by base name
-            local portalTypes = {}
-            for itemId, portalData in pairs(worlds) do
-                local baseName = portalData.displayName:match("^(.+)%s+Lv%.%d+$") or portalData.displayName
-                
-                if not portalTypes[baseName] then
-                    portalTypes[baseName] = true
-                end
-            end
-            
-            for baseName in pairs(portalTypes) do
-                local key = "Portal_" .. baseName:gsub(" ", "_")
-                
-                local currentMapping = Macro.worldMappings[key] or "None"
-                
-                local dropdown = collapsible.Tab:CreateDropdown({
-                    Name = baseName,
-                    Options = macroOptions,
-                    CurrentOption = {currentMapping},
-                    Flag = "AutoSelect_" .. key,
-                    Callback = function(opt)
-                        local selected = type(opt) == "table" and opt[1] or opt
-                        
-                        if selected == "None" then
-                            Macro.worldMappings[key] = nil
-                        else
-                            Macro.worldMappings[key] = selected
-                        end
-                        
-                        Macro.saveWorldMappings()
-                    end,
-                })
-                
-                AutoSelectDropdowns[key] = dropdown
-            end
-        else
-            -- Regular worlds
-            for internalName, worldData in pairs(worlds) do
-                local key = string.format("%s_%s", internalName, categoryName)
-                
-                local currentMapping = Macro.worldMappings[key] or "None"
-                
-                local dropdown = collapsible.Tab:CreateDropdown({
-                    Name = worldData.displayName,
-                    Options = macroOptions,
-                    CurrentOption = {currentMapping},
-                    Flag = "AutoSelect_" .. key,
-                    Callback = function(opt)
-                        local selected = type(opt) == "table" and opt[1] or opt
-                        
-                        if selected == "None" then
-                            Macro.worldMappings[key] = nil
-                        else
-                            Macro.worldMappings[key] = selected
-                        end
-                        
-                        Macro.saveWorldMappings()
-                    end,
-                })
-                
-                AutoSelectDropdowns[key] = dropdown
-            end
-        end
-    end
-    
-    debugPrint("✓ Auto-select UI created")
-end
-
 -- Wave tracking
 task.spawn(function()
     while true do
@@ -2586,17 +2470,6 @@ local IgnoreWorldsDD = Tabs.Joiner:CreateDropdown({
     end,
 })
 
-local IgnoreModifiersDD = Tabs.Joiner:CreateDropdown({
-    Name = "Ignore Modifiers",
-    Options = {"Armor", "Speed", "Damage", "Health", "Regeneration"},
-    MultipleOptions = true,
-    Flag = "IgnoreModifiers",
-    Info = "Skip challenges with these modifiers",
-    Callback = function(opts)
-        State.IgnoreModifiers = opts or {}
-    end,
-})
-
 Tabs.Joiner:CreateToggle({
     Name = "Return to Lobby on New Challenge",
     Flag = "ReturnToLobbyOnNew",
@@ -2781,7 +2654,6 @@ local RecordToggle = Tabs.Macro:CreateToggle({
         if v then
             if not Macro.currentName or Macro.currentName == "" then
                 Util.notify("Recording Error", "Please select a macro first!")
-                RecordToggle:Set(false)
                 return
             end
             
@@ -2835,7 +2707,6 @@ local PlaybackToggle = Tabs.Macro:CreateToggle({
         if v then
             if not Macro.currentName or Macro.currentName == "" then
                 Util.notify("Playback Error", "No macro selected", 3)
-                PlaybackToggle:Set(false)
                 return
             end
             
@@ -3105,6 +2976,122 @@ Tabs.Macro:CreateButton({
 })
 
 Tabs.Macro:CreateDivider()
+
+local function createAutoSelectUI()
+    debugPrint("Creating auto-select UI...")
+    
+    local macroOptions = {"None"}
+    for macroName in pairs(Macro.library) do
+        table.insert(macroOptions, macroName)
+    end
+    table.sort(macroOptions)
+    
+    -- Create collapsibles
+    local collapsibles = {
+        Story = Tabs.Macro:CreateCollapsible({
+            Name = "Story Auto-Select",
+            DefaultExpanded = false,
+            Flag = "StoryAutoSelect"
+        }),
+        Legend = Tabs.Macro:CreateCollapsible({
+            Name = "Legend Auto-Select",
+            DefaultExpanded = false,
+            Flag = "LegendAutoSelect"
+        }),
+        Raid = Tabs.Macro:CreateCollapsible({
+            Name = "Raid Auto-Select",
+            DefaultExpanded = false,
+            Flag = "RaidAutoSelect"
+        }),
+        Siege = Tabs.Macro:CreateCollapsible({
+            Name = "Siege Auto-Select",
+            DefaultExpanded = false,
+            Flag = "SiegeAutoSelect"
+        }),
+        Portal = Tabs.Macro:CreateCollapsible({
+            Name = "Portal Auto-Select",
+            DefaultExpanded = false,
+            Flag = "PortalAutoSelect"
+        }),
+    }
+    
+    -- Create dropdowns for each category
+    for category, worlds in pairs(StageData) do
+        if category == "challenge" then continue end
+        
+        local categoryName = category:sub(1,1):upper() .. category:sub(2)
+        local collapsible = collapsibles[categoryName]
+        
+        if not collapsible then continue end
+        
+        if category == "portal" then
+            -- Group portals by base name
+            local portalTypes = {}
+            for itemId, portalData in pairs(worlds) do
+                local baseName = portalData.displayName:match("^(.+)%s+Lv%.%d+$") or portalData.displayName
+                
+                if not portalTypes[baseName] then
+                    portalTypes[baseName] = true
+                end
+            end
+            
+            for baseName in pairs(portalTypes) do
+                local key = "Portal_" .. baseName:gsub(" ", "_")
+                
+                local currentMapping = Macro.worldMappings[key] or "None"
+                
+                local dropdown = collapsible.Tab:CreateDropdown({
+                    Name = baseName,
+                    Options = macroOptions,
+                    CurrentOption = {currentMapping},
+                    Flag = "AutoSelect_" .. key,
+                    Callback = function(opt)
+                        local selected = type(opt) == "table" and opt[1] or opt
+                        
+                        if selected == "None" then
+                            Macro.worldMappings[key] = nil
+                        else
+                            Macro.worldMappings[key] = selected
+                        end
+                        
+                        Macro.saveWorldMappings()
+                    end,
+                })
+                
+                AutoSelectDropdowns[key] = dropdown
+            end
+        else
+            -- Regular worlds
+            for internalName, worldData in pairs(worlds) do
+                local key = string.format("%s_%s", internalName, categoryName)
+                
+                local currentMapping = Macro.worldMappings[key] or "None"
+                
+                local dropdown = collapsible.Tab:CreateDropdown({
+                    Name = worldData.displayName,
+                    Options = macroOptions,
+                    CurrentOption = {currentMapping},
+                    Flag = "AutoSelect_" .. key,
+                    Callback = function(opt)
+                        local selected = type(opt) == "table" and opt[1] or opt
+                        
+                        if selected == "None" then
+                            Macro.worldMappings[key] = nil
+                        else
+                            Macro.worldMappings[key] = selected
+                        end
+                        
+                        Macro.saveWorldMappings()
+                    end,
+                })
+                
+                AutoSelectDropdowns[key] = dropdown
+            end
+        end
+    end
+    
+    debugPrint("✓ Auto-select UI created")
+end
 
 -- ============================================================
 -- WEBHOOK TAB
