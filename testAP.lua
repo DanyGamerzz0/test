@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -updated68
+    -updated69
 --]]
 
 -- ============================================================
@@ -194,6 +194,16 @@ local Webhook = {}
 local AutoSelectDropdowns = {}
 
 local autoSelectUICreated = false
+
+local PORTAL_MAP_NAMES = {
+    ["Shibuya_Station"] = "JJK_Portal",
+    -- add more here as needed
+}
+
+local PORTAL_DISPLAY_NAMES = {
+    { key = "Portal_JJK_Portal", label = "JJK Portal" },
+    -- add more here
+}
 
 -- ============================================================
 -- UTILITY HELPERS
@@ -1251,43 +1261,26 @@ function Macro.getCurrentWorld()
 
     local mapValue = map.Value
     local stageTypeValue = stageType.Value
-    
+
     debugPrint(string.format("[getCurrentWorld] Map='%s' StageType='%s'", mapValue, stageTypeValue))
-    
+
     local key
 
     if stageTypeValue == "Portal" then
-        local baseFromMap = mapValue:match("^(.+)_Lv%d+$") 
-                         or mapValue:match("^(.+) Lv%.%d+$") 
-                         or mapValue:match("^(.+)_Lv%d+") -- trailing chars
-                         or mapValue
-        local baseNormalized = baseFromMap:gsub("_", " "):match("^%s*(.-)%s*$")
-        
-        debugPrint(string.format("[getCurrentWorld] Portal baseNormalized='%s'", baseNormalized))
-        debugPrint("[getCurrentWorld] Checking against portal data:")
-        
-        for _, portalData in pairs(StageData.portal) do
-            local portalBase = portalData.displayName:match("^(.+)%s+Lv%.?%d+$")
-                            or portalData.displayName:match("^(.+)_Lv%d+$")
-                            or portalData.displayName
-            portalBase = portalBase:gsub("_", " "):match("^%s*(.-)%s*$")
-            
-            debugPrint(string.format("  portalBase='%s' vs baseNormalized='%s' match=%s", 
-                portalBase, baseNormalized, tostring(portalBase:lower() == baseNormalized:lower())))
-            
-            if portalBase:lower() == baseNormalized:lower() then
-                key = "Portal_" .. portalBase:gsub(" ", "_")
-                break
-            end
+        local friendlyName = PORTAL_MAP_NAMES[mapValue]
+        if friendlyName then
+            key = "Portal_" .. friendlyName
+        else
+            debugPrint("[getCurrentWorld] Unknown portal map: " .. mapValue)
+            return nil
         end
     else
         key = string.format("%s_%s", mapValue, stageTypeValue)
     end
 
-    debugPrint(string.format("[getCurrentWorld] key='%s' mapping='%s'", 
-        tostring(key), tostring(key and Macro.worldMappings[key] or "nil")))
-    
-    return key and Macro.worldMappings[key] or nil
+    local mapping = Macro.worldMappings[key]
+    debugPrint(string.format("[getCurrentWorld] key='%s' mapping='%s'", tostring(key), tostring(mapping)))
+    return mapping or nil
 end
 
 debugPrint("✓ Core modules loaded")
@@ -2692,12 +2685,7 @@ local PlaybackToggle = Tabs.Macro:CreateToggle({
     Name = "Playback Macro",
     Flag = "PlaybackMacro",
     Callback = function(v)
-        if v then
-            if not Macro.currentName or Macro.currentName == "" then
-                Util.notify("Playback Error", "No macro selected", 3)
-                return
-            end
-            
+        if v then            
             if not Loadout.loaded then
                 Util.notify("Playback Error", "Loadout not loaded", 4)
                 return
@@ -2966,20 +2954,19 @@ Tabs.Macro:CreateButton({
 Tabs.Macro:CreateDivider()
 
 local function createAutoSelectUI()
-    -- FIX 2: Guard against being called multiple times
     if autoSelectUICreated then
         debugPrint("Auto-select UI already created, skipping")
         return
     end
     autoSelectUICreated = true
     debugPrint("Creating auto-select UI...")
-    
+
     local macroOptions = {"None"}
     for macroName in pairs(Macro.library) do
         table.insert(macroOptions, macroName)
     end
     table.sort(macroOptions)
-    
+
     local collapsibles = {
         Story  = Tabs.Macro:CreateCollapsible({ Name = "Story Auto-Select",  DefaultExpanded = false, Flag = "StoryAutoSelect"  }),
         Legend = Tabs.Macro:CreateCollapsible({ Name = "Legend Auto-Select", DefaultExpanded = false, Flag = "LegendAutoSelect" }),
@@ -2987,20 +2974,19 @@ local function createAutoSelectUI()
         Siege  = Tabs.Macro:CreateCollapsible({ Name = "Siege Auto-Select",  DefaultExpanded = false, Flag = "SiegeAutoSelect"  }),
         Portal = Tabs.Macro:CreateCollapsible({ Name = "Portal Auto-Select", DefaultExpanded = false, Flag = "PortalAutoSelect" }),
     }
-    
-    -- FIX 2: Non-portal categories - deduplicate by internalName
+
+    -- Non-portal categories
     local nonPortalCategories = {
         { key = "story",  name = "Story"  },
         { key = "legend", name = "Legend" },
         { key = "raid",   name = "Raid"   },
         { key = "siege",  name = "Siege"  },
     }
-    
+
     for _, cat in ipairs(nonPortalCategories) do
         local collapsible = collapsibles[cat.name]
         if not collapsible then continue end
-        
-        -- FIX 2: Collect and deduplicate worlds by internalName first
+
         local worldsSeen = {}
         local sortedWorlds = {}
         for internalName, worldData in pairs(StageData[cat.key]) do
@@ -3012,14 +2998,13 @@ local function createAutoSelectUI()
         table.sort(sortedWorlds, function(a, b)
             return a.data.displayName < b.data.displayName
         end)
-        
+
         for _, entry in ipairs(sortedWorlds) do
             local internalName = entry.internal
             local worldData    = entry.data
-            -- Key format: "WorldInternalName_CategoryName" (e.g. "World1_Story")
             local mapKey = string.format("%s_%s", internalName, cat.name)
             local currentMapping = Macro.worldMappings[mapKey] or "None"
-            
+
             local dropdown = collapsible.Tab:CreateDropdown({
                 Name          = worldData.displayName,
                 Options       = macroOptions,
@@ -3031,57 +3016,34 @@ local function createAutoSelectUI()
                     Macro.saveWorldMappings()
                 end,
             })
-            
+
             AutoSelectDropdowns[mapKey] = dropdown
         end
     end
-    
-    -- FIX 2 + FIX 3: Portal auto-select — group by base name, use consistent key
+
+    -- Portal auto-select (hardcoded)
     local portalCollapsible = collapsibles.Portal
     if portalCollapsible then
-        -- FIX 2: Collect unique portal base names (deduplication by base name)
-        local portalBasesSeen = {}
-        local sortedPortalBases = {}
-        
-        for itemId, portalData in pairs(StageData.portal) do
-            -- Strip level suffix to get the base name
-            local baseName = portalData.displayName:match("^(.+)%s+Lv%.?%d+$")
-                          or portalData.displayName:match("^(.+)_Lv%d+$")
-                          or portalData.displayName
-            baseName = baseName:match("^%s*(.-)%s*$")  -- trim whitespace
-            
-            if not portalBasesSeen[baseName] then
-                portalBasesSeen[baseName] = true
-                table.insert(sortedPortalBases, baseName)
-            end
-        end
-        table.sort(sortedPortalBases)
-        
-        for _, baseName in ipairs(sortedPortalBases) do
-            -- FIX 3: Key must match what getCurrentWorld() produces
-            -- getCurrentWorld() returns "Portal_" .. baseKey where baseKey = baseName:gsub(" ", "_")
-            local baseKey = baseName:gsub(" ", "_")
-            local mapKey  = "Portal_" .. baseKey
-            
-            local currentMapping = Macro.worldMappings[mapKey] or "None"
-            
+        for _, portal in ipairs(PORTAL_DISPLAY_NAMES) do
+            local currentMapping = Macro.worldMappings[portal.key] or "None"
+
             local dropdown = portalCollapsible.Tab:CreateDropdown({
-                Name          = baseName,
+                Name          = portal.label,
                 Options       = macroOptions,
                 CurrentOption = {currentMapping},
-                Flag          = "AutoSelect_" .. mapKey,
+                Flag          = "AutoSelect_" .. portal.key,
                 Callback = function(opt)
                     local selected = type(opt) == "table" and opt[1] or opt
-                    Macro.worldMappings[mapKey] = (selected == "None") and nil or selected
+                    Macro.worldMappings[portal.key] = (selected == "None") and nil or selected
                     Macro.saveWorldMappings()
-                    debugPrint(string.format("Portal auto-select mapped: %s -> %s", mapKey, tostring(selected)))
+                    debugPrint(string.format("Portal mapping saved: %s -> %s", portal.key, tostring(selected)))
                 end,
             })
-            
-            AutoSelectDropdowns[mapKey] = dropdown
+
+            AutoSelectDropdowns[portal.key] = dropdown
         end
     end
-    
+
     debugPrint("✓ Auto-select UI created")
 end
 
@@ -3254,18 +3216,3 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
-
-task.defer(function()
-    task.wait(2) -- Let everything initialize
-        -- Check if playback toggle was saved as on
-        local playbackFlag = Rayfield:GetFlag("PlaybackMacro")
-        if playbackFlag then
-            debugPrint("Restoring playback state after re-execute...")
-            if not Macro.loopRunning then
-                Macro.isPlaying = true
-                Macro.setStatus("Playback Restored - Waiting for game...")
-                Util.notify("Playback Restored", "Macro playback resumed", 3)
-                task.spawn(Macro.autoLoop)
-        end
-    end
-end)
