@@ -1,3 +1,19 @@
+--[[
+    LixHub - Anime Paradox
+    Full Rewrite - Clean Modular Architecture
+    
+    Design principles:
+    - All logic lives in module tables, not locals → no 200 local limit
+    - Single __namecall hook
+    - Event-driven where possible, minimal polling
+    - Centralized State table
+    - Reliable unit tracking
+    - PC executor compatible
+--]]
+
+-- ============================================================
+-- EXECUTOR CHECK
+-- ============================================================
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
     and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED")
@@ -1805,7 +1821,7 @@ function GoldShop.buyItems()
         if quantity <= 0 then continue end
 
         local success, err = pcall(function()
-            RS.Remotes.Shop:FireServer("Buy", "Gold", item.id, quantity)
+            RS.Remotes.RotatingShop:FireServer("Gold", item.id, quantity)
         end)
 
         if success then
