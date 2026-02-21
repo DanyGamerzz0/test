@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -updated2
+    -updated3
 --]]
 
 -- ============================================================
@@ -157,7 +157,7 @@ local State = {
     AutoNextPortal      = false,
     
     AutoJoinChallenge   = false,
-    ChallengeType       = nil,
+    ChallengeTypes      = {},
     ChallengeRewards    = {},
     IgnoreWorlds        = {},
     IgnoreModifiers     = {},
@@ -192,6 +192,8 @@ local Challenge = {
 local Webhook = {}
 
 local AutoSelectDropdowns = {}
+
+local autoSelectUICreated = false
 
 -- ============================================================
 -- UTILITY HELPERS
@@ -235,6 +237,19 @@ function Util.ensureFolders()
     if not isfolder("LixHub/Macros/AP") then makefolder("LixHub/Macros/AP") end
 end
 
+function Util.waitForClientLoaded(timeout)
+    timeout = timeout or 60
+    local startTime = tick()
+    while (tick() - startTime) < timeout do
+        if LP:GetAttribute("ClientIsLoaded") and LP:GetAttribute("ClientLoaded") then
+            return true
+        end
+        task.wait(0.5)
+    end
+    warn("⚠️ Client load timeout after " .. timeout .. "s")
+    return false
+end
+
 -- ============================================================
 -- PLAYER LOADOUT MODULE
 -- ============================================================
@@ -247,23 +262,10 @@ function Loadout.fetch()
     debugPrint("Fetching player loadout...")
     
     -- Wait for client to be loaded
-    local timeout = 0
-    while timeout < 60 do
-        local clientIsLoaded = LP:GetAttribute("ClientIsLoaded")
-        local clientLoaded = LP:GetAttribute("ClientLoaded")
-        
-        if clientIsLoaded and clientLoaded then
-            break
-        end
-        
-        task.wait(0.5)
-        timeout = timeout + 0.5
-    end
-    
-    if timeout >= 60 then
-        warn("Client load timeout")
-        return false
-    end
+    if not Util.waitForClientLoaded(60) then
+    warn("Client load timeout during loadout fetch")
+    return false
+end
     
     -- Find player data handler in GC
     for _, obj in pairs(getgc(true)) do
@@ -409,60 +411,61 @@ end
 
 function StageData.loadPortals()
     debugPrint("Loading portals...")
-    
-    -- Get inventory module
+
+    if not Util.waitForClientLoaded(30) then
+        warn("Client not loaded - cannot load portals")
+        return false
+    end
+
     local inventoryModule = nil
-    local success = pcall(function()
-        inventoryModule = require(
-            LP.PlayerScripts
+    local paths = {
+        function()
+            return require(LP.PlayerScripts
                 :WaitForChild("ClientCache", 15)
                 :WaitForChild("Handlers", 15)
                 :WaitForChild("UIHandler", 15)
-                :WaitForChild("ItemsInventory", 15)
-        )
-    end)
-    
-    if not success or not inventoryModule then
+                :WaitForChild("ItemsInventory", 15))
+        end,
+        function()
+            return require(LP.PlayerScripts.ClientCache.Handlers.UIHandler.ItemsInventory)
+        end,
+    }
+    for _, pathFn in ipairs(paths) do
+        local ok = pcall(function() inventoryModule = pathFn() end)
+        if ok and inventoryModule then break end
+    end
+
+    if not inventoryModule then
         warn("Failed to load inventory module for portals")
         return false
     end
-    
-    -- Get inventory
+
     local inventory = nil
-    success = pcall(function()
-        inventory = inventoryModule.getInventory()
-    end)
-    
-    if not success or not inventory then
+    pcall(function() inventory = inventoryModule.getInventory() end)
+    if not inventory then
         warn("Failed to get inventory")
         return false
     end
-    
-    local addedPortals = {}
+
+    StageData.portal = {}  -- clear before repopulating
+    local addedNames = {}
     local portalCount = 0
-    
+
     for itemId, itemProfile in pairs(inventory) do
         if itemProfile.BaseData and itemProfile.BaseData.Type == "Portal" then
-            local displayName = itemProfile.BaseData.DisplayName or "Unknown Portal"
-            
-            if not addedPortals[displayName] then
-                StageData.portal[itemId] = {
-                    displayName = displayName,
-                    internalName = itemId,
-                }
-                addedPortals[displayName] = true
+            local displayName = (itemProfile.BaseData.DisplayName or "Unknown Portal"):match("^%s*(.-)%s*$")
+            if not addedNames[displayName] then
+                StageData.portal[itemId] = { displayName = displayName, internalName = itemId }
+                addedNames[displayName] = true
                 portalCount = portalCount + 1
-                debugPrint(string.format("  Found portal: %s (ID: %s)", displayName, itemId))
             end
         end
     end
-    
+
     debugPrint(string.format("✓ Loaded %d unique portals", portalCount))
-    
     if portalCount > 0 then
         Util.notify("Portals Loaded", string.format("Found %d portals", portalCount), 3)
     end
-    
     return true
 end
 
@@ -1227,37 +1230,35 @@ function Macro.loadWorldMappings()
 end
 
 function Macro.getCurrentWorld()
-    local success, gameConfig = pcall(function()
-        return RS.GameConfig
-    end)
-    
-    if not success or not gameConfig then
-        return nil
-    end
-    
+    local success, gameConfig = pcall(function() return RS.GameConfig end)
+    if not success or not gameConfig then return nil end
     local map = gameConfig:FindFirstChild("Map")
     local stageType = gameConfig:FindFirstChild("StageType")
-    
-    if not map or not stageType then
-        return nil
-    end
-    
+    if not map or not stageType then return nil end
+
     local mapValue = map.Value
     local stageTypeValue = stageType.Value
-    
-    local key = nil
-    
+    local key
+
     if stageTypeValue == "Portal" then
-        -- For portals, extract base name from map
-        local baseName = mapValue:match("^(.+)_Lv") or mapValue
-        key = "Portal_" .. baseName
+        local baseFromMap = mapValue:match("^(.+)_Lv%d+$") or mapValue:match("^(.+) Lv%.%d+$") or mapValue
+        local baseNormalized = baseFromMap:gsub("_", " "):match("^%s*(.-)%s*$")
+
+        for _, portalData in pairs(StageData.portal) do
+            local portalBase = portalData.displayName:match("^(.+)%s+Lv%.?%d+$")
+                            or portalData.displayName:match("^(.+)_Lv%d+$")
+                            or portalData.displayName
+            portalBase = portalBase:gsub("_", " "):match("^%s*(.-)%s*$")
+            if portalBase:lower() == baseNormalized:lower() then
+                key = "Portal_" .. portalBase:gsub(" ", "_")
+                break
+            end
+        end
     else
         key = string.format("%s_%s", mapValue, stageTypeValue)
     end
-    
-    debugPrint(string.format("Current world key: %s (Map: %s, Type: %s)", key, mapValue, stageTypeValue))
-    
-    return Macro.worldMappings[key]
+
+    return key and Macro.worldMappings[key] or nil
 end
 
 debugPrint("✓ Core modules loaded")
@@ -1355,27 +1356,8 @@ end
 
 function AutoJoin.waitForClient()
     if AutoJoin.clientReady then return true end
-    
-    local maxWait = 60
-    local startTime = tick()
-    
-    debugPrint("Waiting for client to load...")
-    
-    while (tick() - startTime) < maxWait do
-        local clientIsLoaded = LP:GetAttribute("ClientIsLoaded")
-        local clientLoaded = LP:GetAttribute("ClientLoaded")
-        
-        if clientIsLoaded and clientLoaded then
-            debugPrint("Client fully loaded!")
-            AutoJoin.clientReady = true
-            return true
-        end
-        
-        task.wait(0.5)
-    end
-    
-    warn("Client load timeout")
-    return false
+    AutoJoin.clientReady = Util.waitForClientLoaded(60)
+    return AutoJoin.clientReady
 end
 
 -- Get highest portal from inventory
@@ -1521,11 +1503,11 @@ function Challenge.passesFilters(challengeFolder, challengeType)
     end
     
     -- Check challenge type filter
-    if State.ChallengeType and State.ChallengeType ~= "" then
-        if challengeType ~= State.ChallengeType then
-            return false
-        end
+    if next(State.ChallengeTypes) then
+    if not State.ChallengeTypes[challengeType] then
+        return false
     end
+end
     
     -- Check ignore worlds
     if State.IgnoreWorlds and #State.IgnoreWorlds > 0 then
@@ -2429,12 +2411,16 @@ Tabs.Joiner:CreateToggle({
 })
 
 local ChallengeTypeDD = Tabs.Joiner:CreateDropdown({
-    Name = "Challenge Type",
+    Name = "Challenge Types",
     Options = {"Regular", "Daily", "Weekly"},
-    MultipleOptions = false,
-    Flag = "ChallengeType",
-    Callback = function(selected)
-        State.ChallengeType = type(selected) == "table" and selected[1] or selected
+    MultipleOptions = true,
+    Flag = "ChallengeTypes",
+    Info = "Select one or more challenge types to join",
+    Callback = function(opts)
+        State.ChallengeTypes = {}
+        for _, typeName in ipairs(opts or {}) do
+            State.ChallengeTypes[typeName] = true
+        end
     end,
 })
 
@@ -2978,6 +2964,12 @@ Tabs.Macro:CreateButton({
 Tabs.Macro:CreateDivider()
 
 local function createAutoSelectUI()
+    -- FIX 2: Guard against being called multiple times
+    if autoSelectUICreated then
+        debugPrint("Auto-select UI already created, skipping")
+        return
+    end
+    autoSelectUICreated = true
     debugPrint("Creating auto-select UI...")
     
     local macroOptions = {"None"}
@@ -2986,107 +2978,105 @@ local function createAutoSelectUI()
     end
     table.sort(macroOptions)
     
-    -- Create collapsibles
     local collapsibles = {
-        Story = Tabs.Macro:CreateCollapsible({
-            Name = "Story Auto-Select",
-            DefaultExpanded = false,
-            Flag = "StoryAutoSelect"
-        }),
-        Legend = Tabs.Macro:CreateCollapsible({
-            Name = "Legend Auto-Select",
-            DefaultExpanded = false,
-            Flag = "LegendAutoSelect"
-        }),
-        Raid = Tabs.Macro:CreateCollapsible({
-            Name = "Raid Auto-Select",
-            DefaultExpanded = false,
-            Flag = "RaidAutoSelect"
-        }),
-        Siege = Tabs.Macro:CreateCollapsible({
-            Name = "Siege Auto-Select",
-            DefaultExpanded = false,
-            Flag = "SiegeAutoSelect"
-        }),
-        Portal = Tabs.Macro:CreateCollapsible({
-            Name = "Portal Auto-Select",
-            DefaultExpanded = false,
-            Flag = "PortalAutoSelect"
-        }),
+        Story  = Tabs.Macro:CreateCollapsible({ Name = "Story Auto-Select",  DefaultExpanded = false, Flag = "StoryAutoSelect"  }),
+        Legend = Tabs.Macro:CreateCollapsible({ Name = "Legend Auto-Select", DefaultExpanded = false, Flag = "LegendAutoSelect" }),
+        Raid   = Tabs.Macro:CreateCollapsible({ Name = "Raid Auto-Select",   DefaultExpanded = false, Flag = "RaidAutoSelect"   }),
+        Siege  = Tabs.Macro:CreateCollapsible({ Name = "Siege Auto-Select",  DefaultExpanded = false, Flag = "SiegeAutoSelect"  }),
+        Portal = Tabs.Macro:CreateCollapsible({ Name = "Portal Auto-Select", DefaultExpanded = false, Flag = "PortalAutoSelect" }),
     }
     
-    -- Create dropdowns for each category
-    for category, worlds in pairs(StageData) do
-        if category == "challenge" then continue end
-        
-        local categoryName = category:sub(1,1):upper() .. category:sub(2)
-        local collapsible = collapsibles[categoryName]
-        
+    -- FIX 2: Non-portal categories - deduplicate by internalName
+    local nonPortalCategories = {
+        { key = "story",  name = "Story"  },
+        { key = "legend", name = "Legend" },
+        { key = "raid",   name = "Raid"   },
+        { key = "siege",  name = "Siege"  },
+    }
+    
+    for _, cat in ipairs(nonPortalCategories) do
+        local collapsible = collapsibles[cat.name]
         if not collapsible then continue end
         
-        if category == "portal" then
-            -- Group portals by base name
-            local portalTypes = {}
-            for itemId, portalData in pairs(worlds) do
-                local baseName = portalData.displayName:match("^(.+)%s+Lv%.%d+$") or portalData.displayName
-                
-                if not portalTypes[baseName] then
-                    portalTypes[baseName] = true
-                end
+        -- FIX 2: Collect and deduplicate worlds by internalName first
+        local worldsSeen = {}
+        local sortedWorlds = {}
+        for internalName, worldData in pairs(StageData[cat.key]) do
+            if not worldsSeen[internalName] then
+                worldsSeen[internalName] = true
+                table.insert(sortedWorlds, { internal = internalName, data = worldData })
             end
+        end
+        table.sort(sortedWorlds, function(a, b)
+            return a.data.displayName < b.data.displayName
+        end)
+        
+        for _, entry in ipairs(sortedWorlds) do
+            local internalName = entry.internal
+            local worldData    = entry.data
+            -- Key format: "WorldInternalName_CategoryName" (e.g. "World1_Story")
+            local mapKey = string.format("%s_%s", internalName, cat.name)
+            local currentMapping = Macro.worldMappings[mapKey] or "None"
             
-            for baseName in pairs(portalTypes) do
-                local key = "Portal_" .. baseName:gsub(" ", "_")
-                
-                local currentMapping = Macro.worldMappings[key] or "None"
-                
-                local dropdown = collapsible.Tab:CreateDropdown({
-                    Name = baseName,
-                    Options = macroOptions,
-                    CurrentOption = {currentMapping},
-                    Flag = "AutoSelect_" .. key,
-                    Callback = function(opt)
-                        local selected = type(opt) == "table" and opt[1] or opt
-                        
-                        if selected == "None" then
-                            Macro.worldMappings[key] = nil
-                        else
-                            Macro.worldMappings[key] = selected
-                        end
-                        
-                        Macro.saveWorldMappings()
-                    end,
-                })
-                
-                AutoSelectDropdowns[key] = dropdown
+            local dropdown = collapsible.Tab:CreateDropdown({
+                Name          = worldData.displayName,
+                Options       = macroOptions,
+                CurrentOption = {currentMapping},
+                Flag          = "AutoSelect_" .. mapKey,
+                Callback = function(opt)
+                    local selected = type(opt) == "table" and opt[1] or opt
+                    Macro.worldMappings[mapKey] = (selected == "None") and nil or selected
+                    Macro.saveWorldMappings()
+                end,
+            })
+            
+            AutoSelectDropdowns[mapKey] = dropdown
+        end
+    end
+    
+    -- FIX 2 + FIX 3: Portal auto-select — group by base name, use consistent key
+    local portalCollapsible = collapsibles.Portal
+    if portalCollapsible then
+        -- FIX 2: Collect unique portal base names (deduplication by base name)
+        local portalBasesSeen = {}
+        local sortedPortalBases = {}
+        
+        for itemId, portalData in pairs(StageData.portal) do
+            -- Strip level suffix to get the base name
+            local baseName = portalData.displayName:match("^(.+)%s+Lv%.?%d+$")
+                          or portalData.displayName:match("^(.+)_Lv%d+$")
+                          or portalData.displayName
+            baseName = baseName:match("^%s*(.-)%s*$")  -- trim whitespace
+            
+            if not portalBasesSeen[baseName] then
+                portalBasesSeen[baseName] = true
+                table.insert(sortedPortalBases, baseName)
             end
-        else
-            -- Regular worlds
-            for internalName, worldData in pairs(worlds) do
-                local key = string.format("%s_%s", internalName, categoryName)
-                
-                local currentMapping = Macro.worldMappings[key] or "None"
-                
-                local dropdown = collapsible.Tab:CreateDropdown({
-                    Name = worldData.displayName,
-                    Options = macroOptions,
-                    CurrentOption = {currentMapping},
-                    Flag = "AutoSelect_" .. key,
-                    Callback = function(opt)
-                        local selected = type(opt) == "table" and opt[1] or opt
-                        
-                        if selected == "None" then
-                            Macro.worldMappings[key] = nil
-                        else
-                            Macro.worldMappings[key] = selected
-                        end
-                        
-                        Macro.saveWorldMappings()
-                    end,
-                })
-                
-                AutoSelectDropdowns[key] = dropdown
-            end
+        end
+        table.sort(sortedPortalBases)
+        
+        for _, baseName in ipairs(sortedPortalBases) do
+            -- FIX 3: Key must match what getCurrentWorld() produces
+            -- getCurrentWorld() returns "Portal_" .. baseKey where baseKey = baseName:gsub(" ", "_")
+            local baseKey = baseName:gsub(" ", "_")
+            local mapKey  = "Portal_" .. baseKey
+            
+            local currentMapping = Macro.worldMappings[mapKey] or "None"
+            
+            local dropdown = portalCollapsible.Tab:CreateDropdown({
+                Name          = baseName,
+                Options       = macroOptions,
+                CurrentOption = {currentMapping},
+                Flag          = "AutoSelect_" .. mapKey,
+                Callback = function(opt)
+                    local selected = type(opt) == "table" and opt[1] or opt
+                    Macro.worldMappings[mapKey] = (selected == "None") and nil or selected
+                    Macro.saveWorldMappings()
+                    debugPrint(string.format("Portal auto-select mapped: %s -> %s", mapKey, tostring(selected)))
+                end,
+            })
+            
+            AutoSelectDropdowns[mapKey] = dropdown
         end
     end
     
@@ -3193,7 +3183,6 @@ task.spawn(function()
             IgnoreWorldsDD:Refresh(storyList)
             
             debugPrint("✓ Stage dropdowns populated")
-            createAutoSelectUI()
             
             -- Load portals async
             task.spawn(function()
