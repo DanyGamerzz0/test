@@ -9,7 +9,7 @@
     - Centralized State table
     - Reliable unit tracking
     - PC executor compatible
-    -updated3
+    -updated4
 --]]
 
 -- ============================================================
@@ -499,7 +499,7 @@ local Macro = {
 -- Status updates
 function Macro.setStatus(msg)
     if Macro.statusLabel then
-        Macro.statusLabel:Set("Status: " .. msg)
+        Macro.statusLabel:Set("Status: (".. Macro.currentName .. ") " .. msg)
     end
 end
 
@@ -2062,7 +2062,7 @@ local function onGameStart()
     debugPrint("[Game] Started")
 end
 
-local function onGameEnd()
+local function onGameEnd(stageInfo, playerStats, rewards, playerData)
     State.gameInProgress = false
     
     -- Stop recording if active
@@ -2072,35 +2072,8 @@ local function onGameEnd()
 
     if State.SendOnFinish then
      task.spawn(function()
-         -- Get player data for webhook
-         local playerData = nil
-         pcall(function()
-             for _, obj in pairs(getgc(true)) do
-                 if type(obj) ~= "table" then continue end
-                 local reqFunc = rawget(obj, "RequestPlayerData")
-                 if type(reqFunc) == "function" then
-                     playerData = reqFunc(obj, LP)
-                     return
-                 end
-             end
-         end)
          
-         -- Build stage info
-         local stageInfo = {
-             Result = "Unknown",
-             StageName = "Unknown",
-             ActName = "Unknown",
-             Difficulty = "Normal",
-             PlayTime = 0
-         }
-         
-         -- Try to get actual stage info from GameConfig
-         pcall(function()
-             stageInfo.StageName = RS.GameConfig.Map.Value
-             stageInfo.PlayTime = math.floor(tick() - State.gameStartTime)
-         end)
-         
-         Webhook.send("game_end", stageInfo, nil, nil, playerData)
+         Webhook.send("game_end", stageInfo, playerStats, rewards, playerData)
      end)
 end
     
@@ -2135,9 +2108,9 @@ end)
 pcall(function()
     local stageEndRemote = RS.Remotes.StageEnd
     
-    stageEndRemote.OnClientEvent:Connect(function(eventType)
+    stageEndRemote.OnClientEvent:Connect(function(eventType, stageInfo, playerStats, rewards, playerData)
         if eventType == "ShowResults" then
-            onGameEnd()
+            onGameEnd(stageInfo, playerStats, rewards, playerData)
         end
     end)
 end)
