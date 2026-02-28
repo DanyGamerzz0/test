@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON
+-- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TAB
 -- ============================================================
 
 -- ============================================================
@@ -25,11 +25,65 @@ end
 -- SERVICES
 -- ============================================================
 local Services = {
-    HttpService     = game:GetService("HttpService"),
-    Players         = game:GetService("Players"),
+    HttpService       = game:GetService("HttpService"),
+    Players           = game:GetService("Players"),
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Workspace       = game:GetService("Workspace"),
-    RunService      = game:GetService("RunService"),
+    Workspace         = game:GetService("Workspace"),
+    RunService        = game:GetService("RunService"),
+    Lighting          = game:GetService("Lighting"),
+    VirtualUser       = game:GetService("VirtualUser"),
+}
+
+-- ============================================================
+-- GAME STATE (Game Tab)
+-- ============================================================
+local State = {
+    -- Player / visual
+    AntiAfkKickEnabled       = false,
+    EnableLowPerfMode        = false,
+    EnableBlackScreen        = false,
+    EnableLimitFPS           = false,
+    SelectedFPS              = 60,
+    StreamerModeEnabled      = false,
+    DeleteEntities           = false,
+    childAddedConnection     = nil,
+
+    -- Game flow votes
+    AutoVoteStart            = false,
+    AutoVoteRetry            = false,
+    AutoVoteNext             = false,
+    AutoVoteLobby            = false,
+
+    -- Wave skip
+    AutoSkipWaves            = false,
+    AutoSkipUntilWave        = 0,
+
+    -- Auto Sell
+    AutoSellEnabled          = false,
+    AutoSellWave             = 10,
+    AutoSellFarmEnabled      = false,
+    AutoSellFarmWave         = 15,
+
+    -- Failsafes
+    ReturnToLobbyAfterGames  = 0,
+    ReturnToLobbyFailsafe    = false,
+    ReturnToLobbyIfNeverEnds = false,
+    failsafeActive           = false,
+
+    -- Session counters
+    TotalGamesPlayed         = 0,
+    TotalWins                = 0,
+    TotalLosses              = 0,
+
+    -- Auto equip
+    AutoEquipMacroUnits      = false,
+
+    -- Boss Rush
+    AutoSelectCardBossRush   = false,
+
+    -- Retry config
+    AutoRetryAttempts        = 3,
+    AutoRetryDelay           = 2,
 }
 
 -- ============================================================
@@ -38,7 +92,6 @@ local Services = {
 local Dungeon = {}
 
 do
-    -- Dependencies (loaded lazily so they don't break macro init if dungeon isn't used)
     local _Loader, _DungeonServiceCore, _GUIService, _LevelNodes, _Remote
 
     local function getDeps()
@@ -60,16 +113,13 @@ do
         return true
     end
 
-    -- State
-    Dungeon.isRunning   = false
-    Dungeon.stopFlag    = false
+    Dungeon.isRunning = false
+    Dungeon.stopFlag  = false
 
-    -- Config (driven by UI)
     Dungeon.config = {
-        mode         = "_JojosMode1",
+        mode = "_JojosMode1",
     }
 
-    -- Path order: Entry → Branches → Linkers → Boss
     local PATH_ORDER = {
         { path = 1, maxNodes = 2  },
         { path = 2, maxNodes = 10 },
@@ -79,7 +129,7 @@ do
         { path = 5, maxNodes = 1  },
         { path = 8, maxNodes = 1  },
         { path = 9, maxNodes = 1  },
-        { path = 7, maxNodes = 1  },  -- Boss
+        { path = 7, maxNodes = 1  },
     }
 
     local function setStatus(msg)
@@ -111,57 +161,37 @@ do
     end
 
     function Dungeon.run()
-        if Dungeon.isRunning then
-            setStatus("Already running!")
-            return
-        end
-
-        if not getDeps() then
-            setStatus("Error: Failed to load game services")
-            return
-        end
-
-        local gamemode = Dungeon.config.mode
+        if Dungeon.isRunning then setStatus("Already running!") return end
+        if not getDeps() then setStatus("Error: Failed to load game services") return end
+        local gamemode    = Dungeon.config.mode
         Dungeon.isRunning = true
         Dungeon.stopFlag  = false
-
         task.spawn(function()
             setStatus("Starting — " .. (gamemode == "_JojosMode1" and "Roguelike" or "Normal"))
-
             local joined  = 0
             local skipped = 0
-
             for _, entry in PATH_ORDER do
                 if Dungeon.stopFlag then break end
-
                 local path     = entry.path
                 local maxNodes = entry.maxNodes
-
                 for node = 1, maxNodes do
                     if Dungeon.stopFlag then break end
-
                     local accessible, _, alreadyDone = _DungeonServiceCore.HasRoomUnlocked(
                         _GUIService.session, gamemode, path, node
                     )
-
                     if alreadyDone then
                         skipped += 1
                         setStatus(string.format("↷ Already done — Path %d, Node %d", path, node))
-
                     elseif accessible then
                         local roomType = getRoomType(gamemode, path, node)
                         setStatus(string.format("→ Entering Path %d, Node %d [%s]", path, node, roomType))
-                        if joinRoom(gamemode, path, node) then
-                            joined += 1
-                        end
+                        if joinRoom(gamemode, path, node) then joined += 1 end
                         task.wait(1)
-
                     else
                         setStatus(string.format("✗ Path %d, Node %d not accessible yet", path, node))
                     end
                 end
             end
-
             Dungeon.isRunning = false
             setStatus(string.format("Done! Joined: %d | Skipped: %d", joined, skipped))
         end)
@@ -180,9 +210,7 @@ end
 local Util = {}
 
 function Util.debugPrint(message, ...)
-    if DEBUG then
-        print("[DEBUG]", message, ...)
-    end
+    if DEBUG then print("[DEBUG]", message, ...) end
 end
 
 function Util.notify(title, content, duration)
@@ -409,6 +437,181 @@ function Util.resolveUUIDFromInternalName(internalName)
     return uuid
 end
 
+-- ──────────────────────────────────────────────
+-- Util: Game Tab helpers
+-- ──────────────────────────────────────────────
+
+function Util.setLowPerformanceMode(enabled)
+    local Lighting = Services.Lighting
+    if enabled then
+        Lighting.Brightness               = 1
+        Lighting.GlobalShadows            = false
+        Lighting.Technology               = Enum.Technology.Compatibility
+        Lighting.ShadowSoftness           = 0
+        Lighting.EnvironmentDiffuseScale  = 0
+        Lighting.EnvironmentSpecularScale = 0
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire")
+            or obj:IsA("Smoke")          or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                if obj.Transparency < 1 then obj.Transparency = 1 end
+            end
+        end
+        for _, obj in pairs(Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect")       or obj:IsA("BlurEffect")
+            or obj:IsA("ColorCorrectionEffect") or obj:IsA("SunRaysEffect")
+            or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = false
+            end
+        end
+    else
+        Lighting.Brightness               = 1.51
+        Lighting.GlobalShadows            = true
+        Lighting.Technology               = Enum.Technology.Future
+        Lighting.ShadowSoftness           = 0
+        Lighting.EnvironmentDiffuseScale  = 1
+        Lighting.EnvironmentSpecularScale = 1
+        for _, obj in pairs(Services.Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire")
+            or obj:IsA("Smoke")          or obj:IsA("Sparkles") then
+                obj.Enabled = true
+            end
+            if obj:IsA("Decal") or obj:IsA("Texture") then
+                obj.Transparency = 0
+            end
+        end
+        for _, obj in pairs(Lighting:GetChildren()) do
+            if obj:IsA("BloomEffect")       or obj:IsA("ColorCorrectionEffect")
+            or obj:IsA("SunRaysEffect")     or obj:IsA("DepthOfFieldEffect") then
+                obj.Enabled = true
+            end
+        end
+    end
+end
+
+function Util.setBlackScreen(enabled)
+    local playerGui = Services.Players.LocalPlayer.PlayerGui
+    local existing  = playerGui:FindFirstChild("LixHubBlackScreenGui")
+    if enabled then
+        if existing then return end
+        local screenGui          = Instance.new("ScreenGui")
+        screenGui.Name           = "LixHubBlackScreenGui"
+        screenGui.IgnoreGuiInset = true
+        screenGui.DisplayOrder   = math.huge
+        screenGui.Parent         = playerGui
+
+        local frame                  = Instance.new("Frame")
+        frame.Size                   = UDim2.new(1, 0, 1, 36)
+        frame.Position               = UDim2.new(0, 0, 0, -36)
+        frame.BackgroundColor3       = Color3.fromRGB(0, 0, 0)
+        frame.BorderSizePixel        = 0
+        frame.ZIndex                 = 999999
+        frame.Parent                 = screenGui
+
+        local btnFrame               = Instance.new("Frame")
+        btnFrame.Size                = UDim2.new(0, 170, 0, 44)
+        btnFrame.Position            = UDim2.new(0.5, -85, 1, -60)
+        btnFrame.BackgroundColor3    = Color3.fromRGB(57, 57, 57)
+        btnFrame.BackgroundTransparency = 0.5
+        btnFrame.ZIndex              = 1000000
+        btnFrame.Parent              = screenGui
+        local corner                 = Instance.new("UICorner")
+        corner.CornerRadius          = UDim.new(1, 0)
+        corner.Parent                = btnFrame
+
+        local label                  = Instance.new("TextLabel")
+        label.Size                   = UDim2.new(1, 0, 1, 0)
+        label.AnchorPoint            = Vector2.new(0.5, 0.5)
+        label.Position               = UDim2.new(0.5, 0, 0.5, 0)
+        label.BackgroundTransparency = 1
+        label.Text                   = "Toggle Screen"
+        label.TextSize               = 15
+        label.TextColor3             = Color3.fromRGB(255, 255, 255)
+        label.ZIndex                 = math.huge
+        label.Parent                 = btnFrame
+
+        local btn                    = Instance.new("TextButton")
+        btn.Size                     = UDim2.new(1, 0, 1, 0)
+        btn.AnchorPoint              = Vector2.new(0.5, 0.5)
+        btn.Position                 = UDim2.new(0.5, 0, 0.5, 0)
+        btn.BackgroundTransparency   = 1
+        btn.Text                     = ""
+        btn.ZIndex                   = math.huge
+        btn.Parent                   = btnFrame
+        btn.MouseButton1Click:Connect(function()
+            frame.Visible = not frame.Visible
+        end)
+    else
+        if existing then existing:Destroy() end
+    end
+end
+
+function Util.autoEquipMacroUnits(macroName, macroLibrary)
+    if not Util.isInLobby() then
+        Util.notify("Equip Error", "Must be in lobby to equip units!")
+        return false
+    end
+    if not macroName or macroName == "" then return false end
+    local macroData = macroLibrary[macroName]
+    if not macroData or #macroData == 0 then return false end
+
+    local required = {}
+    for _, action in ipairs(macroData) do
+        if action.Type == "spawn_unit" and action.Unit then
+            local base = action.Unit:match("^(.+) #%d+$") or action.Unit
+            required[base] = true
+        end
+    end
+
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    if not fxCache then return false end
+
+    local available = {}
+    for _, child in pairs(fxCache:GetChildren()) do
+        local itemIndex = child:GetAttribute("ITEMINDEX")
+        if itemIndex then
+            local displayName = Util.getDisplayNameFromUnitId(itemIndex)
+            if displayName then
+                local uuidValue = child:FindFirstChild("_uuid")
+                if uuidValue and uuidValue:IsA("StringValue") then
+                    available[displayName] = uuidValue.Value
+                end
+            end
+        end
+    end
+
+    local missing = {}
+    for unitName in pairs(required) do
+        if not available[unitName] then table.insert(missing, unitName) end
+    end
+    if #missing > 0 then
+        Util.notify("Auto Equip Failed", "Missing: " .. table.concat(missing, ", "))
+        return false
+    end
+
+    local endpoints = Services.ReplicatedStorage
+        :WaitForChild("endpoints")
+        :WaitForChild("client_to_server")
+
+    pcall(function() endpoints:WaitForChild("unequip_all"):InvokeServer() end)
+    task.wait(0.5)
+
+    local equipped = 0
+    for unitName in pairs(required) do
+        local uuid = available[unitName]
+        if uuid then
+            pcall(function() endpoints:WaitForChild("equip_unit"):InvokeServer(uuid) end)
+            equipped += 1
+            task.wait(0.2)
+        end
+    end
+
+    Util.notify("Auto Equip", string.format("Equipped %d units for %s", equipped, macroName))
+    return true
+end
+
 -- ============================================================
 -- GAME TRACKING MODULE
 -- ============================================================
@@ -442,42 +645,42 @@ end
 -- MACRO MODULE
 -- ============================================================
 local Macro = {
-    isRecording          = false,
-    isPlaying            = false,
-    currentName          = "",
-    hasPlayedThisGame    = false,
-    actions              = {},
-    library              = {},
-    recordingHasStarted  = false,
-    trackedUnits         = {},
-    spawnIdToPlacement   = {},
-    placementCounter     = {},
-    unitNameToSpawnId    = {},
+    isRecording              = false,
+    isPlaying                = false,
+    currentName              = "",
+    hasPlayedThisGame        = false,
+    actions                  = {},
+    library                  = {},
+    recordingHasStarted      = false,
+    trackedUnits             = {},
+    spawnIdToPlacement       = {},
+    placementCounter         = {},
+    unitNameToSpawnId        = {},
     playbackPlacementToSpawnId = {},
-    detailedStatusLabel  = nil,
-    SPAWN_REMOTE         = "spawn_unit",
-    UPGRADE_REMOTE       = "upgrade_unit_ingame",
-    SELL_REMOTE          = "sell_unit_ingame",
-    WAVE_SKIP_REMOTE     = "vote_wave_skip",
-    SPECIAL_ABILITY_REMOTES = {
+    detailedStatusLabel      = nil,
+    SPAWN_REMOTE             = "spawn_unit",
+    UPGRADE_REMOTE           = "upgrade_unit_ingame",
+    SELL_REMOTE              = "sell_unit_ingame",
+    WAVE_SKIP_REMOTE         = "vote_wave_skip",
+    SPECIAL_ABILITY_REMOTES  = {
         "use_active_attack",
         "HestiaAssignBlade",
         "LelouchChoosePiece",
         "DioWrites",
         "FrierenMagics",
     },
-    PLACEMENT_WAIT       = 0.3,
-    PLACEMENT_MAX_RETRIES = 3,
-    UPGRADE_MAX_RETRIES  = 3,
-    PLACEMENT_TIMEOUT    = 5.0,
-    UPGRADE_TIMEOUT      = 4.0,
-    VALIDATION_INTERVAL  = 0.1,
-    RETRY_DELAY          = 0.5,
-    NORMAL_VALIDATION    = 0.3,
-    EXTENDED_VALIDATION  = 1.0,
-    randomOffsetEnabled  = false,
-    randomOffsetAmount   = 0.5,
-    ignoreTiming         = false,
+    PLACEMENT_WAIT           = 0.3,
+    PLACEMENT_MAX_RETRIES    = 3,
+    UPGRADE_MAX_RETRIES      = 3,
+    PLACEMENT_TIMEOUT        = 5.0,
+    UPGRADE_TIMEOUT          = 4.0,
+    VALIDATION_INTERVAL      = 0.1,
+    RETRY_DELAY              = 0.5,
+    NORMAL_VALIDATION        = 0.3,
+    EXTENDED_VALIDATION      = 1.0,
+    randomOffsetEnabled      = false,
+    randomOffsetAmount       = 0.5,
+    ignoreTiming             = false,
 }
 
 function Macro.updateStatus(message)
@@ -488,9 +691,9 @@ function Macro.updateStatus(message)
 end
 
 function Macro.clearSpawnIdMappings()
-    Macro.spawnIdToPlacement       = {}
-    Macro.placementCounter         = {}
-    Macro.unitNameToSpawnId        = {}
+    Macro.spawnIdToPlacement         = {}
+    Macro.placementCounter           = {}
+    Macro.unitNameToSpawnId          = {}
     Macro.playbackPlacementToSpawnId = {}
 end
 
@@ -547,8 +750,8 @@ end
 function Macro.startRecording()
     table.clear(Macro.actions)
     Macro.clearSpawnIdMappings()
-    Macro.trackedUnits      = {}
-    Macro.isRecording       = true
+    Macro.trackedUnits        = {}
+    Macro.isRecording         = true
     Macro.recordingHasStarted = true
     if GameTracking.gameStartTime == 0 then
         GameTracking.gameStartTime = tick()
@@ -572,8 +775,8 @@ function Macro.processPlacementRecording(actionInfo)
     local afterSnapshot = Macro.takeUnitsSnapshot()
     local spawnedUnit   = Macro.findNewlyPlacedUnit(beforeSnapshot, afterSnapshot)
     if not spawnedUnit then return end
-    local internalName  = Util.getInternalSpawnName(spawnedUnit)
-    local displayName   = Util.getDisplayNameFromUnitId(internalName)
+    local internalName = Util.getInternalSpawnName(spawnedUnit)
+    local displayName  = Util.getDisplayNameFromUnitId(internalName)
     if not displayName then return end
     Macro.placementCounter[displayName] = (Macro.placementCounter[displayName] or 0) + 1
     local placementId = string.format("%s #%d", displayName, Macro.placementCounter[displayName])
@@ -581,14 +784,14 @@ function Macro.processPlacementRecording(actionInfo)
     if not stats then return end
     local uuidValue = stats:FindFirstChild("uuid")
     if not uuidValue or not uuidValue:IsA("StringValue") then return end
-    local actualUUID          = uuidValue.Value
-    local spawnIdValue        = stats:FindFirstChild("spawn_id")
-    local combinedIdentifier  = spawnIdValue and (actualUUID .. spawnIdValue.Value) or actualUUID
-    Macro.spawnIdToPlacement[combinedIdentifier]  = placementId
-    Macro.unitNameToSpawnId[spawnedUnit.Name]     = combinedIdentifier
-    local raycastData         = actionInfo.args[2] or {}
-    local rotation            = actionInfo.args[3] or 0
-    local gameRelativeTime    = actionInfo.timestamp - GameTracking.gameStartTime
+    local actualUUID         = uuidValue.Value
+    local spawnIdValue       = stats:FindFirstChild("spawn_id")
+    local combinedIdentifier = spawnIdValue and (actualUUID .. spawnIdValue.Value) or actualUUID
+    Macro.spawnIdToPlacement[combinedIdentifier] = placementId
+    Macro.unitNameToSpawnId[spawnedUnit.Name]    = combinedIdentifier
+    local raycastData      = actionInfo.args[2] or {}
+    local rotation         = actionInfo.args[3] or 0
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     table.insert(Macro.actions, {
         Type = "spawn_unit",
         Unit = placementId,
@@ -614,8 +817,8 @@ function Macro.processSellRecording(actionInfo)
         Unit = placementId,
         Time = string.format("%.2f", gameRelativeTime)
     })
-    Macro.spawnIdToPlacement[spawnId]          = nil
-    Macro.unitNameToSpawnId[remoteParam]       = nil
+    Macro.spawnIdToPlacement[spawnId]    = nil
+    Macro.unitNameToSpawnId[remoteParam] = nil
     Util.notify("Macro Recorder", string.format("Recorded sell: %s", placementId))
 end
 
@@ -791,8 +994,8 @@ end
 function Macro.loadFromFile(name)
     local filePath = Util.getMacroFilename(name)
     if not filePath or not isfile(filePath) then return nil end
-    local json    = readfile(filePath)
-    local data    = Services.HttpService:JSONDecode(json)
+    local json = readfile(filePath)
+    local data = Services.HttpService:JSONDecode(json)
     if type(data) == "table" and #data == 0 then return {} end
     local actionsArray
     if data.actions and type(data.actions) == "table" then
@@ -918,17 +1121,17 @@ function Macro.exportToWebhook(macroName, webhookUrl)
     if not webhookUrl or webhookUrl == "" then Util.notify("Export Error", "No webhook URL") return false end
     local requestFunc = syn and syn.request or http and http.request or http_request or request
     if not requestFunc then Util.notify("Export Error", "HTTP not supported") return false end
-    local jsonData   = Services.HttpService:JSONEncode(Macro.library[macroName])
-    local unitsUsed  = {}
-    local unitOrder  = {}
+    local jsonData  = Services.HttpService:JSONEncode(Macro.library[macroName])
+    local unitsUsed = {}
+    local unitOrder = {}
     for _, action in ipairs(Macro.library[macroName]) do
         if action.Type == "spawn_unit" and action.Unit then
             local baseName = action.Unit:match("^(.+) #%d+$") or action.Unit
             if not unitsUsed[baseName] then unitsUsed[baseName] = true table.insert(unitOrder, baseName) end
         end
     end
-    local unitsLine   = #unitOrder > 0 and ("Units: " .. table.concat(unitOrder, ", ")) or "Units: (none)"
-    local boundary    = "----LixHubBoundary" .. tostring(math.random(100000, 999999))
+    local unitsLine = #unitOrder > 0 and ("Units: " .. table.concat(unitOrder, ", ")) or "Units: (none)"
+    local boundary  = "----LixHubBoundary" .. tostring(math.random(100000, 999999))
     local function part(name, value, filename, contentType)
         local header
         if filename then
@@ -972,8 +1175,8 @@ function Macro.waitForSufficientMoney(action, actionIndex, totalActions)
     if requiredCost > 0 then
         while Util.getPlayerMoney() < requiredCost do
             if not Macro.isPlaying or GameTracking.gameHasEnded then return false end
-            local missingMoney  = requiredCost - Util.getPlayerMoney()
-            local upgradeText   = action.Amount and action.Amount > 1 and string.format(" (x%d upgrade)", action.Amount) or ""
+            local missingMoney = requiredCost - Util.getPlayerMoney()
+            local upgradeText  = action.Amount and action.Amount > 1 and string.format(" (x%d upgrade)", action.Amount) or ""
             Macro.updateStatus(string.format("(%d/%d) Waiting for %d more yen%s", actionIndex, totalActions, missingMoney, upgradeText))
             task.wait(1)
         end
@@ -1032,8 +1235,8 @@ function Macro.validateUpgrade(action, actionIndex, totalActions)
     local upgradeAmount = action.Amount or 1
     for attempt = 1, Macro.UPGRADE_MAX_RETRIES do
         if not Macro.isPlaying then return false end
-        local currentUUID  = Macro.playbackPlacementToSpawnId[placementId]
-        local targetUnit   = currentUUID and Macro.findUnitBySpawnUUID(currentUUID) or nil
+        local currentUUID = Macro.playbackPlacementToSpawnId[placementId]
+        local targetUnit  = currentUUID and Macro.findUnitBySpawnUUID(currentUUID) or nil
         if not targetUnit then
             if attempt < Macro.UPGRADE_MAX_RETRIES then task.wait(Macro.RETRY_DELAY) continue else return false end
         end
@@ -1206,10 +1409,10 @@ local function initialize()
     _G.Rayfield = Rayfield
 
     local Window = Rayfield:CreateWindow({
-        Name              = "LixHub",
-        Icon              = 0,
-        LoadingTitle      = "Loading LixHub",
-        LoadingSubtitle   = "V0.18",
+        Name            = "LixHub",
+        Icon            = 0,
+        LoadingTitle    = "Loading LixHub",
+        LoadingSubtitle = "V0.18",
         Theme = {
             TextColor  = Color3.fromRGB(240, 240, 240),
             Background = Color3.fromRGB(25, 25, 25),
@@ -1304,11 +1507,11 @@ local function initialize()
     end
 
     MacroTab:CreateInput({
-        Name                    = "Create Macro",
-        CurrentValue            = "",
-        PlaceholderText         = "Enter macro name...",
+        Name                     = "Create Macro",
+        CurrentValue             = "",
+        PlaceholderText          = "Enter macro name...",
         RemoveTextAfterFocusLost = true,
-        Callback                = function(text)
+        Callback                 = function(text)
             local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
             if cleanedName ~= "" then
                 if Macro.library[cleanedName] then Util.notify("Error", "Macro already exists.") return end
@@ -1434,11 +1637,11 @@ local function initialize()
     MacroTab:CreateSection("Import/Export")
 
     MacroTab:CreateInput({
-        Name                    = "Import Macro",
-        CurrentValue            = "",
-        PlaceholderText         = "Paste JSON/TXT/URL here...",
+        Name                     = "Import Macro",
+        CurrentValue             = "",
+        PlaceholderText          = "Paste JSON/TXT/URL here...",
         RemoveTextAfterFocusLost = true,
-        Callback                = function(text)
+        Callback                 = function(text)
             if not text or text:match("^%s*$") then return end
             local macroName = "ImportedMacro_" .. os.time()
             if text:match("^https?://") then
@@ -1464,11 +1667,11 @@ local function initialize()
 
     local webhookUrl = ""
     MacroTab:CreateInput({
-        Name                    = "Webhook URL (Optional)",
-        CurrentValue            = "",
-        PlaceholderText         = "https://discord.com/api/webhooks/...",
+        Name                     = "Webhook URL (Optional)",
+        CurrentValue             = "",
+        PlaceholderText          = "https://discord.com/api/webhooks/...",
         RemoveTextAfterFocusLost = false,
-        Callback                = function(text) webhookUrl = text end,
+        Callback                 = function(text) webhookUrl = text end,
     })
 
     MacroTab:CreateButton({
@@ -1505,7 +1708,558 @@ local function initialize()
     })
 
     -- ══════════════════════════════════════════════
-    -- GAME TRACKING
+    -- TAB: GAME
+    -- ══════════════════════════════════════════════
+    local GameTab = Window:CreateTab("Game", "gamepad-2")
+
+    -- ──────────────────────────────────────────────
+    -- Player / Visual
+    -- ──────────────────────────────────────────────
+    GameTab:CreateSection("Player")
+
+    GameTab:CreateSlider({
+        Name         = "Max Camera Zoom Distance",
+        Range        = { 5, 100 },
+        Increment    = 1,
+        Suffix       = " studs",
+        CurrentValue = 35,
+        Flag         = "CameraZoomDistance",
+        Callback     = function(Value)
+            Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Anti AFK (No Kick)",
+        CurrentValue = false,
+        Flag         = "AntiAfkKick",
+        Info         = "Prevents the Roblox idle-kick.",
+        Callback     = function(Value)
+            State.AntiAfkKickEnabled = Value
+        end,
+    })
+
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+
+    GameTab:CreateToggle({
+        Name         = "Low Performance Mode",
+        CurrentValue = false,
+        Flag         = "LowPerfMode",
+        Callback     = function(Value)
+            State.EnableLowPerfMode = Value
+            Util.setLowPerformanceMode(Value)
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Black Screen",
+        CurrentValue = false,
+        Flag         = "BlackScreen",
+        Callback     = function(Value)
+            State.EnableBlackScreen = Value
+            Util.setBlackScreen(Value)
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Limit FPS",
+        CurrentValue = false,
+        Flag         = "LimitFPS",
+        Callback     = function(Value)
+            State.EnableLimitFPS = Value
+            if Value and State.SelectedFPS > 0 then
+                setfpscap(State.SelectedFPS)
+            else
+                setfpscap(0)
+            end
+        end,
+    })
+
+    GameTab:CreateSlider({
+        Name         = "Limit FPS To",
+        Range        = { 10, 240 },
+        Increment    = 1,
+        Suffix       = " FPS",
+        CurrentValue = 60,
+        Flag         = "FPSLimit",
+        Callback     = function(Value)
+            State.SelectedFPS = Value
+            if State.EnableLimitFPS then setfpscap(Value) end
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Streamer Mode",
+        CurrentValue = false,
+        Flag         = "StreamerMode",
+        Info         = "Hides your name, level, and title in the overhead billboard.",
+        Callback     = function(Value)
+            State.StreamerModeEnabled = Value
+        end,
+    })
+
+    -- Streamer mode loop
+    task.spawn(function()
+        while true do
+            task.wait(0.1)
+            if not State.StreamerModeEnabled then continue end
+            pcall(function()
+                local lp        = Services.Players.LocalPlayer
+                local head      = lp.Character and lp.Character:FindFirstChild("Head")
+                if not head then return end
+                local billboard = head:FindFirstChild("overhead_player")
+                if not billboard then return end
+                local frame     = billboard:FindFirstChild("Frame")
+                if not frame then return end
+                local nameFrame  = frame:FindFirstChild("Name_Frame")
+                local levelFrame = frame:FindFirstChild("Level_Frame")
+                if nameFrame and nameFrame:FindFirstChild("Name_Text") then
+                    nameFrame.Name_Text.Text = "🔥 PROTECTED BY LIXHUB 🔥"
+                end
+                if levelFrame and levelFrame:FindFirstChild("Level") then
+                    levelFrame.Level.Text = "999"
+                end
+            end)
+        end
+    end)
+
+    -- ──────────────────────────────────────────────
+    -- Game Automation
+    -- ──────────────────────────────────────────────
+    GameTab:CreateSection("Game")
+
+    GameTab:CreateToggle({
+        Name         = "Delete Enemies",
+        CurrentValue = false,
+        Flag         = "DeleteEnemies",
+        Info         = "Removes enemy models from the map as they spawn.",
+        Callback     = function(Value)
+            State.DeleteEntities = Value
+            if Value then
+                task.spawn(function()
+                    local function isEnemy(unit)
+                        local stats = unit:FindFirstChild("_stats")
+                        if not stats then return true end
+                        local maxUpgrade = stats:FindFirstChild("max_upgrade")
+                        if not maxUpgrade or maxUpgrade.Value == 0 then return true end
+                        local playerValue = stats:FindFirstChild("player")
+                        return not (playerValue and playerValue:IsA("ObjectValue"))
+                    end
+                    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+                    if not unitsFolder then return end
+                    for _, unit in pairs(unitsFolder:GetChildren()) do
+                        if isEnemy(unit) then unit:Destroy() end
+                    end
+                    State.childAddedConnection = unitsFolder.ChildAdded:Connect(function(child)
+                        if State.DeleteEntities then
+                            task.wait(0.1)
+                            if isEnemy(child) then child:Destroy() end
+                        end
+                    end)
+                end)
+            else
+                if State.childAddedConnection then
+                    State.childAddedConnection:Disconnect()
+                    State.childAddedConnection = nil
+                end
+            end
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Auto Start Game",
+        CurrentValue = false,
+        Flag         = "AutoStartGame",
+        Callback     = function(Value)
+            State.AutoVoteStart = Value
+        end,
+    })
+
+    -- Auto-start loop
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if not State.AutoVoteStart then continue end
+            if Util.isInLobby() then continue end
+            local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+            if waveNum and waveNum.Value == 0 then
+                if State.AutoEquipMacroUnits and Macro.currentName and Macro.currentName ~= "" then
+                    Util.autoEquipMacroUnits(Macro.currentName, Macro.library)
+                    task.wait(1)
+                end
+                pcall(function()
+                    Services.ReplicatedStorage
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("vote_start")
+                        :InvokeServer()
+                end)
+            end
+        end
+    end)
+
+    GameTab:CreateToggle({
+        Name         = "Auto Retry",
+        CurrentValue = false,
+        Flag         = "AutoRetry",
+        Callback     = function(Value)
+            State.AutoVoteRetry = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Auto Next",
+        CurrentValue = false,
+        Flag         = "AutoNext",
+        Info         = "Votes next story/raid on victory.",
+        Callback     = function(Value)
+            State.AutoVoteNext = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Auto Lobby",
+        CurrentValue = false,
+        Flag         = "AutoLobby",
+        Info         = "Teleports to lobby when the game ends.",
+        Callback     = function(Value)
+            State.AutoVoteLobby = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Auto Skip Waves",
+        CurrentValue = false,
+        Flag         = "AutoSkipWaves",
+        Callback     = function(Value)
+            State.AutoSkipWaves = Value
+            if not Value then
+                pcall(function()
+                    Services.ReplicatedStorage
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("toggle_setting")
+                        :InvokeServer("autoskip_waves", false)
+                end)
+            end
+        end,
+    })
+
+    GameTab:CreateSlider({
+        Name         = "Auto Skip Until Wave",
+        Range        = { 0, 30 },
+        Increment    = 1,
+        Suffix       = "",
+        CurrentValue = 0,
+        Flag         = "AutoSkipUntilWave",
+        Info         = "Stop skipping waves once this wave is reached (0 = always skip).",
+        Callback     = function(Value)
+            State.AutoSkipUntilWave = Value
+        end,
+    })
+
+    -- Auto-skip wave monitor
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if not State.AutoSkipWaves then continue end
+            if Util.isInLobby() then continue end
+            local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+            if not waveNum then continue end
+            local current   = waveNum.Value
+            local limit     = State.AutoSkipUntilWave
+            local endpoints = Services.ReplicatedStorage
+                :WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+            if limit > 0 and current >= limit then
+                State.AutoSkipWaves = false
+                pcall(function()
+                    endpoints:WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", false)
+                end)
+                Util.notify("Auto Skip Waves", string.format("Disabled — reached wave %d", limit))
+            else
+                pcall(function()
+                    endpoints:WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", true)
+                end)
+            end
+        end
+    end)
+
+    -- ──────────────────────────────────────────────
+    -- Boss Rush
+    -- ──────────────────────────────────────────────
+    GameTab:CreateSection("Boss Rush")
+
+    local BossRushModifier = "Slot"
+
+    GameTab:CreateToggle({
+        Name         = "Auto Select Card",
+        CurrentValue = false,
+        Flag         = "AutoSelectCardBossRush",
+        Info         = "Automatically picks a modifier card in Boss Rush.",
+        Callback     = function(Value)
+            State.AutoSelectCardBossRush = Value
+        end,
+    })
+
+    GameTab:CreateDropdown({
+        Name            = "Preferred Modifier",
+        Options         = { "Unit Slot", "Damage", "Placement Limit" },
+        CurrentOption   = { "Unit Slot" },
+        MultipleOptions = false,
+        Flag            = "BossRushModifier",
+        Callback        = function(Option)
+            local val = type(Option) == "table" and Option[1] or Option
+            if val == "Damage" then
+                BossRushModifier = "Damage"
+            elseif val == "Placement Limit" then
+                BossRushModifier = "Placement"
+            else
+                BossRushModifier = "Slot"
+            end
+        end,
+    })
+
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if not State.AutoSelectCardBossRush then continue end
+            local promptGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt")
+            if promptGui and promptGui.Enabled then
+                pcall(function()
+                    Services.ReplicatedStorage
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("request_makima_sacrifice")
+                        :InvokeServer(BossRushModifier)
+                end)
+            end
+        end
+    end)
+
+    -- ──────────────────────────────────────────────
+    -- Auto Sell
+    -- ──────────────────────────────────────────────
+    GameTab:CreateSection("Auto Sell")
+
+    GameTab:CreateToggle({
+        Name         = "Auto Sell All Units",
+        CurrentValue = false,
+        Flag         = "AutoSellEnabled",
+        Info         = "Sell all your placed units when the target wave is reached.",
+        Callback     = function(Value)
+            State.AutoSellEnabled = Value
+        end,
+    })
+
+    GameTab:CreateSlider({
+        Name         = "Sell on Wave",
+        Range        = { 1, 500 },
+        Increment    = 1,
+        Suffix       = "",
+        CurrentValue = 10,
+        Flag         = "AutoSellWave",
+        Callback     = function(Value)
+            State.AutoSellWave = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Auto Sell Farm Units",
+        CurrentValue = false,
+        Flag         = "AutoSellFarmEnabled",
+        Info         = "Sell only units with farm_amount > 0 on the target wave.",
+        Callback     = function(Value)
+            State.AutoSellFarmEnabled = Value
+        end,
+    })
+
+    GameTab:CreateSlider({
+        Name         = "Sell Farm Units on Wave",
+        Range        = { 1, 500 },
+        Increment    = 1,
+        Suffix       = "",
+        CurrentValue = 15,
+        Flag         = "AutoSellFarmWave",
+        Callback     = function(Value)
+            State.AutoSellFarmWave = Value
+        end,
+    })
+
+    -- Sell helper functions (scoped inside initialize to access Macro.library)
+    local _lastSellWave     = 0
+    local _lastFarmSellWave = 0
+
+    local function sellAllPlayerUnits()
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if not unitsFolder then return end
+        local toSell = {}
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if Util.isOwnedByLocalPlayer(unit) then table.insert(toSell, unit) end
+        end
+        local sold = 0
+        for _, unit in pairs(toSell) do
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("sell_unit_ingame")
+                    :InvokeServer(unit.Name)
+                sold += 1
+            end)
+            task.wait(0.1)
+        end
+        if sold > 0 then
+            Util.notify("Auto Sell", string.format("Sold %d units on wave %d", sold, State.AutoSellWave))
+        end
+    end
+
+    local function sellFarmUnits()
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if not unitsFolder then return end
+        local toSell = {}
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if Util.isOwnedByLocalPlayer(unit) then
+                local stats      = unit:FindFirstChild("_stats")
+                local farmAmount = stats and stats:FindFirstChild("farm_amount")
+                if farmAmount and farmAmount.Value and farmAmount.Value > 0 then
+                    table.insert(toSell, unit)
+                end
+            end
+        end
+        local sold = 0
+        for _, unit in pairs(toSell) do
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("sell_unit_ingame")
+                    :InvokeServer(unit.Name)
+                sold += 1
+            end)
+            task.wait(0.1)
+        end
+        if sold > 0 then
+            Util.notify("Auto Sell Farm", string.format("Sold %d farm units on wave %d", sold, State.AutoSellFarmWave))
+        end
+    end
+
+    -- Wave-changed sell watcher
+    task.spawn(function()
+        if not Services.Workspace:FindFirstChild("_wave_num") then
+            Services.Workspace:WaitForChild("_wave_num")
+        end
+        local waveNum = Services.Workspace._wave_num
+        waveNum.Changed:Connect(function(newWave)
+            if State.AutoSellEnabled and newWave == State.AutoSellWave and newWave ~= _lastSellWave then
+                _lastSellWave = newWave
+                task.wait(0.5)
+                sellAllPlayerUnits()
+            end
+            if State.AutoSellFarmEnabled and newWave == State.AutoSellFarmWave and newWave ~= _lastFarmSellWave then
+                _lastFarmSellWave = newWave
+                task.wait(0.5)
+                sellFarmUnits()
+            end
+        end)
+    end)
+
+    -- ──────────────────────────────────────────────
+    -- Failsafes
+    -- ──────────────────────────────────────────────
+    GameTab:CreateSection("Failsafes")
+
+    GameTab:CreateSlider({
+        Name         = "Return to Lobby After X Games",
+        Range        = { 0, 100 },
+        Increment    = 1,
+        Suffix       = " games",
+        CurrentValue = 0,
+        Flag         = "ReturnToLobbyAfterGames",
+        Info         = "Teleport to lobby after this many completed games (0 = disabled).",
+        Callback     = function(Value)
+            State.ReturnToLobbyAfterGames = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Return to Lobby Failsafe",
+        CurrentValue = false,
+        Flag         = "ReturnToLobbyFailsafe",
+        Info         = "Teleport to lobby if no auto-vote fires within 10s of game end.",
+        Callback     = function(Value)
+            State.ReturnToLobbyFailsafe = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Return to Lobby if Game Never Ends",
+        CurrentValue = false,
+        Flag         = "ReturnToLobbyNeverEnds",
+        Info         = "Teleport to lobby if the game runs for more than 20 minutes.",
+        Callback     = function(Value)
+            State.ReturnToLobbyIfNeverEnds = Value
+        end,
+    })
+
+    -- 20-minute failsafe loop
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if not State.ReturnToLobbyIfNeverEnds then continue end
+            if not GameTracking.gameInProgress      then continue end
+            if Util.isInLobby()                    then continue end
+            local elapsed = tick() - GameTracking.gameStartTime
+            if elapsed >= 1200 then
+                Util.notify("20-Min Failsafe",
+                    string.format("Game ran %.1f min — returning to lobby", elapsed / 60))
+                GameTracking.endGame()
+                Macro.isPlaying = false
+                pcall(function()
+                    Services.ReplicatedStorage
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("teleport_back_to_lobby")
+                        :InvokeServer()
+                end)
+            end
+        end
+    end)
+
+    -- ──────────────────────────────────────────────
+    -- Macro / Auto Equip
+    -- ──────────────────────────────────────────────
+    GameTab:CreateSection("Macro")
+
+    GameTab:CreateToggle({
+        Name         = "Auto Equip Macro Units",
+        CurrentValue = false,
+        Flag         = "AutoEquipMacroUnits",
+        Info         = "Equips the correct units before the game starts (requires Auto Start Game).",
+        Callback     = function(Value)
+            State.AutoEquipMacroUnits = Value
+        end,
+    })
+
+    GameTab:CreateButton({
+        Name     = "Equip Macro Units Now",
+        Callback = function()
+            if not Macro.currentName or Macro.currentName == "" then
+                Util.notify("Equip Error", "No macro selected.")
+                return
+            end
+            Util.autoEquipMacroUnits(Macro.currentName, Macro.library)
+        end,
+    })
+
+    -- ══════════════════════════════════════════════
+    -- GAME TRACKING HOOKS
     -- ══════════════════════════════════════════════
     local function monitorWaves()
         if not Services.Workspace:FindFirstChild("_wave_num") then
@@ -1531,17 +2285,41 @@ local function initialize()
     end
 
     local function setupRemoteConnections()
-        local gameFinishedRemote = Services.ReplicatedStorage:FindFirstChild("endpoints")
+        local gameFinishedRemote = Services.ReplicatedStorage
+            :FindFirstChild("endpoints")
             :FindFirstChild("server_to_client")
             :FindFirstChild("game_finished")
+
         if gameFinishedRemote then
-            gameFinishedRemote.OnClientEvent:Connect(function()
+            gameFinishedRemote.OnClientEvent:Connect(function(...)
+                -- Determine win/loss from event args
+                local isVictory = false
+                for _, arg in ipairs({...}) do
+                    if type(arg) == "table" and arg.victory ~= nil then
+                        isVictory = arg.victory == true
+                        break
+                    elseif type(arg) == "boolean" then
+                        isVictory = arg
+                        break
+                    end
+                end
+
+                -- Core game end bookkeeping
                 GameTracking.endGame()
                 Macro.hasPlayedThisGame = false
-                -- Also reset dungeon running state when game ends
-                if Dungeon.isRunning then
-                    Dungeon.stop()
+
+                -- Stats
+                State.TotalGamesPlayed += 1
+                if isVictory then
+                    State.TotalWins  += 1
+                else
+                    State.TotalLosses += 1
                 end
+
+                -- Dungeon reset
+                if Dungeon.isRunning then Dungeon.stop() end
+
+                -- Recording save
                 if Macro.isRecording then
                     Macro.stopRecording()
                     Util.notify("Recording Stopped", "Game ended, recording saved.")
@@ -1551,6 +2329,90 @@ local function initialize()
                         Macro.saveToFile(Macro.currentName)
                     end
                 end
+
+                -- Failsafe timer (10-second window)
+                if State.ReturnToLobbyFailsafe then
+                    State.failsafeActive = true
+                    task.delay(10, function()
+                        if State.failsafeActive and not Util.isInLobby() then
+                            Util.notify("Failsafe", "No vote detected — returning to lobby")
+                            pcall(function()
+                                Services.ReplicatedStorage
+                                    :WaitForChild("endpoints")
+                                    :WaitForChild("client_to_server")
+                                    :WaitForChild("teleport_back_to_lobby")
+                                    :InvokeServer()
+                            end)
+                        end
+                    end)
+                end
+
+                -- Auto-vote logic
+                task.spawn(function()
+                    task.wait(1)
+
+                    local endpoints = Services.ReplicatedStorage
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+
+                    local function tryVote(remoteCalls)
+                        for attempt = 1, State.AutoRetryAttempts do
+                            for _, call in ipairs(remoteCalls) do
+                                pcall(call)
+                            end
+                            task.wait(2)
+                            local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
+                            if not resultsUI or not resultsUI.Enabled then
+                                State.failsafeActive = false
+                                return true
+                            end
+                            if attempt < State.AutoRetryAttempts then task.wait(State.AutoRetryDelay) end
+                        end
+                        return false
+                    end
+
+                    local function runVotes()
+                        if State.AutoVoteRetry then
+                            if tryVote({
+                                function() endpoints:WaitForChild("set_game_finished_vote"):InvokeServer("replay") end
+                            }) then return end
+                        end
+
+                        if State.AutoVoteNext and isVictory then
+                            if tryVote({
+                                function() endpoints:WaitForChild("set_game_finished_vote"):InvokeServer("next_story") end,
+                                function() endpoints:WaitForChild("set_game_finished_vote"):InvokeServer("next_raid")  end,
+                            }) then return end
+                        end
+
+                        if State.AutoVoteLobby then
+                            tryVote({
+                                function()
+                                    task.wait(1)
+                                    endpoints:WaitForChild("teleport_back_to_lobby"):InvokeServer()
+                                end
+                            })
+                        end
+                    end
+
+                    runVotes()
+
+                    -- Return to lobby after X games
+                    if State.ReturnToLobbyAfterGames > 0
+                    and State.TotalGamesPlayed >= State.ReturnToLobbyAfterGames then
+                        Util.notify("Game Counter",
+                            string.format("Reached %d games — returning to lobby", State.ReturnToLobbyAfterGames))
+                        task.wait(2)
+                        pcall(function()
+                            endpoints:WaitForChild("teleport_back_to_lobby"):InvokeServer()
+                        end)
+                        State.TotalGamesPlayed = 0
+                        State.TotalWins        = 0
+                        State.TotalLosses      = 0
+                    end
+
+                    GameTracking.reset()
+                end)
             end)
         end
     end
