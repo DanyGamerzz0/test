@@ -403,10 +403,17 @@ function Macro.updateStatus(message)
 end
 
 function Macro.clearSpawnIdMappings()
+    Util.debugPrint("=== CLEARING SPAWN ID MAPPINGS ===")
+    for key, value in pairs(Macro.playbackPlacementToSpawnId) do
+        Util.debugPrint(string.format("  Clearing: %s -> %s", key, tostring(value)))
+    end
+    
     Macro.spawnIdToPlacement = {}
     Macro.placementCounter = {}
     Macro.unitNameToSpawnId = {}
     Macro.playbackPlacementToSpawnId = {}
+    
+    Util.debugPrint("=== MAPPINGS CLEARED ===")
 end
 
 -- ============================================================
@@ -473,18 +480,19 @@ function Macro.findUnitBySpawnUUID(targetUUID)
     local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
     if not unitsFolder then return nil end
     
+    Util.debugPrint(string.format("Searching for unit with _SPAWN_UNIT_UUID: %s", tostring(targetUUID)))
+    
     for _, unit in pairs(unitsFolder:GetChildren()) do
         if Util.isOwnedByLocalPlayer(unit) then
-            local stats = unit:FindFirstChild("_stats")
-            if stats then
-                local uuidValue = stats:FindFirstChild("uuid")
-                if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == targetUUID then
-                    return unit
-                end
+            local spawnUUID = unit:GetAttribute("_SPAWN_UNIT_UUID")
+            if spawnUUID and tostring(spawnUUID) == tostring(targetUUID) then
+                Util.debugPrint(string.format("✓ Found unit: %s with _SPAWN_UNIT_UUID: %s", unit.Name, tostring(spawnUUID)))
+                return unit
             end
         end
     end
     
+    Util.debugPrint(string.format("✗ No unit found with _SPAWN_UNIT_UUID: %s", tostring(targetUUID)))
     return nil
 end
 
@@ -1191,22 +1199,32 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
         local newUnit = Macro.findNewlyPlacedUnit(beforeSnapshot, Macro.takeUnitsSnapshot())
         
         if newUnit and Util.isOwnedByLocalPlayer(newUnit) then
-            -- Get the actual UUID from _stats, not the spawn_id
-            local stats = newUnit:FindFirstChild("_stats")
-            if stats then
-                local uuidValue = stats:FindFirstChild("uuid")
-                if uuidValue and uuidValue:IsA("StringValue") then
-                    local actualUUID = uuidValue.Value
-                    Macro.playbackPlacementToSpawnId[placementId] = actualUUID
-                    Util.debugPrint(string.format("Stored UUID mapping: %s -> %s", placementId, actualUUID))
-                    
-                    Macro.updateStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
-                        actionIndex, totalActions, placementId))
-                    return true
-                end
-            end
+            -- Get the SPAWN UUID from the attribute, not the unit type UUID from _stats
+            local spawnUUID = newUnit:GetAttribute("_SPAWN_UNIT_UUID")
             
-            Util.debugPrint("Could not get UUID from placed unit")
+            if spawnUUID then
+                Util.debugPrint(string.format("STORING MAPPING: '%s' -> SPAWN_UUID '%s'", placementId, tostring(spawnUUID)))
+                
+                -- Check if this spawn UUID is already mapped to something else
+                for existingPlacement, existingUUID in pairs(Macro.playbackPlacementToSpawnId) do
+                    if tostring(existingUUID) == tostring(spawnUUID) and existingPlacement ~= placementId then
+                        Util.debugPrint(string.format("⚠️ WARNING: SPAWN_UUID '%s' already mapped to '%s'!", tostring(spawnUUID), existingPlacement))
+                    end
+                end
+                
+                Macro.playbackPlacementToSpawnId[placementId] = spawnUUID
+                
+                Util.debugPrint("Current mappings:")
+                for k, v in pairs(Macro.playbackPlacementToSpawnId) do
+                    Util.debugPrint(string.format("  %s -> %s", k, tostring(v)))
+                end
+                
+                Macro.updateStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
+                    actionIndex, totalActions, placementId))
+                return true
+            else
+                Util.debugPrint("Could not get _SPAWN_UNIT_UUID attribute from placed unit")
+            end
         end
         
         Util.debugPrint("Unit not detected after placement on attempt", attempt)
@@ -1373,6 +1391,14 @@ function Macro.play()
     
     local timingMode = Macro.ignoreTiming and " - Immediate Mode" or " - Game Time Sync"
     Macro.updateStatus(string.format("Starting playback with %d actions%s", totalActions, timingMode))
+    
+    -- DEBUG: Print all actions
+    Util.debugPrint("=== MACRO ACTIONS SUMMARY ===")
+    for i, action in ipairs(Macro.actions) do
+        Util.debugPrint(string.format("Action %d: Type=%s, Unit=%s, Time=%s", 
+            i, action.Type, action.Unit or "N/A", action.Time or "N/A"))
+    end
+    Util.debugPrint("=== END SUMMARY ===")
     
     GameTracking.gameHasEnded = false
     Macro.clearSpawnIdMappings()
