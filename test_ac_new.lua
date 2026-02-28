@@ -377,6 +377,7 @@ local Macro = {
     UPGRADE_REMOTE = "upgrade_unit_ingame",
     SELL_REMOTE = "sell_unit_ingame",
     WAVE_SKIP_REMOTE = "vote_wave_skip",
+    ABILITY_REMOTE = "use_active_attack",
     PLACEMENT_WAIT = 0.3,
     
     -- Validation config
@@ -650,6 +651,35 @@ function Macro.processWaveSkipRecording(actionInfo)
     Util.notify("Macro Recorder", "Recorded wave skip")
 end
 
+function Macro.processAbilityRecording(actionInfo)
+    local remoteParam = actionInfo.args[1]
+    
+    local spawnId = Macro.unitNameToSpawnId[remoteParam]
+    if not spawnId then
+        Util.debugPrint("Could not find spawn ID for ability unit name:", remoteParam)
+        return
+    end
+    
+    local placementId = Macro.spawnIdToPlacement[spawnId]
+    if not placementId then
+        Util.debugPrint("Could not find placement mapping for ability spawn_id:", spawnId)
+        return
+    end
+    
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    
+    local abilityRecord = {
+        Type = "use_active_attack",
+        Unit = placementId,
+        Time = string.format("%.2f", gameRelativeTime)
+    }
+    
+    table.insert(Macro.actions, abilityRecord)
+    
+    Util.debugPrint(string.format("Recorded ability: %s", placementId))
+    Util.notify("Macro Recorder", string.format("Recorded ability: %s", placementId))
+end
+
 function Macro.handleRemoteCall(remoteName, args, timestamp)
     if remoteName == Macro.SPAWN_REMOTE then
         task.spawn(function()
@@ -677,6 +707,14 @@ function Macro.handleRemoteCall(remoteName, args, timestamp)
         task.spawn(function()
             Macro.processWaveSkipRecording({
                 remoteName = Macro.WAVE_SKIP_REMOTE,
+                timestamp = timestamp
+            })
+        end)
+    elseif remoteName == Macro.ABILITY_REMOTE then
+        task.spawn(function()
+            Macro.processAbilityRecording({
+                remoteName = Macro.ABILITY_REMOTE,
+                args = args,
                 timestamp = timestamp
             })
         end)
@@ -776,7 +814,8 @@ function Macro.setupHook()
         if not checkcaller() and Macro.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
             if self.Name == Macro.SPAWN_REMOTE or 
                self.Name == Macro.SELL_REMOTE or 
-               self.Name == Macro.WAVE_SKIP_REMOTE then
+               self.Name == Macro.WAVE_SKIP_REMOTE or
+               self.Name == Macro.ABILITY_REMOTE then
                 Macro.handleRemoteCall(self.Name, args, tick())
             end
         end
@@ -960,6 +999,12 @@ function Macro.importFromTXT(txtContent, macroName)
                         Type = "vote_wave_skip",
                         Time = parts[2]
                     })
+                elseif actionType == "use_active_attack" and #parts >= 3 then
+                    table.insert(actions, {
+                        Type = "use_active_attack",
+                        Unit = parts[2],
+                        Time = parts[3]
+                    })
                 end
             end
         end
@@ -1032,6 +1077,111 @@ function Macro.exportToClipboard(macroName)
     end
     
     return true
+end
+
+function Macro.exportToWebhook(macroName, webhookUrl)
+    if not Macro.library[macroName] or #Macro.library[macroName] == 0 then
+        Util.notify("Export Error", "No macro data to export")
+        return false
+    end
+    
+    if not webhookUrl or webhookUrl == "" then
+        Util.notify("Export Error", "No webhook URL provided")
+        return false
+    end
+    
+    local requestFunc = syn and syn.request or 
+                    http and http.request or 
+                    http_request or 
+                    request
+    
+    if not requestFunc then
+        Util.notify("Export Error", "HTTP requests not supported by your executor")
+        return false
+    end
+    
+    local jsonData = Services.HttpService:JSONEncode(Macro.library[macroName])
+    
+    -- Calculate stats
+    local stats = {
+        placements = 0,
+        upgrades = 0,
+        sells = 0,
+        abilities = 0,
+        waveSkips = 0,
+        duration = 0
+    }
+    
+    for _, action in ipairs(Macro.library[macroName]) do
+        if action.Type == "spawn_unit" then
+            stats.placements = stats.placements + 1
+        elseif action.Type == "upgrade_unit_ingame" then
+            stats.upgrades = stats.upgrades + 1
+        elseif action.Type == "sell_unit_ingame" then
+            stats.sells = stats.sells + 1
+        elseif action.Type == "use_active_attack" then
+            stats.abilities = stats.abilities + 1
+        elseif action.Type == "vote_wave_skip" then
+            stats.waveSkips = stats.waveSkips + 1
+        end
+        
+        local actionTime = tonumber(action.Time) or 0
+        if actionTime > stats.duration then
+            stats.duration = actionTime
+        end
+    end
+    
+    local embed = {
+        title = "📋 Macro Export: " .. macroName,
+        description = string.format("**Total Actions:** %d\n**Duration:** %.1f seconds", 
+            #Macro.library[macroName], stats.duration),
+        color = 3447003, -- Blue color
+        fields = {
+            {
+                name = "📊 Action Breakdown",
+                value = string.format(
+                    "```\nPlacements:  %d\nUpgrades:    %d\nSells:       %d\nAbilities:   %d\nWave Skips:  %d\n```",
+                    stats.placements, stats.upgrades, stats.sells, stats.abilities, stats.waveSkips
+                ),
+                inline = false
+            },
+            {
+                name = "📦 Macro Data",
+                value = "See attachment below",
+                inline = false
+            }
+        },
+        footer = {
+            text = "LixHub Macro System • " .. os.date("%Y-%m-%d %H:%M:%S")
+        },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+    
+    -- Send webhook with file attachment
+    local success, response = pcall(function()
+        return requestFunc({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = Services.HttpService:JSONEncode({
+                embeds = {embed},
+                content = string.format("```json\n%s\n```", jsonData:sub(1, 1900))
+            })
+        })
+    end)
+    
+    if success and response and response.StatusCode == 204 then
+        Util.notify("Export Success", "Macro exported to webhook!")
+        return true
+    else
+        Util.notify("Export Error", "Failed to send to webhook")
+        if response then
+            Util.debugPrint("Webhook error:", response.StatusCode, response.Body)
+        end
+        return false
+    end
 end
 
 -- ============================================================
@@ -1360,15 +1510,68 @@ function Macro.executeAction(action, actionIndex, totalActions)
     elseif action.Type == "sell_unit_ingame" then
         return Macro.validateSell(action, actionIndex, totalActions)
     elseif action.Type == "vote_wave_skip" then
-        Macro.updateStatus(string.format("(%d/%d) Skipping wave", actionIndex, totalActions))
-        
-        local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-        
-        pcall(function()
-            endpoints:WaitForChild(Macro.WAVE_SKIP_REMOTE):InvokeServer()
+        -- Schedule wave skip in background (even with ignore timing)
+        task.spawn(function()
+            local targetTime = tonumber(action.Time) or 0
+            local waitTime = targetTime - (tick() - GameTracking.gameStartTime)
+            
+            if waitTime > 0 and not Macro.ignoreTiming then
+                Util.debugPrint(string.format("Wave skip scheduled for %.1fs from now", waitTime))
+                task.wait(waitTime)
+            end
+            
+            if Macro.isPlaying and not GameTracking.gameHasEnded then
+                Util.debugPrint(string.format("Executing scheduled wave skip at game time %.2f", tick() - GameTracking.gameStartTime))
+                
+                local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                
+                pcall(function()
+                    endpoints:WaitForChild(Macro.WAVE_SKIP_REMOTE):InvokeServer()
+                end)
+            end
         end)
         
+        Macro.updateStatus(string.format("(%d/%d) Scheduled wave skip", actionIndex, totalActions))
+        return true
+    elseif action.Type == "use_active_attack" then
+        -- Schedule ability in background (even with ignore timing)
+        task.spawn(function()
+            local targetTime = tonumber(action.Time) or 0
+            local waitTime = targetTime - (tick() - GameTracking.gameStartTime)
+            
+            if waitTime > 0 and not Macro.ignoreTiming then
+                Util.debugPrint(string.format("Ability scheduled for %.1fs from now", waitTime))
+                task.wait(waitTime)
+            end
+            
+            if Macro.isPlaying and not GameTracking.gameHasEnded then
+                local placementId = action.Unit
+                local currentUUID = Macro.playbackPlacementToSpawnId[placementId]
+                
+                if currentUUID then
+                    local targetUnit = Macro.findUnitBySpawnUUID(currentUUID)
+                    
+                    if targetUnit then
+                        Util.debugPrint(string.format("Executing scheduled ability for %s at game time %.2f", 
+                            placementId, tick() - GameTracking.gameStartTime))
+                        
+                        local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints")
+                            :WaitForChild("client_to_server")
+                        
+                        pcall(function()
+                            endpoints:WaitForChild(Macro.ABILITY_REMOTE):InvokeServer(targetUnit.Name)
+                        end)
+                    else
+                        Util.debugPrint(string.format("Ability target unit not found: %s", placementId))
+                    end
+                else
+                    Util.debugPrint(string.format("No UUID mapping for ability target: %s", placementId))
+                end
+            end
+        end)
+        
+        Macro.updateStatus(string.format("(%d/%d) Scheduled ability: %s", actionIndex, totalActions, action.Unit))
         return true
     end
     
@@ -1751,6 +1954,35 @@ local function initialize()
             end
             
             Macro.exportToClipboard(Macro.currentName)
+        end,
+    })
+    
+    local webhookUrl = ""
+    
+    MacroTab:CreateInput({
+        Name = "Webhook URL (Optional)",
+        CurrentValue = "",
+        PlaceholderText = "https://discord.com/api/webhooks/...",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text)
+            webhookUrl = text
+        end,
+    })
+    
+    MacroTab:CreateButton({
+        Name = "Export Macro To Webhook",
+        Callback = function()
+            if not Macro.currentName or Macro.currentName == "" then
+                Util.notify("Export Error", "No macro selected.")
+                return
+            end
+            
+            if not webhookUrl or webhookUrl == "" then
+                Util.notify("Export Error", "Please enter a webhook URL first.")
+                return
+            end
+            
+            Macro.exportToWebhook(Macro.currentName, webhookUrl)
         end,
     })
     
