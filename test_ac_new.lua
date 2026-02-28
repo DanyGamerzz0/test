@@ -819,21 +819,41 @@ local GameTracking = {
     gameHasEnded   = false,
 }
 
+function GameTracking.getMapInfo()
+    local mapName = "Unknown Map"
+    local challengeModifier = nil
+    local portalDepth = nil
+
+    local cfg = Services.Workspace:FindFirstChild("_MAP_CONFIG")
+    if cfg and cfg:FindFirstChild("GetLevelData") then
+        local success, result = pcall(function()
+            return cfg.GetLevelData:InvokeServer()
+        end)
+        if success and result then
+            mapName = result.MapName or result.mapName or result.Name or result.name or
+                      result.LevelName or result.levelName or result.Map or result.map or "Unknown Map"
+            challengeModifier = result.challenge
+            if result.PortalItem and
+               result.PortalItem._unique_item_data and
+               result.PortalItem._unique_item_data._unique_portal_data then
+                portalDepth = result.PortalItem._unique_item_data._unique_portal_data.portal_depth
+            end
+            print("Map info retrieved:", mapName, "| Full data:", result)
+        else
+            print("Failed to get map data:", result)
+        end
+    end
+
+    return mapName, challengeModifier, portalDepth
+end
+
 function GameTracking.startGame()
     if GameTracking.gameInProgress then return end
     GameTracking.gameInProgress = true
     GameTracking.gameStartTime  = tick()
     GameTracking.gameHasEnded   = false
     Util.debugPrint("Game started at:", GameTracking.gameStartTime)
-    local mapName = "Unknown Map"
-    pcall(function()
-        local cfg = Services.Workspace:FindFirstChild("_MAP_CONFIG")
-        if cfg then
-            local nameVal = cfg:FindFirstChild("MapName") or cfg:FindFirstChild("Name")
-            if nameVal then mapName = nameVal.Value end
-        end
-    end)
-    Webhook.startTracking(mapName)
+    Webhook.startTracking(GameTracking.getMapInfo())
 end
 
 function GameTracking.endGame()
