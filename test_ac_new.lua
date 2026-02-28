@@ -934,9 +934,9 @@ local Macro = {
     randomOffsetEnabled      = false,
     randomOffsetAmount       = 0.5,
     ignoreTiming             = false,
-    -- purchase counter: tracks how many of each display-name have been purchased
-    -- so we can produce "Speedwagon #1", "Speedwagon #2", etc.
-    purchaseCounter          = {},
+    -- Populated by unit_added_temporary (server→client) which fires on every purchase.
+    -- Keyed by uuid → { unit_id, displayName, cost }. Always active, not just recording.
+    purchasedUnitCache       = {},
 }
 
 function Macro.updateStatus(message)
@@ -951,7 +951,7 @@ function Macro.clearSpawnIdMappings()
     Macro.placementCounter             = {}
     Macro.unitNameToSpawnId            = {}
     Macro.playbackPlacementToSpawnId   = {}
-    Macro.purchaseCounter              = {}
+    Macro.purchasedUnitCache           = {}
 end
 
 function Macro.takeUnitsSnapshot()
@@ -1090,7 +1090,8 @@ function Macro.processPlacementRecording(actionInfo)
             raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
         Dir  = raycastData.Direction and string.format("%.17f, %.17f, %.17f",
             raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
-        Rot  = rotation ~= 0 and rotation or 0
+        Rot  = rotation ~= 0 and rotation or 0,
+        Cost = Util.getPlacementCost(internalName),  -- baked at record time
     })
     Util.notify("Macro Recorder", string.format("Recorded placement: %s", placementId))
 end
@@ -1128,21 +1129,23 @@ end
 -- so it can be uniquely identified during playback.
 -- ──────────────────────────────────────────────
 function Macro.processPurchaseRecording(actionInfo)
-    local inventoryUUID    = actionInfo.args[1]
+    local inventoryUUID = actionInfo.args[1]
     if not inventoryUUID then return end
-    -- Store the raw UUID as-is. Resolving to a display name at record time is
-    -- unreliable (wrong name may be returned). During playback we fire the remote
-    -- directly with this UUID, and look up rarity via _FX_CACHE for the cost check.
-    Macro.purchaseCounter[inventoryUUID] = (Macro.purchaseCounter[inventoryUUID] or 0) + 1
+
+    -- unit_added_temporary fires just before purchase_unit on the client, so by
+    -- the time our namecall hook runs the cache entry is already populated.
+    local cached      = Macro.purchasedUnitCache[inventoryUUID]
+    local displayName = cached and cached.displayName or inventoryUUID
+    local cost        = cached and cached.cost        or 0
+
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     table.insert(Macro.actions, {
         Type = "purchase_unit",
-        UUID = inventoryUUID,   -- raw inventory UUID — used directly during playback
+        UUID = inventoryUUID,  -- fired as-is to purchase_unit remote during playback
+        Cost = cost,           -- baked at record time for playback money-gating
         Time = string.format("%.2f", gameRelativeTime),
     })
-    -- For the notification, try to show a human-readable name but don't rely on it
-    local label = Macro.getDisplayNameFromInventoryUUID(inventoryUUID) or inventoryUUID
-    Util.notify("Macro Recorder", string.format("Recorded purchase: %s", label))
+    Util.notify("Macro Recorder", string.format("Recorded purchase: %s (%d yen)", displayName, cost))
 end
 
 -- ──────────────────────────────────────────────
@@ -1171,16 +1174,9 @@ function Macro.forgeTraitRecording(actionInfo)
         end
     end
 
-    -- Also check purchase placements (unit purchased from shop this game).
-    -- purchaseCounter is now keyed by raw UUID, so check directly.
-    if not placementId then
-        local count = Macro.purchaseCounter[inventoryUUID] or 0
-        if count > 0 then
-            -- Use the UUID itself as the Unit identifier (matches what processPurchaseRecording saved)
-            placementId = inventoryUUID
-        end
-    end
-
+    -- If the unit was purchased from the shop this game but not yet placed,
+    -- it won't be in spawnIdToPlacement yet. In that case we can't resolve it —
+    -- forge should only be recorded after placement anyway.
     if not placementId then
         warn("[Macro Recorder] forge_trait_purchase: could not resolve placementId for UUID:", inventoryUUID)
         return
@@ -1320,10 +1316,15 @@ function Macro.setupUpgradeMonitoring()
                     local lastLevel = Macro.trackedUnits[combinedId].lastLevel
                     if currentLevel > lastLevel then
                         local levelIncrease = currentLevel - lastLevel
+                        local internalName  = Util.getInternalSpawnName(unit)
+                        local upgradeCost   = levelIncrease > 1
+                            and Util.getMultiUpgradeCost(internalName, lastLevel, levelIncrease)
+                            or  Util.getUpgradeCost(internalName, lastLevel)
                         local record = {
                             Type = Macro.UPGRADE_REMOTE,
                             Unit = placementId,
-                            Time = string.format("%.2f", tick() - GameTracking.gameStartTime)
+                            Time = string.format("%.2f", tick() - GameTracking.gameStartTime),
+                            Cost = upgradeCost,  -- baked at record time
                         }
                         if levelIncrease > 1 then record.Amount = levelIncrease end
                         table.insert(Macro.actions, record)
@@ -1332,6 +1333,35 @@ function Macro.setupUpgradeMonitoring()
                 end
             end
         end
+    end)
+end
+
+function Macro.setupPurchaseListener()
+    -- unit_added_temporary fires server→client whenever the player receives a unit
+    -- (purchase, roll, etc.). It carries uuid and unit_id so we get ground-truth
+    -- identity without any _FX_CACHE or _UNITS scanning.
+    local stc = Services.ReplicatedStorage
+        :WaitForChild("endpoints")
+        :WaitForChild("server_to_client")
+    local remote = stc:FindFirstChild("unit_added_temporary")
+        or stc:WaitForChild("unit_added_temporary", 10)
+    if not remote then
+        warn("[Macro] unit_added_temporary remote not found — purchase name resolution may be inaccurate")
+        return
+    end
+    remote.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        local uuid    = data.uuid
+        local unit_id = data.unit_id
+        if not uuid or not unit_id then return end
+        local displayName = Util.getDisplayNameFromUnitId(unit_id) or unit_id
+        local cost        = Util.getPurchaseCost(unit_id)
+        Macro.purchasedUnitCache[uuid] = {
+            unit_id     = unit_id,
+            displayName = displayName,
+            cost        = cost,
+        }
+        Util.debugPrint("unit_added_temporary cached:", uuid, "→", displayName, "(cost:", cost, ")")
     end)
 end
 
@@ -1362,6 +1392,7 @@ function Macro.setupHook()
         return oldNamecall(self, ...)
     end)
     Macro.setupUpgradeMonitoring()
+    Macro.setupPurchaseListener()
 end
 
 function Macro.saveToFile(name)
@@ -1544,47 +1575,8 @@ function Macro.exportToWebhook(macroName, webhookUrl)
 end
 
 function Macro.waitForSufficientMoney(action, actionIndex, totalActions)
-    local requiredCost = 0
-
-    if action.Type == "purchase_unit" then
-        -- Look up rarity via _FX_CACHE using the stored raw UUID → ITEMINDEX → rarity
-        local uuid = action.UUID
-        if uuid then
-            local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
-            if fxCache then
-                for _, child in pairs(fxCache:GetChildren()) do
-                    local uuidValue = child:FindFirstChild("_uuid")
-                    if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == uuid then
-                        local itemIndex = child:GetAttribute("ITEMINDEX")
-                        if itemIndex then
-                            requiredCost = Util.getPurchaseCost(itemIndex)
-                        end
-                        break
-                    end
-                end
-            end
-        end
-        -- Fallback: if rarity data is missing, use a safe default of 0 (don't block)
-    elseif action.Type == "forge_trait_purchase" then
-        -- Trait costs are not currently tracked; don't block on money for forging.
-        requiredCost = 0
-    else
-        local displayName, _ = Util.parseUnitString(action.Unit)
-        local unitid         = displayName and Util.getUnitIdFromDisplayName(displayName)
-        if action.Type == "spawn_unit" and unitid then
-            requiredCost = Util.getPlacementCost(unitid)
-        elseif action.Type == "upgrade_unit_ingame" and displayName then
-            local currentUUID = Macro.playbackPlacementToSpawnId[action.Unit]
-            if currentUUID then
-                local unit = Macro.findUnitBySpawnUUID(currentUUID)
-                if unit then
-                    local currentLevel  = Util.getUnitUpgradeLevel(unit)
-                    local upgradeAmount = action.Amount or 1
-                    requiredCost = upgradeAmount > 1 and Util.getMultiUpgradeCost(unitid, currentLevel, upgradeAmount) or Util.getUpgradeCost(unitid, currentLevel)
-                end
-            end
-        end
-    end
+    -- Cost is baked into the action at record time for spawn, upgrade, and purchase.
+    local requiredCost = action.Cost or 0
 
     if requiredCost > 0 then
         while Util.getPlayerMoney() < requiredCost do
@@ -1695,32 +1687,29 @@ function Macro.validateSell(action, actionIndex, totalActions)
 end
 
 -- ──────────────────────────────────────────────
--- NEW: playback handler for purchase_unit
--- Resolves the unit's inventory UUID from its display name, waits for
--- sufficient yen (rarity cost), then fires purchase_unit.
+-- Playback handler for purchase_unit.
+-- Fires the remote with the raw UUID saved at record time.
+-- No placement mapping needed here — the subsequent spawn_unit action
+-- handles that when the player's recorded placement fires.
 -- ──────────────────────────────────────────────
 function Macro.validatePurchase(action, actionIndex, totalActions)
     local endpoints     = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-    -- The UUID was saved raw at record time — use it directly.
     local inventoryUUID = action.UUID
     if not inventoryUUID or inventoryUUID == "" then
-        Macro.updateStatus(string.format("(%d/%d) FAILED: purchase_unit action missing UUID", actionIndex, totalActions))
+        Macro.updateStatus(string.format("(%d/%d) FAILED: purchase_unit missing UUID", actionIndex, totalActions))
         return false
     end
 
-    -- Human-readable label for status messages only
-    local label = Macro.getDisplayNameFromInventoryUUID(inventoryUUID) or inventoryUUID
-
-    Macro.updateStatus(string.format("(%d/%d) Purchasing %s...", actionIndex, totalActions, label))
+    Macro.updateStatus(string.format("(%d/%d) Purchasing unit (%s)...", actionIndex, totalActions, inventoryUUID:sub(1, 8)))
     local success = pcall(function()
         endpoints:WaitForChild(Macro.PURCHASE_UNIT_REMOTE):InvokeServer(inventoryUUID)
     end)
     if success then
-        Macro.updateStatus(string.format("(%d/%d) SUCCESS: Purchased %s", actionIndex, totalActions, label))
+        Macro.updateStatus(string.format("(%d/%d) SUCCESS: Purchased unit", actionIndex, totalActions))
     else
-        Macro.updateStatus(string.format("(%d/%d) FAILED: Purchase remote error for %s", actionIndex, totalActions, label))
+        Macro.updateStatus(string.format("(%d/%d) FAILED: purchase_unit remote error", actionIndex, totalActions))
     end
-    return true -- continue macro regardless
+    return true
 end
 
 -- ──────────────────────────────────────────────
@@ -1873,9 +1862,8 @@ function Macro.play()
     if GameTracking.gameStartTime == 0 then GameTracking.gameStartTime = tick() end
     for i, action in ipairs(Macro.actions) do
         if not Macro.isPlaying or GameTracking.gameHasEnded then Macro.updateStatus("Macro interrupted") return false end
-        if action.Type == "spawn_unit"
-        or action.Type == "upgrade_unit_ingame"
-        or action.Type == "purchase_unit" then   -- ← NEW: gate purchases on money too
+        -- Gate on money for any action that has a baked Cost (spawn, upgrade, purchase).
+        if (action.Cost or 0) > 0 then
             if not Macro.waitForSufficientMoney(action, i, totalActions) then Macro.updateStatus("Money wait cancelled") return false end
         end
         if not Macro.ignoreTiming then
