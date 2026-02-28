@@ -1246,77 +1246,63 @@ function Macro.exportToWebhook(macroName, webhookUrl)
     
     local jsonData = Services.HttpService:JSONEncode(Macro.library[macroName])
     
-    -- Calculate stats
-    local stats = {
-        placements = 0,
-        upgrades = 0,
-        sells = 0,
-        abilities = 0,
-        waveSkips = 0,
-        duration = 0
-    }
-    
+    -- Collect unique unit display names
+    local unitsUsed = {}
+    local unitOrder = {}
     for _, action in ipairs(Macro.library[macroName]) do
-        if action.Type == "spawn_unit" then
-            stats.placements = stats.placements + 1
-        elseif action.Type == "upgrade_unit_ingame" then
-            stats.upgrades = stats.upgrades + 1
-        elseif action.Type == "sell_unit_ingame" then
-            stats.sells = stats.sells + 1
-        elseif action.Type == "use_active_attack" then
-            stats.abilities = stats.abilities + 1
-        elseif action.Type == "vote_wave_skip" then
-            stats.waveSkips = stats.waveSkips + 1
-        end
-        
-        local actionTime = tonumber(action.Time) or 0
-        if actionTime > stats.duration then
-            stats.duration = actionTime
+        if action.Type == "spawn_unit" and action.Unit then
+            local baseName = action.Unit:match("^(.+) #%d+$") or action.Unit
+            if not unitsUsed[baseName] then
+                unitsUsed[baseName] = true
+                table.insert(unitOrder, baseName)
+            end
         end
     end
     
-    local embed = {
-        title = "📋 Macro Export: " .. macroName,
-        description = string.format("**Total Actions:** %d\n**Duration:** %.1f seconds", 
-            #Macro.library[macroName], stats.duration),
-        color = 3447003, -- Blue color
-        fields = {
-            {
-                name = "📊 Action Breakdown",
-                value = string.format(
-                    "```\nPlacements:  %d\nUpgrades:    %d\nSells:       %d\nAbilities:   %d\nWave Skips:  %d\n```",
-                    stats.placements, stats.upgrades, stats.sells, stats.abilities, stats.waveSkips
-                ),
-                inline = false
-            },
-            {
-                name = "📦 Macro Data",
-                value = "See attachment below",
-                inline = false
-            }
-        },
-        footer = {
-            text = "LixHub Macro System • " .. os.date("%Y-%m-%d %H:%M:%S")
-        },
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    }
-    
-    -- Send webhook with file attachment
+    local unitsLine = #unitOrder > 0
+        and ("Units: " .. table.concat(unitOrder, ", "))
+        or "Units: (none)"
+
+    -- Build multipart/form-data body
+    local boundary = "----LixHubBoundary" .. tostring(math.random(100000, 999999))
+
+    local function part(name, value, filename, contentType)
+        local header
+        if filename then
+            header = string.format(
+                '--%s\r\nContent-Disposition: form-data; name="%s"; filename="%s"\r\nContent-Type: %s\r\n\r\n',
+                boundary, name, filename, contentType or "application/octet-stream"
+            )
+        else
+            header = string.format(
+                '--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n',
+                boundary, name
+            )
+        end
+        return header .. value .. "\r\n"
+    end
+
+    -- payload_json part: contains the text message
+    local payloadJson = Services.HttpService:JSONEncode({
+        content = unitsLine
+    })
+
+    local body = part("payload_json", payloadJson)
+        .. part("files[0]", jsonData, macroName .. ".json", "application/json")
+        .. "--" .. boundary .. "--\r\n"
+
     local success, response = pcall(function()
         return requestFunc({
             Url = webhookUrl,
             Method = "POST",
             Headers = {
-                ["Content-Type"] = "application/json"
+                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary
             },
-            Body = Services.HttpService:JSONEncode({
-                embeds = {embed},
-                content = string.format("```json\n%s\n```", jsonData:sub(1, 1900))
-            })
+            Body = body
         })
     end)
-    
-    if success and response and response.StatusCode == 204 then
+
+    if success and response and (response.StatusCode == 200 or response.StatusCode == 204) then
         Util.notify("Export Success", "Macro exported to webhook!")
         return true
     else
