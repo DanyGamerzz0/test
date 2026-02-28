@@ -88,6 +88,165 @@ local State = {
     AutoNextExpedition = false,
 }
 
+local Webhook = {
+    url              = nil,
+    discordUserId    = nil,
+    sessionItems     = {},
+    gameStartTime    = 0,
+    lastWave         = 0,
+    startStats       = {},
+    endStats         = {},
+    currentMapName   = "Unknown Map",
+    gameResult       = "Unknown",
+    newUnitsThisGame = {},
+    itemNameCache    = {},
+}
+
+-- ============================================================
+-- WEBHOOK MODULE
+-- ============================================================
+
+function Webhook.formatTime(seconds)
+    local m = math.floor(seconds / 60)
+    local s = math.floor(seconds % 60)
+    return string.format("%d:%02d", m, s)
+end
+
+function Webhook.captureStats()
+    local stats  = {}
+    local player = Services.Players.LocalPlayer
+    if player and player:FindFirstChild("_stats") then
+        for _, obj in pairs(player._stats:GetChildren()) do
+            if obj:IsA("IntValue") or obj:IsA("NumberValue") then
+                stats[obj.Name] = obj.Value
+            end
+        end
+    end
+    return stats
+end
+
+function Webhook.getStatChanges()
+    local changes = {}
+    for name, endVal in pairs(Webhook.endStats) do
+        if name ~= "resource" then
+            local startVal = Webhook.startStats[name] or 0
+            local diff     = endVal - startVal
+            if diff > 0 then changes[name] = diff end
+        end
+    end
+    return changes
+end
+
+function Webhook.getItemDisplayName(id)
+    if Webhook.itemNameCache[id] then return Webhook.itemNameCache[id] end
+    pcall(function()
+        local itemsPath = Services.ReplicatedStorage.Framework.Data.Items
+        for _, ms in pairs(itemsPath:GetChildren()) do
+            if ms:IsA("ModuleScript") then
+                local ok, data = pcall(require, ms)
+                if ok and data then
+                    for _, d in pairs(data) do
+                        if type(d) == "table" and d.id == id and d.name then
+                            Webhook.itemNameCache[id] = d.name
+                            return
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    if not Webhook.itemNameCache[id] then
+        Webhook.itemNameCache[id] = id:gsub("_", " "):gsub("(%w)(%w*)", function(a, b) return a:upper() .. b:lower() end)
+    end
+    return Webhook.itemNameCache[id]
+end
+
+function Webhook.startTracking(mapName)
+    Webhook.sessionItems     = {}
+    Webhook.gameStartTime    = tick()
+    Webhook.startStats       = Webhook.captureStats()
+    Webhook.currentMapName   = mapName or "Unknown Map"
+    Webhook.gameResult       = "Unknown"
+    Webhook.newUnitsThisGame = {}
+    Webhook.lastWave         = 0
+end
+
+function Webhook.onUnitAdded(displayName)
+    table.insert(Webhook.newUnitsThisGame, displayName)
+end
+
+function Webhook.send()
+    if not Webhook.url or Webhook.url == "" then return end
+    local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+    if not requestFunc then return end
+
+    local duration    = tick() - Webhook.gameStartTime
+    local playerName  = "||" .. Services.Players.LocalPlayer.Name .. "||"
+    local timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    local embedColor  = (Webhook.gameResult == "Victory") and 0x57F287 or 0xED4245
+    local titleText   = (Webhook.gameResult == "Victory") and "Stage Finished!" or "Stage Failed!"
+
+    Webhook.endStats = Webhook.captureStats()
+    local statChanges = Webhook.getStatChanges()
+
+    local rewardsText = ""
+    for _, unitName in ipairs(Webhook.newUnitsThisGame) do
+        rewardsText = rewardsText .. "+1 " .. unitName .. "\n"
+    end
+    for itemId, qty in pairs(Webhook.sessionItems) do
+        rewardsText = rewardsText .. "+" .. qty .. " " .. Webhook.getItemDisplayName(itemId) .. "\n"
+    end
+    for statName, change in pairs(statChanges) do
+        local total = Webhook.endStats[statName] or 0
+        local display = statName:gsub("_", " "):gsub("(%w)(%w*)", function(a,b) return a:upper()..b:lower() end)
+        rewardsText = rewardsText .. string.format("+%d %s [%d]\n", change, display, total)
+    end
+    rewardsText = rewardsText ~= "" and rewardsText:gsub("\n$", "") or "No rewards gained"
+
+    local winRate = State.TotalGamesPlayed > 0
+        and string.format("%.1f%%", (State.TotalWins / State.TotalGamesPlayed) * 100)
+        or "0.0%"
+
+    -- Only ping user if a new unit dropped
+    local content = (#Webhook.newUnitsThisGame > 0 and Webhook.discordUserId)
+        and string.format("<@%s>", Webhook.discordUserId)
+        or ""
+
+    local payload = Services.HttpService:JSONEncode({
+        username = "LixHub",
+        content  = content,
+        embeds   = {{
+            title       = titleText,
+            description = Webhook.currentMapName .. " — " .. Webhook.gameResult,
+            color       = embedColor,
+            fields      = {
+                { name = "Player",        value = playerName,                     inline = true  },
+                { name = "Duration",      value = Webhook.formatTime(duration),   inline = true  },
+                { name = "Waves",         value = tostring(Webhook.lastWave),     inline = true  },
+                { name = "Rewards",       value = rewardsText,                    inline = false },
+                { name = "Session",
+                  value = string.format("Games: %d | Wins: %d | Losses: %d | Win Rate: %s",
+                      State.TotalGamesPlayed, State.TotalWins, State.TotalLosses, winRate),
+                  inline = false },
+            },
+            footer    = { text = "LixHub" },
+            timestamp = timestamp,
+        }}
+    })
+
+    pcall(function()
+        requestFunc({
+            Url     = Webhook.url,
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = payload,
+        })
+    end)
+
+    Webhook.newUnitsThisGame = {}
+    Webhook.sessionItems     = {}
+end
+
 -- ============================================================
 -- DUNGEON MODULE
 -- ============================================================
@@ -666,6 +825,15 @@ function GameTracking.startGame()
     GameTracking.gameStartTime  = tick()
     GameTracking.gameHasEnded   = false
     Util.debugPrint("Game started at:", GameTracking.gameStartTime)
+    local mapName = "Unknown Map"
+    pcall(function()
+        local cfg = Services.Workspace:FindFirstChild("_MAP_CONFIG")
+        if cfg then
+            local nameVal = cfg:FindFirstChild("MapName") or cfg:FindFirstChild("Name")
+            if nameVal then mapName = nameVal.Value end
+        end
+    end)
+    Webhook.startTracking(mapName)
 end
 
 function GameTracking.endGame()
@@ -2313,6 +2481,61 @@ local function initialize()
         end,
     })
 
+    local WebhookTab = Window:CreateTab("Webhook", "link")
+
+WebhookTab:CreateSection("Configuration")
+
+WebhookTab:CreateInput({
+    Name                     = "Webhook URL",
+    CurrentValue             = "",
+    PlaceholderText          = "https://discord.com/api/webhooks/...",
+    RemoveTextAfterFocusLost = false,
+    Callback                 = function(text) Webhook.url = text end,
+})
+
+WebhookTab:CreateInput({
+    Name                     = "Discord User ID (for pings)",
+    CurrentValue             = "",
+    PlaceholderText          = "Your Discord user ID...",
+    RemoveTextAfterFocusLost = false,
+    Callback                 = function(text) Webhook.discordUserId = text end,
+})
+
+WebhookTab:CreateToggle({
+    Name         = "Send Webhook on Stage End",
+    CurrentValue = false,
+    Flag         = "WebhookOnFinish",
+    Info         = "Sends a Discord embed after every game with rewards, stats, and session info.",
+    Callback     = function(Value)
+        -- Webhook.url must also be set for sends to fire
+        -- This toggle is checked before sending in the game_finished handler
+    end,
+})
+
+WebhookTab:CreateButton({
+    Name     = "Send Test Webhook",
+    Callback = function()
+        if not Webhook.url or Webhook.url == "" then
+            Util.notify("Webhook", "Enter a URL first!")
+            return
+        end
+        local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+        if not requestFunc then Util.notify("Webhook", "HTTP not supported by executor") return end
+        pcall(function()
+            requestFunc({
+                Url     = Webhook.url,
+                Method  = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body    = Services.HttpService:JSONEncode({
+                    username = "LixHub",
+                    embeds   = {{ title = "Test", description = "Webhook working!", color = 0x57F287 }}
+                }),
+            })
+        end)
+        Util.notify("Webhook", "Test sent!")
+    end,
+})
+
     -- ══════════════════════════════════════════════
     -- GAME TRACKING HOOKS
     -- ══════════════════════════════════════════════
@@ -2345,6 +2568,34 @@ local function initialize()
             :FindFirstChild("server_to_client")
             :FindFirstChild("game_finished")
 
+            local endpoints_stc = Services.ReplicatedStorage
+    :FindFirstChild("endpoints")
+    :FindFirstChild("server_to_client")
+
+-- Track items collected
+local normalItemRemote = endpoints_stc:FindFirstChild("normal_item_added")
+if normalItemRemote then
+    normalItemRemote.OnClientEvent:Connect(function(itemId, quantity)
+        Webhook.sessionItems[itemId] = (Webhook.sessionItems[itemId] or 0) + (quantity or 1)
+    end)
+end
+
+-- Track unit drops
+local unitAddedRemote = endpoints_stc:FindFirstChild("unit_added")
+if unitAddedRemote then
+    unitAddedRemote.OnClientEvent:Connect(function(unitData)
+        local unitId      = type(unitData) == "table" and (unitData.id or unitData.unit_id) or tostring(unitData)
+        local displayName = Util.getDisplayNameFromUnitId(unitId) or unitId
+        Webhook.onUnitAdded(displayName)
+    end)
+end
+
+-- Track waves for the webhook
+task.spawn(function()
+    local wn = Services.Workspace:WaitForChild("_wave_num")
+    wn.Changed:Connect(function(v) Webhook.lastWave = v end)
+end)
+
         if gameFinishedRemote then
             gameFinishedRemote.OnClientEvent:Connect(function(...)
                 -- Determine win/loss from event args
@@ -2370,6 +2621,14 @@ local function initialize()
                 else
                     State.TotalLosses += 1
                 end
+
+                Webhook.gameResult = isVictory and "Victory" or "Defeat"
+                if Webhook.url and Webhook.url ~= "" then
+                task.spawn(function()
+                    task.wait(0.5) -- brief wait for stat values to settle
+                    Webhook.send()
+                end)
+            end
 
                 -- Dungeon reset
                 if Dungeon.isRunning then Dungeon.stop() end
