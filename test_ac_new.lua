@@ -1899,6 +1899,8 @@ function Macro.play()
     return true
 end
 
+local script_version = "V1.0"
+
 -- ============================================================
 -- MAIN INITIALIZATION
 -- ============================================================
@@ -1913,10 +1915,11 @@ local function initialize()
     _G.Rayfield = Rayfield
 
     local Window = Rayfield:CreateWindow({
-        Name            = "LixHub",
+        Name            = "LixHub - Anime Crusaders",
         Icon            = 0,
-        LoadingTitle    = "Loading LixHub",
-        LoadingSubtitle = "V0.18",
+        LoadingTitle    = "Loading for Anime Crusaders",
+        LoadingSubtitle = script_version,
+        ShowText = "LixHub",
         Theme = {
             TextColor  = Color3.fromRGB(240, 240, 240),
             Background = Color3.fromRGB(25, 25, 25),
@@ -1926,19 +1929,21 @@ local function initialize()
         ConfigurationSaving = {
             Enabled    = true,
             FolderName = "LixHub",
-            FileName   = "Lixhub_AC_Macro"
+            FileName = game:GetService("Players").LocalPlayer.Name .. "_AnimeCrusaders"
         },
     })
+
+    local LobbyTab = Window:CreateTab("Lobby", "tv")
 
     -- ══════════════════════════════════════════════
     -- TAB: AUTO DUNGEON
     -- ══════════════════════════════════════════════
-    local DungeonTab = Window:CreateTab("Dungeon", "swords")
+    local DungeonTab = Window:CreateTab("Expedition", "swords")
 
     DungeonTab:CreateSection("Expedition")
 
     DungeonTab:CreateDropdown({
-        Name            = "Expedition Mode",
+        Name            = "Select Expedition Mode",
         Options         = { "Roguelike", "Normal" },
         CurrentOption   = { "Roguelike" },
         MultipleOptions = false,
@@ -1950,17 +1955,17 @@ local function initialize()
     })
 
     DungeonTab:CreateToggle({
-        Name         = "Auto Dungeon",
+        Name         = "Auto Expedition",
         CurrentValue = false,
         Flag         = "AutoDungeonToggle",
         Callback     = function(value)
             if value then
                 if Dungeon.isRunning then return end
-                Util.notify("Auto Dungeon", "Starting expedition...")
+                Util.notify("Auto Expedition", "Starting expedition...")
                 Dungeon.run()
             else
                 Dungeon.stop()
-                Util.notify("Auto Dungeon", "Stopped.")
+                Util.notify("Auto Expedition", "Stopped.")
             end
         end,
     })
@@ -1969,7 +1974,6 @@ local function initialize()
         Name         = "Auto Next Expedition",
         CurrentValue = false,
         Flag         = "AutoNextExpedition",
-        Info         = "On game end, automatically votes to continue to the next unfinished dungeon room.",
         Callback     = function(Value)
             State.AutoNextExpedition = Value
         end,
@@ -1980,23 +1984,21 @@ local function initialize()
     -- ══════════════════════════════════════════════
     local MacroTab = Window:CreateTab("Macro", "joystick")
 
-    MacroTab:CreateSection("Macro Management")
+    MacroTab:CreateDivider()
 
     local MacroStatusLabel = MacroTab:CreateLabel("Status: Ready")
     Macro.detailedStatusLabel = MacroTab:CreateLabel("Details: Ready")
 
     MacroTab:CreateDivider()
 
-    MacroTab:CreateToggle({
-        Name         = "Enable Notifications",
+    LobbyTab:CreateToggle({
+        Name         = "Enable Script Notifications",
         CurrentValue = true,
         Flag         = "EnableNotifications",
         Callback     = function(Value)
             NOTIFICATION_ENABLED = Value
         end,
     })
-
-    MacroTab:CreateDivider()
 
     local MacroDropdown = MacroTab:CreateDropdown({
         Name            = "Select Macro",
@@ -2058,8 +2060,6 @@ local function initialize()
         end,
     })
 
-    MacroTab:CreateSection("Recording")
-
     local RecordToggle = MacroTab:CreateToggle({
         Name         = "Record Macro",
         CurrentValue = false,
@@ -2069,7 +2069,7 @@ local function initialize()
             if Value then
                 if not Util.isInLobby() and GameTracking.gameInProgress then
                     Macro.startRecording()
-                    MacroStatusLabel:Set("Status: Recording active!")
+                    MacroStatusLabel:Set("Status: Recording active! You can now begin placing units...")
                 else
                     MacroStatusLabel:Set("Status: Recording enabled - will start when game begins")
                     Util.notify("Recording Ready", "Recording will start when you enter a game.")
@@ -2081,8 +2081,6 @@ local function initialize()
             end
         end
     })
-
-    MacroTab:CreateSection("Playback")
 
     MacroTab:CreateToggle({
         Name         = "Playback Macro",
@@ -2119,8 +2117,6 @@ local function initialize()
         end,
     })
 
-    MacroTab:CreateSection("Settings")
-
     MacroTab:CreateToggle({
         Name         = "Random Offset",
         CurrentValue = false,
@@ -2147,8 +2143,6 @@ local function initialize()
         Info         = "Execute actions immediately without waiting for timing",
         Callback     = function(Value) Macro.ignoreTiming = Value end,
     })
-
-    MacroTab:CreateSection("Import/Export")
 
     MacroTab:CreateInput({
         Name                     = "Import Macro",
@@ -2179,21 +2173,12 @@ local function initialize()
         end,
     })
 
-    local webhookUrl = ""
-    MacroTab:CreateInput({
-        Name                     = "Webhook URL (Optional)",
-        CurrentValue             = "",
-        PlaceholderText          = "https://discord.com/api/webhooks/...",
-        RemoveTextAfterFocusLost = false,
-        Callback                 = function(text) webhookUrl = text end,
-    })
-
     MacroTab:CreateButton({
         Name     = "Export Macro To Webhook",
         Callback = function()
             if not Macro.currentName or Macro.currentName == "" then Util.notify("Export Error", "No macro selected.") return end
-            if not webhookUrl or webhookUrl == "" then Util.notify("Export Error", "Please enter a webhook URL first.") return end
-            Macro.exportToWebhook(Macro.currentName, webhookUrl)
+            if not Webhook.url or Webhook.url == "" then Util.notify("Export Error", "Please enter a webhook URL first.") return end
+            Macro.exportToWebhook(Macro.currentName, Webhook.url)
         end,
     })
 
@@ -2423,7 +2408,6 @@ local function initialize()
         Name         = "Auto Next",
         CurrentValue = false,
         Flag         = "AutoNext",
-        Info         = "Votes next story/raid on victory.",
         Callback     = function(Value)
             State.AutoVoteNext = Value
         end,
@@ -2433,7 +2417,6 @@ local function initialize()
         Name         = "Auto Lobby",
         CurrentValue = false,
         Flag         = "AutoLobby",
-        Info         = "Teleports to lobby when the game ends.",
         Callback     = function(Value)
             State.AutoVoteLobby = Value
         end,
@@ -2573,7 +2556,6 @@ local function initialize()
         Name         = "Auto Sell Farm Units",
         CurrentValue = false,
         Flag         = "AutoSellFarmEnabled",
-        Info         = "Sell only units with farm_amount > 0 on the target wave.",
         Callback     = function(Value)
             State.AutoSellFarmEnabled = Value
         end,
@@ -2727,18 +2709,18 @@ local function initialize()
 
     GameTab:CreateSection("Macro")
 
-    GameTab:CreateToggle({
+    MacroTab:CreateToggle({
         Name         = "Auto Equip Macro Units",
         CurrentValue = false,
         Flag         = "AutoEquipMacroUnits",
-        Info         = "Equips the correct units before the game starts (requires Auto Start Game).",
+        Info         = "Equips the correct units before the game starts.",
         Callback     = function(Value)
             State.AutoEquipMacroUnits = Value
         end,
     })
 
-    GameTab:CreateButton({
-        Name     = "Equip Macro Units Now",
+    MacroTab:CreateButton({
+        Name     = "Equip Macro Units",
         Callback = function()
             if not Macro.currentName or Macro.currentName == "" then
                 Util.notify("Equip Error", "No macro selected.")
@@ -2772,8 +2754,7 @@ local function initialize()
         Name         = "Send Webhook on Stage End",
         CurrentValue = false,
         Flag         = "WebhookOnFinish",
-        Info         = "Sends a Discord embed after every game with rewards, stats, and session info.",
-        Callback     = function(Value) end,
+        Callback     = function(Value) Webhook.sendOnFinish = Value end,
     })
 
     WebhookTab:CreateButton({
@@ -3014,7 +2995,6 @@ local function initialize()
     setupRemoteConnections()
     if not Util.isInLobby() then monitorWaves() end
     Rayfield:LoadConfiguration()
-    Util.notify("LixHub", "Loaded successfully!")
 end
 
 initialize()
