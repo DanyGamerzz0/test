@@ -1191,13 +1191,22 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
         local newUnit = Macro.findNewlyPlacedUnit(beforeSnapshot, Macro.takeUnitsSnapshot())
         
         if newUnit and Util.isOwnedByLocalPlayer(newUnit) then
-            local newSpawnId = Util.getUnitSpawnId(newUnit)
-            if newSpawnId then
-                Macro.playbackPlacementToSpawnId[placementId] = newSpawnId
-                Macro.updateStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
-                    actionIndex, totalActions, placementId))
-                return true
+            -- Get the actual UUID from _stats, not the spawn_id
+            local stats = newUnit:FindFirstChild("_stats")
+            if stats then
+                local uuidValue = stats:FindFirstChild("uuid")
+                if uuidValue and uuidValue:IsA("StringValue") then
+                    local actualUUID = uuidValue.Value
+                    Macro.playbackPlacementToSpawnId[placementId] = actualUUID
+                    Util.debugPrint(string.format("Stored UUID mapping: %s -> %s", placementId, actualUUID))
+                    
+                    Macro.updateStatus(string.format("(%d/%d) SUCCESS: Placed %s", 
+                        actionIndex, totalActions, placementId))
+                    return true
+                end
             end
+            
+            Util.debugPrint("Could not get UUID from placed unit")
         end
         
         Util.debugPrint("Unit not detected after placement on attempt", attempt)
@@ -1218,31 +1227,31 @@ function Macro.validateUpgrade(action, actionIndex, totalActions)
     local placementId = action.Unit
     local upgradeAmount = action.Amount or 1
     
-    local currentSpawnId = Macro.playbackPlacementToSpawnId[placementId]
-    
     -- Money wait is now handled in main play() loop before this function is called
     
     for attempt = 1, Macro.UPGRADE_MAX_RETRIES do
         if not Macro.isPlaying then return false end
         
-        -- Find unit
+        -- Find unit using the stored UUID
         local targetUnit = nil
-        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        local currentUUID = Macro.playbackPlacementToSpawnId[placementId]
         
-        if unitsFolder and currentSpawnId then
-            for _, unit in pairs(unitsFolder:GetChildren()) do
-                if Util.isOwnedByLocalPlayer(unit) and Util.getUnitSpawnId(unit) == currentSpawnId then
-                    targetUnit = unit
-                    break
-                end
-            end
+        Util.debugPrint(string.format("Looking for unit with UUID: %s", tostring(currentUUID)))
+        
+        if currentUUID then
+            targetUnit = Macro.findUnitBySpawnUUID(currentUUID)
+            Util.debugPrint(string.format("Found target unit: %s", tostring(targetUnit ~= nil)))
+        else
+            Util.debugPrint("No UUID mapping found for:", placementId)
         end
         
         if not targetUnit then
             if attempt < Macro.UPGRADE_MAX_RETRIES then
+                Util.debugPrint("Unit not found, retrying...")
                 task.wait(Macro.RETRY_DELAY)
                 continue
             else
+                Util.debugPrint("Unit not found after all retries")
                 return false
             end
         end
@@ -1292,25 +1301,15 @@ function Macro.validateSell(action, actionIndex, totalActions)
         :WaitForChild("client_to_server")
     
     local placementId = action.Unit
-    local currentSpawnId = Macro.playbackPlacementToSpawnId[placementId]
+    local currentUUID = Macro.playbackPlacementToSpawnId[placementId]
     
-    if not currentSpawnId then
-        Macro.updateStatus(string.format("(%d/%d) FAILED: No spawn_id mapping for %s", 
+    if not currentUUID then
+        Macro.updateStatus(string.format("(%d/%d) FAILED: No UUID mapping for %s", 
             actionIndex, totalActions, placementId))
         return false
     end
     
-    local targetUnit = nil
-    local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
-    
-    if unitsFolder then
-        for _, unit in pairs(unitsFolder:GetChildren()) do
-            if Util.isOwnedByLocalPlayer(unit) and Util.getUnitSpawnId(unit) == currentSpawnId then
-                targetUnit = unit
-                break
-            end
-        end
-    end
+    local targetUnit = Macro.findUnitBySpawnUUID(currentUUID)
     
     if not targetUnit then
         Macro.updateStatus(string.format("(%d/%d) FAILED: Unit not found", actionIndex, totalActions))
