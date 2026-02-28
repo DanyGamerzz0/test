@@ -204,9 +204,7 @@ do
         Dungeon.stopFlag = true
         setStatus("Stopped by user")
     end
-end
-
-function Dungeon.getNextUnfinishedRoom()
+         function Dungeon.getNextUnfinishedRoom()
     if not getDeps() then return nil end
     local gamemode = Dungeon.config.mode
     for _, entry in ipairs(PATH_ORDER) do
@@ -242,6 +240,7 @@ function Dungeon.voteNextRoom(roomInfo)
         warn("[AutoDungeon] Failed to vote next room: " .. tostring(err))
     end
     return ok
+end
 end
 
 -- ============================================================
