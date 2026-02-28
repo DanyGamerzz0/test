@@ -377,7 +377,16 @@ local Macro = {
     UPGRADE_REMOTE = "upgrade_unit_ingame",
     SELL_REMOTE = "sell_unit_ingame",
     WAVE_SKIP_REMOTE = "vote_wave_skip",
-    ABILITY_REMOTE = "use_active_attack",
+    
+    -- Special ability remotes (with unique argument structures)
+    SPECIAL_ABILITY_REMOTES = {
+        "use_active_attack",      -- Normal unit abilities
+        "HestiaAssignBlade",      -- Hestia: args[1] = targetSpawnId
+        "LelouchChoosePiece",     -- Lelouch: args[1] = lelouchSpawnId, args[2] = targetSpawnId, args[3] = pieceType
+        "DioWrites",              -- Dio: args[1] = dioSpawnId, args[2] = abilityType
+        "FrierenMagics",          -- Frieren: TBD
+    },
+    
     PLACEMENT_WAIT = 0.3,
     
     -- Validation config
@@ -652,32 +661,153 @@ function Macro.processWaveSkipRecording(actionInfo)
 end
 
 function Macro.processAbilityRecording(actionInfo)
-    local remoteParam = actionInfo.args[1]
+    local remoteName = actionInfo.remoteName
+    local args = actionInfo.args
     
-    local spawnId = Macro.unitNameToSpawnId[remoteParam]
-    if not spawnId then
-        Util.debugPrint("Could not find spawn ID for ability unit name:", remoteParam)
-        return
-    end
+    Util.debugPrint(string.format("Processing ability: %s with %d args", remoteName, #args))
     
-    local placementId = Macro.spawnIdToPlacement[spawnId]
-    if not placementId then
-        Util.debugPrint("Could not find placement mapping for ability spawn_id:", spawnId)
-        return
+    -- Helper function to find placement ID by spawn_id
+    local function findPlacementBySpawnId(targetSpawnId)
+        if not targetSpawnId then return nil end
+        
+        local unitsFolder = Services.Workspace:FindFirstChild("_UNITS")
+        if not unitsFolder then return nil end
+        
+        for _, unit in pairs(unitsFolder:GetChildren()) do
+            if Util.isOwnedByLocalPlayer(unit) then
+                local stats = unit:FindFirstChild("_stats")
+                if stats then
+                    local unitSpawnId = stats:FindFirstChild("spawn_id")
+                    if unitSpawnId and tostring(unitSpawnId.Value) == tostring(targetSpawnId) then
+                        local uuidValue = stats:FindFirstChild("uuid")
+                        if uuidValue and uuidValue:IsA("StringValue") then
+                            local combinedIdentifier = uuidValue.Value .. tostring(unitSpawnId.Value)
+                            local placementId = Macro.spawnIdToPlacement[combinedIdentifier]
+                            if placementId then
+                                Util.debugPrint(string.format("Found unit: spawn_id=%s -> placement=%s", 
+                                    tostring(targetSpawnId), placementId))
+                                return placementId
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return nil
     end
     
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    local abilityRecord = nil
     
-    local abilityRecord = {
-        Type = "use_active_attack",
-        Unit = placementId,
-        Time = string.format("%.2f", gameRelativeTime)
-    }
+    -- Handle different ability types
+    if remoteName == "HestiaAssignBlade" then
+        -- Hestia: args[1] = targetSpawnId
+        local targetSpawnId = args[1]
+        local targetPlacementId = findPlacementBySpawnId(targetSpawnId)
+        
+        if not targetPlacementId then
+            Util.debugPrint("Could not find target for Hestia ability")
+            return
+        end
+        
+        abilityRecord = {
+            Type = "HestiaAssignBlade",
+            Target = targetPlacementId,
+            Time = string.format("%.2f", gameRelativeTime)
+        }
+        
+        Util.notify("Macro Recorder", string.format("Recorded Hestia ability: %s", targetPlacementId))
+        
+    elseif remoteName == "LelouchChoosePiece" then
+        -- Lelouch: args[1] = lelouchSpawnId, args[2] = targetSpawnId, args[3] = pieceType
+        local lelouchSpawnId = args[1]
+        local targetSpawnId = args[2]
+        local pieceType = args[3]
+        
+        local lelouchPlacementId = findPlacementBySpawnId(lelouchSpawnId)
+        local targetPlacementId = findPlacementBySpawnId(targetSpawnId)
+        
+        if not lelouchPlacementId or not targetPlacementId then
+            Util.debugPrint("Could not find Lelouch or target for ability")
+            return
+        end
+        
+        abilityRecord = {
+            Type = "LelouchChoosePiece",
+            Lelouch = lelouchPlacementId,
+            Target = targetPlacementId,
+            Piece = pieceType,
+            Time = string.format("%.2f", gameRelativeTime)
+        }
+        
+        Util.notify("Macro Recorder", string.format("Recorded Lelouch: %s (%s) -> %s", 
+            lelouchPlacementId, pieceType, targetPlacementId))
+        
+    elseif remoteName == "DioWrites" then
+        -- Dio: args[1] = dioSpawnId, args[2] = abilityType
+        local dioSpawnId = args[1]
+        local abilityType = args[2]
+        
+        local dioPlacementId = findPlacementBySpawnId(dioSpawnId)
+        
+        if not dioPlacementId then
+            Util.debugPrint("Could not find Dio for ability")
+            return
+        end
+        
+        abilityRecord = {
+            Type = "DioWrites",
+            Dio = dioPlacementId,
+            Ability = abilityType,
+            Time = string.format("%.2f", gameRelativeTime)
+        }
+        
+        Util.notify("Macro Recorder", string.format("Recorded Dio ability: %s (%s)", 
+            dioPlacementId, abilityType))
+        
+    elseif remoteName == "use_active_attack" then
+        -- Normal ability: args[1] = unit name (not spawn_id!)
+        local unitName = args[1]
+        
+        if type(unitName) ~= "string" then
+            Util.debugPrint("Invalid unit name for normal ability")
+            return
+        end
+        
+        local spawnId = Macro.unitNameToSpawnId[unitName]
+        if not spawnId then
+            Util.debugPrint("Could not find spawn ID for ability unit name:", unitName)
+            return
+        end
+        
+        local placementId = Macro.spawnIdToPlacement[spawnId]
+        if not placementId then
+            Util.debugPrint("Could not find placement mapping for ability")
+            return
+        end
+        
+        abilityRecord = {
+            Type = "use_active_attack",
+            Unit = placementId,
+            Time = string.format("%.2f", gameRelativeTime)
+        }
+        
+        Util.notify("Macro Recorder", string.format("Recorded ability: %s", placementId))
+        
+    else
+        -- Unknown ability type - store raw
+        Util.debugPrint("Unknown ability type:", remoteName)
+        abilityRecord = {
+            Type = remoteName,
+            Time = string.format("%.2f", gameRelativeTime),
+            Args = args
+        }
+    end
     
-    table.insert(Macro.actions, abilityRecord)
-    
-    Util.debugPrint(string.format("Recorded ability: %s", placementId))
-    Util.notify("Macro Recorder", string.format("Recorded ability: %s", placementId))
+    if abilityRecord then
+        table.insert(Macro.actions, abilityRecord)
+        Util.debugPrint(string.format("Recorded %s ability", remoteName))
+    end
 end
 
 function Macro.handleRemoteCall(remoteName, args, timestamp)
@@ -710,14 +840,20 @@ function Macro.handleRemoteCall(remoteName, args, timestamp)
                 timestamp = timestamp
             })
         end)
-    elseif remoteName == Macro.ABILITY_REMOTE then
-        task.spawn(function()
-            Macro.processAbilityRecording({
-                remoteName = Macro.ABILITY_REMOTE,
-                args = args,
-                timestamp = timestamp
-            })
-        end)
+    else
+        -- Check if it's an ability remote
+        for _, abilityRemote in ipairs(Macro.SPECIAL_ABILITY_REMOTES) do
+            if remoteName == abilityRemote then
+                task.spawn(function()
+                    Macro.processAbilityRecording({
+                        remoteName = remoteName,
+                        args = args,
+                        timestamp = timestamp
+                    })
+                end)
+                break
+            end
+        end
     end
 end
 
@@ -812,11 +948,19 @@ function Macro.setupHook()
         local method = getnamecallmethod()
 
         if not checkcaller() and Macro.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
+            -- Check for standard remotes
             if self.Name == Macro.SPAWN_REMOTE or 
                self.Name == Macro.SELL_REMOTE or 
-               self.Name == Macro.WAVE_SKIP_REMOTE or
-               self.Name == Macro.ABILITY_REMOTE then
+               self.Name == Macro.WAVE_SKIP_REMOTE then
                 Macro.handleRemoteCall(self.Name, args, tick())
+            else
+                -- Check if it's any ability remote
+                for _, abilityRemote in ipairs(Macro.SPECIAL_ABILITY_REMOTES) do
+                    if self.Name == abilityRemote then
+                        Macro.handleRemoteCall(self.Name, args, tick())
+                        break
+                    end
+                end
             end
         end
         
@@ -1534,45 +1678,149 @@ function Macro.executeAction(action, actionIndex, totalActions)
         
         Macro.updateStatus(string.format("(%d/%d) Scheduled wave skip", actionIndex, totalActions))
         return true
-    elseif action.Type == "use_active_attack" then
-        -- Schedule ability in background (even with ignore timing)
-        task.spawn(function()
-            local targetTime = tonumber(action.Time) or 0
-            local waitTime = targetTime - (tick() - GameTracking.gameStartTime)
-            
-            if waitTime > 0 and not Macro.ignoreTiming then
-                Util.debugPrint(string.format("Ability scheduled for %.1fs from now", waitTime))
-                task.wait(waitTime)
+    else
+        -- Handle any ability remote (including special abilities)
+        local isAbilityRemote = false
+        for _, abilityRemote in ipairs(Macro.SPECIAL_ABILITY_REMOTES) do
+            if action.Type == abilityRemote then
+                isAbilityRemote = true
+                break
             end
-            
-            if Macro.isPlaying and not GameTracking.gameHasEnded then
-                local placementId = action.Unit
-                local currentUUID = Macro.playbackPlacementToSpawnId[placementId]
-                
-                if currentUUID then
-                    local targetUnit = Macro.findUnitBySpawnUUID(currentUUID)
-                    
-                    if targetUnit then
-                        Util.debugPrint(string.format("Executing scheduled ability for %s at game time %.2f", 
-                            placementId, tick() - GameTracking.gameStartTime))
-                        
-                        local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints")
-                            :WaitForChild("client_to_server")
-                        
-                        pcall(function()
-                            endpoints:WaitForChild(Macro.ABILITY_REMOTE):InvokeServer(targetUnit.Name)
-                        end)
-                    else
-                        Util.debugPrint(string.format("Ability target unit not found: %s", placementId))
-                    end
-                else
-                    Util.debugPrint(string.format("No UUID mapping for ability target: %s", placementId))
-                end
-            end
-        end)
+        end
         
-        Macro.updateStatus(string.format("(%d/%d) Scheduled ability: %s", actionIndex, totalActions, action.Unit))
-        return true
+        if isAbilityRemote then
+            -- Schedule ability in background (even with ignore timing)
+            task.spawn(function()
+                local targetTime = tonumber(action.Time) or 0
+                local waitTime = targetTime - (tick() - GameTracking.gameStartTime)
+                
+                if waitTime > 0 and not Macro.ignoreTiming then
+                    Util.debugPrint(string.format("Ability (%s) scheduled for %.1fs from now", action.Type, waitTime))
+                    task.wait(waitTime)
+                end
+                
+                if Macro.isPlaying and not GameTracking.gameHasEnded then
+                    local endpoints = Services.ReplicatedStorage:WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                    
+                    -- Handle different special ability types
+                    if action.Type == "HestiaAssignBlade" then
+                        -- Hestia: Find target unit and get its current spawn_id
+                        local targetPlacementId = action.Target
+                        local targetUUID = Macro.playbackPlacementToSpawnId[targetPlacementId]
+                        
+                        if targetUUID then
+                            local targetUnit = Macro.findUnitBySpawnUUID(targetUUID)
+                            if targetUnit then
+                                local stats = targetUnit:FindFirstChild("_stats")
+                                if stats then
+                                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                                    if spawnIdValue then
+                                        Util.debugPrint(string.format("Executing Hestia ability on %s (spawn_id: %s)", 
+                                            targetPlacementId, tostring(spawnIdValue.Value)))
+                                        
+                                        pcall(function()
+                                            endpoints:WaitForChild("HestiaAssignBlade"):InvokeServer(spawnIdValue.Value)
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                        
+                    elseif action.Type == "LelouchChoosePiece" then
+                        -- Lelouch: Find both Lelouch and target units
+                        local lelouchUUID = Macro.playbackPlacementToSpawnId[action.Lelouch]
+                        local targetUUID = Macro.playbackPlacementToSpawnId[action.Target]
+                        
+                        if lelouchUUID and targetUUID then
+                            local lelouchUnit = Macro.findUnitBySpawnUUID(lelouchUUID)
+                            local targetUnit = Macro.findUnitBySpawnUUID(targetUUID)
+                            
+                            if lelouchUnit and targetUnit then
+                                local lelouchStats = lelouchUnit:FindFirstChild("_stats")
+                                local targetStats = targetUnit:FindFirstChild("_stats")
+                                
+                                if lelouchStats and targetStats then
+                                    local lelouchSpawnId = lelouchStats:FindFirstChild("spawn_id")
+                                    local targetSpawnId = targetStats:FindFirstChild("spawn_id")
+                                    
+                                    if lelouchSpawnId and targetSpawnId then
+                                        Util.debugPrint(string.format("Executing Lelouch ability: %s -> %s (piece: %s)", 
+                                            action.Lelouch, action.Target, action.Piece))
+                                        
+                                        pcall(function()
+                                            endpoints:WaitForChild("LelouchChoosePiece"):InvokeServer(
+                                                lelouchSpawnId.Value, 
+                                                targetSpawnId.Value, 
+                                                action.Piece
+                                            )
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                        
+                    elseif action.Type == "DioWrites" then
+                        -- Dio: Find Dio unit
+                        local dioUUID = Macro.playbackPlacementToSpawnId[action.Dio]
+                        
+                        if dioUUID then
+                            local dioUnit = Macro.findUnitBySpawnUUID(dioUUID)
+                            if dioUnit then
+                                local stats = dioUnit:FindFirstChild("_stats")
+                                if stats then
+                                    local spawnIdValue = stats:FindFirstChild("spawn_id")
+                                    if spawnIdValue then
+                                        Util.debugPrint(string.format("Executing Dio ability: %s (type: %s)", 
+                                            action.Dio, action.Ability))
+                                        
+                                        pcall(function()
+                                            endpoints:WaitForChild("DioWrites"):InvokeServer(
+                                                spawnIdValue.Value, 
+                                                action.Ability
+                                            )
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                        
+                    elseif action.Type == "use_active_attack" then
+                        -- Normal ability: Use unit name directly
+                        local placementId = action.Unit
+                        local currentUUID = Macro.playbackPlacementToSpawnId[placementId]
+                        
+                        if currentUUID then
+                            local targetUnit = Macro.findUnitBySpawnUUID(currentUUID)
+                            
+                            if targetUnit then
+                                Util.debugPrint(string.format("Executing normal ability for %s", placementId))
+                                
+                                pcall(function()
+                                    endpoints:WaitForChild("use_active_attack"):InvokeServer(targetUnit.Name)
+                                end)
+                            end
+                        end
+                        
+                    else
+                        -- Unknown ability type - try generic execution
+                        Util.debugPrint(string.format("Executing unknown ability type: %s", action.Type))
+                        
+                        if action.Args then
+                            pcall(function()
+                                endpoints:WaitForChild(action.Type):InvokeServer(unpack(action.Args))
+                            end)
+                        end
+                    end
+                end
+            end)
+            
+            local abilityDesc = action.Unit and string.format("%s (%s)", action.Unit, action.Type) 
+                or action.Target and string.format("%s (%s)", action.Target, action.Type)
+                or action.Type
+            Macro.updateStatus(string.format("(%d/%d) Scheduled ability: %s", actionIndex, totalActions, abilityDesc))
+            return true
+        end
     end
     
     return false
