@@ -363,43 +363,44 @@ do
         Dungeon.stopFlag = true
         setStatus("Stopped by user")
     end
-         function Dungeon.getNextUnfinishedRoom()
-    if not getDeps() then return nil end
-    local gamemode = Dungeon.config.mode
-    for _, entry in ipairs(PATH_ORDER) do
-        local path     = entry.path
-        local maxNodes = entry.maxNodes
-        for node = 1, maxNodes do
-            local accessible, _, alreadyDone = _DungeonServiceCore.HasRoomUnlocked(
-                _GUIService.session, gamemode, path, node
-            )
-            if accessible and not alreadyDone then
-                return { path = path, node = node, gamemode = gamemode }
+
+    function Dungeon.getNextUnfinishedRoom()
+        if not getDeps() then return nil end
+        local gamemode = Dungeon.config.mode
+        for _, entry in ipairs(PATH_ORDER) do
+            local path     = entry.path
+            local maxNodes = entry.maxNodes
+            for node = 1, maxNodes do
+                local accessible, _, alreadyDone = _DungeonServiceCore.HasRoomUnlocked(
+                    _GUIService.session, gamemode, path, node
+                )
+                if accessible and not alreadyDone then
+                    return { path = path, node = node, gamemode = gamemode }
+                end
             end
         end
+        return nil
     end
-    return nil -- all done
-end
 
-function Dungeon.voteNextRoom(roomInfo)
-    if not roomInfo then return false end
-    local ok, err = pcall(function()
-        Services.ReplicatedStorage
-            :WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-            :WaitForChild("set_game_finished_vote")
-            :InvokeServer("Replay", nil, {
-                selectedNodeBranch = roomInfo.path,
-                selectedNode       = roomInfo.node,
-            })
-    end)
-    if ok then
-        setStatus(string.format("✓ Voted next room: Path %d, Node %d", roomInfo.path, roomInfo.node))
-    else
-        warn("[AutoDungeon] Failed to vote next room: " .. tostring(err))
+    function Dungeon.voteNextRoom(roomInfo)
+        if not roomInfo then return false end
+        local ok, err = pcall(function()
+            Services.ReplicatedStorage
+                :WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+                :WaitForChild("set_game_finished_vote")
+                :InvokeServer("Replay", nil, {
+                    selectedNodeBranch = roomInfo.path,
+                    selectedNode       = roomInfo.node,
+                })
+        end)
+        if ok then
+            print(string.format("[AutoDungeon] ✓ Voted next room: Path %d, Node %d", roomInfo.path, roomInfo.node))
+        else
+            warn("[AutoDungeon] Failed to vote next room: " .. tostring(err))
+        end
+        return ok
     end
-    return ok
-end
 end
 
 -- ============================================================
@@ -633,6 +634,27 @@ function Util.resolveUUIDFromInternalName(internalName)
         return nil
     end
     return uuid
+end
+
+-- ──────────────────────────────────────────────
+-- NEW: Rarity cost lookup
+-- ──────────────────────────────────────────────
+
+-- Returns the yen cost for purchasing a unit from the shop based on its rarity.
+-- Rarity is read from unitData.rarity (lowercase string expected from game data).
+local RARITY_PURCHASE_COSTS = {
+    epic        = 500,
+    legendary   = 1250,
+    mythic      = 3000,
+    secret      = 10000,
+    crusader    = 25000,
+}
+
+function Util.getPurchaseCost(unitInternalId)
+    local unitData = Util.getUnitData(unitInternalId)
+    if not unitData then return 0 end
+    local rarity = unitData.rarity and unitData.rarity:lower() or ""
+    return RARITY_PURCHASE_COSTS[rarity] or 0
 end
 
 -- ──────────────────────────────────────────────
@@ -889,6 +911,10 @@ local Macro = {
     UPGRADE_REMOTE           = "upgrade_unit_ingame",
     SELL_REMOTE              = "sell_unit_ingame",
     WAVE_SKIP_REMOTE         = "vote_wave_skip",
+    -- ── NEW remotes ──────────────────────────────
+    PURCHASE_UNIT_REMOTE     = "purchase_unit",
+    FORGE_TRAIT_REMOTE       = "forge_trait_purchase",
+    -- ─────────────────────────────────────────────
     SPECIAL_ABILITY_REMOTES  = {
         "use_active_attack",
         "HestiaAssignBlade",
@@ -908,6 +934,9 @@ local Macro = {
     randomOffsetEnabled      = false,
     randomOffsetAmount       = 0.5,
     ignoreTiming             = false,
+    -- purchase counter: tracks how many of each display-name have been purchased
+    -- so we can produce "Speedwagon #1", "Speedwagon #2", etc.
+    purchaseCounter          = {},
 }
 
 function Macro.updateStatus(message)
@@ -918,10 +947,11 @@ function Macro.updateStatus(message)
 end
 
 function Macro.clearSpawnIdMappings()
-    Macro.spawnIdToPlacement         = {}
-    Macro.placementCounter           = {}
-    Macro.unitNameToSpawnId          = {}
-    Macro.playbackPlacementToSpawnId = {}
+    Macro.spawnIdToPlacement           = {}
+    Macro.placementCounter             = {}
+    Macro.unitNameToSpawnId            = {}
+    Macro.playbackPlacementToSpawnId   = {}
+    Macro.purchaseCounter              = {}
 end
 
 function Macro.takeUnitsSnapshot()
@@ -972,6 +1002,39 @@ function Macro.findUnitBySpawnUUID(targetUUID)
         end
     end
     return nil
+end
+
+-- ──────────────────────────────────────────────
+-- NEW: find a unit in _FX_CACHE by its inventory UUID (the arg passed to
+-- purchase_unit / forge_trait_purchase).
+-- Returns the display-name or nil if not found.
+-- ──────────────────────────────────────────────
+function Macro.getDisplayNameFromInventoryUUID(inventoryUUID)
+    if not inventoryUUID then return nil end
+    local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+    if not fxCache then return nil end
+    for _, child in pairs(fxCache:GetChildren()) do
+        local uuidValue = child:FindFirstChild("_uuid")
+        if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == inventoryUUID then
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            if itemIndex then
+                return Util.getDisplayNameFromUnitId(itemIndex)
+            end
+        end
+    end
+    return nil
+end
+
+-- ──────────────────────────────────────────────
+-- NEW: find inventory UUID from a purchase placement ID ("Speedwagon #1")
+-- by resolving the internal id and then scanning _FX_CACHE.
+-- ──────────────────────────────────────────────
+function Macro.getInventoryUUIDFromPurchasePlacement(placementId)
+    local displayName, _ = Util.parseUnitString(placementId)
+    if not displayName then return nil end
+    local internalId = Util.getUnitIdFromDisplayName(displayName)
+    if not internalId then return nil end
+    return Util.resolveUUIDFromInternalName(internalId)
 end
 
 function Macro.startRecording()
@@ -1058,6 +1121,86 @@ function Macro.processWaveSkipRecording(actionInfo)
     Util.notify("Macro Recorder", "Recorded wave skip")
 end
 
+-- ──────────────────────────────────────────────
+-- NEW: purchase_unit recording
+-- args[1] = inventoryUUID (the unit being purchased from the shop)
+-- We resolve its display name and assign a purchase-specific counter
+-- so it can be uniquely identified during playback.
+-- ──────────────────────────────────────────────
+function Macro.processPurchaseRecording(actionInfo)
+    local inventoryUUID    = actionInfo.args[1]
+    if not inventoryUUID then return end
+    local displayName = Macro.getDisplayNameFromInventoryUUID(inventoryUUID)
+    if not displayName then
+        -- Fall back: try resolving from the raw string if it looks like an internal id
+        displayName = Util.getDisplayNameFromUnitId(inventoryUUID) or inventoryUUID
+    end
+    Macro.purchaseCounter[displayName] = (Macro.purchaseCounter[displayName] or 0) + 1
+    local purchaseId       = string.format("%s #%d", displayName, Macro.purchaseCounter[displayName])
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    table.insert(Macro.actions, {
+        Type     = "purchase_unit",
+        Unit     = purchaseId,
+        Time     = string.format("%.2f", gameRelativeTime),
+    })
+    Util.notify("Macro Recorder", string.format("Recorded purchase: %s", purchaseId))
+end
+
+-- ──────────────────────────────────────────────
+-- NEW: forge_trait_purchase recording
+-- args[1] = inventoryUUID of the unit whose trait is being forged
+-- args[2] = trait type string (e.g. "unique")
+-- We resolve the inventory UUID to a placement ID so playback can
+-- fire the remote on the correct live unit instance.
+-- ──────────────────────────────────────────────
+function Macro.forgeTraitRecording(actionInfo)
+    local inventoryUUID    = actionInfo.args[1]
+    local traitType        = actionInfo.args[2]
+    if not inventoryUUID then return end
+
+    -- Find the placement ID that owns this inventory UUID.
+    -- We scan spawnIdToPlacement: the combinedIdentifier stored there
+    -- starts with the unit's uuid (from _stats.uuid), which is the same
+    -- identifier the server uses as the inventory/forge UUID.
+    local placementId = nil
+    for combinedId, pid in pairs(Macro.spawnIdToPlacement) do
+        -- combinedId = uuid.Value .. spawnId.Value  OR  just uuid.Value
+        -- The inventoryUUID passed to forge_trait_purchase is the _stats.uuid
+        if combinedId:sub(1, #inventoryUUID) == inventoryUUID then
+            placementId = pid
+            break
+        end
+    end
+
+    -- Also check purchase placements (unit purchased from shop this game)
+    -- In that case the unit may not have a spawn_id mapping yet, so fall back
+    -- to matching by display name resolved from the inventory UUID.
+    if not placementId then
+        local displayName = Macro.getDisplayNameFromInventoryUUID(inventoryUUID)
+        if displayName then
+            -- Use the most recently purchased instance of this unit
+            local count = Macro.purchaseCounter[displayName] or 0
+            if count > 0 then
+                placementId = string.format("%s #%d", displayName, count)
+            end
+        end
+    end
+
+    if not placementId then
+        warn("[Macro Recorder] forge_trait_purchase: could not resolve placementId for UUID:", inventoryUUID)
+        return
+    end
+
+    local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+    table.insert(Macro.actions, {
+        Type      = "forge_trait_purchase",
+        Unit      = placementId,
+        TraitType = traitType or "unique",
+        Time      = string.format("%.2f", gameRelativeTime),
+    })
+    Util.notify("Macro Recorder", string.format("Recorded forge trait (%s): %s", traitType or "unique", placementId))
+end
+
 function Macro.processAbilityRecording(actionInfo)
     local remoteName = actionInfo.remoteName
     local args       = actionInfo.args
@@ -1128,6 +1271,16 @@ function Macro.handleRemoteCall(remoteName, args, timestamp)
         task.spawn(function()
             Macro.processWaveSkipRecording({ remoteName = Macro.WAVE_SKIP_REMOTE, timestamp = timestamp })
         end)
+    -- ── NEW ──────────────────────────────────────────
+    elseif remoteName == Macro.PURCHASE_UNIT_REMOTE then
+        task.spawn(function()
+            Macro.processPurchaseRecording({ remoteName = Macro.PURCHASE_UNIT_REMOTE, args = args, timestamp = timestamp })
+        end)
+    elseif remoteName == Macro.FORGE_TRAIT_REMOTE then
+        task.spawn(function()
+            Macro.forgeTraitRecording({ remoteName = Macro.FORGE_TRAIT_REMOTE, args = args, timestamp = timestamp })
+        end)
+    -- ─────────────────────────────────────────────────
     else
         for _, abilityRemote in ipairs(Macro.SPECIAL_ABILITY_REMOTES) do
             if remoteName == abilityRemote then
@@ -1193,7 +1346,14 @@ function Macro.setupHook()
         local args   = {...}
         local method = getnamecallmethod()
         if not checkcaller() and Macro.isRecording and self.Parent and self.Parent.Name == "client_to_server" then
-            if self.Name == Macro.SPAWN_REMOTE or self.Name == Macro.SELL_REMOTE or self.Name == Macro.WAVE_SKIP_REMOTE then
+            if self.Name == Macro.SPAWN_REMOTE
+            or self.Name == Macro.SELL_REMOTE
+            or self.Name == Macro.WAVE_SKIP_REMOTE
+            -- ── NEW ──────────────────────────────────────────
+            or self.Name == Macro.PURCHASE_UNIT_REMOTE
+            or self.Name == Macro.FORGE_TRAIT_REMOTE
+            -- ─────────────────────────────────────────────────
+            then
                 Macro.handleRemoteCall(self.Name, args, tick())
             else
                 for _, abilityRemote in ipairs(Macro.SPECIAL_ABILITY_REMOTES) do
@@ -1311,6 +1471,12 @@ function Macro.importFromTXT(txtContent, macroName)
                     table.insert(actions, { Type = "vote_wave_skip", Time = parts[2] })
                 elseif actionType == "use_active_attack" and #parts >= 3 then
                     table.insert(actions, { Type = "use_active_attack", Unit = parts[2], Time = parts[3] })
+                -- ── NEW TXT import lines ──────────────────────
+                elseif actionType == "purchase_unit" and #parts >= 3 then
+                    table.insert(actions, { Type = "purchase_unit", Unit = parts[2], Time = parts[3] })
+                elseif actionType == "forge_trait_purchase" and #parts >= 4 then
+                    table.insert(actions, { Type = "forge_trait_purchase", Unit = parts[2], TraitType = parts[3], Time = parts[4] })
+                -- ─────────────────────────────────────────────
                 end
             end
         end
@@ -1383,28 +1549,51 @@ function Macro.exportToWebhook(macroName, webhookUrl)
 end
 
 function Macro.waitForSufficientMoney(action, actionIndex, totalActions)
-    local requiredCost   = 0
-    local displayName, _ = Util.parseUnitString(action.Unit)
-    local unitid         = displayName and Util.getUnitIdFromDisplayName(displayName)
-    if action.Type == "spawn_unit" and unitid then
-        requiredCost = Util.getPlacementCost(unitid)
-    elseif action.Type == "upgrade_unit_ingame" and displayName then
-        local currentUUID = Macro.playbackPlacementToSpawnId[action.Unit]
-        if currentUUID then
-            local unit = Macro.findUnitBySpawnUUID(currentUUID)
-            if unit then
-                local currentLevel  = Util.getUnitUpgradeLevel(unit)
-                local upgradeAmount = action.Amount or 1
-                requiredCost = upgradeAmount > 1 and Util.getMultiUpgradeCost(unitid, currentLevel, upgradeAmount) or Util.getUpgradeCost(unitid, currentLevel)
+    local requiredCost = 0
+
+    if action.Type == "purchase_unit" then
+        -- Resolve the display name from the purchase placement id, then look up
+        -- the unit's rarity cost.
+        local displayName, _ = Util.parseUnitString(action.Unit)
+        if displayName then
+            local internalId = Util.getUnitIdFromDisplayName(displayName)
+            if internalId then
+                requiredCost = Util.getPurchaseCost(internalId)
+            end
+        end
+        -- Fallback: if rarity data is missing, use a safe default of 0 (don't block)
+    elseif action.Type == "forge_trait_purchase" then
+        -- Trait costs are not currently tracked; don't block on money for forging.
+        requiredCost = 0
+    else
+        local displayName, _ = Util.parseUnitString(action.Unit)
+        local unitid         = displayName and Util.getUnitIdFromDisplayName(displayName)
+        if action.Type == "spawn_unit" and unitid then
+            requiredCost = Util.getPlacementCost(unitid)
+        elseif action.Type == "upgrade_unit_ingame" and displayName then
+            local currentUUID = Macro.playbackPlacementToSpawnId[action.Unit]
+            if currentUUID then
+                local unit = Macro.findUnitBySpawnUUID(currentUUID)
+                if unit then
+                    local currentLevel  = Util.getUnitUpgradeLevel(unit)
+                    local upgradeAmount = action.Amount or 1
+                    requiredCost = upgradeAmount > 1 and Util.getMultiUpgradeCost(unitid, currentLevel, upgradeAmount) or Util.getUpgradeCost(unitid, currentLevel)
+                end
             end
         end
     end
+
     if requiredCost > 0 then
         while Util.getPlayerMoney() < requiredCost do
             if not Macro.isPlaying or GameTracking.gameHasEnded then return false end
             local missingMoney = requiredCost - Util.getPlayerMoney()
-            local upgradeText  = action.Amount and action.Amount > 1 and string.format(" (x%d upgrade)", action.Amount) or ""
-            Macro.updateStatus(string.format("(%d/%d) Waiting for %d more yen%s", actionIndex, totalActions, missingMoney, upgradeText))
+            local suffix = ""
+            if action.Type == "purchase_unit" then
+                suffix = " (shop purchase)"
+            elseif action.Amount and action.Amount > 1 then
+                suffix = string.format(" (x%d upgrade)", action.Amount)
+            end
+            Macro.updateStatus(string.format("(%d/%d) Waiting for %d more yen%s", actionIndex, totalActions, missingMoney, suffix))
             task.wait(1)
         end
     end
@@ -1502,6 +1691,81 @@ function Macro.validateSell(action, actionIndex, totalActions)
     return true
 end
 
+-- ──────────────────────────────────────────────
+-- NEW: playback handler for purchase_unit
+-- Resolves the unit's inventory UUID from its display name, waits for
+-- sufficient yen (rarity cost), then fires purchase_unit.
+-- ──────────────────────────────────────────────
+function Macro.validatePurchase(action, actionIndex, totalActions)
+    local endpoints   = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    local placementId = action.Unit
+    local displayName, _ = Util.parseUnitString(placementId)
+    if not displayName then
+        Macro.updateStatus(string.format("(%d/%d) FAILED: Invalid unit format: %s", actionIndex, totalActions, placementId))
+        return false
+    end
+
+    -- Resolve the inventory UUID the server expects
+    local internalId  = Util.getUnitIdFromDisplayName(displayName)
+    local inventoryUUID = internalId and Util.resolveUUIDFromInternalName(internalId) or nil
+    if not inventoryUUID then
+        Macro.updateStatus(string.format("(%d/%d) FAILED: Cannot resolve UUID for %s", actionIndex, totalActions, displayName))
+        return false
+    end
+
+    Macro.updateStatus(string.format("(%d/%d) Purchasing %s...", actionIndex, totalActions, placementId))
+    local success = pcall(function()
+        endpoints:WaitForChild(Macro.PURCHASE_UNIT_REMOTE):InvokeServer(inventoryUUID)
+    end)
+    if success then
+        Macro.updateStatus(string.format("(%d/%d) SUCCESS: Purchased %s", actionIndex, totalActions, placementId))
+    else
+        Macro.updateStatus(string.format("(%d/%d) FAILED: Purchase remote error for %s", actionIndex, totalActions, placementId))
+    end
+    return true -- continue macro regardless
+end
+
+-- ──────────────────────────────────────────────
+-- NEW: playback handler for forge_trait_purchase
+-- Resolves the unit's _stats.uuid from its placement ID mapping, then
+-- fires forge_trait_purchase with that UUID and the saved trait type.
+-- ──────────────────────────────────────────────
+function Macro.validateForgeTrait(action, actionIndex, totalActions)
+    local endpoints   = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    local placementId = action.Unit
+    local traitType   = action.TraitType or "unique"
+
+    -- We need the _stats.uuid of the target unit (not the spawn UUID).
+    -- playbackPlacementToSpawnId stores the _SPAWN_UNIT_UUID attribute.
+    -- From that we get the actual unit instance and then read _stats.uuid.
+    local spawnUUID  = Macro.playbackPlacementToSpawnId[placementId]
+    local targetUnit = spawnUUID and Macro.findUnitBySpawnUUID(spawnUUID) or nil
+
+    if not targetUnit then
+        Macro.updateStatus(string.format("(%d/%d) FAILED: Unit not found for forge: %s", actionIndex, totalActions, placementId))
+        return false
+    end
+
+    local stats     = targetUnit:FindFirstChild("_stats")
+    local uuidValue = stats and stats:FindFirstChild("uuid")
+    if not uuidValue or not uuidValue:IsA("StringValue") then
+        Macro.updateStatus(string.format("(%d/%d) FAILED: No UUID for forge target: %s", actionIndex, totalActions, placementId))
+        return false
+    end
+
+    local inventoryUUID = uuidValue.Value
+    Macro.updateStatus(string.format("(%d/%d) Forging trait (%s) on %s...", actionIndex, totalActions, traitType, placementId))
+    local success = pcall(function()
+        endpoints:WaitForChild(Macro.FORGE_TRAIT_REMOTE):InvokeServer(inventoryUUID, traitType)
+    end)
+    if success then
+        Macro.updateStatus(string.format("(%d/%d) SUCCESS: Forged %s on %s", actionIndex, totalActions, traitType, placementId))
+    else
+        Macro.updateStatus(string.format("(%d/%d) FAILED: Forge remote error for %s", actionIndex, totalActions, placementId))
+    end
+    return true -- continue macro regardless
+end
+
 function Macro.executeAction(action, actionIndex, totalActions)
     if action.Type == "spawn_unit" then
         return Macro.validatePlacement(action, actionIndex, totalActions)
@@ -1509,24 +1773,29 @@ function Macro.executeAction(action, actionIndex, totalActions)
         return Macro.validateUpgrade(action, actionIndex, totalActions)
     elseif action.Type == "sell_unit_ingame" then
         return Macro.validateSell(action, actionIndex, totalActions)
+    -- ── NEW ──────────────────────────────────────────
+    elseif action.Type == "purchase_unit" then
+        return Macro.validatePurchase(action, actionIndex, totalActions)
+    elseif action.Type == "forge_trait_purchase" then
+        return Macro.validateForgeTrait(action, actionIndex, totalActions)
+    -- ─────────────────────────────────────────────────
     elseif action.Type == "vote_wave_skip" then
-    task.spawn(function()
-        local targetTime = tonumber(action.Time) or 0
-        local waitTime   = targetTime - (tick() - GameTracking.gameStartTime)
-        if waitTime > 0 and not Macro.ignoreTiming then task.wait(waitTime) end
-        if not Macro.isPlaying or GameTracking.gameHasEnded then return end
-        -- Only fire if the VoteSkip UI is currently visible
-        local voteSkipGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
-        if not voteSkipGui or not voteSkipGui.Enabled then return end
-        pcall(function()
-            Services.ReplicatedStorage
-                :WaitForChild("endpoints")
-                :WaitForChild("client_to_server")
-                :WaitForChild(Macro.WAVE_SKIP_REMOTE)
-                :InvokeServer()
+        task.spawn(function()
+            local targetTime = tonumber(action.Time) or 0
+            local waitTime   = targetTime - (tick() - GameTracking.gameStartTime)
+            if waitTime > 0 and not Macro.ignoreTiming then task.wait(waitTime) end
+            if not Macro.isPlaying or GameTracking.gameHasEnded then return end
+            local voteSkipGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
+            if not voteSkipGui or not voteSkipGui.Enabled then return end
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild(Macro.WAVE_SKIP_REMOTE)
+                    :InvokeServer()
+            end)
         end)
-    end)
-    return true
+        return true
     else
         local isAbilityRemote = false
         for _, abilityRemote in ipairs(Macro.SPECIAL_ABILITY_REMOTES) do
@@ -1606,7 +1875,9 @@ function Macro.play()
     if GameTracking.gameStartTime == 0 then GameTracking.gameStartTime = tick() end
     for i, action in ipairs(Macro.actions) do
         if not Macro.isPlaying or GameTracking.gameHasEnded then Macro.updateStatus("Macro interrupted") return false end
-        if action.Type == "spawn_unit" or action.Type == "upgrade_unit_ingame" then
+        if action.Type == "spawn_unit"
+        or action.Type == "upgrade_unit_ingame"
+        or action.Type == "purchase_unit" then   -- ← NEW: gate purchases on money too
             if not Macro.waitForSufficientMoney(action, i, totalActions) then Macro.updateStatus("Money wait cancelled") return false end
         end
         if not Macro.ignoreTiming then
@@ -1695,14 +1966,14 @@ local function initialize()
     })
 
     DungeonTab:CreateToggle({
-    Name         = "Auto Next Expedition",
-    CurrentValue = false,
-    Flag         = "AutoNextExpedition",
-    Info         = "On game end, automatically votes to continue to the next unfinished dungeon room.",
-    Callback     = function(Value)
-        State.AutoNextExpedition = Value
-    end,
-})
+        Name         = "Auto Next Expedition",
+        CurrentValue = false,
+        Flag         = "AutoNextExpedition",
+        Info         = "On game end, automatically votes to continue to the next unfinished dungeon room.",
+        Callback     = function(Value)
+            State.AutoNextExpedition = Value
+        end,
+    })
 
     -- ══════════════════════════════════════════════
     -- TAB: MACRO
@@ -1955,9 +2226,6 @@ local function initialize()
     -- ══════════════════════════════════════════════
     local GameTab = Window:CreateTab("Game", "gamepad-2")
 
-    -- ──────────────────────────────────────────────
-    -- Player / Visual
-    -- ──────────────────────────────────────────────
     GameTab:CreateSection("Player")
 
     GameTab:CreateSlider({
@@ -2047,7 +2315,6 @@ local function initialize()
         end,
     })
 
-    -- Streamer mode loop
     task.spawn(function()
         while true do
             task.wait(0.1)
@@ -2072,9 +2339,6 @@ local function initialize()
         end
     end)
 
-    -- ──────────────────────────────────────────────
-    -- Game Automation
-    -- ──────────────────────────────────────────────
     GameTab:CreateSection("Game")
 
     GameTab:CreateToggle({
@@ -2124,7 +2388,6 @@ local function initialize()
         end,
     })
 
-    -- Auto-start loop
     task.spawn(function()
         while true do
             task.wait(1)
@@ -2207,7 +2470,6 @@ local function initialize()
         end,
     })
 
-    -- Auto-skip wave monitor
     task.spawn(function()
         while true do
             task.wait(1)
@@ -2234,9 +2496,6 @@ local function initialize()
         end
     end)
 
-    -- ──────────────────────────────────────────────
-    -- Boss Rush
-    -- ──────────────────────────────────────────────
     GameTab:CreateSection("Boss Rush")
 
     local BossRushModifier = "Slot"
@@ -2286,9 +2545,6 @@ local function initialize()
         end
     end)
 
-    -- ──────────────────────────────────────────────
-    -- Auto Sell
-    -- ──────────────────────────────────────────────
     GameTab:CreateSection("Auto Sell")
 
     GameTab:CreateToggle({
@@ -2335,7 +2591,6 @@ local function initialize()
         end,
     })
 
-    -- Sell helper functions (scoped inside initialize to access Macro.library)
     local _lastSellWave     = 0
     local _lastFarmSellWave = 0
 
@@ -2393,7 +2648,6 @@ local function initialize()
         end
     end
 
-    -- Wave-changed sell watcher
     task.spawn(function()
         if not Services.Workspace:FindFirstChild("_wave_num") then
             Services.Workspace:WaitForChild("_wave_num")
@@ -2413,9 +2667,6 @@ local function initialize()
         end)
     end)
 
-    -- ──────────────────────────────────────────────
-    -- Failsafes
-    -- ──────────────────────────────────────────────
     GameTab:CreateSection("Failsafes")
 
     GameTab:CreateSlider({
@@ -2451,7 +2702,6 @@ local function initialize()
         end,
     })
 
-    -- 20-minute failsafe loop
     task.spawn(function()
         while true do
             task.wait(1)
@@ -2475,9 +2725,6 @@ local function initialize()
         end
     end)
 
-    -- ──────────────────────────────────────────────
-    -- Macro / Auto Equip
-    -- ──────────────────────────────────────────────
     GameTab:CreateSection("Macro")
 
     GameTab:CreateToggle({
@@ -2503,58 +2750,55 @@ local function initialize()
 
     local WebhookTab = Window:CreateTab("Webhook", "link")
 
-WebhookTab:CreateSection("Configuration")
+    WebhookTab:CreateSection("Configuration")
 
-WebhookTab:CreateInput({
-    Name                     = "Webhook URL",
-    CurrentValue             = "",
-    PlaceholderText          = "https://discord.com/api/webhooks/...",
-    RemoveTextAfterFocusLost = false,
-    Callback                 = function(text) Webhook.url = text end,
-})
+    WebhookTab:CreateInput({
+        Name                     = "Webhook URL",
+        CurrentValue             = "",
+        PlaceholderText          = "https://discord.com/api/webhooks/...",
+        RemoveTextAfterFocusLost = false,
+        Callback                 = function(text) Webhook.url = text end,
+    })
 
-WebhookTab:CreateInput({
-    Name                     = "Discord User ID (for pings)",
-    CurrentValue             = "",
-    PlaceholderText          = "Your Discord user ID...",
-    RemoveTextAfterFocusLost = false,
-    Callback                 = function(text) Webhook.discordUserId = text end,
-})
+    WebhookTab:CreateInput({
+        Name                     = "Discord User ID (for pings)",
+        CurrentValue             = "",
+        PlaceholderText          = "Your Discord user ID...",
+        RemoveTextAfterFocusLost = false,
+        Callback                 = function(text) Webhook.discordUserId = text end,
+    })
 
-WebhookTab:CreateToggle({
-    Name         = "Send Webhook on Stage End",
-    CurrentValue = false,
-    Flag         = "WebhookOnFinish",
-    Info         = "Sends a Discord embed after every game with rewards, stats, and session info.",
-    Callback     = function(Value)
-        -- Webhook.url must also be set for sends to fire
-        -- This toggle is checked before sending in the game_finished handler
-    end,
-})
+    WebhookTab:CreateToggle({
+        Name         = "Send Webhook on Stage End",
+        CurrentValue = false,
+        Flag         = "WebhookOnFinish",
+        Info         = "Sends a Discord embed after every game with rewards, stats, and session info.",
+        Callback     = function(Value) end,
+    })
 
-WebhookTab:CreateButton({
-    Name     = "Send Test Webhook",
-    Callback = function()
-        if not Webhook.url or Webhook.url == "" then
-            Util.notify("Webhook", "Enter a URL first!")
-            return
-        end
-        local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
-        if not requestFunc then Util.notify("Webhook", "HTTP not supported by executor") return end
-        pcall(function()
-            requestFunc({
-                Url     = Webhook.url,
-                Method  = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body    = Services.HttpService:JSONEncode({
-                    username = "LixHub",
-                    embeds   = {{ title = "Test", description = "Webhook working!", color = 0x57F287 }}
-                }),
-            })
-        end)
-        Util.notify("Webhook", "Test sent!")
-    end,
-})
+    WebhookTab:CreateButton({
+        Name     = "Send Test Webhook",
+        Callback = function()
+            if not Webhook.url or Webhook.url == "" then
+                Util.notify("Webhook", "Enter a URL first!")
+                return
+            end
+            local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+            if not requestFunc then Util.notify("Webhook", "HTTP not supported by executor") return end
+            pcall(function()
+                requestFunc({
+                    Url     = Webhook.url,
+                    Method  = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body    = Services.HttpService:JSONEncode({
+                        username = "LixHub",
+                        embeds   = {{ title = "Test", description = "Webhook working!", color = 0x57F287 }}
+                    }),
+                })
+            end)
+            Util.notify("Webhook", "Test sent!")
+        end,
+    })
 
     -- ══════════════════════════════════════════════
     -- GAME TRACKING HOOKS
@@ -2588,37 +2832,33 @@ WebhookTab:CreateButton({
             :FindFirstChild("server_to_client")
             :FindFirstChild("game_finished")
 
-            local endpoints_stc = Services.ReplicatedStorage
-    :FindFirstChild("endpoints")
-    :FindFirstChild("server_to_client")
+        local endpoints_stc = Services.ReplicatedStorage
+            :FindFirstChild("endpoints")
+            :FindFirstChild("server_to_client")
 
--- Track items collected
-local normalItemRemote = endpoints_stc:FindFirstChild("normal_item_added")
-if normalItemRemote then
-    normalItemRemote.OnClientEvent:Connect(function(itemId, quantity)
-        Webhook.sessionItems[itemId] = (Webhook.sessionItems[itemId] or 0) + (quantity or 1)
-    end)
-end
+        local normalItemRemote = endpoints_stc:FindFirstChild("normal_item_added")
+        if normalItemRemote then
+            normalItemRemote.OnClientEvent:Connect(function(itemId, quantity)
+                Webhook.sessionItems[itemId] = (Webhook.sessionItems[itemId] or 0) + (quantity or 1)
+            end)
+        end
 
--- Track unit drops
-local unitAddedRemote = endpoints_stc:FindFirstChild("unit_added")
-if unitAddedRemote then
-    unitAddedRemote.OnClientEvent:Connect(function(unitData)
-        local unitId      = type(unitData) == "table" and (unitData.id or unitData.unit_id) or tostring(unitData)
-        local displayName = Util.getDisplayNameFromUnitId(unitId) or unitId
-        Webhook.onUnitAdded(displayName)
-    end)
-end
+        local unitAddedRemote = endpoints_stc:FindFirstChild("unit_added")
+        if unitAddedRemote then
+            unitAddedRemote.OnClientEvent:Connect(function(unitData)
+                local unitId      = type(unitData) == "table" and (unitData.id or unitData.unit_id) or tostring(unitData)
+                local displayName = Util.getDisplayNameFromUnitId(unitId) or unitId
+                Webhook.onUnitAdded(displayName)
+            end)
+        end
 
--- Track waves for the webhook
-task.spawn(function()
-    local wn = Services.Workspace:WaitForChild("_wave_num")
-    wn.Changed:Connect(function(v) Webhook.lastWave = v end)
-end)
+        task.spawn(function()
+            local wn = Services.Workspace:WaitForChild("_wave_num")
+            wn.Changed:Connect(function(v) Webhook.lastWave = v end)
+        end)
 
         if gameFinishedRemote then
             gameFinishedRemote.OnClientEvent:Connect(function(...)
-                -- Determine win/loss from event args
                 local isVictory = false
                 for _, arg in ipairs({...}) do
                     if type(arg) == "table" and arg.victory ~= nil then
@@ -2630,11 +2870,9 @@ end)
                     end
                 end
 
-                -- Core game end bookkeeping
                 GameTracking.endGame()
                 Macro.hasPlayedThisGame = false
 
-                -- Stats
                 State.TotalGamesPlayed += 1
                 if isVictory then
                     State.TotalWins  += 1
@@ -2644,16 +2882,14 @@ end)
 
                 Webhook.gameResult = isVictory and "Victory" or "Defeat"
                 if Webhook.url and Webhook.url ~= "" then
-                task.spawn(function()
-                    task.wait(0.5) -- brief wait for stat values to settle
-                    Webhook.send()
-                end)
-            end
+                    task.spawn(function()
+                        task.wait(0.5)
+                        Webhook.send()
+                    end)
+                end
 
-                -- Dungeon reset
                 if Dungeon.isRunning then Dungeon.stop() end
 
-                -- Recording save
                 if Macro.isRecording then
                     Macro.stopRecording()
                     Util.notify("Recording Stopped", "Game ended, recording saved.")
@@ -2664,7 +2900,6 @@ end)
                     end
                 end
 
-                -- Failsafe timer (10-second window)
                 if State.ReturnToLobbyFailsafe then
                     State.failsafeActive = true
                     task.delay(10, function()
@@ -2681,7 +2916,6 @@ end)
                     end)
                 end
 
-                -- Auto-vote logic
                 task.spawn(function()
                     task.wait(1)
 
@@ -2707,28 +2941,26 @@ end)
 
                     local function runVotes()
                         if State.AutoNextExpedition then
-        local nextRoom = Dungeon.getNextUnfinishedRoom()
-        if nextRoom then
-            local voted = false
-            for attempt = 1, State.AutoRetryAttempts do
-                if Dungeon.voteNextRoom(nextRoom) then
-                    task.wait(2)
-                    local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
-                    if not resultsUI or not resultsUI.Enabled then
-                        State.failsafeActive = false
-                        voted = true
-                        break
-                    end
-                end
-                task.wait(State.AutoRetryDelay)
-            end
-            if voted then return end
-            -- fell through all retries — fall back to normal vote logic below
-        else
-            Util.notify("Auto Next Expedition", "All dungeon rooms completed!")
-            -- fall through to normal vote logic
-        end
-    end
+                            local nextRoom = Dungeon.getNextUnfinishedRoom()
+                            if nextRoom then
+                                local voted = false
+                                for attempt = 1, State.AutoRetryAttempts do
+                                    if Dungeon.voteNextRoom(nextRoom) then
+                                        task.wait(2)
+                                        local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
+                                        if not resultsUI or not resultsUI.Enabled then
+                                            State.failsafeActive = false
+                                            voted = true
+                                            break
+                                        end
+                                    end
+                                    task.wait(State.AutoRetryDelay)
+                                end
+                                if voted then return end
+                            else
+                                Util.notify("Auto Next Expedition", "All dungeon rooms completed!")
+                            end
+                        end
 
                         if State.AutoVoteRetry then
                             if tryVote({
@@ -2755,7 +2987,6 @@ end)
 
                     runVotes()
 
-                    -- Return to lobby after X games
                     if State.ReturnToLobbyAfterGames > 0
                     and State.TotalGamesPlayed >= State.ReturnToLobbyAfterGames then
                         Util.notify("Game Counter",
