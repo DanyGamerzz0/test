@@ -63,13 +63,10 @@ do
     -- State
     Dungeon.isRunning   = false
     Dungeon.stopFlag    = false
-    Dungeon.statusLabel = nil  -- set by UI after creation
 
     -- Config (driven by UI)
     Dungeon.config = {
         mode         = "_JojosMode1",
-        delayBetween = 3,
-        skipBoss     = false,
     }
 
     -- Path order: Entry → Branches → Linkers → Boss
@@ -87,9 +84,6 @@ do
 
     local function setStatus(msg)
         print("[AutoDungeon] " .. msg)
-        if Dungeon.statusLabel then
-            Dungeon.statusLabel:Set("Status: " .. msg)
-        end
     end
 
     local function getRoomType(gamemode, path, node)
@@ -143,12 +137,6 @@ do
                 local path     = entry.path
                 local maxNodes = entry.maxNodes
 
-                -- Skip boss room if configured
-                if path == 7 and Dungeon.config.skipBoss then
-                    setStatus("Skipping Boss room (skip boss enabled)")
-                    break
-                end
-
                 for node = 1, maxNodes do
                     if Dungeon.stopFlag then break end
 
@@ -166,7 +154,7 @@ do
                         if joinRoom(gamemode, path, node) then
                             joined += 1
                         end
-                        task.wait(Dungeon.config.delayBetween)
+                        task.wait(1)
 
                     else
                         setStatus(string.format("✗ Path %d, Node %d not accessible yet", path, node))
@@ -1242,69 +1230,31 @@ local function initialize()
 
     DungeonTab:CreateSection("Expedition")
 
-    local DungeonStatusLabel = DungeonTab:CreateLabel("Status: Idle")
-    Dungeon.statusLabel = DungeonStatusLabel  -- wire up live status updates
-
-    DungeonTab:CreateDivider()
-
     DungeonTab:CreateDropdown({
-        Name           = "Expedition Mode",
-        Options        = { "Roguelike", "Normal" },
-        CurrentOption  = { "Roguelike" },
+        Name            = "Expedition Mode",
+        Options         = { "Roguelike", "Normal" },
+        CurrentOption   = { "Roguelike" },
         MultipleOptions = false,
-        Flag           = "DungeonMode",
-        Callback       = function(selected)
+        Flag            = "DungeonMode",
+        Callback        = function(selected)
             local val = type(selected) == "table" and selected[1] or selected
             Dungeon.config.mode = (val == "Normal") and "_NoShopMode1" or "_JojosMode1"
         end,
     })
 
-    DungeonTab:CreateSlider({
-        Name         = "Delay Between Rooms",
-        Range        = { 1, 10 },
-        Increment    = 0.5,
-        Suffix       = "s",
-        CurrentValue = 3,
-        Flag         = "DungeonDelay",
-        Info         = "Seconds to wait between joining each room",
-        Callback     = function(value)
-            Dungeon.config.delayBetween = value
-        end,
-    })
-
     DungeonTab:CreateToggle({
-        Name         = "Skip Boss Room",
+        Name         = "Auto Dungeon",
         CurrentValue = false,
-        Flag         = "DungeonSkipBoss",
-        Info         = "Stop before entering the final boss room",
+        Flag         = "AutoDungeonToggle",
         Callback     = function(value)
-            Dungeon.config.skipBoss = value
-        end,
-    })
-
-    DungeonTab:CreateDivider()
-
-    DungeonTab:CreateButton({
-        Name     = "▶  Start Auto Dungeon",
-        Callback = function()
-            if Dungeon.isRunning then
-                Util.notify("Auto Dungeon", "Already running!")
-                return
+            if value then
+                if Dungeon.isRunning then return end
+                Util.notify("Auto Dungeon", "Starting expedition...")
+                Dungeon.run()
+            else
+                Dungeon.stop()
+                Util.notify("Auto Dungeon", "Stopped.")
             end
-            Util.notify("Auto Dungeon", "Starting expedition...")
-            Dungeon.run()
-        end,
-    })
-
-    DungeonTab:CreateButton({
-        Name     = "■  Stop Auto Dungeon",
-        Callback = function()
-            if not Dungeon.isRunning then
-                Util.notify("Auto Dungeon", "Not currently running.")
-                return
-            end
-            Dungeon.stop()
-            Util.notify("Auto Dungeon", "Stopping...")
         end,
     })
 
