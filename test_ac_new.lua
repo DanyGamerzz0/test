@@ -84,6 +84,8 @@ local State = {
     -- Retry config
     AutoRetryAttempts        = 3,
     AutoRetryDelay           = 2,
+
+    AutoNextExpedition = false,
 }
 
 -- ============================================================
@@ -202,6 +204,44 @@ do
         Dungeon.stopFlag = true
         setStatus("Stopped by user")
     end
+end
+
+function Dungeon.getNextUnfinishedRoom()
+    if not getDeps() then return nil end
+    local gamemode = Dungeon.config.mode
+    for _, entry in ipairs(PATH_ORDER) do
+        local path     = entry.path
+        local maxNodes = entry.maxNodes
+        for node = 1, maxNodes do
+            local accessible, _, alreadyDone = _DungeonServiceCore.HasRoomUnlocked(
+                _GUIService.session, gamemode, path, node
+            )
+            if accessible and not alreadyDone then
+                return { path = path, node = node, gamemode = gamemode }
+            end
+        end
+    end
+    return nil -- all done
+end
+
+function Dungeon.voteNextRoom(roomInfo)
+    if not roomInfo then return false end
+    local ok, err = pcall(function()
+        Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("set_game_finished_vote")
+            :InvokeServer("Replay", nil, {
+                selectedNodeBranch = roomInfo.path,
+                selectedNode       = roomInfo.node,
+            })
+    end)
+    if ok then
+        setStatus(string.format("✓ Voted next room: Path %d, Node %d", roomInfo.path, roomInfo.node))
+    else
+        warn("[AutoDungeon] Failed to vote next room: " .. tostring(err))
+    end
+    return ok
 end
 
 -- ============================================================
@@ -1283,17 +1323,23 @@ function Macro.executeAction(action, actionIndex, totalActions)
     elseif action.Type == "sell_unit_ingame" then
         return Macro.validateSell(action, actionIndex, totalActions)
     elseif action.Type == "vote_wave_skip" then
-        task.spawn(function()
-            local targetTime = tonumber(action.Time) or 0
-            local waitTime   = targetTime - (tick() - GameTracking.gameStartTime)
-            if waitTime > 0 and not Macro.ignoreTiming then task.wait(waitTime) end
-            if Macro.isPlaying and not GameTracking.gameHasEnded then
-                pcall(function()
-                    Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild(Macro.WAVE_SKIP_REMOTE):InvokeServer()
-                end)
-            end
+    task.spawn(function()
+        local targetTime = tonumber(action.Time) or 0
+        local waitTime   = targetTime - (tick() - GameTracking.gameStartTime)
+        if waitTime > 0 and not Macro.ignoreTiming then task.wait(waitTime) end
+        if not Macro.isPlaying or GameTracking.gameHasEnded then return end
+        -- Only fire if the VoteSkip UI is currently visible
+        local voteSkipGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("VoteSkip")
+        if not voteSkipGui or not voteSkipGui.Enabled then return end
+        pcall(function()
+            Services.ReplicatedStorage
+                :WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+                :WaitForChild(Macro.WAVE_SKIP_REMOTE)
+                :InvokeServer()
         end)
-        return true
+    end)
+    return true
     else
         local isAbilityRemote = false
         for _, abilityRemote in ipairs(Macro.SPECIAL_ABILITY_REMOTES) do
@@ -1460,6 +1506,16 @@ local function initialize()
             end
         end,
     })
+
+    DungeonTab:CreateToggle({
+    Name         = "Auto Next Expedition",
+    CurrentValue = false,
+    Flag         = "AutoNextExpedition",
+    Info         = "On game end, automatically votes to continue to the next unfinished dungeon room.",
+    Callback     = function(Value)
+        State.AutoNextExpedition = Value
+    end,
+})
 
     -- ══════════════════════════════════════════════
     -- TAB: MACRO
@@ -2372,6 +2428,30 @@ local function initialize()
                     end
 
                     local function runVotes()
+                        if State.AutoNextExpedition then
+        local nextRoom = Dungeon.getNextUnfinishedRoom()
+        if nextRoom then
+            local voted = false
+            for attempt = 1, State.AutoRetryAttempts do
+                if Dungeon.voteNextRoom(nextRoom) then
+                    task.wait(2)
+                    local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
+                    if not resultsUI or not resultsUI.Enabled then
+                        State.failsafeActive = false
+                        voted = true
+                        break
+                    end
+                end
+                task.wait(State.AutoRetryDelay)
+            end
+            if voted then return end
+            -- fell through all retries — fall back to normal vote logic below
+        else
+            Util.notify("Auto Next Expedition", "All dungeon rooms completed!")
+            -- fall through to normal vote logic
+        end
+    end
+
                         if State.AutoVoteRetry then
                             if tryVote({
                                 function() endpoints:WaitForChild("set_game_finished_vote"):InvokeServer("replay") end
