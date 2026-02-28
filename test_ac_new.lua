@@ -1607,8 +1607,17 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
         if not Macro.isPlaying then return false end
         local unitId   = Util.getUnitIdFromDisplayName(displayName)
         if not unitId then Macro.updateStatus(string.format("(%d/%d) FAILED: Could not resolve unit ID", actionIndex, totalActions)) return false end
+        -- Try equipped inventory first (_FX_CACHE), then fall back to units purchased this game
         local unitUUID = Util.resolveUUIDFromInternalName(unitId)
-        if not unitUUID then Macro.updateStatus(string.format("(%d/%d) FAILED: Unit not equipped - %s", actionIndex, totalActions, displayName)) return false end
+        if not unitUUID then
+            for uuid, cached in pairs(Macro.purchasedUnitCache) do
+                if cached.unit_id == unitId then
+                    unitUUID = uuid
+                    break
+                end
+            end
+        end
+        if not unitUUID then Macro.updateStatus(string.format("(%d/%d) FAILED: Unit not equipped or purchased - %s", actionIndex, totalActions, displayName)) return false end
         Macro.updateStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", actionIndex, totalActions, attempt, Macro.PLACEMENT_MAX_RETRIES, placementId))
         local beforeSnapshot = Macro.takeUnitsSnapshot()
         local px, py, pz    = action.Pos:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
@@ -1630,6 +1639,9 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
             local spawnUUID = newUnit:GetAttribute("_SPAWN_UNIT_UUID")
             if spawnUUID then
                 Macro.playbackPlacementToSpawnId[placementId] = spawnUUID
+                -- Consume the cache entry so a second purchase of the same unit
+                -- gets its own distinct UUID on the next placement.
+                Macro.purchasedUnitCache[unitUUID] = nil
                 Macro.updateStatus(string.format("(%d/%d) SUCCESS: Placed %s", actionIndex, totalActions, placementId))
                 return true
             end
