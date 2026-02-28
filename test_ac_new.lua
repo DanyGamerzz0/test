@@ -1130,20 +1130,19 @@ end
 function Macro.processPurchaseRecording(actionInfo)
     local inventoryUUID    = actionInfo.args[1]
     if not inventoryUUID then return end
-    local displayName = Macro.getDisplayNameFromInventoryUUID(inventoryUUID)
-    if not displayName then
-        -- Fall back: try resolving from the raw string if it looks like an internal id
-        displayName = Util.getDisplayNameFromUnitId(inventoryUUID) or inventoryUUID
-    end
-    Macro.purchaseCounter[displayName] = (Macro.purchaseCounter[displayName] or 0) + 1
-    local purchaseId       = string.format("%s #%d", displayName, Macro.purchaseCounter[displayName])
+    -- Store the raw UUID as-is. Resolving to a display name at record time is
+    -- unreliable (wrong name may be returned). During playback we fire the remote
+    -- directly with this UUID, and look up rarity via _FX_CACHE for the cost check.
+    Macro.purchaseCounter[inventoryUUID] = (Macro.purchaseCounter[inventoryUUID] or 0) + 1
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     table.insert(Macro.actions, {
-        Type     = "purchase_unit",
-        Unit     = purchaseId,
-        Time     = string.format("%.2f", gameRelativeTime),
+        Type = "purchase_unit",
+        UUID = inventoryUUID,   -- raw inventory UUID — used directly during playback
+        Time = string.format("%.2f", gameRelativeTime),
     })
-    Util.notify("Macro Recorder", string.format("Recorded purchase: %s", purchaseId))
+    -- For the notification, try to show a human-readable name but don't rely on it
+    local label = Macro.getDisplayNameFromInventoryUUID(inventoryUUID) or inventoryUUID
+    Util.notify("Macro Recorder", string.format("Recorded purchase: %s", label))
 end
 
 -- ──────────────────────────────────────────────
@@ -1172,17 +1171,13 @@ function Macro.forgeTraitRecording(actionInfo)
         end
     end
 
-    -- Also check purchase placements (unit purchased from shop this game)
-    -- In that case the unit may not have a spawn_id mapping yet, so fall back
-    -- to matching by display name resolved from the inventory UUID.
+    -- Also check purchase placements (unit purchased from shop this game).
+    -- purchaseCounter is now keyed by raw UUID, so check directly.
     if not placementId then
-        local displayName = Macro.getDisplayNameFromInventoryUUID(inventoryUUID)
-        if displayName then
-            -- Use the most recently purchased instance of this unit
-            local count = Macro.purchaseCounter[displayName] or 0
-            if count > 0 then
-                placementId = string.format("%s #%d", displayName, count)
-            end
+        local count = Macro.purchaseCounter[inventoryUUID] or 0
+        if count > 0 then
+            -- Use the UUID itself as the Unit identifier (matches what processPurchaseRecording saved)
+            placementId = inventoryUUID
         end
     end
 
@@ -1552,13 +1547,21 @@ function Macro.waitForSufficientMoney(action, actionIndex, totalActions)
     local requiredCost = 0
 
     if action.Type == "purchase_unit" then
-        -- Resolve the display name from the purchase placement id, then look up
-        -- the unit's rarity cost.
-        local displayName, _ = Util.parseUnitString(action.Unit)
-        if displayName then
-            local internalId = Util.getUnitIdFromDisplayName(displayName)
-            if internalId then
-                requiredCost = Util.getPurchaseCost(internalId)
+        -- Look up rarity via _FX_CACHE using the stored raw UUID → ITEMINDEX → rarity
+        local uuid = action.UUID
+        if uuid then
+            local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+            if fxCache then
+                for _, child in pairs(fxCache:GetChildren()) do
+                    local uuidValue = child:FindFirstChild("_uuid")
+                    if uuidValue and uuidValue:IsA("StringValue") and uuidValue.Value == uuid then
+                        local itemIndex = child:GetAttribute("ITEMINDEX")
+                        if itemIndex then
+                            requiredCost = Util.getPurchaseCost(itemIndex)
+                        end
+                        break
+                    end
+                end
             end
         end
         -- Fallback: if rarity data is missing, use a safe default of 0 (don't block)
@@ -1697,30 +1700,25 @@ end
 -- sufficient yen (rarity cost), then fires purchase_unit.
 -- ──────────────────────────────────────────────
 function Macro.validatePurchase(action, actionIndex, totalActions)
-    local endpoints   = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-    local placementId = action.Unit
-    local displayName, _ = Util.parseUnitString(placementId)
-    if not displayName then
-        Macro.updateStatus(string.format("(%d/%d) FAILED: Invalid unit format: %s", actionIndex, totalActions, placementId))
+    local endpoints     = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+    -- The UUID was saved raw at record time — use it directly.
+    local inventoryUUID = action.UUID
+    if not inventoryUUID or inventoryUUID == "" then
+        Macro.updateStatus(string.format("(%d/%d) FAILED: purchase_unit action missing UUID", actionIndex, totalActions))
         return false
     end
 
-    -- Resolve the inventory UUID the server expects
-    local internalId  = Util.getUnitIdFromDisplayName(displayName)
-    local inventoryUUID = internalId and Util.resolveUUIDFromInternalName(internalId) or nil
-    if not inventoryUUID then
-        Macro.updateStatus(string.format("(%d/%d) FAILED: Cannot resolve UUID for %s", actionIndex, totalActions, displayName))
-        return false
-    end
+    -- Human-readable label for status messages only
+    local label = Macro.getDisplayNameFromInventoryUUID(inventoryUUID) or inventoryUUID
 
-    Macro.updateStatus(string.format("(%d/%d) Purchasing %s...", actionIndex, totalActions, placementId))
+    Macro.updateStatus(string.format("(%d/%d) Purchasing %s...", actionIndex, totalActions, label))
     local success = pcall(function()
         endpoints:WaitForChild(Macro.PURCHASE_UNIT_REMOTE):InvokeServer(inventoryUUID)
     end)
     if success then
-        Macro.updateStatus(string.format("(%d/%d) SUCCESS: Purchased %s", actionIndex, totalActions, placementId))
+        Macro.updateStatus(string.format("(%d/%d) SUCCESS: Purchased %s", actionIndex, totalActions, label))
     else
-        Macro.updateStatus(string.format("(%d/%d) FAILED: Purchase remote error for %s", actionIndex, totalActions, placementId))
+        Macro.updateStatus(string.format("(%d/%d) FAILED: Purchase remote error for %s", actionIndex, totalActions, label))
     end
     return true -- continue macro regardless
 end
@@ -1899,8 +1897,6 @@ function Macro.play()
     return true
 end
 
-local script_version = "V1.0"
-
 -- ============================================================
 -- MAIN INITIALIZATION
 -- ============================================================
@@ -1915,11 +1911,10 @@ local function initialize()
     _G.Rayfield = Rayfield
 
     local Window = Rayfield:CreateWindow({
-        Name            = "LixHub - Anime Crusaders",
+        Name            = "LixHub",
         Icon            = 0,
-        LoadingTitle    = "Loading for Anime Crusaders",
-        LoadingSubtitle = script_version,
-        ShowText = "LixHub",
+        LoadingTitle    = "Loading LixHub",
+        LoadingSubtitle = "V0.18",
         Theme = {
             TextColor  = Color3.fromRGB(240, 240, 240),
             Background = Color3.fromRGB(25, 25, 25),
@@ -1929,21 +1924,19 @@ local function initialize()
         ConfigurationSaving = {
             Enabled    = true,
             FolderName = "LixHub",
-            FileName = game:GetService("Players").LocalPlayer.Name .. "_AnimeCrusaders"
+            FileName   = "Lixhub_AC_Macro"
         },
     })
-
-    local LobbyTab = Window:CreateTab("Lobby", "tv")
 
     -- ══════════════════════════════════════════════
     -- TAB: AUTO DUNGEON
     -- ══════════════════════════════════════════════
-    local DungeonTab = Window:CreateTab("Expedition", "swords")
+    local DungeonTab = Window:CreateTab("Dungeon", "swords")
 
     DungeonTab:CreateSection("Expedition")
 
     DungeonTab:CreateDropdown({
-        Name            = "Select Expedition Mode",
+        Name            = "Expedition Mode",
         Options         = { "Roguelike", "Normal" },
         CurrentOption   = { "Roguelike" },
         MultipleOptions = false,
@@ -1955,17 +1948,17 @@ local function initialize()
     })
 
     DungeonTab:CreateToggle({
-        Name         = "Auto Expedition",
+        Name         = "Auto Dungeon",
         CurrentValue = false,
         Flag         = "AutoDungeonToggle",
         Callback     = function(value)
             if value then
                 if Dungeon.isRunning then return end
-                Util.notify("Auto Expedition", "Starting expedition...")
+                Util.notify("Auto Dungeon", "Starting expedition...")
                 Dungeon.run()
             else
                 Dungeon.stop()
-                Util.notify("Auto Expedition", "Stopped.")
+                Util.notify("Auto Dungeon", "Stopped.")
             end
         end,
     })
@@ -1974,6 +1967,7 @@ local function initialize()
         Name         = "Auto Next Expedition",
         CurrentValue = false,
         Flag         = "AutoNextExpedition",
+        Info         = "On game end, automatically votes to continue to the next unfinished dungeon room.",
         Callback     = function(Value)
             State.AutoNextExpedition = Value
         end,
@@ -1984,21 +1978,23 @@ local function initialize()
     -- ══════════════════════════════════════════════
     local MacroTab = Window:CreateTab("Macro", "joystick")
 
-    MacroTab:CreateDivider()
+    MacroTab:CreateSection("Macro Management")
 
     local MacroStatusLabel = MacroTab:CreateLabel("Status: Ready")
     Macro.detailedStatusLabel = MacroTab:CreateLabel("Details: Ready")
 
     MacroTab:CreateDivider()
 
-    LobbyTab:CreateToggle({
-        Name         = "Enable Script Notifications",
+    MacroTab:CreateToggle({
+        Name         = "Enable Notifications",
         CurrentValue = true,
         Flag         = "EnableNotifications",
         Callback     = function(Value)
             NOTIFICATION_ENABLED = Value
         end,
     })
+
+    MacroTab:CreateDivider()
 
     local MacroDropdown = MacroTab:CreateDropdown({
         Name            = "Select Macro",
@@ -2060,6 +2056,8 @@ local function initialize()
         end,
     })
 
+    MacroTab:CreateSection("Recording")
+
     local RecordToggle = MacroTab:CreateToggle({
         Name         = "Record Macro",
         CurrentValue = false,
@@ -2069,7 +2067,7 @@ local function initialize()
             if Value then
                 if not Util.isInLobby() and GameTracking.gameInProgress then
                     Macro.startRecording()
-                    MacroStatusLabel:Set("Status: Recording active! You can now begin placing units...")
+                    MacroStatusLabel:Set("Status: Recording active!")
                 else
                     MacroStatusLabel:Set("Status: Recording enabled - will start when game begins")
                     Util.notify("Recording Ready", "Recording will start when you enter a game.")
@@ -2081,6 +2079,8 @@ local function initialize()
             end
         end
     })
+
+    MacroTab:CreateSection("Playback")
 
     MacroTab:CreateToggle({
         Name         = "Playback Macro",
@@ -2117,6 +2117,8 @@ local function initialize()
         end,
     })
 
+    MacroTab:CreateSection("Settings")
+
     MacroTab:CreateToggle({
         Name         = "Random Offset",
         CurrentValue = false,
@@ -2143,6 +2145,8 @@ local function initialize()
         Info         = "Execute actions immediately without waiting for timing",
         Callback     = function(Value) Macro.ignoreTiming = Value end,
     })
+
+    MacroTab:CreateSection("Import/Export")
 
     MacroTab:CreateInput({
         Name                     = "Import Macro",
@@ -2173,12 +2177,21 @@ local function initialize()
         end,
     })
 
+    local webhookUrl = ""
+    MacroTab:CreateInput({
+        Name                     = "Webhook URL (Optional)",
+        CurrentValue             = "",
+        PlaceholderText          = "https://discord.com/api/webhooks/...",
+        RemoveTextAfterFocusLost = false,
+        Callback                 = function(text) webhookUrl = text end,
+    })
+
     MacroTab:CreateButton({
         Name     = "Export Macro To Webhook",
         Callback = function()
             if not Macro.currentName or Macro.currentName == "" then Util.notify("Export Error", "No macro selected.") return end
-            if not Webhook.url or Webhook.url == "" then Util.notify("Export Error", "Please enter a webhook URL first.") return end
-            Macro.exportToWebhook(Macro.currentName, Webhook.url)
+            if not webhookUrl or webhookUrl == "" then Util.notify("Export Error", "Please enter a webhook URL first.") return end
+            Macro.exportToWebhook(Macro.currentName, webhookUrl)
         end,
     })
 
@@ -2408,6 +2421,7 @@ local function initialize()
         Name         = "Auto Next",
         CurrentValue = false,
         Flag         = "AutoNext",
+        Info         = "Votes next story/raid on victory.",
         Callback     = function(Value)
             State.AutoVoteNext = Value
         end,
@@ -2417,6 +2431,7 @@ local function initialize()
         Name         = "Auto Lobby",
         CurrentValue = false,
         Flag         = "AutoLobby",
+        Info         = "Teleports to lobby when the game ends.",
         Callback     = function(Value)
             State.AutoVoteLobby = Value
         end,
@@ -2556,6 +2571,7 @@ local function initialize()
         Name         = "Auto Sell Farm Units",
         CurrentValue = false,
         Flag         = "AutoSellFarmEnabled",
+        Info         = "Sell only units with farm_amount > 0 on the target wave.",
         Callback     = function(Value)
             State.AutoSellFarmEnabled = Value
         end,
@@ -2709,18 +2725,18 @@ local function initialize()
 
     GameTab:CreateSection("Macro")
 
-    MacroTab:CreateToggle({
+    GameTab:CreateToggle({
         Name         = "Auto Equip Macro Units",
         CurrentValue = false,
         Flag         = "AutoEquipMacroUnits",
-        Info         = "Equips the correct units before the game starts.",
+        Info         = "Equips the correct units before the game starts (requires Auto Start Game).",
         Callback     = function(Value)
             State.AutoEquipMacroUnits = Value
         end,
     })
 
-    MacroTab:CreateButton({
-        Name     = "Equip Macro Units",
+    GameTab:CreateButton({
+        Name     = "Equip Macro Units Now",
         Callback = function()
             if not Macro.currentName or Macro.currentName == "" then
                 Util.notify("Equip Error", "No macro selected.")
@@ -2754,7 +2770,8 @@ local function initialize()
         Name         = "Send Webhook on Stage End",
         CurrentValue = false,
         Flag         = "WebhookOnFinish",
-        Callback     = function(Value) Webhook.sendOnFinish = Value end,
+        Info         = "Sends a Discord embed after every game with rewards, stats, and session info.",
+        Callback     = function(Value) end,
     })
 
     WebhookTab:CreateButton({
@@ -2995,6 +3012,7 @@ local function initialize()
     setupRemoteConnections()
     if not Util.isInLobby() then monitorWaves() end
     Rayfield:LoadConfiguration()
+    Util.notify("LixHub", "Loaded successfully!")
 end
 
 initialize()
