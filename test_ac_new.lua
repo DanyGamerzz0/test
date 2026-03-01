@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABccccccccccccccccccccccccccccccccccccccccccccc
+-- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABddddddddddddddddddddddddddddddd
 -- ============================================================
 
 -- ============================================================
@@ -1150,6 +1150,9 @@ function Macro.processPurchaseRecording(actionInfo)
     local cost    = 0
 
     for i, entry in ipairs(Macro.temporaryUnits) do
+        print("[YO]"..entry.uuid)
+        print("[YO]"..entry.unit_id)
+        print("[YO]"..inventoryUUID)
         if entry.uuid == inventoryUUID then
             unit_id = entry.unit_id
             cost    = Util.getPurchaseCost(unit_id)
