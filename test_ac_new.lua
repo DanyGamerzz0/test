@@ -2834,6 +2834,7 @@ end)
         CurrentValue             = "",
         PlaceholderText          = "https://discord.com/api/webhooks/...",
         RemoveTextAfterFocusLost = false,
+        Flag                     = "WebhookURL",
         Callback                 = function(text) Webhook.url = text end,
     })
 
@@ -2842,6 +2843,7 @@ end)
         CurrentValue             = "",
         PlaceholderText          = "Your Discord user ID...",
         RemoveTextAfterFocusLost = false,
+        Flag                     = "DiscordUserID",
         Callback                 = function(text) Webhook.discordUserId = text end,
     })
 
