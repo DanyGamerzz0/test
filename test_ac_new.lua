@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.18"
+local script_version = "V0.19"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -79,6 +79,10 @@ local State = {
     AutoRetryDelay           = 2,
 
     AutoNextExpedition = false,
+
+    --Merchant
+    AutoBuyRelics            = false,
+    RelicPriorities          = {},
 }
 
 local Webhook = {
@@ -391,6 +395,123 @@ do
             print(string.format("[AutoDungeon] ✓ Voted next room: Path %d, Node %d", roomInfo.path, roomInfo.node))
         else
             warn("[AutoDungeon] Failed to vote next room: " .. tostring(err))
+        end
+        return ok
+    end
+end
+
+local RelicShop = {}
+
+do
+    local _Loader, _DungeonServiceCore, _GUIService
+    local _itemsLoaded = false
+    local _itemCache   = {}  -- { id, name, description, tier, cost, Relic }
+
+    local function getDeps()
+        if _Loader then return true end
+        local ok, err = pcall(function()
+            _Loader             = require(Services.ReplicatedStorage.Framework.Loader)
+            _DungeonServiceCore = _Loader.load_core_service(script, "DungeonServiceCore")
+            _GUIService         = _Loader.load_client_service(script, "GUIService")
+        end)
+        if not ok then
+            warn("[RelicShop] Failed to load dependencies: " .. tostring(err))
+            return false
+        end
+        return true
+    end
+
+    -- Load all relic items from DungeonServiceCore.ITEMS
+    -- Returns array sorted alphabetically by name
+    function RelicShop.loadItems()
+        if _itemsLoaded then return _itemCache end
+        if not getDeps() then return {} end
+        _itemCache = {}
+        local ok, err = pcall(function()
+            for id, item in pairs(_DungeonServiceCore.ITEMS) do
+                -- Only include relics (not curses)
+                if item.Relic == true then
+                    table.insert(_itemCache, {
+                        id          = id,
+                        name        = item.name        or id,
+                        description = item.description or "",
+                        tier        = item.tier        or "normal",
+                        cost        = item.cost        or 0,
+                    })
+                end
+            end
+        end)
+        if not ok then
+            warn("[RelicShop] Failed to iterate ITEMS: " .. tostring(err))
+            return {}
+        end
+        table.sort(_itemCache, function(a, b)
+            return a.name:lower() < b.name:lower()
+        end)
+        _itemsLoaded = true
+        return _itemCache
+    end
+
+    -- Get the shop multiplier for current gamemode
+    function RelicShop.getShopMultiplier()
+        if not getDeps() then return 1 end
+        local multi = 1
+        pcall(function()
+            local gamemode = Dungeon.config.mode
+            multi = _DungeonServiceCore.GetShopMulti(_GUIService.session, gamemode) or 1
+        end)
+        return multi
+    end
+
+    -- Get actual cost of an item accounting for shop multiplier
+    function RelicShop.getActualCost(item)
+        local base  = item.cost or 0
+        local multi = RelicShop.getShopMultiplier()
+        return math.ceil(base * multi)
+    end
+
+    -- Get player's current relic currency amount
+    function RelicShop.getCurrencyAmount()
+        local amount = 0
+        pcall(function()
+            if not getDeps() then return end
+            local currencyId = _Loader.LevelData.RelicShop.Currency
+            amount = _GUIService.session.inventory:get_number_of_owned_item(currencyId) or 0
+        end)
+        return amount
+    end
+
+    -- Fetch the current shop items via RemoteFunction
+    -- Returns: { [slotKey] = { id = "..." }, ... } or nil
+    function RelicShop.fetchShopItems()
+        local result = nil
+        local ok, err = pcall(function()
+            result = Services.ReplicatedStorage
+                :WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+                :WaitForChild("FetchDungeonShop")
+                :InvokeServer()
+        end)
+        if not ok then
+            warn("[RelicShop] FetchDungeonShop failed: " .. tostring(err))
+            return nil
+        end
+        return result
+    end
+
+    -- Buy a specific item by its id string
+    function RelicShop.buyItem(itemId)
+        local ok, err = pcall(function()
+            Services.ReplicatedStorage
+                :WaitForChild("endpoints")
+                :WaitForChild("client_to_server")
+                :WaitForChild("dungeon_buy_shop")
+                :InvokeServer(itemId)
+        end)
+        if ok then
+            print("[RelicShop] ✓ Purchased:", itemId)
+        else
+            warn("[RelicShop] ✗ Failed to purchase:", itemId, err)
         end
         return ok
     end
@@ -2877,6 +2998,64 @@ end)
             Util.notify("Webhook", "Test sent!")
         end,
     })
+
+        -- ══════════════════════════════════════════════
+    -- TAB: RELIC SHOP
+    -- ══════════════════════════════════════════════
+    local RelicTab = Window:CreateTab("Relics", "gem")
+
+    RelicTab:CreateSection("Auto Buy")
+
+    RelicTab:CreateToggle({
+        Name         = "Auto Buy Relics",
+        CurrentValue = false,
+        Flag         = "AutoBuyRelics",
+        Info         = "After winning a merchant room, automatically buys relics based on priority below.",
+        Callback     = function(Value)
+            State.AutoBuyRelics = Value
+        end,
+    })
+
+    RelicTab:CreateDivider()
+    RelicTab:CreateSection("Item Buy Priorities  (0 = lowest, 10 = highest)")
+
+    local relicStatusLabel = RelicTab:CreateLabel("Loading relic items...")
+
+    -- We defer loading so the game has time to init DungeonServiceCore
+    task.spawn(function()
+        task.wait(5)  -- wait for game services to be fully available
+        local items = RelicShop.loadItems()
+
+        if #items == 0 then
+            relicStatusLabel:Set("⚠ Could not load relic items — try rejoining")
+            return
+        end
+
+        relicStatusLabel:Set(string.format("Loaded %d relics. Set priority to buy (0 = skip).", #items))
+
+        for _, item in ipairs(items) do
+            local itemId   = item.id
+            local itemName = item.name
+
+            -- Init priority in state
+            if not State.RelicPriorities[itemId] then
+                State.RelicPriorities[itemId] = 0
+            end
+
+            RelicTab:CreateSlider({
+                Name         = itemName,
+                Range        = { 0, 10 },
+                Increment    = 1,
+                Suffix       = "",
+                CurrentValue = State.RelicPriorities[itemId],
+                Flag         = "Relic_" .. itemId,
+                Info         = item.description ~= "" and item.description or ("Tier: " .. item.tier),
+                Callback     = function(Value)
+                    State.RelicPriorities[itemId] = Value
+                end,
+            })
+        end
+    end)
 
     -- ══════════════════════════════════════════════
     -- GAME TRACKING HOOKS
