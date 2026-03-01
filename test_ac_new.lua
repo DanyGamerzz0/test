@@ -1090,15 +1090,16 @@ function Macro.processPlacementRecording(actionInfo)
     local rotation         = actionInfo.args[3] or 0
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     table.insert(Macro.actions, {
-        Type = "spawn_unit",
-        Unit = placementId,
-        Time = string.format("%.2f", gameRelativeTime),
-        Pos  = raycastData.Origin and string.format("%.17f, %.17f, %.17f",
+        Type      = "spawn_unit",
+        Unit      = placementId,
+        Time      = string.format("%.2f", gameRelativeTime),
+        Pos       = raycastData.Origin and string.format("%.17f, %.17f, %.17f",
             raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
-        Dir  = raycastData.Direction and string.format("%.17f, %.17f, %.17f",
+        Dir       = raycastData.Direction and string.format("%.17f, %.17f, %.17f",
             raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
-        Rot  = rotation ~= 0 and rotation or 0,
-        Cost = Util.getPlacementCost(internalName),  -- baked at record time
+        Rot       = rotation ~= 0 and rotation or 0,
+        Cost      = Util.getPlacementCost(internalName),  -- baked at record time
+        SpawnUUID = actionInfo.args[1],                   -- exact UUID used to place; used during playback
     })
     Util.notify("Macro Recorder", string.format("Recorded placement: %s", placementId))
 end
@@ -1636,33 +1637,31 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
         local unitId   = Util.getUnitIdFromDisplayName(displayName)
         if not unitId then Macro.updateStatus(string.format("(%d/%d) FAILED: Could not resolve unit ID", actionIndex, totalActions)) return false end
 
-        -- 1. Try _FX_CACHE (units in player's permanent inventory, already equipped)
-        local unitUUID = Util.resolveUUIDFromInternalName(unitId)
-
-        -- 2. Try equippedSlotMap (authoritative live slot→uuid from override_equipped_units)
-        --    Find all slots whose uuid belongs to this unit_id, consume FIFO from queue
+        -- Use the UUID baked at record time if available (most reliable).
+        -- For purchased units this is the purchased UUID; for inventory units it's the equipped UUID.
+        -- Fall back to live resolution for older macros that don't have SpawnUUID.
+        local unitUUID = action.SpawnUUID
         if not unitUUID then
-            local queue = Macro.purchasedUnitCache[unitId]
-            if queue and #queue > 0 then
-                -- Walk the slot map to find the first slot whose uuid is in our queue
-                -- This ensures we use the live uuid the server assigned this session
-                for _, slotUUID in pairs(Macro.equippedSlotMap) do
-                    for qi, queuedUUID in ipairs(queue) do
-                        if slotUUID == queuedUUID then
-                            unitUUID = table.remove(queue, qi)
-                            break
+            -- Legacy path: try _FX_CACHE then purchased cache
+            unitUUID = Util.resolveUUIDFromInternalName(unitId)
+            if not unitUUID then
+                local queue = Macro.purchasedUnitCache[unitId]
+                if queue and #queue > 0 then
+                    for _, slotUUID in pairs(Macro.equippedSlotMap) do
+                        for qi, queuedUUID in ipairs(queue) do
+                            if slotUUID == queuedUUID then
+                                unitUUID = table.remove(queue, qi)
+                                break
+                            end
                         end
+                        if unitUUID then break end
                     end
-                    if unitUUID then break end
-                end
-                -- Fallback: just pop front of queue if slot map didn't help
-                if not unitUUID then
-                    unitUUID = table.remove(queue, 1)
+                    if not unitUUID then unitUUID = table.remove(queue, 1) end
                 end
             end
         end
 
-        if not unitUUID then Macro.updateStatus(string.format("(%d/%d) FAILED: Unit not equipped or purchased - %s", actionIndex, totalActions, displayName)) return false end
+        if not unitUUID then Macro.updateStatus(string.format("(%d/%d) FAILED: No UUID for %s", actionIndex, totalActions, displayName)) return false end
         Macro.updateStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", actionIndex, totalActions, attempt, Macro.PLACEMENT_MAX_RETRIES, placementId))
         local beforeSnapshot = Macro.takeUnitsSnapshot()
         local px, py, pz    = action.Pos:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
