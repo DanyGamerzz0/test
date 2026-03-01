@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TAB111111111
+-- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABaaaaaaaaaaaaaaaaaaaaaaaaaa
 -- ============================================================
 
 -- ============================================================
@@ -934,14 +934,10 @@ local Macro = {
     randomOffsetEnabled      = false,
     randomOffsetAmount       = 0.5,
     ignoreTiming             = false,
-    -- FIFO queue of UUIDs per unit_id, populated by unit_added_temporary.
-    -- Structure: { [unit_id] = { uuid1, uuid2, ... } }
-    -- Placement pops from the front so duplicate purchases each get their own UUID.
-    purchasedUnitCache       = {},
-    -- Flat uuid → { unit_id, cost } lookup for recording (processPurchaseRecording).
-    purchasedUUIDInfo        = {},
-    -- Latest slot→uuid map from override_equipped_units. Authoritative live source.
-    equippedSlotMap          = {},
+    -- All unit_added_temporary events received this game. Reset each game.
+    -- Each entry = { unit_id, uuid, equipped_slot, cost }
+    temporaryUnits           = {},
+    equippedSlotMap          = {},  -- kept for override_equipped_units debug
 }
 
 function Macro.updateStatus(message)
@@ -956,9 +952,7 @@ function Macro.clearSpawnIdMappings()
     Macro.placementCounter             = {}
     Macro.unitNameToSpawnId            = {}
     Macro.playbackPlacementToSpawnId   = {}
-    Macro.purchasedUnitCache           = {}
-    Macro.purchasedUUIDInfo            = {}
-    Macro.equippedSlotMap              = {}
+    Macro.temporaryUnits               = {}
 end
 
 function Macro.takeUnitsSnapshot()
@@ -1089,19 +1083,29 @@ function Macro.processPlacementRecording(actionInfo)
     local raycastData      = actionInfo.args[2] or {}
     local rotation         = actionInfo.args[3] or 0
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
+
+    -- Find which slot this UUID belongs to in the current equippedSlotMap.
+    -- The slot is stable across sessions; the UUID is not.
+    local usedUUID = actionInfo.args[1]
+    local slot = nil
+    for s, u in pairs(Macro.equippedSlotMap) do
+        if u == usedUUID then slot = s break end
+    end
+
     table.insert(Macro.actions, {
-        Type      = "spawn_unit",
-        Unit      = placementId,
-        Time      = string.format("%.2f", gameRelativeTime),
-        Pos       = raycastData.Origin and string.format("%.17f, %.17f, %.17f",
+        Type = "spawn_unit",
+        Unit = placementId,
+        Time = string.format("%.2f", gameRelativeTime),
+        Pos  = raycastData.Origin and string.format("%.17f, %.17f, %.17f",
             raycastData.Origin.X, raycastData.Origin.Y, raycastData.Origin.Z) or "",
-        Dir       = raycastData.Direction and string.format("%.17f, %.17f, %.17f",
+        Dir  = raycastData.Direction and string.format("%.17f, %.17f, %.17f",
             raycastData.Direction.X, raycastData.Direction.Y, raycastData.Direction.Z) or "",
-        Rot       = rotation ~= 0 and rotation or 0,
-        Cost      = Util.getPlacementCost(internalName),  -- baked at record time
-        SpawnUUID = actionInfo.args[1],                   -- exact UUID used to place; used during playback
+        Rot  = rotation ~= 0 and rotation or 0,
+        Cost = Util.getPlacementCost(internalName),
+        Slot = slot,  -- slot number from override_equipped_units; looked up at playback for live UUID
     })
-    Util.notify("Macro Recorder", string.format("Recorded placement: %s", placementId))
+    Util.notify("Macro Recorder", string.format("Recorded placement: %s (slot %s)", placementId, tostring(slot)))
+    Util.debugPrint("Recorded spawn_unit:", placementId, "slot=", slot, "uuid=", usedUUID)
 end
 
 function Macro.processSellRecording(actionInfo)
@@ -1140,12 +1144,14 @@ function Macro.processPurchaseRecording(actionInfo)
     local inventoryUUID = actionInfo.args[1]
     if not inventoryUUID then return end
 
-    -- unit_added_temporary fires just before purchase_unit on the client, so by
-    -- the time our namecall hook runs the cache entry is already populated.
-    local info        = Macro.purchasedUUIDInfo[inventoryUUID]
-    local unit_id     = info and info.unit_id or nil
-    local displayName = unit_id and Util.getDisplayNameFromUnitId(unit_id) or inventoryUUID
-    local cost        = info and info.cost or 0
+    -- Cost is in temporaryUnits since unit_added_temporary fires before purchase_unit namecall
+    local cost = 0
+    for _, entry in ipairs(Macro.temporaryUnits) do
+        if entry.uuid == inventoryUUID then
+            cost = entry.cost
+            break
+        end
+    end
 
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     table.insert(Macro.actions, {
@@ -1154,7 +1160,7 @@ function Macro.processPurchaseRecording(actionInfo)
         Cost = cost,           -- baked at record time for playback money-gating
         Time = string.format("%.2f", gameRelativeTime),
     })
-    Util.notify("Macro Recorder", string.format("Recorded purchase: %s (%d yen)", displayName, cost))
+    Util.notify("Macro Recorder", string.format("Recorded purchase: %s (%d yen)", inventoryUUID:sub(1,8), cost))
 end
 
 -- ──────────────────────────────────────────────
@@ -1350,8 +1356,8 @@ function Macro.setupPurchaseListener()
         :WaitForChild("endpoints")
         :WaitForChild("server_to_client")
 
-    -- unit_added_temporary: fires on purchase, carries uuid + unit_id.
-    -- Used for: cost lookup (recording) and as fallback UUID source (playback).
+    -- Store every unit_added_temporary event. Reset each game via clearSpawnIdMappings.
+    -- At placement time we match unit_id to find the right UUID.
     local unitAddedRemote = stc:FindFirstChild("unit_added_temporary")
         or stc:WaitForChild("unit_added_temporary", 10)
     if unitAddedRemote then
@@ -1360,37 +1366,26 @@ function Macro.setupPurchaseListener()
             local uuid    = data.uuid
             local unit_id = data.unit_id
             if not uuid or not unit_id then return end
-            local displayName = Util.getDisplayNameFromUnitId(unit_id) or unit_id
-            local cost        = Util.getPurchaseCost(unit_id)
-            -- FIFO queue for placement fallback (unit_id → ordered list of uuids)
-            if not Macro.purchasedUnitCache[unit_id] then
-                Macro.purchasedUnitCache[unit_id] = {}
-            end
-            table.insert(Macro.purchasedUnitCache[unit_id], uuid)
-            -- Flat lookup for recording (uuid → { unit_id, cost })
-            Macro.purchasedUUIDInfo[uuid] = { unit_id = unit_id, cost = cost }
-            Util.debugPrint("unit_added_temporary cached:", uuid, "→", displayName, "(cost:", cost, ")")
+            local cost = Util.getPurchaseCost(unit_id)
+            table.insert(Macro.temporaryUnits, {
+                unit_id = unit_id,
+                uuid    = uuid,
+                cost    = cost,
+            })
+            Util.debugPrint("unit_added_temporary:", unit_id, "→", uuid)
         end)
     else
         warn("[Macro] unit_added_temporary remote not found")
     end
 
-    -- override_equipped_units: fires after each purchase with the full slot→uuid map.
-    -- This is the authoritative source for live equipped UUIDs per unit_id.
-    -- We rebuild equippedUUIDByUnitId from it each time it fires.
+    -- Keep equippedSlotMap updated for reference
     local overrideRemote = stc:FindFirstChild("override_equipped_units")
         or stc:WaitForChild("override_equipped_units", 10)
     if overrideRemote then
         overrideRemote.OnClientEvent:Connect(function(slotMap)
             if type(slotMap) ~= "table" then return end
-            -- slotMap = { ["1"] = uuid, ["2"] = uuid, ... }
-            -- Rebuild equippedUUIDByUnitId: unit_id → FIFO list of uuids
-            -- by cross-referencing with purchasedUUIDInfo
             Macro.equippedSlotMap = slotMap
-            Util.debugPrint("override_equipped_units updated:", Services.HttpService:JSONEncode(slotMap))
         end)
-    else
-        warn("[Macro] override_equipped_units remote not found")
     end
 end
 
@@ -1637,31 +1632,27 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
         local unitId   = Util.getUnitIdFromDisplayName(displayName)
         if not unitId then Macro.updateStatus(string.format("(%d/%d) FAILED: Could not resolve unit ID", actionIndex, totalActions)) return false end
 
-        -- Use the UUID baked at record time if available (most reliable).
-        -- For purchased units this is the purchased UUID; for inventory units it's the equipped UUID.
-        -- Fall back to live resolution for older macros that don't have SpawnUUID.
-        local unitUUID = action.SpawnUUID
-        if not unitUUID then
-            -- Legacy path: try _FX_CACHE then purchased cache
-            unitUUID = Util.resolveUUIDFromInternalName(unitId)
-            if not unitUUID then
-                local queue = Macro.purchasedUnitCache[unitId]
-                if queue and #queue > 0 then
-                    for _, slotUUID in pairs(Macro.equippedSlotMap) do
-                        for qi, queuedUUID in ipairs(queue) do
-                            if slotUUID == queuedUUID then
-                                unitUUID = table.remove(queue, qi)
-                                break
-                            end
-                        end
-                        if unitUUID then break end
-                    end
-                    if not unitUUID then unitUUID = table.remove(queue, 1) end
-                end
+        -- Find UUID: check temporaryUnits (purchased this game) first by matching unit_id.
+        -- If not found there, fall back to _FX_CACHE for permanently owned units.
+        local unitUUID = nil
+
+        for i, entry in ipairs(Macro.temporaryUnits) do
+            if entry.unit_id == unitId then
+                unitUUID = entry.uuid
+                table.remove(Macro.temporaryUnits, i)  -- consume so next placement of same unit gets next entry
+                Util.debugPrint("validatePlacement: matched temporaryUnit", unitId, "→", unitUUID)
+                break
             end
         end
 
-        if not unitUUID then Macro.updateStatus(string.format("(%d/%d) FAILED: No UUID for %s", actionIndex, totalActions, displayName)) return false end
+        if not unitUUID then
+            unitUUID = Util.resolveUUIDFromInternalName(unitId)
+        end
+
+        if not unitUUID then
+            Macro.updateStatus(string.format("(%d/%d) FAILED: No UUID for %s", actionIndex, totalActions, displayName))
+            return false
+        end
         Macro.updateStatus(string.format("(%d/%d) Attempt %d/%d: Placing %s", actionIndex, totalActions, attempt, Macro.PLACEMENT_MAX_RETRIES, placementId))
         local beforeSnapshot = Macro.takeUnitsSnapshot()
         local px, py, pz    = action.Pos:match("([%-%d%.e%-]+), ([%-%d%.e%-]+), ([%-%d%.e%-]+)")
@@ -1758,6 +1749,8 @@ function Macro.validatePurchase(action, actionIndex, totalActions)
         endpoints:WaitForChild(Macro.PURCHASE_UNIT_REMOTE):InvokeServer(inventoryUUID)
     end)
     if success then
+        -- Brief wait for unit_added_temporary to fire and populate temporaryUnits
+        task.wait(0.5)
         Macro.updateStatus(string.format("(%d/%d) SUCCESS: Purchased unit", actionIndex, totalActions))
     else
         Macro.updateStatus(string.format("(%d/%d) FAILED: purchase_unit remote error", actionIndex, totalActions))
