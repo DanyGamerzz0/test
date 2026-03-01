@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.03"
+local SCRIPT_VERSION = "V0.04"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Paradox",
@@ -183,6 +183,8 @@ local Webhook = {}
 local AutoSelectDropdowns = {}
 
 local autoSelectUICreated = false
+
+local pendingPortalSelection = nil
 
 local PORTAL_MAP_NAMES = {
     ["Shibuya_Station"] = "JJK_Portal",
@@ -2480,15 +2482,19 @@ local PortalStageDD = Tabs.Joiner:CreateDropdown({
     Callback = function(selected)
         local name = type(selected) == "table" and selected[1] or selected
         
+        -- Try to resolve immediately
         for _, portal in pairs(StageData.portal) do
             if portal.displayName == name then
                 State.PortalStage = portal.internalName
+                pendingPortalSelection = nil  -- resolved, clear pending
                 debugPrint(string.format("✓ Selected portal: %s (ID: %s)", name, portal.internalName))
                 return
             end
         end
         
-        debugPrint(string.format("Portal '%s' not found yet, waiting...", name))
+        -- Portals not loaded yet — store for later resolution
+        pendingPortalSelection = name
+        debugPrint(string.format("Portal '%s' not found yet, stored as pending...", name))
     end,
 })
 
@@ -2590,6 +2596,9 @@ Tabs.Game:CreateToggle({
     Flag = "AntiAfk",
     Callback = function(v)
         State.AntiAfkEnabled = v
+        if v then
+            game:GetService("ReplicatedStorage").Remotes.TPAFK:Destroy()
+        end
     end,
 })
 
@@ -3267,19 +3276,32 @@ task.spawn(function()
             
             -- Load portals async
             task.spawn(function()
-                task.wait(2)
-                if StageData.loadPortals() then
-                    local portalList = {}
-                    for _, portal in pairs(StageData.portal) do
-                        table.insert(portalList, portal.displayName)
-                    end
-                    table.sort(portalList)
-                    
-                    PortalStageDD:Refresh(portalList)
-                    debugPrint(string.format("✓ Portal dropdown refreshed with %d portals", #portalList))
-                    createAutoSelectUI()
+    task.wait(2)
+    if StageData.loadPortals() then
+        local portalList = {}
+        for _, portal in pairs(StageData.portal) do
+            table.insert(portalList, portal.displayName)
+        end
+        table.sort(portalList)
+        
+        PortalStageDD:Refresh(portalList)
+        debugPrint(string.format("✓ Portal dropdown refreshed with %d portals", #portalList))
+        
+        -- ✅ Resolve any pending portal selection from config load
+        if pendingPortalSelection then
+            for _, portal in pairs(StageData.portal) do
+                if portal.displayName == pendingPortalSelection then
+                    State.PortalStage = portal.internalName
+                    debugPrint(string.format("✓ Resolved pending portal: %s (ID: %s)", pendingPortalSelection, portal.internalName))
+                    break
                 end
-            end)
+            end
+            pendingPortalSelection = nil
+        end
+        
+        createAutoSelectUI()
+    end
+end)
             
             break
         end
