@@ -934,9 +934,12 @@ local Macro = {
     randomOffsetEnabled      = false,
     randomOffsetAmount       = 0.5,
     ignoreTiming             = false,
-    -- Populated by unit_added_temporary (server→client) which fires on every purchase.
-    -- Keyed by uuid → { unit_id, displayName, cost }. Always active, not just recording.
+    -- FIFO queue of UUIDs per unit_id, populated by unit_added_temporary.
+    -- Structure: { [unit_id] = { uuid1, uuid2, ... } }
+    -- Placement pops from the front so duplicate purchases each get their own UUID.
     purchasedUnitCache       = {},
+    -- Flat uuid → { unit_id, cost } lookup for recording (processPurchaseRecording).
+    purchasedUUIDInfo        = {},
 }
 
 function Macro.updateStatus(message)
@@ -952,6 +955,7 @@ function Macro.clearSpawnIdMappings()
     Macro.unitNameToSpawnId            = {}
     Macro.playbackPlacementToSpawnId   = {}
     Macro.purchasedUnitCache           = {}
+    Macro.purchasedUUIDInfo            = {}
 end
 
 function Macro.takeUnitsSnapshot()
@@ -1134,9 +1138,10 @@ function Macro.processPurchaseRecording(actionInfo)
 
     -- unit_added_temporary fires just before purchase_unit on the client, so by
     -- the time our namecall hook runs the cache entry is already populated.
-    local cached      = Macro.purchasedUnitCache[inventoryUUID]
-    local displayName = cached and cached.displayName or inventoryUUID
-    local cost        = cached and cached.cost        or 0
+    local info        = Macro.purchasedUUIDInfo[inventoryUUID]
+    local unit_id     = info and info.unit_id or nil
+    local displayName = unit_id and Util.getDisplayNameFromUnitId(unit_id) or inventoryUUID
+    local cost        = info and info.cost or 0
 
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     table.insert(Macro.actions, {
@@ -1356,11 +1361,13 @@ function Macro.setupPurchaseListener()
         if not uuid or not unit_id then return end
         local displayName = Util.getDisplayNameFromUnitId(unit_id) or unit_id
         local cost        = Util.getPurchaseCost(unit_id)
-        Macro.purchasedUnitCache[uuid] = {
-            unit_id     = unit_id,
-            displayName = displayName,
-            cost        = cost,
-        }
+        -- FIFO queue for placement (unit_id → ordered list of uuids)
+        if not Macro.purchasedUnitCache[unit_id] then
+            Macro.purchasedUnitCache[unit_id] = {}
+        end
+        table.insert(Macro.purchasedUnitCache[unit_id], uuid)
+        -- Flat lookup for recording (uuid → { unit_id, cost })
+        Macro.purchasedUUIDInfo[uuid] = { unit_id = unit_id, cost = cost }
         Util.debugPrint("unit_added_temporary cached:", uuid, "→", displayName, "(cost:", cost, ")")
     end)
 end
@@ -1607,14 +1614,12 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
         if not Macro.isPlaying then return false end
         local unitId   = Util.getUnitIdFromDisplayName(displayName)
         if not unitId then Macro.updateStatus(string.format("(%d/%d) FAILED: Could not resolve unit ID", actionIndex, totalActions)) return false end
-        -- Try equipped inventory first (_FX_CACHE), then fall back to units purchased this game
+        -- Try equipped inventory first (_FX_CACHE), then pop from purchased-this-game FIFO queue
         local unitUUID = Util.resolveUUIDFromInternalName(unitId)
         if not unitUUID then
-            for uuid, cached in pairs(Macro.purchasedUnitCache) do
-                if cached.unit_id == unitId then
-                    unitUUID = uuid
-                    break
-                end
+            local queue = Macro.purchasedUnitCache[unitId]
+            if queue and #queue > 0 then
+                unitUUID = table.remove(queue, 1)  -- pop oldest (FIFO)
             end
         end
         if not unitUUID then Macro.updateStatus(string.format("(%d/%d) FAILED: Unit not equipped or purchased - %s", actionIndex, totalActions, displayName)) return false end
@@ -1639,9 +1644,6 @@ function Macro.validatePlacement(action, actionIndex, totalActions)
             local spawnUUID = newUnit:GetAttribute("_SPAWN_UNIT_UUID")
             if spawnUUID then
                 Macro.playbackPlacementToSpawnId[placementId] = spawnUUID
-                -- Consume the cache entry so a second purchase of the same unit
-                -- gets its own distinct UUID on the next placement.
-                Macro.purchasedUnitCache[unitUUID] = nil
                 Macro.updateStatus(string.format("(%d/%d) SUCCESS: Placed %s", actionIndex, totalActions, placementId))
                 return true
             end
