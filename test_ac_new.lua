@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABaaaaaaaaaaaaaaaaaaaaaaaaaa
+-- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 -- ============================================================
 
 -- ============================================================
@@ -1144,13 +1144,18 @@ function Macro.processPurchaseRecording(actionInfo)
     local inventoryUUID = actionInfo.args[1]
     if not inventoryUUID then return end
 
-    -- Cost is in temporaryUnits since unit_added_temporary fires before purchase_unit namecall
-    local cost = 0
-    for _, entry in ipairs(Macro.temporaryUnits) do
-        if entry.uuid == inventoryUUID then
-            cost = entry.cost
-            break
-        end
+    -- unit_added_temporary fires immediately before purchase_unit, so the last
+    -- entry in temporaryUnits corresponds to this purchase.
+    local cost    = 0
+    local unit_id = nil
+    if #Macro.temporaryUnits > 0 then
+        local entry = Macro.temporaryUnits[#Macro.temporaryUnits]
+        unit_id = entry.unit_id
+        cost    = entry.cost
+    end
+    -- Fallback: derive cost from unit_id directly if cache missed
+    if cost == 0 and unit_id then
+        cost = Util.getPurchaseCost(unit_id)
     end
 
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
@@ -1160,7 +1165,8 @@ function Macro.processPurchaseRecording(actionInfo)
         Cost = cost,           -- baked at record time for playback money-gating
         Time = string.format("%.2f", gameRelativeTime),
     })
-    Util.notify("Macro Recorder", string.format("Recorded purchase: %s (%d yen)", inventoryUUID:sub(1,8), cost))
+    local displayName = unit_id and Util.getDisplayNameFromUnitId(unit_id) or inventoryUUID:sub(1,8)
+    Util.notify("Macro Recorder", string.format("Recorded purchase: %s (%d yen)", displayName, cost))
 end
 
 -- ──────────────────────────────────────────────
