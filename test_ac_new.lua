@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+-- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABfffffffffffffffffffffffffffffffffffffffffffffffff
 -- ============================================================
 
 -- ============================================================
@@ -650,6 +650,21 @@ local RARITY_PURCHASE_COSTS = {
     crusader    = 25000,
 }
 
+local FORGE_TRAIT_COSTS = {
+    superior        = 1250,
+    nimble          = 1250,
+    range           = 1250,
+    neuroplasticity = 5000,
+    golden          = 5000,
+    sniper          = 5000,
+    godspeed        = 5000,
+    reaper          = 12500,
+    ethereal        = 12500,
+    divine          = 12500,
+    culling         = 12500,
+    unique          = 50000,
+}
+
 function Util.getPurchaseCost(unitInternalId)
     local unitData = Util.getUnitData(unitInternalId)
     if not unitData then return 0 end
@@ -1150,9 +1165,6 @@ function Macro.processPurchaseRecording(actionInfo)
     local cost    = 0
 
     for i, entry in ipairs(Macro.temporaryUnits) do
-        print("[YO]"..entry.uuid)
-        print("[YO]"..entry.unit_id)
-        print("[YO]"..inventoryUUID)
         if entry.unit_id == inventoryUUID then
             unit_id = entry.unit_id
             cost    = Util.getPurchaseCost(unit_id)
@@ -1234,6 +1246,7 @@ function Macro.forgeTraitRecording(actionInfo)
         Type      = "forge_trait_purchase",
         Unit      = placementId,
         TraitType = traitType or "unique",
+        Cost      = FORGE_TRAIT_COSTS[(traitType or "unique"):lower()] or 0,
         Time      = string.format("%.2f", gameRelativeTime),
     })
     Util.notify("Macro Recorder", string.format("Recorded forge trait (%s): %s", traitType or "unique", placementId))
@@ -2511,15 +2524,7 @@ local function initialize()
         Flag         = "AutoSkipWaves",
         Callback     = function(Value)
             State.AutoSkipWaves = Value
-            if not Value then
-                pcall(function()
-                    Services.ReplicatedStorage
-                        :WaitForChild("endpoints")
-                        :WaitForChild("client_to_server")
-                        :WaitForChild("toggle_setting")
-                        :InvokeServer("autoskip_waves", false)
-                end)
-            end
+            Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", Value)
         end,
     })
 
@@ -2536,31 +2541,49 @@ local function initialize()
         end,
     })
 
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            if not State.AutoSkipWaves then continue end
-            if Util.isInLobby() then continue end
-            local waveNum = Services.Workspace:FindFirstChild("_wave_num")
-            if not waveNum then continue end
-            local current   = waveNum.Value
-            local limit     = State.AutoSkipUntilWave
-            local endpoints = Services.ReplicatedStorage
-                :WaitForChild("endpoints")
-                :WaitForChild("client_to_server")
-            if limit > 0 and current >= limit then
-                State.AutoSkipWaves = false
+task.spawn(function()
+    local skipEnabled = false  -- tracks whether we've already sent the enable call
+    while true do
+        task.wait(1)
+        if not State.AutoSkipWaves then
+            if skipEnabled then
+                skipEnabled = false
                 pcall(function()
-                    endpoints:WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", false)
-                end)
-                Util.notify("Auto Skip Waves", string.format("Disabled — reached wave %d", limit))
-            else
-                pcall(function()
-                    endpoints:WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", true)
+                    Services.ReplicatedStorage
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", false)
                 end)
             end
+            continue
         end
-    end)
+        if Util.isInLobby() then continue end
+        local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+        if not waveNum then continue end
+        local current = waveNum.Value
+        local limit   = State.AutoSkipUntilWave
+
+        if limit > 0 and current >= limit then
+            State.AutoSkipWaves = false
+            skipEnabled = false
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", false)
+            end)
+            Util.notify("Auto Skip Waves", string.format("Disabled — reached wave %d", limit))
+        elseif not skipEnabled then
+            skipEnabled = true
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("toggle_setting"):InvokeServer("autoskip_waves", true)
+            end)
+        end
+    end
+end)
 
     GameTab:CreateSection("Boss Rush")
 
