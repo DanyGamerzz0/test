@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABddddddddddddddddddddddddddddddd
+-- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 -- ============================================================
 
 -- ============================================================
@@ -1153,7 +1153,7 @@ function Macro.processPurchaseRecording(actionInfo)
         print("[YO]"..entry.uuid)
         print("[YO]"..entry.unit_id)
         print("[YO]"..inventoryUUID)
-        if entry.uuid == inventoryUUID then
+        if entry.unit_id == inventoryUUID then
             unit_id = entry.unit_id
             cost    = Util.getPurchaseCost(unit_id)
             table.remove(Macro.temporaryUnits, i)  -- consume so it won't match again
@@ -1166,7 +1166,7 @@ function Macro.processPurchaseRecording(actionInfo)
     if not unit_id then
         task.wait(0.3)
         for i, entry in ipairs(Macro.temporaryUnits) do
-            if entry.uuid == inventoryUUID then
+            if entry.unit_id == inventoryUUID then
                 unit_id = entry.unit_id
                 cost    = Util.getPurchaseCost(unit_id)
                 table.remove(Macro.temporaryUnits, i)
