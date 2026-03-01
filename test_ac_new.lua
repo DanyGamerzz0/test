@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+-- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABccccccccccccccccccccccccccccccccccccccccccccc
 -- ============================================================
 
 -- ============================================================
@@ -1144,28 +1144,51 @@ function Macro.processPurchaseRecording(actionInfo)
     local inventoryUUID = actionInfo.args[1]
     if not inventoryUUID then return end
 
-    -- unit_added_temporary fires immediately before purchase_unit, so the last
-    -- entry in temporaryUnits corresponds to this purchase.
-    local cost    = 0
+    -- unit_added_temporary fires before purchase_unit and includes the uuid.
+    -- Match by UUID directly instead of assuming "last entry = this purchase".
     local unit_id = nil
-    if #Macro.temporaryUnits > 0 then
-        local entry = Macro.temporaryUnits[#Macro.temporaryUnits]
-        unit_id = entry.unit_id
-        cost    = entry.cost
+    local cost    = 0
+
+    for i, entry in ipairs(Macro.temporaryUnits) do
+        if entry.uuid == inventoryUUID then
+            unit_id = entry.unit_id
+            cost    = Util.getPurchaseCost(unit_id)
+            table.remove(Macro.temporaryUnits, i)  -- consume so it won't match again
+            Util.debugPrint("processPurchaseRecording: matched by UUID", unit_id, "cost =", cost)
+            break
+        end
     end
-    -- Fallback: derive cost from unit_id directly if cache missed
+
+    -- If still not found, the event may not have fired yet — wait briefly and retry once
+    if not unit_id then
+        task.wait(0.3)
+        for i, entry in ipairs(Macro.temporaryUnits) do
+            if entry.uuid == inventoryUUID then
+                unit_id = entry.unit_id
+                cost    = Util.getPurchaseCost(unit_id)
+                table.remove(Macro.temporaryUnits, i)
+                Util.debugPrint("processPurchaseRecording: delayed match", unit_id, "cost =", cost)
+                break
+            end
+        end
+    end
+
     if cost == 0 and unit_id then
-        cost = Util.getPurchaseCost(unit_id)
+        -- getPurchaseCost returned 0, meaning rarity wasn't in the table (e.g. Rare/Common)
+        -- These aren't purchasable rarities so 0 is likely correct, but warn anyway
+        warn("[Macro Recorder] purchase_unit: cost resolved to 0 for unit_id:", unit_id)
+    elseif not unit_id then
+        warn("[Macro Recorder] purchase_unit: could not resolve unit for UUID:", inventoryUUID)
     end
 
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
     table.insert(Macro.actions, {
         Type = "purchase_unit",
-        UUID = inventoryUUID,  -- fired as-is to purchase_unit remote during playback
-        Cost = cost,           -- baked at record time for playback money-gating
+        UUID = inventoryUUID,
+        Cost = cost,
         Time = string.format("%.2f", gameRelativeTime),
     })
-    local displayName = unit_id and Util.getDisplayNameFromUnitId(unit_id) or inventoryUUID:sub(1,8)
+    local displayName = unit_id and Util.getDisplayNameFromUnitId(unit_id) or inventoryUUID:sub(1, 8)
     Util.notify("Macro Recorder", string.format("Recorded purchase: %s (%d yen)", displayName, cost))
 end
 
