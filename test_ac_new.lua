@@ -5,7 +5,7 @@
 -- ============================================================
 -- CONFIGURATION FLAGS
 -- ============================================================
-local DEBUG = true
+local DEBUG = false
 local NOTIFICATION_ENABLED = true
 local script_version = "V0.18"
 -- ============================================================
@@ -3100,8 +3100,17 @@ end)
     Macro.setupHook()
     setupRemoteConnections()
     if not Util.isInLobby() then monitorWaves() end
-    Rayfield:LoadConfiguration()
+    _G.Rayfield:LoadConfiguration()
     Util.notify("LixHub", "Loaded successfully!")
 end
 
 initialize()
+_G.Rayfield:SetVisibility(false)
+
+_G.Rayfield:TopNotify({
+    Title = "UI is hidden",
+    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+    Image = "eye-off",
+    IconColor = Color3.fromRGB(100, 150, 255),
+    Duration = 5
+})
