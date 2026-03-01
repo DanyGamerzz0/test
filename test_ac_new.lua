@@ -1,10 +1,3 @@
--- ============================================================
--- LIXHUB MACRO SYSTEM - WITH AUTO DUNGEON + GAME TABbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
--- ============================================================
-
--- ============================================================
--- CONFIGURATION FLAGS
--- ============================================================
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
 local script_version = "V0.18"
@@ -2502,7 +2495,6 @@ local function initialize()
         Name         = "Auto Next",
         CurrentValue = false,
         Flag         = "AutoNext",
-        Info         = "Votes next story/raid on victory.",
         Callback     = function(Value)
             State.AutoVoteNext = Value
         end,
@@ -2512,7 +2504,6 @@ local function initialize()
         Name         = "Auto Lobby",
         CurrentValue = false,
         Flag         = "AutoLobby",
-        Info         = "Teleports to lobby when the game ends.",
         Callback     = function(Value)
             State.AutoVoteLobby = Value
         end,
@@ -2662,7 +2653,6 @@ end)
         Name         = "Auto Sell Farm Units",
         CurrentValue = false,
         Flag         = "AutoSellFarmEnabled",
-        Info         = "Sell only units with farm_amount > 0 on the target wave.",
         Callback     = function(Value)
             State.AutoSellFarmEnabled = Value
         end,
@@ -2859,7 +2849,6 @@ end)
         Name         = "Send Webhook on Stage End",
         CurrentValue = false,
         Flag         = "WebhookOnFinish",
-        Info         = "Sends a Discord embed after every game with rewards, stats, and session info.",
         Callback     = function(Value) end,
     })
 
