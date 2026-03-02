@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.19"
+local script_version = "V0.18"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -405,7 +405,7 @@ local RelicShop = {}
 do
     local _Loader, _DungeonServiceCore, _GUIService
     local _itemsLoaded = false
-    local _itemCache   = {}  -- { id, name, description, tier, cost, Relic }
+    local _itemCache   = {}
 
     local function getDeps()
         if _Loader then return true end
@@ -421,15 +421,12 @@ do
         return true
     end
 
-    -- Load all relic items from DungeonServiceCore.ITEMS
-    -- Returns array sorted alphabetically by name
     function RelicShop.loadItems()
         if _itemsLoaded then return _itemCache end
         if not getDeps() then return {} end
         _itemCache = {}
         local ok, err = pcall(function()
             for id, item in pairs(_DungeonServiceCore.ITEMS) do
-                -- Only include relics (not curses)
                 if item.Relic == true then
                     table.insert(_itemCache, {
                         id          = id,
@@ -452,7 +449,6 @@ do
         return _itemCache
     end
 
-    -- Get the shop multiplier for current gamemode
     function RelicShop.getShopMultiplier()
         if not getDeps() then return 1 end
         local multi = 1
@@ -463,14 +459,12 @@ do
         return multi
     end
 
-    -- Get actual cost of an item accounting for shop multiplier
     function RelicShop.getActualCost(item)
         local base  = item.cost or 0
         local multi = RelicShop.getShopMultiplier()
         return math.ceil(base * multi)
     end
 
-    -- Get player's current relic currency amount
     function RelicShop.getCurrencyAmount()
         local amount = 0
         pcall(function()
@@ -481,8 +475,6 @@ do
         return amount
     end
 
-    -- Fetch the current shop items via RemoteFunction
-    -- Returns: { [slotKey] = { id = "..." }, ... } or nil
     function RelicShop.fetchShopItems()
         local result = nil
         local ok, err = pcall(function()
@@ -499,7 +491,6 @@ do
         return result
     end
 
-    -- Buy a specific item by its id string
     function RelicShop.buyItem(itemId)
         local ok, err = pcall(function()
             Services.ReplicatedStorage
@@ -3240,6 +3231,89 @@ end)
                                 end
                             })
                         end
+                    end
+
+                    if State.AutoBuyRelics and isVictory then
+                        task.spawn(function()
+                            -- Check if this was a merchant room via results UI
+                            local isMerchantRoom = false
+                            pcall(function()
+                                local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
+                                if not resultsUI or not resultsUI.Enabled then return end
+                                local template = resultsUI.Holder.Buttons.NextLevel.Template
+                                if template and template.Visible then
+                                    isMerchantRoom = template:FindFirstChild("TextLabel") and
+                                                     template.TextLabel.Text == "Open Shop"
+                                end
+                            end)
+
+                            if not isMerchantRoom then
+                                print("[RelicShop] Not a merchant room, skipping.")
+                                return
+                            end
+
+                            local shopItems = RelicShop.fetchShopItems()
+                            if not shopItems or next(shopItems) == nil then
+                                print("[RelicShop] Shop returned empty.")
+                                return
+                            end
+
+                            -- Filter to wanted items that are in the shop this run
+                            local toBuy = {}
+                            for slotKey, slotData in pairs(shopItems) do
+                                local itemId   = slotData.id
+                                local priority = State.RelicPriorities[itemId] or 0
+                                if priority > 0 then
+                                    table.insert(toBuy, {
+                                        slotKey  = slotKey,
+                                        itemId   = itemId,
+                                        priority = priority,
+                                    })
+                                end
+                            end
+
+                            -- Highest priority first
+                            table.sort(toBuy, function(a, b)
+                                return a.priority > b.priority
+                            end)
+
+                            if #toBuy == 0 then
+                                print("[RelicShop] No wanted items available in shop this run.")
+                                return
+                            end
+
+                            task.wait(1.5)
+
+                            for _, entry in ipairs(toBuy) do
+                                local currency = RelicShop.getCurrencyAmount()
+                                local itemData = nil
+                                for _, cached in ipairs(RelicShop.loadItems()) do
+                                    if cached.id == entry.itemId then
+                                        itemData = cached
+                                        break
+                                    end
+                                end
+
+                                if not itemData then
+                                    warn("[RelicShop] No item data for:", entry.itemId)
+                                    continue
+                                end
+
+                                local actualCost = RelicShop.getActualCost(itemData)
+
+                                if currency >= actualCost then
+                                    print(string.format("[RelicShop] Buying '%s' (priority %d, cost %d, balance %d)",
+                                        itemData.name, entry.priority, actualCost, currency))
+                                    RelicShop.buyItem(entry.itemId)
+                                    task.wait(0.5)
+                                else
+                                    print(string.format("[RelicShop] Skipping '%s' — need %d, have %d",
+                                        itemData.name, actualCost, currency))
+                                end
+                            end
+
+                            Util.notify("Relic Shop", string.format("Auto-buy done (%d items checked)", #toBuy))
+                        end)
                     end
 
                     runVotes()
