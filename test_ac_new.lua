@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.19"
+local script_version = "V0.2"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3024,6 +3024,16 @@ end)
 
         relicStatusLabel:Set(string.format("Loaded %d relics. Set priority to buy (0 = skip).", #items))
 
+        pcall(function()
+
+    if isfile("LixHub/AC_" .. game.Players.LocalPlayer.Name .. "_Relic.json") then
+        local saved = Services.HttpService:JSONDecode(readfile("LixHub/AC_" .. game.Players.LocalPlayer.Name .. "_Relic.json"))
+        if type(saved) == "table" then
+            State.RelicPriorities = saved
+        end
+    end
+end)
+
         for _, item in ipairs(items) do
             local itemId   = item.id
             local itemName = item.name
@@ -3038,11 +3048,15 @@ end)
                 Range        = { 0, 10 },
                 Increment    = 1,
                 Suffix       = "",
-                CurrentValue = State.RelicPriorities[itemId],
+                CurrentValue = State.RelicPriorities[itemId] or 0,
                 Flag         = "Relic_" .. itemId,
                 Info         = item.description ~= "" and item.description or ("Tier: " .. item.tier),
-                Callback     = function(Value)
+                Callback = function(Value)
                     State.RelicPriorities[itemId] = Value
+                    -- Save priorities to file
+                        pcall(function()
+                        writefile("LixHub/AC_" .. game.Players.LocalPlayer.Name .. "_Relic.json", Services.HttpService:JSONEncode(State.RelicPriorities))
+                    end)
                 end,
             })
         end
@@ -3235,43 +3249,14 @@ end)
 
                     if State.AutoBuyRelics and isVictory then
                         task.spawn(function()
-                            -- Check if this was a merchant room via results UI
-                            local isMerchantRoom = false
-                            local waited = 0
-                            while waited < 10 do
-                                pcall(function()
-                                    local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
-                                    if not resultsUI or not resultsUI.Enabled then return end
-                                    local template = resultsUI.Holder.Buttons.NextLevel.Template
-                                    if template and template.Visible then
-                                        isMerchantRoom = template:FindFirstChild("TextLabel") and
-                                                         template.TextLabel.Text == "Open Shop"
-                                    end
-                                end)
-                                if isMerchantRoom then break end
-                                -- Also break if ResultsUI is open but it's not a merchant room
-                                local resultsOpen = false
-                                pcall(function()
-                                    local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
-                                    resultsOpen = resultsUI and resultsUI.Enabled
-                                end)
-                                if resultsOpen then break end  -- UI is open, confirmed not merchant
-                                task.wait(0.5)
-                                waited += 0.5
-                            end
-
-                            if not isMerchantRoom then
-                                print("[RelicShop] Not a merchant room, skipping.")
-                                return
-                            end
+                            task.wait(1)
 
                             local shopItems = RelicShop.fetchShopItems()
                             if not shopItems or next(shopItems) == nil then
-                                print("[RelicShop] Shop returned empty.")
+                                print("[RelicShop] Shop empty or not a merchant room, skipping.")
                                 return
                             end
 
-                            -- Filter to wanted items that are in the shop this run
                             local toBuy = {}
                             for slotKey, slotData in pairs(shopItems) do
                                 local itemId   = slotData.id
@@ -3285,35 +3270,24 @@ end)
                                 end
                             end
 
-                            -- Highest priority first
                             table.sort(toBuy, function(a, b)
                                 return a.priority > b.priority
                             end)
 
                             if #toBuy == 0 then
-                                print("[RelicShop] No wanted items available in shop this run.")
+                                print("[RelicShop] No wanted items in shop this run.")
                                 return
                             end
-
-                            task.wait(1.5)
 
                             for _, entry in ipairs(toBuy) do
                                 local currency = RelicShop.getCurrencyAmount()
                                 local itemData = nil
                                 for _, cached in ipairs(RelicShop.loadItems()) do
-                                    if cached.id == entry.itemId then
-                                        itemData = cached
-                                        break
-                                    end
+                                    if cached.id == entry.itemId then itemData = cached break end
                                 end
-
-                                if not itemData then
-                                    warn("[RelicShop] No item data for:", entry.itemId)
-                                    continue
-                                end
+                                if not itemData then continue end
 
                                 local actualCost = RelicShop.getActualCost(itemData)
-
                                 if currency >= actualCost then
                                     print(string.format("[RelicShop] Buying '%s' (priority %d, cost %d, balance %d)",
                                         itemData.name, entry.priority, actualCost, currency))
