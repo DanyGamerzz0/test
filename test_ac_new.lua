@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.18"
+local script_version = "V0.19"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3237,15 +3237,28 @@ end)
                         task.spawn(function()
                             -- Check if this was a merchant room via results UI
                             local isMerchantRoom = false
-                            pcall(function()
-                                local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
-                                if not resultsUI or not resultsUI.Enabled then return end
-                                local template = resultsUI.Holder.Buttons.NextLevel.Template
-                                if template and template.Visible then
-                                    isMerchantRoom = template:FindFirstChild("TextLabel") and
-                                                     template.TextLabel.Text == "Open Shop"
-                                end
-                            end)
+                            local waited = 0
+                            while waited < 10 do
+                                pcall(function()
+                                    local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
+                                    if not resultsUI or not resultsUI.Enabled then return end
+                                    local template = resultsUI.Holder.Buttons.NextLevel.Template
+                                    if template and template.Visible then
+                                        isMerchantRoom = template:FindFirstChild("TextLabel") and
+                                                         template.TextLabel.Text == "Open Shop"
+                                    end
+                                end)
+                                if isMerchantRoom then break end
+                                -- Also break if ResultsUI is open but it's not a merchant room
+                                local resultsOpen = false
+                                pcall(function()
+                                    local resultsUI = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("ResultsUI")
+                                    resultsOpen = resultsUI and resultsUI.Enabled
+                                end)
+                                if resultsOpen then break end  -- UI is open, confirmed not merchant
+                                task.wait(0.5)
+                                waited += 0.5
+                            end
 
                             if not isMerchantRoom then
                                 print("[RelicShop] Not a merchant room, skipping.")
