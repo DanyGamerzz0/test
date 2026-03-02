@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.21"
+local script_version = "V0.22"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3271,15 +3271,10 @@ end)
                     end
 
                     if State.AutoBuyRelics and isVictory then
-                        task.spawn(function()
-                            task.wait(5)
+                        task.wait(3)  -- give shop time to be available
 
-                            local shopItems = RelicShop.fetchShopItems()
-                            if not shopItems or next(shopItems) == nil then
-                                print("[RelicShop] Shop empty or not a merchant room, skipping.")
-                                return
-                            end
-
+                        local shopItems = RelicShop.fetchShopItems()
+                        if shopItems and next(shopItems) ~= nil then
                             local toBuy = {}
                             for slotKey, slotData in pairs(shopItems) do
                                 local itemId   = slotData.id
@@ -3297,33 +3292,33 @@ end)
                                 return a.priority > b.priority
                             end)
 
-                            if #toBuy == 0 then
+                            if #toBuy > 0 then
+                                for _, entry in ipairs(toBuy) do
+                                    local currency = RelicShop.getCurrencyAmount()
+                                    local itemData = nil
+                                    for _, cached in ipairs(RelicShop.loadItems()) do
+                                        if cached.id == entry.itemId then itemData = cached break end
+                                    end
+                                    if not itemData then continue end
+
+                                    local actualCost = RelicShop.getActualCost(itemData)
+                                    if currency >= actualCost then
+                                        print(string.format("[RelicShop] Buying '%s' (priority %d, cost %d, balance %d)",
+                                            itemData.name, entry.priority, actualCost, currency))
+                                        RelicShop.buyItem(entry.itemId)
+                                        task.wait(0.5)
+                                    else
+                                        print(string.format("[RelicShop] Skipping '%s' — need %d, have %d",
+                                            itemData.name, actualCost, currency))
+                                    end
+                                end
+                                Util.notify("Relic Shop", string.format("Auto-buy done (%d items checked)", #toBuy))
+                            else
                                 print("[RelicShop] No wanted items in shop this run.")
-                                return
                             end
-
-                            for _, entry in ipairs(toBuy) do
-                                local currency = RelicShop.getCurrencyAmount()
-                                local itemData = nil
-                                for _, cached in ipairs(RelicShop.loadItems()) do
-                                    if cached.id == entry.itemId then itemData = cached break end
-                                end
-                                if not itemData then continue end
-
-                                local actualCost = RelicShop.getActualCost(itemData)
-                                if currency >= actualCost then
-                                    print(string.format("[RelicShop] Buying '%s' (priority %d, cost %d, balance %d)",
-                                        itemData.name, entry.priority, actualCost, currency))
-                                    RelicShop.buyItem(entry.itemId)
-                                    task.wait(0.5)
-                                else
-                                    print(string.format("[RelicShop] Skipping '%s' — need %d, have %d",
-                                        itemData.name, actualCost, currency))
-                                end
-                            end
-
-                            Util.notify("Relic Shop", string.format("Auto-buy done (%d items checked)", #toBuy))
-                        end)
+                        else
+                            print("[RelicShop] Shop empty or not a merchant room, skipping.")
+                        end
                     end
 
                     runVotes()
