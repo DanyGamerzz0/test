@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.2"
+local script_version = "V0.21"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -40,6 +40,7 @@ local State = {
     StreamerModeEnabled      = false,
     DeleteEntities           = false,
     childAddedConnection     = nil,
+    enableAutoExecute = false,
 
     -- Game flow votes
     AutoVoteStart            = false,
@@ -2137,6 +2138,28 @@ local function initialize()
     })
     local LobbyTab = Window:CreateTab("Lobby", "tv")
 
+            LobbyTab:CreateToggle({
+        Name = "Auto Execute Script",
+        CurrentValue = false,
+        Flag = "enableAutoExecute",
+        Info = "This auto executes and persists through teleports until you disable it or leave the game.",
+        TextScaled = false,
+        Callback = function(Value)
+            State.enableAutoExecute = Value
+            if State.enableAutoExecute then
+                if queue_on_teleport then
+                    queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/LixHub_ACV2.lua"))()')
+                else
+                    warn("queue_on_teleport not supported by this executor")
+                end
+            else
+                if queue_on_teleport then
+                    queue_on_teleport("") -- Empty string clears queue in most executors
+                end
+            end
+        end,
+    })
+
         LobbyTab:CreateToggle({
         Name         = "Enable Script Notifications",
         CurrentValue = true,
@@ -3249,7 +3272,7 @@ end)
 
                     if State.AutoBuyRelics and isVictory then
                         task.spawn(function()
-                            task.wait(1)
+                            task.wait(5)
 
                             local shopItems = RelicShop.fetchShopItems()
                             if not shopItems or next(shopItems) == nil then
