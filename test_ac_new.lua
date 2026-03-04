@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.22"
+local script_version = "V0.23"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -84,6 +84,23 @@ local State = {
     --Merchant
     AutoBuyRelics            = false,
     RelicPriorities          = {},
+
+    -- Auto Join
+    AutoJoinEnabled          = false,
+    SelectedStageType        = "Story",
+    SelectedWorld            = "",
+    SelectedStage            = "",
+    SelectedDifficulty       = "Normal",
+    UseMatchmaking           = false,
+    AutoJoinChallenge        = false,
+    AutoJoinDailyChallenge   = false,
+    ChallengeRewardFilters   = {},
+    IgnoreChallengeWorlds    = {},
+    SelectedPortalId         = nil,
+    AutoJoinBossRush         = false,
+    BossRushLobbyId          = "BossRush1",
+    AutoJoinSamuraiHunt      = false,
+    AutoJoinInfinitycastle   = false,
 }
 
 local Webhook = {
@@ -507,6 +524,388 @@ do
         end
         return ok
     end
+end
+
+-- ============================================================
+-- AUTO JOIN MODULE
+-- ============================================================
+local AutoJoin = {}
+
+local AutoJoinState = {
+    isProcessing   = false,
+    currentAction  = nil,
+    lastActionTime = 0,
+    actionCooldown = 2,
+}
+
+function AutoJoin.canPerformAction()
+    return not AutoJoinState.isProcessing and (tick() - AutoJoinState.lastActionTime) > AutoJoinState.actionCooldown
+end
+
+function AutoJoin.setProcessingState(action)
+    AutoJoinState.isProcessing   = true
+    AutoJoinState.currentAction  = action
+    AutoJoinState.lastActionTime = tick()
+    Util.notify("Auto Join", "Joining: " .. action)
+end
+
+function AutoJoin.clearProcessingState()
+    AutoJoinState.isProcessing  = false
+    AutoJoinState.currentAction = nil
+end
+
+-- ── World key resolvers ──────────────────────────────────────
+
+function AutoJoin.getBackendWorldKey(displayName)
+    local ok, result = pcall(function()
+        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+        for key, data in pairs(WorldLevelOrder) do
+            if data.name == displayName or key == displayName then return key end
+        end
+    end)
+    return ok and result or displayName
+end
+
+function AutoJoin.getBackendLegendWorldKey(displayName)
+    local ok, result = pcall(function()
+        local LegendWorldOrder = require(Services.ReplicatedStorage.Framework.Data.LegendWorldLevelOrder)
+        for key, data in pairs(LegendWorldOrder) do
+            if data.name == displayName or key == displayName then return key end
+        end
+    end)
+    return ok and result or displayName
+end
+
+function AutoJoin.getBackendRaidWorldKey(displayName)
+    local ok, result = pcall(function()
+        local RaidWorldOrder = require(Services.ReplicatedStorage.Framework.Data.RaidWorldLevelOrder)
+        for key, data in pairs(RaidWorldOrder) do
+            if data.name == displayName or key == displayName then return key end
+        end
+    end)
+    return ok and result or displayName
+end
+
+function AutoJoin.getExactLevelId(worldKey, stageName, stageType)
+    local ok, result = pcall(function()
+        local moduleMap = {
+            Story  = "WorldLevelOrder",
+            Legend = "LegendWorldLevelOrder",
+            Raid   = "RaidWorldLevelOrder",
+        }
+        local moduleName = moduleMap[stageType] or "WorldLevelOrder"
+        local data = require(Services.ReplicatedStorage.Framework.Data[moduleName])
+        local worldData = data[worldKey]
+        if not worldData or not worldData.levels then return nil end
+        for _, level in ipairs(worldData.levels) do
+            if level.name == stageName or level.id == stageName then return level.id end
+        end
+    end)
+    return ok and result or nil
+end
+
+-- ── Stage join ───────────────────────────────────────────────
+
+function AutoJoin.joinStage()
+    if not AutoJoin.canPerformAction() then return "cooldown" end
+    local stageType = State.SelectedStageType
+    local world     = State.SelectedWorld
+    local stage     = State.SelectedStage
+    local diff      = State.SelectedDifficulty or "Normal"
+
+    if world == "" or stage == "" then return "no_data" end
+
+    local worldKey, exactId
+    if stageType == "Story" then
+        worldKey = AutoJoin.getBackendWorldKey(world)
+    elseif stageType == "Legend" then
+        worldKey = AutoJoin.getBackendLegendWorldKey(world)
+    elseif stageType == "Raid" then
+        worldKey = AutoJoin.getBackendRaidWorldKey(world)
+    end
+
+    exactId = AutoJoin.getExactLevelId(worldKey, stage, stageType)
+    if not exactId then return "no_data" end
+
+    AutoJoin.setProcessingState(stage)
+
+    local endpoints = Services.ReplicatedStorage
+        :WaitForChild("endpoints")
+        :WaitForChild("client_to_server")
+
+    local success = false
+
+    if State.UseMatchmaking then
+        local difficulty = (stageType == "Raid") and diff or diff
+        success = pcall(function()
+            endpoints:WaitForChild("request_matchmaking"):InvokeServer(exactId, { Difficulty = difficulty })
+        end)
+    else
+        local lobbyId = (stageType == "Raid") and "R1" or "P1"
+        success = pcall(function()
+            endpoints:WaitForChild("request_join_lobby"):InvokeServer(lobbyId)
+            task.wait(0.5)
+            endpoints:WaitForChild("request_lock_level"):InvokeServer(lobbyId, exactId, false, diff)
+            task.wait(0.5)
+            endpoints:WaitForChild("request_start_game"):InvokeServer(lobbyId)
+        end)
+    end
+
+    task.wait(1)
+    AutoJoin.clearProcessingState()
+    return success and "success" or "failed"
+end
+
+-- ── Challenge helpers ────────────────────────────────────────
+
+function AutoJoin.getChallengeData()
+    local result = nil
+    pcall(function()
+        result = Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("get_challenge_data")
+            :InvokeServer()
+    end)
+    return result
+end
+
+function AutoJoin.getDailyChallengeData()
+    local result = nil
+    pcall(function()
+        result = Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("get_daily_challenge_data")
+            :InvokeServer()
+    end)
+    return result
+end
+
+function AutoJoin.checkChallengeRewards(challengeData)
+    if not challengeData or not challengeData.rewards then return true end
+    if not State.ChallengeRewardFilters or #State.ChallengeRewardFilters == 0 then return true end
+    for _, reward in ipairs(challengeData.rewards) do
+        local rewardId = type(reward) == "table" and (reward.id or reward.type) or tostring(reward)
+        for _, filter in ipairs(State.ChallengeRewardFilters) do
+            if rewardId:lower():find(filter:lower()) then return true end
+        end
+    end
+    return false
+end
+
+function AutoJoin.checkIgnoreWorlds(challengeData)
+    if not challengeData or not State.IgnoreChallengeWorlds or #State.IgnoreChallengeWorlds == 0 then return false end
+    local worldId = challengeData.world_id or challengeData.worldId or ""
+    for _, ignored in ipairs(State.IgnoreChallengeWorlds) do
+        if worldId:lower():find(ignored:lower()) then return true end
+    end
+    return false
+end
+
+function AutoJoin.joinChallenge()
+    if not AutoJoin.canPerformAction() then return "cooldown" end
+    local data = AutoJoin.getChallengeData()
+    if not data then return "no_data" end
+    if AutoJoin.checkIgnoreWorlds(data) then return "skipped" end
+    if not AutoJoin.checkChallengeRewards(data) then return "skipped" end
+
+    AutoJoin.setProcessingState("Challenge")
+    local endpoints = Services.ReplicatedStorage
+        :WaitForChild("endpoints")
+        :WaitForChild("client_to_server")
+    local success = pcall(function()
+        endpoints:WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
+        task.wait(0.5)
+        endpoints:WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
+    end)
+    task.wait(1)
+    AutoJoin.clearProcessingState()
+    return success and "success" or "failed"
+end
+
+function AutoJoin.joinDailyChallenge()
+    if not AutoJoin.canPerformAction() then return "cooldown" end
+    local data = AutoJoin.getDailyChallengeData()
+    if not data then return "no_data" end
+
+    AutoJoin.setProcessingState("Daily Challenge")
+    local endpoints = Services.ReplicatedStorage
+        :WaitForChild("endpoints")
+        :WaitForChild("client_to_server")
+    local success = pcall(function()
+        endpoints:WaitForChild("request_join_lobby"):InvokeServer("DailyChallengePod1")
+        task.wait(0.5)
+        endpoints:WaitForChild("request_start_game"):InvokeServer("DailyChallengePod1")
+    end)
+    task.wait(1)
+    AutoJoin.clearProcessingState()
+    return success and "success" or "failed"
+end
+
+-- ── Portal helpers ───────────────────────────────────────────
+
+function AutoJoin.getOwnedPortals()
+    local portals = {}
+    pcall(function()
+        local fxCache = Services.ReplicatedStorage:FindFirstChild("_FX_CACHE")
+        if not fxCache then return end
+        for _, child in pairs(fxCache:GetChildren()) do
+            local itemIndex = child:GetAttribute("ITEMINDEX")
+            if itemIndex and itemIndex:lower():find("portal") then
+                local uuidValue = child:FindFirstChild("_uuid")
+                local uniqueData = child:FindFirstChild("_unique_item_data")
+                local depth = 1
+                if uniqueData then
+                    local portalData = uniqueData:FindFirstChild("_unique_portal_data")
+                    if portalData and portalData:FindFirstChild("portal_depth") then
+                        depth = portalData.portal_depth.Value
+                    end
+                end
+                if uuidValue and uuidValue:IsA("StringValue") then
+                    table.insert(portals, {
+                        id    = uuidValue.Value,
+                        item  = itemIndex,
+                        depth = depth,
+                    })
+                end
+            end
+        end
+    end)
+    return portals
+end
+
+function AutoJoin.joinPortal(portalId)
+    if not AutoJoin.canPerformAction() then return "cooldown" end
+    if not portalId then return "no_data" end
+
+    AutoJoin.setProcessingState("Portal")
+    local success = pcall(function()
+        Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_enter_portal")
+            :InvokeServer(portalId)
+    end)
+    task.wait(1)
+    AutoJoin.clearProcessingState()
+    return success and "success" or "failed"
+end
+
+-- ── Event joins ──────────────────────────────────────────────
+
+function AutoJoin.joinBossRush()
+    if not AutoJoin.canPerformAction() then return "cooldown" end
+    AutoJoin.setProcessingState("Boss Rush")
+    local lobbyId = State.BossRushLobbyId or "BossRush1"
+    local success = pcall(function()
+        local endpoints = Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+        endpoints:WaitForChild("request_join_lobby"):InvokeServer(lobbyId)
+        task.wait(0.5)
+        endpoints:WaitForChild("request_start_game"):InvokeServer(lobbyId)
+    end)
+    task.wait(1)
+    AutoJoin.clearProcessingState()
+    return success and "success" or "failed"
+end
+
+function AutoJoin.joinSamuraiHunt()
+    if not AutoJoin.canPerformAction() then return "cooldown" end
+    AutoJoin.setProcessingState("Samurai Hunt")
+    local success = pcall(function()
+        Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_join_samurai_hunt")
+            :InvokeServer()
+    end)
+    task.wait(1)
+    AutoJoin.clearProcessingState()
+    return success and "success" or "failed"
+end
+
+function AutoJoin.joinInfinityCastle()
+    if not AutoJoin.canPerformAction() then return "cooldown" end
+    AutoJoin.setProcessingState("Infinity Castle")
+    local success = pcall(function()
+        local roomNum = 1
+        pcall(function()
+            local icGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("InfinityCastleUI")
+            if icGui then
+                local roomValue = icGui:FindFirstChild("RoomNumber")
+                if roomValue then roomNum = roomValue.Value end
+            end
+        end)
+        Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_join_infinity_castle")
+            :InvokeServer(roomNum)
+    end)
+    task.wait(1)
+    AutoJoin.clearProcessingState()
+    return success and "success" or "failed"
+end
+
+-- ── Priority loop ────────────────────────────────────────────
+
+function AutoJoin.checkAndExecuteHighestPriority()
+    if not Util.isInLobby()        then return end
+    if GameTracking.gameInProgress  then return end
+    if not AutoJoin.canPerformAction() then return end
+
+    -- 1. Daily Challenge
+    if State.AutoJoinDailyChallenge then
+        local result = AutoJoin.joinDailyChallenge()
+        if result == "success" then return end
+    end
+
+    -- 2. Normal Challenge
+    if State.AutoJoinChallenge then
+        local result = AutoJoin.joinChallenge()
+        if result == "success" then return end
+    end
+
+    -- 3. Portal
+    if State.SelectedPortalId then
+        local result = AutoJoin.joinPortal(State.SelectedPortalId)
+        if result == "success" then return end
+    end
+
+    -- 4. Boss Rush
+    if State.AutoJoinBossRush then
+        local result = AutoJoin.joinBossRush()
+        if result == "success" then return end
+    end
+
+    -- 5. Samurai Hunt
+    if State.AutoJoinSamuraiHunt then
+        local result = AutoJoin.joinSamuraiHunt()
+        if result == "success" then return end
+    end
+
+    -- 6. Infinity Castle
+    if State.AutoJoinInfinitycastle then
+        local result = AutoJoin.joinInfinityCastle()
+        if result == "success" then return end
+    end
+
+    -- 7. Story / Legend / Raid
+    if State.AutoJoinEnabled and State.SelectedWorld ~= "" and State.SelectedStage ~= "" then
+        AutoJoin.joinStage()
+    end
+end
+
+-- Loop (starts when initialize() is called)
+function AutoJoin.startLoop()
+    task.spawn(function()
+        while true do
+            task.wait(3)
+            pcall(AutoJoin.checkAndExecuteHighestPriority)
+        end
+    end)
 end
 
 -- ============================================================
@@ -2168,6 +2567,162 @@ local function initialize()
             NOTIFICATION_ENABLED = Value
         end,
     })
+
+-- ══════════════════════════════════════════════
+    -- TAB: AUTO JOIN
+    -- ══════════════════════════════════════════════
+    local AutoJoinTab = Window:CreateTab("Auto Join", "log-in")
+
+    AutoJoinTab:CreateSection("Stage Auto Join")
+
+    AutoJoinTab:CreateDropdown({
+        Name            = "Stage Type",
+        Options         = { "Story", "Legend", "Raid" },
+        CurrentOption   = { "Story" },
+        MultipleOptions = false,
+        Flag            = "AutoJoinStageType",
+        Callback        = function(val)
+            State.SelectedStageType = type(val) == "table" and val[1] or val
+        end,
+    })
+
+    AutoJoinTab:CreateInput({
+        Name                     = "World Name",
+        CurrentValue             = "",
+        PlaceholderText          = "e.g. Marineford",
+        RemoveTextAfterFocusLost = false,
+        Flag                     = "AutoJoinWorld",
+        Callback                 = function(text) State.SelectedWorld = text end,
+    })
+
+    AutoJoinTab:CreateInput({
+        Name                     = "Stage Name",
+        CurrentValue             = "",
+        PlaceholderText          = "e.g. Stage 5",
+        RemoveTextAfterFocusLost = false,
+        Flag                     = "AutoJoinStage",
+        Callback                 = function(text) State.SelectedStage = text end,
+    })
+
+    AutoJoinTab:CreateDropdown({
+        Name            = "Difficulty",
+        Options         = { "Normal", "Hard", "Nightmare" },
+        CurrentOption   = { "Normal" },
+        MultipleOptions = false,
+        Flag            = "AutoJoinDifficulty",
+        Callback        = function(val)
+            State.SelectedDifficulty = type(val) == "table" and val[1] or val
+        end,
+    })
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Use Matchmaking",
+        CurrentValue = false,
+        Flag         = "AutoJoinMatchmaking",
+        Info         = "Join via matchmaking instead of creating a solo lobby.",
+        Callback     = function(Value) State.UseMatchmaking = Value end,
+    })
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Stage",
+        CurrentValue = false,
+        Flag         = "AutoJoinEnabled",
+        Callback     = function(Value) State.AutoJoinEnabled = Value end,
+    })
+
+    AutoJoinTab:CreateDivider()
+    AutoJoinTab:CreateSection("Challenge")
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Daily Challenge",
+        CurrentValue = false,
+        Flag         = "AutoJoinDailyChallenge",
+        Callback     = function(Value) State.AutoJoinDailyChallenge = Value end,
+    })
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Challenge",
+        CurrentValue = false,
+        Flag         = "AutoJoinChallenge",
+        Callback     = function(Value) State.AutoJoinChallenge = Value end,
+    })
+
+    AutoJoinTab:CreateDivider()
+    AutoJoinTab:CreateSection("Portal")
+
+    local portalDropdown = AutoJoinTab:CreateDropdown({
+        Name            = "Select Portal",
+        Options         = {},
+        CurrentOption   = {},
+        MultipleOptions = false,
+        Flag            = "AutoJoinPortal",
+        Callback        = function(val)
+            local selected = type(val) == "table" and val[1] or val
+            if selected == "" or selected == "None" then
+                State.SelectedPortalId = nil
+                return
+            end
+            -- find portal id from label
+            local portals = AutoJoin.getOwnedPortals()
+            for _, p in ipairs(portals) do
+                local label = string.format("%s (Depth %d)", p.item, p.depth)
+                if label == selected then
+                    State.SelectedPortalId = p.id
+                    break
+                end
+            end
+        end,
+    })
+
+    AutoJoinTab:CreateButton({
+        Name     = "Refresh Portals",
+        Callback = function()
+            local portals = AutoJoin.getOwnedPortals()
+            local options = { "None" }
+            for _, p in ipairs(portals) do
+                table.insert(options, string.format("%s (Depth %d)", p.item, p.depth))
+            end
+            portalDropdown:Refresh(options, { "None" })
+            State.SelectedPortalId = nil
+            Util.notify("Portals", string.format("Found %d portal(s)", #portals))
+        end,
+    })
+
+    AutoJoinTab:CreateDivider()
+    AutoJoinTab:CreateSection("Events")
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Boss Rush",
+        CurrentValue = false,
+        Flag         = "AutoJoinBossRush",
+        Callback     = function(Value) State.AutoJoinBossRush = Value end,
+    })
+
+    AutoJoinTab:CreateDropdown({
+        Name            = "Boss Rush Lobby",
+        Options         = { "BossRush1", "BossRush2", "Chainsaw", "Aizen" },
+        CurrentOption   = { "BossRush1" },
+        MultipleOptions = false,
+        Flag            = "BossRushLobbyId",
+        Callback        = function(val)
+            State.BossRushLobbyId = type(val) == "table" and val[1] or val
+        end,
+    })
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Samurai Hunt",
+        CurrentValue = false,
+        Flag         = "AutoJoinSamuraiHunt",
+        Callback     = function(Value) State.AutoJoinSamuraiHunt = Value end,
+    })
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Infinity Castle",
+        CurrentValue = false,
+        Flag         = "AutoJoinInfinitycastle",
+        Callback     = function(Value) State.AutoJoinInfinitycastle = Value end,
+    })
+
     -- ══════════════════════════════════════════════
     -- TAB: AUTO DUNGEON
     -- ══════════════════════════════════════════════
@@ -3354,6 +3909,7 @@ end)
 end
 
 initialize()
+AutoJoin.startLoop()
 _G.Rayfield:SetVisibility(false)
 
 _G.Rayfield:TopNotify({
