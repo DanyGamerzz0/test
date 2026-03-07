@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.24"
+local script_version = "V0.25"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -445,7 +445,7 @@ do
         _itemCache = {}
         local ok, err = pcall(function()
             for id, item in pairs(_DungeonServiceCore.ITEMS) do
-                --if item.Relic == true then
+                if item.Curse == false then
                     table.insert(_itemCache, {
                         id          = id,
                         name        = item.name        or id,
@@ -453,7 +453,7 @@ do
                         tier        = item.tier        or "normal",
                         cost        = item.cost        or 0,
                     })
-                --end
+                end
             end
         end)
         if not ok then
