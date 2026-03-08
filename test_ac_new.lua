@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.22"
+local script_version = "V0.23"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -101,6 +101,7 @@ local State = {
     BossRushLobbyId          = "BossRush1",
     AutoJoinSamuraiHunt      = false,
     AutoJoinInfinitycastle   = false,
+    AutoJoinExpedition       = false,
 }
 
 local Webhook = {
@@ -344,6 +345,39 @@ do
         Dungeon.stopFlag  = false
         task.spawn(function()
             setStatus("Starting — " .. (gamemode == "_JojosMode1" and "Roguelike" or "Normal"))
+
+            -- Check if all rooms are done, reset if so then continue
+            local hasAnyRoom = false
+            for _, entry in ipairs(PATH_ORDER) do
+                for node = 1, entry.maxNodes do
+                    local accessible, _, alreadyDone = _DungeonServiceCore.HasRoomUnlocked(
+                        _GUIService.session, gamemode, entry.path, node
+                    )
+                    if accessible and not alreadyDone then
+                        hasAnyRoom = true
+                        break
+                    end
+                end
+                if hasAnyRoom then break end
+            end
+
+            if not hasAnyRoom then
+                setStatus("All rooms completed — resetting expedition...")
+                local ok, err = pcall(function()
+                    Services.ReplicatedStorage
+                        :WaitForChild("endpoints")
+                        :WaitForChild("client_to_server")
+                        :WaitForChild("request_reset_dungeon")
+                        :InvokeServer(gamemode)
+                end)
+                if ok then
+                    setStatus("Reset successful, waiting for server...")
+                    task.wait(2)
+                else
+                    warn("[AutoDungeon] Reset failed: " .. tostring(err))
+                end
+            end
+
             local joined  = 0
             local skipped = 0
             for _, entry in PATH_ORDER do
@@ -855,6 +889,12 @@ function AutoJoin.checkAndExecuteHighestPriority()
     if not Util.isInLobby()        then return end
     if GameTracking.gameInProgress  then return end
     if not AutoJoin.canPerformAction() then return end
+
+    -- Auto Next Expedition re-trigger
+    if State.AutoJoinExpedition and not Dungeon.isRunning then
+        Dungeon.run()
+        return
+    end
 
     -- 1. Daily Challenge
     if State.AutoJoinDailyChallenge then
@@ -2747,6 +2787,7 @@ local function initialize()
         CurrentValue = false,
         Flag         = "AutoDungeonToggle",
         Callback     = function(value)
+            State.AutoJoinExpedition = value
             if value then
                 if Dungeon.isRunning then return end
                 Util.notify("Auto Dungeon", "Starting expedition...")
@@ -3799,6 +3840,14 @@ end)
                                 if voted then return end
                             else
                                 Util.notify("Auto Next Expedition", "All dungeon rooms completed!")
+                                pcall(function()
+                                Services.ReplicatedStorage
+                                    :WaitForChild("endpoints")
+                                    :WaitForChild("client_to_server")
+                                    :WaitForChild("teleport_back_to_lobby")
+                                    :InvokeServer()
+                            end)
+                            return
                             end
                         end
 
