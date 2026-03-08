@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.23"
+local script_version = "V0.67"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -80,6 +80,11 @@ local State = {
     AutoRetryDelay           = 2,
 
     AutoNextExpedition = false,
+    AutoResetExpeditionOnCompletion = false,
+    AutoResetAfterXExpeditions = 0,
+    ExpeditionCompletionCount = 0,
+    AutoResetAfterXRooms = 0,
+    RoomsJoinedThisRun   = 0,
 
     --Merchant
     AutoBuyRelics            = false,
@@ -346,23 +351,27 @@ do
         task.spawn(function()
             setStatus("Starting — " .. (gamemode == "_JojosMode1" and "Roguelike" or "Normal"))
 
-            -- Check if all rooms are done, reset if so then continue
+            local forceReset = _G.LixHub_ResetDungeon == true
+            _G.LixHub_ResetDungeon = nil
+
             local hasAnyRoom = false
-            for _, entry in ipairs(PATH_ORDER) do
-                for node = 1, entry.maxNodes do
-                    local accessible, _, alreadyDone = _DungeonServiceCore.HasRoomUnlocked(
-                        _GUIService.session, gamemode, entry.path, node
-                    )
-                    if accessible and not alreadyDone then
-                        hasAnyRoom = true
-                        break
+            if not forceReset then
+                for _, entry in ipairs(PATH_ORDER) do
+                    for node = 1, entry.maxNodes do
+                        local accessible, _, alreadyDone = _DungeonServiceCore.HasRoomUnlocked(
+                            _GUIService.session, gamemode, entry.path, node
+                        )
+                        if accessible and not alreadyDone then
+                            hasAnyRoom = true
+                            break
+                        end
                     end
+                    if hasAnyRoom then break end
                 end
-                if hasAnyRoom then break end
             end
 
-            if not hasAnyRoom then
-                setStatus("All rooms completed — resetting expedition...")
+            if forceReset or not hasAnyRoom then
+                setStatus("Resetting expedition...")
                 local ok, err = pcall(function()
                     Services.ReplicatedStorage
                         :WaitForChild("endpoints")
@@ -2808,6 +2817,29 @@ local function initialize()
         end,
     })
 
+    DungeonTab:CreateToggle({
+        Name         = "Auto Reset Expedition on Completion",
+        CurrentValue = false,
+        Flag         = "AutoResetExpeditionOnCompletion",
+        Info         = "When all rooms are done, teleports to lobby and resets the expedition. Requires auto execute to re-run script.",
+        Callback     = function(Value)
+            State.AutoResetExpeditionOnCompletion = Value
+        end,
+    })
+
+    DungeonTab:CreateSlider({
+        Name         = "Reset After X Rooms",
+        Range        = { 0, 50 },
+        Increment    = 1,
+        Suffix       = " rooms",
+        CurrentValue = 0,
+        Flag         = "AutoResetAfterXRooms",
+        Info         = "Teleport to lobby and reset after completing X rooms this run. (0 = disabled). Requires auto execute to re-run script.",
+        Callback     = function(Value)
+            State.AutoResetAfterXRooms = Value
+        end,
+    })
+
     -- ══════════════════════════════════════════════
     -- TAB: MACRO
     -- ══════════════════════════════════════════════
@@ -3821,6 +3853,51 @@ end)
                     end
 
                     local function runVotes()
+                        -- Independent reset block (does NOT require AutoNextExpedition)
+                        if State.AutoResetExpeditionOnCompletion or State.AutoResetAfterXRooms > 0 then
+                            local nextRoom = Dungeon.getNextUnfinishedRoom()
+
+                            if nextRoom then
+                                -- X rooms limit check
+                                if State.AutoResetAfterXRooms > 0 then
+                                    State.RoomsJoinedThisRun += 1
+                                    if State.RoomsJoinedThisRun >= State.AutoResetAfterXRooms then
+                                        State.RoomsJoinedThisRun = 0
+                                        Util.notify("Auto Expedition", string.format("Reached %d rooms — resetting...", State.AutoResetAfterXRooms))
+                                        if queue_on_teleport then
+                                            queue_on_teleport('_G.LixHub_ResetDungeon = true')
+                                        end
+                                        pcall(function()
+                                            Services.ReplicatedStorage
+                                                :WaitForChild("endpoints")
+                                                :WaitForChild("client_to_server")
+                                                :WaitForChild("teleport_back_to_lobby")
+                                                :InvokeServer()
+                                        end)
+                                        return
+                                    end
+                                end
+                                -- limit not hit, fall through
+                            else
+                                -- No rooms left
+                                if State.AutoResetExpeditionOnCompletion then
+                                    Util.notify("Auto Expedition", "All rooms done — resetting...")
+                                    if queue_on_teleport then
+                                        queue_on_teleport('_G.LixHub_ResetDungeon = true')
+                                    end
+                                    pcall(function()
+                                        Services.ReplicatedStorage
+                                            :WaitForChild("endpoints")
+                                            :WaitForChild("client_to_server")
+                                            :WaitForChild("teleport_back_to_lobby")
+                                            :InvokeServer()
+                                    end)
+                                    return
+                                end
+                            end
+                        end
+
+                        -- AutoNextExpedition: just vote next room, no reset logic
                         if State.AutoNextExpedition then
                             local nextRoom = Dungeon.getNextUnfinishedRoom()
                             if nextRoom then
@@ -3840,14 +3917,7 @@ end)
                                 if voted then return end
                             else
                                 Util.notify("Auto Next Expedition", "All dungeon rooms completed!")
-                                pcall(function()
-                                Services.ReplicatedStorage
-                                    :WaitForChild("endpoints")
-                                    :WaitForChild("client_to_server")
-                                    :WaitForChild("teleport_back_to_lobby")
-                                    :InvokeServer()
-                            end)
-                            return
+                                return
                             end
                         end
 
