@@ -160,6 +160,16 @@ end
 
 function Webhook.getItemDisplayName(id)
     if Webhook.itemNameCache[id] then return Webhook.itemNameCache[id] end
+
+    local overrides = {
+        ["Resourcejojocurrency"] = "Bizarre Tokens",
+    }
+
+    if overrides[id] then
+        Webhook.itemNameCache[id] = overrides[id]
+        return overrides[id]
+    end
+
     pcall(function()
         local itemsPath = Services.ReplicatedStorage.Framework.Data.Items
         for _, ms in pairs(itemsPath:GetChildren()) do
