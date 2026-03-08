@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.69"
+local script_version = "V0.7"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -196,6 +196,21 @@ function Webhook.onUnitAdded(displayName)
     table.insert(Webhook.newUnitsThisGame, displayName)
 end
 
+local function getItemTotalsFromInventory()
+    local itemTotals = {}
+    pcall(function()
+        local Loader = require(Services.ReplicatedStorage.Framework.Loader)
+        local GUIService = Loader.load_client_service(script, "GUIService")
+        if not GUIService or not GUIService.session then return end
+        local normalItems = GUIService.session.inventory.inventory_profile_data.normal_items
+        if not normalItems then return end
+        for itemId, quantity in pairs(normalItems) do
+            itemTotals[itemId] = quantity
+        end
+    end)
+    return itemTotals
+end
+
 function Webhook.send()
     if not Webhook.url or Webhook.url == "" then return end
     local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
@@ -214,8 +229,17 @@ function Webhook.send()
     for _, unitName in ipairs(Webhook.newUnitsThisGame) do
         rewardsText = rewardsText .. "+1 " .. unitName .. "\n"
     end
+
+    local itemBalances = getItemTotalsFromInventory()
+
     for itemId, qty in pairs(Webhook.sessionItems) do
-        rewardsText = rewardsText .. "+" .. qty .. " " .. Webhook.getItemDisplayName(itemId) .. "\n"
+        local displayName = Webhook.getItemDisplayName(itemId)
+        local total = itemBalances[itemId]
+        if total then
+            rewardsText = rewardsText .. string.format("+%d %s [%d]\n", qty, displayName, total)
+        else
+            rewardsText = rewardsText .. string.format("+%d %s\n", qty, displayName)
+        end
     end
     for statName, change in pairs(statChanges) do
         local total = Webhook.endStats[statName] or 0
