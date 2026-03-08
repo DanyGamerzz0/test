@@ -1,6 +1,6 @@
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.7"
+local script_version = "V0.2"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -2845,7 +2845,8 @@ local function initialize()
         Name         = "Auto Reset Expedition on Completion",
         CurrentValue = false,
         Flag         = "AutoResetExpeditionOnCompletion",
-        Info         = "When all rooms are done, teleports to lobby and resets the expedition. Requires auto execute to re-run script.",
+        Info         = "When all rooms are done, teleports to lobby and resets the expedition.",
+        TextScaled    = true,
         Callback     = function(Value)
             State.AutoResetExpeditionOnCompletion = Value
         end,
@@ -2858,7 +2859,8 @@ local function initialize()
         Suffix       = " rooms",
         CurrentValue = 0,
         Flag         = "AutoResetAfterXRooms",
-        Info         = "Teleport to lobby and reset after completing X rooms this run. (0 = disabled). Requires auto execute to re-run script.",
+        Info         = "Teleport to lobby and reset after completing X rooms this run. (0 = disabled).",
+        TextScaled    = true,
         Callback     = function(Value)
             State.AutoResetAfterXRooms = Value
         end,
