@@ -19,7 +19,6 @@ do
     Remotes.RaidMerchantCSW = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RaidCSW_Shop")
     Remotes.RiftMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RiftStormExchange")
     Remotes.SwarmMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("FallShopExchange")
-    Remotes.BossRushMerchant = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("BossRushExchange")
     Remotes.PlayEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event")
     Remotes.SettingEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Settings"):WaitForChild("Setting_Event")
     Remotes.RetryEvent = RS:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VoteRetry")
@@ -54,7 +53,6 @@ local Config = {
 }
 
 local State = {
-    AutoPurchaseRiftStorm = false,
     enableBlackScreen = false,
     enableAutoExecute = false,
     autoReconnectEnabled = false,
@@ -65,11 +63,8 @@ local State = {
     AutoOpenBorosEnabled = false,
     AutoSwarmEventEnabled = false,
     SendFinishedFarmingGearWebhook = false,
-    SendFinishedCurseRerollingWebhook = false,
     SendFinishedTraitRerollingWebhook = false,
     autoAdventureModeEnabled = false,
-    autoEndureEnabled = false,
-    autoEndureSlider = 30,
     currentWave = 0,
     lastProcessedWave = 0,
     isMonitoring = false,
@@ -80,8 +75,6 @@ local State = {
     playerInventory = {},
     totalMaterialsNeeded = {},
     stageAnalysis = {},
-    curseMinimums = {},
-    selectedCurseForRequirement = "Ability Damage",
     AutoSummonBannerSelected = nil,
     AutoRerollEnabled = false,
     selectedTraits = {},
@@ -95,7 +88,6 @@ local State = {
     portalUsed = false,
     isAutoJoining = false,
     hasNewRewards = false,
-    pendingBossTicketReturn = false,
     gameRunning = false,
     hasGameEnded = false,
     retryAttempted = false,
@@ -106,18 +98,11 @@ local State = {
     startingInventory = {},
     unitNameSet = {},
     selectedPortals = {},
-    selectedCurses = {},
     selectedRaidStages = {},
     AutoSellUnitChoice = {},
     AutoDungeonDifficultySelector = "",
     DelayAutoUltimate = 0,
-    autoFrightFestEnabled = false,
-    autoBossEventBugEnabled = false,
-    
     autoBossEventEnabled = false,
-    autoInfiniteEnabled = false,
-    autoSummerEventEnabled = false,
-    SelectedBossEventDifficulty = false,
     autoJoinRaid = false,
     autoJoinEnabled = false,
     autoStartEnabled = false,
@@ -131,15 +116,10 @@ local State = {
     AutoClaimQuests = false,
     AutoClaimMilestones = false,
     AutoPurchaseMerchant = false,
-    AutoPurchaseBossRush = false,
-    AutoPurchaseRaidCSW = false,
     AutoPurchaseSwarmEvent = false,
-    AutoPurchaseRaid = false,
     challengeAutoReturnEnabled = false,
     autoBossAttackEnabled = false,
-    autoReturnBossTicketResetEnabled = false,
     autoInfinityCastleEnabled = false,
-    autoRiftEnabled = false,
     autoUpgradeEnabled = false,
     autoAfkTeleportEnabled = false,
     AutoUltimateEnabled = false,
@@ -150,31 +130,18 @@ local State = {
     SendStageCompletedWebhook = false,
     AntiAfkEnabled = false,
     AntiAfkKickEnabled = false,
-    AutoCurseEnabled = false,
-    enableDeleteMap = false,
-    autoBossRushEnabled = false,
     autoDungeonEnabled = false,
-    autoPlayBossRushEnabled = false,
     AutoSelectSpeed = false,
     AutoReDeployEnabled = false,
     SelectedSpeedValue = {},
-    bossRushTask = nil,
-    currentBossPath = nil,
-    BossRushPathSwitcher = 1,
-    lastBossRushScan = 0,
-    currentBossRushPath = nil,
-    SelectedRaritiesToSell = {},
     currentSlot = 1,
     slotLastFailTime = {},
     slotExists = {},
-    
     matchResult = "Unknown",
     storedChallengeSerial = nil,
     selectedWorld = nil,
     selectedChapter = nil,
     selectedDifficulty = nil,
-    lastBossTicketCount = 0,
-    lastBossTicketResetTime = 0,
     infinityCastleTask = nil,
     currentPath = nil,
     upgradeMethod = "Left to right until max",
@@ -182,32 +149,16 @@ local State = {
     ultimateTask = nil,
     currentUpgradeSlot = 1,
     currentRetryAttempt = 0,
-
-    bossRushAutoDeployEnabled = false,
-    bossRushDeployConfig = {
-    -- Example configuration: [slotNumber] = {paths = {1, 2, 3, 4}, enabled = true}
-    [1] = {paths = {1, 4}, enabled = true},
-    [2] = {paths = {1, 2}, enabled = true},
-    [3] = {paths = {2, 3}, enabled = true},
-    [4] = {paths = {3, 4}, enabled = true},
-    [5] = {paths = {1, 2, 3, 4}, enabled = false},
-    [6] = {paths = {1, 2, 3, 4}, enabled = false}},
-    bossRushCurrentSlot = 1,
-    bossRushLastDeploymentTimes = {},
-    autoExpeditionEnabled = false,
-    autoHolyGrailEnabled = false,
-    autoGrailDungeonEnabled = false,
-    AutoGrailDungeonDifficultySelector = nil,
-    autoAscensionEnabled = false,
+    selectedChallengeWorlds = {},
+    autoJoinInfinityCastleEnabled = false,
+    SelectedRaritiesToSell = {},
+    enableDeleteMap = false,
+    autoPlayEnabled = false,
 }
 
 local Data = {
     selectedRawStages = {},
     MerchantPurchaseTable = {},
-    BossRushPurchaseTable = {},
-    RaidPurchaseTable = {},
-    RaidPurchaseTableCSW = {},
-    RiftStormPurchaseTable = {},
     SwarmEventPurchaseTable = {},
     rangerStages = {},
     wantedRewards = {},
@@ -219,7 +170,6 @@ local Data = {
     raidData = {},
     worldDisplayNameMap = {},
     selectedChallengeWorlds = {},
-   -- CurrentCodes = {"SorryRaids","RAIDS","BizzareUpdate2!","Sorry4Delays","BOSSTAKEOVER","Sorry4Quest","SorryDelay!!!","SummerEvent!","2xWeekEnd!","Sorry4EvoUnits","Sorry4AutoTraitRoll","!TYBW","!MattLovesARX2","!RaitoLovesARX","!BrandonTheBest","!FixBossRushShop","SmallFixs"},
 }
 
 local autoSummonActive = false
@@ -234,36 +184,30 @@ local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/Dany
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Anime Rangers X",
-   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   Icon = 0,
    LoadingTitle = "Loading for Anime Rangers X",
    LoadingSubtitle = script_version,
-   ShowText = "LixHub", -- for mobile users to unhide rayfield, change if you'd like
+   ShowText = "LixHub",
    Theme = {
     TextColor = Color3.fromRGB(240, 240, 240),
-
     Background = Color3.fromRGB(25, 25, 25),
     Topbar = Color3.fromRGB(34, 34, 34),
     Shadow = Color3.fromRGB(20, 20, 20),
-
     NotificationBackground = Color3.fromRGB(20, 20, 20),
     NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
-
     TabBackground = Color3.fromRGB(80, 80, 80),
     TabStroke = Color3.fromRGB(85, 85, 85),
     TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
     TabTextColor = Color3.fromRGB(240, 240, 240),
     SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
-
     ElementBackground = Color3.fromRGB(35, 35, 35),
     ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
     SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
     ElementStroke = Color3.fromRGB(50, 50, 50),
     SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
-            
     SliderBackground = Color3.fromRGB(50, 138, 220),
     SliderProgress = Color3.fromRGB(50, 138, 220),
     SliderStroke = Color3.fromRGB(58, 163, 255),
-
     ToggleBackground = Color3.fromRGB(30, 30, 30),
     ToggleEnabled = Color3.fromRGB(0, 146, 214),
     ToggleDisabled = Color3.fromRGB(100, 100, 100),
@@ -271,45 +215,38 @@ local Window = Rayfield:CreateWindow({
     ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
     ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
     ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
-
     DropdownSelected = Color3.fromRGB(102, 102, 102),
     DropdownUnselected = Color3.fromRGB(30, 30, 30),
-
     InputBackground = Color3.fromRGB(30, 30, 30),
     InputStroke = Color3.fromRGB(65, 65, 65),
     PlaceholderColor = Color3.fromRGB(178, 178, 178)
-}, -- Check https://docs.sirius.menu/rayfield/configuration/themes
-
-   ToggleUIKeybind = "K", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
-
+},
+   ToggleUIKeybind = "K",
    DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
-
+   DisableBuildWarnings = false,
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = "LixHub", -- Create a custom folder for your hub/game
+      FolderName = "LixHub",
       FileName = "Lixhub_ARX"
    },
-
    Discord = {
-      Enabled = true, -- Prompt the user to join your Discord server if their executor supports it
-      Invite = "cYKnXE2Nf8", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
-      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+      Enabled = true,
+      Invite = "cYKnXE2Nf8",
+      RememberJoins = true
    },
-
-   KeySystem = true, -- Set this to true to use our key system
+   KeySystem = true,
    KeySettings = {
       Title = "LixHub - ARX - Free",
       Subtitle = "LixHub - Key System",
-      Note = "Free key available in the discord https://discord.gg/cYKnXE2Nf8", -- Use this to tell the user how to get a key
-      FileName = "LixHub_Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
-      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
-      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
-      Key = {"0xLIXHUB"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+      Note = "Free key available in the discord https://discord.gg/cYKnXE2Nf8",
+      FileName = "LixHub_Key",
+      SaveKey = true,
+      GrabKeyFromSite = false,
+      Key = {"0xLIXHUB"}
    }
 })
 
---//TABS\\--
+--// TABS //--
 
 local LobbyTab = Window:CreateTab("Lobby", "tv")
 local ShopTab = Window:CreateTab("Shop", "shopping-cart")
@@ -318,22 +255,16 @@ local GameTab = Window:CreateTab("Game", "gamepad-2")
 local AutoPlayTab = Window:CreateTab("AutoPlay", "joystick")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
---//SECTIONS\\--
-
---//DIVIDERS\\--
-
---//LABELS\\--
-
---//FUNCTIONS\\--
+--// FUNCTIONS //--
 
 local function notify(title, content, duration)
-        Rayfield:Notify({
-            Title = title or "Notice",
-            Content = content or "No message.",
-            Duration = duration or 5,
-            Image = "info",
-        })
-    end
+    Rayfield:Notify({
+        Title = title or "Notice",
+        Content = content or "No message.",
+        Duration = duration or 5,
+        Image = "info",
+    })
+end
 
 local function isInLobby()
     return workspace:FindFirstChild("Lobby") ~= nil
@@ -342,20 +273,19 @@ end
 local function enableDeleteMap()
     if isInLobby() then return end
     if State.enableDeleteMap then
-
-    if Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map") then
-        Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map"):Destroy()
-         Services.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = true
-    end    
+        if Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map") then
+            Services.Workspace:FindFirstChild("Building"):FindFirstChild("Map"):Destroy()
+            Services.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = true
+        end
     end
 end
 
 local function enableBlackScreen()
     local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
-    
+
     if State.enableBlackScreen then
         if existingGui then return end
-        
+
         local screenGui = Instance.new("ScreenGui")
         screenGui.Name = "BlackScreenGui"
         screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
@@ -371,36 +301,36 @@ local function enableBlackScreen()
         frame.ZIndex = 999999
 
         local toggleButtonFrame = Instance.new("Frame")
-        toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
+        toggleButtonFrame.Size = UDim2.new(0, 170, 0, 44)
         toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
         toggleButtonFrame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
         toggleButtonFrame.BackgroundTransparency = 0.5
         toggleButtonFrame.Parent = screenGui
         toggleButtonFrame.ZIndex = 1000000
 
-        local toggleButtonFrameUICorner =  Instance.new("UICorner")
-        toggleButtonFrameUICorner.CornerRadius = UDim.new(1,0)
+        local toggleButtonFrameUICorner = Instance.new("UICorner")
+        toggleButtonFrameUICorner.CornerRadius = UDim.new(1, 0)
         toggleButtonFrameUICorner.Parent = toggleButtonFrame
 
         local toggleButtonFrameTitle = Instance.new("TextLabel")
         toggleButtonFrameTitle.ZIndex = math.huge
-        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5, 0.5)
         toggleButtonFrameTitle.BackgroundTransparency = 1
-        toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
-        toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
+        toggleButtonFrameTitle.Position = UDim2.new(0.5, 0, 0.5, 0)
+        toggleButtonFrameTitle.Size = UDim2.new(1, 0, 1, 0)
         toggleButtonFrameTitle.Text = "Toggle Screen"
         toggleButtonFrameTitle.TextSize = 15
-        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
+        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
         toggleButtonFrameTitle.Parent = toggleButtonFrame
 
         local toggleButtonFrameTitleStroke = Instance.new("UIStroke")
         toggleButtonFrameTitleStroke.Parent = toggleButtonFrameTitle
 
         local toggleButtonFrameButton = Instance.new("TextButton")
-        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
+        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5, 0.5)
         toggleButtonFrameButton.BackgroundTransparency = 1
-        toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
-        toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
+        toggleButtonFrameButton.Size = UDim2.new(1, 0, 1, 0)
+        toggleButtonFrameButton.Position = UDim2.new(0.5, 0, 0.5, 0)
         toggleButtonFrameButton.Text = ""
         toggleButtonFrameButton.ZIndex = math.huge
         toggleButtonFrameButton.Parent = toggleButtonFrame
@@ -436,28 +366,28 @@ local function enableLowPerformanceMode()
                 end
             end
         end
-        
+
         for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
             if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
                 gui.Enabled = false
             end
         end
-        
+
         for _, obj in pairs(Services.Lighting:GetChildren()) do
             if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or
             obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
                 obj.Enabled = false
             end
         end
-Remotes.SettingEvent:FireServer(unpack({"Abilities VFX", false}))
-Remotes.SettingEvent:FireServer(unpack({"Hide Cosmetic", true}))
-Remotes.SettingEvent:FireServer(unpack({"Low Graphic Quality", true}))
-Remotes.SettingEvent:FireServer(unpack({"HeadBar", false}))
-Remotes.SettingEvent:FireServer(unpack({"Display Players Units", false}))
-Remotes.SettingEvent:FireServer(unpack({"DisibleGachaChat", true}))
-Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
-Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = false
-Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
+        Remotes.SettingEvent:FireServer(unpack({"Abilities VFX", false}))
+        Remotes.SettingEvent:FireServer(unpack({"Hide Cosmetic", true}))
+        Remotes.SettingEvent:FireServer(unpack({"Low Graphic Quality", true}))
+        Remotes.SettingEvent:FireServer(unpack({"HeadBar", false}))
+        Remotes.SettingEvent:FireServer(unpack({"Display Players Units", false}))
+        Remotes.SettingEvent:FireServer(unpack({"DisibleGachaChat", true}))
+        Remotes.SettingEvent:FireServer(unpack({"DisibleDamageText", true}))
+        Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = false
+        Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
     else
         Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.BOTTOM.Visible = true
         Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = true
@@ -475,16 +405,16 @@ Services.Players.LocalPlayer.PlayerGui.Notification.Enabled = false
         end
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
             if obj:IsA("Decal") or obj:IsA("Texture") then
-                    obj.Transparency = 0
+                obj.Transparency = 0
             end
         end
-        
+
         for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
             if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
                 gui.Enabled = true
             end
         end
-        
+
         for _, obj in pairs(Services.Lighting:GetChildren()) do
             if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or
             obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
@@ -501,11 +431,11 @@ local function GetAllLevelModules()
 
         for _, moduleScript in pairs(levelsFolder:GetChildren()) do
             if moduleScript:IsA("ModuleScript") then
-                local success, moduleData = pcall(function()
+                local ok, moduleData = pcall(function()
                     return require(moduleScript)
                 end)
 
-                if success and moduleData then
+                if ok and moduleData then
                     levelModules[moduleScript.Name] = moduleData
                 else
                     warn("Failed to require:", moduleScript.Name)
@@ -518,7 +448,6 @@ local function GetAllLevelModules()
 
     return success and modules or {}
 end
-
 
 local function GetAllGearNames()
     local gearNames = {}
@@ -533,11 +462,11 @@ local function GetPlayerInventory()
     local success, inventory = pcall(function()
         local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
         local items = playerData:FindFirstChild("Items")
-        
+
         if not items then
             return {}
         end
-        
+
         local currentInventory = {}
         for _, item in pairs(items:GetChildren()) do
             if item:IsA("Folder") then
@@ -551,7 +480,7 @@ end
 
 local function CalculateTotalMaterialsNeeded()
     local totalNeeded = {}
-    
+
     for gearName, amount in pairs(State.craftAmounts) do
         if amount > 0 and GearData[gearName] then
             local requirements = GearData[gearName].Requirement
@@ -560,7 +489,7 @@ local function CalculateTotalMaterialsNeeded()
             end
         end
     end
-    
+
     State.totalMaterialsNeeded = totalNeeded
     return totalNeeded
 end
@@ -610,43 +539,39 @@ local function AnalyzeRequiredStages()
         notify("Stage Analysis", "No gears selected!")
         return
     end
-    
+
     print("=== STAGE ANALYSIS FOR SELECTED GEARS ===")
-    
-    -- Calculate total materials needed
+
     local totalNeeded = CalculateTotalMaterialsNeeded()
     local inventory = GetPlayerInventory()
-    
-    -- Track all stages we need to play
+
     local stagesToPlay = {}
     local materialSources = {}
-    
+
     print("\nMaterials needed:")
     for materialName, needed in pairs(totalNeeded) do
         local current = inventory[materialName] or 0
         local deficit = math.max(0, needed - current)
-        
-        print(string.format("  %s: %d needed, %d current, %d deficit", 
+
+        print(string.format("  %s: %d needed, %d current, %d deficit",
             materialName, needed, current, deficit))
-        
+
         if deficit > 0 then
-            -- Find all sources for this material
             local sources = FindMaterialSource(materialName)
-            
+
             if #sources > 0 then
                 materialSources[materialName] = sources
                 print(string.format("    Sources found for %s:", materialName))
-                
+
                 for i, source in ipairs(sources) do
                     local avgDrop = (source.minDrop + source.maxDrop) / 2
                     local dropChance = source.dropRate / 100
                     local expectedPerRun = avgDrop * dropChance
                     local estimatedRuns = math.ceil(deficit / expectedPerRun)
-                    
-                    print(string.format("      %d. %s (%.1f%% drop, avg %.1f per drop, ~%d runs needed)", 
+
+                    print(string.format("      %d. %s (%.1f%% drop, avg %.1f per drop, ~%d runs needed)",
                         i, source.fullPath, source.dropRate, avgDrop, estimatedRuns))
-                    
-                    -- Add to stages we need to play
+
                     local stageKey = source.fullPath
                     if not stagesToPlay[stageKey] then
                         stagesToPlay[stageKey] = {
@@ -657,28 +582,27 @@ local function AnalyzeRequiredStages()
                             totalEstimatedRuns = 0
                         }
                     end
-                    
+
                     stagesToPlay[stageKey].materials[materialName] = {
                         needed = deficit,
                         estimatedRuns = estimatedRuns,
                         dropRate = source.dropRate,
                         avgDrop = avgDrop
                     }
-                    
-                    -- Use the highest estimated runs for this stage
+
                     stagesToPlay[stageKey].totalEstimatedRuns = math.max(
-                        stagesToPlay[stageKey].totalEstimatedRuns, 
+                        stagesToPlay[stageKey].totalEstimatedRuns,
                         estimatedRuns
                     )
                 end
             else
-                print(string.format("    ⚠️  No sources found for %s!", materialName))
+                print(string.format("    No sources found for %s!", materialName))
             end
         else
-            print(string.format("    ✅ %s - Already have enough!", materialName))
+            print(string.format("    Have enough %s!", materialName))
         end
     end
-    
+
     print("\n=== STAGES TO PLAY ===")
     if next(stagesToPlay) == nil then
         print("No stages need to be played! You have all required materials.")
@@ -690,26 +614,23 @@ local function AnalyzeRequiredStages()
                 info = stageInfo
             })
         end
-        
-        -- Sort by estimated runs (most efficient first)
+
         table.sort(stageList, function(a, b)
             return a.info.totalEstimatedRuns < b.info.totalEstimatedRuns
         end)
-        
+
         for i, stage in ipairs(stageList) do
-            print(string.format("%d. %s (~%d runs)", 
+            print(string.format("%d. %s (~%d runs)",
                 i, stage.name, stage.info.totalEstimatedRuns))
-            
+
             for materialName, matInfo in pairs(stage.info.materials) do
-                print(string.format("    - %s: need %d (%.1f%% drop, ~%d runs)", 
+                print(string.format("    - %s: need %d (%.1f%% drop, ~%d runs)",
                     materialName, matInfo.needed, matInfo.dropRate, matInfo.estimatedRuns))
             end
         end
-        
-        -- Summary
+
         print(string.format("\nSUMMARY: Need to play %d different stages", #stageList))
-        
-        -- Show gear breakdown
+
         print("\nGEAR BREAKDOWN:")
         for _, gearName in ipairs(State.selectedGears) do
             local amount = State.craftAmounts[gearName] or 1
@@ -718,78 +639,59 @@ local function AnalyzeRequiredStages()
                 local requirements = GearData[gearName].Requirement
                 for materialName, requiredPerCraft in pairs(requirements) do
                     local totalRequired = requiredPerCraft * amount
-                    print(string.format("    - %s: %d (%d per craft)", 
+                    print(string.format("    - %s: %d (%d per craft)",
                         materialName, totalRequired, requiredPerCraft))
                 end
             end
         end
     end
-    
+
     print("=== END STAGE ANALYSIS ===\n")
-    
-    -- Store the analysis for later use
+
     State.stageAnalysis = {
         stagesToPlay = stagesToPlay,
         materialSources = materialSources,
         totalMaterialsNeeded = totalNeeded
     }
-    
-    -- Notify user
+
     local stageCount = 0
     for _ in pairs(stagesToPlay) do
         stageCount = stageCount + 1
     end
-    
+
     notify("Stage Analysis", string.format("Analysis complete! Need to play %d stages. Check console for details.", stageCount))
 end
 
-local function HasEnoughMaterials(gearName, amount)
-    amount = amount or 1
-    local requirements = GearData[gearName].Requirement
-    local inventory = GetPlayerInventory()
-    
-    for materialName, requiredAmount in pairs(requirements) do
-        local needed = requiredAmount * amount
-        local current = inventory[materialName] or 0
-        if current < needed then
-            return false, materialName, needed - current
-        end
-    end
-    
-    return true
-end
-
 local function fetchStoryData()
-    Data.storyData = {}   
+    Data.storyData = {}
 
-        for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("World"):GetChildren()) do
-            if moduleScript:IsA("ModuleScript") then
-                local success, data = pcall(function()
-                    return require(moduleScript)
-                end)
+    for _, moduleScript in ipairs(Services.ReplicatedStorage.Shared.Info.GameWorld:WaitForChild("World"):GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local success, data = pcall(function()
+                return require(moduleScript)
+            end)
 
-                if success and typeof(data) == "table" then
-                    for key, storyTable in pairs(data) do
-                        if typeof(storyTable) == "table" and storyTable.StoryAble == true then
-                            if storyTable.Name and storyTable.Ani_Names then
-                                table.insert(Data.storyData, {
-                                    SeriesName = storyTable.Name,
-                                    InternalName = storyTable.Ani_Names,
-                                    ModuleName = moduleScript.Name,
-                                    Key = key
-                                })
-
-                            end
+            if success and typeof(data) == "table" then
+                for key, storyTable in pairs(data) do
+                    if typeof(storyTable) == "table" and storyTable.StoryAble == true then
+                        if storyTable.Name and storyTable.Ani_Names then
+                            table.insert(Data.storyData, {
+                                SeriesName = storyTable.Name,
+                                InternalName = storyTable.Ani_Names,
+                                ModuleName = moduleScript.Name,
+                                Key = key
+                            })
                         end
                     end
-                else
-                    print("Error loading " .. moduleScript.Name)
                 end
+            else
+                print("Error loading " .. moduleScript.Name)
             end
         end
-        
-        return Data.storyData
     end
+
+    return Data.storyData
+end
 
 local function fetchRaidData()
     Data.raidData = {}
@@ -804,10 +706,8 @@ local function fetchRaidData()
                 for key, raidTable in pairs(data) do
                     if typeof(raidTable) == "table" and raidTable.IsRaid == true then
                         if raidTable.Name and raidTable.Levels then
-
-                            -- Build both display names and ID map
                             local displayStages = {}
-                            local internalMap = {} -- displayName -> real ID
+                            local internalMap = {}
 
                             for index, stage in ipairs(raidTable.Levels) do
                                 if stage.id then
@@ -819,8 +719,8 @@ local function fetchRaidData()
 
                             table.insert(Data.raidData, {
                                 SeriesName = raidTable.Name,
-                                DisplayStages = displayStages, -- For dropdown
-                                InternalStages = internalMap,  -- For ID lookup
+                                DisplayStages = displayStages,
+                                InternalStages = internalMap,
                                 ModuleName = moduleScript.Name,
                                 Key = key
                             })
@@ -836,7 +736,6 @@ local function fetchRaidData()
 end
 
 local function fetchRangerStageData(storyData)
-
     local worldPriority = {
         ["OnePiece"] = 1,
         ["Namek"] = 2,
@@ -934,8 +833,8 @@ local function snapshotInventory()
     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = true
     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = false
     task.wait(1)
-     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = false
-     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = true
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = false
+    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = true
     local unitInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Unit")
     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = true
     Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Main.Visible = false
@@ -980,15 +879,12 @@ end
 
 local function getTotalAmount(itemName)
     local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-    
-    -- Try Data folder first
+
     local dataItem = playerData.Data:FindFirstChild(itemName)
     if dataItem and dataItem.Value then
-        --print("comparing "..itemName.." and "..dataItem.Name)
         return dataItem.Value, "Data"
     end
-    
-    -- Try Items folder second
+
     local itemObj = playerData.Items:FindFirstChild(itemName)
     if itemObj then
         local amountValue = itemObj:FindFirstChild("Amount")
@@ -996,12 +892,11 @@ local function getTotalAmount(itemName)
             return amountValue.Value, "Items"
         end
     end
-    
+
     return nil, nil
 end
 
 local function patchRewardsFromFolder(existingGained, detectedRewards, detectedUnits, lines)
-
     local rewardFolder = Services.Players.LocalPlayer:FindFirstChild("RewardsShow")
     if not rewardFolder then return end
 
@@ -1013,7 +908,6 @@ local function patchRewardsFromFolder(existingGained, detectedRewards, detectedU
                 detectedRewards[rewardEntry.Name] = amount
                 table.insert(existingGained, { name = rewardEntry.Name, amount = amount, isUnit = false })
 
-                -- use getTotalAmount instead of hardcoded folders
                 local totalValue, _ = getTotalAmount(rewardEntry.Name)
                 local totalText = totalValue and string.format(" [%d total]", totalValue) or ""
 
@@ -1038,12 +932,11 @@ local function buildRewardsText()
 
         if reward.isUnit then
             table.insert(detectedUnits, itemName)
-            table.insert(lines, string.format("🌟 %s x%d", itemName, amount))
+            table.insert(lines, string.format("* %s x%d", itemName, amount))
         else
             local totalAmount, location = getTotalAmount(itemName)
             local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
-            
-            -- Add (s) suffix only for "Gem"
+
             local displayName = itemName == "Gem" and itemName.."(s)" or itemName
             table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
         end
@@ -1063,7 +956,7 @@ end
 local function getUnitNameFromSlot(slotNumber)
     local success, unitInstance = pcall(function()
         return Services.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
-end)
+    end)
 
     if success and unitInstance then
         return typeof(unitInstance) == "Instance" and unitInstance.Name or tostring(unitInstance)
@@ -1080,11 +973,11 @@ local function getOrderedUnits()
             local unitFolder = loadout.Frame.UnitFrame.Info.Folder.Value
             return unitFolder and unitFolder.Name or nil
         end)
-        
+
         if success and unitName then
-            table.insert(units, string.format("%d️⃣ - %s", i, unitName))
+            table.insert(units, string.format("%d - %s", i, unitName))
         else
-            table.insert(units, string.format("%d️⃣ Empty", i))
+            table.insert(units, string.format("%d Empty", i))
         end
     end
     return table.concat(units, "\n")
@@ -1099,8 +992,8 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
             username = "LixHub Bot",
             content = string.format("<@%s>", Config.DISCORD_USER_ID or "000000000000000000"),
             embeds = {{
-                title = "📢 LixHub Notification",
-                description = "🧪 Test webhook sent successfully",
+                title = "LixHub Notification",
+                description = "Test webhook sent successfully",
                 color = 0x5865F2,
                 footer = { text = "LixHub Auto Logger" },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -1109,40 +1002,38 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
     elseif messageType == "gear" then
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        
-        -- Build materials summary
+
         local materialsSummary = {}
         local inventory = GetPlayerInventory()
-        
+
         for materialName, needed in pairs(gearData.materialsNeeded) do
             local current = inventory[materialName] or 0
-            table.insert(materialsSummary, string.format("• %s: %d/%d ✅", materialName, current, needed))
+            table.insert(materialsSummary, string.format("- %s: %d/%d", materialName, current, needed))
         end
-        
-        -- Build gear list
+
         local gearList = {}
         for gearName, amount in pairs(gearData.craftAmounts) do
             if amount > 0 then
-                table.insert(gearList, string.format("• %s: %dx", gearName, amount))
+                table.insert(gearList, string.format("- %s: %dx", gearName, amount))
             end
         end
-        
-        local pingText = string.format("<@%s> 🎉 **GEAR MATERIALS READY!** 🎉", Config.DISCORD_USER_ID)
-        
+
+        local pingText = string.format("<@%s> GEAR MATERIALS READY!", Config.DISCORD_USER_ID)
+
         data = {
             username = "LixHub Bot",
             content = pingText,
             embeds = {{
-                title = "⚙️ GEAR FARM COMPLETE! ⚙️",
+                title = "Gear Farm Complete",
                 description = pingText .. "\nAll materials have been farmed successfully!",
-                color = 0x00FF00, -- Green color for success
+                color = 0x00FF00,
                 fields = {
-                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                    { name = "⚙️ Gears Ready to Craft", value = table.concat(gearList, "\n"), inline = false },
-                    { name = "📦 Materials Collected", value = table.concat(materialsSummary, "\n"), inline = false },
-                    { name = "📈 Script Version", value = script_version, inline = true },
+                    { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                    { name = "Gears Ready to Craft", value = table.concat(gearList, "\n"), inline = false },
+                    { name = "Materials Collected", value = table.concat(materialsSummary, "\n"), inline = false },
+                    { name = "Script Version", value = script_version, inline = true },
                 },
-                footer = { text = "discord.gg/cYKnXE2Nf8 • LixHub" },
+                footer = { text = "discord.gg/cYKnXE2Nf8 - LixHub" },
                 timestamp = timestamp
             }}
         }
@@ -1158,7 +1049,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
 
         if #detectedUnits > 1 then return end
 
-        local pingText = shouldPing and string.format("<@%s> 🎉 **SECRET UNIT OBTAINED!** 🎉", Config.DISCORD_USER_ID) or ""
+        local pingText = shouldPing and string.format("<@%s> SECRET UNIT OBTAINED!", Config.DISCORD_USER_ID) or ""
 
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -1169,16 +1060,16 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
             username = "LixHub Bot",
             content = shouldPing and pingText or nil,
             embeds = {{
-                title = shouldPing and "🌟 UNIT DROP! 🌟" or "🎯 Stage Finished!",
+                title = shouldPing and "Unit Drop!" or "Stage Finished",
                 description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
                 color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
                 fields = {
-                    { name = "👤 Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                    { name = isWin and "✅ Won in:" or "❌ Lost after:", value = clearTime, inline = true },
-                    { name = "🏆 Rewards", value = rewardsText, inline = false },
-                    { name = "📦 Units Loadout", value = orderedUnits, inline = false },
-                    shouldPing and { name = "🌟 Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
-                    { name = "📈 Script Version", value = script_version, inline = true },
+                    { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+                    { name = isWin and "Won in:" or "Lost after:", value = clearTime, inline = true },
+                    { name = "Rewards", value = rewardsText, inline = false },
+                    { name = "Units Loadout", value = orderedUnits, inline = false },
+                    shouldPing and { name = "Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
+                    { name = "Script Version", value = script_version, inline = true },
                 },
                 footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
@@ -1197,7 +1088,6 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
 
     if requestFunc then
         local success, result = pcall(function()
-           -- notify("Webhook", "Sending webhook...")
             return requestFunc({
                 Url = ValidWebhook,
                 Method = "POST",
@@ -1218,137 +1108,22 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
     end
 end
 
---if not isInLobby() then
-    --setupRewardCapture()
---end
-
---boss rush
-
-local function getBossRushWaypoints(pathNum)
-    local pathFolder = Services.Workspace.WayPoint:FindFirstChild("P" .. pathNum)
-    return pathFolder and pathFolder:GetChildren() or {}
-end
-
-local function scanBossRushPaths()
-    local pathData = {
-        [1] = {enemies = 0, units = 0},
-        [2] = {enemies = 0, units = 0},
-        [3] = {enemies = 0, units = 0},
-        [4] = {enemies = 0, units = 0}
-    }
-    
-    -- Scan enemies
-    for _, enemy in pairs(Services.Workspace.Agent.EnemyT:GetChildren()) do
-        if enemy:IsA("Part") then
-            local closestPath = nil
-            local closestDist = math.huge
-            
-            for pathNum = 1, 4 do
-                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
-                    local dist = (enemy.Position - waypoint.Position).Magnitude
-                    if dist < closestDist and dist < 25 then
-                        closestDist = dist
-                        closestPath = pathNum
-                    end
-                end
-            end
-            
-            if closestPath then
-                pathData[closestPath].enemies = pathData[closestPath].enemies + 1
-            end
-        end
-    end
-    
-    -- Scan player units
-    for _, unit in pairs(Services.Workspace.Agent.UnitT:GetChildren()) do
-        if unit:IsA("Part") then
-            local closestPath = nil
-            local closestDist = math.huge
-            
-            for pathNum = 1, 4 do
-                for _, waypoint in pairs(getBossRushWaypoints(pathNum)) do
-                    local dist = (unit.Position - waypoint.Position).Magnitude
-                    if dist < closestDist and dist < 25 then
-                        closestDist = dist
-                        closestPath = pathNum
-                    end
-                end
-            end
-            
-            if closestPath then
-                pathData[closestPath].units = pathData[closestPath].units + 1
-            end
-        end
-    end
-    
-    return pathData
-end
-
-local function getAvailablePaths()
-    local phase = Services.ReplicatedStorage:WaitForChild("Values"):WaitForChild("Game"):WaitForChild("BossRush"):WaitForChild("Fase").Value
-    
-    if phase == 1 then
-        return {1}
-    elseif phase == 2 or phase == 3 then
-        return {1, 2}
-    elseif phase == 4 or phase == 5 or phase == 6 then
-        return {1, 2, 3}
-    else -- phase 7+
-        return {1, 2, 3, 4}
-    end
-end
-
-local function getBestBossRushPath(pathData)
-    local availablePaths = getAvailablePaths()
-    local bestPath = State.currentBossPath or 1
-    local bestScore = -1
-    
-    -- Check if current path has too many units (force switch)
-    local currentPathData = pathData[State.currentBossPath or 1]
-    local unitCap = 4 -- Adjust this number based on your preference
-    
-    for _, pathNum in pairs(availablePaths) do
-        local data = pathData[pathNum]
-        local score = data.enemies * 10 - data.units * 3
-        
-        -- Bonus for having fewer units when current path is overcrowded
-        if currentPathData.units >= unitCap then
-            score = score + (unitCap - data.units) * 5 -- Bonus for paths with fewer units
-        end
-        
-        -- Only switch if significantly better (reduces path thrashing)
-        local threshold = (pathNum == State.currentBossPath) and 0 or 5
-        
-        -- Force switch if current path is overcrowded
-        if currentPathData.units >= unitCap and data.units < currentPathData.units then
-            threshold = -10 -- Make it easier to switch away from overcrowded paths
-        end
-        
-        if score > bestScore + threshold then
-            bestScore = score
-            bestPath = pathNum
-        end
-    end
-    
-    return bestPath, pathData[bestPath].enemies, pathData[bestPath].units
-end
-
-local function countPartsOnPath(folder, pathFolder)
-    local count = 0
-    for _, part in ipairs(folder:GetChildren()) do
-        if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
-            local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
-            local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
-            local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
-            if distToStart + distToEnd <= totalDist + 15 then
-                count = count + 1
-            end
-        end
-    end
-    return count
-end
-
 local function getBestPath()
+    local function countPartsOnPath(folder, pathFolder)
+        local count = 0
+        for _, part in ipairs(folder:GetChildren()) do
+            if part:IsA("BasePart") and part:FindFirstChildOfClass("Humanoid") then
+                local distToStart = (part.Position - pathFolder["1"].Position).Magnitude
+                local distToEnd = (part.Position - pathFolder["2"].Position).Magnitude
+                local totalDist = (pathFolder["1"].Position - pathFolder["2"].Position).Magnitude
+                if distToStart + distToEnd <= totalDist + 15 then
+                    count = count + 1
+                end
+            end
+        end
+        return count
+    end
+
     local bestPath, lowestUnits = nil, math.huge
     for i = 1, 3 do
         local pathName = "P" .. i
@@ -1372,14 +1147,12 @@ local function startInfinityCastleLogic()
             local success, error = pcall(function()
                 local bestPath = getBestPath()
                 if bestPath and bestPath ~= State.currentPath then
-                    notify("🚀 Switching to path: ", bestPath)
+                    notify("Switching to path: ", bestPath)
                     State.currentPath = bestPath
                     Remotes.SelectWay:FireServer(bestPath)
-                else
-
                 end
             end)
-            if not success then warn("❌ Infinity Castle error:", error) end
+            if not success then warn("Infinity Castle error:", error) end
             task.wait(2.5)
         end
     end)
@@ -1403,41 +1176,27 @@ local function isWantedChallengeRewardPresent()
     return false, nil
 end
 
-local function startAutoSwarmEvent()
-    if isInLobby() then return end
-    task.spawn(function()
-        while State.AutoSwarmEventEnabled do
-            task.wait()
-            
-            if game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value == 2 then
-                game:GetService("ReplicatedStorage").Remote.Server.OnGame.RestartMatch:FireServer()
-                task.wait(2) -- Prevent spam
-            end
-        end
-    end)
-end
-
 local function openBorosCapsules(amount)
     if amount <= 0 then return end
-    
+
     local success, err = pcall(function()
         local playerData = Services.ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(Services.Players.LocalPlayer.Name)
         local borosCapsule = playerData:WaitForChild("Items"):WaitForChild("Borus Capsule")
-        
+
         local args = {
             borosCapsule,
             {
                 SummonAmount = amount
             }
         }
-        
+
         Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("ItemUse"):FireServer(unpack(args))
-        
-        notify("Auto Boros", string.format("🎁 Opened %d Boros Capsule%s!", amount, amount == 1 and "" or "s"))
+
+        notify("Auto Boros", string.format("Opened %d Boros Capsule%s!", amount, amount == 1 and "" or "s"))
     end)
-    
+
     if not success then
-        warn("❌ [AUTO BOROS] Failed to open capsules:", err)
+        warn("[AUTO BOROS] Failed to open capsules:", err)
     end
 end
 
@@ -1447,23 +1206,22 @@ local function startAutoBorosCapsule()
             local playerData = Services.ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(Services.Players.LocalPlayer.Name)
             local borosCapsule = playerData:WaitForChild("Items"):WaitForChild("Borus Capsule")
             local amountValue = borosCapsule:WaitForChild("Amount")
-            
-            -- Monitor loop
+
             while State.AutoOpenBorosEnabled do
-                task.wait(1) -- Check every second
-                
+                task.wait(1)
+
                 if not State.AutoOpenBorosEnabled then
                     break
                 end
-                
+
                 if amountValue.Value > 0 then
                     openBorosCapsules(amountValue.Value)
                 end
             end
         end)
-        
+
         if not success then
-            notify("Auto Boros", "❌ Failed to start auto Boros capsule!")
+            notify("Auto Boros", "Failed to start auto Boros capsule!")
         end
     end)
 end
@@ -1482,15 +1240,6 @@ local function getPlayerCurrency()
 
     local raidValue = playerData:FindFirstChild("Raid Currency")
     if raidValue then currencies["Raid Currency"] = raidValue.Value end
-
-    local bossrushValue = playerData:FindFirstChild("BossRushCurrency")
-    if bossrushValue then currencies["BossRushCurrency"] = bossrushValue.Value end
-
-    local raidCSMValue = playerData:FindFirstChild("CSW Raid Currency")
-    if raidCSMValue then currencies["CSW Raid Currency"] = raidCSMValue.Value end
-
-    local riftStormValue = playerData:FindFirstChild("RiftStormCurrency")
-    if riftStormValue then currencies["RiftStormCurrency"] = riftStormValue.Value end
 
     local SwarmEventValue = playerData:FindFirstChild("Fall Currency")
     if SwarmEventValue then currencies["Fall Currency"] = SwarmEventValue.Value end
@@ -1513,18 +1262,6 @@ local function purchaseItem(itemName, quantity, folderName)
     pcall(function()
         if folderName == "Merchant" then
             Remotes.Merchant:FireServer(itemName, quantity)
-        end
-        if folderName == "Boss_Rush" then
-            Remotes.BossRushMerchant:FireServer(itemName, quantity)
-        end
-        if folderName == "Raid_Shop" then
-            Remotes.RaidMerchant:FireServer(itemName, quantity)
-        end
-        if folderName == "RaidCSW_Shop" then
-            Remotes.RaidMerchantCSW:FireServer(itemName, quantity)
-        end
-        if folderName == "Rift_Storm" then
-            Remotes.RiftMerchant:FireServer(itemName, quantity)
         end
         if folderName == "Fall_Shop" then
             Remotes.SwarmMerchant:FireServer(itemName, quantity)
@@ -1553,7 +1290,7 @@ local function autoPurchaseItems(isEnabled, purchaseTable, folderName, shopDispl
 
                 if currentQuantity <= 0 then
                     purchaseItem(selectedItem, availableQuantity, folderName)
-                    notify("Auto Purchase " .. shopDisplayName, "Purchased: " ..selectedItem)
+                    notify("Auto Purchase " .. shopDisplayName, "Purchased: " .. selectedItem)
                     task.wait(0.5)
                 end
             else
@@ -1570,51 +1307,44 @@ local function autoPurchaseItems(isEnabled, purchaseTable, folderName, shopDispl
 end
 
 local function autoJoinRangerStage(stageName)
-    if not isInLobby() then 
-        print("❌ Not in lobby, cannot join ranger stage")
-        return 
-    end
-
-    print("🚀 Joining ranger stage:", stageName)
-
-    -- 1. Create
-    Remotes.PlayEvent:FireServer("Create")
-    task.wait(0.3)
-
-    -- 2. Change-Mode
-    Remotes.PlayEvent:FireServer("Change-Mode", { Mode = "Ranger Stage" })
-    task.wait(0.3)
-
-    -- 3. Extract world from stage name (e.g., "Naruto_RangerStage2" → "Naruto")
-    local world = stageName:match("^(.-)_RangerStage")
-    if not world then
-        warn("❌ Couldn't extract world from:", stageName)
+    if not isInLobby() then
+        print("Not in lobby, cannot join ranger stage")
         return
     end
 
-    -- 4. Change-World
+    print("Joining ranger stage:", stageName)
+
+    Remotes.PlayEvent:FireServer("Create")
+    task.wait(0.3)
+
+    Remotes.PlayEvent:FireServer("Change-Mode", { Mode = "Ranger Stage" })
+    task.wait(0.3)
+
+    local world = stageName:match("^(.-)_RangerStage")
+    if not world then
+        warn("Couldn't extract world from:", stageName)
+        return
+    end
+
     Remotes.PlayEvent:FireServer("Change-World", { World = world })
     task.wait(0.3)
 
-    -- 5. Change-Chapter
     Remotes.PlayEvent:FireServer("Change-Chapter", { Chapter = stageName })
     task.wait(0.3)
 
-    -- 6. Submit
     Remotes.PlayEvent:FireServer("Submit")
     task.wait(0.3)
 
-    -- 7. Start
     Remotes.PlayEvent:FireServer("Start")
 
-    print("✅ Ranger stage join sequence completed for:", stageName)
+    print("Ranger stage join sequence completed for:", stageName)
 end
 
 local autoJoinState = {
     isProcessing = false,
     currentAction = nil,
     lastActionTime = 0,
-    actionCooldown = 2 
+    actionCooldown = 2
 }
 
 local function canPerformAction()
@@ -1625,67 +1355,12 @@ local function setProcessingState(action)
     autoJoinState.isProcessing = true
     autoJoinState.currentAction = action
     autoJoinState.lastActionTime = tick()
-
-    if action == "Ranger Stage Auto Join" then
-        notify("🔄 Processing: ", action)
-    elseif action == "Challenge Auto Join" then
-        notify("🔄 Processing: ", action)
-    elseif action == "Portal Auto Join" then
-        notify("🔄 Processing: ", action)
-    elseif action == "Story Auto Join" then
-        notify("🔄 Processing: ", string.format(
-            "Joining %s - %s [%s]",
-            State.selectedWorld or "?",
-            State.selectedChapter or "?",
-            State.selectedDifficulty or "?"
-        ))
-        elseif action == "Boss Event Auto Join" then
-           notify("🔄 Processing: ", action)
-        elseif action == "Infinite Mode Auto Join" then
-           notify("🔄 Processing: ", action)
-        elseif action == "Summer Event Auto Join" then
-           notify("🔄 Processing: ", action)
-
-           elseif action == "Boss Rush Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Infinity Castle Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Dungeon Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Rift Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Adventure Mode Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Grail Dungeon Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Holy Grail War Mode Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Expidition Mode Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Ascension Mode Auto Join" then
-            notify("🔄 Processing: ", action)
-            elseif action == "Fright Fest Auto Join" then
-            notify("🔄 Processing: ", action) 
-    end
+    notify("Processing: ", action)
 end
 
 local function clearProcessingState()
     autoJoinState.isProcessing = false
     autoJoinState.currentAction = nil
-end
-
-local function getBossAttackTickets()
-    local success, tickets = pcall(function()
-        return Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.BossAttackTicket.Value
-    end)
-    return success and tickets or 0
-end
-
-local function getBossTicketResetTime()
-    local success, resetTime = pcall(function()
-        return Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.BossAttackReset.Value
-    end)
-    return success and resetTime or 0
 end
 
 local function getInternalWorldName(displayName)
@@ -1702,7 +1377,7 @@ local function equipTeamSlot(teamSlot)
         warn("Invalid team slot:", teamSlot)
         return false
     end
-    
+
     local success = pcall(function()
         local args = {
             "Equip",
@@ -1710,20 +1385,19 @@ local function equipTeamSlot(teamSlot)
         }
         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Teams"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
     end)
-    
+
     if success then
-        print("✅ Equipped team slot:", teamSlot)
+        print("Equipped team slot:", teamSlot)
         return true
     else
-        warn("❌ Failed to equip team slot:", teamSlot)
+        warn("Failed to equip team slot:", teamSlot)
         return false
     end
 end
 
 local function getTeamSlotForMode(mode)
-    if not State.autoTeamSlotPicker then return nil end -- Feature disabled
-    
-    -- Check which team slot should be used for this mode
+    if not State.autoTeamSlotPicker then return nil end
+
     if State.modeTeamSelector1 and table.find(State.modeTeamSelector1, mode) then
         return 1
     elseif State.modeTeamSelector2 and table.find(State.modeTeamSelector2, mode) then
@@ -1735,16 +1409,16 @@ local function getTeamSlotForMode(mode)
     elseif State.modeTeamSelector5 and table.find(State.modeTeamSelector5, mode) then
         return 5
     end
-    
+
     return nil
 end
 
 local function handleTeamEquipping(mode)
     local teamSlot = getTeamSlotForMode(mode)
     if teamSlot then
-        print("🔄 Equipping team slot", teamSlot, "for mode:", mode)
+        print("Equipping team slot", teamSlot, "for mode:", mode)
         equipTeamSlot(teamSlot)
-        task.wait(0.5) -- Small delay to ensure team is equipped
+        task.wait(0.5)
     end
 end
 
@@ -1753,19 +1427,18 @@ local function StartAutoFarmGear()
         notify("Auto Gear Farm", "Must be in lobby to use auto gear farm!")
         return
     end
-    
+
     if #State.selectedGears == 0 then
         notify("Auto Gear Farm", "Please select at least 1 gear to farm!")
         return
     end
-    
+
     State.currentlyFarming = true
     State.AutoFarmEnabled = true
-    
-    -- Run analysis once to know what we need
+
     AnalyzeRequiredStages()
-    
-    notify("Auto Gear Farm", "🚀 Auto farming started! Check console for stage analysis.")
+
+    notify("Auto Gear Farm", "Auto farming started! Check console for stage analysis.")
 end
 
 local function saveFarmingState(stageName)
@@ -1784,12 +1457,11 @@ local function loadFarmingState()
     local success, result = pcall(function()
         if isfile("farming_state.json") then
             local data = game:GetService("HttpService"):JSONDecode(readfile("farming_state.json"))
-            -- Optional: Check if state is recent (within last 10 minutes to avoid stale data)
-                return data.currentFarmingStage
+            return data.currentFarmingStage
         end
         return nil
     end)
-    
+
     if success then
         return result
     else
@@ -1815,81 +1487,45 @@ end
 
 local function checkMaterialsInStage()
     State.currentlyFarming = State.AutoFarmEnabled
-    
+
     if not State.currentlyFarming or not State.AutoFarmEnabled then
         return
     end
-    
-    -- Only run this when we're NOT in lobby (i.e., in a stage)
+
     if isInLobby() then
-        print("🏠 [DEBUG] In lobby, skipping material check")
         return
     end
-    
-    -- Load farming stage if not set (after teleport)
+
     if not State.currentFarmingStage then
         State.currentFarmingStage = loadFarmingState()
-        print("🔄 [DEBUG] Loaded farming stage from file:", State.currentFarmingStage)
     end
-    
-    print("🎮 [DEBUG] In stage, checking materials...")
-    print("🎯 [DEBUG] Current farming stage:", State.currentFarmingStage)
-    
-    -- Calculate what materials we still need
+
     local totalNeeded = CalculateTotalMaterialsNeeded()
     local inventory = GetPlayerInventory()
-    
-    print("📊 [DEBUG] Total materials needed:", totalNeeded)
-    print("🎒 [DEBUG] Current inventory:", inventory)
-    
-    -- Check if we have enough of ALL materials from current stage
-    local materialsFromCurrentStage = {}
-    local stillNeedFromCurrentStage = false
-    
+
     for materialName, needed in pairs(totalNeeded) do
         local current = inventory[materialName] or 0
         local deficit = needed - current
-        
-        print(string.format("📦 [DEBUG] %s: need %d, have %d, deficit %d", 
-            materialName, needed, current, deficit))
-        
+
         if deficit > 0 then
-            print("🔍 [DEBUG] Still need", materialName, "- checking sources...")
-            
-            -- Still need this material, check if current stage drops it
             local sources = FindMaterialSource(materialName)
-            print("📍 [DEBUG] Found", #sources, "sources for", materialName)
-            
-            for i, source in ipairs(sources) do
-                local rangerStageName = string.format("%s_RangerStage%s", 
+
+            for _, source in ipairs(sources) do
+                local rangerStageName = string.format("%s_RangerStage%s",
                     source.module, source.chapter:match("%d+") or "1")
 
-                print(string.format("🎯 [DEBUG] Source %d: %s (stage: %s)", 
-                    i, source.fullPath, rangerStageName))
-                -- Track what materials current stage drops
-                print(source.fullPath)
                 if rangerStageName == State.currentFarmingStage then
-                    materialsFromCurrentStage[materialName] = true
-                    print("✅ [DEBUG] Current stage drops", materialName, "- still need", deficit)
-                    stillNeedFromCurrentStage = true
-                    return -- Stay in stage, still need materials
+                    return
                 end
             end
-        else
-            print("✅ [DEBUG] Have enough", materialName)
         end
     end
-    
-    print("🏁 [DEBUG] Materials from current stage:", materialsFromCurrentStage)
-    print("🚪 [DEBUG] Still need from current stage:", stillNeedFromCurrentStage)
-    
-    -- If we get here, we have enough materials from this stage
-    notify("Auto Gear Farm", "✅ Got enough materials from current stage! Returning to lobby...")
-    print("🚀 [DEBUG] Teleporting to lobby...")
+
+    notify("Auto Gear Farm", "Got enough materials from current stage! Returning to lobby...")
 
     wait(3)
 
-    clearFarmingState() -- Clear state when leaving stage
+    clearFarmingState()
     game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
 end
 
@@ -1897,38 +1533,32 @@ local function checkMaterialFarming()
     if not State.currentlyFarming or not State.AutoFarmEnabled then
         return
     end
-    
-    -- If we're not in lobby, wait (user is in a stage farming)
+
     if not isInLobby() then
         return
     end
-    
+
     if autoJoinState.isProcessing then
         return
     end
-    
-    -- Calculate what materials we still need
+
     local totalNeeded = CalculateTotalMaterialsNeeded()
     local inventory = GetPlayerInventory()
     local materialToFarm = nil
-    local stagesToPlay = {}
-    
-    -- Find the first material we still need
+
     for materialName, needed in pairs(totalNeeded) do
         local current = inventory[materialName] or 0
         local deficit = needed - current
-        
+
         if deficit > 0 then
-            -- Find best stage for this material
             local sources = FindMaterialSource(materialName)
             if #sources > 0 then
-                -- Sort by efficiency (drop rate * avg drop)
                 table.sort(sources, function(a, b)
                     local effA = (a.dropRate / 100) * ((a.minDrop + a.maxDrop) / 2)
                     local effB = (b.dropRate / 100) * ((b.minDrop + b.maxDrop) / 2)
                     return effA > effB
                 end)
-                
+
                 local bestSource = sources[1]
                 materialToFarm = {
                     name = materialName,
@@ -1939,18 +1569,17 @@ local function checkMaterialFarming()
             end
         end
     end
-    
-    -- If we found a material to farm, join its stage
+
     if materialToFarm then
-        local rangerStageName = string.format("%s_RangerStage%s", 
-            materialToFarm.source.module, 
+        local rangerStageName = string.format("%s_RangerStage%s",
+            materialToFarm.source.module,
             materialToFarm.source.chapter:match("%d+") or "1")
-        
-        notify("Auto Gear Farm", string.format("🎯 Farming %d %s from %s", 
+
+        notify("Auto Gear Farm", string.format("Farming %d %s from %s",
             materialToFarm.needed, materialToFarm.name, rangerStageName))
 
         State.currentFarmingStage = rangerStageName
-        saveFarmingState(rangerStageName) -- Save to file
+        saveFarmingState(rangerStageName)
 
         setProcessingState("Auto Material Farm")
         handleTeamEquipping("Ranger")
@@ -1958,13 +1587,11 @@ local function checkMaterialFarming()
         autoJoinRangerStage(rangerStageName)
         task.delay(5, clearProcessingState)
     else
-        -- We have all materials needed!
-        notify("Auto Gear Farm", "✅ All materials farmed! Stopping auto farm.")
+        notify("Auto Gear Farm", "All materials farmed! Stopping auto farm.")
         State.currentlyFarming = false
         State.AutoFarmEnabled = false
-        clearFarmingState() -- Clear saved state when done
-        
-        -- Send webhook notification (only if enabled)
+        clearFarmingState()
+
         if State.SendFinishedFarmingGearWebhook then
             local gearData = {
                 materialsNeeded = totalNeeded,
@@ -1972,15 +1599,14 @@ local function checkMaterialFarming()
             }
             sendWebhook("gear", nil, nil, nil, gearData)
         end
-        
-        -- Show final summary
+
         print("=== MATERIAL FARMING COMPLETE ===")
         local finalInventory = GetPlayerInventory()
         for materialName, needed in pairs(totalNeeded) do
             local current = finalInventory[materialName] or 0
-            print(string.format("%s: %d/%d %s", 
-                materialName, current, needed, 
-                current >= needed and "✅" or "❌"))
+            print(string.format("%s: %d/%d %s",
+                materialName, current, needed,
+                current >= needed and "OK" or "MISSING"))
         end
         print("=== END ===")
     end
@@ -1990,11 +1616,11 @@ local function StopAutoFarmGear()
     State.AutoFarmEnabled = false
     State.currentlyFarming = false
     clearProcessingState()
-    notify("Auto Gear Farm", "🛑 Material farming stopped!")
+    notify("Auto Gear Farm", "Material farming stopped!")
 end
 
 local function getHighestNumberFromNames(parent)
-    local highestNumber = -math.huge -- Start with the smallest possible number
+    local highestNumber = -math.huge
 
     for _, obj in ipairs(parent:GetChildren()) do
         if obj:IsA("StringValue") then
@@ -2006,7 +1632,7 @@ local function getHighestNumberFromNames(parent)
     end
 
     if highestNumber == -math.huge then
-        return nil -- No numeric names found
+        return nil
     end
 
     return highestNumber
@@ -2014,9 +1640,9 @@ end
 
 local function checkAndExecuteHighestPriority()
     if not isInLobby() then
-         checkMaterialsInStage() 
-         return 
-         end
+        checkMaterialsInStage()
+        return
+    end
     if autoJoinState.isProcessing then return end
     if not canPerformAction() then return end
 
@@ -2026,57 +1652,55 @@ local function checkAndExecuteHighestPriority()
     if State.autoChallengeEnabled then
         local skipChallenge = false
         if #Data.selectedChallengeWorlds > 0 then
-             local ignoredInternalNames = {}
-    for _, displayName in pairs(Data.selectedChallengeWorlds) do
-        local internalName = getInternalWorldName(displayName)
-        if internalName then
-            table.insert(ignoredInternalNames, internalName)
-        end
-    end
+            local ignoredInternalNames = {}
+            for _, displayName in pairs(Data.selectedChallengeWorlds) do
+                local internalName = getInternalWorldName(displayName)
+                if internalName then
+                    table.insert(ignoredInternalNames, internalName)
+                end
+            end
 
-    -- Check if the current challenge world is in the ignored list
-    for _, ignoredInternal in pairs(ignoredInternalNames) do
-        if ignoredInternal == Services.ReplicatedStorage.Gameplay.Game.Challenge.World.Value then
-            skipChallenge = true
-            break
-        end
-    end
+            for _, ignoredInternal in pairs(ignoredInternalNames) do
+                if ignoredInternal == Services.ReplicatedStorage.Gameplay.Game.Challenge.World.Value then
+                    skipChallenge = true
+                    break
+                end
+            end
         end
         if not skipChallenge then
-        local foundRewardOK, foundReward = isWantedChallengeRewardPresent()
-        if foundRewardOK then
-            setProcessingState("Challenge Auto Join")
-            print("🎯 Found wanted reward '" .. foundReward .. "' → creating challenge room")
+            local foundRewardOK, foundReward = isWantedChallengeRewardPresent()
+            if foundRewardOK then
+                setProcessingState("Challenge Auto Join")
+                print("Found wanted reward '" .. foundReward .. "' -> creating challenge room")
 
-            handleTeamEquipping("Challenge")
+                handleTeamEquipping("Challenge")
 
-            notify("Challenge Mode", string.format("Found %s, joining challenge...", foundReward))
-            Remotes.PlayEvent:FireServer("Create", { CreateChallengeRoom = true })
-            Remotes.PlayEvent:FireServer("Start")
-            task.delay(5, clearProcessingState)
-            return
-        end
+                notify("Challenge Mode", string.format("Found %s, joining challenge...", foundReward))
+                Remotes.PlayEvent:FireServer("Create", { CreateChallengeRoom = true })
+                Remotes.PlayEvent:FireServer("Start")
+                task.delay(5, clearProcessingState)
+                return
+            end
         end
     end
 
-     -- Priority 2: Portal Auto Join
+    -- Priority 2: Portal Auto Join
     if State.autoPortalEnabled and not State.portalUsed and State.selectedPortals and #State.selectedPortals > 0 then
         local success, result = pcall(function()
             local inventoryFrame = Services.Players.LocalPlayer:FindFirstChild("PlayerGui").Items.Main.Base.Space:FindFirstChild("Scrolling")
             if not inventoryFrame then return nil end
             for _, item in ipairs(inventoryFrame:GetChildren()) do
                 if (item.Name:lower():find("portal") or item.Name:lower():find("tier")) and table.find(State.selectedPortals, item.Name) then
-                return item.Name
+                    return item.Name
                 end
             end
-    end)
+        end)
 
         if success and result then
             setProcessingState("Portal Auto Join")
 
             local portalInstance = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items:FindFirstChild(result)
             if portalInstance then
-
                 handleTeamEquipping("Portal")
 
                 Services.ReplicatedStorage.Remote.Server.Lobby.ItemUse:FireServer(portalInstance)
@@ -2085,98 +1709,46 @@ local function checkAndExecuteHighestPriority()
 
                 task.wait(1)
 
-                print("▶️ Starting portal match...")
+                print("Starting portal match...")
                 Services.ReplicatedStorage.Remote.Server.Lobby.PortalEvent:FireServer("Start")
 
                 task.delay(5, clearProcessingState)
                 return
             else
-                 notify("Portal Joiner", "Portal not found: " .. result)
+                notify("Portal Joiner", "Portal not found: " .. result)
                 clearProcessingState()
                 State.portalUsed = false
             end
         end
     end
 
-    if State.autoAdventureModeEnabled then
-        setProcessingState("Adventure Mode Auto Join")
-        
-        Remotes.PlayEvent:FireServer("AdventureMode")
-        task.wait(1)
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
+    -- Priority 3: Boss Event Auto Join
+    if State.autoBossEventEnabled then
+        setProcessingState("Boss Event Auto Join")
+        handleTeamEquipping("Boss Event")
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Boss-Event", {Difficulty = "Nightmare"})
         task.delay(5, clearProcessingState)
         return
     end
 
-    if State.autoExpeditionEnabled then
-        setProcessingState("Expidition Mode Auto Join")
-
-        Remotes.PlayEvent:FireServer("ExpiditionMode")
-        task.wait(1)
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-        task.delay(5, clearProcessingState)
-        return
-    end
-
-    if State.autoHolyGrailEnabled then
-        setProcessingState("Holy Grail War Mode Auto Join")
-
-        Remotes.PlayEvent:FireServer("Fate Mode")
-        task.wait(1)
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-        task.delay(5, clearProcessingState)
-        return
-    end
-
-    if State.autoAscensionEnabled then
-        setProcessingState("Ascension Mode Auto Join")
-
-        Remotes.PlayEvent:FireServer("AscensionEvent")
-        task.wait(1)
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-        task.delay(5, clearProcessingState)
-        return
-    end
-
-        if State.autoGrailDungeonEnabled and State.AutoGrailDungeonDifficultySelector and State.AutoGrailDungeonDifficultySelector ~= "" then
-        setProcessingState("Grail Dungeon Auto Join")
-
-        local args = {"GrailDungeon",{Difficulty = State.AutoGrailDungeonDifficultySelector[1]}}
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer(unpack(args))
-        task.delay(5, clearProcessingState)
-        return
-    end
-    
-    if State.autoBossRushEnabled then
-        setProcessingState("Boss Rush Auto Join")
-
-        handleTeamEquipping("Boss Rush")
-
-        Remotes.PlayEvent:FireServer("BossRush")
-        task.wait(1)
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-        task.delay(5, clearProcessingState)
-        return
-    end
-
+    -- Priority 4: Raid Auto Join
     if State.autoJoinRaid then
         if State.selectedRaidStages and #State.selectedRaidStages > 0 then
             setProcessingState("Raid Auto Join")
 
-             handleTeamEquipping("Raid")
+            handleTeamEquipping("Raid")
 
-             local fullName = tostring(State.selectedRaidStages[1])
-             local mapName = string.match(fullName, "^(.-)_")
-             print(mapName)  -- Output: TheGraveyard
-
+            local fullName = tostring(State.selectedRaidStages[1])
+            local mapName = string.match(fullName, "^(.-)_")
+            print(mapName)
 
             game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Create")
             task.wait(0.2)
-            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Mode",{Mode = "Raids Stage"})
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Mode", {Mode = "Raids Stage"})
             task.wait(0.2)
-            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-World",{World = mapName})
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-World", {World = mapName})
             task.wait(0.2)
-            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter",{Chapter = State.selectedRaidStages[1]})
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter", {Chapter = State.selectedRaidStages[1]})
             task.wait(0.2)
             game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Submit")
             task.wait(0.2)
@@ -2186,38 +1758,7 @@ local function checkAndExecuteHighestPriority()
         end
     end
 
-    -- priority 3: boss event auto join
-    if State.autoSummerEventEnabled then
-    setProcessingState("Summer Event Auto Join")
-
-        handleTeamEquipping("Summer Event")
-
-    Remotes.PlayEvent:FireServer("Summer-Event")
-    task.delay(5, clearProcessingState)
-        return
-    end
-
-    if State.autoBossEventEnabled then
-    setProcessingState("Boss Event Auto Join")
-
-        handleTeamEquipping("Boss Event")
-
-    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Boss-Event",{Difficulty = "Nightmare"})
-    task.delay(5, clearProcessingState)
-        return
-    end
-
-        if State.autoFrightFestEnabled then
-    setProcessingState("Fright Fest Auto Join")
-
-    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("FrightFest")
-    game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-
-    task.delay(5, clearProcessingState)
-        return
-    end
-
-    -- Priority 4: Ranger Stage Auto Join
+    -- Priority 5: Ranger Stage Auto Join
     if State.isAutoJoining and Data.selectedRawStages and #Data.selectedRawStages > 0 then
         local selectedStageSet = {}
         for _, raw in ipairs(Data.selectedRawStages) do
@@ -2237,7 +1778,7 @@ local function checkAndExecuteHighestPriority()
 
             handleTeamEquipping("Ranger")
 
-            print("🌍 Attempting to join Ranger Stage:", stageName)
+            print("Attempting to join Ranger Stage:", stageName)
             autoJoinRangerStage(stageName)
             task.delay(5, clearProcessingState)
             return
@@ -2251,7 +1792,7 @@ local function checkAndExecuteHighestPriority()
 
         local CastleFloor = getHighestNumberFromNames(Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].InfinityCastleRewards)
 
-        Remotes.PlayEvent:FireServer("Infinity-Castle",{Floor = CastleFloor + 1})
+        Remotes.PlayEvent:FireServer("Infinity-Castle", {Floor = CastleFloor + 1})
         task.delay(5, clearProcessingState)
         return
     end
@@ -2260,46 +1801,20 @@ local function checkAndExecuteHighestPriority()
         setProcessingState("Dungeon Auto Join")
 
         handleTeamEquipping("Dungeon")
-        print(State.AutoDungeonDifficultySelector)
-        local args = {"Dungeon",{Difficulty = State.AutoDungeonDifficultySelector[1]}}
-        print(State.AutoDungeonDifficultySelector[1])
+        local args = {"Dungeon", {Difficulty = State.AutoDungeonDifficultySelector[1]}}
         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer(unpack(args))
 
         task.delay(5, clearProcessingState)
         return
     end
 
-    if State.autoRiftEnabled then
-        setProcessingState("Rift Auto Join")
-
-        handleTeamEquipping("RiftStorm")
-
-        Remotes.PlayEvent:FireServer("RiftStorm")
-        task.wait(1)
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-
-
-        task.delay(5, clearProcessingState)
-        return
-    end
-
-            if State.autoInfiniteEnabled then
-            setProcessingState("Infinite Mode Auto Join")
-
-            handleTeamEquipping("Infinite")
-
-            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Infinite Mode")
-
-            task.delay(5, clearProcessingState)
-        end
-
-    -- Priority 5: Story Auto Join
+    -- Priority 6: Story Auto Join
     if State.autoJoinEnabled and State.selectedWorld and State.selectedChapter and State.selectedDifficulty then
         setProcessingState("Story Auto Join")
 
         local internalWorldName = getInternalWorldName(State.selectedWorld)
         if internalWorldName then
-            print("📚 Joining Story:", State.selectedWorld, "/", State.selectedChapter, "/", State.selectedDifficulty)
+            print("Joining Story:", State.selectedWorld, "/", State.selectedChapter, "/", State.selectedDifficulty)
 
             handleTeamEquipping("Story")
 
@@ -2321,22 +1836,10 @@ local function checkAndExecuteHighestPriority()
             return
         else
             warn("[Story Auto Join] Invalid selection.")
-            notify("⚠️ Story Join", "Selected World/Chapter/Difficulty is invalid.")
+            notify("Story Join", "Selected World/Chapter/Difficulty is invalid.")
             clearProcessingState()
         end
     end
-end
-
-
-local function getCurrentChallengeSerial()
-    local success, serial = pcall(function()
-        return challengeFolder:FindFirstChild("serial_number") and challengeFolder.serial_number.Value
-    end)
-    return success and serial or nil
-end
-
-if not State.storedChallengeSerial then
-    State.storedChallengeSerial = getCurrentChallengeSerial()
 end
 
 local function getCurrentUpgradeLevel(unitName)
@@ -2387,13 +1890,12 @@ local function getDeploymentCost(unitName)
         if numericCost then
             return numericCost
         else
-            return 9999 -- Extraction failed, fallback cost
+            return 9999
         end
     else
-        return 9999 -- Retrieval failed, fallback cost
+        return 9999
     end
 end
-
 
 local function getCurrentMoney()
     local success, money = pcall(function()
@@ -2426,9 +1928,6 @@ local function hasEnoughMoney(slotNumber)
     local unitNameStr = typeof(unitName) == "Instance" and unitName.Name or tostring(unitName)
     local unitCost = getDeploymentCost(unitNameStr)
 
-    
-    --print("Slot " .. slotNumber .. " - Money: " .. currentMoney .. ", Cost: " .. unitCost)
-    
     return currentMoney >= unitCost
 end
 
@@ -2452,9 +1951,9 @@ local function leftToRightUpgrade()
 
                 if currentMoney >= upgradeCost then
                     if upgradeUnit(unitNameStr) then
-                        task.wait(UPGRADE_COOLDOWN)
+                        task.wait(Config.UPGRADE_COOLDOWN)
                     else
-                        warn("❌ Failed to upgrade, will retry")
+                        warn("Failed to upgrade, will retry")
                         task.wait(1)
                     end
                 end
@@ -2469,12 +1968,12 @@ local function leftToRightUpgrade()
         task.wait(0.5)
     end
 
-    print("🛑 Upgrade cycle ended")
+    print("Upgrade cycle ended")
 end
 
 local function startAutoUpgrade()
     if isInLobby() then
-        print("⚠️ Cannot start auto-upgrade while in lobby.")
+        print("Cannot start auto-upgrade while in lobby.")
         return
     end
 
@@ -2489,18 +1988,12 @@ local function startAutoUpgrade()
                 local success, err = pcall(function()
                     if State.upgradeMethod == "Left to right until max" then
                         leftToRightUpgrade()
-                    elseif State.upgradeMethod == "randomize" then
-                        print("🔄 Randomize method not implemented yet")
-                    elseif State.upgradeMethod == "lowest level spread upgrade" then
-                        print("🔄 Lowest level spread method not implemented yet")
                     end
                 end)
 
                 if not success then
-                    warn("❌ Auto upgrade error:", err)
+                    warn("Auto upgrade error:", err)
                 end
-            else
-                --print("⏳ Waiting for game to start...")
             end
 
             task.wait(1)
@@ -2517,9 +2010,8 @@ end
 
 local function resetUpgradeOrder()
     State.currentUpgradeSlot = 1
-    print("🔄 Reset upgrade order to slot 1")
+    print("Reset upgrade order to slot 1")
 end
-
 
 local function isTargetAlive(targetValue)
     if not targetValue or not targetValue.Name then
@@ -2528,15 +2020,14 @@ local function isTargetAlive(targetValue)
     local success, result = pcall(function()
         local agentFolder = Services.Workspace:WaitForChild("Agent", 5)
         if not agentFolder then return false end
-        
+
         local enemyFolder = agentFolder:FindFirstChild("EnemyT")
         if not enemyFolder then return false end
-        
-        -- Check if enemy with same name exists in EnemyT
+
         local enemy = enemyFolder:FindFirstChild(targetValue.Name)
         return enemy ~= nil
     end)
-    
+
     return success and result
 end
 
@@ -2561,11 +2052,11 @@ local function getUnitsWithUltimates()
                     if activeAbility and activeAbility:IsA("StringValue") and targetObject and targetObject:IsA("ObjectValue") and ownerValue and ownerValue:IsA("StringValue") then
                         if activeAbility.Value ~= "" and targetObject.Value ~= nil and ownerValue.Value == Services.Players.LocalPlayer.Name then
                             if isTargetAlive(targetObject.Value) then
-                            table.insert(unitsWithUltimates, {
-                                part = part,
-                                abilityName = activeAbility.Value
-                            })
-                        end
+                                table.insert(unitsWithUltimates, {
+                                    part = part,
+                                    abilityName = activeAbility.Value
+                                })
+                            end
                         end
                     end
                 end
@@ -2578,7 +2069,7 @@ local function getUnitsWithUltimates()
     if success then
         return result
     else
-        warn("❌ Error getting units with ultimates:", result)
+        warn("Error getting units with ultimates:", result)
         return {}
     end
 end
@@ -2589,7 +2080,7 @@ local function fireUltimateForUnit(unitData)
     end)
 
     if not success then
-        warn("❌ Failed to fire ultimate for unit:", unitData.part.Name)
+        warn("Failed to fire ultimate for unit:", unitData.part.Name)
     end
 end
 
@@ -2609,7 +2100,7 @@ local function autoUltimateLoop()
         end
         task.wait(1)
     end
-    print("🛑 Auto Ultimate loop stopped")
+    print("Auto Ultimate loop stopped")
 end
 
 local function checkSlotExists(slotNumber)
@@ -2649,207 +2140,28 @@ local function IsUnitLevelReached(slotNumber)
 end
 
 local function getNextReadySlot()
-    local startSlot = State.currentSlot
     local checkedSlots = 0
-    
-    while checkedSlots < 6 do
-    task.wait(0.05)
-    local slotToCheck = State.currentSlot
 
-    local shouldSkip = false
-
-    if not checkSlotExists(slotToCheck) then
-        shouldSkip = true
-    elseif isSlotOnCooldown(slotToCheck) then
-        shouldSkip = true
-    elseif not hasEnoughMoney(slotToCheck) then
-        shouldSkip = true
-    elseif shouldSkipSlotTemporarily(slotToCheck) then
-        shouldSkip = true
-    elseif IsUnitLevelReached(slotToCheck) then
-        shouldSkip = true
-    end
-
-    if shouldSkip then
-        State.currentSlot = (State.currentSlot % 6) + 1
-        checkedSlots = checkedSlots + 1
-    else
-        return slotToCheck
-    end
-end
-    return nil
-end
-
-local function deployUnit(slotNumber)
-    if not checkSlotExists(slotNumber) then
-        return false, "Slot doesn't exist"
-    end
-    
-    if isSlotOnCooldown(slotNumber) then
-        return false, "Unit is on cooldown"
-    end
-
-    if not hasEnoughMoney(slotNumber) then
-        return false, "Not enough money"
-    end
-
-    if IsUnitLevelReached(slotNumber) then
-        return false, "Unit can't be deployed yet because of level"
-    end
-    -- Get the unit folder for this slot
-    local unitFolder = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
-    
-    if not unitFolder then
-        return false, "Unit folder not found"
-    end
-    
-    -- Try to deploy the unit
-    local success, errorMessage = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Deployment"):FireServer(unitFolder)
-    end)
-    
-    if success then
-        --print("Successfully deployed unit from slot " .. slotNumber)
-        -- Clear any temporary skip for this slot since it worked
-        State.lastDeploymentTimes[slotNumber] = nil
-        return true, "Success"
-    else
-        print("Failed to deploy unit from slot " .. slotNumber .. ": " .. tostring(errorMessage))
-        -- Mark this slot as recently failed
-        State.lastDeploymentTimes[slotNumber] = tick()
-        return false, "Deployment failed"
-    end
-end
-
-local function autoPlayLoop()
-    task.spawn(function()
-        while State.autoPlayEnabled do
-            -- Check if we should apply delay at the start of each game
-            if State.gameRunning and State.AutoPlayDelayNumber > 0 and not State.autoPlayDelayActive then
-                State.autoPlayDelayActive = true
-                notify("Auto Play Delay", "Waiting " .. State.AutoPlayDelayNumber .. " seconds before starting deployment...", 5)
-                
-                -- Wait for the specified delay
-                task.wait(State.AutoPlayDelayNumber)
-                
-                notify("Auto Play Delay", "Delay finished, starting deployment..", 5)
-            end
-            
-            -- Only proceed with deployment if game is running and delay has passed (or no delay set)
-            if State.gameRunning and (State.AutoPlayDelayNumber == 0 or State.autoPlayDelayActive) then
-                -- Find next ready slot
-                local slotToDeploy = getNextReadySlot()
-                
-                if slotToDeploy then
-                    local success, message = deployUnit(slotToDeploy)
-                    
-                    if success then
-                        -- Successfully deployed, move to next slot for next deployment
-                        State.currentSlot = (slotToDeploy % 6) + 1
-                    elseif not success and message == "Not enough money" then
-                        State.currentSlot = (slotToDeploy % 6)
-                    else
-                        -- Failed deployment, slot will be temporarily skipped
-                        -- Move to next slot to continue the cycle
-                        State.currentSlot = (slotToDeploy % 6) + 1
-                        print("Failed to deploy from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
-                    end
-                else
-                    -- No ready slots found, continue cycling
-                    -- The getNextReadySlot function already moved currentSlot forward
-                    -- print("No ready slots found, continuing cycle...")
-                end
-            end
-            
-            -- Wait before next attempt
-            task.wait(0.1)
-        end
-    end)
-end
-
-local function startAutoPlay()
-    if isInLobby() then 
-        print("Cannot start autoplay: Player is in lobby")
-        return 
-    end
-    
-    print("Starting autoplay system...")
-    
-    -- Reset state
-    if Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.AutoPlay.Value == true then
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
-    end
-    State.currentSlot = 1
-    State.lastDeploymentTimes = {}
-    State.slotExists = {}
-    State.autoPlayDelayActive = false  -- Reset delay flag
-    
-    -- Check which slots have units initially
-    for i = 1, 6 do
-        checkSlotExists(i)
-        print("Slot " .. i .. " exists: " .. tostring(State.slotExists[i]))
-    end
-    
-    autoPlayLoop()
-end
-
-local function shouldDeployOnCurrentPath(slotNumber)
-    local config = State.bossRushDeployConfig[slotNumber]
-    if not config or not config.enabled then
-        return false
-    end
-    
-    local currentPath = State.currentBossPath or 1
-    
-    -- Check if current path is in the allowed paths for this slot
-    for _, allowedPath in pairs(config.paths) do
-        if allowedPath == currentPath then
-            return true
-        end
-    end
-    
-    return false
-end
-
-local function bossRushShouldSkipSlotTemporarily(slotNumber)
-    local lastAttempt = State.bossRushLastDeploymentTimes[slotNumber]
-    if lastAttempt and (tick() - lastAttempt) < 3 then
-        return true
-    end
-    return false
-end
-
-local function getBossRushNextReadySlot()
-    local startSlot = State.bossRushCurrentSlot
-    local checkedSlots = 0
-    
     while checkedSlots < 6 do
         task.wait(0.05)
-        local slotToCheck = State.bossRushCurrentSlot
+        local slotToCheck = State.currentSlot
 
         local shouldSkip = false
 
-        -- Check if slot is configured for boss rush and enabled
-        if not State.bossRushDeployConfig[slotToCheck] or not State.bossRushDeployConfig[slotToCheck].enabled then
-            shouldSkip = true
-        -- Check if unit should be deployed on current path
-        elseif not shouldDeployOnCurrentPath(slotToCheck) then
-            shouldSkip = true
-        -- Use existing checks
-        elseif not checkSlotExists(slotToCheck) then
+        if not checkSlotExists(slotToCheck) then
             shouldSkip = true
         elseif isSlotOnCooldown(slotToCheck) then
             shouldSkip = true
         elseif not hasEnoughMoney(slotToCheck) then
             shouldSkip = true
-        elseif bossRushShouldSkipSlotTemporarily(slotToCheck) then
+        elseif shouldSkipSlotTemporarily(slotToCheck) then
             shouldSkip = true
         elseif IsUnitLevelReached(slotToCheck) then
             shouldSkip = true
         end
 
         if shouldSkip then
-            State.bossRushCurrentSlot = (State.bossRushCurrentSlot % 6) + 1
+            State.currentSlot = (State.currentSlot % 6) + 1
             checkedSlots = checkedSlots + 1
         else
             return slotToCheck
@@ -2858,11 +2170,11 @@ local function getBossRushNextReadySlot()
     return nil
 end
 
-local function bossRushDeployUnit(slotNumber)
+local function deployUnit(slotNumber)
     if not checkSlotExists(slotNumber) then
         return false, "Slot doesn't exist"
     end
-    
+
     if isSlotOnCooldown(slotNumber) then
         return false, "Unit is on cooldown"
     end
@@ -2875,141 +2187,82 @@ local function bossRushDeployUnit(slotNumber)
         return false, "Unit can't be deployed yet because of level"
     end
 
-    if not shouldDeployOnCurrentPath(slotNumber) then
-        return false, "Unit not configured for current path"
-    end
-    
-    -- Get the unit folder for this slot
     local unitFolder = game.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
-    
+
     if not unitFolder then
         return false, "Unit folder not found"
     end
-    
-    -- Try to deploy the unit
+
     local success, errorMessage = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Deployment"):FireServer(unitFolder)
     end)
-    
+
     if success then
-        print("Successfully deployed boss rush unit from slot " .. slotNumber .. " on path " .. (State.currentBossPath or 1))
-        -- Clear any temporary skip for this slot since it worked
-        State.bossRushLastDeploymentTimes[slotNumber] = nil
+        State.lastDeploymentTimes[slotNumber] = nil
         return true, "Success"
     else
-        print("Failed to deploy boss rush unit from slot " .. slotNumber .. ": " .. tostring(errorMessage))
-        -- Mark this slot as recently failed
-        State.bossRushLastDeploymentTimes[slotNumber] = tick()
+        print("Failed to deploy unit from slot " .. slotNumber .. ": " .. tostring(errorMessage))
+        State.lastDeploymentTimes[slotNumber] = tick()
         return false, "Deployment failed"
     end
 end
 
-local function bossRushAutoPlayLoop()
+local function autoPlayLoop()
     task.spawn(function()
-        while State.bossRushAutoDeployEnabled do
-            -- Only deploy if we're in a boss rush game
-            if State.gameRunning then
-                -- Find next ready slot for current path
-                local slotToDeploy = getBossRushNextReadySlot()
-                
+        while State.autoPlayEnabled do
+            if State.gameRunning and State.AutoPlayDelayNumber > 0 and not State.autoPlayDelayActive then
+                State.autoPlayDelayActive = true
+                notify("Auto Play Delay", "Waiting " .. State.AutoPlayDelayNumber .. " seconds before starting deployment...", 5)
+
+                task.wait(State.AutoPlayDelayNumber)
+
+                notify("Auto Play Delay", "Delay finished, starting deployment...", 5)
+            end
+
+            if State.gameRunning and (State.AutoPlayDelayNumber == 0 or State.autoPlayDelayActive) then
+                local slotToDeploy = getNextReadySlot()
+
                 if slotToDeploy then
-                    local success, message = bossRushDeployUnit(slotToDeploy)
-                    
+                    local success, message = deployUnit(slotToDeploy)
+
                     if success then
-                        -- Successfully deployed, move to next slot for next deployment
-                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
+                        State.currentSlot = (slotToDeploy % 6) + 1
                     elseif not success and message == "Not enough money" then
-                        State.bossRushCurrentSlot = (slotToDeploy % 6)
+                        State.currentSlot = (slotToDeploy % 6)
                     else
-                        -- Failed deployment, slot will be temporarily skipped
-                        State.bossRushCurrentSlot = (slotToDeploy % 6) + 1
-                        if message ~= "Unit not configured for current path" then
-                            print("Failed to deploy boss rush unit from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
-                        end
+                        State.currentSlot = (slotToDeploy % 6) + 1
+                        print("Failed to deploy from slot " .. slotToDeploy .. " (" .. message .. "), trying next slot")
                     end
-                else
-                    -- No ready slots found for current path, continue cycling
-                    -- print("No ready slots found for current path, continuing cycle...")
                 end
             end
-            
-            -- Wait before next attempt
+
             task.wait(0.1)
         end
     end)
 end
 
-local function startBossRushAutoPlay()
-    if isInLobby() then 
-        print("Cannot start boss rush autoplay: Player is in lobby")
-        return 
+local function startAutoPlay()
+    if isInLobby() then
+        print("Cannot start autoplay: Player is in lobby")
+        return
     end
-    
-    print("Starting boss rush auto deploy system...")
-    
-    -- Reset state
+
+    print("Starting autoplay system...")
+
     if Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.AutoPlay.Value == true then
         Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
     end
-    State.bossRushCurrentSlot = 1
-    State.bossRushLastDeploymentTimes = {}
+    State.currentSlot = 1
+    State.lastDeploymentTimes = {}
     State.slotExists = {}
-    
-    -- Check which slots have units initially
+    State.autoPlayDelayActive = false
+
     for i = 1, 6 do
         checkSlotExists(i)
-        if State.bossRushDeployConfig[i] and State.bossRushDeployConfig[i].enabled then
-            print("Boss Rush Slot " .. i .. " configured for paths: " .. table.concat(State.bossRushDeployConfig[i].paths, ", "))
-        end
+        print("Slot " .. i .. " exists: " .. tostring(State.slotExists[i]))
     end
-    
-    bossRushAutoPlayLoop()
-end
 
-local function stopBossRushAutoPlay()
-    State.bossRushAutoDeployEnabled = false
-    print("Boss rush auto deploy system stopped")
-end
-
-local function setBossRushSlotPaths(slotNumber, paths)
-    if slotNumber >= 1 and slotNumber <= 6 then
-        if not State.bossRushDeployConfig[slotNumber] then
-            State.bossRushDeployConfig[slotNumber] = {paths = {}, enabled = false}
-        end
-        State.bossRushDeployConfig[slotNumber].paths = paths
-        print("Set slot " .. slotNumber .. " to deploy on paths: " .. table.concat(paths, ", "))
-    end
-end
-
-local function setBossRushSlotEnabled(slotNumber, enabled)
-    if slotNumber >= 1 and slotNumber <= 6 then
-        if not State.bossRushDeployConfig[slotNumber] then
-            State.bossRushDeployConfig[slotNumber] = {paths = {1, 2, 3, 4}, enabled = false}
-        end
-        State.bossRushDeployConfig[slotNumber].enabled = enabled
-        print("Slot " .. slotNumber .. " boss rush deployment " .. (enabled and "enabled" or "disabled"))
-    end
-end
-
-local function toggleBossRushAutoPlay()
-    State.bossRushAutoDeployEnabled = not State.bossRushAutoDeployEnabled
-    
-    if State.bossRushAutoDeployEnabled then
-        startBossRushAutoPlay()
-    else
-        stopBossRushAutoPlay()
-    end
-end
-
--- Helper function to convert path string to number
-local function pathStringToNumber(pathString)
-    local pathMap = {
-        ["Path 1"] = 1,
-        ["Path 2"] = 2,
-        ["Path 3"] = 3,
-        ["Path 4"] = 4
-    }
-    return pathMap[pathString]
+    autoPlayLoop()
 end
 
 local function StreamerMode()
@@ -3032,7 +2285,7 @@ local function StreamerMode()
     end
 
     if State.streamerModeEnabled then
-        billboard:FindFirstChild("PlayerName").Text = "🔥 Protected By LixHub 🔥"
+        billboard:FindFirstChild("PlayerName").Text = "Protected By LixHub"
         billboard:FindFirstChild("Level").Text = "Level 999"
         billboard:FindFirstChild("Title").Text = "Lixhub User"
 
@@ -3052,14 +2305,14 @@ local failsafeRunning = false
 
 local function startFailsafeAfterGameEnd()
     if failsafeRunning then
-        warn("⚠️ Failsafe is already running. Skipping new start.")
+        warn("Failsafe is already running. Skipping new start.")
         return
     end
     failsafeRunning = true
 
     task.spawn(function()
         local waitTime = tonumber(State.AutoFailSafeNumber) or 300
-        notify("Failsafe", "Failsafe started, Waiting ".. waitTime .." seconds or until game starts...", 5)
+        notify("Failsafe", "Failsafe started, Waiting " .. waitTime .. " seconds or until game starts...", 5)
 
         local startTime = tick()
         while tick() - startTime < waitTime do
@@ -3075,7 +2328,7 @@ local function startFailsafeAfterGameEnd()
             notify("Failsafe", "Teleporting to lobby...", 3)
             Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
         else
-            print("✅ Game started right at the end of wait. No recovery needed.")
+            print("Game started right at the end of wait. No recovery needed.")
         end
 
         failsafeRunning = false
@@ -3102,7 +2355,7 @@ local function startNextLoop()
     task.spawn(function()
         while State.NextAttempted and State.autoNextEnabled do
             Remotes.NextEvent:FireServer()
-            task.wait(0.5) -- Retry interval (can adjust)
+            task.wait(0.5)
         end
     end)
 end
@@ -3123,7 +2376,6 @@ end
 
 local function isUnitShiny(unit)
     local success, result = pcall(function()
-        -- Check if "Shiny" is in the unit name
         if string.find(unit.Name:lower(), "shiny") then
             return true
         end
@@ -3139,10 +2391,10 @@ end
 local function shouldSellUnit(unit, selectedRarities)
     local rarity = getunitRarity(unit)
     local isShiny = isUnitShiny(unit)
-    
+
     local hasShinySelected = table.find(selectedRarities, "Shiny")
     local hasRaritySelected = table.find(selectedRarities, rarity)
-    
+
     if not hasRaritySelected then
         return false
     end
@@ -3153,556 +2405,10 @@ local function shouldSellUnit(unit, selectedRarities)
     end
 end
 
-local CurseImageIDs = {
-    ["Ability Damage"] = "rbxassetid://129472130637846",
-    ["Ability Cooldown"] = "rbxassetid://94734246361320",
-    ["Health"] = "rbxassetid://132403000977312",
-    ["Damage"] = "rbxassetid://128960075980851",
-    ["Attack Cooldown"] = "rbxassetid://102308191455123",
-    ["Range"] = "rbxassetid://105399018590765",
-    ["Speed"] = "rbxassetid://131770445081586",
-}
-
-local function GetAppliedCurses()
-    local main = Services.Players.LocalPlayer.PlayerGui:WaitForChild("ApplyCurse").Main.Base.Stats.Main
-    local results = {}
-
-    for _, statFrame in pairs(main:GetChildren()) do
-        if statFrame.Name == "StatTemp" then
-            local icon = statFrame:FindFirstChild("StatsIconic")
-            local buffIcon = statFrame:FindFirstChild("BuffIconic")
-            local percentageLabel = statFrame:FindFirstChild("Value") -- You might need to adjust this name
-            
-            if icon and buffIcon then
-                local isGreen = buffIcon.Image == "rbxassetid://73853750530888"
-                local percentage = 0
-                
-                -- Extract percentage value from the label
-                if percentageLabel and percentageLabel.Text then
-                    local percentText = percentageLabel.Text
-                    -- Extract number from text like "+15%" or "-7%"
-                    local sign, number = percentText:match("([+-]?)(%d+)")
-                    if number then
-                        percentage = tonumber(number) or 0
-                        if sign == "-" then
-                            percentage = -percentage
-                        end
-                    end
-                end
-                
-                table.insert(results, {
-                    image = icon.Image,
-                    isGreen = isGreen,
-                    percentage = percentage,
-                    slot = #results + 1
-                })
-            end
-        end
-    end
-    return results
-end
-
-local function CursesMatch(applied, selected)
-    if not applied or #applied == 0 then
-        return false
-    end
-    
-    -- If only 1 curse selected, find it anywhere with its requirement
-    if #selected == 1 then
-        local targetCurse = selected[1]
-        local minRequired = State.curseMinimums[targetCurse] or 1
-        
-        for _, curse in ipairs(applied) do
-            if curse.image == CurseImageIDs[targetCurse] and curse.isGreen then
-                -- Check if this curse meets its minimum requirement
-                local isReverseStat = targetCurse == "Attack Cooldown" or targetCurse == "Ability Cooldown"
-                
-                if isReverseStat then
-                    -- For reverse stats, we want curse.percentage <= -minRequired
-                    if curse.percentage <= -minRequired then
-                        return true
-                    end
-                else
-                    -- For normal stats, we want curse.percentage >= minRequired
-                    if curse.percentage >= minRequired then
-                        return true
-                    end
-                end
-            end
-        end
-        return false
-    end
-    
-    -- For multiple curses, find ANY of them that meet their individual requirements
-    local foundCurses = {}
-    for _, curse in ipairs(applied) do
-        if curse.isGreen then
-            for _, selectedName in ipairs(selected) do
-                if curse.image == CurseImageIDs[selectedName] then
-                    local minRequired = State.curseMinimums[selectedName] or 1
-                    local meetsRequirement = true
-                    
-                    -- Check if this specific curse meets its requirement
-                    local isReverseStat = selectedName == "Attack Cooldown" or selectedName == "Ability Cooldown"
-                    
-                    if isReverseStat then
-                        -- For reverse stats, we want curse.percentage <= -minRequired
-                        if curse.percentage > -minRequired then
-                            meetsRequirement = false
-                        end
-                    else
-                        -- For normal stats, we want curse.percentage >= minRequired
-                        if curse.percentage < minRequired then
-                            meetsRequirement = false
-                        end
-                    end
-                    
-                    if meetsRequirement then
-                        foundCurses[selectedName] = true
-                    end
-                    break
-                end
-            end
-        end
-    end
-    
-    -- Count how many different selected curses we found that meet their requirements
-    local foundCount = 0
-    for _ in pairs(foundCurses) do
-        foundCount = foundCount + 1
-    end
-    
-    -- Success if we found at least 2 of our selected curses with proper percentages
-    return foundCount >= 2
-end
-
-local function GetSelectedUnit()
-    local success, unit = pcall(function()
-        local playerGui = Services.Players.LocalPlayer.PlayerGui
-        local applyCurseGui = playerGui:FindFirstChild("ApplyCurse")
-        
-        if not applyCurseGui then
-            return nil
-        end
-
-        local unitFolder = applyCurseGui:FindFirstChild("Main")
-            and applyCurseGui.Main:FindFirstChild("Base")
-            and applyCurseGui.Main.Base:FindFirstChild("UnitFolder")
-
-        return unitFolder and unitFolder.Value or nil
-    end)
-
-    return success and unit or nil
-end
-
-local function GetSelectedUnitTraits()
-    local success, result = pcall(function()
-        local objVal = Services.Players.LocalPlayer.PlayerGui
-            :WaitForChild("Traits")
-            :WaitForChild("Main")
-            :WaitForChild("Base")
-            :WaitForChild("UnitFolder")
-
-        local folder = objVal.Value
-        
-        if not folder then
-            return nil
-        end
-
-        local primary = folder:FindFirstChild("PrimaryTrait")
-        local secondary = folder:FindFirstChild("SecondaryTrait")
-
-        if primary and secondary then
-            return {
-                primary = primary.Value,
-                secondary = secondary.Value,
-                unit = folder
-            }
-        end
-        return nil
-    end)
-
-    return success and result or nil
-end
-
-local function TraitsMatch(currentTraits, selectedTraits, requireDouble)
-    if not currentTraits then
-        return false
-    end
-    
-    local primary = currentTraits.primary
-    local secondary = currentTraits.secondary
-    
-    -- Convert selected traits to a lookup table for faster checking
-    local selectedLookup = {}
-    for _, trait in ipairs(selectedTraits) do
-        selectedLookup[trait] = true
-    end
-    
-    if requireDouble then
-        -- For double traits: need one selected trait in primary AND one in secondary
-        local primaryMatch = selectedLookup[primary]
-        local secondaryMatch = selectedLookup[secondary]
-        
-        return primaryMatch and secondaryMatch and primary ~= secondary
-    else
-        -- For single trait: need at least one selected trait in either slot
-        return selectedLookup[primary] or selectedLookup[secondary]
-    end
-end
-
-local function RerollTraits(unit)
-    local success = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("RerollTrait"):FireServer(game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild(tostring(Services.Players.LocalPlayer.Name)):WaitForChild("Collection"):WaitForChild(unit.Name),"Reroll","Main","Shards")
-    end)
-    return success
-end
-
-local function StartAutoReroll(selectedTraits)
-    if not isInLobby() then
-        notify("Auto Reroll", "Must be in lobby to use auto reroll!")
-        return
-    end
-    
-    if #selectedTraits < 1 then
-        notify("Auto Reroll", "Please select at least 1 trait!")
-        return
-    end
-    
-    if State.rollOnlyDoubleTraits and #selectedTraits < 2 then
-        notify("Auto Reroll", "Need at least 2 traits selected for double trait mode!")
-        return
-    end
-    
-    task.spawn(function()
-        local attempts = 0
-        local startingShards = 0
-        
-        -- Get starting shard count
-        pcall(function()
-            local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-            local shardsItem = playerData.Items:FindFirstChild("Trait Reroll")
-            if shardsItem then
-                startingShards = shardsItem.Amount.Value
-            end
-        end)
-        
-        notify("Auto Reroll", "Searching for traits: " .. table.concat(selectedTraits, ", "))
-        
-        while State.AutoRerollEnabled do
-            attempts += 1
-            
-            -- First quick check
-            local currentTraits = GetSelectedUnitTraits()
-            if not currentTraits then
-                notify("Auto Reroll", "No unit selected! Please open trait UI.")
-                task.wait(1)
-                continue
-            end
-
-            if TraitsMatch(currentTraits, selectedTraits, State.rollOnlyDoubleTraits) then
-                notify("Auto Reroll", string.format("Found traits after %d attempts!", attempts))
-                State.AutoRerollEnabled = false
-                
-                -- Send webhook if enabled
-                if State.SendFinishedTraitRerollingWebhook and ValidWebhook then
-                    local endingShards = 0
-                    pcall(function()
-                        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-                        local shardsItem = playerData.Items:FindFirstChild("Trait Reroll")
-                        if shardsItem then
-                            endingShards = shardsItem.Amount.Value
-                        end
-                    end)
-                    
-                    local shardsUsed = startingShards - endingShards
-                    local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
-                    
-                    local traitsText = State.rollOnlyDoubleTraits and 
-                        string.format("**Double Traits:** %s & %s", currentTraits.primary, currentTraits.secondary) or
-                        string.format("**Traits Found:** %s (Primary) / %s (Secondary)", currentTraits.primary, currentTraits.secondary)
-                    
-                    local data = {
-                        username = "LixHub Bot",
-                        content = string.format("<@%s>", Config.DISCORD_USER_ID),
-                        embeds = {{
-                            title = "💎 Auto Trait Reroll Finished! 💎",
-                            description = string.format("Successfully found desired traits for **%s**!", currentTraits.unit.Name),
-                            color = 3447003,
-                            fields = {
-                                { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                                { name = "Unit", value = currentTraits.unit.Name, inline = true },
-                                { name = "Attempts", value = tostring(attempts), inline = true },
-                                { name = "Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
-                                { name = "Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
-                                { name = "Result", value = traitsText, inline = false },
-                            },
-                            footer = { text = "discord.gg/cYKnXE2Nf8" },
-                            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                        }}
-                    }
-                    
-                    local payload = Services.HttpService:JSONEncode(data)
-                    local requestFunc = (syn and syn.request) or (http and http.request) or request
-                    
-                    if requestFunc then
-                        pcall(function()
-                            requestFunc({
-                                Url = ValidWebhook,
-                                Method = "POST",
-                                Headers = { ["Content-Type"] = "application/json" },
-                                Body = payload
-                            })
-                        end)
-                    end
-                end
-                break
-            end
-
-            -- Reroll
-            local rollSuccess = RerollTraits(currentTraits.unit)
-            if not rollSuccess then
-                notify("Auto Reroll", "Failed to reroll! Retrying...")
-                task.wait(0.2)
-                continue
-            end
-
-            -- Micro-delay to allow UI/server update
-            task.wait(0.1)
-
-            -- Second check (catches late updates)
-            local newTraits = GetSelectedUnitTraits()
-            if newTraits and TraitsMatch(newTraits, selectedTraits, State.rollOnlyDoubleTraits) then
-                notify("Auto Reroll", string.format("Found traits after %d attempts!", attempts))
-                State.AutoRerollEnabled = false
-                
-                -- Send webhook if enabled (same code as above)
-                if State.SendFinishedTraitRerollingWebhook and ValidWebhook then
-                    local endingShards = 0
-                    pcall(function()
-                        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-                        local shardsItem = playerData.Items:FindFirstChild("Trait Reroll")
-                        if shardsItem then
-                            endingShards = shardsItem.Amount.Value
-                        end
-                    end)
-                    
-                    local shardsUsed = startingShards - endingShards
-                    local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
-                    
-                    local traitsText = State.rollOnlyDoubleTraits and 
-                        string.format("**Double Traits:** %s & %s", newTraits.primary, newTraits.secondary) or
-                        string.format("**Traits Found:** %s (Primary) / %s (Secondary)", newTraits.primary, newTraits.secondary)
-                    
-                    local data = {
-                        username = "LixHub Bot",
-                        content = string.format("<@%s> 🎉 **TRAIT REROLL COMPLETE!** 🎉", Config.DISCORD_USER_ID),
-                        embeds = {{
-                            title = "💎 Auto Trait Reroll Finished! 💎",
-                            description = string.format("Successfully found desired traits for **%s**!", newTraits.unit.Name),
-                            color = 3447003,
-                            fields = {
-                                { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                                { name = "Unit", value = newTraits.unit.Name, inline = true },
-                                { name = "Attempts", value = tostring(attempts), inline = true },
-                                { name = "Trait Rerolls Used", value = tostring(shardsUsed), inline = true },
-                                { name = "Trait Rerolls Remaining", value = tostring(endingShards), inline = true },
-                                { name = "Result", value = traitsText, inline = false },
-                            },
-                            footer = { text = "discord.gg/cYKnXE2Nf8" },
-                            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                        }}
-                    }
-                    
-                    local payload = Services.HttpService:JSONEncode(data)
-                    local requestFunc = (syn and syn.request) or (http and http.request) or request
-                    
-                    if requestFunc then
-                        pcall(function()
-                            requestFunc({
-                                Url = ValidWebhook,
-                                Method = "POST",
-                                Headers = { ["Content-Type"] = "application/json" },
-                                Body = payload
-                            })
-                        end)
-                    end
-                end
-                break
-            end
-
-            -- Short delay before loop repeats
-            task.wait(0.15)
-
-            -- Progress update every 20 attempts
-            if attempts % 20 == 0 then
-                notify("Auto Reroll", string.format("Attempt %d - Still searching...", attempts))
-            end
-        end
-    end)
-end
-
-local function StartAutoCurse(selectedCurses)
-    if not isInLobby() then
-        notify("Auto Curse", "Must be in lobby to use auto curse!")
-        return
-    end
-    
-    if #selectedCurses < 1 then
-        notify("Auto Curse", "Please select at least 1 curse!")
-        return
-    end
-    
-    task.spawn(function()
-        local attempts = 0
-        local startingFingers = 0
-        
-        -- Get starting cursed finger count
-        pcall(function()
-            local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-            local fingersItem = playerData.Items:FindFirstChild("Cursed Finger")
-            if fingersItem then
-                startingFingers = fingersItem.Amount.Value
-            end
-        end)
-        
-        -- Dynamic success message based on selection
-        local targetMessage = #selectedCurses == 1 and 
-            string.format("Looking for: %s", selectedCurses[1]) or
-            string.format("Looking for any 2 of: %s", table.concat(selectedCurses, ", "))
-        
-        notify("Auto Curse", targetMessage)
-        
-        while State.AutoCurseEnabled do
-            attempts = attempts + 1
-            
-            -- Enhanced unit validation
-            local unit = GetSelectedUnit()
-            if not unit then
-                notify("Auto Curse", "No unit selected! Please select a unit in the curse UI.")
-                task.wait(3)
-                continue
-            end
-            
-            -- Apply curse with error handling
-            local success = pcall(function()
-                Remotes.ApplyCurseRemote:FireServer("ApplyCurse - Normal", unit)
-            end)
-            
-            if not success then
-                notify("Auto Curse", "Failed to apply curse! Retrying...")
-                task.wait(1)
-                continue
-            end
-            
-            task.wait(1)
-
-            local applied = GetAppliedCurses()
-
-            if CursesMatch(applied, selectedCurses) then
-                local successMessage = #selectedCurses == 1 and
-                    string.format("Found %s! (Attempt %d)", selectedCurses[1], attempts) or
-                    string.format("Found matching curses! (Attempt %d)", attempts)
-                
-                notify("Auto Curse", successMessage)
-                State.AutoCurseEnabled = false
-                
-                -- Send webhook if enabled
-                if State.SendFinishedCurseRerollingWebhook and ValidWebhook then
-                    local endingFingers = 0
-                    pcall(function()
-                        local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-                        local fingersItem = playerData.Items:FindFirstChild("Cursed Finger")
-                        if fingersItem then
-                            endingFingers = fingersItem.Amount.Value
-                        end
-                    end)
-                    
-                    local fingersUsed = startingFingers - endingFingers
-                    local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
-                    
-                    -- Build curse results text
-                    local curseResults = {}
-                    for i, curse in ipairs(applied) do
-                        if curse.isGreen then
-                            for curseName, imageId in pairs(CurseImageIDs) do
-                                if curse.image == imageId then
-                                    table.insert(curseResults, string.format("**Slot %d:** %s (%+d%%)", i, curseName, curse.percentage))
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    
-                    local data = {
-                        username = "LixHub Bot",
-                        content = string.format("<@%s>", Config.DISCORD_USER_ID),
-                        embeds = {{
-                            title = "🔮 Auto Curse Reroll Finished! 🔮",
-                            description = string.format("Successfully found desired curses for **%s**!", unit.Name),
-                            color = 3447003,
-                            fields = {
-                                { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                                { name = "Unit", value = unit.Name, inline = true },
-                                { name = "Attempts", value = tostring(attempts), inline = true },
-                                { name = "Cursed Fingers Used", value = tostring(fingersUsed), inline = true },
-                                { name = "Cursed Fingers Remaining", value = tostring(endingFingers), inline = true },
-                                { name = "Curse Results", value = table.concat(curseResults, "\n"), inline = false },
-                            },
-                            footer = { text = "discord.gg/cYKnXE2Nf8" },
-                            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                        }}
-                    }
-                    
-                    local payload = Services.HttpService:JSONEncode(data)
-                    local requestFunc = (syn and syn.request) or (http and http.request) or request
-                    
-                    if requestFunc then
-                        pcall(function()
-                            requestFunc({
-                                Url = ValidWebhook,
-                                Method = "POST",
-                                Headers = { ["Content-Type"] = "application/json" },
-                                Body = payload
-                            })
-                        end)
-                    end
-                end
-                break
-            end
-            
-            -- Enhanced logging with percentage info
-            if applied then
-                local currentCurses = {}
-                for i, curse in ipairs(applied) do
-                    if curse.isGreen then
-                        for curseName, imageId in pairs(CurseImageIDs) do
-                            if curse.image == imageId then
-                                local slotInfo = string.format("%s %+d%% (Slot %d)", curseName, curse.percentage, i)
-                                table.insert(currentCurses, slotInfo)
-                                break
-                            end
-                        end
-                    end
-                end
-                if #currentCurses > 0 then
-                    print(string.format("Attempt %d got: %s", attempts, table.concat(currentCurses, ", ")))
-                end
-            end
-            
-            -- Progress notification every 10 attempts
-            if attempts % 10 == 0 then
-                notify("Auto Curse", string.format("Attempt %d - Still searching...", attempts))
-            end
-        end
-    end)
-end
-
 local function deleteUnit(unitName)
     if not unitName then return false end
-    
+
     local success, result = pcall(function()
-        -- Loop through all parts in UnitT folder
         for _, part in pairs(Services.Workspace.Agent.UnitT:GetChildren()) do
             if part:IsA("Part") then
                 local info = part:FindFirstChild("Info")
@@ -3718,7 +2424,7 @@ local function deleteUnit(unitName)
         end
         return false
     end)
-    
+
     if success and result then
         print("Successfully deleted unit: " .. unitName)
         return true
@@ -3762,7 +2468,7 @@ local function checkAndRefreshUnits()
 end
 
 local function autoSellUnitLoop()
-        if State.AutoSellUnitChoice[1] and State.AutoSellUnitChoice[1] ~= "No Unit" then
+    if State.AutoSellUnitChoice[1] and State.AutoSellUnitChoice[1] ~= "No Unit" then
         local slotNumber = tonumber(State.AutoSellUnitChoice[1]:match("Unit(%d)"))
         if slotNumber then
             local unitName = getUnitNameFromSlot(slotNumber)
@@ -3772,7 +2478,7 @@ local function autoSellUnitLoop()
                 end
             end
         end
-        end
+    end
 end
 
 task.spawn(function()
@@ -3793,11 +2499,9 @@ task.spawn(function()
     end
 end)
 
---//\\--
-
 task.spawn(function()
     while true do
-        task.wait(0.5) -- check every 0.5 seconds
+        task.wait(0.5)
 
         if State.AutoSellRarities and typeof(State.SelectedRaritiesToSell) == "table" then
             local data = GameObjects.GetData.GetData(Services.Players.LocalPlayer)
@@ -3819,142 +2523,129 @@ task.spawn(function()
     end
 end)
 
-    task.spawn(function()
-        print("🔄 Fetching story data...")
-        Data.availableStories = fetchStoryData()
-        
-        print("🔄 Fetching ranger stage data...")
-        Data.availableRangerStages = fetchRangerStageData(Data.availableStories)
+task.spawn(function()
+    print("Fetching story data...")
+    Data.availableStories = fetchStoryData()
 
-        print("🔄 Fetching raid data...")
-        Data.availableRaids = fetchRaidData()
-        
-        print("✅ Data fetching complete!")
-    end)
+    print("Fetching ranger stage data...")
+    Data.availableRangerStages = fetchRangerStageData(Data.availableStories)
 
-    task.spawn(function()
-        while true do
-            task.wait(0.5) -- Check every 0.5 seconds
-            checkAndExecuteHighestPriority()
-        end
-    end)
+    print("Fetching raid data...")
+    Data.availableRaids = fetchRaidData()
 
-    task.spawn(function()
-        while true do
-            task.wait(0.1)
-            StreamerMode()
-        end
-    end)
+    print("Data fetching complete!")
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        checkAndExecuteHighestPriority()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        StreamerMode()
+    end
+end)
 
 task.spawn(function()
     while true do
         wait(0.1)
-             if State.autoDisableEndUI and not isInLobby() then
-     for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
-    if child.Name == "GameEndedAnimationUI" then
-        child.Enabled = false
-    end
-end
-for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
-    if child.Name == "RewardsUI" then
-        child.Enabled = false
-    end
-end
-for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
-    if child.Name == "Visual" then
-        child.Enabled = false
-    end
-end
-end
-    end
-end)
-        task.spawn(function()
-        while true do
-            task.wait(2)
-            if State.autoAfkTeleportEnabled and isInLobby() and GameObjects.AFKChamberUI.Enabled == false then
-                print("🚀 Teleporting to AFK world...")
-            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("AFKWorldTeleport"):FireServer()
+        if State.autoDisableEndUI and not isInLobby() then
+            for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
+                if child.Name == "GameEndedAnimationUI" then
+                    child.Enabled = false
+                end
             end
-        end
-    end)
-
-    task.spawn(function()
-        while true do
-            if State.AutoPurchaseMerchant and #Data.MerchantPurchaseTable > 0 then
-                autoPurchaseItems(State.AutoPurchaseMerchant, Data.MerchantPurchaseTable, "Merchant", "Merchant")
+            for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
+                if child.Name == "RewardsUI" then
+                    child.Enabled = false
+                end
             end
-            if State.AutoPurchaseBossRush and #Data.BossRushPurchaseTable > 0 then
-                autoPurchaseItems(State.AutoPurchaseBossRush, Data.BossRushPurchaseTable, "Boss_Rush", "Boss Rush")
-            end
-            if State.AutoPurchaseRaid and #Data.RaidPurchaseTable > 0 then
-                autoPurchaseItems(State.AutoPurchaseRaid, Data.RaidPurchaseTable, "Raid_Shop", "Raid Shop")
-            end
-            if State.AutoPurchaseRaidCSW and #Data.RaidPurchaseTableCSW > 0 then
-                autoPurchaseItems(State.AutoPurchaseRaidCSW, Data.RaidPurchaseTableCSW, "RaidCSW_Shop", "Graveyard Raid Shop")
-            end
-            if State.AutoPurchaseRiftStorm and #Data.RiftStormPurchaseTable > 0 then
-                autoPurchaseItems(State.AutoPurchaseRiftStorm, Data.RiftStormPurchaseTable, "Rift_Storm", "Rift Storm Shop")
-            end
-            if State.AutoPurchaseSwarmEvent and #Data.SwarmEventPurchaseTable > 0 then
-                autoPurchaseItems(State.AutoPurchaseSwarmEvent, Data.SwarmEventPurchaseTable, "Fall_Shop", "Swarm Event Shop")
-            end
-            task.wait(1)
-        end
-    end)
-
-    task.spawn(function()
-        while true do
-            task.wait(3)
-           -- if isInLobby() then
-            if State.autoClaimBP then
-            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Events"):WaitForChild("ClaimBp"):FireServer("Claim All")
-            end
-            if State.AutoClaimQuests then
-            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("QuestEvent"):FireServer("ClaimAll")
-            end
-            if State.AutoClaimMilestones then
-            local playerlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value
-            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("LevelMilestone"):FireServer(tonumber(playerlevel))
-               -- end
-            end
-        end
-    end)
-
-     task.spawn(function()
-        while true do
-            task.wait(1)
-
-            if State.autoStartEnabled then
-                local voteVisible = false
-
-                pcall(function()
-                    voteVisible = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
-                        :WaitForChild("HUD")
-                        :WaitForChild("InGame")
-                        :WaitForChild("VotePlaying").Visible
-                end)
-
-                if voteVisible then
-                    print("✅ Vote screen is visible — sending start signal...")
-                    Remotes.StartGame:FireServer()
-                    task.wait(3) -- optional cooldown between fires
+            for _, child in ipairs(Services.Players.LocalPlayer.PlayerGui:GetChildren()) do
+                if child.Name == "Visual" then
+                    child.Enabled = false
                 end
             end
         end
-    end)
+    end
+end)
 
---//BUTTONS\\--
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if State.autoAfkTeleportEnabled and isInLobby() and GameObjects.AFKChamberUI.Enabled == false then
+            print("Teleporting to AFK world...")
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("AFKWorldTeleport"):FireServer()
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if State.AutoPurchaseMerchant and #Data.MerchantPurchaseTable > 0 then
+            autoPurchaseItems(State.AutoPurchaseMerchant, Data.MerchantPurchaseTable, "Merchant", "Merchant")
+        end
+        if State.AutoPurchaseSwarmEvent and #Data.SwarmEventPurchaseTable > 0 then
+            autoPurchaseItems(State.AutoPurchaseSwarmEvent, Data.SwarmEventPurchaseTable, "Fall_Shop", "Swarm Event Shop")
+        end
+        task.wait(1)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+        if State.autoClaimBP then
+            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Events"):WaitForChild("ClaimBp"):FireServer("Claim All")
+        end
+        if State.AutoClaimQuests then
+            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("QuestEvent"):FireServer("ClaimAll")
+        end
+        if State.AutoClaimMilestones then
+            local playerlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value
+            Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("LevelMilestone"):FireServer(tonumber(playerlevel))
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+
+        if State.autoStartEnabled then
+            local voteVisible = false
+
+            pcall(function()
+                voteVisible = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
+                    :WaitForChild("HUD")
+                    :WaitForChild("InGame")
+                    :WaitForChild("VotePlaying").Visible
+            end)
+
+            if voteVisible then
+                print("Vote screen is visible, sending start signal...")
+                Remotes.StartGame:FireServer()
+                task.wait(3)
+            end
+        end
+    end
+end)
+
+--// BUTTONS //--
 
 local function redeemallcodes()
     notify("Code Redemption", "Starting code redemption...", 3)
-    
+
     local success, error = pcall(function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/Codes_ARX.lua"))()
     end)
-    
+
     if not success then
         notify("Error", "Failed to load code script", 5)
-        warn("❌ Failed to load script: " .. tostring(error))
+        warn("Failed to load script: " .. tostring(error))
     end
 end
 
@@ -3962,7 +2653,7 @@ local function updateFPSLimit()
     if State.enableLimitFPS and State.SelectedFPS > 0 then
         setfpscap(State.SelectedFPS)
     else
-        setfpscap(0) -- 0 = unlimited
+        setfpscap(0)
     end
 end
 
@@ -3994,9 +2685,9 @@ end
 local function takeUnitSnapshot()
     local units = {}
     local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
-    
+
     if playerGui then
-        local unitInventory =playerGui:FindFirstChild("Collection").Main.Base.Space.Unit
+        local unitInventory = playerGui:FindFirstChild("Collection").Main.Base.Space.Unit
         if unitInventory then
             for _, unitFrame in pairs(unitInventory:GetDescendants()) do
                 if unitFrame:IsA("TextButton") then
@@ -4014,97 +2705,33 @@ end
 
 local function compareUnits(before, after)
     local newUnits = {}
-    
+
     for unitName, afterCount in pairs(after) do
         local beforeCount = before[unitName] or 0
         local difference = afterCount - beforeCount
-        
+
         if difference > 0 then
             newUnits[unitName] = difference
         end
     end
-    
+
     return newUnits
 end
 
-local function getCurrentWave()
-    local success, wave = pcall(function()
-        return Services.ReplicatedStorage:WaitForChild("Values"):WaitForChild("Waves"):WaitForChild("CurrentWave").Value
-    end)
-    return success and wave or 0
-end
-
-local function fireAdventureModeEnd(endure)
-    local success = pcall(function()
-        local args = { endure }
-        Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("AdventureModeEnd"):FireServer(unpack(args))
-    end)
-    if success then
-        print("Fired AdventureModeEnd with value:", endure)
-    else
-        warn("Failed to fire AdventureModeEnd remote")
-    end
-end
-
-local function startMonitoring()
-    if State.isMonitoring then
-        return
-    end
-    
-    State.isMonitoring = true
-    State.lastProcessedWave = 0
-    
-    spawn(function()
-        while State.isMonitoring do
-            if State.autoEndureEnabled then
-                local currentWave = getCurrentWave()
-                State.currentWave = currentWave
-                
-                if currentWave > 0 and currentWave % 5 == 0 then
-                    if currentWave <= State.autoEndureSlider then
-                        fireAdventureModeEnd(true)
-                        if currentWave ~= State.lastProcessedWave then
-                            State.lastProcessedWave = currentWave
-                        end
-                    else
-                        fireAdventureModeEnd(false)
-                        if currentWave ~= State.lastProcessedWave then
-                            State.lastProcessedWave = currentWave
-                        end
-                    end
-                else
-                    if State.lastProcessedWave > 0 and State.lastProcessedWave % 5 == 0 then
-                    end
-                end
-            end
-            
-            wait(0.1)
-        end
-    end)
-end
-
--- Function to stop monitoring
-local function stopMonitoring()
-    State.isMonitoring = false
-    print("Auto Endure monitoring stopped")
-end
-
 local function sendSummaryWebhook(newUnits, totalGems)
-    -- Replace with your webhook URL
     local webhookUrl = ValidWebhook
-    
+
     if not webhookUrl or webhookUrl == "YOUR_WEBHOOK_URL_HERE" then
         print("No webhook URL configured")
         return
     end
-    
+
     local embed = {
-        title = "🎲 Auto Summon Results",
-        color = 3447003, -- Blue color
+        title = "Auto Summon Results",
+        color = 3447003,
         fields = {
-            -- Gems spent at the top
             {
-                name = "💎 Gems Spent",
+                name = "Gems Spent",
                 value = totalGems,
                 inline = false
             }
@@ -4114,8 +2741,7 @@ local function sendSummaryWebhook(newUnits, totalGems)
         },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
-    
-    -- Add new units to embed (after gems spent)
+
     for unitName, count in pairs(newUnits) do
         table.insert(embed.fields, {
             name = unitName,
@@ -4123,19 +2749,17 @@ local function sendSummaryWebhook(newUnits, totalGems)
             inline = true
         })
     end
-    
-    if #embed.fields == 1 then -- Only gems field exists
+
+    if #embed.fields == 1 then
         embed.description = "No new units obtained this session."
     end
-    
+
     local data = {
         embeds = {embed}
     }
-    
-    -- Use executor webhook function
+
     local success, result = pcall(function()
         if syn and syn.request then
-            -- Synapse X
             return syn.request({
                 Url = webhookUrl,
                 Method = "POST",
@@ -4143,7 +2767,6 @@ local function sendSummaryWebhook(newUnits, totalGems)
                 Body = Services.HttpService:JSONEncode(data)
             })
         elseif request then
-            -- Script-Ware, Krnl, etc.
             return request({
                 Url = webhookUrl,
                 Method = "POST",
@@ -4151,7 +2774,6 @@ local function sendSummaryWebhook(newUnits, totalGems)
                 Body = Services.HttpService:JSONEncode(data)
             })
         elseif http_request then
-            -- Some other executors
             return http_request({
                 Url = webhookUrl,
                 Method = "POST",
@@ -4162,17 +2784,17 @@ local function sendSummaryWebhook(newUnits, totalGems)
             error("No HTTP request function available")
         end
     end)
-    
+
     if success then
-        print("📤 Webhook sent successfully!")
+        print("Webhook sent successfully!")
     else
-        print("❌ Failed to send webhook:", result)
+        print("Failed to send webhook:", result)
     end
 end
 
 local function doSummon()
     local args
-    
+
     if State.AutoSummonBannerSelected == "Divine" then
         args = {
             "10x",
@@ -4186,7 +2808,7 @@ local function doSummon()
             {}
         }
     end
-    
+
     pcall(function()
         Services.ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("UnitsGacha"):FireServer(unpack(args))
     end)
@@ -4204,20 +2826,20 @@ local function startAutoSummon()
     if autoSummonActive then return end
     if not State.enableAutoSummon then return end
     if not State.AutoSummonBannerSelected then return end
-    
+
     autoSummonActive = true
-    print("🎰 Starting Auto Summon...")
-    notify("Auto Summon","Starting Auto Summon...")
-    
+    print("Starting Auto Summon...")
+    notify("Auto Summon", "Starting Auto Summon...")
+
     if not showUnitInventory() then
-        print("❌ Failed to show unit inventory")
+        print("Failed to show unit inventory")
         autoSummonActive = false
         return
     end
-    
+
     initialUnits = takeUnitSnapshot()
-    print("📸 Initial units snapshot taken")
-    
+    print("Initial units snapshot taken")
+
     local initialCurrency
     if State.AutoSummonBannerSelected == "Divine" then
         initialCurrency = getCurrentDivineFlowers()
@@ -4226,8 +2848,7 @@ local function startAutoSummon()
         initialCurrency = getCurrentGems()
         Services.Players.LocalPlayer:SetAttribute("InitialGems", initialCurrency)
     end
-    
-    -- UI keeping task - runs independently
+
     local uiTask = task.spawn(function()
         while autoSummonActive do
             local playerGui = Services.Players.LocalPlayer:FindFirstChild("PlayerGui")
@@ -4241,36 +2862,34 @@ local function startAutoSummon()
             task.wait(0.1)
         end
     end)
-    
-    -- Main summoning task
+
     summonTask = task.spawn(function()
         while autoSummonActive do
             local currentCurrency, requiredAmount, currencyName
-            
+
             if State.AutoSummonBannerSelected == "Divine" then
                 currentCurrency = getCurrentDivineFlowers()
-                requiredAmount = 1500  -- Divine banner costs 1 per summon
+                requiredAmount = 1500
                 currencyName = "Divine Flowers"
             else
                 currentCurrency = getCurrentGems()
-                requiredAmount = 500  -- Standard/Rateup costs 500 gems
+                requiredAmount = 500
                 currencyName = "gems"
             end
-            
+
             if currentCurrency < requiredAmount then
-                print("💎 Not enough " .. currencyName .. "! Stopping auto summon...")
+                print("Not enough " .. currencyName .. "! Stopping auto summon...")
                 notify("Auto Summon", "Not enough " .. currencyName .. "! Stopping auto summon...")
                 Services.Players.LocalPlayer.PlayerGui.HUD.Enabled = true
                 break
             end
-            
+
             doSummon()
-            print("🎲 Summoned! " .. currencyName .. " remaining:", currentCurrency)
-            
+            print("Summoned! " .. currencyName .. " remaining:", currentCurrency)
+
             task.wait(3)
         end
-        
-        -- Generate summary
+
         local finalCurrency, currencySpent
         if State.AutoSummonBannerSelected == "Divine" then
             finalCurrency = getCurrentDivineFlowers()
@@ -4279,11 +2898,11 @@ local function startAutoSummon()
             finalCurrency = getCurrentGems()
             currencySpent = (Services.Players.LocalPlayer:GetAttribute("InitialGems") or getCurrentGems()) - finalCurrency
         end
-        
+
         task.wait(1)
         local finalUnits = takeUnitSnapshot()
         local newUnits = compareUnits(initialUnits, finalUnits)
-        
+
         local hasNewUnits = false
         for _, count in pairs(newUnits) do
             if count > 0 then
@@ -4291,40 +2910,37 @@ local function startAutoSummon()
                 break
             end
         end
-        
+
         if hasNewUnits then
             sendSummaryWebhook(newUnits, currencySpent)
-            print("📊 Summary sent to webhook!")
+            print("Summary sent to webhook!")
         else
-            print("📊 No new units obtained")
+            print("No new units obtained")
         end
-        
+
         autoSummonActive = false
-        print("🛑 Auto Summon stopped")
+        print("Auto Summon stopped")
     end)
 end
 
--- Function to stop auto summon
 local function stopAutoSummon()
     if not autoSummonActive then return end
-    
+
     autoSummonActive = false
     if summonTask then
         task.cancel(summonTask)
         summonTask = nil
         Services.Players.LocalPlayer.PlayerGui.HUD.Enabled = true
     end
-    
-    -- Generate summary even when manually stopped
+
     task.spawn(function()
         local finalGems = getCurrentGems()
         local gemsSpent = (Services.Players.LocalPlayer:GetAttribute("InitialGems") or getCurrentGems()) - finalGems
-        
-        task.wait(1) -- Wait for inventory to update
+
+        task.wait(1)
         local finalUnits = takeUnitSnapshot()
         local newUnits = compareUnits(initialUnits, finalUnits)
-        
-        -- Send webhook if any units were obtained
+
         local hasNewUnits = false
         for _, count in pairs(newUnits) do
             if count > 0 then
@@ -4332,32 +2948,34 @@ local function stopAutoSummon()
                 break
             end
         end
-        
+
         if hasNewUnits then
             sendSummaryWebhook(newUnits, gemsSpent)
-            print("📊 Summary sent to webhook!")
+            print("Summary sent to webhook!")
         else
-            print("📊 No new units obtained")
+            print("No new units obtained")
         end
     end)
-    
-    print("🛑 Auto Summon manually stopped")
+
+    print("Auto Summon manually stopped")
 end
 
- GameSection = LobbyTab:CreateSection("🏨 Lobby 🏨")
+--// UI //--
 
-CodeButton = LobbyTab:CreateButton({
+LobbyTab:CreateSection("Lobby")
+
+LobbyTab:CreateButton({
     Name = "Redeem All Codes",
     Callback = function()
         redeemallcodes()
     end,
 })
 
- Toggle = LobbyTab:CreateToggle({
+LobbyTab:CreateToggle({
     Name = "Auto Summon",
     CurrentValue = false,
     Flag = "enableAutoSummon",
-    Info = "Will start summoning on selected banner, to send obtained units webhook make sure you set your webhook id and then turn off the toggle. If your UI bugs after using this simply rejoin.",
+    Info = "Will start summoning on selected banner. If your UI bugs after using this simply rejoin.",
     TextScaled = true,
     Callback = function(Value)
         State.enableAutoSummon = Value
@@ -4369,163 +2987,24 @@ CodeButton = LobbyTab:CreateButton({
     end,
 })
 
- Dropdown = LobbyTab:CreateDropdown({
-   Name = "Auto Summon Banner",
-   Options = {"Standard","Rateup","Divine"},
-   CurrentOption = {},
-   MultipleOptions = false,
-   Flag = "AutoSummonBannerSelection",
-   Callback = function(Options)
-        State.AutoSummonBannerSelected = Options[1]
-   end,
-})
-
- Button = LobbyTab:CreateButton({
-        Name = "Load Item Tracker",
-        Callback = function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/item.lua"))()
-        end,
-    })
-
- GameSection = LobbyTab:CreateSection("🔮 Auto Curse 🔮")
-
-local AutoCurseToggle = LobbyTab:CreateToggle({
-    Name = "Auto Curse",
-    CurrentValue = false,
-    Flag = "AutoCurseToggle",
-    Info = "Open curse UI and select unit manually before enabling.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.AutoCurseEnabled = Value
-        if #State.selectedCurses >= 1 and State.AutoCurseEnabled then
-            StartAutoCurse(State.selectedCurses)
-        elseif Value and #State.selectedCurses < 1 then
-            notify("Auto Curse", "Please select at least 1 curse first!")
-        end
-    end,
-})
-
-local CurseSelectorDropdown = LobbyTab:CreateDropdown({
-    Name = "Select Curses",
-    Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
-    CurrentOption = "Ability Damage",
-    MultipleOptions = true,
-    Flag = "CurseSelector",
-    Callback = function(Options)
-        State.selectedCurses = Options
-        if State.AutoCurseEnabled and #Options < 1 then
-            State.AutoCurseEnabled = false
-            AutoCurseToggle:Set(false)
-            notify("Auto Curse", "Auto curse disabled - need at least 1 curse selected!")
-        end
-    end,
-})
-
- CurseRequirementsDropdown = LobbyTab:CreateDropdown({
-    Name = "Set Requirements For",
-    Options = {"Ability Damage","Ability Cooldown","Health","Damage","Attack Cooldown","Range","Speed"},
-    CurrentOption = "",
-    MultipleOptions = false,
-    Flag = "CurseRequirementsSelector",
-    Info = "Select which curse to set minimum percentage for",
-    Callback = function(Option)
-        State.selectedCurseForRequirement = Option[1]
-    end,
-})
-
- CurseMinimumSlider = LobbyTab:CreateSlider({
-    Name = "Minimum Percentage",
-    Range = {1, 15},
-    Increment = 1,
-    CurrentValue = 1,
-    Flag = "CurseMinimumPercentage",
-    Info = "Minimum percentage for the selected curse",
-    Callback = function(Value)
-        if State.selectedCurseForRequirement then
-            State.curseMinimums[State.selectedCurseForRequirement] = Value
-            notify("Auto Curse", string.format("Set %s minimum to %d%%", State.selectedCurseForRequirement, Value))
-        end
-    end,
-})
-
- ShowRequirementsButton = LobbyTab:CreateButton({
-    Name = "Show Current Requirements",
-    Callback = function()
-        local requirements = {}
-        for curse, minPercent in pairs(State.curseMinimums) do
-            table.insert(requirements, string.format("%s: %d%%", curse, minPercent))
-        end
-        if #requirements > 0 then
-            notify("Requirements", table.concat(requirements, ", "))
-        else
-            notify("Requirements", "No requirements set")
-        end
-    end,
-})
-
- ResetButton = LobbyTab:CreateButton({
-    Name = "Reset All Settings",
-    Callback = function()
-        State.selectedCurses = {}
-        State.curseMinimums = {}
-        CurseSelectorDropdown:Set({})
-        notify("Auto Curse", "All settings cleared")
-    end,
-})
-
-GameSection = LobbyTab:CreateSection("💎 Auto Trait 💎")
-
-local AutoTraitToggle = LobbyTab:CreateToggle({
-    Name = "Auto Reroll Traits",
-    CurrentValue = false,
-    Flag = "AutoTraitToggle",
-    Info = "Open trait UI and select unit manually before enabling.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.AutoRerollEnabled = Value
-        if #State.selectedTraits >= 1 and State.AutoRerollEnabled then
-            StartAutoReroll(State.selectedTraits)
-        elseif Value and #State.selectedTraits < 1 then
-            notify("Auto Reroll", "Please select at least 1 trait first!")
-        end
-    end,
-})
-
- TraitSelectorDropdown = LobbyTab:CreateDropdown({
-    Name = "Select Traits",
-    Options = {"Endure I","Endure II","Endure III","Horizon I","Horizon II","Horizon III","Superior I","Superior II","Superior III","Brute","Sniper","Colossal","Investor","Jokester","Blitz","Juggernaut","Millionaire","Violent","Seraph","Capitalist","Duplicator","Sovereign"},
+LobbyTab:CreateDropdown({
+    Name = "Auto Summon Banner",
+    Options = {"Standard", "Rateup", "Divine"},
     CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "TraitSelector",
+    MultipleOptions = false,
+    Flag = "AutoSummonBannerSelection",
     Callback = function(Options)
-        State.selectedTraits = Options
-        if State.AutoRerollEnabled and #Options < 1 then
-            State.AutoRerollEnabled = false
-            AutoTraitToggle:Set(false)
-            notify("Auto Reroll", "Auto reroll disabled - need at least 1 trait selected!")
-        end
+        State.AutoSummonBannerSelected = Options[1]
     end,
 })
 
- DoubleTraitToggle = LobbyTab:CreateToggle({
-    Name = "Roll Only Double Traits",
-    CurrentValue = false,
-    Flag = "DoubleTraitToggle",
-    Info = "When enabled, will only stop when 2 selected traits are found (1 in main trait, 1 in sub-trait).",
-    TextScaled = false,
-    Callback = function(Value)
-        State.rollOnlyDoubleTraits = Value
-    end,
-})
+LobbyTab:CreateSection("Auto Gear Farm")
 
-GameSection = LobbyTab:CreateSection("⚙️ Auto Gear ⚙️")
-
-
-AutoFarmToggle = LobbyTab:CreateToggle({
+local AutoFarmToggle = LobbyTab:CreateToggle({
     Name = "Auto Gear Farm",
     CurrentValue = State.AutoFarmEnabled,
     Flag = "AutoGearFarmEnabled",
-    Info = "Joins the required ranger stages and farms. You have to manually craft the gears this just collects the materials!",
+    Info = "Joins the required ranger stages and farms. You have to manually craft the gears, this just collects the materials!",
     TextScaled = false,
     Callback = function(Value)
         State.AutoFarmEnabled = Value
@@ -4541,14 +3020,13 @@ local GearSelectorDropdown = LobbyTab:CreateDropdown({
     Flag = "GearSelector",
     Callback = function(Options)
         State.selectedGears = Options
-        
-        -- Apply current craft amount to all selected gears
+
         local craftAmount = State.globalCraftAmount or 1
         State.craftAmounts = {}
         for _, gearName in ipairs(Options) do
             State.craftAmounts[gearName] = craftAmount
         end
-        
+
         if State.AutoFarmEnabled and #Options == 0 then
             State.AutoFarmEnabled = false
             AutoFarmToggle:Set(false)
@@ -4557,7 +3035,7 @@ local GearSelectorDropdown = LobbyTab:CreateDropdown({
     end,
 })
 
-CraftAmountSlider = LobbyTab:CreateSlider({
+LobbyTab:CreateSlider({
     Name = "Craft Amount",
     Range = {1, 50},
     Increment = 1,
@@ -4566,35 +3044,35 @@ CraftAmountSlider = LobbyTab:CreateSlider({
     Info = "Amount to craft for ALL selected gears",
     Callback = function(Value)
         State.globalCraftAmount = Value
-        
+
         for _, gearName in ipairs(State.selectedGears or {}) do
             State.craftAmounts[gearName] = Value
         end
-        
+
         if #(State.selectedGears or {}) > 0 then
             notify("Auto Gear Farm", string.format("Set craft amount to %d for all selected gears", Value))
         end
     end,
 })
 
-ShowRequiredMaterialsButton = LobbyTab:CreateButton({
+LobbyTab:CreateButton({
     Name = "Show Required Materials",
     Callback = function()
         if #State.selectedGears == 0 then
             notify("Required Materials", "No gears selected!")
             return
         end
-        
+
         local totalNeeded = CalculateTotalMaterialsNeeded()
         local inventory = GetPlayerInventory()
-        
+
         local materialsList = {}
         for materialName, needed in pairs(totalNeeded) do
             local current = inventory[materialName] or 0
-            local status = current >= needed and "✓" or "✗"
+            local status = current >= needed and "OK" or "MISSING"
             table.insert(materialsList, string.format("%s %s: %d/%d", status, materialName, current, needed))
         end
-        
+
         if #materialsList > 0 then
             notify("Required Materials", table.concat(materialsList, "\n"))
         else
@@ -4603,7 +3081,7 @@ ShowRequiredMaterialsButton = LobbyTab:CreateButton({
     end,
 })
 
-ShowCraftAmountsButton = LobbyTab:CreateButton({
+LobbyTab:CreateButton({
     Name = "Show Craft Amounts",
     Callback = function()
         local amounts = {}
@@ -4612,7 +3090,7 @@ ShowCraftAmountsButton = LobbyTab:CreateButton({
                 table.insert(amounts, string.format("%s: %dx", gearName, amount))
             end
         end
-        
+
         if #amounts > 0 then
             notify("Craft Amounts", table.concat(amounts, "\n"))
         else
@@ -4621,7 +3099,7 @@ ShowCraftAmountsButton = LobbyTab:CreateButton({
     end,
 })
 
-ResetGearSettingsButton = LobbyTab:CreateButton({
+LobbyTab:CreateButton({
     Name = "Reset All Gear Settings",
     Callback = function()
         State.selectedGears = {}
@@ -4629,605 +3107,55 @@ ResetGearSettingsButton = LobbyTab:CreateButton({
         State.totalMaterialsNeeded = {}
         State.globalCraftAmount = 1
         GearSelectorDropdown:Set({})
-        CraftAmountSlider:Set(1)
         notify("Auto Gear Farm", "All gear settings cleared!")
     end,
 })
 
-GameSection = LobbyTab:CreateSection("⚙️ Misc ⚙️")
+LobbyTab:CreateSection("Claimers")
 
- Button = LobbyTab:CreateButton({
-        Name = "Return to lobby",
-        Callback = function()
-            notify("Return to lobby", "Returning to lobby!")
-            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-        end,
-    })
-
-    local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
-
-     GameSection = GameTab:CreateSection("👥 Player 👥")
-
-     Slider = GameTab:CreateSlider({
-   Name = "Max Camera Zoom Distance",
-   Range = {5, 100},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 35,
-   Flag = "CameraZoomDistanceSelector",
-   Callback = function(Value)
-        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
-   end,
-})
-
-     Toggle = GameTab:CreateToggle({
-    Name = "Anti AFK (No kick message)",
-    CurrentValue = false,
-    Flag = "AntiAfkKickToggle",
-    Info = "Prevents roblox kick message.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.AntiAfkKickEnabled = Value
-    end,
-})
-
-task.spawn(function()
-    Services.Players.LocalPlayer.Idled:Connect(function()
-        if State.AntiAfkKickEnabled then
-            Services.VIRTUAL_USER:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-            task.wait(1)
-            Services.VIRTUAL_USER:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-        end
-    end)
-end)
-
-     Toggle = GameTab:CreateToggle({
-    Name = "Low Performance Mode",
-    CurrentValue = false,
-    Flag = "enableLowPerformanceMode",
-    Callback = function(Value)
-        State.enableLowPerformanceMode = Value
-        enableLowPerformanceMode()
-    end,
-})
-
- Toggle = GameTab:CreateToggle({
-    Name = "Black Screen",
-    CurrentValue = false,
-    Flag = "enableBlackScreen",
-    Callback = function(Value)
-        State.enableBlackScreen = Value
-        enableBlackScreen()
-    end,
-})
-
- Toggle = LobbyTab:CreateToggle({
-    Name = "Auto Execute Script",
-    CurrentValue = false,
-    Flag = "enableAutoExecute",
-    Info = "This auto executes and persists through teleports until you disable it or leave the game.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.enableAutoExecute = Value
-        if State.enableAutoExecute then
-            if queue_on_teleport then
-                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
-            else
-                warn("queue_on_teleport not supported by this executor")
-            end
-        else
-            if queue_on_teleport then
-                queue_on_teleport("") -- Empty string clears queue in most executors
-            end
-        end
-    end,
-})
-
-local Toggle = LobbyTab:CreateToggle({
-    Name = "Auto Reconnect When disconnected",
-    CurrentValue = false,
-    Flag = "AutoReconnectToggle",
-    Info = "Automatically tries to reconnect when you get kicked or disconnected.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.autoReconnectEnabled = Value
-    end,
-})
-
-local function setupAutoReconnect()
-    local TeleportService = game:GetService("TeleportService")
-    local GuiService = game:GetService("GuiService")
-
-    local isReconnecting = false
-    local maxRetries = 10
-    local retryDelay = 3
-    
-    local function attemptReconnect()
-        if not State.autoReconnectEnabled or State.intentionalTeleport or isReconnecting then return end
-        
-        isReconnecting = true
-        
-        for attempt = 1, maxRetries do
-            notify("Auto Reconnect", string.format("Reconnecting... (Attempt %d/%d)", attempt, maxRetries), 3)
-            
-            local success = false
-            
-            -- If same server fails, try any server
-            if not success then
-                success = pcall(function()
-                    TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-                end)
-            end
-            
-            if success then
-                -- Teleport initiated successfully, wait for it to complete
-                notify("Auto Reconnect", "Teleport initiated, waiting...", 2)
-                task.wait(5) -- Give time for teleport to start
-                
-                -- If we're still here after 5 seconds, teleport failed
-                if attempt < maxRetries then
-                    notify("Auto Reconnect", "Teleport failed, retrying...", 2)
-                    task.wait(retryDelay)
-                end
-            else
-                -- Teleport call failed immediately
-                if attempt < maxRetries then
-                    notify("Auto Reconnect", string.format("Failed! Retrying in %d seconds...", retryDelay), retryDelay)
-                    task.wait(retryDelay)
-                else
-                    notify("Auto Reconnect", "Max retries reached. Please reconnect manually.", 5)
-                end
-            end
-        end
-        
-        isReconnecting = false
-    end
-    
-    -- Monitor for kick messages using GetErrorMessage()
-    local lastErrorMessage = ""
-    
-    task.spawn(function()
-        while task.wait(0.5) do
-            if not State.autoReconnectEnabled or State.intentionalTeleport then continue end
-            
-            local success, errorMessage = pcall(function()
-                return GuiService:GetErrorMessage()
-            end)
-            
-            if success and errorMessage and errorMessage ~= "" and errorMessage ~= lastErrorMessage then
-                lastErrorMessage = errorMessage
-                
-                -- Check if it's actually a kick/disconnect message
-                local lowerMsg = errorMessage:lower()
-                if lowerMsg:find("kick") or 
-                   lowerMsg:find("disconnect") or
-                   lowerMsg:find("banned") or
-                   lowerMsg:find("removed") or
-                   lowerMsg:find("lost connection") or
-                   lowerMsg:find("error code") then -- Added error code detection
-                    
-                    notify("Auto Reconnect", "Disconnect detected! Starting reconnection...", 2)
-                    task.wait(1)
-                    attemptReconnect()
-                end
-            end
-        end
-    end)
-end
-
-setupAutoReconnect()
-
-     Toggle = GameTab:CreateToggle({
-    Name = "Delete Map",
-    CurrentValue = false,
-    Flag = "enableDeleteMap",
-    Info = "Rejoin to disable.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.enableDeleteMap = Value
-        enableDeleteMap()
-    end,
-})
-
- Toggle = GameTab:CreateToggle({
-    Name = "Delete Enemies/Units",
-    CurrentValue = false,
-    Flag = "enableDeleteEnemies",
-    Info = "Removes Unit/Enemy Models.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.deleteEntities = Value
-        
-        if Value then
-            -- Approach 1: Event-based instant deletion (most efficient)
-            task.spawn(function()
-                local agentFolder = workspace:FindFirstChild("Agent")
-                if agentFolder then
-                    local agentSubFolder = agentFolder:FindFirstChild("Agent")
-                    if agentSubFolder then
-                        -- Delete existing models first
-                        for _, model in pairs(agentSubFolder:GetChildren()) do
-                            if model and model.Parent then
-                                model:Destroy()
-                            end
-                        end
-                        
-                        -- Set up instant deletion for new spawns
-                        State.childAddedConnection = agentSubFolder.ChildAdded:Connect(function(child)
-                            if State.deleteEntities and child then
-                                child:Destroy() -- Delete immediately when spawned
-                            end
-                        end)
-                    end
-                end
-            end)
-        else
-            -- Clean up connection when disabled
-            if State.childAddedConnection then
-                State.childAddedConnection:Disconnect()
-                State.childAddedConnection = nil
-            end
-        end
-    end,
-})
-
- Toggle = GameTab:CreateToggle({
-    Name = "Limit FPS",
-    CurrentValue = false,
-    Flag = "enableLimitFPS",
-    Callback = function(Value)
-        State.enableLimitFPS = Value
-        updateFPSLimit()
-    end,
-})
-
- Slider = GameTab:CreateSlider({
-   Name = "Limit FPS To",
-   Range = {0, 240},
-   Increment = 1,
-   Suffix = " FPS",
-   CurrentValue = 60,
-   Flag = "FPSSelector",
-   Callback = function(Value)
-        State.SelectedFPS = Value
-        updateFPSLimit()
-   end,
-})
-
-if State.enableLowPerformanceMode then
-    enableLowPerformanceMode()
-end
-
-if State.enableDeleteMap then
-    enableDeleteMap()
-end
-
-local Toggle = LobbyTab:CreateToggle({
-    Name = "Auto Sell Rarities",
-    CurrentValue = false,
-    Flag = "AutoSellRarities",
-    Info = "",
-    TextScaled = false,
-    Callback = function(Value)
-        State.AutoSellRarities = Value
-    end,
-})
-
-local RaritySellerDropdown = LobbyTab:CreateDropdown({
-    Name = "Select Rarities To Sell",
-    Options = {"Rare", "Epic", "Legendary", "Shiny"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "RaritySellerSelector",
-    Info = "This won't touch locked units of any type.",
-    TextScaled = false,
-    Callback = function(Options)
-        State.SelectedRaritiesToSell = Options
-    end,
-})
-
-local function craftDivineRerolls()
-    if not isInLobby() then
-        notify("Craft Divine Rerolls", "Must be in lobby to craft!")
-        return
-    end
-    
-    task.spawn(function()
-        local totalCrafted = 0
-        
-        while true do
-            -- Get current Trait Reroll count
-            local currentRerolls = 0
-            local success = pcall(function()
-                local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-                local rerollItem = playerData.Items:FindFirstChild("Trait Reroll")
-                if rerollItem then
-                    currentRerolls = rerollItem.Amount.Value
-                end
-            end)
-            
-            if not success then
-                notify("Craft Divine Rerolls", "Failed to check Trait Reroll count!")
-                break
-            end
-            
-            -- Check if we have enough to craft (need 1000 per craft)
-            if currentRerolls < 1000 then
-                notify("Craft Divine Rerolls", string.format("Crafting complete! Crafted %d Divine Rerolls. You have %d Trait Rerolls left.", totalCrafted, currentRerolls), 5)
-                break
-            end
-            
-            -- Craft one Divine Reroll
-            local craftSuccess = pcall(function()
-                local args = {
-                    "Divine Reroll",
-                    "1",
-                    "1"
-                }
-                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Crafting"):WaitForChild("Event"):FireServer(unpack(args))
-            end)
-            
-            if not craftSuccess then
-                notify("Craft Divine Rerolls", "Failed to craft! Stopping...")
-                break
-            end
-            
-            totalCrafted = totalCrafted + 1
-            
-            -- Progress notification every 5 crafts
-            if totalCrafted % 5 == 0 then
-                notify("Craft Divine Rerolls", string.format("Crafted %d Divine Rerolls so far... (%d Trait Rerolls remaining)", totalCrafted, currentRerolls - 1000), 2)
-            end
-            
-            -- Small delay between crafts to avoid spam
-            task.wait(0.5)
-        end
-    end)
-end
-
-local CraftDivineRerollsButton = LobbyTab:CreateButton({
-    Name = "Craft Divine Rerolls",
-    Callback = function()
-        local currentRerolls = 0
-        pcall(function()
-            local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-            local rerollItem = playerData.Items:FindFirstChild("Trait Reroll")
-            if rerollItem then
-                currentRerolls = rerollItem.Amount.Value
-            end
-        end)
-        
-        if currentRerolls < 1000 then
-            notify("Craft Divine Rerolls", string.format("Not enough Trait Rerolls! You have %d but need 1000 to craft.", currentRerolls), 5)
-        else
-            notify("Craft Divine Rerolls", string.format("Starting to craft Divine Rerolls! You have %d Trait Rerolls.", currentRerolls), 3)
-            craftDivineRerolls()
-        end
-    end,
-})
-
- GameSection = ShopTab:CreateSection("💰 Merchant 💰")
-
- Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase Merchant Items",
-    CurrentValue = false,
-    Flag = "AutoPurchaseMerchant",
-    Callback = function(Value)
-        State.AutoPurchaseMerchant = Value
-    end,
-    })
-
-      MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Merchant)",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll","Ranger Crystal","Soul Fragments","Divine Flower Tier I"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "MerchantPurchaseSelector",
-    Callback = function(Options)
-        Data.MerchantPurchaseTable = Options
-    end,
-    })
-
- GameSection = ShopTab:CreateSection("🔪 Raid Shop 🔪")
-
-     Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase Raid Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseRaid",
-    Callback = function(Value)
-        State.AutoPurchaseRaid = Value
-    end,
-    })
-
-      MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Raid)",
-    Options = {"Dr. Megga Punk","Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "RaidPurchaseSelector",
-    Callback = function(Options)
-        Data.RaidPurchaseTable = Options
-    end,
-    })
-
- GameSection = ShopTab:CreateSection("👹 Boss Rush Shop 👹")
-
-     Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase Boss Rush Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseBossRush",
-    Callback = function(Value)
-        State.AutoPurchaseBossRush = Value
-    end,
-    })
-
-      MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Boss Rush)",
-    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Soul Fragments"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "BossRushPurchaseSelector",
-    Callback = function(Options)
-        Data.BossRushPurchaseTable = Options
-    end,
-    })
-
- GameSection = ShopTab:CreateSection("⚰️ Graveyard Raid Shop ⚰️")
-
-     Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase Graveyard Raid Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseRaidCSW",
-    Callback = function(Value)
-        State.AutoPurchaseRaidCSW = Value
-    end,
-    })
-
-     MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Graveyard Raid Shop)",
-    Options = {"Cursed Finger","Perfect Stats Key","Stats Key","Trait Reroll"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "RaidPurchaseSelectorCSW",
-    Callback = function(Options)
-        Data.RaidPurchaseTableCSW = Options
-    end,
-    })
-
-local GameSection = ShopTab:CreateSection("🌀 Rift Storm Shop 🌀")
-
-    local Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase Rift Storm Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseRiftStorm",
-    Callback = function(Value)
-        State.AutoPurchaseRiftStorm = Value
-    end,
-    })
-
-     local MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Rift Storm Shop)",
-    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Ranger Crystal"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "RiftStormPurchaseSelector",
-    Callback = function(Options)
-        Data.RiftStormPurchaseTable = Options
-    end,
-    })
-
- --GameSection = ShopTab:CreateSection("⚱️ Swarm Event Shop ⚱️")
-
-    --[[ Toggle = ShopTab:CreateToggle({
-    Name = "Auto Purchase Swarm Event Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseSwarmEvent",
-    Callback = function(Value)
-        State.AutoPurchaseSwarmEvent = Value
-    end,
-    })
-
-      MerchantSelectorDropdown = ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Swarm Event Shop)",
-    Options = {"Dr. Megga Punk","Perfect Stats Key","Stats Key","Trait Reroll","Cursed Finger","Stat Boosters","Soul Fragments","Borus Capsule"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "SwarmEventPurchaseSelector",
-    Callback = function(Options)
-        Data.SwarmEventPurchaseTable = Options
-    end,
-    })--]]
-
-    --local BorosPityCounterLabel = ShopTab:CreateLabel("Boros Pity: ")
-
---[[local function setupBorosPityCounter()
-    local Players = game:GetService("Players")
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-    local player = Players.LocalPlayer
-    local playerData = ReplicatedStorage:WaitForChild("Player_Data"):WaitForChild(player.Name)
-    local profile = playerData:WaitForChild("Profile")
-    local borusPity = profile:WaitForChild("BorusCapsulePity")
-
-    local function updateText()
-        BorosPityCounterLabel:Set("Boros Pity: " .. tostring(borusPity.Value) .. "/25000")
-    end
-
-    updateText()
-    borusPity:GetPropertyChangedSignal("Value"):Connect(updateText)
-end
-
-    setupBorosPityCounter()
-
-    local BorosToggle = ShopTab:CreateToggle({
-   Name = "Auto Open Boros Capsule",
-   CurrentValue = false,
-   Flag = "AutoOpenBoros", 
-   Callback = function(Value)
-       State.AutoOpenBorosEnabled = Value
-       if Value then
-           startAutoBorosCapsule()
-       end
-   end,
-})
-
-local SwarmToggle = ShopTab:CreateToggle({
-   Name = "Auto Swarm Event Bug",
-   CurrentValue = false,
-   Flag = "AutoSwarmBug", 
-   Callback = function(Value)
-       State.AutoSwarmEventEnabled = Value
-       if Value then
-           startAutoSwarmEvent()
-       end
-   end,
-})--]]
-
-     GameSection = LobbyTab:CreateSection("🎁 Claimers 🎁")
-
-     Toggle = LobbyTab:CreateToggle({
+LobbyTab:CreateToggle({
     Name = "Auto Claim Battlepass",
     CurrentValue = false,
     Flag = "AutoClaimBattlepass",
     Callback = function(Value)
         State.autoClaimBP = Value
     end,
-    })
+})
 
-     Toggle = LobbyTab:CreateToggle({
+LobbyTab:CreateToggle({
     Name = "Auto Claim Quests",
     CurrentValue = false,
     Flag = "AutoClaimQuests",
     Callback = function(Value)
         State.AutoClaimQuests = Value
     end,
-    })
+})
 
-     Toggle = LobbyTab:CreateToggle({
+LobbyTab:CreateToggle({
     Name = "Auto Claim Level Milestones",
     CurrentValue = false,
     Flag = "AutoClaimMilestones",
     Callback = function(Value)
         State.AutoClaimMilestones = Value
     end,
-    })
+})
 
-     GameSection = LobbyTab:CreateSection("💤 AFK Chamber 💤")
+LobbyTab:CreateSection("AFK Chamber")
 
-    Toggle = LobbyTab:CreateToggle({
-        Name = "Auto Teleport to AFK Chamber",
-        CurrentValue = false,
-        Flag = "AutoAfkTeleportToggle",
-        Callback = function(Value)
-            State.autoAfkTeleportEnabled = Value
-        end,
-    })
+LobbyTab:CreateToggle({
+    Name = "Auto Teleport to AFK Chamber",
+    CurrentValue = false,
+    Flag = "AutoAfkTeleportToggle",
+    Callback = function(Value)
+        State.autoAfkTeleportEnabled = Value
+    end,
+})
 
-         Toggle = LobbyTab:CreateToggle({
+LobbyTab:CreateToggle({
     Name = "Anti Teleport to AFK Chamber",
     CurrentValue = false,
     Flag = "AntiAfkToggle",
-    Info = "This also disables arx auto rejoin",
+    Info = "This also disables ARX auto rejoin.",
     TextScaled = false,
     Callback = function(Value)
         State.AntiAfkEnabled = Value
@@ -5245,402 +3173,238 @@ task.spawn(function()
     end
 end)
 
-      Toggle = GameTab:CreateToggle({
-    Name = "Streamer Mode (hide name/level/title)",
-    CurrentValue = false,
-    Flag = "streamerModeEnabled",
-    Callback = function(Value)
-        State.streamerModeEnabled = Value
+LobbyTab:CreateSection("Misc")
+
+LobbyTab:CreateButton({
+    Name = "Return to Lobby",
+    Callback = function()
+        notify("Return to Lobby", "Returning to lobby!")
+        Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
     end,
 })
 
-     JoinerSection0 = JoinerTab:CreateSection("🤖 Boss Rush Joiner 🤖")
-
-     Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Boss Rush",
+LobbyTab:CreateToggle({
+    Name = "Auto Execute Script",
     CurrentValue = false,
-    Flag = "AutoBossRushToggle",
+    Flag = "enableAutoExecute",
+    Info = "This auto executes and persists through teleports until you disable it or leave the game.",
+    TextScaled = false,
     Callback = function(Value)
-        State.autoBossRushEnabled = Value
-    end,
-    })
-
-     JoinerSection98285728 = JoinerTab:CreateSection("🎮 Advanced AutoPlay 🎮")
-
-     Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Select Path For Boss Rush/Rift Storm",
-    CurrentValue = false,
-    Flag = "AutoPlayBossRush",
-    Callback = function(Value)
-        State.autoPlayBossRushEnabled = Value  
-    end,
-    })
-
-task.spawn(function()
-    while true do
-        if State.autoPlayBossRushEnabled and State.gameRunning then
-            local pathData = scanBossRushPaths()
-            local bestPath, enemyCount, unitCount = getBestBossRushPath(pathData)
-            
-            if bestPath ~= State.currentBossPath and enemyCount > 0 then
-                Remotes.SelectWay:FireServer(bestPath)
-                State.currentBossPath = bestPath
+        State.enableAutoExecute = Value
+        if State.enableAutoExecute then
+            if queue_on_teleport then
+                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+            else
+                warn("queue_on_teleport not supported by this executor")
+            end
+        else
+            if queue_on_teleport then
+                queue_on_teleport("")
             end
         end
-        task.wait(0.5)
+    end,
+})
+
+LobbyTab:CreateToggle({
+    Name = "Auto Reconnect When Disconnected",
+    CurrentValue = false,
+    Flag = "AutoReconnectToggle",
+    Info = "Automatically tries to reconnect when you get kicked or disconnected.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.autoReconnectEnabled = Value
+    end,
+})
+
+local function setupAutoReconnect()
+    local TeleportService = game:GetService("TeleportService")
+    local GuiService = game:GetService("GuiService")
+
+    local isReconnecting = false
+    local maxRetries = 10
+    local retryDelay = 3
+
+    local function attemptReconnect()
+        if not State.autoReconnectEnabled or State.intentionalTeleport or isReconnecting then return end
+
+        isReconnecting = true
+
+        for attempt = 1, maxRetries do
+            notify("Auto Reconnect", string.format("Reconnecting... (Attempt %d/%d)", attempt, maxRetries), 3)
+
+            local success = false
+
+            if not success then
+                success = pcall(function()
+                    TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+                end)
+            end
+
+            if success then
+                notify("Auto Reconnect", "Teleport initiated, waiting...", 2)
+                task.wait(5)
+
+                if attempt < maxRetries then
+                    notify("Auto Reconnect", "Teleport failed, retrying...", 2)
+                    task.wait(retryDelay)
+                end
+            else
+                if attempt < maxRetries then
+                    notify("Auto Reconnect", string.format("Failed! Retrying in %d seconds...", retryDelay), retryDelay)
+                    task.wait(retryDelay)
+                else
+                    notify("Auto Reconnect", "Max retries reached. Please reconnect manually.", 5)
+                end
+            end
+        end
+
+        isReconnecting = false
     end
-end)
 
- Toggle = JoinerTab:CreateToggle({
-    Name = "Advanced Auto Play (pair with select path(s) to deploy unit x on)",
+    local lastErrorMessage = ""
+
+    task.spawn(function()
+        while task.wait(0.5) do
+            if not State.autoReconnectEnabled or State.intentionalTeleport then continue end
+
+            local success, errorMessage = pcall(function()
+                return GuiService:GetErrorMessage()
+            end)
+
+            if success and errorMessage and errorMessage ~= "" and errorMessage ~= lastErrorMessage then
+                lastErrorMessage = errorMessage
+
+                local lowerMsg = errorMessage:lower()
+                if lowerMsg:find("kick") or
+                   lowerMsg:find("disconnect") or
+                   lowerMsg:find("banned") or
+                   lowerMsg:find("removed") or
+                   lowerMsg:find("lost connection") or
+                   lowerMsg:find("error code") then
+
+                    notify("Auto Reconnect", "Disconnect detected! Starting reconnection...", 2)
+                    task.wait(1)
+                    attemptReconnect()
+                end
+            end
+        end
+    end)
+end
+
+setupAutoReconnect()
+
+LobbyTab:CreateToggle({
+    Name = "Auto Sell Rarities",
     CurrentValue = false,
-    Flag = "AutoBossRushDeployToggle",
+    Flag = "AutoSellRarities",
     Callback = function(Value)
-        State.bossRushAutoDeployEnabled = Value
-        
-        if Value then
-            startBossRushAutoPlay()
-        else
-            stopBossRushAutoPlay()
-        end
+        State.AutoSellRarities = Value
     end,
 })
 
- DeployBossRushSelector1 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 1 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true, -- Changed to true for multiple path selection
-    Flag = "DeployBossRushSelector1",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            -- Single option selected
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(1, paths)
-        setBossRushSlotEnabled(1, #paths > 0) -- Enable if paths are selected
-    end,
-})
-
- DeployBossRushSelector2 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 2 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
+LobbyTab:CreateDropdown({
+    Name = "Select Rarities To Sell",
+    Options = {"Rare", "Epic", "Legendary", "Shiny"},
     CurrentOption = {},
     MultipleOptions = true,
-    Flag = "DeployBossRushSelector2",
+    Flag = "RaritySellerSelector",
+    Info = "This won't touch locked units of any type.",
     Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(2, paths)
-        setBossRushSlotEnabled(2, #paths > 0)
+        State.SelectedRaritiesToSell = Options
     end,
 })
 
- DeployBossRushSelector3 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 3 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector3",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(3, paths)
-        setBossRushSlotEnabled(3, #paths > 0)
-    end,
-})
+--// SHOP TAB //--
 
- DeployBossRushSelector4 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 4 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector4",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(4, paths)
-        setBossRushSlotEnabled(4, #paths > 0)
-    end,
-})
+ShopTab:CreateSection("Merchant")
 
- DeployBossRushSelector5 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 5 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector5",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(5, paths)
-        setBossRushSlotEnabled(5, #paths > 0)
-    end,
-})
-
- DeployBossRushSelector6 = JoinerTab:CreateDropdown({
-    Name = "Select path(s) to deploy unit 6 on",
-    Options = {"Path 1","Path 2","Path 3","Path 4"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "DeployBossRushSelector6",
-    Callback = function(Options)
-        local paths = {}
-        if type(Options) == "table" then
-            for _, pathString in pairs(Options) do
-                local pathNum = pathStringToNumber(pathString)
-                if pathNum then
-                    table.insert(paths, pathNum)
-                end
-            end
-        else
-            local pathNum = pathStringToNumber(Options)
-            if pathNum then
-                paths = {pathNum}
-            end
-        end
-        
-        setBossRushSlotPaths(6, paths)
-        setBossRushSlotEnabled(6, #paths > 0)
-    end,
-})
-
-     JoinerSection0 = JoinerTab:CreateSection("👹 Boss Event Joiner 👹")
-
-    --[[local AutoJoinBossEventToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Summer Event",
+ShopTab:CreateToggle({
+    Name = "Auto Purchase Merchant Items",
     CurrentValue = false,
-    Flag = "AutoSummerEventToggle",
+    Flag = "AutoPurchaseMerchant",
     Callback = function(Value)
-        State.autoSummerEventEnabled = Value
+        State.AutoPurchaseMerchant = Value
     end,
-    })--]]
+})
 
-     AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
+ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Merchant)",
+    Options = {"Dr. Megga Punk", "Cursed Finger", "Perfect Stats Key", "Stats Key", "Trait Reroll", "Ranger Crystal", "Soul Fragments", "Divine Flower Tier I"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "MerchantPurchaseSelector",
+    Callback = function(Options)
+        Data.MerchantPurchaseTable = Options
+    end,
+})
+
+ShopTab:CreateSection("Swarm Event Shop")
+
+ShopTab:CreateToggle({
+    Name = "Auto Purchase Swarm Event Shop",
+    CurrentValue = false,
+    Flag = "AutoPurchaseSwarmEvent",
+    Callback = function(Value)
+        State.AutoPurchaseSwarmEvent = Value
+    end,
+})
+
+ShopTab:CreateDropdown({
+    Name = "Select Items To Purchase (Swarm Event Shop)",
+    Options = {"Dr. Megga Punk", "Perfect Stats Key", "Stats Key", "Trait Reroll", "Cursed Finger"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "SwarmEventPurchaseSelector",
+    Callback = function(Options)
+        Data.SwarmEventPurchaseTable = Options
+    end,
+})
+
+--// JOINER TAB //--
+
+JoinerTab:CreateSection("Boss Event Joiner")
+
+JoinerTab:CreateToggle({
     Name = "Auto Join Boss Event",
     CurrentValue = false,
     Flag = "AutoBossEventToggle",
     Callback = function(Value)
         State.autoBossEventEnabled = Value
     end,
-    })
-
-         AutoJoinBossEvent3Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Boss Event Bug",
-    CurrentValue = false,
-    Flag = "AutoBossEventBugToggle",
-    Info = "Will spam 'restart match' to achieve 0.01s clear times on the boss event. Not advised to pair with webhook",
-    Callback = function(Value)
-        State.autoBossEventBugEnabled = Value
-    end,
-    })
-
-    spawn(function()
-    while true do
-        task.wait(0.1)
-        if State.autoBossEventBugEnabled then
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("RestartMatch"):FireServer()
-            end)
-        end
-    end
-end)
-
-JoinerSection0 = JoinerTab:CreateSection("👻 Fright Fest Joiner 👻")
-
-         AutoJoinBossEvent2Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Fright Fest",
-    CurrentValue = false,
-    Flag = "AutoFrightFestToggle",
-    Callback = function(Value)
-        State.autoFrightFestEnabled = Value
-    end,
-    })
-
-    JoinerSection0 = JoinerTab:CreateSection("🗺️ Adventure Mode Joiner 🗺️")
-
-     AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Adventure Mode",
-    CurrentValue = false,
-    Flag = "AutoAdventureModeToggle",
-    Callback = function(Value)
-        State.autoAdventureModeEnabled = Value
-    end,
-    })
-
-    JoinerSection0 = JoinerTab:CreateSection("⏳ Expedition Mode Joiner ⏳")
-
-     AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Expedition Mode",
-    CurrentValue = false,
-    Flag = "AutoExpeditionModeToggle",
-    Callback = function(Value)
-        State.autoExpeditionEnabled = Value
-    end,
-    })
-
-    JoinerSection0 = JoinerTab:CreateSection("🔱 Holy Grail War Joiner 🔱")
-
-     AutoJoinAdventureModeToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Holy Grail War Mode",
-    CurrentValue = false,
-    Flag = "AutoHolyGrailModeToggle",
-    Callback = function(Value)
-        State.autoHolyGrailEnabled = Value
-    end,
-    })
-
-     JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Grail Dungeon Joiner ⛓️")
-
-     Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Grail Dungeon",
-    CurrentValue = false,
-    Flag = "AutoGrailDungeonToggle",
-    Callback = function(Value)
-        State.autoGrailDungeonEnabled = Value
-    end,
-    })
-
-    Dropdown = JoinerTab:CreateDropdown({
-   Name = "Select Grail Dungeon Difficulty",
-   Options = {"Easy","Normal","Hell"},
-   CurrentOption = {},
-   MultipleOptions = false,
-   Flag = "AutoGrailDungeonDifficultySelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Option)
-        State.AutoGrailDungeonDifficultySelector = Option
-   end,
 })
 
-    JoinerSectionDungeons = JoinerTab:CreateSection("✨ Ascension Mode Joiner ✨")
+JoinerTab:CreateSection("Raid Joiner")
 
-    AutoJoinAscensionModeToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Ascension Mode",
-    CurrentValue = false,
-    Flag = "AutoAscensionModeToggle",
-    Callback = function(Value)
-        State.autoAscensionEnabled = Value
-    end,
-    })
-
-     JoinerSection000000 = JoinerTab:CreateSection("⏳ Infinite Mode Joiner ⏳")
-
-     AutoJoinInfiniteMode = JoinerTab:CreateToggle({
-    Name = "Auto Join Infinite Mode",
-    CurrentValue = false,
-    Flag = "AutoInfiniteToggle",
-    Callback = function(Value)
-        State.autoInfiniteEnabled = Value
-    end,
-    })
-
-     JoinerSection00 = JoinerTab:CreateSection("⚔️ Raid Joiner ⚔️")
-
-      AutoJoinBossEventToggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
     CurrentValue = false,
     Flag = "AutoRaidToggle",
     Callback = function(Value)
         State.autoJoinRaid = Value
     end,
-    })
+})
 
 local RaidSelectorDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Stage(s) To Join",
+    Name = "Select Raid Stage To Join",
     Options = {},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "RaidSelector",
     Callback = function(Option)
         State.selectedRaidStages = {}
-        
-        -- Handle both table and string cases
+
         local selectedOption
         if type(Option) == "table" then
-            selectedOption = Option[1] -- Get first element if it's a table
+            selectedOption = Option[1]
         else
             selectedOption = Option
         end
-        
-        print("Processing option:", selectedOption, "Type:", type(Option))
-        
-        -- Find which raid contains this display name
+
         for _, raid in ipairs(Data.raidData) do
             if raid.InternalStages[selectedOption] then
                 table.insert(State.selectedRaidStages, raid.InternalStages[selectedOption])
-                print("Found raid stage:", selectedOption, "-> ID:", raid.InternalStages[selectedOption])
                 break
             end
-        end
-        
-        if #State.selectedRaidStages == 0 then
-            print("❌ No internal ID found for:", selectedOption)
-        else
-            print("Selected raid stages (internal IDs):", table.concat(State.selectedRaidStages, ", "))
         end
     end,
 })
@@ -5658,22 +3422,21 @@ task.spawn(function()
     end
 
     RaidSelectorDropdown:Refresh(raidStageDisplayNames)
-
-    print("✅ Raid dropdown updated with", #raidStageDisplayNames, "options")
+    print("Raid dropdown updated with", #raidStageDisplayNames, "options")
 end)
 
-     JoinerSection = JoinerTab:CreateSection("📖 Story Joiner 📖")
+JoinerTab:CreateSection("Story Joiner")
 
-       AutoJoinStoryToggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Auto Join Story",
     CurrentValue = false,
     Flag = "AutoStoryToggle",
     Callback = function(Value)
         State.autoJoinEnabled = Value
     end,
-    })
+})
 
-      local StageDropdown = JoinerTab:CreateDropdown({
+local StageDropdown = JoinerTab:CreateDropdown({
     Name = "Select Story Stage",
     Options = {},
     CurrentOption = {},
@@ -5682,52 +3445,52 @@ end)
     Callback = function(Option)
         State.selectedWorld = Option[1]
     end,
-    })
+})
 
-     ChapterDropdown = JoinerTab:CreateDropdown({
+JoinerTab:CreateDropdown({
     Name = "Select Stage Chapter",
     Options = Config.chapters,
     CurrentOption = {},
     MultipleOptions = false,
-    Flag = "StoryChapterSelector", 
+    Flag = "StoryChapterSelector",
     Callback = function(Option)
         State.selectedChapter = Option[1]
     end,
-    })
-     DifficultyDropdown = JoinerTab:CreateDropdown({
+})
+
+JoinerTab:CreateDropdown({
     Name = "Select Stage Difficulty",
     Options = Config.difficulties,
     CurrentOption = {},
     MultipleOptions = false,
-    Flag = "StoryDifficultySelector", 
+    Flag = "StoryDifficultySelector",
     Callback = function(Option)
         State.selectedDifficulty = Option[1]
     end,
-    })
+})
 
-    local rewardNames = {}
+JoinerTab:CreateSection("Challenge Joiner")
 
-    for _, reward in ipairs(GameObjects.itemsFolder:GetChildren()) do
-        if reward:IsA("BoolValue") then
-            table.insert(rewardNames, reward.Name)
-        end
+local rewardNames = {}
+for _, reward in ipairs(GameObjects.itemsFolder:GetChildren()) do
+    if reward:IsA("BoolValue") then
+        table.insert(rewardNames, reward.Name)
     end
+end
 
+local rewardText = #rewardNames > 0 and table.concat(rewardNames, ", ") or "None"
+JoinerTab:CreateLabel("Current Challenge Rewards: " .. rewardText, "gift")
 
-     JoinerSection2 = JoinerTab:CreateSection("🏆 Challenge Joiner 🏆")
-    local rewardText = #rewardNames > 0 and table.concat(rewardNames, ", ") or "None"
-    local Label3 = JoinerTab:CreateLabel("Current Challenge Rewards: " .. rewardText, "gift")
-
-         Toggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Auto Join Challenge",
     CurrentValue = false,
     Flag = "AutoChallengeToggle",
     Callback = function(Value)
         State.autoChallengeEnabled = Value
     end,
-    })
+})
 
-    local IgnoreChallengeDropdown = JoinerTab:CreateDropdown({
+local IgnoreChallengeDropdown = JoinerTab:CreateDropdown({
     Name = "Ignore Challenge Worlds",
     Options = {},
     CurrentOption = {},
@@ -5738,57 +3501,57 @@ end)
     end,
 })
 
-    task.spawn(function()
-        while #Data.availableStories == 0 do
-            task.wait(0.5)
-        end
-        
-        local storyNames = {}
-        for _, story in ipairs(Data.availableStories) do
-            table.insert(storyNames, story.SeriesName)
-        end
-        
-        StageDropdown:Refresh(storyNames)
-        IgnoreChallengeDropdown:Refresh(storyNames)
-        print("✅ Story dropdown(s) updated with", #storyNames, "options")
-    end)
+task.spawn(function()
+    while #Data.availableStories == 0 do
+        task.wait(0.5)
+    end
 
-  ChallengeDropdown = JoinerTab:CreateDropdown({
+    local storyNames = {}
+    for _, story in ipairs(Data.availableStories) do
+        table.insert(storyNames, story.SeriesName)
+    end
+
+    StageDropdown:Refresh(storyNames)
+    IgnoreChallengeDropdown:Refresh(storyNames)
+    print("Story dropdown(s) updated with", #storyNames, "options")
+end)
+
+JoinerTab:CreateDropdown({
     Name = "Select Challenge Rewards",
-    Options = {"Dr. Megga Punk","Ranger Crystal","Stats Key","Perfect Stats Key","Trait Reroll","Cursed Finger"},
+    Options = {"Dr. Megga Punk", "Ranger Crystal", "Stats Key", "Perfect Stats Key", "Trait Reroll", "Cursed Finger"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ChallengeRewardSelector",
     Callback = function(options)
         Data.wantedRewards = options
     end,
-    })
+})
 
-     Toggle = JoinerTab:CreateToggle({
-        Name = "Return to Lobby on New Challenge",
-        CurrentValue = false,
-        Flag = "AutoReturnChallengeToggle",
-        Callback = function(Value)
-            State.challengeAutoReturnEnabled = Value
-        end,
-    })
+JoinerTab:CreateToggle({
+    Name = "Return to Lobby on New Challenge",
+    CurrentValue = false,
+    Flag = "AutoReturnChallengeToggle",
+    Callback = function(Value)
+        State.challengeAutoReturnEnabled = Value
+    end,
+})
 
-     JoinerSection3 = JoinerTab:CreateSection("🌀 Portal Joiner 🌀")
+JoinerTab:CreateSection("Portal Joiner")
 
-      Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Portal(s)",
+JoinerTab:CreateToggle({
+    Name = "Auto Join Portals",
     CurrentValue = false,
     Flag = "AutoPortalToggle",
     Callback = function(Value)
         State.autoPortalEnabled = Value
-         if State.autoPortalEnabled then
+        if State.autoPortalEnabled then
             State.portalUsed = false
-         end
+        end
     end,
-    })
+})
 
-     local PortalSelectorDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Portal(s) to join",
+local PortalSelectorDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Portal(s) to Join",
     Options = {},
     CurrentOption = {},
     MultipleOptions = true,
@@ -5799,44 +3562,44 @@ end)
 })
 
 task.spawn(function()
-        local portalNames = {}
+    local portalNames = {}
 
-        local inventory = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items
-        if inventory then
-            for _, item in ipairs(inventory:GetChildren()) do
-                if item:IsA("Folder") and (item.Name:lower():find("portal") or item.Name:lower():find("tier")) and item:FindFirstChild("Amount").Value > 0 then
-                    table.insert(portalNames, item.Name)
-                end
+    local inventory = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Items
+    if inventory then
+        for _, item in ipairs(inventory:GetChildren()) do
+            if item:IsA("Folder") and (item.Name:lower():find("portal") or item.Name:lower():find("tier")) and item:FindFirstChild("Amount").Value > 0 then
+                table.insert(portalNames, item.Name)
             end
         end
-        PortalSelectorDropdown:Refresh(portalNames)
+    end
+    PortalSelectorDropdown:Refresh(portalNames)
 end)
 
-     JoinerSection4 = JoinerTab:CreateSection("🏹 Ranger Stage Joiner 🏹")
+JoinerTab:CreateSection("Ranger Stage Joiner")
 
-         Toggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Ranger Stage",
-        CurrentValue = false,
-        Flag = "AutoRangerStageToggle",
-        Callback = function(Value)
-            State.isAutoJoining = Value
-        end,
-    })
+JoinerTab:CreateToggle({
+    Name = "Auto Join Ranger Stage",
+    CurrentValue = false,
+    Flag = "AutoRangerStageToggle",
+    Callback = function(Value)
+        State.isAutoJoining = Value
+    end,
+})
 
-     RangerStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Ranger Stage(s) To Join",
+local RangerStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Ranger Stage To Join",
     Options = {},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "RangerStageSelector",
     Callback = function(Options)
         Data.selectedRawStages = {}
-        
+
         for _, selectedDisplay in ipairs(Options) do
             for _, stage in ipairs(Data.availableRangerStages) do
                 if stage.DisplayName == selectedDisplay then
-                table.insert(Data.selectedRawStages, stage.RawName)
-                break
+                    table.insert(Data.selectedRawStages, stage.RawName)
+                    break
                 end
             end
         end
@@ -5844,64 +3607,53 @@ end)
 })
 
 task.spawn(function()
-        while #Data.availableRangerStages == 0 do
-            task.wait(0.5)
-        end
-        
-        local rangerDisplayNames = {}
-        for _, stage in ipairs(Data.availableRangerStages) do
-            table.insert(rangerDisplayNames, stage.DisplayName)
-        end
-        
-        RangerStageDropdown:Refresh(rangerDisplayNames)
-        print("✅ Ranger stage dropdown updated with", #rangerDisplayNames, "options")
-    end)
+    while #Data.availableRangerStages == 0 do
+        task.wait(0.5)
+    end
 
-     JoinerSectionDungeons = JoinerTab:CreateSection("🌀 Rifts 🌀")
+    local rangerDisplayNames = {}
+    for _, stage in ipairs(Data.availableRangerStages) do
+        table.insert(rangerDisplayNames, stage.DisplayName)
+    end
 
-     Toggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Rift Storm",
-    CurrentValue = false,
-    Flag = "AutoRiftToggle",
-    Callback = function(Value)
-        State.autoRiftEnabled = Value
-    end,
-    })
+    RangerStageDropdown:Refresh(rangerDisplayNames)
+    print("Ranger stage dropdown updated with", #rangerDisplayNames, "options")
+end)
 
-     JoinerSectionDungeons = JoinerTab:CreateSection("⛓️ Dungeons ⛓️")
+JoinerTab:CreateSection("Dungeons")
 
-     Toggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Auto Join Dungeon",
     CurrentValue = false,
     Flag = "AutoDungeonToggle",
     Callback = function(Value)
         State.autoDungeonEnabled = Value
     end,
-    })
-
-    Dropdown = JoinerTab:CreateDropdown({
-   Name = "Select Dungeon Difficulty",
-   Options = {"Easy","Normal","Hell"},
-   CurrentOption = {},
-   MultipleOptions = false,
-   Flag = "AutoDungeonDifficultySelector", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Option)
-        State.AutoDungeonDifficultySelector = Option
-   end,
 })
 
-     JoinerSection6 = JoinerTab:CreateSection("🏰 Infinity Castle 🏰")
+JoinerTab:CreateDropdown({
+    Name = "Select Dungeon Difficulty",
+    Options = {"Easy", "Normal", "Hell"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "AutoDungeonDifficultySelector",
+    Callback = function(Option)
+        State.AutoDungeonDifficultySelector = Option
+    end,
+})
 
-     Toggle = JoinerTab:CreateToggle({
+JoinerTab:CreateSection("Infinity Castle")
+
+JoinerTab:CreateToggle({
     Name = "Auto Join Infinity Castle",
     CurrentValue = false,
     Flag = "AutoJoinInfinityCastle",
     Callback = function(Value)
         State.autoJoinInfinityCastleEnabled = Value
     end,
-    })
+})
 
-     Toggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Auto Select Path For Infinity Castle",
     CurrentValue = false,
     Flag = "AutoInfinityCastle",
@@ -5913,74 +3665,187 @@ task.spawn(function()
             stopInfinityCastleLogic()
         end
     end,
-    })
-
-     GameSection = GameTab:CreateSection("🎮 Game 🎮")
-    --local Label4 = JoinerTab:CreateLabel("You need decently good units for infinity castle to win. Don't use any other auto joiners if you're enabling this and don't panic if it fails sometimes (unless your units are not good enough).", "badge-info")
-
- Dropdown = GameTab:CreateDropdown({
-   Name = "AutoSell Unit",
-   Options = {"No Unit","Unit1","Unit2","Unit3","Unit4","Unit5","Unit6"},
-   CurrentOption = {"No Unit"},
-   MultipleOptions = false,
-   Info = "Will remove the unit as soon as cd is over.",
-   TextScaled = false,
-   Flag = "AutoSellUnitDropdown", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Option)
-        State.AutoSellUnitChoice = Option
-   end,
 })
 
-     Toggle = GameTab:CreateToggle({
+--// GAME TAB //--
+
+GameTab:CreateSection("Player")
+
+GameTab:CreateSlider({
+    Name = "Max Camera Zoom Distance",
+    Range = {5, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 35,
+    Flag = "CameraZoomDistanceSelector",
+    Callback = function(Value)
+        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
+    end,
+})
+
+GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)",
+    CurrentValue = false,
+    Flag = "AntiAfkKickToggle",
+    Info = "Prevents Roblox kick message.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.AntiAfkKickEnabled = Value
+    end,
+})
+
+task.spawn(function()
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VIRTUAL_USER:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VIRTUAL_USER:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
+
+GameTab:CreateToggle({
+    Name = "Low Performance Mode",
+    CurrentValue = false,
+    Flag = "enableLowPerformanceMode",
+    Callback = function(Value)
+        State.enableLowPerformanceMode = Value
+        enableLowPerformanceMode()
+    end,
+})
+
+GameTab:CreateToggle({
+    Name = "Black Screen",
+    CurrentValue = false,
+    Flag = "enableBlackScreen",
+    Callback = function(Value)
+        State.enableBlackScreen = Value
+        enableBlackScreen()
+    end,
+})
+
+GameTab:CreateToggle({
+    Name = "Delete Map",
+    CurrentValue = false,
+    Flag = "enableDeleteMap",
+    Info = "Rejoin to disable.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.enableDeleteMap = Value
+        enableDeleteMap()
+    end,
+})
+
+GameTab:CreateToggle({
+    Name = "Delete Enemies/Units",
+    CurrentValue = false,
+    Flag = "enableDeleteEnemies",
+    Info = "Removes Unit/Enemy Models.",
+    TextScaled = false,
+    Callback = function(Value)
+        State.deleteEntities = Value
+
+        if Value then
+            task.spawn(function()
+                local agentFolder = workspace:FindFirstChild("Agent")
+                if agentFolder then
+                    local agentSubFolder = agentFolder:FindFirstChild("Agent")
+                    if agentSubFolder then
+                        for _, model in pairs(agentSubFolder:GetChildren()) do
+                            if model and model.Parent then
+                                model:Destroy()
+                            end
+                        end
+
+                        State.childAddedConnection = agentSubFolder.ChildAdded:Connect(function(child)
+                            if State.deleteEntities and child then
+                                child:Destroy()
+                            end
+                        end)
+                    end
+                end
+            end)
+        else
+            if State.childAddedConnection then
+                State.childAddedConnection:Disconnect()
+                State.childAddedConnection = nil
+            end
+        end
+    end,
+})
+
+GameTab:CreateToggle({
+    Name = "Limit FPS",
+    CurrentValue = false,
+    Flag = "enableLimitFPS",
+    Callback = function(Value)
+        State.enableLimitFPS = Value
+        updateFPSLimit()
+    end,
+})
+
+GameTab:CreateSlider({
+    Name = "Limit FPS To",
+    Range = {0, 240},
+    Increment = 1,
+    Suffix = " FPS",
+    CurrentValue = 60,
+    Flag = "FPSSelector",
+    Callback = function(Value)
+        State.SelectedFPS = Value
+        updateFPSLimit()
+    end,
+})
+
+GameTab:CreateToggle({
+    Name = "Streamer Mode (hide name/level/title)",
+    CurrentValue = false,
+    Flag = "streamerModeEnabled",
+    Callback = function(Value)
+        State.streamerModeEnabled = Value
+    end,
+})
+
+if State.enableLowPerformanceMode then
+    enableLowPerformanceMode()
+end
+
+if State.enableDeleteMap then
+    enableDeleteMap()
+end
+
+GameTab:CreateSection("Game")
+
+GameTab:CreateDropdown({
+    Name = "AutoSell Unit",
+    Options = {"No Unit", "Unit1", "Unit2", "Unit3", "Unit4", "Unit5", "Unit6"},
+    CurrentOption = {"No Unit"},
+    MultipleOptions = false,
+    Info = "Will remove the unit as soon as cooldown is over.",
+    TextScaled = false,
+    Flag = "AutoSellUnitDropdown",
+    Callback = function(Option)
+        State.AutoSellUnitChoice = Option
+    end,
+})
+
+GameTab:CreateToggle({
     Name = "Auto 1x/2x/3x Speed",
     CurrentValue = false,
     Flag = "AutoSpeedToggle",
     Callback = function(Value)
         State.AutoSelectSpeed = Value
-       
     end,
 })
 
-     AutoSpeedDropdown = GameTab:CreateDropdown({
+GameTab:CreateDropdown({
     Name = "Select Auto Speed Value",
-    Options = {"1x","2x","3x"},
+    Options = {"1x", "2x", "3x"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "AutoSpeedSelector",
     Callback = function(Options)
-       State.SelectedSpeedValue = Options
-    end,
-})
-
-local Toggle = GameTab:CreateToggle({
-    Name = "Auto Endure",
-    CurrentValue = false,
-    Flag = "AutoEndure",
-    Info = "Will keep enduring until the selected wave below. When you hit the selected wave it will Evade. (If u set this to wave 30 it will also endure wave 30)",
-    TextScaled = false,
-    Callback = function(Value)
-        State.autoEndureEnabled = Value
-        
-        if Value then
-            startMonitoring()
-        else
-            stopMonitoring()
-        end
-    end,
-})
-
-local Slider = GameTab:CreateSlider({
-    Name = "Auto Endure until wave",
-    Range = {0, 25},
-    Increment = 1,
-    Suffix = "Wave",
-    CurrentValue = 25,
-    Flag = "AutoEndureSlider",
-    Info = "Will stop enduring after enduring selected wave.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.autoEndureSlider = Value
-        print("Auto Endure target set to wave:", Value)
+        State.SelectedSpeedValue = Options
     end,
 })
 
@@ -5999,16 +3864,16 @@ task.spawn(function()
     end
 end)
 
-      Toggle = GameTab:CreateToggle({
+GameTab:CreateToggle({
     Name = "Auto Start Game",
     CurrentValue = false,
     Flag = "AutoStartToggle",
     Callback = function(Value)
         State.autoStartEnabled = Value
     end,
-    })
+})
 
-     Toggle = GameTab:CreateToggle({
+GameTab:CreateToggle({
     Name = "Auto Vote Next",
     CurrentValue = false,
     Flag = "AutoNextToggle",
@@ -6022,9 +3887,9 @@ end)
                 :WaitForChild("VoteNext"):FireServer()
         end
     end,
-    })
+})
 
-     Toggle = GameTab:CreateToggle({
+GameTab:CreateToggle({
     Name = "Auto Vote Retry",
     CurrentValue = false,
     Flag = "AutoRetryToggle",
@@ -6038,30 +3903,30 @@ end)
                 :WaitForChild("VoteRetry"):FireServer()
         end
     end,
-    })
+})
 
-     Toggle = GameTab:CreateToggle({
+GameTab:CreateToggle({
     Name = "Auto Teleport to Lobby",
     CurrentValue = false,
-    Flag = "AutoLobbyToggle", 
+    Flag = "AutoLobbyToggle",
     Callback = function(Value)
         State.autoReturnEnabled = Value
         if State.hasGameEnded and State.autoReturnEnabled then
             Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
         end
     end,
-    })
+})
 
-     Toggle = GameTab:CreateToggle({
+GameTab:CreateToggle({
     Name = "Disable Reward Screen UI",
     CurrentValue = false,
     Flag = "AutoDisableEndUI",
     Callback = function(Value)
         State.autoDisableEndUI = Value
     end,
-    })
+})
 
-     Toggle = GameTab:CreateToggle({
+GameTab:CreateToggle({
     Name = "Enable Game Failsafe",
     CurrentValue = false,
     Flag = "AutoFailSafeEnabled",
@@ -6070,116 +3935,118 @@ end)
     Callback = function(Value)
         State.AutoFailSafeEnabled = Value
     end,
-    })
-
-     Slider = GameTab:CreateSlider({
-   Name = "Start Failsafe after",
-   Range = {1, 3600},
-   Increment = 1,
-   Suffix = "seconds",
-   CurrentValue = 300,
-   Flag = "FailsafeSlider",
-   Callback = function(Value)
-        State.AutoFailSafeNumber = Value
-   end,
 })
 
- GameSection = AutoPlayTab:CreateSection("👥 Auto Team Selector 👥")
+GameTab:CreateSlider({
+    Name = "Start Failsafe After",
+    Range = {1, 3600},
+    Increment = 1,
+    Suffix = "seconds",
+    CurrentValue = 300,
+    Flag = "FailsafeSlider",
+    Callback = function(Value)
+        State.AutoFailSafeNumber = Value
+    end,
+})
 
-     Toggle = AutoPlayTab:CreateToggle({
-    Name = "Enable x team for x mode",
+--// AUTO PLAY TAB //--
+
+AutoPlayTab:CreateSection("Auto Team Selector")
+
+AutoPlayTab:CreateToggle({
+    Name = "Enable team for mode",
     CurrentValue = false,
     Flag = "AutoTeamModeSlotEnabler",
     Callback = function(Value)
         State.autoTeamSlotPicker = Value
     end,
-    })
+})
 
-     TeamSelectorDropdown1 = AutoPlayTab:CreateDropdown({
+AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 1",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    Options = {"Story", "Challenge", "Ranger", "Raid", "Boss Event", "Portal", "InfCastle", "Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector1",
     Callback = function(Options)
         State.modeTeamSelector1 = Options
     end,
-    })
+})
 
-      TeamSelectorDropdown2 = AutoPlayTab:CreateDropdown({
+AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 2",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    Options = {"Story", "Challenge", "Ranger", "Raid", "Boss Event", "Portal", "InfCastle", "Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector2",
     Callback = function(Options)
         State.modeTeamSelector2 = Options
     end,
-    })
+})
 
-      TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
+AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 3",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    Options = {"Story", "Challenge", "Ranger", "Raid", "Boss Event", "Portal", "InfCastle", "Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector3",
     Callback = function(Options)
         State.modeTeamSelector3 = Options
     end,
-    })
+})
 
-    TeamSelectorDropdown4 = AutoPlayTab:CreateDropdown({
+AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 4",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    Options = {"Story", "Challenge", "Ranger", "Raid", "Boss Event", "Portal", "InfCastle", "Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector4",
     Callback = function(Options)
         State.modeTeamSelector4 = Options
     end,
-    })
+})
 
-    TeamSelectorDropdown3 = AutoPlayTab:CreateDropdown({
+AutoPlayTab:CreateDropdown({
     Name = "Select mode for team 5",
-    Options = {"Story","Challenge","Ranger","Raid","Boss Rush","Summer Event","Boss Event","Portal","InfCastle","RiftStorm","Dungeon","Infinite"},
+    Options = {"Story", "Challenge", "Ranger", "Raid", "Boss Event", "Portal", "InfCastle", "Dungeon"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "ModeTeamSelector5",
     Callback = function(Options)
         State.modeTeamSelector5 = Options
     end,
-    })
+})
 
- GameSection = AutoPlayTab:CreateSection("🎮 Auto Play 🎮")
+AutoPlayTab:CreateSection("Auto Play")
 
-     Toggle = AutoPlayTab:CreateToggle({
+AutoPlayTab:CreateToggle({
     Name = "Auto Play",
     CurrentValue = false,
     Flag = "AutoPlayToggle",
     Callback = function(Value)
-    State.autoPlayEnabled = Value
-    if State.autoPlayEnabled then
-        startAutoPlay()
-    end
+        State.autoPlayEnabled = Value
+        if State.autoPlayEnabled then
+            startAutoPlay()
+        end
     end,
-    })
-
-   Slider = AutoPlayTab:CreateSlider({
-   Name = "Delay Auto Play by",
-   Range = {0, 300},
-   Increment = 1,
-   Suffix = "seconds",
-   CurrentValue = 0,
-   Flag = "AutoPlayDelaySlider",
-   Callback = function(Value)
-        State.AutoPlayDelayNumber = Value
-   end,
 })
 
- GameSection = AutoPlayTab:CreateSection("💥 Auto Ultimate 💥")
+AutoPlayTab:CreateSlider({
+    Name = "Delay Auto Play By",
+    Range = {0, 300},
+    Increment = 1,
+    Suffix = "seconds",
+    CurrentValue = 0,
+    Flag = "AutoPlayDelaySlider",
+    Callback = function(Value)
+        State.AutoPlayDelayNumber = Value
+    end,
+})
 
-    Toggle = AutoPlayTab:CreateToggle({
-    Name = "Auto Use Ultimate(s)",
+AutoPlayTab:CreateSection("Auto Ultimate")
+
+AutoPlayTab:CreateToggle({
+    Name = "Auto Use Ultimates",
     CurrentValue = false,
     Flag = "AutoUltimate",
     Callback = function(Value)
@@ -6188,39 +4055,38 @@ end)
             task.spawn(autoUltimateLoop)
         end
     end,
-    })
-
-   Slider = AutoPlayTab:CreateSlider({
-   Name = "Delay Ultimate Usage by",
-   Range = {0, 100},
-   Increment = 1,
-   Suffix = "seconds",
-   CurrentValue = 0,
-   Flag = "DelayAutoUltimateSlider",
-   Callback = function(Value)
-        State.DelayAutoUltimate = Value
-   end,
 })
 
- GameSection = AutoPlayTab:CreateSection("🆙 Auto Upgrade 🆙")
+AutoPlayTab:CreateSlider({
+    Name = "Delay Ultimate Usage By",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "seconds",
+    CurrentValue = 0,
+    Flag = "DelayAutoUltimateSlider",
+    Callback = function(Value)
+        State.DelayAutoUltimate = Value
+    end,
+})
 
-     Toggle = AutoPlayTab:CreateToggle({
+AutoPlayTab:CreateSection("Auto Upgrade")
+
+AutoPlayTab:CreateToggle({
     Name = "Auto Upgrade Units",
     CurrentValue = false,
     Flag = "AutoUpgradeToggle",
     Callback = function(Value)
         State.autoUpgradeEnabled = Value
         if State.autoUpgradeEnabled then
-            --State.gameRunning = true
             resetUpgradeOrder()
             startAutoUpgrade()
         else
             stopAutoUpgrade()
         end
     end,
-    })
+})
 
-    AutoUpgradeDropdown = AutoPlayTab:CreateDropdown({
+AutoPlayTab:CreateDropdown({
     Name = "Select Upgrade Method",
     Options = {"Left to right until max"},
     CurrentOption = {"Left to right until max"},
@@ -6231,14 +4097,13 @@ end)
         if State.autoUpgradeEnabled then
             stopAutoUpgrade()
             resetUpgradeOrder()
-           -- State.gameRunning = true
             task.wait(0.5)
             startAutoUpgrade()
         end
     end,
-    })
+})
 
-    Slider1 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Unit 1 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -6248,10 +4113,10 @@ end)
     Callback = function(Value)
         Config.unitLevelCaps[1] = Value
     end,
-    })
+})
 
-    Slider1_5 = AutoPlayTab:CreateSlider({
-    Name = "Dont deploy unit 1 until level",
+AutoPlayTab:CreateSlider({
+    Name = "Dont Deploy Unit 1 Until Level",
     Range = {0, 9},
     Increment = 1,
     Suffix = " Level",
@@ -6260,9 +4125,9 @@ end)
     Callback = function(Value)
         Config.unitDeployLevelCaps[1] = Value
     end,
-    })
+})
 
-    Slider2 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Unit 2 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -6272,10 +4137,10 @@ end)
     Callback = function(Value)
         Config.unitLevelCaps[2] = Value
     end,
-    })
+})
 
-      Slider2_5 = AutoPlayTab:CreateSlider({
-    Name = "Dont deploy unit 2 until level",
+AutoPlayTab:CreateSlider({
+    Name = "Dont Deploy Unit 2 Until Level",
     Range = {0, 9},
     Increment = 1,
     Suffix = " Level",
@@ -6284,9 +4149,9 @@ end)
     Callback = function(Value)
         Config.unitDeployLevelCaps[2] = Value
     end,
-    })
+})
 
-    Slider3 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Unit 3 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -6296,10 +4161,10 @@ end)
     Callback = function(Value)
         Config.unitLevelCaps[3] = Value
     end,
-    })
+})
 
-      Slider3_5 = AutoPlayTab:CreateSlider({
-    Name = "Dont deploy unit 3 until level",
+AutoPlayTab:CreateSlider({
+    Name = "Dont Deploy Unit 3 Until Level",
     Range = {0, 9},
     Increment = 1,
     Suffix = " Level",
@@ -6308,9 +4173,9 @@ end)
     Callback = function(Value)
         Config.unitDeployLevelCaps[3] = Value
     end,
-    })
+})
 
-    Slider4 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Unit 4 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -6320,10 +4185,10 @@ end)
     Callback = function(Value)
         Config.unitLevelCaps[4] = Value
     end,
-    })
+})
 
-      Slider4_5 = AutoPlayTab:CreateSlider({
-    Name = "Dont deploy unit 4 until level",
+AutoPlayTab:CreateSlider({
+    Name = "Dont Deploy Unit 4 Until Level",
     Range = {0, 9},
     Increment = 1,
     Suffix = " Level",
@@ -6332,9 +4197,9 @@ end)
     Callback = function(Value)
         Config.unitDeployLevelCaps[4] = Value
     end,
-    })
+})
 
-    Slider5 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Unit 5 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -6344,10 +4209,10 @@ end)
     Callback = function(Value)
         Config.unitLevelCaps[5] = Value
     end,
-    })
+})
 
-      Slider5_5 = AutoPlayTab:CreateSlider({
-    Name = "Dont deploy unit 5 until level",
+AutoPlayTab:CreateSlider({
+    Name = "Dont Deploy Unit 5 Until Level",
     Range = {0, 9},
     Increment = 1,
     Suffix = " Level",
@@ -6356,9 +4221,9 @@ end)
     Callback = function(Value)
         Config.unitDeployLevelCaps[5] = Value
     end,
-    })
+})
 
-    Slider6 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Unit 6 Level Cap",
     Range = {0, 9},
     Increment = 1,
@@ -6368,10 +4233,10 @@ end)
     Callback = function(Value)
         Config.unitLevelCaps[6] = Value
     end,
-    })
+})
 
-    Slider6_5 = AutoPlayTab:CreateSlider({
-    Name = "Dont deploy unit 6 until level",
+AutoPlayTab:CreateSlider({
+    Name = "Dont Deploy Unit 6 Until Level",
     Range = {0, 9},
     Increment = 1,
     Suffix = " Level",
@@ -6380,12 +4245,12 @@ end)
     Callback = function(Value)
         Config.unitDeployLevelCaps[6] = Value
     end,
-    })
+})
 
- GameSection = AutoPlayTab:CreateSection("🗑️ Auto Delete Unit(s) 🗑️")
+AutoPlayTab:CreateSection("Auto Delete Units")
 
-      Toggle = AutoPlayTab:CreateToggle({
-    Name = "Auto Delete Unit(s) on level",
+AutoPlayTab:CreateToggle({
+    Name = "Auto Delete Units On Level",
     CurrentValue = false,
     Flag = "AutoReDeployToggle",
     Info = "Level 0 = disable",
@@ -6393,9 +4258,9 @@ end)
     Callback = function(Value)
         State.AutoReDeployEnabled = Value
     end,
-    })
+})
 
-    Slider1_6 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Sell Unit 1 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -6405,9 +4270,9 @@ end)
     Callback = function(Value)
         Config.unitReDeployLevel[1] = Value
     end,
-    })
+})
 
-     Slider2_6 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Sell Unit 2 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -6417,9 +4282,9 @@ end)
     Callback = function(Value)
         Config.unitReDeployLevel[2] = Value
     end,
-    })
+})
 
-     Slider3_6 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Sell Unit 3 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -6429,9 +4294,9 @@ end)
     Callback = function(Value)
         Config.unitReDeployLevel[3] = Value
     end,
-    })
+})
 
-     Slider4_6 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Sell Unit 4 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -6441,9 +4306,9 @@ end)
     Callback = function(Value)
         Config.unitReDeployLevel[4] = Value
     end,
-    })
+})
 
-     Slider5_6 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Sell Unit 5 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -6453,9 +4318,9 @@ end)
     Callback = function(Value)
         Config.unitReDeployLevel[5] = Value
     end,
-    })
+})
 
-     Slider6_6 = AutoPlayTab:CreateSlider({
+AutoPlayTab:CreateSlider({
     Name = "Sell Unit 6 After It Reaches",
     Range = {0, 9},
     Increment = 1,
@@ -6465,9 +4330,13 @@ end)
     Callback = function(Value)
         Config.unitReDeployLevel[6] = Value
     end,
-    })
+})
 
- Input = WebhookTab:CreateInput({
+--// WEBHOOK TAB //--
+
+local Label5 = WebhookTab:CreateLabel("Awaiting Webhook Input...", "cable")
+
+WebhookTab:CreateInput({
     Name = "Input Webhook",
     CurrentValue = "",
     PlaceholderText = "Input Webhook...",
@@ -6486,16 +4355,16 @@ end)
 
         if valid then
             ValidWebhook = trimmed
-            Label5:Set("✅ Webhook URL set!")
+            Label5:Set("Webhook URL set!")
         else
             ValidWebhook = nil
-            Label5:Set("❌ Invalid Webhook URL. Ensure it's complete and starts with 'https://discord.com/api/webhooks/'")
+            Label5:Set("Invalid Webhook URL. Ensure it starts with 'https://discord.com/api/webhooks/'")
         end
     end,
 })
 
- Input = WebhookTab:CreateInput({
-    Name = "Input Discord ID (mention rares)",
+WebhookTab:CreateInput({
+    Name = "Input Discord ID (mention on rare drops)",
     CurrentValue = "",
     PlaceholderText = "Input Discord ID...",
     RemoveTextAfterFocusLost = false,
@@ -6505,134 +4374,124 @@ end)
     end,
 })
 
-      TestWebhookButton = WebhookTab:CreateButton({
-    Name = "Test webhook",
+WebhookTab:CreateButton({
+    Name = "Test Webhook",
     Callback = function()
         if ValidWebhook then
             sendWebhook("test")
         end
     end,
-    })
+})
 
-     Toggle = WebhookTab:CreateToggle({
+WebhookTab:CreateToggle({
     Name = "Send On Stage Finished",
     CurrentValue = false,
     Flag = "sendWebhookWhenStageCompleted",
     Callback = function(Value)
         State.SendStageCompletedWebhook = Value
     end,
-    })
+})
 
-    Toggle = WebhookTab:CreateToggle({
+WebhookTab:CreateToggle({
     Name = "Send On Auto Gear Farming Finished",
     CurrentValue = false,
     Flag = "sendWebhookWhenFinishedFarmingGear",
     Callback = function(Value)
         State.SendFinishedFarmingGearWebhook = Value
     end,
-    })
+})
 
-    Toggle = WebhookTab:CreateToggle({
-    Name = "Send On Auto Trait rerolling Finished",
+WebhookTab:CreateToggle({
+    Name = "Send On Auto Trait Rerolling Finished",
     CurrentValue = false,
     Flag = "sendWebhookWhenFinishedTraitRerollingWebhook",
     Callback = function(Value)
         State.SendFinishedTraitRerollingWebhook = Value
     end,
-    })
+})
 
-    Toggle = WebhookTab:CreateToggle({
-    Name = "Send On Auto Curse rerolling Finished",
-    CurrentValue = false,
-    Flag = "sendWebhookWhenFinishedCurseRerolling",
-    Callback = function(Value)
-        State.SendFinishedCurseRerollingWebhook = Value
-    end,
-    })
+--// EVENTS //--
 
 game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
-        local args = {...}
-        if table.find(args, "Game_Start") then
-            State.gameRunning = true
+    local args = {...}
+    if table.find(args, "Game_Start") then
+        State.gameRunning = true
         State.startingInventory = snapshotInventory()
         resetUpgradeOrder()
         stopRetryLoop()
         stopNextLoop()
-        
-        
 
         lastCheckedLevels = {}
         processedUnits = {}
 
-            State.retryAttempted = false
-            State.NextAttempted = false
-            State.hasGameEnded = false
-            State.hasSentWebhook = false
-            State.stageStartTime = tick()
-            print("🟢 Stage started at", State.stageStartTime)
-        end
-    end)
+        State.retryAttempted = false
+        State.NextAttempted = false
+        State.hasGameEnded = false
+        State.hasSentWebhook = false
+        State.stageStartTime = tick()
+        print("Stage started at", State.stageStartTime)
+    end
+end)
 
 Remotes.GameEndedUI.OnClientEvent:Connect(function(_, outcome)
-        if typeof(outcome) == "string" then
-            local l = outcome:lower()
-            if l:find("defeat") then
-                State.matchResult = "Defeat"
-            elseif l:find("won") or l:find("win") then
-                State.matchResult = "Victory"
-            else
-                State.matchResult = "Unknown"
-            end
-            print("🎯 Match result detected:", State.matchResult)
+    if typeof(outcome) == "string" then
+        local l = outcome:lower()
+        if l:find("defeat") then
+            State.matchResult = "Defeat"
+        elseif l:find("won") or l:find("win") then
+            State.matchResult = "Victory"
+        else
+            State.matchResult = "Unknown"
         end
-    end)
+        print("Match result detected:", State.matchResult)
+    end
+end)
 
 Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Connect(function()
-        if State.challengeAutoReturnEnabled and not isInLobby() then
-           -- notify("Challenge Update", "New challenge detected - will return to lobby when game ends")
-             State.pendingChallengeReturn = true
-        end
-    end)
+    if State.challengeAutoReturnEnabled and not isInLobby() then
+        State.pendingChallengeReturn = true
+    end
+end)
 
 Remotes.GameEnd.OnClientEvent:Connect(function()
     if State.hasSentWebhook then
-            return
-        end
-        State.hasGameEnded = true
-        if State.SendStageCompletedWebhook then
+        return
+    end
+    State.hasGameEnded = true
+    if State.SendStageCompletedWebhook then
         State.hasSentWebhook = true
-        end
-        State.gameRunning = false
-                if State.AutoFailSafeEnabled == true then
-            startFailsafeAfterGameEnd()
-        end
-        resetUpgradeOrder()
+    end
+    State.gameRunning = false
+    if State.AutoFailSafeEnabled == true then
+        startFailsafeAfterGameEnd()
+    end
+    resetUpgradeOrder()
 
-        task.wait(0.5)
-        local clearTimeStr = "Unknown"
-        if State.stageStartTime then
-            local dt = math.floor(tick() - State.stageStartTime)
-            clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
-        end
+    task.wait(0.5)
+    local clearTimeStr = "Unknown"
+    if State.stageStartTime then
+        local dt = math.floor(tick() - State.stageStartTime)
+        clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
+    end
 
-        if State.SendStageCompletedWebhook then
+    if State.SendStageCompletedWebhook then
         sendWebhook("stage", nil, clearTimeStr, State.matchResult)
-        end
+    end
 
-        State.autoPlayDelayActive = false
-        State.actionTaken = false
+    State.autoPlayDelayActive = false
+    State.actionTaken = false
 
-        if State.pendingChallengeReturn and not State.actionTaken then
-            notify("Challenge Return", "New challenge detected - returning to lobby")
-            State.pendingChallengeReturn = false
-            State.actionTaken = true
-            task.delay(2, function()
-                Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
-            end)
-            return
-        end
+    if State.pendingChallengeReturn and not State.actionTaken then
+        notify("Challenge Return", "New challenge detected - returning to lobby")
+        State.pendingChallengeReturn = false
+        State.actionTaken = true
+        task.delay(2, function()
+            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+        end)
+        return
+    end
 
-        local TIMEOUT = 10
+    local TIMEOUT = 10
 
     local function waitForGameRunning(timeout)
         local elapsed = 0
@@ -6672,6 +4531,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
             skipCheck = true
         }
     }
+
     task.spawn(function()
         for _, action in ipairs(actions) do
             if action.enabled then
@@ -6679,7 +4539,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
                 if not action.skipCheck then
                     local success = waitForGameRunning(TIMEOUT)
                     if success then
-                        print("Game restarted successfully. Stopping sequence.")
+                        print("Game restarted successfully.")
                         return
                     else
                         print("Action failed to restart game, moving to next...")
@@ -6687,100 +4547,17 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
                 end
             end
         end
-        print("All actions tried. Returning to lobby if enabled.")
+        print("All actions tried.")
     end)
 end)
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
 
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RayfieldToggle"
-screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
-screenGui.ResetOnSpawn = false
-
--- Create the circular image button
-local toggleButton = Instance.new("ImageButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Parent = screenGui
-toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-toggleButton.BorderSizePixel = 0
-toggleButton.Position = UDim2.new(0, 50, 0, 50)
-toggleButton.Size = UDim2.new(0, 50, 0, 50)
-toggleButton.Image = "rbxassetid://139436994731049" -- Put your logo image ID here like "rbxassetid://123456789"
-toggleButton.ScaleType = Enum.ScaleType.Fit
-
--- Make it circular
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(1, 0)
-corner.Parent = toggleButton
-
--- Rayfield visibility state
-local rayfieldVisible = true
-
--- Toggle function
-local function toggleRayfield()
-    rayfieldVisible = not rayfieldVisible
-    
-    if Rayfield then
-        Rayfield:SetVisibility(rayfieldVisible)
-    end
-end
-
--- Dragging variables
-local dragging = false
-local dragStart = nil
-local startPos = nil
-
--- Mouse input handling
-toggleButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = toggleButton.Position
-        
-        local connection
-        connection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-                connection:Disconnect()
-            end
-        end)
-    end
-end)
-
-toggleButton.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
--- Click to toggle
-local clickStartPos = nil
-toggleButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        clickStartPos = input.Position
-    end
-end)
-
-toggleButton.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if clickStartPos then
-            local deltaMove = input.Position - clickStartPos
-            local moveDistance = math.sqrt(deltaMove.X^2 + deltaMove.Y^2)
-            
-            if moveDistance < 10 then
-                toggleRayfield()
-            end
-        end
-    end
-end)
-
 Rayfield:TopNotify({
     Title = "UI is hidden",
-    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
-    Image = "eye-off", -- Lucide icon name
+    Content = "The UI has automatically closed. Press the 'Show' button to enable visibility.",
+    Image = "eye-off",
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration = 5
 })
