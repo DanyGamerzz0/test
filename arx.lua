@@ -154,6 +154,7 @@ local State = {
     SelectedRaritiesToSell = {},
     enableDeleteMap = false,
     autoPlayEnabled = false,
+    autoCalamityEnabled = false,
 }
 
 local Data = {
@@ -176,7 +177,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.19"
+local script_version = "V0.2"
 
 local ValidWebhook
 
@@ -1755,6 +1756,24 @@ local function checkAndExecuteHighestPriority()
             return
         end
     end
+
+    if State.autoCalamityEnabled then
+    setProcessingState("Calamity Auto Join")
+    handleTeamEquipping("Calamity")
+    Remotes.PlayEvent:FireServer("Create")
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Change-Mode", { Mode = "Calamity" })
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Change-World", { World = "Calamity" })
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Change-Chapter", { Chapter = "Calamity_Chapter1" })
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Submit")
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Start")
+    task.delay(5, clearProcessingState)
+    return
+end
 
     -- Priority 5: Ranger Stage Auto Join
     if State.isAutoJoining and Data.selectedRawStages and #Data.selectedRawStages > 0 then
@@ -3604,6 +3623,17 @@ JoinerTab:CreateDropdown({
     Flag = "AutoDungeonDifficultySelector",
     Callback = function(Option)
         State.AutoDungeonDifficultySelector = Option
+    end,
+})
+
+JoinerTab:CreateSection("Calamity Joiner")
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Calamity",
+    CurrentValue = false,
+    Flag = "AutoCalamityToggle",
+    Callback = function(Value)
+        State.autoCalamityEnabled = Value
     end,
 })
 
