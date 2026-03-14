@@ -176,7 +176,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.18"
+local script_version = "V0.19"
 
 local ValidWebhook
 
@@ -995,7 +995,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
                 title = "LixHub Notification",
                 description = "Test webhook sent successfully",
                 color = 0x5865F2,
-                footer = { text = "LixHub Auto Logger" },
+                footer = { text = "LixHub" },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         }
@@ -1021,7 +1021,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local pingText = string.format("<@%s> GEAR MATERIALS READY!", Config.DISCORD_USER_ID)
 
         data = {
-            username = "LixHub Bot",
+            username = "LixHub",
             content = pingText,
             embeds = {{
                 title = "Gear Farm Complete",
@@ -1031,9 +1031,8 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
                     { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
                     { name = "Gears Ready to Craft", value = table.concat(gearList, "\n"), inline = false },
                     { name = "Materials Collected", value = table.concat(materialsSummary, "\n"), inline = false },
-                    { name = "Script Version", value = script_version, inline = true },
                 },
-                footer = { text = "discord.gg/cYKnXE2Nf8 - LixHub" },
+                footer = { text = "LixHub - discord.gg/cYKnXE2Nf8"},
                 timestamp = timestamp
             }}
         }
@@ -1057,7 +1056,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local orderedUnits = getOrderedUnits()
 
         data = {
-            username = "LixHub Bot",
+            username = "LixHub",
             content = shouldPing and pingText or nil,
             embeds = {{
                 title = shouldPing and "Unit Drop!" or "Stage Finished",
@@ -1069,7 +1068,6 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
                     { name = "Rewards", value = rewardsText, inline = false },
                     { name = "Units Loadout", value = orderedUnits, inline = false },
                     shouldPing and { name = "Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
-                    { name = "Script Version", value = script_version, inline = true },
                 },
                 footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
@@ -2989,7 +2987,7 @@ LobbyTab:CreateToggle({
 
 LobbyTab:CreateDropdown({
     Name = "Auto Summon Banner",
-    Options = {"Standard", "Rateup", "Divine"},
+    Options = {"Standard", "Rateup"},
     CurrentOption = {},
     MultipleOptions = false,
     Flag = "AutoSummonBannerSelection",
@@ -3329,7 +3327,7 @@ ShopTab:CreateToggle({
 
 ShopTab:CreateDropdown({
     Name = "Select Items To Purchase (Merchant)",
-    Options = {"Dr. Megga Punk", "Cursed Finger", "Perfect Stats Key", "Stats Key", "Trait Reroll", "Ranger Crystal", "Soul Fragments", "Divine Flower Tier I"},
+    Options = {"Dr. Megga Punk", "Cursed Finger", "Perfect Stats Key", "Stats Key", "Trait Reroll", "Ranger Crystal", "Soul Fragments", "Stat Boosters"},
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "MerchantPurchaseSelector",
@@ -3338,40 +3336,96 @@ ShopTab:CreateDropdown({
     end,
 })
 
-ShopTab:CreateSection("Swarm Event Shop")
-
-ShopTab:CreateToggle({
-    Name = "Auto Purchase Swarm Event Shop",
-    CurrentValue = false,
-    Flag = "AutoPurchaseSwarmEvent",
-    Callback = function(Value)
-        State.AutoPurchaseSwarmEvent = Value
-    end,
-})
-
-ShopTab:CreateDropdown({
-    Name = "Select Items To Purchase (Swarm Event Shop)",
-    Options = {"Dr. Megga Punk", "Perfect Stats Key", "Stats Key", "Trait Reroll", "Cursed Finger"},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "SwarmEventPurchaseSelector",
-    Callback = function(Options)
-        Data.SwarmEventPurchaseTable = Options
-    end,
-})
-
 --// JOINER TAB //--
 
-JoinerTab:CreateSection("Boss Event Joiner")
+JoinerTab:CreateSection("Story Joiner")
 
 JoinerTab:CreateToggle({
-    Name = "Auto Join Boss Event",
+    Name = "Auto Join Story",
     CurrentValue = false,
-    Flag = "AutoBossEventToggle",
+    Flag = "AutoStoryToggle",
     Callback = function(Value)
-        State.autoBossEventEnabled = Value
+        State.autoJoinEnabled = Value
     end,
 })
+
+local StageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Story Stage",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryStageSelector",
+    Callback = function(Option)
+        State.selectedWorld = Option[1]
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name = "Select Stage Chapter",
+    Options = Config.chapters,
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryChapterSelector",
+    Callback = function(Option)
+        State.selectedChapter = Option[1]
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name = "Select Stage Difficulty",
+    Options = Config.difficulties,
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryDifficultySelector",
+    Callback = function(Option)
+        State.selectedDifficulty = Option[1]
+    end,
+})
+
+JoinerTab:CreateSection("Ranger Stage Joiner")
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Ranger Stage",
+    CurrentValue = false,
+    Flag = "AutoRangerStageToggle",
+    Callback = function(Value)
+        State.isAutoJoining = Value
+    end,
+})
+
+local RangerStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Ranger Stage To Join",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "RangerStageSelector",
+    Callback = function(Options)
+        Data.selectedRawStages = {}
+
+        for _, selectedDisplay in ipairs(Options) do
+            for _, stage in ipairs(Data.availableRangerStages) do
+                if stage.DisplayName == selectedDisplay then
+                    table.insert(Data.selectedRawStages, stage.RawName)
+                    break
+                end
+            end
+        end
+    end,
+})
+
+task.spawn(function()
+    while #Data.availableRangerStages == 0 do
+        task.wait(0.5)
+    end
+
+    local rangerDisplayNames = {}
+    for _, stage in ipairs(Data.availableRangerStages) do
+        table.insert(rangerDisplayNames, stage.DisplayName)
+    end
+
+    RangerStageDropdown:Refresh(rangerDisplayNames)
+    print("Ranger stage dropdown updated with", #rangerDisplayNames, "options")
+end)
 
 JoinerTab:CreateSection("Raid Joiner")
 
@@ -3424,50 +3478,6 @@ task.spawn(function()
     RaidSelectorDropdown:Refresh(raidStageDisplayNames)
     print("Raid dropdown updated with", #raidStageDisplayNames, "options")
 end)
-
-JoinerTab:CreateSection("Story Joiner")
-
-JoinerTab:CreateToggle({
-    Name = "Auto Join Story",
-    CurrentValue = false,
-    Flag = "AutoStoryToggle",
-    Callback = function(Value)
-        State.autoJoinEnabled = Value
-    end,
-})
-
-local StageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Story Stage",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "StoryStageSelector",
-    Callback = function(Option)
-        State.selectedWorld = Option[1]
-    end,
-})
-
-JoinerTab:CreateDropdown({
-    Name = "Select Stage Chapter",
-    Options = Config.chapters,
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "StoryChapterSelector",
-    Callback = function(Option)
-        State.selectedChapter = Option[1]
-    end,
-})
-
-JoinerTab:CreateDropdown({
-    Name = "Select Stage Difficulty",
-    Options = Config.difficulties,
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "StoryDifficultySelector",
-    Callback = function(Option)
-        State.selectedDifficulty = Option[1]
-    end,
-})
 
 JoinerTab:CreateSection("Challenge Joiner")
 
@@ -3575,51 +3585,6 @@ task.spawn(function()
     PortalSelectorDropdown:Refresh(portalNames)
 end)
 
-JoinerTab:CreateSection("Ranger Stage Joiner")
-
-JoinerTab:CreateToggle({
-    Name = "Auto Join Ranger Stage",
-    CurrentValue = false,
-    Flag = "AutoRangerStageToggle",
-    Callback = function(Value)
-        State.isAutoJoining = Value
-    end,
-})
-
-local RangerStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Ranger Stage To Join",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "RangerStageSelector",
-    Callback = function(Options)
-        Data.selectedRawStages = {}
-
-        for _, selectedDisplay in ipairs(Options) do
-            for _, stage in ipairs(Data.availableRangerStages) do
-                if stage.DisplayName == selectedDisplay then
-                    table.insert(Data.selectedRawStages, stage.RawName)
-                    break
-                end
-            end
-        end
-    end,
-})
-
-task.spawn(function()
-    while #Data.availableRangerStages == 0 do
-        task.wait(0.5)
-    end
-
-    local rangerDisplayNames = {}
-    for _, stage in ipairs(Data.availableRangerStages) do
-        table.insert(rangerDisplayNames, stage.DisplayName)
-    end
-
-    RangerStageDropdown:Refresh(rangerDisplayNames)
-    print("Ranger stage dropdown updated with", #rangerDisplayNames, "options")
-end)
-
 JoinerTab:CreateSection("Dungeons")
 
 JoinerTab:CreateToggle({
@@ -3639,31 +3604,6 @@ JoinerTab:CreateDropdown({
     Flag = "AutoDungeonDifficultySelector",
     Callback = function(Option)
         State.AutoDungeonDifficultySelector = Option
-    end,
-})
-
-JoinerTab:CreateSection("Infinity Castle")
-
-JoinerTab:CreateToggle({
-    Name = "Auto Join Infinity Castle",
-    CurrentValue = false,
-    Flag = "AutoJoinInfinityCastle",
-    Callback = function(Value)
-        State.autoJoinInfinityCastleEnabled = Value
-    end,
-})
-
-JoinerTab:CreateToggle({
-    Name = "Auto Select Path For Infinity Castle",
-    CurrentValue = false,
-    Flag = "AutoInfinityCastle",
-    Callback = function(Value)
-        State.autoInfinityCastleEnabled = Value
-        if State.autoInfinityCastleEnabled then
-            startInfinityCastleLogic()
-        else
-            stopInfinityCastleLogic()
-        end
     end,
 })
 
@@ -4398,15 +4338,6 @@ WebhookTab:CreateToggle({
     Flag = "sendWebhookWhenFinishedFarmingGear",
     Callback = function(Value)
         State.SendFinishedFarmingGearWebhook = Value
-    end,
-})
-
-WebhookTab:CreateToggle({
-    Name = "Send On Auto Trait Rerolling Finished",
-    CurrentValue = false,
-    Flag = "sendWebhookWhenFinishedTraitRerollingWebhook",
-    Callback = function(Value)
-        State.SendFinishedTraitRerollingWebhook = Value
     end,
 })
 
