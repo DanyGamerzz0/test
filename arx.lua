@@ -177,7 +177,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.2"
+local script_version = "V0.19"
 
 local ValidWebhook
 
@@ -1525,7 +1525,7 @@ local function checkMaterialsInStage()
     wait(3)
 
     clearFarmingState()
-    game:GetService("TeleportService"):Teleport(72829404259339, game.Players.LocalPlayer)
+    game:GetService("TeleportService"):Teleport(111446873000464, game.Players.LocalPlayer)
 end
 
 local function checkMaterialFarming()
@@ -2343,7 +2343,7 @@ local function startFailsafeAfterGameEnd()
 
         if not State.gameRunning then
             notify("Failsafe", "Teleporting to lobby...", 3)
-            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            Services.TeleportService:Teleport(111446873000464, Services.Players.LocalPlayer)
         else
             print("Game started right at the end of wait. No recovery needed.")
         end
@@ -3196,7 +3196,7 @@ LobbyTab:CreateButton({
     Name = "Return to Lobby",
     Callback = function()
         notify("Return to Lobby", "Returning to lobby!")
-        Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+        Services.TeleportService:Teleport(111446873000464, Services.Players.LocalPlayer)
     end,
 })
 
@@ -3253,7 +3253,7 @@ local function setupAutoReconnect()
 
             if not success then
                 success = pcall(function()
-                    TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+                    TeleportService:Teleport(111446873000464, Services.Players.LocalPlayer)
                 end)
             end
 
@@ -3882,7 +3882,7 @@ GameTab:CreateToggle({
     Callback = function(Value)
         State.autoReturnEnabled = Value
         if State.hasGameEnded and State.autoReturnEnabled then
-            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            Services.TeleportService:Teleport(111446873000464, Services.Players.LocalPlayer)
         end
     end,
 })
@@ -4447,7 +4447,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
         State.pendingChallengeReturn = false
         State.actionTaken = true
         task.delay(2, function()
-            Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+            Services.TeleportService:Teleport(111446873000464, Services.Players.LocalPlayer)
         end)
         return
     end
@@ -4486,7 +4486,7 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
             func = function()
                 print("Teleporting to Lobby...")
                 task.delay(2, function()
-                    Services.TeleportService:Teleport(72829404259339, Services.Players.LocalPlayer)
+                    Services.TeleportService:Teleport(111446873000464, Services.Players.LocalPlayer)
                 end)
             end,
             skipCheck = true
