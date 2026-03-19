@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -905,61 +905,47 @@ AutoTower.isRunning = false
 function AutoTower.start()
     if AutoTower.isRunning then return end
     AutoTower.isRunning = true
-    Util.notify("Auto Tower", "Auto Tower started!")
+    Util.notify("Auto Tower", "Auto Tower enabled!")
 
     task.spawn(function()
-        -- Step 1: teleport to the Tower area part
-        local root = LocalPlayer.Character
-            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local towerPart = workspace:FindFirstChild("Areas")
-            and workspace.Areas:FindFirstChild("Towers")
+        while AutoTower.isRunning do
+            -- Don't try to join if already inside
+            if PlayerState.inTower() then
+                task.wait(1)
+                continue
+            end
 
-        if not towerPart then
-            Util.notify("Auto Tower", "Tower area not found in workspace!")
-            AutoTower.isRunning = false
-            return
+            -- Fire the remote — server handles teleport
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("Remotes")
+                    :WaitForChild("Gameplays")
+                    :WaitForChild("Towers")
+                    :FireServer()
+            end)
+
+            -- Wait to confirm entry
+            local enterWait = 0
+            repeat
+                task.wait(0.5)
+                enterWait += 0.5
+            until PlayerState.inTower() or enterWait >= 10 or not AutoTower.isRunning
+
+            if not PlayerState.inTower() then
+                Util.debugPrint("[AutoTower] Join failed — retrying in 3s")
+                task.wait(3)
+                continue
+            end
+
+            Util.notify("Auto Tower", "Tower joined!")
+
+            -- Wait until the tower ends
+            repeat
+                task.wait(1)
+            until not PlayerState.inTower() or not AutoTower.isRunning
+
+            -- Loop back and rejoin immediately
         end
-
-        if root then
-            root.CFrame = towerPart.CFrame + Vector3.new(0, 3, 0)
-        end
-
-        -- Step 2: wait to confirm we're inside the tower via OnTowers flag
-        local towersIn  = false
-        local guiWait   = 0
-        repeat
-            task.wait(0.5)
-            guiWait += 0.5
-            towersIn = PlayerState.inTower()
-                or LocalPlayer.PlayerGui:FindFirstChild("Towers") ~= nil
-        until towersIn or guiWait >= 10 or not AutoTower.isRunning
-
-        if not AutoTower.isRunning then return end
-
-        if not towersIn then
-            Util.notify("Auto Tower", "Tower UI never appeared — aborting.")
-            AutoTower.isRunning = false
-            return
-        end
-
-        -- Step 3: fire the start remote
-        local ok = pcall(function()
-            Services.ReplicatedStorage
-                :WaitForChild("Remotes")
-                :WaitForChild("Gameplays")
-                :WaitForChild("Towers")
-                :FireServer()
-        end)
-
-        Util.debugPrint("[AutoTower] Start remote fired | ok:", ok)
-
-        if ok then
-            Util.notify("Auto Tower", "Tower started!")
-        else
-            Util.notify("Auto Tower", "Failed to start tower.")
-        end
-
-        AutoTower.isRunning = false
     end)
 end
 
