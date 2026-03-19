@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -944,7 +944,8 @@ function AutoTower.start()
                 task.wait(1)
             until not PlayerState.inTower() or not AutoTower.isRunning
 
-            -- Loop back and rejoin immediately
+            -- Brief cooldown before rejoining to avoid double-firing
+            task.wait(3)
         end
     end)
 end
