@@ -86,8 +86,36 @@ local TweenLock = {
 }
 
 -- ============================================================
--- UTILITY
+-- PLAYER STATE  (gamemode presence detection)
 -- ============================================================
+-- The game attaches boolean values to LocalPlayer while inside a stage.
+-- They are removed (not just set false) when the player leaves.
+-- We only check existence — the actual value doesn't matter.
+local PlayerState = {}
+
+function PlayerState.inRaid()
+    return LocalPlayer:FindFirstChild("OnRaids") ~= nil
+end
+
+function PlayerState.inRift()
+    return LocalPlayer:FindFirstChild("OnRifts") ~= nil
+end
+
+function PlayerState.inTower()
+    return LocalPlayer:FindFirstChild("OnTowers") ~= nil
+end
+
+function PlayerState.inBossGate()
+    return LocalPlayer:FindFirstChild("OnBossFight") ~= nil
+end
+
+-- True if the player is inside any active gamemode stage.
+function PlayerState.inAnyStage()
+    return PlayerState.inRaid()
+        or PlayerState.inRift()
+        or PlayerState.inTower()
+        or PlayerState.inBossGate()
+end
 local Util = {}
 
 function Util.notify(title, content, duration)
@@ -605,12 +633,14 @@ local function setupLobby()
     Util.debugPrint("[AutoRaid] Teleported to pod:", pod.Name)
 
     -- Step 2: wait for the Raids PlayerGui screen to appear
+    -- (also accepts if OnRaids flag appears, meaning server already put us in)
     local raidGui = nil
     local guiWait = 0
     repeat
         task.wait(0.5)
         guiWait += 0.5
         raidGui = LocalPlayer.PlayerGui:FindFirstChild("Raids")
+            or LocalPlayer:FindFirstChild("OnRaids")
     until raidGui or guiWait >= 10 or not AutoRaid.isRunning
 
     if not raidGui then
@@ -742,45 +772,41 @@ function AutoRaid.start()
                 continue
             end
 
-            -- ── STEP 3: Wait for raid folder to appear (we're inside the raid) ──
-            local raidFolder = nil
-            local joinWait   = 0
+            -- ── STEP 3: Wait until we're actually inside the raid ─────────
+            local joinWait = 0
             repeat
                 task.wait(1)
                 joinWait += 1
-                raidFolder = getRaidFolder()
-            until raidFolder or joinWait >= 30 or not AutoRaid.isRunning
+            until PlayerState.inRaid() or joinWait >= 30 or not AutoRaid.isRunning
 
             if not AutoRaid.isRunning then break end
 
-            if not raidFolder then
-                Util.debugPrint("[AutoRaid] Raid folder never appeared — retrying")
+            if not PlayerState.inRaid() then
+                Util.debugPrint("[AutoRaid] Never entered raid — retrying")
                 task.wait(3)
                 continue
             end
 
-            Util.debugPrint("[AutoRaid] In raid:", raidFolder.Name)
+            Util.debugPrint("[AutoRaid] Inside raid confirmed via OnRaids flag")
 
-            -- ── STEP 4: Wait for portal (stage complete) ──────────────────
+            -- ── STEP 4: Wait for raid to end (OnRaids flag removed) ───────
+            -- While waiting, AutoFarm Nearest kills mobs.
+            -- We still need raidFolder to open chests after, so fetch it once.
+            local raidFolder = getRaidFolder()
+
             local stageWait    = 0
             local MAX_STAGE_WAIT = 600
 
             repeat
                 task.wait(1)
                 stageWait += 1
+                -- Refresh raidFolder in case it was recreated mid-run
                 raidFolder = getRaidFolder()
-                if not raidFolder then break end
-            until (getPortalPrompt(raidFolder) and getPortalPrompt(raidFolder).Enabled)
+            until not PlayerState.inRaid()
                 or stageWait >= MAX_STAGE_WAIT
                 or not AutoRaid.isRunning
 
             if not AutoRaid.isRunning then break end
-
-            if not raidFolder then
-                Util.debugPrint("[AutoRaid] Raid folder disappeared mid-raid — retrying")
-                task.wait(2)
-                continue
-            end
 
             if stageWait >= MAX_STAGE_WAIT then
                 Util.debugPrint("[AutoRaid] Stage timeout — force leaving")
@@ -789,7 +815,7 @@ function AutoRaid.start()
                 continue
             end
 
-            Util.debugPrint("[AutoRaid] Portal open — stage complete!")
+            Util.debugPrint("[AutoRaid] OnRaids flag gone — stage complete!")
 
             -- ── STEP 5: Open chests ────────────────────────────────────────
             if waitForChestReady(raidFolder, "Golds", 12) then
@@ -898,19 +924,20 @@ function AutoTower.start()
             root.CFrame = towerPart.CFrame + Vector3.new(0, 3, 0)
         end
 
-        -- Step 2: wait for the Towers PlayerGui screen to appear
-        local towersGui = nil
+        -- Step 2: wait to confirm we're inside the tower via OnTowers flag
+        local towersIn  = false
         local guiWait   = 0
         repeat
             task.wait(0.5)
             guiWait += 0.5
-            towersGui = LocalPlayer.PlayerGui:FindFirstChild("Towers")
-        until towersGui or guiWait >= 10 or not AutoTower.isRunning
+            towersIn = PlayerState.inTower()
+                or LocalPlayer.PlayerGui:FindFirstChild("Towers") ~= nil
+        until towersIn or guiWait >= 10 or not AutoTower.isRunning
 
         if not AutoTower.isRunning then return end
 
-        if not towersGui then
-            Util.notify("Auto Tower", "Towers UI never appeared — aborting.")
+        if not towersIn then
+            Util.notify("Auto Tower", "Tower UI never appeared — aborting.")
             AutoTower.isRunning = false
             return
         end
@@ -1003,33 +1030,41 @@ do
         Util.notify("Auto Boss Gate", "Watching for boss fights...")
 
         task.spawn(function()
-            local lastWorld = nil  -- track so we don't re-enter the same fight
+            local teleportedThisSpawn = false
 
             while _AutoBossGate.isRunning do
                 local worldName = findActiveBossWorld()
 
-                if worldName and worldName ~= lastWorld then
-                    lastWorld = worldName
+                if worldName and not teleportedThisSpawn then
+                    -- Boss fight spawned and we haven't entered it yet
+                    teleportedThisSpawn = true
                     Util.notify("Auto Boss Gate", worldName .. " boss fight detected!")
                     teleportToPortal(worldName)
 
-                    -- Wait for the boss fight folder to disappear before looking again
-                    -- (indicates the fight ended / we completed it)
+                    -- Wait until we're confirmed inside the boss gate
+                    local enterWait = 0
+                    repeat
+                        task.wait(1)
+                        enterWait += 1
+                    until PlayerState.inBossGate() or enterWait >= 15 or not _AutoBossGate.isRunning
+
+                    -- Now wait for the boss gate to end (flag removed)
                     local waited = 0
                     repeat
                         task.wait(1)
                         waited += 1
-                        worldName = findActiveBossWorld()
-                    until (worldName == nil or worldName ~= lastWorld)
+                    until not PlayerState.inBossGate()
                         or waited >= 600
                         or not _AutoBossGate.isRunning
 
                     -- Boss gate naturally completed — notify rift if it's waiting
                     AutoRift.onGamemodeComplete()
 
-                    lastWorld = nil
+                    teleportedThisSpawn = false
+
                 elseif not worldName then
-                    lastWorld = nil  -- reset so we catch a new fight after a gap
+                    -- No active boss fight — reset so we're ready for the next one
+                    teleportedThisSpawn = false
                 end
 
                 task.wait(1)
@@ -1128,10 +1163,9 @@ function AutoRift.start()
                 -- it on the next tick while we decide what to do.
                 _seenRiftIDs[id] = true
 
-                local raidActive      = AutoRaid.isRunning
-                local towerActive     = AutoTower.isRunning
-                -- BossGate will set AutoBossGate.isRunning when added
-                local bossGateActive  = AutoBossGate and AutoBossGate.isRunning or false
+                local raidActive      = PlayerState.inRaid()
+                local towerActive     = PlayerState.inTower()
+                local bossGateActive  = PlayerState.inBossGate()
                 local farmActive      = AutoFarm.isRunning
 
                 if AutoRift.forceEnabled then
