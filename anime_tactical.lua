@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.26"
+local script_version = "V0.27"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -1025,32 +1025,18 @@ function AutoTower.stop()
     AutoTower.isRunning = false
 end
 
--- Forward declaration replaced below with full implementation.
--- Defined here so AutoRift (declared after) can reference it safely.
+-- Forward declaration — full implementation below.
 AutoBossGate = { isRunning = false, stop = function() end }
 
 -- ============================================================
 -- AUTO BOSS GATE MODULE
 -- ============================================================
--- Logic:
---   Poll workspace.BossFights_Visual every second.
---   When a world folder appears inside it (e.g. "Demon Forest"),
---   teleport to workspace.Maps["Demon Forest"].Building.Portals.Portal
---   which triggers the boss fight entry.
---   The world name is taken from the first child of BossFights_Visual,
---   so it works for any world's boss gate automatically.
--- ============================================================
 do
     local _AutoBossGate = {}
     _AutoBossGate.isRunning = false
 
-    local function getBossFightVisual()
-        return workspace:FindFirstChild("BossFights_Visual")
-    end
-
-    -- Returns the world name of an active boss fight, or nil.
     local function findActiveBossWorld()
-        local visual = getBossFightVisual()
+        local visual = workspace:FindFirstChild("BossFights_Visual")
         if not visual then return nil end
         for _, child in ipairs(visual:GetChildren()) do
             if child:IsA("Folder") or child:IsA("Model") then
@@ -1060,7 +1046,6 @@ do
         return nil
     end
 
-    -- Teleports the player to the Portal part for the given world.
     local function teleportToPortal(worldName)
         local ok, portal = pcall(function()
             return workspace.Maps[worldName].Building.Portals.Portal
@@ -1072,11 +1057,9 @@ do
         local root = LocalPlayer.Character
             and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not root then return false end
-
         local pos = portal:IsA("BasePart") and portal.Position
             or (portal.PrimaryPart and portal.PrimaryPart.Position)
         if not pos then return false end
-
         root.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
         Util.debugPrint("[AutoBossGate] Teleported to portal:", worldName)
         return true
@@ -1088,13 +1071,17 @@ do
         Util.notify("Auto Boss Gate", "Watching for boss fights...")
 
         task.spawn(function()
-            local teleportedThisSpawn = false
-
             while _AutoBossGate.isRunning do
+
+                -- Already inside a boss gate — just wait it out
+                if PlayerState.inBossGate() then
+                    task.wait(1)
+                    continue
+                end
+
                 local worldName = findActiveBossWorld()
 
-                if worldName and not teleportedThisSpawn then
-                    teleportedThisSpawn = true
+                if worldName then
                     Util.notify("Auto Boss Gate", worldName .. " boss fight detected!")
 
                     -- Pause farm so it doesn't fight the teleport
@@ -1111,7 +1098,7 @@ do
 
                     teleportToPortal(worldName)
 
-                    -- Wait until confirmed inside
+                    -- Wait until confirmed inside (up to 15s)
                     local enterWait = 0
                     repeat
                         task.wait(1)
@@ -1120,26 +1107,22 @@ do
 
                     if farmWasRunning then AutoFarm.start() end
 
-                    -- Now wait for the boss gate to end (flag removed)
-                    local waited = 0
-                    repeat
-                        task.wait(1)
-                        waited += 1
-                    until not PlayerState.inBossGate()
-                        or waited >= 600
-                        or not _AutoBossGate.isRunning
+                    if not PlayerState.inBossGate() then
+                        Util.debugPrint("[AutoBossGate] Failed to enter — retrying next spawn")
+                    else
+                        -- Wait for the boss gate to end
+                        repeat
+                            task.wait(1)
+                        until not PlayerState.inBossGate() or not _AutoBossGate.isRunning
+                        Util.debugPrint("[AutoBossGate] Boss gate ended")
+                    end
 
-                    -- Boss gate naturally completed — notify rift if it's waiting
-                    AutoRift.onGamemodeComplete()
-
-                    teleportedThisSpawn = false
-
-                elseif not worldName then
-                    -- No active boss fight — reset so we're ready for the next one
-                    teleportedThisSpawn = false
+                    -- Small cooldown so we don't instantly re-enter if the folder
+                    -- lingers for a moment after the fight ends
+                    task.wait(5)
+                else
+                    task.wait(1)
                 end
-
-                task.wait(1)
             end
         end)
     end
@@ -1149,7 +1132,6 @@ do
         Util.notify("Auto Boss Gate", "Auto Boss Gate stopped.")
     end
 
-    -- Promote to the global AutoBossGate that AutoRift already references
     AutoBossGate = _AutoBossGate
 end
 
@@ -1161,20 +1143,11 @@ local AutoRift = {}
 AutoRift.isRunning    = false
 AutoRift.forceEnabled = false
 
--- IDs we have already attempted to join this session — never retry them.
--- Cleared only when the script is reloaded (player rejoins).
-local _seenRiftIDs = {}
-
--- Set to true by the rift watcher when a new rift is pending but we're waiting
--- for a polite moment to join (e.g. raid/boss gate finishing first).
-AutoRift.pendingID = nil
-
-local function getSpawnedRifts()
-    return workspace:FindFirstChild("SpawnedRifts")
-end
+local _seenRiftIDs = {}  -- IDs joined this session — never retry
+AutoRift.pendingID  = nil
 
 local function findNewRiftID()
-    local folder = getSpawnedRifts()
+    local folder = workspace:FindFirstChild("SpawnedRifts")
     if not folder then return nil end
     for _, child in ipairs(folder:GetChildren()) do
         local idVal = child:FindFirstChild("ID")
@@ -1188,8 +1161,25 @@ local function findNewRiftID()
     return nil
 end
 
+-- Stops everything cleanly before joining a rift
+local function abortAllForRift()
+    -- Stop module loops
+    if AutoRaid.isRunning     then AutoRaid.stop()     end
+    if AutoTower.isRunning    then AutoTower.stop()    end
+    if AutoBossGate.isRunning then AutoBossGate.stop() end
+    if AutoFarm.isRunning     then AutoFarm.stop()     end
+    -- Release tween lock and unanchor player
+    TweenLock.holder = nil
+    pcall(function()
+        local root = LocalPlayer.Character
+            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then root.Anchored = false end
+    end)
+    task.wait(0.2)  -- brief yield so any running coroutines can clean up
+end
+
 local function doJoinRift(id)
-    _seenRiftIDs[id] = true   -- mark before firing so we never double-join
+    _seenRiftIDs[id] = true
     AutoRift.pendingID = nil
 
     local ok = pcall(function()
@@ -1200,23 +1190,20 @@ local function doJoinRift(id)
             :FireServer(id)
     end)
     Util.debugPrint("[AutoRift] JoinRift fired | id:", id, "| ok:", ok)
-    if ok then
+
+    -- Confirm entry
+    local enterWait = 0
+    repeat
+        task.wait(0.5)
+        enterWait += 0.5
+    until PlayerState.inRift() or enterWait >= 10
+
+    if PlayerState.inRift() then
         Util.notify("Auto Rift", "Joined rift!")
     else
-        Util.notify("Auto Rift", "Failed to join rift.")
+        Util.notify("Auto Rift", "Rift join unconfirmed — may have expired.")
     end
     return ok
-end
-
--- Called by AutoRaid / AutoBossGate at the moment they finish naturally.
--- If there's a rift pending we join it immediately at that point.
-function AutoRift.onGamemodeComplete()
-    if not AutoRift.isRunning then return end
-    local id = AutoRift.pendingID
-    if id then
-        Util.debugPrint("[AutoRift] Gamemode complete — joining pending rift:", id)
-        doJoinRift(id)
-    end
 end
 
 function AutoRift.start()
@@ -1230,40 +1217,40 @@ function AutoRift.start()
 
             if id then
                 Util.debugPrint("[AutoRift] New rift spotted:", id)
-
-                -- Always mark seen immediately so the watcher doesn't re-detect
-                -- it on the next tick while we decide what to do.
-                _seenRiftIDs[id] = true
-
-                local raidActive      = PlayerState.inRaid()
-                local towerActive     = PlayerState.inTower()
-                local bossGateActive  = PlayerState.inBossGate()
-                local farmActive      = AutoFarm.isRunning
+                _seenRiftIDs[id] = true  -- mark immediately to avoid re-detection
 
                 if AutoRift.forceEnabled then
-                    -- ── FORCE: abort everything immediately ──────────────
-                    if raidActive     then AutoRaid.stop()     end
-                    if towerActive    then AutoTower.stop()    end
-                    if bossGateActive then AutoBossGate.stop() end
-                    if farmActive     then AutoFarm.stop()     end
-                    if TweenLock.holder ~= nil then TweenLock.holder = nil end
-
+                    -- Abort everything and join right now
+                    abortAllForRift()
                     doJoinRift(id)
 
-                elseif raidActive or bossGateActive then
-                    -- ── POLITE: wait for raid/boss gate to finish naturally ──
-                    -- Store the ID so onGamemodeComplete() can pick it up.
+                elseif PlayerState.inRaid() or PlayerState.inBossGate() then
+                    -- Polite: store and wait for the stage to end naturally
                     AutoRift.pendingID = id
-                    Util.notify("Auto Rift", "Rift spotted — will join after current gamemode ends.")
+                    Util.notify("Auto Rift", "Rift spotted — joining after current stage ends.")
 
                 else
-                    -- ── Farm or tower (or nothing): abort and join now ───
-                    -- We don't care about losing farm progress or tower mid-run.
-                    if towerActive then AutoTower.stop() end
-                    if farmActive  then AutoFarm.stop()  end
-                    if TweenLock.holder ~= nil then TweenLock.holder = nil end
-
+                    -- Farm/tower/nothing: stop them and join now
+                    if AutoTower.isRunning then AutoTower.stop() end
+                    if AutoFarm.isRunning  then
+                        AutoFarm.stop()
+                        TweenLock.holder = nil
+                        pcall(function()
+                            local root = LocalPlayer.Character
+                                and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if root then root.Anchored = false end
+                        end)
+                    end
                     doJoinRift(id)
+                end
+
+            elseif AutoRift.pendingID then
+                -- We have a pending rift — check if we're now free to join
+                if not PlayerState.inRaid() and not PlayerState.inBossGate() then
+                    local pendingId = AutoRift.pendingID
+                    Util.debugPrint("[AutoRift] Stage ended — joining pending rift:", pendingId)
+                    abortAllForRift()
+                    doJoinRift(pendingId)
                 end
             end
 
