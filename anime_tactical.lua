@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.29"
+local script_version = "V0.3"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -233,7 +233,7 @@ end
 
 -- Maximum distance the player will travel to reach a mob.
 -- Prevents AutoFarm from chasing mobs that spawned outside the raid/rift zone.
-local MAX_MOB_DISTANCE = 500
+local MAX_MOB_DISTANCE = 1000
 
 local function getMobName(model)
     local ok, result = pcall(function()
