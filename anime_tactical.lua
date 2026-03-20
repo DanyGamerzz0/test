@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.22"
+local script_version = "V0.23"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -767,12 +767,11 @@ function AutoRaid.start()
             -- ── STEP 2: Apply start delay + wait for players, then start ──
             local startOk = waitAndStartRaid()
             if not startOk then
-                -- Lobby expired or player count never hit target — redo from step 1
                 task.wait(2)
                 continue
             end
 
-            -- ── STEP 3: Wait until we're actually inside the raid ─────────
+            -- ── STEP 3: Wait until we're inside the raid (OnRaids flag) ───
             local joinWait = 0
             repeat
                 task.wait(1)
@@ -787,24 +786,35 @@ function AutoRaid.start()
                 continue
             end
 
-            Util.debugPrint("[AutoRaid] Inside raid confirmed via OnRaids flag")
+            Util.debugPrint("[AutoRaid] Inside raid confirmed")
 
-            -- ── STEP 4: Wait for raid to end (OnRaids flag removed) ───────
-            -- While waiting, AutoFarm Nearest kills mobs.
-            -- We still need raidFolder to open chests after, so fetch it once.
-            local raidFolder = getRaidFolder()
-
+            -- ── STEP 4: Wait for Claimable signal via RaidsEvent ──────────
+            -- The server fires RaidsEvent with "<world>_Claimable" the moment
+            -- all enemies are defeated and chests become openable.
+            -- We hook the event, set a flag, then clean up the connection.
+            local claimable    = false
+            local raidFolder   = nil
             local stageWait    = 0
             local MAX_STAGE_WAIT = 600
+
+            local raidsEvent = Services.ReplicatedStorage.Remotes.Systems.RaidsEvent
+            local claimConn  = raidsEvent.OnClientEvent:Connect(function(arg1, arg2)
+                -- arg1 = "<world>_Claimable", arg2 = player name
+                if type(arg1) == "string" and arg1:find("_Claimable") then
+                    Util.debugPrint("[AutoRaid] Claimable signal received:", arg1)
+                    claimable = true
+                end
+            end)
 
             repeat
                 task.wait(1)
                 stageWait += 1
-                -- Refresh raidFolder in case it was recreated mid-run
                 raidFolder = getRaidFolder()
-            until not PlayerState.inRaid()
+            until claimable
                 or stageWait >= MAX_STAGE_WAIT
                 or not AutoRaid.isRunning
+
+            claimConn:Disconnect()
 
             if not AutoRaid.isRunning then break end
 
@@ -815,39 +825,52 @@ function AutoRaid.start()
                 continue
             end
 
-            Util.debugPrint("[AutoRaid] OnRaids flag gone — stage complete!")
+            raidFolder = raidFolder or getRaidFolder()
+            Util.debugPrint("[AutoRaid] Stage complete — chests claimable!")
 
             -- ── STEP 5: Open chests ────────────────────────────────────────
-            if waitForChestReady(raidFolder, "Golds", 12) then
-                openChest(raidFolder, "Golds", 8)
-            end
-            if waitForChestReady(raidFolder, "Special", 5) then
-                openChest(raidFolder, "Special", 8)
-            end
-            if State.AutoOpenKeyChests then
-                if waitForChestReady(raidFolder, "Purple", 8) then
-                    openChest(raidFolder, "Purple", 6)
+            if raidFolder then
+                if waitForChestReady(raidFolder, "Golds", 12) then
+                    openChest(raidFolder, "Golds", 8)
                 end
+                if waitForChestReady(raidFolder, "Special", 5) then
+                    openChest(raidFolder, "Special", 8)
+                end
+                if State.AutoOpenKeyChests then
+                    if waitForChestReady(raidFolder, "Purple", 8) then
+                        openChest(raidFolder, "Purple", 6)
+                    end
+                end
+            else
+                Util.debugPrint("[AutoRaid] No raidFolder — skipping chests")
             end
 
-            -- ── STEP 6: Replay / Leave ─────────────────────────────────────
+            -- ── STEP 6: Replay / Leave / Loop ─────────────────────────────
             task.wait(1)
 
-            -- If a rift was spotted while we were mid-raid and force is off,
-            -- join it now that the raid has naturally completed.
             AutoRift.onGamemodeComplete()
 
             if State.AutoReplayRaid then
                 Util.debugPrint("[AutoRaid] Replaying...")
                 sendRaidAction("Replay")
-                task.wait(5)
+                -- Wait for OnRaids to come back before looping
+                local replayWait = 0
+                repeat
+                    task.wait(1)
+                    replayWait += 1
+                until PlayerState.inRaid() or replayWait >= 30 or not AutoRaid.isRunning
             elseif State.AutoLeaveRaid then
                 Util.debugPrint("[AutoRaid] Leaving...")
                 sendRaidAction("Leave")
-                task.wait(3)
-                AutoRaid.isRunning = false
-                Util.notify("Auto Raid", "Raid complete — left.")
-                break
+                -- Wait for OnRaids to clear, then loop back to start a new run
+                local leaveWait = 0
+                repeat
+                    task.wait(1)
+                    leaveWait += 1
+                until not PlayerState.inRaid() or leaveWait >= 15 or not AutoRaid.isRunning
+                task.wait(2)
+                Util.notify("Auto Raid", "Raid complete — starting next run...")
+                -- Loop continues → STEP 1
             else
                 AutoRaid.isRunning = false
                 Util.notify("Auto Raid", "Raid complete! Enable Replay or Leave to continue.")
