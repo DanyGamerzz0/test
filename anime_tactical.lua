@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.23"
+local script_version = "V0.24"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -239,7 +239,9 @@ local function getMobName(model)
     local ok, result = pcall(function()
         return model.Units_Displays.Names.Text
     end)
-    return ok and result or nil
+    if not ok or not result then return nil end
+    if result == "Training Dummy" then return nil end
+    return result
 end
 
 local function getMobPosition(model)
@@ -530,7 +532,7 @@ end
 
 local function getChestPrompt(raidFolder, chestType)
     local ok, p = pcall(function()
-        return raidFolder.Configs.Others.Rewards[chestType].Primary.Attachment.ProximityPrompt
+        return raidFolder.Configs.Others.Rewards[chestType].Primary.ProximityPrompt
     end)
     return ok and p or nil
 end
@@ -623,43 +625,66 @@ end
 -- Returns true when lobby is ready, false if it failed.
 -- On lobby expiry (pod vanishes before we start), caller should retry.
 local function setupLobby()
-    -- Step 1: find a free pod and teleport to it
-    local pod = getFreePod()
+    -- Pause AutoFarm so it doesn't fight the teleport
+    local farmWasRunning = AutoFarm.isRunning
+    if farmWasRunning then
+        AutoFarm.isRunning = false
+        -- Unanchor immediately so the teleport isn't blocked
+        pcall(function()
+            local root = LocalPlayer.Character
+                and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.Anchored = false end
+        end)
+        if TweenLock.holder == "farm" then TweenLock.holder = nil end
+    end
+
+    -- Wait for any leftover Raids GUI from a previous run to clear
+    -- (avoids setupLobby thinking we're already in the lobby)
+    local clearWait = 0
+    while LocalPlayer.PlayerGui:FindFirstChild("Raids") and clearWait < 5 do
+        task.wait(0.5)
+        clearWait += 0.5
+    end
+
+    -- Step 1: wait for a free pod then teleport to it
+    -- After leaving a raid the server may take a moment to clear Holders
+    local pod = nil
+    local podWait = 0
+    repeat
+        task.wait(0.5)
+        podWait += 0.5
+        pod = getFreePod()
+    until pod or podWait >= 10 or not AutoRaid.isRunning
+
     if not pod then
-        Util.debugPrint("[AutoRaid] No free pod found")
+        Util.debugPrint("[AutoRaid] No free pod found after waiting")
+        if farmWasRunning then AutoFarm.start() end
         return false
     end
     teleportToPod(pod)
     Util.debugPrint("[AutoRaid] Teleported to pod:", pod.Name)
 
-    -- Step 2: wait for the Raids PlayerGui screen to appear
-    -- (also accepts if OnRaids flag appears, meaning server already put us in)
-    local raidGui = nil
-    local guiWait = 0
-    repeat
-        task.wait(0.5)
-        guiWait += 0.5
-        raidGui = LocalPlayer.PlayerGui:FindFirstChild("Raids")
-            or LocalPlayer:FindFirstChild("OnRaids")
-    until raidGui or guiWait >= 10 or not AutoRaid.isRunning
+    -- Step 2: small wait for server to register our position at the pod,
+    -- then fire world/difficulty directly — PlayerGui.Raids appearing is
+    -- unreliable after a script-driven teleport so we don't gate on it.
+    task.wait(1.5)
 
-    if not raidGui then
-        Util.debugPrint("[AutoRaid] Raids GUI never appeared — retrying")
+    if not AutoRaid.isRunning then
+        if farmWasRunning then AutoFarm.start() end
         return false
     end
 
     -- Step 3: fire world + difficulty selection via RaidsLobbies remote
-    local partiesFolder = getPartiesFolder()
-    local myParty       = getMyPartyFolder()
+    local myParty = getMyPartyFolder()
 
     if not myParty then
         Util.debugPrint("[AutoRaid] Own party folder not found — cannot select stage")
+        if farmWasRunning then AutoFarm.start() end
         return false
     end
 
     local lobbiesRemote = getRaidLobbiesRemote()
 
-    -- Select world
     local worldArg = "Worlds_" .. State.RaidWorld
     local ok1 = pcall(function()
         lobbiesRemote:FireServer(myParty, worldArg)
@@ -667,12 +692,14 @@ local function setupLobby()
     Util.debugPrint("[AutoRaid] Select world fired:", worldArg, "| ok:", ok1)
     task.wait(0.3)
 
-    -- Select difficulty
-    local diffArg = "Diffculty_" .. State.RaidDifficulty  -- matches game's typo
+    local diffArg = "Diffculty_" .. State.RaidDifficulty
     local ok2 = pcall(function()
         lobbiesRemote:FireServer(myParty, diffArg)
     end)
     Util.debugPrint("[AutoRaid] Select difficulty fired:", diffArg, "| ok:", ok2)
+
+    -- Restore farm now that the lobby is set up
+    if farmWasRunning then AutoFarm.start() end
 
     return ok1 and ok2
 end
@@ -862,13 +889,8 @@ function AutoRaid.start()
             elseif State.AutoLeaveRaid then
                 Util.debugPrint("[AutoRaid] Leaving...")
                 sendRaidAction("Leave")
-                -- Wait for OnRaids to clear, then loop back to start a new run
-                local leaveWait = 0
-                repeat
-                    task.wait(1)
-                    leaveWait += 1
-                until not PlayerState.inRaid() or leaveWait >= 15 or not AutoRaid.isRunning
-                task.wait(2)
+                -- Fixed wait for the server to process the leave before next lobby setup
+                task.wait(4)
                 Util.notify("Auto Raid", "Raid complete — starting next run...")
                 -- Loop continues → STEP 1
             else
@@ -938,6 +960,18 @@ function AutoTower.start()
                 continue
             end
 
+            -- Pause farm so it doesn't fight the server teleport
+            local farmWasRunning = AutoFarm.isRunning
+            if farmWasRunning then
+                AutoFarm.isRunning = false
+                pcall(function()
+                    local root = LocalPlayer.Character
+                        and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if root then root.Anchored = false end
+                end)
+                if TweenLock.holder == "farm" then TweenLock.holder = nil end
+            end
+
             -- Fire the remote — server handles teleport
             pcall(function()
                 Services.ReplicatedStorage
@@ -953,6 +987,8 @@ function AutoTower.start()
                 task.wait(0.5)
                 enterWait += 0.5
             until PlayerState.inTower() or enterWait >= 10 or not AutoTower.isRunning
+
+            if farmWasRunning then AutoFarm.start() end
 
             if not PlayerState.inTower() then
                 Util.debugPrint("[AutoTower] Join failed — retrying in 3s")
@@ -1046,17 +1082,31 @@ do
                 local worldName = findActiveBossWorld()
 
                 if worldName and not teleportedThisSpawn then
-                    -- Boss fight spawned and we haven't entered it yet
                     teleportedThisSpawn = true
                     Util.notify("Auto Boss Gate", worldName .. " boss fight detected!")
+
+                    -- Pause farm so it doesn't fight the teleport
+                    local farmWasRunning = AutoFarm.isRunning
+                    if farmWasRunning then
+                        AutoFarm.isRunning = false
+                        pcall(function()
+                            local root = LocalPlayer.Character
+                                and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if root then root.Anchored = false end
+                        end)
+                        if TweenLock.holder == "farm" then TweenLock.holder = nil end
+                    end
+
                     teleportToPortal(worldName)
 
-                    -- Wait until we're confirmed inside the boss gate
+                    -- Wait until confirmed inside
                     local enterWait = 0
                     repeat
                         task.wait(1)
                         enterWait += 1
                     until PlayerState.inBossGate() or enterWait >= 15 or not _AutoBossGate.isRunning
+
+                    if farmWasRunning then AutoFarm.start() end
 
                     -- Now wait for the boss gate to end (flag removed)
                     local waited = 0
