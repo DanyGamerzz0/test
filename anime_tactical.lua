@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.28"
+local script_version = "V0.29"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -480,6 +480,7 @@ local function getFreePod()
     local entering = workspace:FindFirstChild("Raids_Entering")
     if not entering then return nil end
     for _, pod in ipairs(entering:GetChildren()) do
+        if pod.Name == "Specify" then continue end
         local holders = pod:FindFirstChild("Holders")
         if holders and (holders.Value == "" or holders.Value == nil) then
             return pod
