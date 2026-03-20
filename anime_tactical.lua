@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.25"
+local script_version = "V0.26"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -781,22 +781,28 @@ function AutoRaid.start()
     Util.notify("Auto Raid", "Auto Raid started! (" .. State.RaidWorld .. " | " .. State.RaidDifficulty .. ")")
 
     AutoRaid._thread = task.spawn(function()
+        local skipLobby = false  -- set true after replay so we skip lobby setup
+
         while AutoRaid.isRunning do
 
-            -- ── STEP 1: Set up lobby (teleport to pod, select world/diff) ──
-            Util.debugPrint("[AutoRaid] Setting up lobby...")
-            local lobbyOk = setupLobby()
-            if not lobbyOk then
-                task.wait(3)
-                continue
+            if not skipLobby then
+                -- ── STEP 1: Set up lobby ──────────────────────────────────
+                Util.debugPrint("[AutoRaid] Setting up lobby...")
+                local lobbyOk = setupLobby()
+                if not lobbyOk then
+                    task.wait(3)
+                    continue
+                end
+
+                -- ── STEP 2: Start delay + wait for players + start ────────
+                local startOk = waitAndStartRaid()
+                if not startOk then
+                    task.wait(2)
+                    continue
+                end
             end
 
-            -- ── STEP 2: Apply start delay + wait for players, then start ──
-            local startOk = waitAndStartRaid()
-            if not startOk then
-                task.wait(2)
-                continue
-            end
+            skipLobby = false  -- reset for next iteration
 
             -- ── STEP 3: Wait until we're inside the raid (OnRaids flag) ───
             local joinWait = 0
@@ -885,6 +891,7 @@ function AutoRaid.start()
             if State.AutoReplayRaid then
                 Util.debugPrint("[AutoRaid] Replaying...")
                 sendRaidAction("Replay")
+                skipLobby = true  -- next iteration skips lobby, goes straight to step 3
                 -- Wait for OnRaids to come back before looping
                 local replayWait = 0
                 repeat
