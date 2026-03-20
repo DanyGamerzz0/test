@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.27"
+local script_version = "V0.28"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -1046,22 +1046,22 @@ do
         return nil
     end
 
-    local function teleportToPortal(worldName)
-        local ok, portal = pcall(function()
-            return workspace.Maps[worldName].Building.Portals.Portal
+    local function teleportToStage(worldName)
+        local ok, stage = pcall(function()
+            return workspace.BossFights_Visual[worldName].Stage
         end)
-        if not ok or not portal then
-            Util.debugPrint("[AutoBossGate] Portal not found for world:", worldName)
+        if not ok or not stage then
+            Util.debugPrint("[AutoBossGate] Stage not found for world:", worldName)
             return false
         end
         local root = LocalPlayer.Character
             and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not root then return false end
-        local pos = portal:IsA("BasePart") and portal.Position
-            or (portal.PrimaryPart and portal.PrimaryPart.Position)
+        local pos = stage:IsA("BasePart") and stage.Position
+            or (stage.PrimaryPart and stage.PrimaryPart.Position)
         if not pos then return false end
         root.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-        Util.debugPrint("[AutoBossGate] Teleported to portal:", worldName)
+        Util.debugPrint("[AutoBossGate] Teleported to stage:", worldName)
         return true
     end
 
@@ -1096,7 +1096,7 @@ do
                         if TweenLock.holder == "farm" then TweenLock.holder = nil end
                     end
 
-                    teleportToPortal(worldName)
+                    teleportToStage(worldName)
 
                     -- Wait until confirmed inside (up to 15s)
                     local enterWait = 0
