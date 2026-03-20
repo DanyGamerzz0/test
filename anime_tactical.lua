@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.24"
+local script_version = "V0.25"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -815,19 +815,22 @@ function AutoRaid.start()
 
             Util.debugPrint("[AutoRaid] Inside raid confirmed")
 
-            -- ── STEP 4: Wait for Claimable signal via RaidsEvent ──────────
-            -- The server fires RaidsEvent with "<world>_Claimable" the moment
-            -- all enemies are defeated and chests become openable.
-            -- We hook the event, set a flag, then clean up the connection.
-            local claimable    = false
-            local raidFolder   = nil
-            local stageWait    = 0
-            local MAX_STAGE_WAIT = 600
+            -- ── STEP 4: Wait for Claimable signals via RaidsEvent ─────────
+            -- "_Claimable"         → all enemies dead, Gold + Purple chests ready
+            -- "_Claimable_Special" → special off-path enemies dead, Special chest ready
+            local claimable        = false
+            local claimableSpecial = false
+            local raidFolder       = nil
+            local stageWait        = 0
+            local MAX_STAGE_WAIT   = 600
 
             local raidsEvent = Services.ReplicatedStorage.Remotes.Systems.RaidsEvent
-            local claimConn  = raidsEvent.OnClientEvent:Connect(function(arg1, arg2)
-                -- arg1 = "<world>_Claimable", arg2 = player name
-                if type(arg1) == "string" and arg1:find("_Claimable") then
+            local claimConn  = raidsEvent.OnClientEvent:Connect(function(arg1)
+                if type(arg1) ~= "string" then return end
+                if arg1:find("_Claimable_Special") then
+                    Util.debugPrint("[AutoRaid] Special claimable signal received:", arg1)
+                    claimableSpecial = true
+                elseif arg1:find("_Claimable") then
                     Util.debugPrint("[AutoRaid] Claimable signal received:", arg1)
                     claimable = true
                 end
@@ -857,12 +860,16 @@ function AutoRaid.start()
 
             -- ── STEP 5: Open chests ────────────────────────────────────────
             if raidFolder then
+                -- Gold (always ready with _Claimable)
                 if waitForChestReady(raidFolder, "Golds", 12) then
                     openChest(raidFolder, "Golds", 8)
                 end
-                if waitForChestReady(raidFolder, "Special", 5) then
+                -- Special: wait a bit longer since it has its own signal
+                -- It may already be claimable, or arrive shortly after
+                if waitForChestReady(raidFolder, "Special", 10) then
                     openChest(raidFolder, "Special", 8)
                 end
+                -- Purple (key chest, same timing as Gold)
                 if State.AutoOpenKeyChests then
                     if waitForChestReady(raidFolder, "Purple", 8) then
                         openChest(raidFolder, "Purple", 6)
@@ -874,8 +881,6 @@ function AutoRaid.start()
 
             -- ── STEP 6: Replay / Leave / Loop ─────────────────────────────
             task.wait(1)
-
-            AutoRift.onGamemodeComplete()
 
             if State.AutoReplayRaid then
                 Util.debugPrint("[AutoRaid] Replaying...")
