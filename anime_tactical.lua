@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.3"
+local script_version = "V0.31"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -233,7 +233,7 @@ end
 
 -- Maximum distance the player will travel to reach a mob.
 -- Prevents AutoFarm from chasing mobs that spawned outside the raid/rift zone.
-local MAX_MOB_DISTANCE = 1000
+local MAX_MOB_DISTANCE = 500
 
 local function getMobName(model)
     local ok, result = pcall(function()
@@ -1267,6 +1267,119 @@ function AutoRift.stop()
 end
 
 -- ============================================================
+-- AUTO COLLECT MODULE  (Dragon Balls / Cursed Fingers)
+-- ============================================================
+local AutoCollect = {}
+
+AutoCollect.dragonBalls   = false
+AutoCollect.cursedFingers = false
+AutoCollect.isRunning     = false
+
+local VISUAL_FOLDER = function()
+    return workspace:FindFirstChild("Visual")
+end
+
+-- Finds all collectible models in workspace.Visual matching the given name prefix
+local function findCollectibles(namePrefix)
+    local found = {}
+    local visual = VISUAL_FOLDER()
+    if not visual then return found end
+    for _, model in ipairs(visual:GetChildren()) do
+        if model.Name:find(namePrefix, 1, true) then
+            table.insert(found, model)
+        end
+    end
+    return found
+end
+
+-- Teleports to a model and fires its ProximityPrompt
+local function collectModel(model)
+    local primary = model:FindFirstChild("Primary")
+    if not primary then return false end
+    local pos = primary:IsA("BasePart") and primary.Position
+        or (primary.PrimaryPart and primary.PrimaryPart.Position)
+    if not pos then return false end
+
+    local root = LocalPlayer.Character
+        and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+
+    -- Briefly unanchor if farm is holding the player in place
+    local wasAnchored = root.Anchored
+    if wasAnchored then
+        root.Anchored = false
+        if TweenLock.holder == "farm" then TweenLock.holder = nil end
+    end
+
+    root.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+
+    local prompt = primary:FindFirstChild("ProximityPrompt")
+    if not prompt then
+        if wasAnchored then root.Anchored = true end
+        return false
+    end
+
+    task.wait(0.1)
+    pcall(function() fireproximityprompt(prompt) end)
+
+    -- Wait for model to disappear (collected) or timeout
+    local elapsed = 0
+    while model.Parent and elapsed < 3 do
+        task.wait(0.1)
+        elapsed += 0.1
+    end
+
+    return model.Parent == nil
+end
+
+function AutoCollect.start()
+    if AutoCollect.isRunning then return end
+    AutoCollect.isRunning = true
+
+    task.spawn(function()
+        while AutoCollect.isRunning do
+            local collected = false
+
+            if AutoCollect.dragonBalls then
+                for _, model in ipairs(findCollectibles("DragonBall")) do
+                    if not AutoCollect.isRunning then break end
+                    Util.debugPrint("[AutoCollect] Collecting Dragon Ball:", model.Name)
+                    collectModel(model)
+                    collected = true
+                end
+            end
+
+            if AutoCollect.cursedFingers then
+                for _, model in ipairs(findCollectibles("Sukuna")) do
+                    if not AutoCollect.isRunning then break end
+                    Util.debugPrint("[AutoCollect] Collecting Cursed Finger:", model.Name)
+                    collectModel(model)
+                    collected = true
+                end
+            end
+
+            -- If nothing to collect, wait before scanning again
+            if not collected then
+                task.wait(2)
+            end
+        end
+    end)
+end
+
+function AutoCollect.stop()
+    AutoCollect.isRunning = false
+end
+
+local function updateAutoCollect()
+    local shouldRun = AutoCollect.dragonBalls or AutoCollect.cursedFingers
+    if shouldRun and not AutoCollect.isRunning then
+        AutoCollect.start()
+    elseif not shouldRun and AutoCollect.isRunning then
+        AutoCollect.stop()
+    end
+end
+
+-- ============================================================
 -- AUTO SUMMON MODULE
 -- ============================================================
 local AutoSummon = {}
@@ -2004,6 +2117,35 @@ local function initialize()
         Info         = "Watches BossFights_Visual for any boss fight and teleports to its portal to enter automatically.",
         Callback     = function(Value)
             if Value then AutoBossGate.start() else AutoBossGate.stop() end
+        end,
+    })
+
+    -- ══════════════════════════════════════════════════════════
+    -- TAB: COLLECTIBLES
+    -- ══════════════════════════════════════════════════════════
+    local CollectTab = Window:CreateTab("Collectibles", "gem")
+
+    CollectTab:CreateSection("Auto Collect")
+
+    CollectTab:CreateToggle({
+        Name         = "Auto Collect Wish Orbs (Dragon Balls)",
+        CurrentValue = false,
+        Flag         = "AutoCollectDragonBalls",
+        Info         = "Teleports to and collects any Dragon Ball models in workspace.Visual.",
+        Callback     = function(Value)
+            AutoCollect.dragonBalls = Value
+            updateAutoCollect()
+        end,
+    })
+
+    CollectTab:CreateToggle({
+        Name         = "Auto Collect Cursed Fingers",
+        CurrentValue = false,
+        Flag         = "AutoCollectCursedFingers",
+        Info         = "Teleports to and collects any Sukuna (cursed finger) models in workspace.Visual.",
+        Callback     = function(Value)
+            AutoCollect.cursedFingers = Value
+            updateAutoCollect()
         end,
     })
 
