@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.48"
+local script_version = "V0.49"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -446,7 +446,7 @@ function AutoFarm.start()
 
             -- Guard: don't re-pick the mob we just finished with.
             if target == lastTarget then
-                task.wait(0.1)
+                task.wait()
                 continue
             end
 
@@ -456,15 +456,13 @@ function AutoFarm.start()
                 Util.debugPrint("[FARM] start() calling farmTarget | t=0")
                 AutoFarm.farmTarget(target)
                 Util.debugPrint("[FARM] start() farmTarget returned | dt=", tick()-tStart)
-                -- Clear after farmTarget returns (model is gone by then)
                 lastTarget = nil
                 Util.debugPrint("[FARM] start() picking next target...")
             else
                 lastTarget = nil
                 task.wait(1)
             end
-
-            task.wait(0.1)
+            -- no extra wait here — go straight back to findTarget
         end
     end)
 end
