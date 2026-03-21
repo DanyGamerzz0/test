@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.5"
+local script_version = "V0.51"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -273,6 +273,10 @@ function AutoFarm.findTarget()
         if not model:IsA("Model") then continue end
         local mobName = getMobName(model)
         if not mobName then continue end
+        -- Skip mobs whose humanoid is already at 0 health — they're dead
+        -- but the model hasn't been removed from the folder yet
+        local h = model:FindFirstChildOfClass("Humanoid")
+        if h and h.Health <= 0 then continue end
         if not liveMobs[mobName] then liveMobs[mobName] = {} end
         table.insert(liveMobs[mobName], model)
     end
