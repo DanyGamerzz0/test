@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.31"
+local script_version = "V0.32"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -1304,18 +1304,20 @@ local function collectModel(model)
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return false end
 
-    -- Briefly unanchor if farm is holding the player in place
-    local wasAnchored = root.Anchored
-    if wasAnchored then
+    -- Fully pause farm so no tween or anchor fights the teleport
+    local farmWasRunning = AutoFarm.isRunning
+    if farmWasRunning then
+        AutoFarm.isRunning = false
         root.Anchored = false
-        if TweenLock.holder == "farm" then TweenLock.holder = nil end
+        TweenLock.holder = nil
+        task.wait(0.1) -- let any in-flight tween/anchor loop exit
     end
 
     root.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
 
     local prompt = primary:FindFirstChild("ProximityPrompt")
     if not prompt then
-        if wasAnchored then root.Anchored = true end
+        if farmWasRunning then AutoFarm.start() end
         return false
     end
 
@@ -1328,6 +1330,9 @@ local function collectModel(model)
         task.wait(0.1)
         elapsed += 0.1
     end
+
+    -- Restore farm
+    if farmWasRunning then AutoFarm.start() end
 
     return model.Parent == nil
 end
