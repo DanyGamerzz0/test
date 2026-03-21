@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.35"
+local script_version = "V0.36"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -235,6 +235,17 @@ end
 -- Prevents AutoFarm from chasing mobs that spawned outside the raid/rift zone.
 local MAX_MOB_DISTANCE = 1000
 
+-- Remote: tells our deployed units to attack a specific target
+local FARM_REQUEST_REMOTE = function()
+    return Services.ReplicatedStorage.Remotes.Gameplays:FindFirstChild("Request")
+end
+
+-- Remote: client event that fires visual/death signals for enemies
+local FARM_VISUAL_REMOTE = function()
+    return Services.ReplicatedStorage.Remotes.Effects:FindFirstChild("Visual")
+end
+
+-- Returns the display name shown in the mob's UI label (used for mob matching)
 local function getMobName(model)
     local ok, result = pcall(function()
         return model.Units_Displays.Names.Text
@@ -242,6 +253,11 @@ local function getMobName(model)
     if not ok or not result then return nil end
     if result == "Training Dummy" then return nil end
     return result
+end
+
+-- Returns the model's internal name used by server remotes (e.g. "Demon_7")
+local function getMobInternalName(model)
+    return model.Name
 end
 
 local function getMobPosition(model)
@@ -318,62 +334,104 @@ function AutoFarm.findTarget()
 end
 
 function AutoFarm.farmTarget(model)
+    local internalName = getMobInternalName(model)
+    local displayName  = getMobName(model)
+
+    -- ── Step 1: Fire Request so our units immediately start attacking ──
+    local requestRemote = FARM_REQUEST_REMOTE()
+    if requestRemote then
+        pcall(function()
+            requestRemote:FireServer(internalName, "Mouse")
+        end)
+        Util.debugPrint("[AutoFarm] Request fired for:", internalName)
+    end
+
+    -- ── Step 2: Set up death detection BEFORE tweening ─────────────────
+    -- Listening early ensures we never miss a fast kill during travel.
     local dead = false
 
-    local conn = model.AncestryChanged:Connect(function(_, parent)
+    -- Primary: death visual event (faster than ancestry)
+    local deathConn
+    local visualRemote = FARM_VISUAL_REMOTE()
+    if visualRemote then
+        deathConn = visualRemote.OnClientEvent:Connect(function(_, _, eventType, deadName)
+            -- Signal shape: ("", "Visuals", "Death", "<InternalName>")
+            if eventType == "Death" and deadName == internalName then
+                dead = true
+            end
+        end)
+    end
+
+    -- Fallback: ancestry watch in case the death event is missed
+    local ancestryConn = model.AncestryChanged:Connect(function(_, parent)
         if not parent then dead = true end
     end)
 
+    local function cleanup()
+        pcall(function() if deathConn    then deathConn:Disconnect()    end end)
+        pcall(function() ancestryConn:Disconnect() end)
+    end
+
+    -- ── Step 3: Get root + position ────────────────────────────────────
     local root = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then
-        pcall(function() conn:Disconnect() end)
-        return
-    end
+    if not root then cleanup() return end
 
     local pos = getMobPosition(model)
-    if not pos then
-        pcall(function() conn:Disconnect() end)
-        return
+    if not pos then cleanup() return end
+
+    -- ── Step 4: Tween to the mob (skip if already dead) ───────────────
+    if not dead then
+        TweenLock.holder = "farm"
+        local dist     = (root.Position - pos).Magnitude
+        local duration = math.max(0.5, dist / 150)
+        local tween = Services.TweenService:Create(
+            root,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear),
+            { CFrame = CFrame.new(pos + Vector3.new(0, 0, 3)) }
+        )
+        tween:Play()
+        tween.Completed:Wait()
     end
 
-    -- Acquire tween lock for farm
-    TweenLock.holder = "farm"
-
-    local targetCFrame = CFrame.new(pos + Vector3.new(0, 0, 3))
-    local dist = (root.Position - pos).Magnitude
-    local duration = math.max(0.5, dist / 150)
-    local tween = Services.TweenService:Create(
-        root,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-        { CFrame = targetCFrame }
-    )
-    tween:Play()
-    tween.Completed:Wait()
-
-    root.Anchored = true
-
-    while not dead and model.Parent and AutoFarm.isRunning do
-        -- Yield if raid has taken the lock (e.g. mid-tween to a chest)
-        -- In practice raid won't steal "farm" lock, but guard anyway
-        if TweenLock.holder == "raid" then
-            root.Anchored = false
-            pcall(function() conn:Disconnect() end)
-            TweenLock.holder = nil
-            return
-        end
-
+    -- ── Step 5: Anchor and wait for death signal ───────────────────────
+    if not dead then
         root = LocalPlayer.Character
             and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root then break end
+        if root then root.Anchored = true end
 
-        pos = getMobPosition(model)
-        if not pos then break end
+        local refireTimer = 0
+        while not dead and model.Parent and AutoFarm.isRunning do
+            -- Yield control if raid has taken the tween lock
+            if TweenLock.holder == "raid" then
+                if root then root.Anchored = false end
+                TweenLock.holder = nil
+                cleanup()
+                return
+            end
 
-        root.CFrame = CFrame.new(pos + Vector3.new(0, 0, 3))
-        task.wait(0.2)
+            root = LocalPlayer.Character
+                and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not root then break end
+
+            pos = getMobPosition(model)
+            if not pos then break end
+
+            -- Stay on top of the mob
+            root.CFrame = CFrame.new(pos + Vector3.new(0, 0, 3))
+
+            -- Re-fire Request every ~1s to keep units focused on this target
+            refireTimer += 0.2
+            if refireTimer >= 1 and requestRemote then
+                pcall(function() requestRemote:FireServer(internalName, "Mouse") end)
+                refireTimer = 0
+            end
+
+            task.wait(0.2)
+        end
     end
 
+    -- ── Step 6: Cleanup ────────────────────────────────────────────────
     pcall(function()
         local finalRoot = LocalPlayer.Character
             and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -381,7 +439,8 @@ function AutoFarm.farmTarget(model)
     end)
 
     TweenLock.holder = nil
-    pcall(function() conn:Disconnect() end)
+    cleanup()
+    Util.debugPrint("[AutoFarm] Target done:", displayName or internalName)
 end
 
 function AutoFarm.start()
