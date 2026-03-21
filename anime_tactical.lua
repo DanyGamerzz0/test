@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.37"
+local script_version = "V0.38"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -336,23 +336,33 @@ function AutoFarm.farmTarget(model)
     local internalName = getMobInternalName(model)
     local displayName  = getMobName(model)
 
-    -- ── Step 1: Set up death detection BEFORE firing or tweening ──────
-    -- We listen first so a fast kill during the tween is never missed.
+    -- ── Step 1: Fire Request ONCE so units start attacking ────────────
+    -- Firing again would toggle them to retreat, so we never fire twice.
+    local requestRemote = FARM_REQUEST_REMOTE()
+    if requestRemote then
+        pcall(function()
+            requestRemote:FireServer(internalName, "Mouse")
+        end)
+        Util.debugPrint("[AutoFarm] Request fired for:", internalName)
+    end
+
+    -- ── Step 2: Set up death detection ────────────────────────────────
     local dead = false
 
-    -- Primary: death visual event (fires faster than model removal)
+    -- Primary: death visual event (fires before model is removed)
+    -- We also print all args in debug so we can confirm the signal shape.
     local deathConn
     local visualRemote = FARM_VISUAL_REMOTE()
     if visualRemote then
-        deathConn = visualRemote.OnClientEvent:Connect(function(_, _, eventType, deadName)
-            -- Signal shape: ("", "Visuals", "Death", "<InternalName>")
-            if eventType == "Death" and deadName == internalName then
+        deathConn = visualRemote.OnClientEvent:Connect(function(a1, a2, a3, a4)
+            Util.debugPrint("[AutoFarm] VisualEvent:", tostring(a1), tostring(a2), tostring(a3), tostring(a4))
+            if a3 == "Death" and a4 == internalName then
                 dead = true
             end
         end)
     end
 
-    -- Fallback: ancestry watch in case the death event is ever missed
+    -- Fallback: ancestry — guaranteed to fire when model is removed
     local ancestryConn = model.AncestryChanged:Connect(function(_, parent)
         if not parent then dead = true end
     end)
@@ -362,16 +372,7 @@ function AutoFarm.farmTarget(model)
         pcall(function() ancestryConn:Disconnect() end)
     end
 
-    -- ── Step 2: Fire Request ONCE — units attack, never retreat ───────
-    local requestRemote = FARM_REQUEST_REMOTE()
-    if requestRemote then
-        pcall(function()
-            requestRemote:FireServer(internalName, "Mouse")
-        end)
-        Util.debugPrint("[AutoFarm] Request fired for:", internalName)
-    end
-
-    -- ── Step 3: Get root + position ────────────────────────────────────
+    -- ── Step 3: Tween to mob ───────────────────────────────────────────
     local root = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then cleanup() return end
@@ -379,7 +380,6 @@ function AutoFarm.farmTarget(model)
     local pos = getMobPosition(model)
     if not pos then cleanup() return end
 
-    -- ── Step 4: Tween to the mob (skip entirely if already dead) ──────
     if not dead then
         TweenLock.holder = "farm"
         local dist     = (root.Position - pos).Magnitude
@@ -391,42 +391,28 @@ function AutoFarm.farmTarget(model)
         )
         tween:Play()
         tween.Completed:Wait()
+        TweenLock.holder = nil
     end
 
-    -- ── Step 5: Anchor and wait for death — NO re-firing Request ──────
-    if not dead then
-        root = LocalPlayer.Character
-            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if root then root.Anchored = true end
-
-        while not dead and model.Parent and AutoFarm.isRunning do
-            -- Yield control if raid has taken the tween lock
-            if TweenLock.holder == "raid" then
-                if root then root.Anchored = false end
-                TweenLock.holder = nil
-                cleanup()
-                return
-            end
-
-            root = LocalPlayer.Character
-                and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not root then break end
-
-            pos = getMobPosition(model)
-            if not pos then break end
-
-            root.CFrame = CFrame.new(pos + Vector3.new(0, 0, 3))
-            task.wait(0.2)
+    -- ── Step 4: Wait for death — just yield, NO anchoring, NO re-fire ─
+    -- Anchoring while waiting was causing the freeze. Units handle combat;
+    -- we just stand nearby and wait for the death signal or model removal.
+    local elapsed = 0
+    local TIMEOUT = 60  -- safety: move on after 60s even if death missed
+    while not dead and model.Parent and AutoFarm.isRunning and elapsed < TIMEOUT do
+        if TweenLock.holder == "raid" then
+            cleanup()
+            return
         end
+        task.wait(0.5)
+        elapsed += 0.5
     end
 
-    -- ── Step 6: Cleanup ────────────────────────────────────────────────
-    pcall(function()
-        local finalRoot = LocalPlayer.Character
-            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if finalRoot then finalRoot.Anchored = false end
-    end)
+    if elapsed >= TIMEOUT then
+        Util.debugPrint("[AutoFarm] Timeout waiting for death:", internalName)
+    end
 
+    -- ── Step 5: Cleanup ────────────────────────────────────────────────
     TweenLock.holder = nil
     cleanup()
     Util.debugPrint("[AutoFarm] Target done:", displayName or internalName)
@@ -438,7 +424,7 @@ function AutoFarm.start()
     Util.notify("Auto Farm", "Auto Farm started!")
 
     task.spawn(function()
-        local lastTarget = nil  -- prevents re-picking the same mob right after death signal fires
+        local lastTarget = nil  -- guard against re-picking a mob we just finished
 
         while AutoFarm.isRunning do
             local humanoid = LocalPlayer.Character
@@ -456,10 +442,10 @@ function AutoFarm.start()
 
             local target = AutoFarm.findTarget()
 
-            -- The death signal fires before the model is removed from the folder.
-            -- Without this guard, farmTarget returns, the outer loop immediately
-            -- calls findTarget(), gets the same dying model, and fires Request
-            -- again — toggling units to retreat. Skip it until it's actually gone.
+            -- Skip if findTarget returned the same model we just finished —
+            -- the death signal fires before the model is removed, so it can
+            -- still appear in the folder for a frame. Re-picking it would
+            -- fire Request again and toggle units back to retreat.
             if target == lastTarget then
                 task.wait(0.2)
                 continue
