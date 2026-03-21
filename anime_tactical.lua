@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.45"
+local script_version = "V0.46"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -339,16 +339,28 @@ function AutoFarm.farmTarget(model)
         if not parent then dead = true end
     end)
 
+    -- Also watch humanoid health so we exit as soon as it hits 0,
+    -- without waiting for the model to be fully removed (1-2s later).
+    local mobHumanoid = model:FindFirstChildOfClass("Humanoid")
+    local healthConn
+    if mobHumanoid then
+        healthConn = mobHumanoid:GetPropertyChangedSignal("Health"):Connect(function()
+            if mobHumanoid.Health <= 0 then dead = true end
+        end)
+    end
+
     local root = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then
         pcall(function() conn:Disconnect() end)
+        pcall(function() if healthConn then healthConn:Disconnect() end end)
         return
     end
 
     local pos = getMobPosition(model)
     if not pos then
         pcall(function() conn:Disconnect() end)
+        pcall(function() if healthConn then healthConn:Disconnect() end end)
         return
     end
 
@@ -397,6 +409,7 @@ function AutoFarm.farmTarget(model)
 
     TweenLock.holder = nil
     pcall(function() conn:Disconnect() end)
+    pcall(function() if healthConn then healthConn:Disconnect() end end)
 end
 
 function AutoFarm.start()
