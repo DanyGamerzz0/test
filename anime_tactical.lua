@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.39"
+local script_version = "V0.4"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -335,7 +335,9 @@ function AutoFarm.farmTarget(model)
         Util.debugPrint("[AutoFarm] Request fired for:", internalName)
     end
 
-    -- Tween to the mob
+    -- Get humanoid for health tracking
+    local mobHumanoid = model:FindFirstChildOfClass("Humanoid")
+
     local root = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root or not model.Parent then return end
@@ -343,31 +345,44 @@ function AutoFarm.farmTarget(model)
     local pos = getMobPosition(model)
     if not pos then return end
 
+    -- Tween to the mob — always clear TweenLock even if something goes wrong
     TweenLock.holder = "farm"
-    local dist     = (root.Position - pos).Magnitude
-    local duration = math.max(0.5, dist / 150)
-    local tween = Services.TweenService:Create(
-        root,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-        { CFrame = CFrame.new(pos + Vector3.new(0, 0, 3)) }
-    )
-    tween:Play()
-    tween.Completed:Wait()
-    TweenLock.holder = nil
-
-    -- Wait for the model to be removed. AncestryChanged fires as soon as
-    -- the server destroys it — no polling, no anchoring, no re-firing.
-    local dead = false
-    local conn = model.AncestryChanged:Connect(function(_, parent)
-        if not parent then dead = true end
+    local ok, err = pcall(function()
+        local dist     = (root.Position - pos).Magnitude
+        local duration = math.max(0.5, dist / 150)
+        local tween = Services.TweenService:Create(
+            root,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear),
+            { CFrame = CFrame.new(pos + Vector3.new(0, 0, 3)) }
+        )
+        tween:Play()
+        tween.Completed:Wait()
     end)
-
-    while not dead and model.Parent and AutoFarm.isRunning do
-        if TweenLock.holder == "raid" then break end
-        task.wait(0.5)
+    TweenLock.holder = nil  -- always release, even if tween errored
+    if not ok then
+        Util.debugPrint("[AutoFarm] Tween error:", err)
+        return
     end
 
-    pcall(function() conn:Disconnect() end)
+    -- Wait for death: check humanoid health if we have it,
+    -- fall back to model.Parent check if humanoid isn't found.
+    while model.Parent and AutoFarm.isRunning do
+        if TweenLock.holder == "raid" then break end
+
+        local isDead = false
+        if mobHumanoid and mobHumanoid.Parent then
+            isDead = mobHumanoid.Health <= 0
+        else
+            -- No humanoid found — re-try finding it, or fall back to ancestry
+            mobHumanoid = model:FindFirstChildOfClass("Humanoid")
+            if not mobHumanoid then break end  -- model has no humanoid, stop waiting
+        end
+
+        if isDead then break end
+        task.wait(0.1)
+    end
+
+    Util.debugPrint("[AutoFarm] Target done:", internalName)
 end
 
 function AutoFarm.start()
@@ -379,6 +394,11 @@ function AutoFarm.start()
         local lastTarget = nil
 
         while AutoFarm.isRunning do
+            -- Safety: if TweenLock got stuck on "farm" between iterations, clear it
+            if TweenLock.holder == "farm" then
+                TweenLock.holder = nil
+            end
+
             local humanoid = LocalPlayer.Character
                 and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if not humanoid or humanoid.Health <= 0 then
@@ -393,10 +413,9 @@ function AutoFarm.start()
 
             local target = AutoFarm.findTarget()
 
-            -- Don't re-pick the same mob we just finished with.
-            -- AncestryChanged fires before the model is fully gone,
-            -- so it can still show up in findTarget for a brief moment.
-            -- Re-picking it would fire Request again, toggling retreat.
+            -- Don't re-pick the same mob we just finished with —
+            -- it may still be in the folder for a frame after health hits 0.
+            -- Re-picking it would fire Request again, toggling units to retreat.
             if target == lastTarget then
                 task.wait(0.2)
                 continue
