@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.4"
+local script_version = "V0.41"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -328,60 +328,86 @@ end
 function AutoFarm.farmTarget(model)
     local internalName = getMobInternalName(model)
 
-    -- Fire Request once — units attack. Never fire again or they retreat.
+    -- Fire Request once — units attack. Firing again toggles retreat.
     local requestRemote = FARM_REQUEST_REMOTE()
     if requestRemote then
         pcall(function() requestRemote:FireServer(internalName, "Mouse") end)
         Util.debugPrint("[AutoFarm] Request fired for:", internalName)
     end
 
-    -- Get humanoid for health tracking
+    -- Grab humanoid and hook its Health signal BEFORE tweening
+    -- so we never miss a kill that happens mid-travel.
+    local dead = false
     local mobHumanoid = model:FindFirstChildOfClass("Humanoid")
+    local healthConn
+    local ancestryConn
 
+    local function markDead()
+        dead = true
+    end
+
+    if mobHumanoid then
+        healthConn = mobHumanoid:GetPropertyChangedSignal("Health"):Connect(function()
+            if mobHumanoid.Health <= 0 then markDead() end
+        end)
+    end
+
+    -- Ancestry fallback: catches removal even if health signal misfires
+    ancestryConn = model.AncestryChanged:Connect(function(_, parent)
+        if not parent then markDead() end
+    end)
+
+    local function cleanup()
+        pcall(function() if healthConn   then healthConn:Disconnect()   end end)
+        pcall(function() if ancestryConn then ancestryConn:Disconnect() end end)
+        TweenLock.holder = nil
+    end
+
+    -- Get root and position
     local root = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root or not model.Parent then return end
+    if not root or not model.Parent then cleanup() return end
 
     local pos = getMobPosition(model)
-    if not pos then return end
+    if not pos then cleanup() return end
 
-    -- Tween to the mob — always clear TweenLock even if something goes wrong
+    -- Interruptible tween: instead of tween.Completed:Wait() which hangs
+    -- forever if the character is teleported away, we drive a manual loop
+    -- that exits as soon as dead, raid lock, or farm stopped.
     TweenLock.holder = "farm"
-    local ok, err = pcall(function()
-        local dist     = (root.Position - pos).Magnitude
-        local duration = math.max(0.5, dist / 150)
-        local tween = Services.TweenService:Create(
-            root,
-            TweenInfo.new(duration, Enum.EasingStyle.Linear),
-            { CFrame = CFrame.new(pos + Vector3.new(0, 0, 3)) }
-        )
-        tween:Play()
-        tween.Completed:Wait()
-    end)
-    TweenLock.holder = nil  -- always release, even if tween errored
-    if not ok then
-        Util.debugPrint("[AutoFarm] Tween error:", err)
-        return
-    end
+    local dist     = (root.Position - pos).Magnitude
+    local duration = math.max(0.5, dist / 150)
+    local tween = Services.TweenService:Create(
+        root,
+        TweenInfo.new(duration, Enum.EasingStyle.Linear),
+        { CFrame = CFrame.new(pos + Vector3.new(0, 0, 3)) }
+    )
+    tween:Play()
 
-    -- Wait for death: check humanoid health if we have it,
-    -- fall back to model.Parent check if humanoid isn't found.
-    while model.Parent and AutoFarm.isRunning do
+    -- Wait for tween to finish, but bail early if something interrupts
+    local tweenDone = false
+    tween.Completed:Connect(function() tweenDone = true end)
+    local tweenElapsed = 0
+    while not tweenDone and not dead and AutoFarm.isRunning and TweenLock.holder ~= "raid" do
+        task.wait(0.05)
+        tweenElapsed += 0.05
+        if tweenElapsed > duration + 1 then break end  -- safety escape
+    end
+    tween:Cancel()
+    TweenLock.holder = nil
+
+    if dead or not AutoFarm.isRunning then cleanup() return end
+    if TweenLock.holder == "raid"     then cleanup() return end
+
+    -- Wait for death — GetPropertyChangedSignal fires instantly on health change,
+    -- so this loop is just a safety net; it will usually exit immediately
+    -- on the very next tick after the health signal fires.
+    while not dead and model.Parent and AutoFarm.isRunning do
         if TweenLock.holder == "raid" then break end
-
-        local isDead = false
-        if mobHumanoid and mobHumanoid.Parent then
-            isDead = mobHumanoid.Health <= 0
-        else
-            -- No humanoid found — re-try finding it, or fall back to ancestry
-            mobHumanoid = model:FindFirstChildOfClass("Humanoid")
-            if not mobHumanoid then break end  -- model has no humanoid, stop waiting
-        end
-
-        if isDead then break end
-        task.wait(0.1)
+        task.wait(0.05)
     end
 
+    cleanup()
     Util.debugPrint("[AutoFarm] Target done:", internalName)
 end
 
@@ -394,10 +420,8 @@ function AutoFarm.start()
         local lastTarget = nil
 
         while AutoFarm.isRunning do
-            -- Safety: if TweenLock got stuck on "farm" between iterations, clear it
-            if TweenLock.holder == "farm" then
-                TweenLock.holder = nil
-            end
+            -- Safety: clear a stuck farm lock between iterations
+            if TweenLock.holder == "farm" then TweenLock.holder = nil end
 
             local humanoid = LocalPlayer.Character
                 and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -413,11 +437,12 @@ function AutoFarm.start()
 
             local target = AutoFarm.findTarget()
 
-            -- Don't re-pick the same mob we just finished with —
-            -- it may still be in the folder for a frame after health hits 0.
-            -- Re-picking it would fire Request again, toggling units to retreat.
+            -- Don't re-pick the same mob we just finished —
+            -- health signal fires before model removal so it can
+            -- still appear in findTarget for a brief moment.
+            -- Re-picking fires Request again, toggling units to retreat.
             if target == lastTarget then
-                task.wait(0.2)
+                task.wait(0.1)
                 continue
             end
 
@@ -427,10 +452,8 @@ function AutoFarm.start()
                 AutoFarm.farmTarget(target)
             else
                 lastTarget = nil
-                task.wait(1)
+                task.wait(0.5)
             end
-
-            task.wait(0.1)
         end
     end)
 end
