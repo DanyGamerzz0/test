@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.33"
+local script_version = "V0.34"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -1297,26 +1297,39 @@ local function collectModel(model)
     local primary = model:FindFirstChild("Primary")
     if not primary or not primary:IsA("BasePart") then return false end
 
+    local prompt = primary:FindFirstChild("ProximityPrompt")
+    if not prompt then return false end
+
     local root = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return false end
 
-    local prompt = primary:FindFirstChild("ProximityPrompt")
-    if not prompt then return false end
+    -- Pause farm so no tween fights the teleport
+    local farmWasRunning = AutoFarm.isRunning
+    if farmWasRunning then
+        AutoFarm.isRunning = false
+        root.Anchored = false
+        TweenLock.holder = nil
+        task.wait(0.1)
+    end
 
-    -- Move the collectible to the player instead of moving the player to it.
-    -- This avoids world-loading issues and doesn't interfere with farm tweens at all.
-    primary.CFrame = root.CFrame + Vector3.new(0, 0, -3)
+    -- Teleport to the collectible and anchor in place
+    root.CFrame = primary.CFrame + Vector3.new(0, 3, 0)
+    root.Anchored = true
 
     task.wait(0.1)
     pcall(function() fireproximityprompt(prompt) end)
 
-    -- Wait for model to disappear (collected) or timeout
+    -- Keep firing and stay anchored until collected or timeout
     local elapsed = 0
-    while model.Parent and elapsed < 3 do
-        task.wait(0.1)
-        elapsed += 0.1
+    while model.Parent and elapsed < 5 do
+        pcall(function() fireproximityprompt(prompt) end)
+        task.wait(0.3)
+        elapsed += 0.3
     end
+
+    root.Anchored = false
+    if farmWasRunning then AutoFarm.start() end
 
     return model.Parent == nil
 end
