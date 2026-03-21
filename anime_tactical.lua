@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.34"
+local script_version = "V0.35"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -233,7 +233,7 @@ end
 
 -- Maximum distance the player will travel to reach a mob.
 -- Prevents AutoFarm from chasing mobs that spawned outside the raid/rift zone.
-local MAX_MOB_DISTANCE = 500
+local MAX_MOB_DISTANCE = 1000
 
 local function getMobName(model)
     local ok, result = pcall(function()
@@ -1295,7 +1295,7 @@ end
 -- Teleports to a model and fires its ProximityPrompt
 local function collectModel(model)
     local primary = model:FindFirstChild("Primary")
-    if not primary or not primary:IsA("BasePart") then return false end
+    if not primary then return false end
 
     local prompt = primary:FindFirstChild("ProximityPrompt")
     if not prompt then return false end
@@ -1314,7 +1314,7 @@ local function collectModel(model)
     end
 
     -- Teleport to the collectible and anchor in place
-    root.CFrame = primary.CFrame + Vector3.new(0, 3, 0)
+    root.CFrame = primary.CFrame + Vector3.new(0, 0, 0)
     root.Anchored = true
 
     task.wait(0.1)
