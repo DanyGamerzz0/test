@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.49"
+local script_version = "V0.5"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -427,6 +427,7 @@ function AutoFarm.start()
 
     task.spawn(function()
         local lastTarget = nil
+        local nextTarget = nil  -- pre-scanned while fighting current mob
 
         while AutoFarm.isRunning do
             local humanoid = LocalPlayer.Character
@@ -436,15 +437,15 @@ function AutoFarm.start()
                 continue
             end
 
-            -- Don't interfere while raid is tweening/opening chests
             if TweenLock.holder == "raid" then
                 task.wait(0.5)
                 continue
             end
 
-            local target = AutoFarm.findTarget()
+            -- Use pre-scanned target if we have one, otherwise scan now
+            local target = nextTarget or AutoFarm.findTarget()
+            nextTarget = nil
 
-            -- Guard: don't re-pick the mob we just finished with.
             if target == lastTarget then
                 task.wait()
                 continue
@@ -452,17 +453,30 @@ function AutoFarm.start()
 
             if target then
                 lastTarget = target
-                local tStart = tick()
                 Util.debugPrint("[FARM] start() calling farmTarget | t=0")
+                local tStart = tick()
+
+                -- While farmTarget is running, pre-scan the next target
+                -- in a background thread so it's ready the instant this mob dies
+                task.spawn(function()
+                    while AutoFarm.isRunning and lastTarget == target do
+                        local candidate = AutoFarm.findTarget()
+                        if candidate and candidate ~= target then
+                            nextTarget = candidate
+                        end
+                        task.wait(0.1)
+                    end
+                end)
+
                 AutoFarm.farmTarget(target)
                 Util.debugPrint("[FARM] start() farmTarget returned | dt=", tick()-tStart)
                 lastTarget = nil
                 Util.debugPrint("[FARM] start() picking next target...")
             else
+                nextTarget = nil
                 lastTarget = nil
-                task.wait(1)
+                task.wait(0.5)
             end
-            -- no extra wait here — go straight back to findTarget
         end
     end)
 end
