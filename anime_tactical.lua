@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.41"
+local script_version = "V0.43"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -325,7 +325,7 @@ function AutoFarm.findTarget()
     end
 end
 
-function AutoFarm.farmTarget(model)
+function AutoFarm.farmTarget(model, onDead)
     local internalName = getMobInternalName(model)
 
     -- Fire Request once — units attack. Firing again toggles retreat.
@@ -335,15 +335,16 @@ function AutoFarm.farmTarget(model)
         Util.debugPrint("[AutoFarm] Request fired for:", internalName)
     end
 
-    -- Grab humanoid and hook its Health signal BEFORE tweening
-    -- so we never miss a kill that happens mid-travel.
+    -- Hook health signal + ancestry BEFORE tweening so we never miss a kill.
     local dead = false
     local mobHumanoid = model:FindFirstChildOfClass("Humanoid")
     local healthConn
     local ancestryConn
 
     local function markDead()
+        if dead then return end
         dead = true
+        if onDead then onDead() end  -- notify caller immediately, no waiting
     end
 
     if mobHumanoid then
@@ -352,7 +353,6 @@ function AutoFarm.farmTarget(model)
         end)
     end
 
-    -- Ancestry fallback: catches removal even if health signal misfires
     ancestryConn = model.AncestryChanged:Connect(function(_, parent)
         if not parent then markDead() end
     end)
@@ -363,7 +363,6 @@ function AutoFarm.farmTarget(model)
         TweenLock.holder = nil
     end
 
-    -- Get root and position
     local root = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root or not model.Parent then cleanup() return end
@@ -371,9 +370,8 @@ function AutoFarm.farmTarget(model)
     local pos = getMobPosition(model)
     if not pos then cleanup() return end
 
-    -- Interruptible tween: instead of tween.Completed:Wait() which hangs
-    -- forever if the character is teleported away, we drive a manual loop
-    -- that exits as soon as dead, raid lock, or farm stopped.
+    -- Interruptible tween — does NOT use tween.Completed:Wait() which
+    -- hangs forever if the character gets teleported mid-travel.
     TweenLock.holder = "farm"
     local dist     = (root.Position - pos).Magnitude
     local duration = math.max(0.5, dist / 150)
@@ -384,24 +382,23 @@ function AutoFarm.farmTarget(model)
     )
     tween:Play()
 
-    -- Wait for tween to finish, but bail early if something interrupts
     local tweenDone = false
     tween.Completed:Connect(function() tweenDone = true end)
-    local tweenElapsed = 0
+    local elapsed = 0
     while not tweenDone and not dead and AutoFarm.isRunning and TweenLock.holder ~= "raid" do
         task.wait(0.05)
-        tweenElapsed += 0.05
-        if tweenElapsed > duration + 1 then break end  -- safety escape
+        elapsed += 0.05
+        if elapsed > duration + 1 then break end
     end
     tween:Cancel()
     TweenLock.holder = nil
 
-    if dead or not AutoFarm.isRunning then cleanup() return end
-    if TweenLock.holder == "raid"     then cleanup() return end
+    if dead or not AutoFarm.isRunning or TweenLock.holder == "raid" then
+        cleanup() return
+    end
 
-    -- Wait for death — GetPropertyChangedSignal fires instantly on health change,
-    -- so this loop is just a safety net; it will usually exit immediately
-    -- on the very next tick after the health signal fires.
+    -- Wait for death. GetPropertyChangedSignal fires instantly, so this
+    -- loop almost never spins more than one tick before dead is true.
     while not dead and model.Parent and AutoFarm.isRunning do
         if TweenLock.holder == "raid" then break end
         task.wait(0.05)
@@ -417,10 +414,13 @@ function AutoFarm.start()
     Util.notify("Auto Farm", "Auto Farm started!")
 
     task.spawn(function()
+        -- lastTarget prevents re-firing Request on the same model.
+        -- It is cleared via callback the instant death is detected —
+        -- no waiting for model removal — so the next target is picked
+        -- with zero delay.
         local lastTarget = nil
 
         while AutoFarm.isRunning do
-            -- Safety: clear a stuck farm lock between iterations
             if TweenLock.holder == "farm" then TweenLock.holder = nil end
 
             local humanoid = LocalPlayer.Character
@@ -437,19 +437,19 @@ function AutoFarm.start()
 
             local target = AutoFarm.findTarget()
 
-            -- Don't re-pick the same mob we just finished —
-            -- health signal fires before model removal so it can
-            -- still appear in findTarget for a brief moment.
-            -- Re-picking fires Request again, toggling units to retreat.
             if target == lastTarget then
-                task.wait(0.1)
+                task.wait(0.05)
                 continue
             end
 
             if target then
                 lastTarget = target
                 Util.debugPrint("[AutoFarm] Targeting:", getMobName(target) or "Unknown")
-                AutoFarm.farmTarget(target)
+                -- Pass a callback so lastTarget is cleared the instant death
+                -- is detected, not after the model is removed from the folder.
+                AutoFarm.farmTarget(target, function()
+                    lastTarget = nil
+                end)
             else
                 lastTarget = nil
                 task.wait(0.5)
