@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.51"
+local script_version = "V0.52"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -334,12 +334,23 @@ function AutoFarm.farmTarget(model)
     local internalName = getMobInternalName(model)
     Util.debugPrint("[FARM] farmTarget START", internalName, "t=0")
 
-    -- Fire Request ONCE so units attack. Never fire again — second fire = retreat.
+    -- Fire Request and retry until TargetAt confirms the server accepted it.
+    -- The server silently rejects the request if we're too far from the target,
+    -- so we keep firing after each tween step until TargetAt matches.
     local requestRemote = FARM_REQUEST_REMOTE()
-    if requestRemote then
-        pcall(function() requestRemote:FireServer(internalName, "Mouse") end)
-        Util.debugPrint("[FARM] Request fired | dt=", tick()-t0)
+    local function fireRequest()
+        if requestRemote then
+            pcall(function() requestRemote:FireServer(internalName, "Mouse") end)
+            Util.debugPrint("[FARM] Request fired | dt=", tick()-t0)
+        end
     end
+
+    local function hasTarget()
+        local t = LocalPlayer:FindFirstChild("TargetAt")
+        return t and t.Value == internalName
+    end
+
+    fireRequest()
 
     local dead = false
 
@@ -394,6 +405,17 @@ function AutoFarm.farmTarget(model)
     tween:Play()
     tween.Completed:Wait()
     Util.debugPrint("[FARM] Tween done | dt=", tick()-t0)
+
+    -- Now we're close enough — retry until server confirms via TargetAt.
+    -- Stop retrying if the mob is already dead or we've waited too long.
+    local retries = 0
+    while not dead and not hasTarget() and retries < 10 do
+        Util.debugPrint("[FARM] TargetAt not set, retrying | retry=", retries, "dt=", tick()-t0)
+        fireRequest()
+        task.wait(0.1)
+        retries += 1
+    end
+    Util.debugPrint("[FARM] TargetAt confirmed:", hasTarget(), "| dt=", tick()-t0)
 
     -- Wait for death. We poll humanoid health directly every frame as a
     -- reliable fallback since GetPropertyChangedSignal can be unreliable
