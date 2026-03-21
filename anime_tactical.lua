@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.46"
+local script_version = "V0.47"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -378,34 +378,20 @@ function AutoFarm.farmTarget(model)
     tween:Play()
     tween.Completed:Wait()
 
-    root.Anchored = true
-
+    -- Wait for death. We poll humanoid health directly every frame as a
+    -- reliable fallback since GetPropertyChangedSignal can be unreliable
+    -- on replicated NPC humanoids in executors. task.wait() = next frame.
     while not dead and model.Parent and AutoFarm.isRunning do
-        -- Yield if raid has taken the lock (e.g. mid-tween to a chest)
-        -- In practice raid won't steal "farm" lock, but guard anyway
-        if TweenLock.holder == "raid" then
-            root.Anchored = false
-            pcall(function() conn:Disconnect() end)
-            TweenLock.holder = nil
-            return
+        if TweenLock.holder == "raid" then break end
+
+        -- Direct health poll — catches death even if the signal didn't fire
+        if mobHumanoid and mobHumanoid.Parent and mobHumanoid.Health <= 0 then
+            dead = true
+            break
         end
 
-        root = LocalPlayer.Character
-            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root then break end
-
-        pos = getMobPosition(model)
-        if not pos then break end
-
-        root.CFrame = CFrame.new(pos + Vector3.new(0, 0, 3))
-        task.wait(0.2)
+        task.wait()  -- yield one frame, not 0.2s
     end
-
-    pcall(function()
-        local finalRoot = LocalPlayer.Character
-            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if finalRoot then finalRoot.Anchored = false end
-    end)
 
     TweenLock.holder = nil
     pcall(function() conn:Disconnect() end)
