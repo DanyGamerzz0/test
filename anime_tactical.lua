@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.43"
+local script_version = "V0.44"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -328,14 +328,16 @@ end
 function AutoFarm.farmTarget(model, onDead)
     local internalName = getMobInternalName(model)
 
-    -- Fire Request once — units attack. Firing again toggles retreat.
+    -- Fire Request ONCE — fires units to attack. Never fire again or they retreat.
     local requestRemote = FARM_REQUEST_REMOTE()
     if requestRemote then
         pcall(function() requestRemote:FireServer(internalName, "Mouse") end)
         Util.debugPrint("[AutoFarm] Request fired for:", internalName)
     end
 
-    -- Hook health signal + ancestry BEFORE tweening so we never miss a kill.
+    -- Set up death detection BEFORE tweening so a fast kill mid-travel is caught.
+    -- We use GetPropertyChangedSignal on Health — fires the instant the server
+    -- replicates the health change, with no polling delay at all.
     local dead = false
     local mobHumanoid = model:FindFirstChildOfClass("Humanoid")
     local healthConn
@@ -344,7 +346,7 @@ function AutoFarm.farmTarget(model, onDead)
     local function markDead()
         if dead then return end
         dead = true
-        if onDead then onDead() end  -- notify caller immediately, no waiting
+        if onDead then onDead() end  -- clears lastTarget in outer loop immediately
     end
 
     if mobHumanoid then
@@ -352,7 +354,7 @@ function AutoFarm.farmTarget(model, onDead)
             if mobHumanoid.Health <= 0 then markDead() end
         end)
     end
-
+    -- Ancestry fallback: catches removal even if health signal somehow misfires
     ancestryConn = model.AncestryChanged:Connect(function(_, parent)
         if not parent then markDead() end
     end)
@@ -370,8 +372,8 @@ function AutoFarm.farmTarget(model, onDead)
     local pos = getMobPosition(model)
     if not pos then cleanup() return end
 
-    -- Interruptible tween — does NOT use tween.Completed:Wait() which
-    -- hangs forever if the character gets teleported mid-travel.
+    -- Interruptible tween: manually poll instead of tween.Completed:Wait()
+    -- so that teleports (orb collect, raid start, etc.) never cause a hang.
     TweenLock.holder = "farm"
     local dist     = (root.Position - pos).Magnitude
     local duration = math.max(0.5, dist / 150)
@@ -384,11 +386,11 @@ function AutoFarm.farmTarget(model, onDead)
 
     local tweenDone = false
     tween.Completed:Connect(function() tweenDone = true end)
-    local elapsed = 0
+    local tweenElapsed = 0
     while not tweenDone and not dead and AutoFarm.isRunning and TweenLock.holder ~= "raid" do
         task.wait(0.05)
-        elapsed += 0.05
-        if elapsed > duration + 1 then break end
+        tweenElapsed += 0.05
+        if tweenElapsed > duration + 1 then break end
     end
     tween:Cancel()
     TweenLock.holder = nil
@@ -397,8 +399,8 @@ function AutoFarm.farmTarget(model, onDead)
         cleanup() return
     end
 
-    -- Wait for death. GetPropertyChangedSignal fires instantly, so this
-    -- loop almost never spins more than one tick before dead is true.
+    -- Wait for death — health signal fires instantly so this loop exits on
+    -- the very next tick after the mob's health hits 0. No model-removal wait.
     while not dead and model.Parent and AutoFarm.isRunning do
         if TweenLock.holder == "raid" then break end
         task.wait(0.05)
@@ -414,13 +416,14 @@ function AutoFarm.start()
     Util.notify("Auto Farm", "Auto Farm started!")
 
     task.spawn(function()
-        -- lastTarget prevents re-firing Request on the same model.
-        -- It is cleared via callback the instant death is detected —
-        -- no waiting for model removal — so the next target is picked
-        -- with zero delay.
+        -- lastTarget stops us re-firing Request on the same model.
+        -- Crucially, it's cleared by the onDead CALLBACK the instant health
+        -- hits 0 — not after model removal — so there is zero delay before
+        -- the next target is picked.
         local lastTarget = nil
 
         while AutoFarm.isRunning do
+            -- Safety: clear a stuck farm lock between iterations
             if TweenLock.holder == "farm" then TweenLock.holder = nil end
 
             local humanoid = LocalPlayer.Character
@@ -437,6 +440,9 @@ function AutoFarm.start()
 
             local target = AutoFarm.findTarget()
 
+            -- Skip re-picking the mob we just finished — it may still be in
+            -- the folder briefly after death. Once onDead fires, lastTarget
+            -- becomes nil and we immediately pick the next mob.
             if target == lastTarget then
                 task.wait(0.05)
                 continue
@@ -445,10 +451,8 @@ function AutoFarm.start()
             if target then
                 lastTarget = target
                 Util.debugPrint("[AutoFarm] Targeting:", getMobName(target) or "Unknown")
-                -- Pass a callback so lastTarget is cleared the instant death
-                -- is detected, not after the model is removed from the folder.
                 AutoFarm.farmTarget(target, function()
-                    lastTarget = nil
+                    lastTarget = nil  -- instant clear on health-hits-0
                 end)
             else
                 lastTarget = nil
