@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.47"
+local script_version = "V0.48"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -326,26 +326,37 @@ function AutoFarm.findTarget()
 end
 
 function AutoFarm.farmTarget(model)
+    local t0 = tick()
+    local internalName = getMobInternalName(model)
+    Util.debugPrint("[FARM] farmTarget START", internalName, "t=0")
+
     -- Fire Request ONCE so units attack. Never fire again — second fire = retreat.
     local requestRemote = FARM_REQUEST_REMOTE()
     if requestRemote then
-        pcall(function() requestRemote:FireServer(getMobInternalName(model), "Mouse") end)
-        Util.debugPrint("[AutoFarm] Request fired for:", getMobInternalName(model))
+        pcall(function() requestRemote:FireServer(internalName, "Mouse") end)
+        Util.debugPrint("[FARM] Request fired | dt=", tick()-t0)
     end
 
     local dead = false
 
     local conn = model.AncestryChanged:Connect(function(_, parent)
-        if not parent then dead = true end
+        if not parent then
+            Util.debugPrint("[FARM] AncestryChanged fired (model removed) | dt=", tick()-t0)
+            dead = true
+        end
     end)
 
     -- Also watch humanoid health so we exit as soon as it hits 0,
     -- without waiting for the model to be fully removed (1-2s later).
     local mobHumanoid = model:FindFirstChildOfClass("Humanoid")
+    Util.debugPrint("[FARM] Humanoid found:", mobHumanoid ~= nil)
     local healthConn
     if mobHumanoid then
         healthConn = mobHumanoid:GetPropertyChangedSignal("Health"):Connect(function()
-            if mobHumanoid.Health <= 0 then dead = true end
+            if mobHumanoid.Health <= 0 then
+                Util.debugPrint("[FARM] Health signal fired (health<=0) | dt=", tick()-t0)
+                dead = true
+            end
         end)
     end
 
@@ -370,6 +381,7 @@ function AutoFarm.farmTarget(model)
     local targetCFrame = CFrame.new(pos + Vector3.new(0, 0, 3))
     local dist = (root.Position - pos).Magnitude
     local duration = math.max(0.5, dist / 150)
+    Util.debugPrint("[FARM] Tween start | dist=", dist, "duration=", duration, "| dt=", tick()-t0)
     local tween = Services.TweenService:Create(
         root,
         TweenInfo.new(duration, Enum.EasingStyle.Linear),
@@ -377,25 +389,35 @@ function AutoFarm.farmTarget(model)
     )
     tween:Play()
     tween.Completed:Wait()
+    Util.debugPrint("[FARM] Tween done | dt=", tick()-t0)
 
     -- Wait for death. We poll humanoid health directly every frame as a
     -- reliable fallback since GetPropertyChangedSignal can be unreliable
     -- on replicated NPC humanoids in executors. task.wait() = next frame.
+    Util.debugPrint("[FARM] Entering death wait | dead=", dead, "modelParent=", model.Parent ~= nil)
+    local loopFrames = 0
     while not dead and model.Parent and AutoFarm.isRunning do
-        if TweenLock.holder == "raid" then break end
+        if TweenLock.holder == "raid" then
+            Util.debugPrint("[FARM] Broke out — raid lock | dt=", tick()-t0)
+            break
+        end
 
         -- Direct health poll — catches death even if the signal didn't fire
         if mobHumanoid and mobHumanoid.Parent and mobHumanoid.Health <= 0 then
+            Util.debugPrint("[FARM] Health poll caught death | dt=", tick()-t0)
             dead = true
             break
         end
 
+        loopFrames += 1
         task.wait()  -- yield one frame, not 0.2s
     end
+    Util.debugPrint("[FARM] Death wait exited | frames=", loopFrames, "dead=", dead, "dt=", tick()-t0)
 
     TweenLock.holder = nil
     pcall(function() conn:Disconnect() end)
     pcall(function() if healthConn then healthConn:Disconnect() end end)
+    Util.debugPrint("[FARM] farmTarget END | total dt=", tick()-t0)
 end
 
 function AutoFarm.start()
@@ -423,9 +445,6 @@ function AutoFarm.start()
             local target = AutoFarm.findTarget()
 
             -- Guard: don't re-pick the mob we just finished with.
-            -- AncestryChanged fires before the model is fully gone so it
-            -- can still appear in findTarget briefly. Re-picking it would
-            -- fire Request again, toggling units back to retreat.
             if target == lastTarget then
                 task.wait(0.1)
                 continue
@@ -433,10 +452,13 @@ function AutoFarm.start()
 
             if target then
                 lastTarget = target
-                Util.debugPrint("[AutoFarm] Targeting:", getMobName(target) or "Unknown")
+                local tStart = tick()
+                Util.debugPrint("[FARM] start() calling farmTarget | t=0")
                 AutoFarm.farmTarget(target)
+                Util.debugPrint("[FARM] start() farmTarget returned | dt=", tick()-tStart)
                 -- Clear after farmTarget returns (model is gone by then)
                 lastTarget = nil
+                Util.debugPrint("[FARM] start() picking next target...")
             else
                 lastTarget = nil
                 task.wait(1)
