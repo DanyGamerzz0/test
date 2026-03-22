@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.69"
+local script_version = "V0.7"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -1995,11 +1995,15 @@ local Window = Rayfield:CreateWindow({
         end,
     })
 
-    local worldOptions = Loader.getWorlds()
+    local worldOptions = {}
+    pcall(function() worldOptions = Loader.getWorlds() end)
     local defaultWorld = "Namex Planet"
 
     State.SelectedWorld = defaultWorld
-    MobDropdown:Refresh(Loader.getMobsForWorld(defaultWorld), {})
+
+    local defaultMobs = {}
+    pcall(function() defaultMobs = Loader.getMobsForWorld(defaultWorld) end)
+    MobDropdown:Refresh(defaultMobs, {})
 
     MainTab:CreateDropdown({
         Name            = "Select World",
@@ -2012,7 +2016,8 @@ local Window = Rayfield:CreateWindow({
             if not worldName or worldName == "" then return end
             State.SelectedWorld = worldName
             State.SelectedMobs  = {}
-            local mobs = Loader.getMobsForWorld(worldName)
+            local mobs = {}
+            pcall(function() mobs = Loader.getMobsForWorld(worldName) end)
             MobDropdown:Refresh(mobs, {})
             Util.notify("World Selected", worldName .. " — " .. #mobs .. " mob(s) loaded.")
         end,
@@ -2050,7 +2055,7 @@ local Window = Rayfield:CreateWindow({
 
     task.spawn(function()
         while true do
-            task.wait(0.1)
+            task.wait(0.5)
             if not State.StreamerModeEnabled then continue end
             pcall(function()
                 local head      = Services.Players.LocalPlayer.Character and Services.Players.LocalPlayer.Character:FindFirstChild("Head")
