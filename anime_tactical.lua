@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
 
@@ -1879,7 +1879,7 @@ end
 local function initialize()
 
     local success, Rayfield = pcall(function()
-        return loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+        return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
 
     if not success or not Rayfield then
