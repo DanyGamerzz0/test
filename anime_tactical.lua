@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.53"
+local script_version = "V0.54"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -655,36 +655,6 @@ local function getChestPrimary(raidFolder, chestType)
     return ok and p or nil
 end
 
--- ── Tween helper ─────────────────────────────────────────────
-local function tweenToPosition(targetPos, speed)
-    speed = speed or 100
-    local waited = 0
-    while TweenLock.holder == "farm" do
-        task.wait(0.3)
-        waited += 0.3
-        if waited >= 10 then
-            Util.debugPrint("[AutoRaid] TweenLock wait timeout — skipping")
-            return false
-        end
-    end
-    local root = LocalPlayer.Character
-        and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-    TweenLock.holder = "raid"
-    root.Anchored = false
-    local dist     = (root.Position - targetPos).Magnitude
-    local duration = math.max(0.3, dist / speed)
-    local tween    = Services.TweenService:Create(
-        root,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-        { CFrame = CFrame.new(targetPos) }
-    )
-    tween:Play()
-    tween.Completed:Wait()
-    TweenLock.holder = nil
-    return true
-end
-
 -- ── Proximity prompt helper ───────────────────────────────────
 local function fireProximityPrompt(prompt)
     pcall(function() fireproximityprompt(prompt) end)
@@ -720,7 +690,13 @@ local function openChest(raidFolder, chestType, timeout)
         and primary.Position
         or (primary.PrimaryPart and primary.PrimaryPart.Position)
     if not chestPos then return false end
-    if not tweenToPosition(chestPos + Vector3.new(0, 0, 3)) then return false end
+
+    -- Teleport instantly to the chest instead of tweening
+    local root = LocalPlayer.Character
+        and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    root.CFrame = CFrame.new(chestPos + Vector3.new(0, 0, 3))
+
     local elapsed = 0
     while prompt.Enabled and elapsed < timeout do
         fireProximityPrompt(prompt)
