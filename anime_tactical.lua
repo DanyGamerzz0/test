@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.55"
+local script_version = "V0.01"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -1577,14 +1577,13 @@ function Webhook.send(data)
     if not State.WebhookEnabled or not State.WebhookURL or State.WebhookURL == "" then return end
     pcall(function()
         local payload = {
-            username   = "ATS Hub",
-            avatar_url = "https://i.imgur.com/AfFp7pu.png",
+            username   = "LixHub",
             embeds = {{
                 title       = data.title or "Notification",
                 description = data.description or "",
                 color       = data.color or 3447003,
                 fields      = data.fields or {},
-                footer      = { text = "ATS Hub - " .. os.date("%I:%M:%S %p") }
+                footer      = { text = "discord.gg/cYKnXE2Nf8 - " .. os.date("%I:%M:%S %p") }
             }}
         }
         if State.WebhookPingUser and State.DiscordID and State.DiscordID ~= "" then
@@ -1621,9 +1620,8 @@ function Webhook.installHook()
                         if shouldPing then
                             local shinyText   = shiny and " [Shiny]" or ""
                             local description = string.format(
-                                "**Unit Obtained**\n+ %s [%s]%s\n\n**Player Stats**\n🔮 %s\n💰 %s",
-                                unitName, rarity, shinyText,
-                                worldName, State.SummonWorld or "Unknown"
+                                "**Unit Obtained**\n+ %s [%s]%s",
+                                unitName, rarity, shinyText
                             )
                             local color = 3447003
                             if rarity == "Mythic"    then color = 15844367
@@ -1635,7 +1633,7 @@ function Webhook.installHook()
                             elseif rarity == "Tactical"  then color = 65535
                             elseif rarity == "Rare"      then color = 5763719 end
                             Webhook.send({
-                                title       = "ATS Hub | Anime Tacticals",
+                                title       = "LixHub | Anime Tactical Simulator",
                                 description = description,
                                 color       = color,
                                 fields      = {}
@@ -1869,45 +1867,92 @@ local function initialize()
     _G.Rayfield = Rayfield
 
     -- ── Window ───────────────────────────────────────────────
-    local Window = Rayfield:CreateWindow({
-        Name            = "Anime Tactical Simulator",
-        Icon            = 0,
-        LoadingTitle    = "Anime Tactical Simulator",
-        LoadingSubtitle = "Script Hub | " .. script_version,
-        ShowText        = "ATS Hub",
+local Window = Rayfield:CreateWindow({
+   Name = "LixHub - Anime Tactical Simulator",
+   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "Loading for Anime Tactical Simulator",
+   LoadingSubtitle = script_version,
+   ShowText = "LixHub", -- for mobile users to unhide rayfield, change if you'd like
+   Theme = {
+    TextColor = Color3.fromRGB(240, 240, 240),
 
-        Theme = {
-            TextColor  = Color3.fromRGB(240, 240, 240),
-            Background = Color3.fromRGB(20, 20, 28),
-            Topbar     = Color3.fromRGB(30, 30, 42),
-            Shadow     = Color3.fromRGB(12, 12, 18),
-        },
+    Background = Color3.fromRGB(25, 25, 25),
+    Topbar = Color3.fromRGB(34, 34, 34),
+    Shadow = Color3.fromRGB(20, 20, 20),
 
-        ToggleUIKeybind = "K",
+    NotificationBackground = Color3.fromRGB(20, 20, 20),
+    NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
 
-        DisableRayfieldPrompts = false,
-        DisableBuildWarnings   = true,
+    TabBackground = Color3.fromRGB(80, 80, 80),
+    TabStroke = Color3.fromRGB(85, 85, 85),
+    TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
+    TabTextColor = Color3.fromRGB(240, 240, 240),
+    SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
 
-        ConfigurationSaving = {
-            Enabled    = true,
-            FolderName = "ATSHub",
-            FileName   = LocalPlayer.Name .. "_ATS",
-        },
+    ElementBackground = Color3.fromRGB(35, 35, 35),
+    ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
+    SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
+    ElementStroke = Color3.fromRGB(50, 50, 50),
+    SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
+            
+    SliderBackground = Color3.fromRGB(50, 138, 220),
+    SliderProgress = Color3.fromRGB(50, 138, 220),
+    SliderStroke = Color3.fromRGB(58, 163, 255),
 
-        KeySystem = false,
-    })
+    ToggleBackground = Color3.fromRGB(30, 30, 30),
+    ToggleEnabled = Color3.fromRGB(0, 146, 214),
+    ToggleDisabled = Color3.fromRGB(100, 100, 100),
+    ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
+    ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
+    ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
+    ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
+
+    DropdownSelected = Color3.fromRGB(102, 102, 102),
+    DropdownUnselected = Color3.fromRGB(30, 30, 30),
+
+    InputBackground = Color3.fromRGB(30, 30, 30),
+    InputStroke = Color3.fromRGB(65, 65, 65),
+    PlaceholderColor = Color3.fromRGB(178, 178, 178)
+}, -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   ToggleUIKeybind = "K", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "LixHub", -- Create a custom folder for your hub/game
+      FileName = game:GetService("Players").LocalPlayer.Name .. "_AnimeTacticalSimulator" -- Create a unique file name for each game or character,
+   },
+
+   Discord = {
+      Enabled = true, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "cYKnXE2Nf8", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+
+   KeySystem = true, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "LixHub - ATS - Free",
+      Subtitle = "LixHub - Key System",
+      Note = "Free key available in the discord https://discord.gg/cYKnXE2Nf8", -- Use this to tell the user how to get a key
+      FileName = "LixHub_Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"0xLIXHUB"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
 
     -- ══════════════════════════════════════════════════════════
     -- TAB: MAIN
     -- ══════════════════════════════════════════════════════════
     local MainTab = Window:CreateTab("Main", "swords")
 
-    MainTab:CreateSection("Auto FARM")
-
-    MainTab:CreateLabel("TOGGLE THE AUTO FARM NEAREST DOWN BELOW FOR ANY TYPE OF FARMING (Rift, Raids) any gamemodes!")
+    MainTab:CreateSection("Auto Farm")
 
     MainTab:CreateToggle({
-        Name         = "Auto Farm Nearest/Raid/Tower Mobs",
+        Name         = "Auto Farm Nearest Mobs",
         CurrentValue = false,
         Flag         = "AutoFarmNearest",
         Callback     = function(Value)
@@ -1942,7 +1987,6 @@ local function initialize()
         CurrentOption   = {},
         MultipleOptions = true,
         Flag            = "SelectedMobs",
-        Info            = "Select which mobs to target. Choose a world first to populate this list.",
         Callback        = function(selected)
             State.SelectedMobs = type(selected) == "table" and selected or { selected }
         end,
@@ -1960,7 +2004,6 @@ local function initialize()
         CurrentOption   = { defaultWorld },
         MultipleOptions = false,
         Flag            = "SelectedWorld",
-        Info            = "Select the world to farm in. Mob list will update automatically.",
         Callback        = function(selected)
             local worldName = type(selected) == "table" and selected[1] or selected
             if not worldName or worldName == "" then return end
@@ -1972,7 +2015,7 @@ local function initialize()
         end,
     })
 
-    MainTab:CreateDivider()
+    --[[MainTab:CreateDivider()
 
     MainTab:CreateToggle({
         Name         = "Auto Quest",
@@ -1993,15 +2036,14 @@ local function initialize()
         Callback     = function(Value)
             State.AutoClaimEnabled = Value
         end,
-    })
+    })--]]
 
     -- ══════════════════════════════════════════════════════════
     -- TAB: GAMEMODES  (Auto Raid)
     -- ══════════════════════════════════════════════════════════
-    local GamemodesTab = Window:CreateTab("Gamemodes", "sword")
+    local GamemodesTab = Window:CreateTab("Auto Join", "sword")
 
     -- ── Raid Configuration ───────────────────────────────────
-    GamemodesTab:CreateSection("Raid Configuration")
 
     local raidWorldOptions = Loader.getWorlds()
     local defaultRaidWorld = "Namex Planet"
@@ -2013,7 +2055,6 @@ local function initialize()
         CurrentOption   = { defaultRaidWorld },
         MultipleOptions = false,
         Flag            = "RaidWorld",
-        Info            = "Select which raid world to run.",
         Callback        = function(selected)
             local worldName = type(selected) == "table" and selected[1] or selected
             State.RaidWorld = worldName or defaultRaidWorld
@@ -2022,11 +2063,10 @@ local function initialize()
 
     GamemodesTab:CreateDropdown({
         Name            = "Select Difficulty",
-        Options         = { "Easy", "Normal", "Hard", "Insane", "Nightmare" },
+        Options         = { "Easy", "Medium", "Hard", "Nightmare"},
         CurrentOption   = { "Easy" },
         MultipleOptions = false,
         Flag            = "RaidDifficulty",
-        Info            = "Select the raid difficulty.",
         Callback        = function(selected)
             local diff = type(selected) == "table" and selected[1] or selected
             State.RaidDifficulty = diff or "Easy"
@@ -2040,7 +2080,6 @@ local function initialize()
         Name         = "Auto Start Raid",
         CurrentValue = false,
         Flag         = "AutoStartRaid",
-        Info         = "Teleports to a pod, selects world/difficulty, waits for players (if set), then starts the raid. Pair with Auto Farm Nearest.",
         Callback     = function(Value)
             State.AutoRaidEnabled = Value
             if Value then AutoRaid.start() else AutoRaid.stop() end
@@ -2051,7 +2090,6 @@ local function initialize()
         Name         = "Auto Replay Raid",
         CurrentValue = false,
         Flag         = "AutoReplayRaid",
-        Info         = "After finishing a raid, automatically replay it. Mutually exclusive with Auto Leave.",
         Callback     = function(Value)
             State.AutoReplayRaid = Value
             if Value then State.AutoLeaveRaid = false end
@@ -2062,7 +2100,6 @@ local function initialize()
         Name         = "Auto Leave Raid",
         CurrentValue = false,
         Flag         = "AutoLeaveRaid",
-        Info         = "After finishing a raid (and opening chests), automatically leave. Mutually exclusive with Auto Replay.",
         Callback     = function(Value)
             State.AutoLeaveRaid = Value
             if Value then State.AutoReplayRaid = false end
@@ -2075,7 +2112,6 @@ local function initialize()
         Increment    = 1,
         CurrentValue = 0,
         Flag         = "RaidStartDelay",
-        Info         = "How many seconds to wait after the lobby is set up before firing the start remote.",
         Callback     = function(Value)
             State.RaidStartDelay = Value
         end,
@@ -2087,7 +2123,6 @@ local function initialize()
         Increment    = 1,
         CurrentValue = 0,
         Flag         = "RaidWaitPlayers",
-        Info         = "Wait for this many extra players to join the lobby before starting. 0 = start immediately.",
         Callback     = function(Value)
             State.RaidWaitPlayers = Value
         end,
@@ -2096,15 +2131,11 @@ local function initialize()
     GamemodesTab:CreateDivider()
 
     -- ── Chest Settings ───────────────────────────────────────
-    GamemodesTab:CreateSection("Chest Settings")
-
-    GamemodesTab:CreateLabel("Gold & Special chests are always opened automatically when Auto Start Raid is on.")
 
     GamemodesTab:CreateToggle({
-        Name         = "Open Dungeon Key Chests",
+        Name         = "Open Dungeon Key Chest",
         CurrentValue = false,
         Flag         = "AutoOpenKeyChests",
-        Info         = "Also open the Purple (key) chest at end of raid. Requires a key. Gives up after 6s if no key.",
         Callback     = function(Value)
             State.AutoOpenKeyChests = Value
         end,
@@ -2135,7 +2166,6 @@ local function initialize()
         CurrentOption   = {},
         MultipleOptions = false,
         Flag            = "JoinPlayerRaidTarget",
-        Info            = "Select a player whose raid pod to jump into.",
         Callback        = function(selected)
             local name = type(selected) == "table" and selected[1] or selected
             if name == "No players in server" then name = "" end
@@ -2160,7 +2190,6 @@ local function initialize()
         Name         = "Auto Join Player Raid",
         CurrentValue = false,
         Flag         = "AutoJoinPlayerRaid",
-        Info         = "Teleports you into the selected player's raid pod as soon as it appears. Turns off after one join.",
         Callback     = function(Value)
             State.JoinPlayerRaidEnabled = Value
             if Value then
@@ -2178,7 +2207,6 @@ local function initialize()
         Name         = "Auto Rift",
         CurrentValue = false,
         Flag         = "AutoRift",
-        Info         = "Watches workspace.SpawnedRifts for any rift and joins it automatically using its ID.",
         Callback     = function(Value)
             if Value then AutoRift.start() else AutoRift.stop() end
         end,
@@ -2188,7 +2216,6 @@ local function initialize()
         Name         = "Force Join Rift\n(Will Leave Gamemode for it)",
         CurrentValue = false,
         Flag         = "ForceJoinRift",
-        Info         = "When a rift spawns, immediately stops any active Raid or Tower and joins the rift.",
         Callback     = function(Value)
             AutoRift.forceEnabled = Value
         end,
@@ -2203,7 +2230,6 @@ local function initialize()
         Name         = "Auto Join Tower",
         CurrentValue = false,
         Flag         = "AutoJoinTower",
-        Info         = "Teleports to the Tower area, waits for the UI to load, then starts the tower automatically.",
         Callback     = function(Value)
             if Value then
                 AutoTower.start()
@@ -2222,7 +2248,6 @@ local function initialize()
         Name         = "Auto Boss Gate",
         CurrentValue = false,
         Flag         = "AutoBossGate",
-        Info         = "Watches BossFights_Visual for any boss fight and teleports to its portal to enter automatically.",
         Callback     = function(Value)
             if Value then AutoBossGate.start() else AutoBossGate.stop() end
         end,
@@ -2236,10 +2261,9 @@ local function initialize()
     CollectTab:CreateSection("Auto Collect")
 
     CollectTab:CreateToggle({
-        Name         = "Auto Collect Wish Orbs (Dragon Balls)",
+        Name         = "Auto Collect Wish Orbs",
         CurrentValue = false,
         Flag         = "AutoCollectDragonBalls",
-        Info         = "Teleports to and collects any Dragon Ball models in workspace.Visual.",
         Callback     = function(Value)
             AutoCollect.dragonBalls = Value
             updateAutoCollect()
@@ -2250,7 +2274,6 @@ local function initialize()
         Name         = "Auto Collect Cursed Fingers",
         CurrentValue = false,
         Flag         = "AutoCollectCursedFingers",
-        Info         = "Teleports to and collects any Sukuna (cursed finger) models in workspace.Visual.",
         Callback     = function(Value)
             AutoCollect.cursedFingers = Value
             updateAutoCollect()
@@ -2298,7 +2321,7 @@ local function initialize()
         Name         = "Remove Summon Animation",
         CurrentValue = false,
         Flag         = "BlockSummonAnim",
-        Info         = "Blocks the summon animation for faster summoning",
+        Info         = "Blocks the summon animation",
         Callback     = function(Value)
             State.BlockSummonAnim = Value
         end,
@@ -2328,7 +2351,6 @@ local function initialize()
         Name         = "Webhook",
         CurrentValue = false,
         Flag         = "WebhookEnabled",
-        Info         = "Enable Discord webhook notifications",
         Callback     = function(Value) State.WebhookEnabled = Value end,
     })
 
@@ -2342,7 +2364,7 @@ local function initialize()
 
     WebhookTab:CreateInput({
         Name                     = "Discord ID",
-        PlaceholderText          = "942709395253522442",
+        PlaceholderText          = "123456789012345678",
         RemoveTextAfterFocusLost = false,
         Flag                     = "DiscordID",
         Callback                 = function(Value) State.DiscordID = Value end,
@@ -2363,7 +2385,6 @@ local function initialize()
         Name         = "Webhook Unit Obtained",
         CurrentValue = false,
         Flag         = "WebhookUnitObtained",
-        Info         = "Send webhook when you obtain a unit from the selected rarities",
         Callback     = function(Value) State.WebhookUnitObtained = Value end,
     })
 
@@ -2373,26 +2394,15 @@ local function initialize()
         CurrentOption   = {},
         MultipleOptions = true,
         Flag            = "WebhookUnitRarities",
-        Info            = "Which rarities should trigger a webhook notification",
         Callback        = function(selected)
             State.WebhookUnitRarities = type(selected) == "table" and selected or { selected }
         end,
-    })
-
-    WebhookTab:CreateToggle({
-        Name         = "Webhook Avatar Obtained",
-        CurrentValue = false,
-        Flag         = "WebhookAvatarObtained",
-        Info         = "Send webhook when you obtain an avatar (Not functional yet)",
-        Callback     = function(Value) State.WebhookAvatarObtained = Value end,
     })
 
     -- ── Load saved config & install hooks ────────────────────
     _G.Rayfield:LoadConfiguration()
     AutoSummon.installHook()
     Webhook.installHook()
-
-    Util.notify("ATS Hub", "Loaded! v" .. script_version)
 end
 
 -- ============================================================
