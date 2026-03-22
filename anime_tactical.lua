@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.04"
+local script_version = "V0.05"
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
 
@@ -271,65 +271,55 @@ function AutoFarm.findTarget()
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
 
-    local liveMobs = {}
-    for _, model in ipairs(folder:GetChildren()) do
-        if not model:IsA("Model") then continue end
-        local mobName = getMobName(model)
-        if not mobName then continue end
-        -- Skip mobs whose humanoid is already at 0 health — they're dead
-        -- but the model hasn't been removed from the folder yet
-        local h = model:FindFirstChildOfClass("Humanoid")
-        if h and h.Health <= 0 then continue end
-        if not liveMobs[mobName] then liveMobs[mobName] = {} end
-        table.insert(liveMobs[mobName], model)
-    end
-
+    -- Build lookup sets for priority filtering up front
     local questMobs = (State.AutoQuestEnabled and _G.Quest and #_G.Quest.activeMobs > 0)
-        and _G.Quest.activeMobs
-        or nil
-
+        and _G.Quest.activeMobs or nil
     local priorityList = questMobs
         or (State.AutoFarmSelected and State.SelectedMobs or nil)
 
+    local prioritySet = nil
     if priorityList and #priorityList > 0 then
-        for _, selectedName in ipairs(priorityList) do
-            local candidates = liveMobs[selectedName]
-            if candidates and #candidates > 0 then
-                local best, bestDist = nil, math.huge
-                for _, model in ipairs(candidates) do
-                    local pos = getMobPosition(model)
-                    if pos then
-                        local dist = (root.Position - pos).Magnitude
-                        if dist < bestDist and dist <= MAX_MOB_DISTANCE then
-                            bestDist = dist
-                            best     = model
-                        end
-                    end
-                end
-                if best then return best end
-            end
-        end
-        return nil
-    else
-        if State.AutoFarmNearest then
-            local best, bestDist = nil, math.huge
-            for _, models in pairs(liveMobs) do
-                for _, model in ipairs(models) do
-                    local pos = getMobPosition(model)
-                    if pos then
-                        local dist = (root.Position - pos).Magnitude
-                        if dist < bestDist and dist <= MAX_MOB_DISTANCE then
-                            bestDist = dist
-                            best     = model
-                        end
-                    end
-                end
-            end
-            return best
-        else
-            return nil
+        prioritySet = {}
+        for _, name in ipairs(priorityList) do
+            prioritySet[name] = true
         end
     end
+
+    -- Single pass over folder children
+    local best, bestDist = nil, math.huge
+    local rootPos = root.Position
+
+    for _, model in ipairs(folder:GetChildren()) do
+        if not model:IsA("Model") then continue end
+
+        -- Filter by priority set first (cheap string lookup) before
+        -- doing the more expensive getMobName call
+        local mobName = getMobName(model)
+        if not mobName then continue end
+
+        if prioritySet and not prioritySet[mobName] then continue end
+
+        local h = model:FindFirstChildOfClass("Humanoid")
+        if h and h.Health <= 0 then continue end
+
+        local pos = getMobPosition(model)
+        if not pos then continue end
+
+        local dist = (rootPos - pos).Magnitude
+        if dist < bestDist and dist <= MAX_MOB_DISTANCE then
+            bestDist = dist
+            best     = model
+        end
+    end
+
+    -- If using priority list and nothing found, return nil
+    -- (don't fall through to nearest when selected/quest mode is on)
+    if prioritySet and not best then return nil end
+
+    -- Nearest mode fallback (no priority list)
+    if not prioritySet and not State.AutoFarmNearest then return nil end
+
+    return best
 end
 
 function AutoFarm.farmTarget(model)
