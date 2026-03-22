@@ -236,7 +236,7 @@ end
 
 -- Maximum distance the player will travel to reach a mob.
 -- Prevents AutoFarm from chasing mobs that spawned outside the raid/rift zone.
-local MAX_MOB_DISTANCE = 1000
+local MAX_MOB_DISTANCE = 800
 
 local FARM_REQUEST_REMOTE = function()
     return Services.ReplicatedStorage.Remotes.Gameplays:FindFirstChild("Request")
