@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.01"
+local script_version = "V0.69"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -25,6 +25,7 @@ local Services = {
     RunService        = game:GetService("RunService"),
     HttpService       = game:GetService("HttpService"),
     TweenService      = game:GetService("TweenService"),
+    VirtualUser       = game:GetService("VirtualUser"),
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
@@ -36,6 +37,8 @@ local State = {
     AutoFarmNearest    = false,
     AutoFarmSelected   = false,
     SelectedMobs       = {},
+    AntiAfkKickEnabled = false,
+    StreamerModeEnabled = false,
     SelectedWorld      = "",
     AutoQuestEnabled   = false,
     AutoClaimEnabled   = false,
@@ -2015,6 +2018,55 @@ local Window = Rayfield:CreateWindow({
         end,
     })
 
+    MainTab:CreateDivider()
+
+    MainTab:CreateToggle({
+        Name         = "Anti AFK (No Kick)",
+        CurrentValue = false,
+        Flag         = "AntiAfkKick",
+        Info         = "Prevents the Roblox idle-kick.",
+        Callback     = function(Value)
+            State.AntiAfkKickEnabled = Value
+        end,
+    })
+
+    Services.Players.LocalPlayer.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            Services.VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            Services.VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+
+    MainTab:CreateToggle({
+        Name         = "Streamer Mode",
+        CurrentValue = false,
+        Flag         = "StreamerMode",
+        Info         = "Hides your name.",
+        Callback     = function(Value)
+            State.StreamerModeEnabled = Value
+        end,
+    })
+
+    task.spawn(function()
+        while true do
+            task.wait(0.1)
+            if not State.StreamerModeEnabled then continue end
+            pcall(function()
+                local head      = Services.Players.LocalPlayer.Character and Services.Players.LocalPlayer.Character:FindFirstChild("Head")
+                if not head then return end
+                local billboard = head:FindFirstChild("Overheads")
+                if not billboard then return end
+                local nameFrame  = billboard:FindFirstChild("Names")
+                local titleFrame = billboard:FindFirstChild("Title")
+                local displayFrame = billboard:FindFirstChild("DisplayNames")
+                    nameFrame.Text = "🔥 PROTECTED BY LIXHUB 🔥"
+                    titleFrame.Text = "LixHub Member"
+                    displayFrame.Text = "🔥 PROTECTED BY LIXHUB 🔥"
+            end)
+        end
+    end)
+
     --[[MainTab:CreateDivider()
 
     MainTab:CreateToggle({
@@ -2074,7 +2126,6 @@ local Window = Rayfield:CreateWindow({
     })
 
     -- ── Raid Automation ──────────────────────────────────────
-    GamemodesTab:CreateSection("Raid Automation")
 
     GamemodesTab:CreateToggle({
         Name         = "Auto Start Raid",
@@ -2128,12 +2179,10 @@ local Window = Rayfield:CreateWindow({
         end,
     })
 
-    GamemodesTab:CreateDivider()
-
     -- ── Chest Settings ───────────────────────────────────────
 
     GamemodesTab:CreateToggle({
-        Name         = "Open Dungeon Key Chest",
+        Name         = "Open Purple Key Raid Chest",
         CurrentValue = false,
         Flag         = "AutoOpenKeyChests",
         Callback     = function(Value)
@@ -2141,10 +2190,7 @@ local Window = Rayfield:CreateWindow({
         end,
     })
 
-    GamemodesTab:CreateDivider()
-
     -- ── Join Player Raid ─────────────────────────────────────
-    GamemodesTab:CreateSection("Join Player Raid")
 
     -- Build player list (all players except self)
     local function getOtherPlayers()
@@ -2198,8 +2244,6 @@ local Window = Rayfield:CreateWindow({
         end,
     })
 
-    GamemodesTab:CreateDivider()
-
     -- ── Rift ─────────────────────────────────────────────────
     GamemodesTab:CreateSection("Rift")
 
@@ -2221,8 +2265,6 @@ local Window = Rayfield:CreateWindow({
         end,
     })
 
-    GamemodesTab:CreateDivider()
-
     -- ── Tower ────────────────────────────────────────────────
     GamemodesTab:CreateSection("Tower")
 
@@ -2238,8 +2280,6 @@ local Window = Rayfield:CreateWindow({
             end
         end,
     })
-
-    GamemodesTab:CreateDivider()
 
     -- ── Boss Gate ─────────────────────────────────────────────
     GamemodesTab:CreateSection("Boss Gate")
@@ -2327,8 +2367,6 @@ local Window = Rayfield:CreateWindow({
         end,
     })
 
-    SummonTab:CreateDivider()
-
     SummonTab:CreateToggle({
         Name         = "Auto Summon",
         CurrentValue = false,
@@ -2378,7 +2416,6 @@ local Window = Rayfield:CreateWindow({
         Callback     = function(Value) State.WebhookPingUser = Value end,
     })
 
-    WebhookTab:CreateDivider()
     WebhookTab:CreateSection("Notification Settings")
 
     WebhookTab:CreateToggle({
