@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.69"
+local script_version = "V0.01"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -2102,7 +2102,8 @@ local Window = Rayfield:CreateWindow({
 
     -- ── Raid Configuration ───────────────────────────────────
 
-    local raidWorldOptions = Loader.getWorlds()
+    local raidWorldOptions = {}
+    pcall(function() raidWorldOptions = Loader.getWorlds() end)
     local defaultRaidWorld = "Namex Planet"
     State.RaidWorld        = defaultRaidWorld
 
@@ -2332,8 +2333,9 @@ local Window = Rayfield:CreateWindow({
 
     SummonTab:CreateSection("Summon Settings")
 
-    local summonWorldOptions = Loader.getWorlds()
-    local defaultSummonWorld = summonWorldOptions[1] or ""
+    local summonWorldOptions = {}
+    pcall(function() summonWorldOptions = Loader.getWorlds() end)
+    local defaultSummonWorld = (#summonWorldOptions > 0 and summonWorldOptions[1]) or ""
     State.SummonWorld = defaultSummonWorld
 
     SummonTab:CreateDropdown({
