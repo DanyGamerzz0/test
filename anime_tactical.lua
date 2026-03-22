@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.52"
+local script_version = "V0.53"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -334,9 +334,6 @@ function AutoFarm.farmTarget(model)
     local internalName = getMobInternalName(model)
     Util.debugPrint("[FARM] farmTarget START", internalName, "t=0")
 
-    -- Fire Request and retry until TargetAt confirms the server accepted it.
-    -- The server silently rejects the request if we're too far from the target,
-    -- so we keep firing after each tween step until TargetAt matches.
     local requestRemote = FARM_REQUEST_REMOTE()
     local function fireRequest()
         if requestRemote then
@@ -345,12 +342,14 @@ function AutoFarm.farmTarget(model)
         end
     end
 
-    local function hasTarget()
+    local function getTargetAt()
         local t = LocalPlayer:FindFirstChild("TargetAt")
-        return t and t.Value == internalName
+        return t and t.Value or nil
     end
 
-    fireRequest()
+    local function hasCorrectTarget()
+        return getTargetAt() == internalName
+    end
 
     local dead = false
 
@@ -406,16 +405,37 @@ function AutoFarm.farmTarget(model)
     tween.Completed:Wait()
     Util.debugPrint("[FARM] Tween done | dt=", tick()-t0)
 
-    -- Now we're close enough — retry until server confirms via TargetAt.
-    -- Stop retrying if the mob is already dead or we've waited too long.
-    local retries = 0
-    while not dead and not hasTarget() and retries < 10 do
-        Util.debugPrint("[FARM] TargetAt not set, retrying | retry=", retries, "dt=", tick()-t0)
-        fireRequest()
-        task.wait(0.1)
-        retries += 1
+    -- Now we're close enough. Figure out current TargetAt state and fire
+    -- the correct number of times to land on our target.
+    -- Each fire TOGGLES: if targeting X, fires retreat X. If idle, fires attack Y.
+    if not dead then
+        local currentTarget = getTargetAt()
+        Util.debugPrint("[FARM] TargetAt before fire:", tostring(currentTarget))
+
+        if currentTarget ~= nil and currentTarget ~= internalName then
+            -- Units are targeting a DIFFERENT mob — fire once to retreat them,
+            -- then once more to attack our target
+            Util.debugPrint("[FARM] Wrong target, firing twice to switch")
+            fireRequest()          -- retreat from wrong target
+            task.wait(0.15)
+            fireRequest()          -- attack our target
+        elseif currentTarget == nil then
+            -- Units are idle — fire once to attack our target
+            Util.debugPrint("[FARM] No target, firing once to attack")
+            fireRequest()
+        else
+            -- Already targeting the right mob, do nothing
+            Util.debugPrint("[FARM] Already targeting correctly, no fire needed")
+        end
+
+        -- Wait for TargetAt to confirm (up to 1s)
+        local waited = 0
+        while not dead and not hasCorrectTarget() and waited < 1 do
+            task.wait(0.1)
+            waited += 0.1
+        end
+        Util.debugPrint("[FARM] TargetAt confirmed:", hasCorrectTarget(), "| dt=", tick()-t0)
     end
-    Util.debugPrint("[FARM] TargetAt confirmed:", hasTarget(), "| dt=", tick()-t0)
 
     -- Wait for death. We poll humanoid health directly every frame as a
     -- reliable fallback since GetPropertyChangedSignal can be unreliable
