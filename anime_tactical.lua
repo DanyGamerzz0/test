@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.7"
+local script_version = "V0.69"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
