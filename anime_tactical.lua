@@ -4,7 +4,7 @@
 -- ============================================================
 
 local script_version = "V0.69"
-local DEBUG = true
+local DEBUG = false
 local NOTIFICATION_ENABLED = true
 
 -- ============================================================
