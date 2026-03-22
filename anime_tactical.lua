@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
 
@@ -446,8 +446,8 @@ function AutoFarm.farmTarget(model)
     Util.debugPrint("[FARM] Entering death wait | dead=", dead, "modelParent=", model.Parent ~= nil)
     local loopFrames = 0
     while not dead and model.Parent and AutoFarm.isRunning do
-        if TweenLock.holder == "raid" then
-            Util.debugPrint("[FARM] Broke out — raid lock | dt=", tick()-t0)
+        if TweenLock.holder == "raid" or TweenLock.holder == "collect" then
+            Util.debugPrint("[FARM] Broke out — lock held by:", TweenLock.holder, "| dt=", tick()-t0)
             break
         end
 
@@ -1396,45 +1396,49 @@ local function collectModel(model)
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return false end
 
-    -- Save the player's current position before doing anything
+    -- Wait for AutoFarm to release the lock before we grab it
+    local lockWait = 0
+    while TweenLock.holder == "farm" and lockWait < 5 do
+        task.wait(0.1)
+        lockWait += 0.1
+    end
+
+    -- Acquire lock so AutoFarm won't tween while we collect
+    TweenLock.holder = "collect"
+
+    -- Save position now that AutoFarm is frozen
     local savedCFrame = root.CFrame
 
-    -- Pause farm so it doesn't fight the teleport
+    -- Pause farm loop
     local farmWasRunning = AutoFarm.isRunning
     if farmWasRunning then
         AutoFarm.isRunning = false
         root.Anchored = false
-        TweenLock.holder = nil
         task.wait(0.1)
     end
 
-    -- Get the collectible position
     local collectPos = primary:IsA("BasePart")
         and primary.Position
         or (primary.PrimaryPart and primary.PrimaryPart.Position)
     if not collectPos then
+        TweenLock.holder = nil
         if farmWasRunning then AutoFarm.start() end
         return false
     end
 
-    -- Spawn an invisible platform slightly below the collectible
-    -- so the player doesn't fall through unloaded terrain
     local platform = Instance.new("Part")
-    platform.Size        = Vector3.new(10, 1, 10)
-    platform.CFrame      = CFrame.new(collectPos + Vector3.new(0, -2, 0))
-    platform.Anchored    = true
-    platform.CanCollide  = true
+    platform.Size         = Vector3.new(10, 1, 10)
+    platform.CFrame       = CFrame.new(collectPos + Vector3.new(0, -2, 0))
+    platform.Anchored     = true
+    platform.CanCollide   = true
     platform.Transparency = 1
-    platform.CanTouch    = false
-    platform.Name        = "CollectPlatform"
-    platform.Parent      = workspace
+    platform.CanTouch     = false
+    platform.Name         = "CollectPlatform"
+    platform.Parent       = workspace
 
-    -- Teleport player slightly above the collectible, no anchoring
     root.CFrame = CFrame.new(collectPos + Vector3.new(0, 3, 0))
-
     task.wait(0.15)
 
-    -- Fire prompt until collected or timeout (5s)
     local elapsed = 0
     while model.Parent and elapsed < 5 do
         pcall(function() fireproximityprompt(prompt) end)
@@ -1442,17 +1446,18 @@ local function collectModel(model)
         elapsed += 0.2
     end
 
-    -- Clean up platform
     pcall(function() platform:Destroy() end)
 
-    -- Return player to their original position
-    -- Re-fetch root in case character respawned during collection
+    -- Return to saved position
     local currentRoot = LocalPlayer.Character
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if currentRoot then
         currentRoot.CFrame = savedCFrame
         Util.debugPrint("[AutoCollect] Returned player to saved position")
     end
+
+    -- Release lock before restarting farm
+    TweenLock.holder = nil
 
     if farmWasRunning then AutoFarm.start() end
     return model.Parent == nil
