@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.54"
+local script_version = "V0.55"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -1390,7 +1390,7 @@ local function collectModel(model)
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return false end
 
-    -- Pause farm so no tween fights the teleport
+    -- Pause farm so it doesn't fight the teleport
     local farmWasRunning = AutoFarm.isRunning
     if farmWasRunning then
         AutoFarm.isRunning = false
@@ -1399,24 +1399,44 @@ local function collectModel(model)
         task.wait(0.1)
     end
 
-    -- Teleport to the collectible and anchor in place
-    root.CFrame = primary.CFrame + Vector3.new(0, 0, 0)
-    root.Anchored = true
+    -- Get the collectible position
+    local collectPos = primary:IsA("BasePart")
+        and primary.Position
+        or (primary.PrimaryPart and primary.PrimaryPart.Position)
+    if not collectPos then
+        if farmWasRunning then AutoFarm.start() end
+        return false
+    end
 
-    task.wait(0.1)
-    pcall(function() fireproximityprompt(prompt) end)
+    -- Spawn an invisible platform slightly below the collectible
+    -- so the player doesn't fall through unloaded terrain
+    local platform = Instance.new("Part")
+    platform.Size        = Vector3.new(10, 1, 10)
+    platform.CFrame      = CFrame.new(collectPos + Vector3.new(0, -2, 0))
+    platform.Anchored    = true
+    platform.CanCollide  = true
+    platform.Transparency = 1
+    platform.CanTouch    = false
+    platform.Name        = "CollectPlatform"
+    platform.Parent      = workspace
 
-    -- Keep firing and stay anchored until collected or timeout
+    -- Teleport player slightly above the collectible, no anchoring
+    root.CFrame = CFrame.new(collectPos + Vector3.new(0, 3, 0))
+
+    task.wait(0.15)
+
+    -- Fire prompt until collected or timeout (5s)
     local elapsed = 0
     while model.Parent and elapsed < 5 do
         pcall(function() fireproximityprompt(prompt) end)
-        task.wait(0.3)
-        elapsed += 0.3
+        task.wait(0.2)
+        elapsed += 0.2
     end
 
-    root.Anchored = false
-    if farmWasRunning then AutoFarm.start() end
+    -- Clean up platform
+    pcall(function() platform:Destroy() end)
 
+    if farmWasRunning then AutoFarm.start() end
     return model.Parent == nil
 end
 
