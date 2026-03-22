@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.69"
+local script_version = "V0.01"
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
 
@@ -236,7 +236,7 @@ end
 
 -- Maximum distance the player will travel to reach a mob.
 -- Prevents AutoFarm from chasing mobs that spawned outside the raid/rift zone.
-local MAX_MOB_DISTANCE = 800
+local MAX_MOB_DISTANCE = 900
 
 local FARM_REQUEST_REMOTE = function()
     return Services.ReplicatedStorage.Remotes.Gameplays:FindFirstChild("Request")
@@ -1393,6 +1393,9 @@ local function collectModel(model)
         and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return false end
 
+    -- Save the player's current position before doing anything
+    local savedCFrame = root.CFrame
+
     -- Pause farm so it doesn't fight the teleport
     local farmWasRunning = AutoFarm.isRunning
     if farmWasRunning then
@@ -1438,6 +1441,15 @@ local function collectModel(model)
 
     -- Clean up platform
     pcall(function() platform:Destroy() end)
+
+    -- Return player to their original position
+    -- Re-fetch root in case character respawned during collection
+    local currentRoot = LocalPlayer.Character
+        and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if currentRoot then
+        currentRoot.CFrame = savedCFrame
+        Util.debugPrint("[AutoCollect] Returned player to saved position")
+    end
 
     if farmWasRunning then AutoFarm.start() end
     return model.Parent == nil
@@ -1871,81 +1883,46 @@ local function initialize()
 
     -- ── Window ───────────────────────────────────────────────
 local Window = Rayfield:CreateWindow({
-   Name = "LixHub - Anime Tactical Simulator",
-   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
-   LoadingTitle = "Loading for Anime Tactical Simulator",
-   LoadingSubtitle = script_version,
-   ShowText = "LixHub", -- for mobile users to unhide rayfield, change if you'd like
-   Theme = {
-    TextColor = Color3.fromRGB(240, 240, 240),
+        Name            = "LixHub - Anime Tactical Simulator",
+        Icon            = 0,
+        LoadingTitle    = "Loading for Anime Tactical Simulator",
+        LoadingSubtitle = script_version,
+        ShowText        = "LixHub",
 
-    Background = Color3.fromRGB(25, 25, 25),
-    Topbar = Color3.fromRGB(34, 34, 34),
-    Shadow = Color3.fromRGB(20, 20, 20),
+        Theme = {
+            TextColor  = Color3.fromRGB(240, 240, 240),
+            Background = Color3.fromRGB(20, 20, 28),
+            Topbar     = Color3.fromRGB(30, 30, 42),
+            Shadow     = Color3.fromRGB(12, 12, 18),
+        },
 
-    NotificationBackground = Color3.fromRGB(20, 20, 20),
-    NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
+        ToggleUIKeybind = "K",
 
-    TabBackground = Color3.fromRGB(80, 80, 80),
-    TabStroke = Color3.fromRGB(85, 85, 85),
-    TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
-    TabTextColor = Color3.fromRGB(240, 240, 240),
-    SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
+        DisableRayfieldPrompts = true,
+        DisableBuildWarnings   = true,
 
-    ElementBackground = Color3.fromRGB(35, 35, 35),
-    ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
-    SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
-    ElementStroke = Color3.fromRGB(50, 50, 50),
-    SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
-            
-    SliderBackground = Color3.fromRGB(50, 138, 220),
-    SliderProgress = Color3.fromRGB(50, 138, 220),
-    SliderStroke = Color3.fromRGB(58, 163, 255),
-
-    ToggleBackground = Color3.fromRGB(30, 30, 30),
-    ToggleEnabled = Color3.fromRGB(0, 146, 214),
-    ToggleDisabled = Color3.fromRGB(100, 100, 100),
-    ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
-    ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
-    ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
-    ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
-
-    DropdownSelected = Color3.fromRGB(102, 102, 102),
-    DropdownUnselected = Color3.fromRGB(30, 30, 30),
-
-    InputBackground = Color3.fromRGB(30, 30, 30),
-    InputStroke = Color3.fromRGB(65, 65, 65),
-    PlaceholderColor = Color3.fromRGB(178, 178, 178)
-}, -- Check https://docs.sirius.menu/rayfield/configuration/themes
-
-   ToggleUIKeybind = "K", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
-
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
-
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = "LixHub", -- Create a custom folder for your hub/game
-      FileName = game:GetService("Players").LocalPlayer.Name .. "_AnimeTacticalSimulator" -- Create a unique file name for each game or character,
+        ConfigurationSaving = {
+            Enabled    = true,
+            FolderName = "LixHub",
+            FileName = game:GetService("Players").LocalPlayer.Name .. "_AnimeTacticalSimulator",
+        },
+        Discord = {
+      Enabled = true, 
+      Invite = "cYKnXE2Nf8",
+      RememberJoins = true
    },
 
-   Discord = {
-      Enabled = true, -- Prompt the user to join your Discord server if their executor supports it
-      Invite = "cYKnXE2Nf8", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
-      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
-   },
-
-   KeySystem = true, -- Set this to true to use our key system
-   KeySettings = {
-      Title = "LixHub - ATS - Free",
-      Subtitle = "LixHub - Key System",
-      Note = "Free key available in the discord https://discord.gg/cYKnXE2Nf8", -- Use this to tell the user how to get a key
-      FileName = "LixHub_Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
-      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
-      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
-      Key = {"0xLIXHUB"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
-   }
-})
+        KeySystem = true,
+    KeySettings = {
+        Title = "LixHub - ATS - Free",
+        Subtitle = "LixHub - Key System",
+        Note = "Free key available in the discord https://discord.gg/cYKnXE2Nf8",
+        FileName = "LixHub_Key",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = {"0xLIXHUB"}
+    }
+    })
 
     -- ══════════════════════════════════════════════════════════
     -- TAB: MAIN
