@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.05"
+local script_version = "V0.01"
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
 
@@ -2047,6 +2047,15 @@ local Window = Rayfield:CreateWindow({
         end
     end)
 
+    MainTab:CreateToggle({
+    Name         = "Disable Script Notifications",
+    CurrentValue = false,
+    Flag         = "DisableNotifications",
+    Callback     = function(Value)
+        NOTIFICATION_ENABLED = not Value
+    end,
+})
+
     --[[MainTab:CreateDivider()
 
     MainTab:CreateToggle({
@@ -2095,7 +2104,7 @@ local Window = Rayfield:CreateWindow({
     })
 
     GamemodesTab:CreateDropdown({
-        Name            = "Select Difficulty",
+        Name            = "Select Raid Difficulty",
         Options         = { "Easy", "Medium", "Hard", "Nightmare"},
         CurrentOption   = { "Easy" },
         MultipleOptions = false,
@@ -2139,7 +2148,7 @@ local Window = Rayfield:CreateWindow({
     })
 
     GamemodesTab:CreateSlider({
-        Name         = "Start Time (seconds delay)",
+        Name         = "Delay Start by x Seconds",
         Range        = { 0, 60 },
         Increment    = 1,
         CurrentValue = 0,
@@ -2150,7 +2159,7 @@ local Window = Rayfield:CreateWindow({
     })
 
     GamemodesTab:CreateSlider({
-        Name         = "Wait x Players",
+        Name         = "Wait x Players Until Start",
         Range        = { 0, 5 },
         Increment    = 1,
         CurrentValue = 0,
@@ -2188,7 +2197,7 @@ local Window = Rayfield:CreateWindow({
     local otherPlayers = getOtherPlayers()
 
     local joinPlayerDropdown = GamemodesTab:CreateDropdown({
-        Name            = "Join Player Raid",
+        Name            = "Select Player to Join Raid",
         Options         = #otherPlayers > 0 and otherPlayers or { "No players in server" },
         CurrentOption   = {},
         MultipleOptions = false,
@@ -2238,7 +2247,7 @@ local Window = Rayfield:CreateWindow({
     })
 
     GamemodesTab:CreateToggle({
-        Name         = "Force Join Rift\n(Will Leave Gamemode for it)",
+        Name         = "Force Join Rift",
         CurrentValue = false,
         Flag         = "ForceJoinRift",
         Callback     = function(Value)
@@ -2263,10 +2272,10 @@ local Window = Rayfield:CreateWindow({
     })
 
     -- ── Boss Gate ─────────────────────────────────────────────
-    GamemodesTab:CreateSection("Boss Gate")
+    GamemodesTab:CreateSection("Boss Fight")
 
     GamemodesTab:CreateToggle({
-        Name         = "Auto Boss Gate",
+        Name         = "Auto Boss Fight",
         CurrentValue = false,
         Flag         = "AutoBossGate",
         Callback     = function(Value)
