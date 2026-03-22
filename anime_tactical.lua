@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.01"
+local script_version = "V0.69"
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
 
@@ -2444,9 +2444,10 @@ local Window = Rayfield:CreateWindow({
     })
 
     -- ── Load saved config & install hooks ────────────────────
-    _G.Rayfield:LoadConfiguration()
-    AutoSummon.installHook()
-    Webhook.installHook()
+_G.Rayfield:LoadConfiguration()
+task.wait(0.5)  -- give Rayfield a moment to finish loading config
+pcall(function() AutoSummon.installHook() end)
+pcall(function() Webhook.installHook() end)
 end
 
 -- ============================================================
