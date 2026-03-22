@@ -3,7 +3,7 @@
 -- Script Hub Template | Frontend v0.2
 -- ============================================================
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 local DEBUG = false
 local NOTIFICATION_ENABLED = true
 
@@ -846,12 +846,15 @@ local function waitAndStartRaid()
         if not AutoRaid.isRunning then return false end
     end
 
-    -- Fire the actual start
-    local startRemote = getRaidStartRemote()
+    -- Fire the actual start via the Start button connection
     local ok = pcall(function()
-        startRemote:FireServer(State.RaidWorld, State.RaidDifficulty)
+        for _, connection in pairs(getconnections(
+            LocalPlayer.PlayerGui.Raids._Frame.Usage.Right.Start.Activated
+        )) do
+            connection:Fire()
+        end
     end)
-    Util.debugPrint("[AutoRaid] Start raid fired | ok:", ok)
+    Util.debugPrint("[AutoRaid] Start raid fired via button | ok:", ok)
     return ok
 end
 
