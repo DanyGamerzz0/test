@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.13"
+local SCRIPT_VERSION = "V0.14"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -1609,6 +1609,55 @@ do
     setreadonly(mt, true)
 end
 
+local function getChosenPath()
+    local gs   = Svc.Workspace:FindFirstChild("GameStates")
+    local town = gs and gs:FindFirstChild("Seven Sins Town")
+    local pv   = town and town:FindFirstChild("ChosenPath")
+    return pv and tonumber(pv.Value)
+end
+
+local function handlePathMacro()
+    if not State.AutoPathEnabled then return end
+
+    -- Wait a moment for ChosenPath to be set after game start
+    local path = nil
+    for _ = 1, 20 do
+        path = getChosenPath()
+        if path and path >= 1 and path <= 4 then break end
+        task.wait(0.5)
+    end
+
+    if not path then
+        debugPrint("[PathWatcher] Could not read ChosenPath")
+        return
+    end
+
+    debugPrint("[PathWatcher] Path this game:", path)
+
+    -- Restart logic
+    if State.RestartUntilPath and State.RestartTargetPath then
+        if path ~= State.RestartTargetPath then
+            debugPrint("[PathWatcher] Wrong path, restarting...")
+            Util.notify("Path Restart", "Got path " .. path .. ", want " .. State.RestartTargetPath, 3)
+            pcall(function()
+                RS:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("Action"):FireServer("Restart")
+            end)
+            return
+        end
+    end
+
+    -- Swap macro based on path
+    local macroName = State.AutoPathMacros[path]
+    if macroName and macroName ~= "" then
+        Macro.currentName = macroName
+        Macro.loadFromFile(macroName)
+        Util.notify("Path Macro", "Path " .. path .. " → " .. macroName, 4)
+        debugPrint("[PathWatcher] Switched to macro:", macroName)
+    else
+        debugPrint("[PathWatcher] No macro assigned for path", path)
+    end
+end
+
 -- ============================================================
 -- GAME EVENT TRACKING
 -- ============================================================
@@ -1626,6 +1675,9 @@ local function onGameStart()
         AutoPlay.reset()
         task.spawn(AutoPlay.loop)
     end
+
+    -- Check path and swap macro before playback begins
+    task.spawn(handlePathMacro)
 
     debugPrint("[Game] Started")
 end
