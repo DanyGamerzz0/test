@@ -1,19 +1,3 @@
---[[
-    LixHub - Anime Guardians
-    Full Rewrite - Clean Modular Architecture
-    
-    Design principles:
-    - All logic lives in module tables (M.xxx), not locals → no 200 local limit
-    - Single __namecall hook
-    - Event-driven where possible, minimal polling
-    - Centralized State table
-    - Reliable unit tracking via origin attribute
-    -autoplay9
---]]
-
--- ============================================================
--- EXECUTOR CHECK
--- ============================================================
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
     and newcclosure and writefile and readfile and isfile) then
     game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED")
@@ -32,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.11"
+local SCRIPT_VERSION = "V0.12"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -187,6 +171,10 @@ local State = {
     gameStartTime           = 0,
     gameStartRealTime       = 0,
     gameEndRealTime         = 0,
+    AutoPathMacros = { nil, nil, nil, nil },
+    AutoPathEnabled = false,
+    RestartUntilPath = false,
+    RestartTargetPath = nil,
 }
 
 -- ============================================================
@@ -2536,6 +2524,46 @@ Tabs.Macro:CreateButton({
     end,
 })
 
+Tabs.Macro:CreateDivider()
+Tabs.Macro:CreateSection("Seven Sins Town Path Macros")
+
+Tabs.Macro:CreateToggle({
+    Name = "Enable Play Macro On Selected Path",
+    Flag = "AutoPathEnabled",
+    Info = "Automatically play the macro assigned to the chosen path",
+    Callback = function(v) State.AutoPathEnabled = v end,
+})
+
+for i = 1, 4 do
+    Tabs.Macro:CreateDropdown({
+        Name     = "Select Macro for Path " .. i,
+        Options  = Macro.getNames(),
+        Flag     = "PathMacro" .. i,
+        Callback = function(o)
+            State.AutoPathMacros[i] = type(o) == "table" and o[1] or o
+        end,
+    })
+end
+
+Tabs.Macro:CreateDivider()
+Tabs.Macro:CreateSection("Restart Until Path")
+
+Tabs.Macro:CreateToggle({
+    Name = "Restart Until Target Path",
+    Flag = "RestartUntilPath",
+    Info = "Restart the match until the desired path is chosen",
+    Callback = function(v) State.RestartUntilPath = v end,
+})
+
+Tabs.Macro:CreateDropdown({
+    Name     = "Target Path",
+    Options  = {"1", "2", "3", "4"},
+    Flag     = "RestartTargetPath",
+    Callback = function(o)
+        State.RestartTargetPath = tonumber(type(o) == "table" and o[1] or o)
+    end,
+})
+
 -- ============================================================
 -- WEBHOOK TAB
 -- ============================================================
@@ -2608,6 +2636,51 @@ task.spawn(function()
     end
     if gui.Enabled then tryPick() end
     gui:GetPropertyChangedSignal("Enabled"):Connect(function() if gui.Enabled then tryPick() end end)
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not State.gameInProgress then continue end
+
+        local gs = Svc.Workspace:FindFirstChild("GameStates")
+        if not gs then continue end
+        local town = gs:FindFirstChild("Seven Sins Town")
+        if not town then continue end
+        local pathVal = town:FindFirstChild("ChosenPath")
+        if not pathVal then continue end
+
+        local path = pathVal.Value
+        if type(path) ~= "number" or path < 1 or path > 4 then continue end
+
+        -- Restart logic: fires before macro selection
+        if State.RestartUntilPath and State.RestartTargetPath then
+            if path ~= State.RestartTargetPath then
+                debugPrint("[PathWatcher] Got path", path, "- restarting for path", State.RestartTargetPath)
+                pcall(function()
+                    RS:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("Action"):FireServer("Restart")
+                end)
+                task.wait(3)
+                continue
+            end
+        end
+
+        -- Path macro selection
+        if State.AutoPathEnabled then
+            local macroName = State.AutoPathMacros[path]
+            if macroName and macroName ~= "" then
+                if Macro.currentName ~= macroName then
+                    debugPrint("[PathWatcher] Path", path, "→ switching to macro:", macroName)
+                    Macro.currentName = macroName
+                    Macro.loadFromFile(macroName)
+                    Util.notify("Path Macro", "Path " .. path .. " → " .. macroName, 4)
+                end
+            end
+        end
+
+        -- Only need to check once per game, wait until game ends
+        while State.gameInProgress do task.wait(2) end
+    end
 end)
 
 -- ============================================================
