@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.12"
+local SCRIPT_VERSION = "V0.13"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -2400,8 +2400,18 @@ local MacroDD = Tabs.Macro:CreateDropdown({
     end,
 })
 
+local PathMacroDD1
+local PathMacroDD2
+local PathMacroDD3
+local PathMacroDD4
+
 local function refreshMacroDD()
-    MacroDD:Refresh(Macro.getNames(), Macro.currentName)
+    local names = Macro.getNames()
+    MacroDD:Refresh(names, Macro.currentName)
+    PathMacroDD1:Refresh(names)
+    PathMacroDD2:Refresh(names)
+    PathMacroDD3:Refresh(names)
+    PathMacroDD4:Refresh(names)
 end
 
 Tabs.Macro:CreateInput({
@@ -2534,16 +2544,40 @@ Tabs.Macro:CreateToggle({
     Callback = function(v) State.AutoPathEnabled = v end,
 })
 
-for i = 1, 4 do
-    Tabs.Macro:CreateDropdown({
-        Name     = "Select Macro for Path " .. i,
-        Options  = Macro.getNames(),
-        Flag     = "PathMacro" .. i,
-        Callback = function(o)
-            State.AutoPathMacros[i] = type(o) == "table" and o[1] or o
-        end,
-    })
-end
+Tabs.Macro:CreateToggle({
+    Name = "Enable Path-Based Macro",
+    Flag = "AutoPathEnabled",
+    Info = "Automatically play the macro assigned to the chosen path",
+    Callback = function(v) State.AutoPathEnabled = v end,
+})
+
+ PathMacroDD1 = Tabs.Macro:CreateDropdown({
+    Name     = "Select Macro for Path 1",
+    Options  = {},
+    Flag     = "PathMacro1",
+    Callback = function(o) State.AutoPathMacros[1] = type(o)=="table" and o[1] or o end,
+})
+
+ PathMacroDD2 = Tabs.Macro:CreateDropdown({
+    Name     = "Select Macro for Path 2",
+    Options  = {},
+    Flag     = "PathMacro2",
+    Callback = function(o) State.AutoPathMacros[2] = type(o)=="table" and o[1] or o end,
+})
+
+ PathMacroDD3 = Tabs.Macro:CreateDropdown({
+    Name     = "Select Macro for Path 3",
+    Options  = {},
+    Flag     = "PathMacro3",
+    Callback = function(o) State.AutoPathMacros[3] = type(o)=="table" and o[1] or o end,
+})
+
+ PathMacroDD4 = Tabs.Macro:CreateDropdown({
+    Name     = "Select Macro for Path 4",
+    Options  = {},
+    Flag     = "PathMacro4",
+    Callback = function(o) State.AutoPathMacros[4] = type(o)=="table" and o[1] or o end,
+})
 
 Tabs.Macro:CreateDivider()
 Tabs.Macro:CreateSection("Restart Until Path")
