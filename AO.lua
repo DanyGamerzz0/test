@@ -715,6 +715,11 @@ local Webhook = {
     discordUserId = "",
 }
 
+local State = {
+    AntiAfkEnabled = false,
+    AutoStartGame = false,
+}
+
 local function sendWebhookRaw(body)
     local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
     if not requestFunc then return false, "HTTP not supported" end
@@ -789,6 +794,55 @@ local Window = Rayfield:CreateWindow({
         RememberJoins = true
     },
 })
+
+local GameTab = Window:CreateTab("Game", "gamepad")
+
+GameTab:CreateToggle({ Name="Auto Start Game",  Flag="AutoStartGame",  Callback=function(v) State.AutoStartGame=v  end })
+
+task.spawn(function()
+    if IS_LOBBY then return end
+
+    local button = Players.LocalPlayer.PlayerGui:WaitForChild("hotbarGui")
+        :WaitForChild("scalingFrame")
+        :WaitForChild("currencyDisplay")
+        :WaitForChild("startGame")
+
+    local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
+
+    local TARGET_X = 0.5
+    local TARGET_Y = 0.349999994
+    local fired = false
+
+    while true do
+        task.wait(0.5)
+        if State.AutoStartGame then
+            local pos = button.Position
+            local inPosition = math.abs(pos.X.Scale - TARGET_X) < 0.001
+                           and math.abs(pos.Y.Scale - TARGET_Y) < 0.001
+
+            if inPosition and not fired then
+                task.delay(3, function()
+                    if State.AutoStartGame then
+                        votingClient.startMatch.fire()
+                    end
+                end)
+                fired = true
+            elseif not inPosition then
+                fired = false
+            end
+        end
+    end
+end)
+
+GameTab:CreateToggle({ Name="Anti-AFK", Flag="AntiAfk", Callback=function(v) State.AntiAfkEnabled=v end })
+
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    if State.AntiAfkEnabled then
+        Svc.VirtualUser:Button2Down(Vector2.zero, Svc.Workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        Svc.VirtualUser:Button2Up(Vector2.zero, Svc.Workspace.CurrentCamera.CFrame)
+    end
+end)
 
 -- ============================================================
 -- MACRO TAB
