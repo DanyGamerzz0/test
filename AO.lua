@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.02
+-- V0.03
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -698,6 +698,7 @@ local State = {
     AntiAfkEnabled = false,
     AutoStartGame  = false,
     AutoLobby      = false,
+    ChallengeBug   = false,
 }
 
 local function sendWebhookRaw(body)
@@ -730,6 +731,7 @@ local Window = Rayfield:CreateWindow({
     Icon             = 0,
     LoadingTitle     = "Loading for Anime Overload",
     LoadingSubtitle  = script_version,
+    ShowText         = "LixHub",
     Theme = {
         TextColor                     = Color3.fromRGB(240, 240, 240),
         Background                    = Color3.fromRGB(25,  25,  25),
@@ -785,6 +787,7 @@ GameTab:CreateToggle({ Name = "Auto Replay",      Flag = "AutoReplay",      Call
 GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",        Callback = function(v) playerNet.updateSettings.fire("autoNextAct", v) end })
 GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",       Callback = function(v) State.AutoLobby = v end })
 GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves",   Callback = function(v) playerNet.updateSettings.fire("autoSkipWave", v) end })
+GameTab:CreateToggle({ Name = "Challenge Bug", Flag = "ChallengeBug", Callback = function(v) State.ChallengeBug = v end })
 
 task.spawn(function()
     if IS_LOBBY then return end
@@ -1474,6 +1477,15 @@ local function setupMatchEndHook()
         if State.AutoLobby then
             game:GetService("TeleportService"):Teleport(126297188712308)
         end
+        if State.ChallengeBug then
+    task.spawn(function()
+        local remote = ReplicatedStorage:WaitForChild("voting"):WaitForChild("voting_RELIABLE")
+        local buf = buffer.create(2)
+        buffer.writeu8(buf, 0, 6)
+        buffer.writeu8(buf, 1, 0)
+        remote:FireServer(buf, {})
+    end)
+end
     end)
 end
 
