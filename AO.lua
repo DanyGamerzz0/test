@@ -1489,3 +1489,11 @@ end
 Rayfield:LoadConfiguration()
 
 pushNotify({ Title = "LixHub Loaded", Content = IS_LOBBY and "Running in lobby — hooks inactive." or "Macro system ready.", Duration = 3, Image = "check-circle" })
+
+Rayfield:TopNotify({
+    Title = "UI is hidden",
+    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+    Image = "eye-off",
+    IconColor = Color3.fromRGB(100, 150, 255),
+    Duration = 5
+})
