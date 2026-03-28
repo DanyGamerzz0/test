@@ -21,12 +21,8 @@ local HttpService       = game:GetService("HttpService")
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 
--- Detect lobby vs in-game.
--- workspace:GetAttribute("placeId") returns "lobby" in the hub,
--- or nil/something else in an actual game place.
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
--- Game-only modules — only loaded when in an actual game place.
 local towers, sync, calculateClientUpgradeCostMultiplier
 local selectPlayerYen, clientStore, selectEquipped
 
@@ -407,18 +403,14 @@ local function buildNextPreview(actions, currentIndex, nameToHero, labelToLevel)
 
         if next.action == "PLACE" then
             return string.format("Next: Place [%s]%s", baseName, timeHint)
-
         elseif next.action == "UPGRADE" then
             local currentLevel = labelToLevel and labelToLevel[label] or 1
             return string.format("Next: Upgrade [%s] Level %d to %d%s",
                 baseName, currentLevel, currentLevel + 1, timeHint)
-
         elseif next.action == "SELL" then
             return string.format("Next: Sell [%s]%s", baseName, timeHint)
-
         elseif next.action == "AUTO_UPGRADE" then
             return string.format("Next: Toggle auto-upgrade [%s]%s", baseName, timeHint)
-
         elseif next.action == "CHANGE_PRIORITY" then
             local prio = next.priority or "unknown"
             return string.format("Next: Set priority '%s' on [%s]%s", prio, baseName, timeHint)
@@ -451,11 +443,10 @@ end)
 
 local function waitForYen(cost, label, actionType, index, total, nextLine, nameToHero, labelToLevel, actions)
     if getYen() >= cost then return true end
-    local baseName = label:match("^(.-)%s*#%d+$") or label
+    local baseName   = label:match("^(.-)%s*#%d+$") or label
     local actionWord = actionType == "PLACE" and "place" or "upgrade"
     while MacroSystem.isPlaying and getYen() < cost do
         local have    = getYen()
-        local missing = cost - have
         local waitMsg = string.format(
             "Waiting for yen to %s [%s]  (%d / %d yen)",
             actionWord, baseName, have, cost
@@ -538,15 +529,13 @@ function MacroSystem.playback(name)
 
             local label    = action.unitName or "?"
             local baseName = label:match("^(.-)%s*#%d+$") or label
-
             local nextPreview = buildNextPreview(actions, i, nameToHero, labelToLevel)
 
             if action.action == "PLACE" then
                 repeat
                     local uuid = nameToUuid[baseName]
                     if not uuid then
-                        setProgress(i, #actions,
-                            "[SKIP] Hero '" .. baseName .. "' is not equipped", nextPreview)
+                        setProgress(i, #actions, "[SKIP] Hero '" .. baseName .. "' is not equipped", nextPreview)
                         break
                     end
                     local hero = nameToHero[baseName]
@@ -578,15 +567,12 @@ function MacroSystem.playback(name)
                         if uid then
                             labelToLiveTowerID[label] = uid
                             labelToLevel[label]       = 1
-                            setProgress(i, #actions,
-                                "[SUCCESS] Placed [" .. baseName .. "] at Level 1", nextPreview)
+                            setProgress(i, #actions, "[SUCCESS] Placed [" .. baseName .. "] at Level 1", nextPreview)
                         else
-                            setProgress(i, #actions,
-                                "[SUCCESS] Placed [" .. baseName .. "] — position mapping failed, upgrades may not work", nextPreview)
+                            setProgress(i, #actions, "[SUCCESS] Placed [" .. baseName .. "] — position mapping failed, upgrades may not work", nextPreview)
                         end
                     else
-                        setProgress(i, #actions,
-                            "[FAIL] Could not place [" .. baseName .. "] — server rejected the placement", nextPreview)
+                        setProgress(i, #actions, "[FAIL] Could not place [" .. baseName .. "] — server rejected the placement", nextPreview)
                     end
                 until true
 
@@ -594,8 +580,7 @@ function MacroSystem.playback(name)
                 repeat
                     local tid = labelToLiveTowerID[label]
                     if not tid then
-                        setProgress(i, #actions,
-                            "[ERROR] Cannot upgrade [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
+                        setProgress(i, #actions, "[ERROR] Cannot upgrade [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                         break
                     end
                     local hero         = nameToHero[baseName]
@@ -633,8 +618,7 @@ function MacroSystem.playback(name)
                             end
                         end
                     else
-                        setProgress(i, #actions,
-                            "[FAIL] Upgrade failed for [" .. baseName .. "] — server rejected the request", nextPreview)
+                        setProgress(i, #actions, "[FAIL] Upgrade failed for [" .. baseName .. "] — server rejected the request", nextPreview)
                     end
                 until true
 
@@ -645,15 +629,12 @@ function MacroSystem.playback(name)
                     if success then
                         labelToLiveTowerID[label] = nil
                         labelToLevel[label]       = nil
-                        setProgress(i, #actions,
-                            "[SUCCESS] Sold [" .. baseName .. "]", nextPreview)
+                        setProgress(i, #actions, "[SUCCESS] Sold [" .. baseName .. "]", nextPreview)
                     else
-                        setProgress(i, #actions,
-                            "[FAIL] Could not sell [" .. baseName .. "] — server rejected the request", nextPreview)
+                        setProgress(i, #actions, "[FAIL] Could not sell [" .. baseName .. "] — server rejected the request", nextPreview)
                     end
                 else
-                    setProgress(i, #actions,
-                        "[ERROR] Cannot sell [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
+                    setProgress(i, #actions, "[ERROR] Cannot sell [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
 
             elseif action.action == "AUTO_UPGRADE" then
@@ -661,15 +642,12 @@ function MacroSystem.playback(name)
                 if tid then
                     local success = towers.changeUpgradePriority.call(tid)
                     if success then
-                        setProgress(i, #actions,
-                            "[SUCCESS] Toggled auto-upgrade for [" .. baseName .. "]", nextPreview)
+                        setProgress(i, #actions, "[SUCCESS] Toggled auto-upgrade for [" .. baseName .. "]", nextPreview)
                     else
-                        setProgress(i, #actions,
-                            "[FAIL] Auto-upgrade toggle failed for [" .. baseName .. "] — server rejected the request", nextPreview)
+                        setProgress(i, #actions, "[FAIL] Auto-upgrade toggle failed for [" .. baseName .. "] — server rejected the request", nextPreview)
                     end
                 else
-                    setProgress(i, #actions,
-                        "[ERROR] Cannot toggle auto-upgrade for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
+                    setProgress(i, #actions, "[ERROR] Cannot toggle auto-upgrade for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
 
             elseif action.action == "CHANGE_PRIORITY" then
@@ -685,8 +663,7 @@ function MacroSystem.playback(name)
                             string.format("[FAIL] Could not set priority for [%s] — server rejected the request", baseName), nextPreview)
                     end
                 else
-                    setProgress(i, #actions,
-                        "[ERROR] Cannot change priority for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
+                    setProgress(i, #actions, "[ERROR] Cannot change priority for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
             end
         end
@@ -713,11 +690,12 @@ end
 local Webhook = {
     url           = "",
     discordUserId = "",
+    sendOnFinish  = false,
 }
 
 local State = {
     AntiAfkEnabled = false,
-    AutoStartGame = false,
+    AutoStartGame  = false,
 }
 
 local function sendWebhookRaw(body)
@@ -795,9 +773,12 @@ local Window = Rayfield:CreateWindow({
     },
 })
 
+-- ============================================================
+-- GAME TAB
+-- ============================================================
 local GameTab = Window:CreateTab("Game", "gamepad")
 
-GameTab:CreateToggle({ Name="Auto Start Game",  Flag="AutoStartGame",  Callback=function(v) State.AutoStartGame=v  end })
+GameTab:CreateToggle({ Name = "Auto Start Game", Flag = "AutoStartGame", Callback = function(v) State.AutoStartGame = v end })
 
 task.spawn(function()
     if IS_LOBBY then return end
@@ -811,15 +792,14 @@ task.spawn(function()
 
     local TARGET_X = 0.5
     local TARGET_Y = 0.349999994
-    local fired = false
+    local fired    = false
 
     while true do
         task.wait(0.5)
         if State.AutoStartGame then
-            local pos = button.Position
+            local pos        = button.Position
             local inPosition = math.abs(pos.X.Scale - TARGET_X) < 0.001
                            and math.abs(pos.Y.Scale - TARGET_Y) < 0.001
-
             if inPosition and not fired then
                 task.delay(3, function()
                     if State.AutoStartGame then
@@ -834,13 +814,13 @@ task.spawn(function()
     end
 end)
 
-GameTab:CreateToggle({ Name="Anti-AFK", Flag="AntiAfk", Callback=function(v) State.AntiAfkEnabled=v end })
+GameTab:CreateToggle({ Name = "Anti-AFK", Flag = "AntiAfk", Callback = function(v) State.AntiAfkEnabled = v end })
 
-game:GetService("Players").LocalPlayer.Idled:Connect(function()
+Players.LocalPlayer.Idled:Connect(function()
     if State.AntiAfkEnabled then
-        Svc.VirtualUser:Button2Down(Vector2.zero, Svc.Workspace.CurrentCamera.CFrame)
+        game:GetService("VirtualUser"):Button2Down(Vector2.zero, workspace.CurrentCamera.CFrame)
         task.wait(1)
-        Svc.VirtualUser:Button2Up(Vector2.zero, Svc.Workspace.CurrentCamera.CFrame)
+        game:GetService("VirtualUser"):Button2Up(Vector2.zero, workspace.CurrentCamera.CFrame)
     end
 end)
 
@@ -1089,9 +1069,6 @@ MacroTab:CreateButton({
     end,
 })
 
--- Import: paste a Discord CDN URL or raw JSON
--- If it looks like a URL, fetch the file and use its filename as the macro name.
--- If it's raw JSON, use Import_<timestamp> as the name.
 MacroTab:CreateInput({
     Name                     = "Import Macro (URL or JSON)",
     PlaceholderText          = "Paste a download URL or raw JSON...",
@@ -1102,16 +1079,12 @@ MacroTab:CreateInput({
         input = input:match("^%s*(.-)%s*$")
         local isUrl = input:match("^https?://")
         if isUrl then
-            -- Fetch the file from the URL
             local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
             if not requestFunc then
                 return pushNotify({ Title = "Import Failed", Content = "HTTP not supported by your executor", Duration = 4, Image = "x-circle" })
             end
-            -- Extract filename from URL (strip query params)
-            local filename = input:match("/([^/?#]+)%?") or input:match("/([^/?#]+)$") or ""
-            -- Strip .json extension for the macro name
+            local filename   = input:match("/([^/?#]+)%?") or input:match("/([^/?#]+)$") or ""
             local importName = filename:match("^(.+)%.json$") or filename
-            -- Sanitise
             importName = importName:gsub('[<>:"/\\|?*]', ""):match("^%s*(.-)%s*$")
             if importName == "" then importName = "Import_" .. os.time() end
             if MacroSystem.library[importName] then
@@ -1125,8 +1098,7 @@ MacroTab:CreateInput({
                 if not ok or not response or not response.Body then
                     return pushNotify({ Title = "Import Failed", Content = "Could not fetch URL", Duration = 4, Image = "x-circle" })
                 end
-                local jsonStr = response.Body
-                local importOk, result = MacroSystem.importFromJSON(importName, jsonStr)
+                local importOk, result = MacroSystem.importFromJSON(importName, response.Body)
                 if importOk then
                     MacroSystem.currentMacroName = importName
                     refreshDropdown()
@@ -1137,8 +1109,7 @@ MacroTab:CreateInput({
                 end
             end)
         else
-            -- Raw JSON — strip Discord code fences if present
-            local jsonStr = input:gsub("^```[%w]*\n?", ""):gsub("\n?```$", "")
+            local jsonStr    = input:gsub("^```[%w]*\n?", ""):gsub("\n?```$", "")
             local importName = "Import_" .. os.time()
             local ok, result = MacroSystem.importFromJSON(importName, jsonStr)
             if ok then
@@ -1164,8 +1135,7 @@ MacroTab:CreateButton({
         if not actions or #actions == 0 then
             return pushNotify({ Title = "Error", Content = "Macro is empty", Duration = 3, Image = "x-circle" })
         end
-        local seen  = {}
-        local units = {}
+        local seen, units = {}, {}
         for _, a in ipairs(actions) do
             if a.action == "PLACE" and a.unitName then
                 local baseName = a.unitName:match("^(.-)%s*#%d+$") or a.unitName
@@ -1179,12 +1149,7 @@ MacroTab:CreateButton({
             return pushNotify({ Title = "No Units", Content = "No PLACE actions found in this macro", Duration = 3, Image = "info" })
         end
         table.sort(units)
-        pushNotify({
-            Title    = "Units needed: " .. name,
-            Content  = table.concat(units, ", "),
-            Duration = 10,
-            Image    = "users"
-        })
+        pushNotify({ Title = "Units needed: " .. name, Content = table.concat(units, ", "), Duration = 10, Image = "users" })
     end,
 })
 
@@ -1206,9 +1171,7 @@ MacroTab:CreateButton({
         if not requestFunc then
             return pushNotify({ Title = "Error", Content = "HTTP not supported by your executor", Duration = 4, Image = "x-circle" })
         end
-        -- Collect unique unit names, supporting both unitName and unitLabel keys
-        local seen  = {}
-        local units = {}
+        local seen, units = {}, {}
         for _, a in ipairs(actions) do
             if a.action == "PLACE" and a.unitName then
                 local baseName = a.unitName:match("^(.-)%s*#%d+$") or a.unitName
@@ -1219,17 +1182,12 @@ MacroTab:CreateButton({
             end
         end
         table.sort(units)
-        local unitStr  = #units > 0 and table.concat(units, ", ") or "None"
-        local jsonStr  = HttpService:JSONEncode(actions)
-        local boundary = "LixHubBoundary"
-        local ping = (Webhook.discordUserId and Webhook.discordUserId ~= "")
+        local unitStr     = #units > 0 and table.concat(units, ", ") or "None"
+        local jsonStr     = HttpService:JSONEncode(actions)
+        local boundary    = "LixHubBoundary"
+        local ping        = (Webhook.discordUserId and Webhook.discordUserId ~= "")
             and ("<@" .. Webhook.discordUserId .. "> ") or ""
-        local textContent = ping .. "Units: " .. unitStr
-        -- Payload JSON part
-        local payloadJson = HttpService:JSONEncode({
-            username = "LixHub",
-            content  = textContent,
-        })
+        local payloadJson = HttpService:JSONEncode({ username = "LixHub", content = ping .. "Units: " .. unitStr })
         local body = "--" .. boundary .. "\r\n"
             .. "Content-Disposition: form-data; name=\"payload_json\"\r\n\r\n"
             .. payloadJson .. "\r\n"
@@ -1255,8 +1213,6 @@ MacroTab:CreateButton({
 -- ============================================================
 local WebhookTab = Window:CreateTab("Webhook", "link")
 
-WebhookTab:CreateSection("Configuration")
-
 WebhookTab:CreateInput({
     Name                     = "Webhook URL",
     CurrentValue             = "",
@@ -1269,7 +1225,7 @@ WebhookTab:CreateInput({
 })
 
 WebhookTab:CreateInput({
-    Name                     = "Discord User ID (for pings)",
+    Name                     = "Discord User ID (mention rares)",
     CurrentValue             = "",
     PlaceholderText          = "Your Discord user ID...",
     RemoveTextAfterFocusLost = false,
@@ -1279,8 +1235,14 @@ WebhookTab:CreateInput({
     end,
 })
 
-WebhookTab:CreateDivider()
-WebhookTab:CreateSection("Actions")
+WebhookTab:CreateToggle({
+    Name         = "Send Webhook on Stage End",
+    CurrentValue = false,
+    Flag         = "WebhookOnFinish",
+    Callback     = function(v)
+        Webhook.sendOnFinish = v
+    end,
+})
 
 WebhookTab:CreateButton({
     Name     = "Send Test Webhook",
@@ -1299,6 +1261,124 @@ WebhookTab:CreateButton({
         end
     end,
 })
+
+-- ============================================================
+-- MATCH END WEBHOOK
+-- ============================================================
+
+local itemNameCache = {}
+local function getItemName(itemId)
+    if itemNameCache[itemId] then return itemNameCache[itemId] end
+    local itemsData = ReplicatedStorage.shared.config.items.data
+    for _, obj in ipairs(itemsData:GetDescendants()) do
+        if obj:IsA("ModuleScript") and obj.Name == itemId then
+            local ok, config = pcall(require, obj)
+            if ok and config and config.name then
+                itemNameCache[itemId] = config.name
+                return config.name
+            end
+        end
+    end
+    itemNameCache[itemId] = itemId
+    return itemId
+end
+
+local function setupMatchEndWebhook()
+    if IS_LOBBY then return end
+
+    local matchNet    = require(ReplicatedStorage.gameClient.net.match)
+    local stages      = require(ReplicatedStorage.shared.config.stages)
+    local selectStage = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectStage)
+    local selectAct   = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectAct)
+    local selectDiff  = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectDifficulty)
+    local selectGM    = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectGamemode)
+
+    matchNet.matchEnd.on(function(won, rewardsData, heroesExp, finalTime)
+        if not Webhook.sendOnFinish then return end
+        if not Webhook.url or Webhook.url == "" then return end
+
+        local stageId    = clientStore:getState(selectStage)
+        local actNumber  = clientStore:getState(selectAct)  or 1
+        local difficulty = clientStore:getState(selectDiff) or "Normal"
+        local gamemode   = clientStore:getState(selectGM)   or "story"
+
+        local stageData = stages.get(stageId)
+        local mapName   = (stageData and stageData.name) or stageId or "Unknown"
+
+        local title = string.format("%s (Act %d - %s) - %s",
+            mapName,
+            actNumber,
+            tostring(gamemode):gsub("^%l", string.upper),
+            won and "Victory" or "Defeat"
+        )
+
+        -- Format clear time
+        local mins    = math.floor(finalTime / 60)
+        local secs    = math.floor(finalTime % 60)
+        local timeStr = string.format("%d:%02d", mins, secs)
+
+        -- Build rewards string
+        local rewardLines = {}
+        for _, r in ipairs(rewardsData or {}) do
+            local displayName = getItemName(r.id)
+            table.insert(rewardLines, string.format("+ %s x%d", displayName, r.amount))
+        end
+        local rewardStr = #rewardLines > 0 and table.concat(rewardLines, "\n") or "None"
+
+        -- Build hero exp string
+        local expLines = {}
+        for i, h in ipairs(heroesExp or {}) do
+            local hero = getHeroByUuid(h.uuid)
+            local name = hero and hero.name or h.uuid
+            table.insert(expLines, string.format("%d - %s +%d exp", i, name, h.exp))
+        end
+        local expStr = #expLines > 0 and table.concat(expLines, "\n") or "None"
+
+        -- No ping for now (will add when unit drop detection is implemented)
+        local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+        if not requestFunc then return end
+
+        pcall(function()
+            requestFunc({
+                Url     = Webhook.url,
+                Method  = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body    = HttpService:JSONEncode({
+                    username = "LixHub",
+                    content  = "",
+                    embeds   = {{
+                        title       = title,
+                        color       = won and 0x57F287 or 0xED4245,
+                        fields      = {
+                            {
+                                name   = "Player",
+                                value  = Players.LocalPlayer.Name,
+                                inline = true,
+                            },
+                            {
+                                name   = "Won in",
+                                value  = timeStr,
+                                inline = true,
+                            },
+                            {
+                                name   = "Rewards",
+                                value  = rewardStr,
+                                inline = false,
+                            },
+                            {
+                                name   = "Hero EXP",
+                                value  = expStr,
+                                inline = false,
+                            },
+                        },
+                        footer    = { text = "discord.gg/cYKnXE2Nf8" },
+                        timestamp = DateTime.now():ToIsoDate(),
+                    }},
+                }),
+            })
+        end)
+    end)
+end
 
 -- ============================================================
 -- WAVE HOOK
@@ -1401,6 +1481,7 @@ else
     setupHooks()
     setupWaveHook()
     setupMatchEndHook()
+    setupMatchEndWebhook()
     print("[LixHub] In-game — hooks active.")
 end
 
