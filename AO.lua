@@ -1,5 +1,5 @@
 -- ============================================================
--- LIXHUB - ANIME OVERLOAD MACRO SYSTEM WITH UI
+-- V0.01
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -801,7 +801,7 @@ task.spawn(function()
             local inPosition = math.abs(pos.X.Scale - TARGET_X) < 0.001
                            and math.abs(pos.Y.Scale - TARGET_Y) < 0.001
             if inPosition and not fired then
-                task.delay(3, function()
+                task.delay(1, function()
                     if State.AutoStartGame then
                         votingClient.startMatch.fire()
                     end
@@ -1279,8 +1279,9 @@ local function getItemName(itemId)
             end
         end
     end
-    itemNameCache[itemId] = itemId
-    return itemId
+    local cleaned = itemId:gsub("(%u)", " %1"):gsub("^%l", string.upper)
+    itemNameCache[itemId] = cleaned
+    return cleaned
 end
 
 local function setupMatchEndWebhook()
@@ -1352,7 +1353,7 @@ local function setupMatchEndWebhook()
                         fields      = {
                             {
                                 name   = "Player",
-                                value  = Players.LocalPlayer.Name,
+                                value  = "||" .. Players.LocalPlayer.Name .. "||",
                                 inline = true,
                             },
                             {
