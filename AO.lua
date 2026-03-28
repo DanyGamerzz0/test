@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.01
+-- V0.02
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, calculateClientUpgradeCostMultiplier
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -32,6 +32,7 @@ if not IS_LOBBY then
 
     towers = require(net:WaitForChild("towers"))
     sync   = require(net:WaitForChild("sync"))
+    playerNet = require(ReplicatedStorage.gameClient.net.player)
 
     calculateClientUpgradeCostMultiplier = require(ReplicatedStorage.gameClient.utilities.calculateClientUpgradeCostMultiplier)
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
@@ -696,6 +697,7 @@ local Webhook = {
 local State = {
     AntiAfkEnabled = false,
     AutoStartGame  = false,
+    AutoLobby      = false,
 }
 
 local function sendWebhookRaw(body)
@@ -779,6 +781,10 @@ local Window = Rayfield:CreateWindow({
 local GameTab = Window:CreateTab("Game", "gamepad")
 
 GameTab:CreateToggle({ Name = "Auto Start Game", Flag = "AutoStartGame", Callback = function(v) State.AutoStartGame = v end })
+GameTab:CreateToggle({ Name = "Auto Replay",      Flag = "AutoReplay",      Callback = function(v) playerNet.updateSettings.fire("autoReplay", v)  end })
+GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",        Callback = function(v) playerNet.updateSettings.fire("autoNextAct", v) end })
+GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",       Callback = function(v) State.AutoLobby = v end })
+GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves",   Callback = function(v) playerNet.updateSettings.fire("autoSkipWave", v) end })
 
 task.spawn(function()
     if IS_LOBBY then return end
@@ -1464,6 +1470,9 @@ local function setupMatchEndHook()
             pushNotify({ Title = "Game Ended", Content = "Playback will resume automatically when the next game starts", Duration = 3, Image = "refresh-cw" })
         elseif not MacroSystem.isRecording then
             pushUI("Macro: — | Ready", "Waiting for input...")
+        end
+        if State.AutoLobby then
+            game:GetService("TeleportService"):Teleport(126297188712308)
         end
     end)
 end
