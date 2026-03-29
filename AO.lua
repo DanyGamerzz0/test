@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.43
+-- V0.44
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -447,6 +447,27 @@ local function buildNextPreview(actions, currentIndex, nameToHero, labelToLevel)
         end
     end
     return "Next: End of macro"
+end
+
+local function setupRestartHook()
+    local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
+    local oldResetAct = votingClient.resetAct.call
+    votingClient.resetAct.call = function(...)
+        -- intercept before it fires
+        if MacroSystem.isPlaying then
+            MacroSystem.stopPlayback()
+            MacroSystem.pendingPlayback = true
+            pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Act reset — waiting for wave 1 to resume...")
+            pushNotify({ Title = "Macro Paused", Content = "Act restarted — playback will resume at wave 1", Duration = 3, Image = "refresh-cw" })
+        end
+        if MacroSystem.isRecording then
+            MacroSystem.stopRecording()
+            MacroSystem.pendingRecord = true
+            pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Act reset — waiting for wave 1 to resume recording...")
+            pushNotify({ Title = "Recording Paused", Content = "Act restarted — recording will resume at wave 1", Duration = 3, Image = "refresh-cw" })
+        end
+        return oldResetAct(...)
+    end
 end
 
 local function setProgress(i, total, statusLine, nextLine)
@@ -1956,7 +1977,6 @@ MacroTab:CreateInput({
     Name                     = "Import Macro (URL or JSON)",
     PlaceholderText          = "Paste a download URL or raw JSON...",
     RemoveTextAfterFocusLost = true,
-    Flag                     = "ImportMacroJSON",
     Callback                 = function(input)
         if not input or input:match("^%s*$") then return end
         input = input:match("^%s*(.-)%s*$")
@@ -2127,15 +2147,6 @@ local function buildModeCollapsible(displayName, gamemodeKey, nameList, nameToId
         worldMacroDropdowns[mapKey] = dropdown
     end
 end
-
--- DEBUG
-print("[LixHub] worldMacroDropdowns registered count:")
-local count = 0
-for key in pairs(worldMacroDropdowns) do
-    count = count + 1
-    print("  " .. key)
-end
-print("  TOTAL:", count)
 
 -- ============================================================
 -- WEBHOOK TAB
@@ -2503,6 +2514,7 @@ if IS_LOBBY then
     setupAutoJoin()
 else
     setupHooks()
+    setupRestartHook()
     setupWaveHook()
     setupMatchEndHook()
     setupMatchEndWebhook()
