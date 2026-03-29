@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.19
+-- V0.2
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -731,6 +731,12 @@ local State = {
     ChallengeRequiredRewards   = {},
     ChallengeAutoLobbyOnRotation = false,
     ChallengeRotationPending = false,
+    ModePriorities = {
+    Challenge = 100,
+    Raid      = 75,
+    Legend    = 50,
+    Story     = 25,
+ },
 }
 
 local function sendWebhookRaw(body)
@@ -1030,22 +1036,41 @@ AutoJoinTab:CreateDropdown({
     end,
 })
 
-local rewardOptions = {}
-local rewardNameToId = {}
+local challengeRewards = {}
+local rewardOptions    = {}
+local rewardNameToId   = {}
+
 do
-    local ok, items = pcall(require, ReplicatedStorage:WaitForChild("shared"):WaitForChild("config"):WaitForChild("items"))
-    if ok and items then
-        local allItems = {}
-        pcall(function()
-            for id, cfg in pairs(items.getAll and items.getAll() or {}) do
-                if cfg.name then
-                    table.insert(rewardOptions, cfg.name)
-                    rewardNameToId[cfg.name] = id
-                    allItems[id] = cfg
+    local ok, rewardCfg = pcall(require, ReplicatedStorage:WaitForChild("shared")
+        :WaitForChild("config"):WaitForChild("gamemodes"):WaitForChild("challengeRewards"))
+    if ok and type(rewardCfg) == "table" then
+        local seen = {}
+        for _, rewardGroups in pairs(rewardCfg) do
+            for _, group in ipairs(rewardGroups) do
+                for _, reward in ipairs(group) do
+                    local id = reward.id
+                    if id and not seen[id] then
+                        seen[id] = true
+                        -- resolve display name from items config
+                        local itemsData = ReplicatedStorage.shared.config.items.data
+                        local displayName = id
+                        for _, obj in ipairs(itemsData:GetDescendants()) do
+                            if obj:IsA("ModuleScript") and obj.Name == id then
+                                local iok, cfg = pcall(require, obj)
+                                if iok and cfg and cfg.name then
+                                    displayName = cfg.name
+                                    break
+                                end
+                            end
+                        end
+                        table.insert(rewardOptions, displayName)
+                        rewardNameToId[displayName] = id
+                    end
                 end
             end
-        end)
+        end
         table.sort(rewardOptions)
+        challengeRewards = rewardCfg
     end
 end
 
@@ -1104,26 +1129,21 @@ end
 -- AUTO JOIN LOGIC
 -- ============================================================
 local function setupAutoJoin()
-    local roomsNet       = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("rooms"))
-    local lobbyPlayerNet = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("player"))
+    local roomsNet = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("rooms"))
 
     roomsNet.roomJoinError.on(function(errMsg)
-        if State.AutoJoin then
-            warn("[LixHub] Room join error: " .. tostring(errMsg))
-            pushNotify({ Title = "Auto Join Error", Content = tostring(errMsg), Duration = 5, Image = "x-circle" })
-        end
+        warn("[LixHub] Room join error: " .. tostring(errMsg))
+        pushNotify({ Title = "Auto Join Error", Content = tostring(errMsg), Duration = 5, Image = "x-circle" })
     end)
 
     roomsNet.teleportToGame.on(function(data)
-        if State.AutoJoin then
-            print(string.format("[LixHub] Teleporting to game: %s - %s", data.mapName, data.actName))
-            pushNotify({
-                Title    = "Auto Join",
-                Content  = string.format("Joining %s — %s", data.mapName, data.actName),
-                Duration = 4,
-                Image    = "play"
-            })
-        end
+        print(string.format("[LixHub] Teleporting to game: %s - %s", data.mapName, data.actName))
+        pushNotify({
+            Title    = "Auto Join",
+            Content  = string.format("Joining %s — %s", data.mapName, data.actName),
+            Duration = 4,
+            Image    = "play"
+        })
     end)
 
     local function touchStoryDoor()
@@ -1132,364 +1152,298 @@ local function setupAutoJoin()
             warn("[LixHub] StoryDoor folder not found in workspace")
             return false
         end
-
         for i = 1, 10 do
             local doorName = string.format("%03d", i)
             local door = doorsFolder:FindFirstChild(doorName)
             if not door then continue end
-
+            local doorPart = door:FindFirstChild("Door")
+            if not doorPart then continue end
             print(string.format("[LixHub] Touching story door %s", doorName))
-            Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(door:FindFirstChild("Door") and door.Door.Position or door.Position)
+            Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(doorPart.Position)
             task.wait(1.5)
-
             local ok, result = pcall(roomsNet.setConfiguring.call, true)
             if ok and result then
                 print(string.format("[LixHub] Room created via door %s", doorName))
                 return true
             end
-
             print(string.format("[LixHub] Door %s didn't work, trying next...", doorName))
         end
-
         warn("[LixHub] No story door worked")
         return false
     end
 
     local function touchRaidDoor()
-    local doorsFolder = workspace:FindFirstChild("RaidDoor")
-    if not doorsFolder then
-        warn("[LixHub] RaidDoor folder not found in workspace")
+        local doorsFolder = workspace:FindFirstChild("RaidDoor")
+        if not doorsFolder then
+            warn("[LixHub] RaidDoor folder not found in workspace")
+            return false
+        end
+        for i = 1, 10 do
+            local doorName = string.format("%03d", i)
+            local door = doorsFolder:FindFirstChild(doorName)
+            if not door then continue end
+            local doorPart = door:FindFirstChild("Door")
+            if not doorPart then continue end
+            print(string.format("[LixHub] Touching raid door %s", doorName))
+            Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(doorPart.Position)
+            task.wait(1.5)
+            local ok, result = pcall(roomsNet.setConfiguring.call, true)
+            if ok and result then
+                print(string.format("[LixHub] Raid room created via door %s", doorName))
+                return true
+            end
+            print(string.format("[LixHub] Raid door %s didn't work, trying next...", doorName))
+        end
+        warn("[LixHub] No raid door worked")
         return false
     end
-    for i = 1, 10 do
-        local doorName = string.format("%03d", i)
-        local door = doorsFolder:FindFirstChild(doorName)
-        if not door then continue end
-        local doorPart = door:FindFirstChild("Door")
-        if not doorPart then continue end
-        print(string.format("[LixHub] Touching raid door %s", doorName))
-        Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(doorPart.Position)
-        task.wait(1.5)
-        local ok, result = pcall(roomsNet.setConfiguring.call, true)
-        if ok and result then
-            print(string.format("[LixHub] Raid room created via door %s", doorName))
-            return true
+
+    local function touchChallengeDoor()
+        local doorsFolder = workspace:FindFirstChild("ChallengeDoor")
+        if not doorsFolder then
+            warn("[LixHub] ChallengeDoor folder not found in workspace")
+            return false
         end
-        print(string.format("[LixHub] Raid door %s didn't work, trying next...", doorName))
-    end
-    warn("[LixHub] No raid door worked")
-    return false
-end
-local function touchChallengeDoor()
-    local doorsFolder = workspace:FindFirstChild("ChallengeDoor")
-    if not doorsFolder then
-        warn("[LixHub] ChallengeDoor folder not found in workspace")
+        for i = 1, 10 do
+            local doorName = string.format("%03d", i)
+            local door = doorsFolder:FindFirstChild(doorName)
+            if not door then continue end
+            local doorPart = door:FindFirstChild("Door")
+            if not doorPart then continue end
+            print(string.format("[LixHub] Touching challenge door %s", doorName))
+            Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(doorPart.Position)
+            task.wait(1.5)
+            local ok, result = pcall(roomsNet.setConfiguring.call, true)
+            if ok and result then
+                print(string.format("[LixHub] Challenge room created via door %s", doorName))
+                return true
+            end
+            print(string.format("[LixHub] Challenge door %s didn't work, trying next...", doorName))
+        end
+        warn("[LixHub] No challenge door worked")
         return false
     end
-    for i = 1, 10 do
-        local doorName = string.format("%03d", i)
-        local door = doorsFolder:FindFirstChild(doorName)
-        if not door then continue end
-        local doorPart = door:FindFirstChild("Door")
-        if not doorPart then continue end
-        print(string.format("[LixHub] Touching challenge door %s", doorName))
-        Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(doorPart.Position)
-        task.wait(1.5)
-        local ok, result = pcall(roomsNet.setConfiguring.call, true)
-        if ok and result then
-            print(string.format("[LixHub] Challenge room created via door %s", doorName))
-            return true
-        end
-        print(string.format("[LixHub] Challenge door %s didn't work, trying next...", doorName))
+
+    local selectHasCompletedChallengeEntry = require(
+        ReplicatedStorage.shared.store.slices.data.selectors.challenges.selectHasCompletedChallengeEntry)
+
+    local function isChallengeCompleted(entryId)
+        local ok, result = pcall(function()
+            return getLobbyStore():getState(selectHasCompletedChallengeEntry(nil, entryId))
+        end)
+        return ok and result == true
     end
-    warn("[LixHub] No challenge door worked")
-    return false
-end
 
-    task.spawn(function()
-        while true do
-            task.wait(2)
-
-            if not State.AutoJoin then continue end
-            if not IS_LOBBY then continue end
-            if State.AutoJoinStageId == "" then continue end
-            if not State.AutoJoinAct then continue end
-            if State.AutoJoinDifficulty == "" then continue end
-
-            -- Touch a door to get placed in a room
-            local inRoom = touchStoryDoor()
-            if not inRoom then
-                pushNotify({ Title = "Auto Join", Content = "Could not enter a story room — retrying...", Duration = 3, Image = "x-circle" })
-                task.wait(3) continue
-            end
-
-            task.wait(0.2)
-
-            local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinStageId)
-            if not ok2 or not result2 then
-                warn("[LixHub] selectStage failed: " .. tostring(result2))
-                task.wait(3) continue
-            end
-
-            task.wait(0.2)
-
-            local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinAct)
-            if not ok3 or not result3 then
-                warn("[LixHub] selectAct failed: " .. tostring(result3))
-                task.wait(3) continue
-            end
-
-            task.wait(0.2)
-
-            local ok4, result4 = pcall(roomsNet.selectDifficulty.call, State.AutoJoinDifficulty:lower())
-            if not ok4 or not result4 then
-                warn("[LixHub] selectDifficulty failed: " .. tostring(result4))
-                task.wait(3) continue
-            end
-
-            task.wait(0.2)
-
-            local ok5, result5 = pcall(roomsNet.getReady.call)
-            if not ok5 or not result5 then
-                warn("[LixHub] getReady failed: " .. tostring(result5))
-                task.wait(3) continue
-            end
-
-            task.wait(0.2)
-
-            local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
-            if not ok6 or not result6 then
-                warn("[LixHub] setMatchStatus failed: " .. tostring(result6))
-                task.wait(3) continue
-            end
-
-            pushNotify({
-                Title   = "Auto Join",
-                Content = string.format("Joining: %s Act %d (%s)",
-                    State.AutoJoinStageName, State.AutoJoinAct, State.AutoJoinDifficulty),
-                Duration = 4,
-                Image   = "log-in"
-            })
-
-            task.wait(10)
-        end
-    end)
-    task.spawn(function()
-    while true do
-        task.wait(2)
-
-        if not State.AutoJoinLegend then continue end
-        if not IS_LOBBY then continue end
-        if State.AutoJoinLegendStageId == "" then continue end
-        if not State.AutoJoinLegendAct then continue end
-
-        local inRoom = touchStoryDoor()
-        if not inRoom then
-            pushNotify({ Title = "Auto Join Legend", Content = "Could not enter a room — retrying...", Duration = 3, Image = "x-circle" })
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        -- Set gamemode to legends (from Cobalt: \x04\x02\a\x00legends)
-        local Event = ReplicatedStorage:WaitForChild("rooms"):WaitForChild("rooms_RELIABLE")
-        Event:FireServer(buffer.fromstring("\x04\x02\a\x00legends"), {})
-
-        task.wait(0.2)
-
-        local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinLegendStageId)
-        if not ok2 or not result2 then
-            warn("[LixHub] Legend selectStage failed: " .. tostring(result2))
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinLegendAct)
-        if not ok3 or not result3 then
-            warn("[LixHub] Legend selectAct failed: " .. tostring(result3))
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        local ok5, result5 = pcall(roomsNet.getReady.call)
-        if not ok5 or not result5 then
-            warn("[LixHub] Legend getReady failed: " .. tostring(result5))
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
-        if not ok6 or not result6 then
-            warn("[LixHub] Legend setMatchStatus failed: " .. tostring(result6))
-            task.wait(3) continue
-        end
-
-        pushNotify({
-            Title   = "Auto Join Legend",
-            Content = string.format("Joining: %s Act %d (Legend)",
-                State.AutoJoinLegendStageName, State.AutoJoinLegendAct),
-            Duration = 4,
-            Image   = "log-in"
-        })
-
-        task.wait(10)
-    end
-end)
-task.spawn(function()
-    while true do
-        task.wait(2)
-        if not State.AutoJoinRaid then continue end
-        if not IS_LOBBY then continue end
-        if State.AutoJoinRaidStageId == "" then continue end
-        if not State.AutoJoinRaidAct then continue end
-
-        local inRoom = touchRaidDoor()
-        if not inRoom then
-            pushNotify({ Title = "Auto Join Raid", Content = "Could not enter a raid room — retrying...", Duration = 3, Image = "x-circle" })
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinRaidStageId)
-        if not ok2 or not result2 then
-            warn("[LixHub] Raid selectStage failed: " .. tostring(result2))
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinRaidAct)
-        if not ok3 or not result3 then
-            warn("[LixHub] Raid selectAct failed: " .. tostring(result3))
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        local ok5, result5 = pcall(roomsNet.getReady.call)
-        if not ok5 or not result5 then
-            warn("[LixHub] Raid getReady failed: " .. tostring(result5))
-            task.wait(3) continue
-        end
-
-        task.wait(0.2)
-
-        local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
-        if not ok6 or not result6 then
-            warn("[LixHub] Raid setMatchStatus failed: " .. tostring(result6))
-            task.wait(3) continue
-        end
-
-        pushNotify({
-            Title   = "Auto Join Raid",
-            Content = string.format("Joining: %s Act %d (Raid)", State.AutoJoinRaidStageName, State.AutoJoinRaidAct),
-            Duration = 4,
-            Image   = "log-in"
-        })
-
-        task.wait(10)
-    end
-end)
-task.spawn(function()
-    while true do
-        task.wait(2)
-        if not State.AutoJoinChallenge then continue end
-        if not IS_LOBBY then continue end
-        if #State.ChallengeFrequencies == 0 then continue end
-
+    local function findBestChallenge()
+        if not State.AutoJoinChallenge then return nil end
+        if #State.ChallengeFrequencies == 0 then return nil end
         local freqEnum = getChallengeFrequencyEnum()
-        local picked = nil
-        local pickedFreq = nil
-
         for _, freqName in ipairs(State.ChallengeFrequencies) do
             local freqType = freqEnum[freqName]
             if not freqType then continue end
-
             local challenges = getChallengesByType(freqType)
             for _, entry in ipairs(challenges) do
-                -- Check ignore worlds
-                if entry.stage and State.ChallengeIgnoreWorlds[entry.stage] then
-                    continue
-                end
-
-                -- Check required rewards
+                if isChallengeCompleted(entry.id) then continue end
+                if entry.stage and State.ChallengeIgnoreWorlds[entry.stage] then continue end
                 if next(State.ChallengeRequiredRewards) then
+                    local freqRewards = challengeRewards[freqType] or {}
                     local hasReward = false
-                    for _, challengeId in ipairs(entry.challenges or {}) do
-                        local ok, cfg = pcall(require, ReplicatedStorage.shared.config.gamemodes.challenges)
-                        if ok then
-                            local challengeCfg = cfg.get(challengeId)
-                            if challengeCfg and challengeCfg.rewards then
-                                for _, reward in ipairs(challengeCfg.rewards) do
-                                    if State.ChallengeRequiredRewards[reward.id or reward] then
-                                        hasReward = true
-                                        break
-                                    end
-                                end
+                    for _, group in ipairs(freqRewards) do
+                        for _, reward in ipairs(group) do
+                            if State.ChallengeRequiredRewards[reward.id] then
+                                hasReward = true
+                                break
                             end
                         end
                         if hasReward then break end
                     end
                     if not hasReward then continue end
                 end
-
-                picked = entry
-                pickedFreq = freqType
-                break
+                return { entry = entry, freq = freqType }
             end
-            if picked then break end
         end
+        return nil
+    end
 
-        if not picked then
-            pushUI("Challenge: No matching challenge found", "Waiting for a valid challenge...")
-            task.wait(5) continue
-        end
-
+    local function tryJoinChallenge(entry, freqType)
         local inRoom = touchChallengeDoor()
         if not inRoom then
             pushNotify({ Title = "Auto Challenge", Content = "Could not enter challenge room — retrying...", Duration = 3, Image = "x-circle" })
-            task.wait(3) continue
+            return false
         end
-
         task.wait(0.2)
-
-        local ok2, result2 = pcall(roomsNet.selectChallenge.call, pickedFreq, picked.id)
-        if not ok2 or not result2 then
-            warn("[LixHub] selectChallenge failed: " .. tostring(result2))
-            task.wait(3) continue
-        end
-
+        local ok2, r2 = pcall(roomsNet.selectChallenge.call, freqType, entry.id)
+        if not ok2 or not r2 then warn("[LixHub] selectChallenge failed: " .. tostring(r2)) return false end
         task.wait(0.2)
-
-        local ok5, result5 = pcall(roomsNet.getReady.call)
-        if not ok5 or not result5 then
-            warn("[LixHub] Challenge getReady failed: " .. tostring(result5))
-            task.wait(3) continue
-        end
-
+        local ok5, r5 = pcall(roomsNet.getReady.call)
+        if not ok5 or not r5 then warn("[LixHub] Challenge getReady failed: " .. tostring(r5)) return false end
         task.wait(0.2)
-
-        local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
-        if not ok6 or not result6 then
-            warn("[LixHub] Challenge setMatchStatus failed: " .. tostring(result6))
-            task.wait(3) continue
-        end
-
-        pushNotify({
-            Title   = "Auto Challenge",
-            Content = string.format("Joining challenge on stage: %s (%s)", picked.stage or "?", pickedFreq or "?"),
-            Duration = 4,
-            Image   = "log-in"
-        })
-
-        task.wait(10)
+        local ok6, r6 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok6 or not r6 then warn("[LixHub] Challenge setMatchStatus failed: " .. tostring(r6)) return false end
+        pushNotify({ Title = "Auto Challenge", Content = string.format("Joining challenge: %s (%s)", entry.stage or "?", tostring(freqType)), Duration = 4, Image = "log-in" })
+        return true
     end
-end)
+
+    local function tryJoinRaid()
+        if not State.AutoJoinRaid or State.AutoJoinRaidStageId == "" or not State.AutoJoinRaidAct then return false end
+        local inRoom = touchRaidDoor()
+        if not inRoom then return false end
+        task.wait(0.2)
+        local ok2, r2 = pcall(roomsNet.selectStage.call, State.AutoJoinRaidStageId)
+        if not ok2 or not r2 then warn("[LixHub] Raid selectStage failed: " .. tostring(r2)) return false end
+        task.wait(0.2)
+        local ok3, r3 = pcall(roomsNet.selectAct.call, State.AutoJoinRaidAct)
+        if not ok3 or not r3 then warn("[LixHub] Raid selectAct failed: " .. tostring(r3)) return false end
+        task.wait(0.2)
+        local ok5, r5 = pcall(roomsNet.getReady.call)
+        if not ok5 or not r5 then warn("[LixHub] Raid getReady failed: " .. tostring(r5)) return false end
+        task.wait(0.2)
+        local ok6, r6 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok6 or not r6 then warn("[LixHub] Raid setMatchStatus failed: " .. tostring(r6)) return false end
+        pushNotify({ Title = "Auto Raid", Content = string.format("Joining: %s Act %d", State.AutoJoinRaidStageName, State.AutoJoinRaidAct), Duration = 4, Image = "log-in" })
+        return true
+    end
+
+    local function tryJoinLegend()
+        if not State.AutoJoinLegend or State.AutoJoinLegendStageId == "" or not State.AutoJoinLegendAct then return false end
+        local inRoom = touchStoryDoor()
+        if not inRoom then return false end
+        task.wait(0.2)
+        local Event = ReplicatedStorage:WaitForChild("rooms"):WaitForChild("rooms_RELIABLE")
+        Event:FireServer(buffer.fromstring("\x04\x02\a\x00legends"), {})
+        task.wait(0.2)
+        local ok2, r2 = pcall(roomsNet.selectStage.call, State.AutoJoinLegendStageId)
+        if not ok2 or not r2 then warn("[LixHub] Legend selectStage failed: " .. tostring(r2)) return false end
+        task.wait(0.2)
+        local ok3, r3 = pcall(roomsNet.selectAct.call, State.AutoJoinLegendAct)
+        if not ok3 or not r3 then warn("[LixHub] Legend selectAct failed: " .. tostring(r3)) return false end
+        task.wait(0.2)
+        local ok5, r5 = pcall(roomsNet.getReady.call)
+        if not ok5 or not r5 then warn("[LixHub] Legend getReady failed: " .. tostring(r5)) return false end
+        task.wait(0.2)
+        local ok6, r6 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok6 or not r6 then warn("[LixHub] Legend setMatchStatus failed: " .. tostring(r6)) return false end
+        pushNotify({ Title = "Auto Legend", Content = string.format("Joining: %s Act %d", State.AutoJoinLegendStageName, State.AutoJoinLegendAct), Duration = 4, Image = "log-in" })
+        return true
+    end
+
+    local function tryJoinStory()
+        if not State.AutoJoin or State.AutoJoinStageId == "" or not State.AutoJoinAct or State.AutoJoinDifficulty == "" then return false end
+        local inRoom = touchStoryDoor()
+        if not inRoom then return false end
+        task.wait(0.2)
+        local ok2, r2 = pcall(roomsNet.selectStage.call, State.AutoJoinStageId)
+        if not ok2 or not r2 then warn("[LixHub] Story selectStage failed: " .. tostring(r2)) return false end
+        task.wait(0.2)
+        local ok3, r3 = pcall(roomsNet.selectAct.call, State.AutoJoinAct)
+        if not ok3 or not r3 then warn("[LixHub] Story selectAct failed: " .. tostring(r3)) return false end
+        task.wait(0.2)
+        local ok4, r4 = pcall(roomsNet.selectDifficulty.call, State.AutoJoinDifficulty:lower())
+        if not ok4 or not r4 then warn("[LixHub] Story selectDifficulty failed: " .. tostring(r4)) return false end
+        task.wait(0.2)
+        local ok5, r5 = pcall(roomsNet.getReady.call)
+        if not ok5 or not r5 then warn("[LixHub] Story getReady failed: " .. tostring(r5)) return false end
+        task.wait(0.2)
+        local ok6, r6 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok6 or not r6 then warn("[LixHub] Story setMatchStatus failed: " .. tostring(r6)) return false end
+        pushNotify({ Title = "Auto Story", Content = string.format("Joining: %s Act %d (%s)", State.AutoJoinStageName, State.AutoJoinAct, State.AutoJoinDifficulty), Duration = 4, Image = "log-in" })
+        return true
+    end
+
+    task.spawn(function()
+        while true do
+            task.wait(2)
+            if not IS_LOBBY then continue end
+
+            local modes = {
+                { name = "Challenge", priority = State.ModePriorities.Challenge },
+                { name = "Raid",      priority = State.ModePriorities.Raid      },
+                { name = "Legend",    priority = State.ModePriorities.Legend    },
+                { name = "Story",     priority = State.ModePriorities.Story     },
+            }
+            table.sort(modes, function(a, b) return a.priority > b.priority end)
+
+            local joined = false
+            for _, mode in ipairs(modes) do
+                if mode.priority <= 0 then continue end
+
+                if mode.name == "Challenge" then
+                    local best = findBestChallenge()
+                    if best then
+                        joined = tryJoinChallenge(best.entry, best.freq)
+                        if joined then break end
+                    end
+                elseif mode.name == "Raid" then
+                    if State.AutoJoinRaid then
+                        joined = tryJoinRaid()
+                        if joined then break end
+                    end
+                elseif mode.name == "Legend" then
+                    if State.AutoJoinLegend then
+                        joined = tryJoinLegend()
+                        if joined then break end
+                    end
+                elseif mode.name == "Story" then
+                    if State.AutoJoin then
+                        joined = tryJoinStory()
+                        if joined then break end
+                    end
+                end
+            end
+
+            if not joined then
+                pushUI("Auto Join: Waiting", "No available mode — all challenges done or nothing configured")
+                task.wait(8)
+            else
+                task.wait(10)
+            end
+        end
+    end)
 end
+
+-- ============================================================
+-- PRIORITY TAB
+-- ============================================================
+local PriorityTab = Window:CreateTab("Priority", "layers")
+
+PriorityTab:CreateSection("Auto Join Priority")
+PriorityTab:CreateLabel("Higher value = joins first. Set to 0 to disable a mode from the shared loop.")
+
+PriorityTab:CreateSlider({
+    Name         = "Challenge Stage Priority",
+    Range        = { 1, 4 },
+    Increment    = 1,
+    CurrentValue = 4,
+    Flag         = "PriorityChallenge",
+    Callback     = function(v) State.ModePriorities.Challenge = v end,
+})
+
+PriorityTab:CreateSlider({
+    Name         = "Raid Stage Priority",
+    Range        = { 1, 4 },
+    Increment    = 1,
+    CurrentValue = 3,
+    Flag         = "PriorityRaid",
+    Callback     = function(v) State.ModePriorities.Raid = v end,
+})
+
+PriorityTab:CreateSlider({
+    Name         = "Legend Stage Priority",
+    Range        = { 1, 4 },
+    Increment    = 1,
+    CurrentValue = 2,
+    Flag         = "PriorityLegend",
+    Callback     = function(v) State.ModePriorities.Legend = v end,
+})
+
+PriorityTab:CreateSlider({
+    Name         = "Story Stage Priority",
+    Range        = { 1, 4 },
+    Increment    = 1,
+    CurrentValue = 1,
+    Flag         = "PriorityStory",
+    Callback     = function(v) State.ModePriorities.Story = v end,
+})
 
 -- ============================================================
 -- CARDS TAB
