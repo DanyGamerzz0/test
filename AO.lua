@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.18
+-- V0.19
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -725,6 +725,12 @@ local State = {
     AutoJoinRaidStageId     = "",
     AutoJoinRaidStageName   = "",
     AutoJoinRaidAct         = nil,
+    AutoJoinChallenge          = false,
+    ChallengeFrequencies       = {},
+    ChallengeIgnoreWorlds      = {},
+    ChallengeRequiredRewards   = {},
+    ChallengeAutoLobbyOnRotation = false,
+    ChallengeRotationPending = false,
 }
 
 local function sendWebhookRaw(body)
@@ -986,6 +992,114 @@ AutoJoinTab:CreateDropdown({
     end,
 })
 
+AutoJoinTab:CreateSection("Auto Challenge")
+
+AutoJoinTab:CreateToggle({
+    Name         = "Auto Join Challenge",
+    CurrentValue = false,
+    Flag         = "AutoJoinChallenge",
+    Info         = "Automatically joins a challenge room based on selected frequency, ignoring specified worlds.",
+    Callback     = function(v) State.AutoJoinChallenge = v end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Challenge Frequency",
+    Options         = { "hourly", "daily", "weekly" },
+    CurrentOption   = {},
+    MultipleOptions = true,
+    Flag            = "ChallengeFrequency",
+    Info            = "Which challenge rotations to join.",
+    Callback        = function(selected)
+        State.ChallengeFrequencies = type(selected) == "table" and selected or { selected }
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Ignore Worlds",
+    Options         = stageNames,
+    CurrentOption   = {},
+    MultipleOptions = true,
+    Flag            = "ChallengeIgnoreWorlds",
+    Info            = "Skip challenges on these worlds.",
+    Callback        = function(selected)
+        local t = {}
+        for _, name in ipairs(type(selected) == "table" and selected or { selected }) do
+            t[stageNameToId[name] or name] = true
+        end
+        State.ChallengeIgnoreWorlds = t
+    end,
+})
+
+local rewardOptions = {}
+local rewardNameToId = {}
+do
+    local ok, items = pcall(require, ReplicatedStorage:WaitForChild("shared"):WaitForChild("config"):WaitForChild("items"))
+    if ok and items then
+        local allItems = {}
+        pcall(function()
+            for id, cfg in pairs(items.getAll and items.getAll() or {}) do
+                if cfg.name then
+                    table.insert(rewardOptions, cfg.name)
+                    rewardNameToId[cfg.name] = id
+                    allItems[id] = cfg
+                end
+            end
+        end)
+        table.sort(rewardOptions)
+    end
+end
+
+if #rewardOptions > 0 then
+    AutoJoinTab:CreateDropdown({
+        Name            = "Required Rewards",
+        Options         = rewardOptions,
+        CurrentOption   = {},
+        MultipleOptions = true,
+        Flag            = "ChallengeRequiredRewards",
+        Info            = "Only join challenges that offer at least one of these rewards.",
+        Callback        = function(selected)
+            local t = {}
+            for _, name in ipairs(type(selected) == "table" and selected or { selected }) do
+                local id = rewardNameToId[name]
+                if id then t[id] = true end
+            end
+            State.ChallengeRequiredRewards = t
+        end,
+    })
+end
+
+AutoJoinTab:CreateToggle({
+    Name         = "Auto Lobby on Rotation",
+    CurrentValue = false,
+    Flag         = "ChallengAutoLobbyOnRotation",
+    Info         = "Teleports you to lobby at the top of the hour when challenges rotate.",
+    Callback     = function(v) State.ChallengeAutoLobbyOnRotation = v end,
+})
+
+local lobbyStore
+local selectChallengesByType
+local challengeFrequencyEnum
+
+local function getLobbyStore()
+    if lobbyStore then return lobbyStore end
+    lobbyStore = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("store"):WaitForChild("clientStore"))
+    return lobbyStore
+end
+
+local function getChallengesByType(freqType)
+    if not selectChallengesByType then
+        selectChallengesByType = require(ReplicatedStorage:WaitForChild("lobbyShared"):WaitForChild("store"):WaitForChild("slices"):WaitForChild("challenges"):WaitForChild("selectors"):WaitForChild("selectChallengesByType"))
+    end
+    return getLobbyStore():getState(selectChallengesByType(freqType)) or {}
+end
+
+local function getChallengeFrequencyEnum()
+    if not challengeFrequencyEnum then
+        challengeFrequencyEnum = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("enums"):WaitForChild("challengeFrequency"))
+    end
+    return challengeFrequencyEnum
+end
+
 -- ============================================================
 -- AUTO JOIN LOGIC
 -- ============================================================
@@ -1064,6 +1178,31 @@ local function setupAutoJoin()
         print(string.format("[LixHub] Raid door %s didn't work, trying next...", doorName))
     end
     warn("[LixHub] No raid door worked")
+    return false
+end
+local function touchChallengeDoor()
+    local doorsFolder = workspace:FindFirstChild("ChallengeDoor")
+    if not doorsFolder then
+        warn("[LixHub] ChallengeDoor folder not found in workspace")
+        return false
+    end
+    for i = 1, 10 do
+        local doorName = string.format("%03d", i)
+        local door = doorsFolder:FindFirstChild(doorName)
+        if not door then continue end
+        local doorPart = door:FindFirstChild("Door")
+        if not doorPart then continue end
+        print(string.format("[LixHub] Touching challenge door %s", doorName))
+        Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(doorPart.Position)
+        task.wait(1.5)
+        local ok, result = pcall(roomsNet.setConfiguring.call, true)
+        if ok and result then
+            print(string.format("[LixHub] Challenge room created via door %s", doorName))
+            return true
+        end
+        print(string.format("[LixHub] Challenge door %s didn't work, trying next...", doorName))
+    end
+    warn("[LixHub] No challenge door worked")
     return false
 end
 
@@ -1248,6 +1387,101 @@ task.spawn(function()
         pushNotify({
             Title   = "Auto Join Raid",
             Content = string.format("Joining: %s Act %d (Raid)", State.AutoJoinRaidStageName, State.AutoJoinRaidAct),
+            Duration = 4,
+            Image   = "log-in"
+        })
+
+        task.wait(10)
+    end
+end)
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if not State.AutoJoinChallenge then continue end
+        if not IS_LOBBY then continue end
+        if #State.ChallengeFrequencies == 0 then continue end
+
+        local freqEnum = getChallengeFrequencyEnum()
+        local picked = nil
+        local pickedFreq = nil
+
+        for _, freqName in ipairs(State.ChallengeFrequencies) do
+            local freqType = freqEnum[freqName]
+            if not freqType then continue end
+
+            local challenges = getChallengesByType(freqType)
+            for _, entry in ipairs(challenges) do
+                -- Check ignore worlds
+                if entry.stage and State.ChallengeIgnoreWorlds[entry.stage] then
+                    continue
+                end
+
+                -- Check required rewards
+                if next(State.ChallengeRequiredRewards) then
+                    local hasReward = false
+                    for _, challengeId in ipairs(entry.challenges or {}) do
+                        local ok, cfg = pcall(require, ReplicatedStorage.shared.config.gamemodes.challenges)
+                        if ok then
+                            local challengeCfg = cfg.get(challengeId)
+                            if challengeCfg and challengeCfg.rewards then
+                                for _, reward in ipairs(challengeCfg.rewards) do
+                                    if State.ChallengeRequiredRewards[reward.id or reward] then
+                                        hasReward = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        if hasReward then break end
+                    end
+                    if not hasReward then continue end
+                end
+
+                picked = entry
+                pickedFreq = freqType
+                break
+            end
+            if picked then break end
+        end
+
+        if not picked then
+            pushUI("Challenge: No matching challenge found", "Waiting for a valid challenge...")
+            task.wait(5) continue
+        end
+
+        local inRoom = touchChallengeDoor()
+        if not inRoom then
+            pushNotify({ Title = "Auto Challenge", Content = "Could not enter challenge room — retrying...", Duration = 3, Image = "x-circle" })
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok2, result2 = pcall(roomsNet.selectChallenge.call, pickedFreq, picked.id)
+        if not ok2 or not result2 then
+            warn("[LixHub] selectChallenge failed: " .. tostring(result2))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok5, result5 = pcall(roomsNet.getReady.call)
+        if not ok5 or not result5 then
+            warn("[LixHub] Challenge getReady failed: " .. tostring(result5))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok6 or not result6 then
+            warn("[LixHub] Challenge setMatchStatus failed: " .. tostring(result6))
+            task.wait(3) continue
+        end
+
+        pushNotify({
+            Title   = "Auto Challenge",
+            Content = string.format("Joining challenge on stage: %s (%s)", picked.stage or "?", pickedFreq or "?"),
             Duration = 4,
             Image   = "log-in"
         })
@@ -2163,9 +2397,8 @@ local function setupMatchEndHook()
         end
 
         if State.AutoLobby then
-            game:GetService("TeleportService"):Teleport(126297188712308)
-        end
-
+        game:GetService("TeleportService"):Teleport(126297188712308)
+    end
         if State.ChallengeBug then
             task.spawn(function()
                 local remote = ReplicatedStorage:WaitForChild("voting"):WaitForChild("voting_RELIABLE")
@@ -2175,8 +2408,29 @@ local function setupMatchEndHook()
                 remote:FireServer(buf2, {})
             end)
         end
+        if State.ChallengeRotationPending then
+    State.ChallengeRotationPending = false
+    pushNotify({ Title = "Challenge Rotation", Content = "Heading to lobby for new challenges!", Duration = 4, Image = "refresh-cw" })
+    game:GetService("TeleportService"):Teleport(126297188712308)
+end
     end)
 end
+
+-- ============================================================
+-- CHALLENGE ROTATION WATCHER
+-- ============================================================
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not State.ChallengeAutoLobbyOnRotation then continue end
+        local t = os.time()
+        if t % 3600 == 0 then
+            State.ChallengeRotationPending = true
+            pushNotify({ Title = "Challenge Rotation", Content = "New challenges available — will return to lobby on game end.", Duration = 5, Image = "refresh-cw" })
+            task.wait(2)
+        end
+    end
+end)
 
 -- ============================================================
 -- INIT
