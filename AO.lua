@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.22
+-- V0.23
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1734,7 +1734,6 @@ MacroTab:CreateInput({
     Name                     = "Create Macro",
     PlaceholderText          = "Enter macro name...",
     RemoveTextAfterFocusLost = true,
-    Flag                     = "CreateMacroInput",
     Callback                 = function(text)
         if not text or text == "" then
             return pushNotify({ Title = "Error", Content = "Name cannot be empty", Duration = 3, Image = "x-circle" })
@@ -1847,18 +1846,15 @@ PlaybackToggle = MacroTab:CreateToggle({
         if value then
             if IS_LOBBY then
                 pushNotify({ Title = "Lobby", Content = "Playback is not available in the lobby — join a game first", Duration = 4, Image = "x-circle" })
-                PlaybackToggle:Set(false)
                 return
             end
             if MacroSystem.currentMacroName == "" then
                 pushNotify({ Title = "Error", Content = "Select a macro first", Duration = 3, Image = "x-circle" })
-                PlaybackToggle:Set(false)
                 return
             end
             if not MacroSystem.library[MacroSystem.currentMacroName] or
                #MacroSystem.library[MacroSystem.currentMacroName] == 0 then
                 pushNotify({ Title = "Error", Content = "Macro is empty or not found", Duration = 3, Image = "x-circle" })
-                PlaybackToggle:Set(false)
                 return
             end
             local ok, clientStoreLocal = pcall(require, ReplicatedStorage.gameClient.store.clientStore)
@@ -2061,6 +2057,113 @@ MacroTab:CreateButton({
         pushNotify({ Title = "Webhook Sent", Content = "'" .. name .. "' exported to Discord", Duration = 4, Image = "send" })
     end,
 })
+
+local worldMacroMappings = {}
+local worldMacroDropdowns = {}
+local WORLD_MAPPING_FILE = "LixHub/worldMacroMappings111.json"
+ 
+local function saveWorldMappings()
+    local ok, err = pcall(writefile, WORLD_MAPPING_FILE, HttpService:JSONEncode(worldMacroMappings))
+    if not ok then warn("[LixHub] Could not save world mappings: " .. tostring(err)) end
+end
+ 
+local function loadWorldMappings()
+    if not isfile(WORLD_MAPPING_FILE) then return end
+    local ok, result = pcall(function()
+        return HttpService:JSONDecode(readfile(WORLD_MAPPING_FILE))
+    end)
+    if ok and type(result) == "table" then
+        worldMacroMappings = result
+    else
+        warn("[LixHub] Could not load world mappings: " .. tostring(result))
+    end
+end
+
+local function refreshWorldDropdowns()
+    local options = { "None" }
+    for _, name in ipairs(MacroSystem.getList()) do
+        table.insert(options, name)
+    end
+    for key, dropdown in pairs(worldMacroDropdowns) do
+        local current = worldMacroMappings[key] or "None"
+        -- only show current if it still exists
+        if current ~= "None" and not MacroSystem.library[current] then
+            worldMacroMappings[key] = nil
+            current = "None"
+            saveWorldMappings()
+        end
+        pcall(function() dropdown:Refresh(options, { current }) end)
+    end
+end
+ 
+-- Patch the existing refreshDropdown so world dropdowns stay in sync too
+local _origRefreshDropdown = refreshDropdown
+refreshDropdown = function()
+    _origRefreshDropdown()
+    refreshWorldDropdowns()
+end
+ 
+loadWorldMappings()
+ 
+-- ── UI ────────────────────────────────────────────────────────
+MacroTab:CreateDivider()
+MacroTab:CreateSection("Macro Maps")
+MacroTab:CreateLabel("Assign a macro to each world. It will auto-play when that stage starts.")
+ 
+local function buildMacroOptions()
+    local opts = { "None" }
+    for _, name in ipairs(MacroSystem.getList()) do
+        table.insert(opts, name)
+    end
+    return opts
+end
+ 
+-- Generic helper that builds one collapsible for a list of worlds
+local function buildModeCollapsible(displayName, flag, gamemodeKey, nameList, nameToId)
+    local collapsible = MacroTab:CreateCollapsible({
+        Name           = displayName,
+        DefaultExpanded = false,
+        Flag           = flag,
+    })
+ 
+    for _, worldName in ipairs(nameList) do
+        local stageId = nameToId[worldName]
+        if not stageId then continue end
+        local mapKey  = gamemodeKey .. ":" .. stageId
+        local current = worldMacroMappings[mapKey] or "None"
+ 
+        local dropdown = collapsible.Tab:CreateDropdown({
+            Name            = worldName,
+            Options         = buildMacroOptions(),
+            CurrentOption   = { current },
+            MultipleOptions = false,
+            Flag            = "MacroMap_" .. flag .. "_" .. stageId,
+            Callback        = function(selected)
+                local picked = type(selected) == "table" and selected[1] or selected
+                if picked == "None" or picked == "" then
+                    worldMacroMappings[mapKey] = nil
+                else
+                    worldMacroMappings[mapKey] = picked
+                end
+                saveWorldMappings()
+            end,
+        })
+ 
+        worldMacroDropdowns[mapKey] = dropdown
+    end
+end
+ 
+-- Story  (gamemode string = "story")
+buildModeCollapsible("Story Stages",   "MacroMapStory",     "story",     stageNames,     stageNameToId)
+ 
+-- Legend (gamemode string = "legends")
+buildModeCollapsible("Legend Stages",  "MacroMapLegend",    "legends",   stageNames,     stageNameToId)
+ 
+-- Raid   (gamemode string = "raid")
+buildModeCollapsible("Raid Stages",    "MacroMapRaid",      "raid",      raidStageNames, raidStageNameToId)
+ 
+-- Challenge (gamemode string = "challenge", same world list as story)
+buildModeCollapsible("Challenge Stages","MacroMapChallenge","challenge", stageNames,     stageNameToId)
 
 -- ============================================================
 -- WEBHOOK TAB
@@ -2268,6 +2371,7 @@ end
 -- ============================================================
 -- WAVE HOOK
 -- ============================================================
+
 local function setupWaveHook()
     local ok1, clientStoreLocal = pcall(require, ReplicatedStorage.gameClient.store.clientStore)
     local ok2, selectWave       = pcall(require, ReplicatedStorage.gameShared.store.slices.wave.selectors.selectWave)
@@ -2291,6 +2395,25 @@ local function setupWaveHook()
                 if MacroSystem.playback(MacroSystem.currentMacroName) then
                     pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Playing", "Game started — playback in progress")
                     pushNotify({ Title = "Playback Started", Content = "Game started — running macro now", Duration = 3, Image = "play" })
+                end
+            end
+
+            if not MacroSystem.isPlaying and not MacroSystem.pendingPlayback then
+                local ok1, gmSel    = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectGamemode)
+                local ok2, stageSel = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectStage)
+                if ok1 and ok2 then
+                    local gm      = clientStore:getState(gmSel)    or ""
+                    local stageId = clientStore:getState(stageSel) or ""
+                    local mapKey  = gm .. ":" .. stageId
+                    local mapped  = worldMacroMappings[mapKey]
+                    if mapped and MacroSystem.library[mapped] and #MacroSystem.library[mapped] > 0 then
+                        MacroSystem.currentMacroName = mapped
+                        refreshDropdown()
+                        if MacroSystem.playback(mapped) then
+                            pushUI("Macro: " .. mapped .. " | Playing", "Auto-started from Macro Maps")
+                            pushNotify({ Title = "Macro Maps", Content = "Auto-playing: " .. mapped, Duration = 3, Image = "play" })
+                        end
+                    end
                 end
             end
         end
@@ -2391,6 +2514,7 @@ end)
 -- ============================================================
 ensureFolders()
 MacroSystem.loadAll()
+loadWorldMappings()
 refreshDropdown()
 
 if IS_LOBBY then
