@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.03
+-- V0.04
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -63,6 +63,24 @@ local function getYen()
     return clientStore:getState(selectPlayerYen) or 0
 end
 
+local heroConfigCache = {}
+
+local function getHeroConfigById(heroId)
+    if heroConfigCache[heroId] then return heroConfigCache[heroId] end
+
+    local heroFolder = ReplicatedStorage.shared.config.items.data.hero
+    for _, obj in ipairs(heroFolder:GetDescendants()) do
+        if obj:IsA("ModuleScript") then
+            local ok, config = pcall(require, obj)
+            if ok and type(config) == "table" and config.id then
+                heroConfigCache[config.id] = config  -- cache all found configs
+            end
+        end
+    end
+
+    return heroConfigCache[heroId]  -- nil if still not found after full scan
+end
+
 local function getEquippedHeroes()
     if IS_LOBBY then return {} end
     local uuids    = clientStore:getState(selectEquipped)
@@ -73,12 +91,12 @@ local function getEquippedHeroes()
     for slot, uuid in ipairs(uuids) do
         local hero = heroData and heroData[uuid]
         if hero then
-            local ok, config = pcall(require, ReplicatedStorage.shared.config.items.data.hero[hero.id])
+            local config = getHeroConfigById(hero.id)  -- use id-based lookup
             result[slot] = {
                 uuid   = uuid,
                 id     = hero.id,
-                name   = ok and config.name or hero.id,
-                config = ok and config or nil,
+                name   = config and config.name or hero.id,
+                config = config,
             }
         end
     end
