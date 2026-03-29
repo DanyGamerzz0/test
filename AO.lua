@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.27
+-- V0.28
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2114,23 +2114,23 @@ end
 -- Generic helper that builds one collapsible for a list of worlds
 local function buildModeCollapsible(displayName, flag, gamemodeKey, nameList, nameToId)
     local collapsible = MacroTab:CreateCollapsible({
-        Name           = displayName,
+        Name            = displayName,
         DefaultExpanded = false,
-        Flag           = flag,
+        Flag            = flag,
     })
- 
+
     for _, worldName in ipairs(nameList) do
         local stageId = nameToId[worldName]
         if not stageId then continue end
         local mapKey  = gamemodeKey .. ":" .. stageId
         local current = worldMacroMappings[mapKey] or "None"
- 
+
         local dropdown = collapsible.Tab:CreateDropdown({
             Name            = worldName,
             Options         = buildMacroOptions(),
             CurrentOption   = { current },
             MultipleOptions = false,
-            Flag            = "MacroMap_" .. flag .. "_" .. stageId,
+            -- No Flag here! We save manually to worldMacroMappings.json
             Callback        = function(selected)
                 local picked = type(selected) == "table" and selected[1] or selected
                 if picked == "None" or picked == "" then
@@ -2141,7 +2141,7 @@ local function buildModeCollapsible(displayName, flag, gamemodeKey, nameList, na
                 saveWorldMappings()
             end,
         })
- 
+
         worldMacroDropdowns[mapKey] = dropdown
     end
 end
