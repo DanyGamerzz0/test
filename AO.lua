@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.44
+-- V0.45
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -453,12 +453,16 @@ local function setupRestartHook()
     local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
     local oldResetAct = votingClient.resetAct.call
     votingClient.resetAct.call = function(...)
-        -- intercept before it fires
         if MacroSystem.isPlaying then
             MacroSystem.stopPlayback()
             MacroSystem.pendingPlayback = true
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Act reset — waiting for wave 1 to resume...")
             pushNotify({ Title = "Macro Paused", Content = "Act restarted — playback will resume at wave 1", Duration = 3, Image = "refresh-cw" })
+        elseif PlaybackToggle and PlaybackToggle.CurrentValue and MacroSystem.currentMacroName ~= "" then
+            -- macro finished but playback toggle is still on, re-queue it
+            MacroSystem.pendingPlayback = true
+            pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Act reset — waiting for wave 1 to replay...")
+            pushNotify({ Title = "Macro Queued", Content = "Act restarted — playback will begin at wave 1", Duration = 3, Image = "refresh-cw" })
         end
         if MacroSystem.isRecording then
             MacroSystem.stopRecording()
