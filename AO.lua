@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.09
+-- V0.1
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -893,7 +893,7 @@ AutoJoinTab:CreateDropdown({
 -- AUTO JOIN LOGIC
 -- ============================================================
 local function setupAutoJoin()
-    local roomsNet = require(ReplicatedStorage:WaitForChild("gameClient"):WaitForChild("net"):WaitForChild("rooms"))
+    local roomsNet = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("rooms"))
 
     -- Listen for join errors so we can warn and retry
     roomsNet.roomJoinError.on(function(errMsg)
@@ -1974,15 +1974,13 @@ MacroSystem.loadAll()
 refreshDropdown()
 
 if IS_LOBBY then
-    pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
-    print("[LixHub] Lobby detected — skipping game hooks.")
+    setupAutoJoin()
 else
     setupHooks()
     setupWaveHook()
     setupMatchEndHook()
     setupMatchEndWebhook()
     setupAutoCardSelection()
-    print("[LixHub] In-game — hooks active.")
 end
 
 Rayfield:LoadConfiguration()
