@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.3
+-- V0.31
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -133,13 +133,13 @@ local function getUnitLabel(name)
     return name .. " #" .. unitLabelCount[name]
 end
 
-local FOLDER       = "LixHub"
-local MACRO_FOLDER = "LixHub/Macros/AO"
+local FOLDER       = "LixHub/AO"
+local MACRO_FOLDER = "LixHub/AO/Macros"
 
 local function ensureFolders()
-    if not isfolder(FOLDER)              then makefolder(FOLDER)              end
-    if not isfolder(FOLDER .. "/Macros") then makefolder(FOLDER .. "/Macros") end
-    if not isfolder(MACRO_FOLDER)        then makefolder(MACRO_FOLDER)        end
+    if not isfolder("LixHub")              then makefolder("LixHub")              end
+    if not isfolder("LixHub/AO")           then makefolder("LixHub/AO")           end
+    if not isfolder("LixHub/AO/Macros")    then makefolder("LixHub/AO/Macros")    end
 end
 
 local function filePath(name)
@@ -805,7 +805,7 @@ local Window = Rayfield:CreateWindow({
     },
     ConfigurationSaving = {
         Enabled    = true,
-        FolderName = "LixHub",
+        FolderName = "LixHub/AO",
         FileName   = game:GetService("Players").LocalPlayer.Name .. "_AnimeOverload"
     },
     Discord = {
