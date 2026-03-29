@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.47
+-- V0.48
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1906,12 +1906,10 @@ PlaybackToggle = MacroTab:CreateToggle({
             end
             if MacroSystem.currentMacroName == "" then
                 pushNotify({ Title = "Error", Content = "Select a macro first", Duration = 3, Image = "x-circle" })
-                return
             end
             if not MacroSystem.library[MacroSystem.currentMacroName] or
                #MacroSystem.library[MacroSystem.currentMacroName] == 0 then
                 pushNotify({ Title = "Error", Content = "Macro is empty or not found", Duration = 3, Image = "x-circle" })
-                return
             end
             local ok, clientStoreLocal = pcall(require, ReplicatedStorage.gameClient.store.clientStore)
             local ok2, selectWave      = pcall(require, ReplicatedStorage.gameShared.store.slices.wave.selectors.selectWave)
