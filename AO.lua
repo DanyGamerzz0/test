@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.12
+-- V0.13
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -919,12 +919,11 @@ local function setupAutoJoin()
             local door = doorsFolder:FindFirstChild(doorName)
             if not door then continue end
 
-            local part = door:IsA("BasePart") and door
-                or door:FindFirstChildWhichIsA("BasePart")
+            local part = door:IsA("Part") and door 
             if not part then continue end
 
             print(string.format("[LixHub] Touching story door %s", doorName))
-            lobbyPlayerNet.requestTeleport.fire(part.Position)
+            lobbyPlayerNet.requestTeleport.fire(part.Door.Position)
             task.wait(1.5)
 
             local ok, result = pcall(roomsNet.setConfiguring.call, true)
