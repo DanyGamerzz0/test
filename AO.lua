@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.2
+-- V0.21
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1243,6 +1243,7 @@ local function setupAutoJoin()
             if not freqType then continue end
             local challenges = getChallengesByType(freqType)
             for _, entry in ipairs(challenges) do
+                print(game:GetService("HttpService"):JSONEncode(entry))
                 if isChallengeCompleted(entry.id) then continue end
                 if entry.stage and State.ChallengeIgnoreWorlds[entry.stage] then continue end
                 if next(State.ChallengeRequiredRewards) then
