@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.16
+-- V0.17
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -721,6 +721,10 @@ local State = {
     AutoJoinLegendStageId = "",
     AutoJoinLegendStageName = "",
     AutoJoinLegendAct     = nil,
+    AutoJoinRaid            = false,
+    AutoJoinRaidStageId     = "",
+    AutoJoinRaidStageName   = "",
+    AutoJoinRaidAct         = nil,
 }
 
 local function sendWebhookRaw(body)
@@ -835,6 +839,31 @@ do
     table.sort(stageNames)
 end
 
+local raidStageNames    = {}
+local raidStageNameToId = {}
+
+do
+    local stagesFolder = ReplicatedStorage:WaitForChild("shared")
+        :WaitForChild("config")
+        :WaitForChild("stages")
+
+    local excluded = { util = true, validate = true }
+
+    for _, obj in ipairs(stagesFolder:GetChildren()) do
+        if obj:IsA("ModuleScript") and not excluded[obj.Name] then
+            local ok, config = pcall(require, obj)
+            if ok and type(config) == "table" and config.name and config.id and config.acts then
+                if config.raidOnly then
+                    table.insert(raidStageNames, config.name)
+                    raidStageNameToId[config.name] = config.id
+                end
+            end
+        end
+    end
+
+    table.sort(raidStageNames)
+end
+
 AutoJoinTab:CreateSection("Auto Story")
 
 AutoJoinTab:CreateToggle({
@@ -921,6 +950,42 @@ AutoJoinTab:CreateDropdown({
     end,
 })
 
+AutoJoinTab:CreateSection("Auto Raid")
+
+AutoJoinTab:CreateToggle({
+    Name         = "Auto Join Raid",
+    CurrentValue = false,
+    Flag         = "AutoJoinRaid",
+    Info         = "Automatically joins a raid room with the selected stage and act.",
+    Callback     = function(v) State.AutoJoinRaid = v end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Select Raid",
+    Options         = raidStageNames,
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoJoinRaidStage",
+    Callback        = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        if not name or name == "" then return end
+        State.AutoJoinRaidStageName = name
+        State.AutoJoinRaidStageId   = raidStageNameToId[name] or ""
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Select Raid Act",
+    Options         = { "1", "2", "3" },
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoJoinRaidAct",
+    Callback        = function(selected)
+        local val = type(selected) == "table" and selected[1] or selected
+        State.AutoJoinRaidAct = tonumber(val)
+    end,
+})
+
 -- ============================================================
 -- AUTO JOIN LOGIC
 -- ============================================================
@@ -960,7 +1025,7 @@ local function setupAutoJoin()
             if not door then continue end
 
             print(string.format("[LixHub] Touching story door %s", doorName))
-            game:GetService("Players").LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(door.Door.Position)
+            Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(door:FindFirstChild("Door") and door.Door.Position or door.Position)
             task.wait(1.5)
 
             local ok, result = pcall(roomsNet.setConfiguring.call, true)
@@ -975,6 +1040,32 @@ local function setupAutoJoin()
         warn("[LixHub] No story door worked")
         return false
     end
+
+    local function touchRaidDoor()
+    local doorsFolder = workspace:FindFirstChild("RaidDoor")
+    if not doorsFolder then
+        warn("[LixHub] RaidDoor folder not found in workspace")
+        return false
+    end
+    for i = 1, 10 do
+        local doorName = string.format("%03d", i)
+        local door = doorsFolder:FindFirstChild(doorName)
+        if not door then continue end
+        local doorPart = door:FindFirstChild("Door")
+        if not doorPart then continue end
+        print(string.format("[LixHub] Touching raid door %s", doorName))
+        Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(doorPart.Position)
+        task.wait(1.5)
+        local ok, result = pcall(roomsNet.setConfiguring.call, true)
+        if ok and result then
+            print(string.format("[LixHub] Raid room created via door %s", doorName))
+            return true
+        end
+        print(string.format("[LixHub] Raid door %s didn't work, trying next...", doorName))
+    end
+    warn("[LixHub] No raid door worked")
+    return false
+end
 
     task.spawn(function()
         while true do
@@ -1101,6 +1192,62 @@ local function setupAutoJoin()
             Title   = "Auto Join Legend",
             Content = string.format("Joining: %s Act %d (Legend)",
                 State.AutoJoinLegendStageName, State.AutoJoinLegendAct),
+            Duration = 4,
+            Image   = "log-in"
+        })
+
+        task.wait(10)
+    end
+end)
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if not State.AutoJoinRaid then continue end
+        if not IS_LOBBY then continue end
+        if State.AutoJoinRaidStageId == "" then continue end
+        if not State.AutoJoinRaidAct then continue end
+
+        local inRoom = touchRaidDoor()
+        if not inRoom then
+            pushNotify({ Title = "Auto Join Raid", Content = "Could not enter a raid room — retrying...", Duration = 3, Image = "x-circle" })
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinRaidStageId)
+        if not ok2 or not result2 then
+            warn("[LixHub] Raid selectStage failed: " .. tostring(result2))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinRaidAct)
+        if not ok3 or not result3 then
+            warn("[LixHub] Raid selectAct failed: " .. tostring(result3))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok5, result5 = pcall(roomsNet.getReady.call)
+        if not ok5 or not result5 then
+            warn("[LixHub] Raid getReady failed: " .. tostring(result5))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok6 or not result6 then
+            warn("[LixHub] Raid setMatchStatus failed: " .. tostring(result6))
+            task.wait(3) continue
+        end
+
+        pushNotify({
+            Title   = "Auto Join Raid",
+            Content = string.format("Joining: %s Act %d (Raid)", State.AutoJoinRaidStageName, State.AutoJoinRaidAct),
             Duration = 4,
             Image   = "log-in"
         })
