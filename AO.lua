@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.23
+-- V0.24
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1698,6 +1698,7 @@ local function refreshDropdown()
     local list = MacroSystem.getList()
     local sel  = MacroSystem.currentMacroName ~= "" and { MacroSystem.currentMacroName } or {}
     if MacroDropdown then MacroDropdown:Refresh(list, sel) end
+    if refreshWorldDropdowns then refreshWorldDropdowns() end
 end
 
 local function updateStatus(name)
