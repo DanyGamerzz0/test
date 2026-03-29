@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.25
+-- V0.26
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1694,11 +1694,36 @@ local MacroDropdown
 local RecordToggle
 local PlaybackToggle
 
+local worldMacroMappings = {}
+local worldMacroDropdowns = {}
+local WORLD_MAPPING_FILE = "LixHub/worldMacroMappings111.json"
+
+local function saveWorldMappings()
+    local ok, err = pcall(writefile, WORLD_MAPPING_FILE, HttpService:JSONEncode(worldMacroMappings))
+    if not ok then warn("[LixHub] Could not save world mappings: " .. tostring(err)) end
+end
+
+local function refreshWorldDropdowns()
+    local options = { "None" }
+    for _, name in ipairs(MacroSystem.getList()) do
+        table.insert(options, name)
+    end
+    for key, dropdown in pairs(worldMacroDropdowns) do
+        local current = worldMacroMappings[key] or "None"
+        if current ~= "None" and not MacroSystem.library[current] then
+            worldMacroMappings[key] = nil
+            current = "None"
+            saveWorldMappings()
+        end
+        pcall(function() dropdown:Refresh(options) end)
+    end
+end
+
 local function refreshDropdown()
     local list = MacroSystem.getList()
     local sel  = MacroSystem.currentMacroName ~= "" and { MacroSystem.currentMacroName } or {}
     if MacroDropdown then MacroDropdown:Refresh(list, sel) end
-    if refreshWorldDropdowns then refreshWorldDropdowns() end
+    refreshWorldDropdowns()
 end
 
 local function updateStatus(name)
@@ -2058,15 +2083,6 @@ MacroTab:CreateButton({
         pushNotify({ Title = "Webhook Sent", Content = "'" .. name .. "' exported to Discord", Duration = 4, Image = "send" })
     end,
 })
-
-local worldMacroMappings = {}
-local worldMacroDropdowns = {}
-local WORLD_MAPPING_FILE = "LixHub/worldMacroMappings111.json"
- 
-local function saveWorldMappings()
-    local ok, err = pcall(writefile, WORLD_MAPPING_FILE, HttpService:JSONEncode(worldMacroMappings))
-    if not ok then warn("[LixHub] Could not save world mappings: " .. tostring(err)) end
-end
  
 local function loadWorldMappings()
     if not isfile(WORLD_MAPPING_FILE) then return end
@@ -2078,30 +2094,6 @@ local function loadWorldMappings()
     else
         warn("[LixHub] Could not load world mappings: " .. tostring(result))
     end
-end
-
-local function refreshWorldDropdowns()
-    local options = { "None" }
-    for _, name in ipairs(MacroSystem.getList()) do
-        table.insert(options, name)
-    end
-    for key, dropdown in pairs(worldMacroDropdowns) do
-        local current = worldMacroMappings[key] or "None"
-        -- only show current if it still exists
-        if current ~= "None" and not MacroSystem.library[current] then
-            worldMacroMappings[key] = nil
-            current = "None"
-            saveWorldMappings()
-        end
-        pcall(function() dropdown:Refresh(options, { current }) end)
-    end
-end
- 
--- Patch the existing refreshDropdown so world dropdowns stay in sync too
-local _origRefreshDropdown = refreshDropdown
-refreshDropdown = function()
-    _origRefreshDropdown()
-    refreshWorldDropdowns()
 end
  
 loadWorldMappings()
@@ -2517,7 +2509,6 @@ ensureFolders()
 MacroSystem.loadAll()
 loadWorldMappings()
 refreshDropdown()
-refreshWorldDropdowns()
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
