@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.15
+-- V0.16
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -717,6 +717,10 @@ local State = {
     AutoJoinStageName   = "",
     AutoJoinAct         = nil,
     AutoJoinDifficulty  = "",
+    AutoJoinLegend        = false,
+    AutoJoinLegendStageId = "",
+    AutoJoinLegendStageName = "",
+    AutoJoinLegendAct     = nil,
 }
 
 local function sendWebhookRaw(body)
@@ -837,7 +841,6 @@ AutoJoinTab:CreateToggle({
     Name         = "Auto Join Story",
     CurrentValue = false,
     Flag         = "AutoJoinStory",
-    Info         = "Automatically touches a story door and readies a solo room with the selected stage, act, and difficulty.",
     Callback     = function(v)
         State.AutoJoin = v
     end,
@@ -878,6 +881,43 @@ AutoJoinTab:CreateDropdown({
     Callback        = function(selected)
         local val = type(selected) == "table" and selected[1] or selected
         State.AutoJoinDifficulty = val
+    end,
+})
+
+AutoJoinTab:CreateSection("Auto Legend")
+
+AutoJoinTab:CreateToggle({
+    Name         = "Auto Join Legend",
+    CurrentValue = false,
+    Flag         = "AutoJoinLegend",
+    Callback     = function(v)
+        State.AutoJoinLegend = v
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Select Legend World",
+    Options         = stageNames,
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoJoinLegendStage",
+    Callback        = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        if not name or name == "" then return end
+        State.AutoJoinLegendStageName = name
+        State.AutoJoinLegendStageId   = stageNameToId[name] or ""
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Select Legend Act",
+    Options         = { "1", "2", "3" },
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoJoinLegendAct",
+    Callback        = function(selected)
+        local val = type(selected) == "table" and selected[1] or selected
+        State.AutoJoinLegendAct = tonumber(val)
     end,
 })
 
@@ -1004,6 +1044,70 @@ local function setupAutoJoin()
             task.wait(10)
         end
     end)
+    task.spawn(function()
+    while true do
+        task.wait(2)
+
+        if not State.AutoJoinLegend then continue end
+        if not IS_LOBBY then continue end
+        if State.AutoJoinLegendStageId == "" then continue end
+        if not State.AutoJoinLegendAct then continue end
+
+        local inRoom = touchStoryDoor()
+        if not inRoom then
+            pushNotify({ Title = "Auto Join Legend", Content = "Could not enter a room — retrying...", Duration = 3, Image = "x-circle" })
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        -- Set gamemode to legends (from Cobalt: \x04\x02\a\x00legends)
+        local Event = ReplicatedStorage:WaitForChild("rooms"):WaitForChild("rooms_RELIABLE")
+        Event:FireServer(buffer.fromstring("\x04\x02\a\x00legends"), {})
+
+        task.wait(0.2)
+
+        local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinLegendStageId)
+        if not ok2 or not result2 then
+            warn("[LixHub] Legend selectStage failed: " .. tostring(result2))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinLegendAct)
+        if not ok3 or not result3 then
+            warn("[LixHub] Legend selectAct failed: " .. tostring(result3))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok5, result5 = pcall(roomsNet.getReady.call)
+        if not ok5 or not result5 then
+            warn("[LixHub] Legend getReady failed: " .. tostring(result5))
+            task.wait(3) continue
+        end
+
+        task.wait(0.2)
+
+        local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok6 or not result6 then
+            warn("[LixHub] Legend setMatchStatus failed: " .. tostring(result6))
+            task.wait(3) continue
+        end
+
+        pushNotify({
+            Title   = "Auto Join Legend",
+            Content = string.format("Joining: %s Act %d (Legend)",
+                State.AutoJoinLegendStageName, State.AutoJoinLegendAct),
+            Duration = 4,
+            Image   = "log-in"
+        })
+
+        task.wait(10)
+    end
+end)
 end
 
 -- ============================================================
