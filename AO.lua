@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.14
+-- V0.15
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -919,11 +919,8 @@ local function setupAutoJoin()
             local door = doorsFolder:FindFirstChild(doorName)
             if not door then continue end
 
-            local part = door:IsA("Part") 
-            if not part then continue end
-
             print(string.format("[LixHub] Touching story door %s", doorName))
-            Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(part.Door.Position)
+            game:GetService("Players").LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(door.Door.Position)
             task.wait(1.5)
 
             local ok, result = pcall(roomsNet.setConfiguring.call, true)
