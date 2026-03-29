@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.48
+-- V0.5
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -755,6 +755,7 @@ local State = {
  },
     AutoResetActEnabled = false,
     AutoResetActWave    = 0,
+    AutoCloseWeather = false,
 }
 
 local function sendWebhookRaw(body)
@@ -1672,6 +1673,27 @@ GameTab:CreateSlider({
         State.AutoResetActWave = v
     end,
 })
+
+GameTab:CreateToggle({
+    Name         = "Auto Close Weather Report",
+    CurrentValue = false,
+    Flag         = "AutoCloseWeather",
+    Callback     = function(v)
+        State.AutoCloseWeather = v
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if State.AutoCloseWeather then
+            local gui = Players.LocalPlayer.PlayerGui:FindFirstChild("weatherNotificationGui")
+            if gui and gui.Enabled then
+                gui.Enabled = false
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     if IS_LOBBY then return end
