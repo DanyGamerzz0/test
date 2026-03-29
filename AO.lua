@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.41
+-- V0.42
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2132,6 +2132,15 @@ buildModeCollapsible("Story Stages",    "story",     stageNames,     stageNameTo
 buildModeCollapsible("Legend Stages",   "legends",   stageNames,     stageNameToId)
 buildModeCollapsible("Raid Stages",     "raid",      raidStageNames, raidStageNameToId)
 buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameToId)
+
+-- DEBUG
+print("[LixHub] worldMacroDropdowns registered count:")
+local count = 0
+for key in pairs(worldMacroDropdowns) do
+    count = count + 1
+    print("  " .. key)
+end
+print("  TOTAL:", count)
 
 -- ============================================================
 -- WEBHOOK TAB
