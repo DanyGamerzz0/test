@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.04
+-- V0.05
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -717,6 +717,11 @@ local State = {
     AutoStartGame  = false,
     AutoLobby      = false,
     ChallengeBug   = false,
+    EnableLowPerfMode = false,
+    StreamerModeEnabled = false,
+    EnableBlackScreen = false,
+    EnableLimitFPS = false,
+    SelectedFPS = 60,
 }
 
 local function sendWebhookRaw(body)
@@ -796,9 +801,186 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- ============================================================
+-- CARDS TAB
+-- ============================================================
+
+local CardsTab = Window:CreateTab("Cards", "layers")
+
+State.CardPriorities = {}
+
+local function stripDescription(desc)
+    if type(desc) ~= "string" then return "" end
+    -- Remove rich text tags like <value>, </value>, <b>, etc.
+    desc = desc:gsub("<[^>]+>", "")
+    -- Remove any leftover whitespace artifacts
+    desc = desc:match("^%s*(.-)%s*$")
+    return desc
+end
+
+local function loadCards()
+    -- ── Normal Cards ────────────────────────────────────────
+    CardsTab:CreateSection("Cards")
+
+    local cardFolder = ReplicatedStorage:WaitForChild("gameShared")
+        :WaitForChild("config")
+        :WaitForChild("cards")
+
+    local cardModules = {}
+    for _, obj in ipairs(cardFolder:GetChildren()) do
+        if obj:IsA("ModuleScript") and obj.Name ~= "util" then
+            local ok, config = pcall(require, obj)
+            if ok and type(config) == "table" and config.name then
+                table.insert(cardModules, config)
+            end
+        end
+    end
+    table.sort(cardModules, function(a, b) return a.name < b.name end)
+
+    for _, config in ipairs(cardModules) do
+        local id   = config.id or config.name
+        local desc = stripDescription(config.description)
+
+        State.CardPriorities[id] = 50 -- default
+
+        CardsTab:CreateSlider({
+            Name         = config.name,
+            Range        = { 0, 100 },
+            Increment    = 1,
+            Suffix       = "",
+            CurrentValue = 50,
+            Flag         = "CardPriority_" .. id,
+            Info         = desc ~= "" and desc or nil,
+            Callback     = function(value)
+                State.CardPriorities[id] = value
+            end,
+        })
+    end
+
+    -- ── Contracts ────────────────────────────────────────────
+    CardsTab:CreateDivider()
+    CardsTab:CreateSection("Contracts")
+
+    local contractFolder = ReplicatedStorage:WaitForChild("gameShared")
+        :WaitForChild("config")
+        :WaitForChild("contracts")
+
+    local contractModules = {}
+    for _, obj in ipairs(contractFolder:GetChildren()) do
+        if obj:IsA("ModuleScript") and obj.Name ~= "util" then
+            local ok, config = pcall(require, obj)
+            if ok and type(config) == "table" and config.name then
+                table.insert(contractModules, config)
+            end
+        end
+    end
+    table.sort(contractModules, function(a, b) return a.name < b.name end)
+
+    for _, config in ipairs(contractModules) do
+        local id   = config.id or config.name
+        local desc = stripDescription(config.description)
+
+        State.CardPriorities[id] = 50 -- default
+
+        CardsTab:CreateSlider({
+            Name         = config.name,
+            Range        = { 0, 100 },
+            Increment    = 1,
+            Suffix       = "",
+            CurrentValue = 50,
+            Flag         = "ContractPriority_" .. id,
+            Info         = desc ~= "" and desc or nil,
+            Callback     = function(value)
+                State.CardPriorities[id] = value
+            end,
+        })
+    end
+end
+
+-- Only load in-game, cards don't exist in lobby
+if not IS_LOBBY then
+    local ok, err = pcall(loadCards)
+    if not ok then
+        warn("[LixHub] Cards tab failed to load: " .. tostring(err))
+    end
+else
+    CardsTab:CreateLabel("Cards are not available in the lobby — join a game first.")
+end
+
+-- ============================================================
 -- GAME TAB
 -- ============================================================
 local GameTab = Window:CreateTab("Game", "gamepad")
+
+GameTab:CreateSection("Player")
+
+    GameTab:CreateSlider({
+        Name         = "Max Camera Zoom Distance",
+        Range        = { 5, 100 },
+        Increment    = 1,
+        Suffix       = " studs",
+        CurrentValue = 35,
+        Flag         = "CameraZoomDistance",
+        Callback     = function(Value)
+            game:GetService("Players").LocalPlayer.CameraMaxZoomDistance = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Low Performance Mode",
+        CurrentValue = false,
+        Flag         = "LowPerfMode",
+        Callback     = function(Value)
+            State.EnableLowPerfMode = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Black Screen",
+        CurrentValue = false,
+        Flag         = "BlackScreen",
+        Callback     = function(Value)
+            State.EnableBlackScreen = Value
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Limit FPS",
+        CurrentValue = false,
+        Flag         = "LimitFPS",
+        Callback     = function(Value)
+            State.EnableLimitFPS = Value
+            if Value and State.SelectedFPS > 0 then
+                setfpscap(State.SelectedFPS)
+            else
+                setfpscap(0)
+            end
+        end,
+    })
+
+    GameTab:CreateSlider({
+        Name         = "Limit FPS To",
+        Range        = { 10, 240 },
+        Increment    = 1,
+        Suffix       = " FPS",
+        CurrentValue = 60,
+        Flag         = "FPSLimit",
+        Callback     = function(Value)
+            State.SelectedFPS = Value
+            if State.EnableLimitFPS then setfpscap(Value) end
+        end,
+    })
+
+    GameTab:CreateToggle({
+        Name         = "Streamer Mode",
+        CurrentValue = false,
+        Flag         = "StreamerMode",
+        Info         = "Hides your name, level, and title in the overhead billboard.",
+        Callback     = function(Value)
+            State.StreamerModeEnabled = Value
+        end,
+    })
+
+    GameTab:CreateSection("Game")
 
 GameTab:CreateToggle({ Name = "Auto Start Game", Flag = "AutoStartGame", Callback = function(v) State.AutoStartGame = v end })
 GameTab:CreateToggle({ Name = "Auto Replay",      Flag = "AutoReplay",      Callback = function(v) playerNet.updateSettings.fire("autoReplay", v)  end })
@@ -1409,6 +1591,77 @@ local function setupMatchEndWebhook()
 end
 
 -- ============================================================
+-- AUTO CARD SELECTION
+-- ============================================================
+local function setupAutoCardSelection()
+    local gamemodesNet = require(ReplicatedStorage:WaitForChild("gameClient"):WaitForChild("net"):WaitForChild("gamemodes"))
+
+    gamemodesNet.showInfCards.on(function(cardIds)
+        if not cardIds or #cardIds == 0 then return end
+
+        local bestId    = nil
+        local bestScore = -1
+
+        for _, id in ipairs(cardIds) do
+            local score = State.CardPriorities[id]
+            if score then
+                if score > bestScore then
+                    bestScore = score
+                    bestId    = id
+                end
+            else
+                warn("[LixHub] Unknown card ID from server: " .. tostring(id))
+            end
+        end
+
+        if bestId then
+            print(string.format("[LixHub] Auto-selecting card: %s (priority %d)", bestId, bestScore))
+            task.spawn(function()
+                local ok, result = pcall(gamemodesNet.selectInfCard.call, bestId)
+                if not ok then
+                    warn("[LixHub] selectInfCard failed: " .. tostring(result))
+                end
+            end)
+        else
+            warn("[LixHub] No known cards in offer — nothing selected. Card IDs: " .. table.concat(cardIds, ", "))
+        end
+    end)
+
+    gamemodesNet.showContracts.on(function(contractIds)
+        if not contractIds or #contractIds == 0 then return end
+
+        local bestId    = nil
+        local bestScore = -1
+
+        for _, id in ipairs(contractIds) do
+            local score = State.CardPriorities[id]
+            if score then
+                if score > bestScore then
+                    bestScore = score
+                    bestId    = id
+                end
+            else
+                warn("[LixHub] Unknown contract ID from server: " .. tostring(id))
+            end
+        end
+
+        if bestId then
+            print(string.format("[LixHub] Auto-selecting contract: %s (priority %d)", bestId, bestScore))
+            task.spawn(function()
+                local ok, result = pcall(gamemodesNet.selectContract.call, bestId)
+                if not ok then
+                    warn("[LixHub] selectContract failed: " .. tostring(result))
+                end
+            end)
+        else
+            warn("[LixHub] No known contracts in offer — nothing selected. Contract IDs: " .. table.concat(contractIds, ", "))
+        end
+    end)
+
+    print("[LixHub] Auto card selection active.")
+end
+
+-- ============================================================
 -- WAVE HOOK
 -- ============================================================
 local function setupWaveHook()
@@ -1522,6 +1775,7 @@ else
     setupWaveHook()
     setupMatchEndHook()
     setupMatchEndWebhook()
+    setupAutoCardSelection()
     print("[LixHub] In-game — hooks active.")
 end
 
