@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.24
+-- V0.25
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2517,6 +2517,7 @@ ensureFolders()
 MacroSystem.loadAll()
 loadWorldMappings()
 refreshDropdown()
+refreshWorldDropdowns()
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
