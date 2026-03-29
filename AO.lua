@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.08
+-- V0.09
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -713,16 +713,22 @@ local Webhook = {
 }
 
 local State = {
-    AntiAfkEnabled = false,
-    AutoStartGame  = false,
-    AutoLobby      = false,
-    ChallengeBug   = false,
-    EnableLowPerfMode = false,
+    AntiAfkEnabled      = false,
+    AutoStartGame       = false,
+    AutoLobby           = false,
+    ChallengeBug        = false,
+    EnableLowPerfMode   = false,
     StreamerModeEnabled = false,
-    EnableBlackScreen = false,
-    EnableLimitFPS = false,
-    SelectedFPS = 60,
-    AutoPickCards = false,
+    EnableBlackScreen   = false,
+    EnableLimitFPS      = false,
+    SelectedFPS         = 60,
+    AutoPickCards       = false,
+    CardPriorities      = {},
+    AutoJoin            = false,
+    AutoJoinStageId     = "",
+    AutoJoinStageName   = "",
+    AutoJoinAct         = nil,
+    AutoJoinDifficulty  = "",
 }
 
 local function sendWebhookRaw(body)
