@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.06
+-- V0.07
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -722,6 +722,7 @@ local State = {
     EnableBlackScreen = false,
     EnableLimitFPS = false,
     SelectedFPS = 60,
+    AutoPickCards = false,
 }
 
 local function sendWebhookRaw(body)
@@ -806,6 +807,16 @@ local Window = Rayfield:CreateWindow({
 
 local CardsTab = Window:CreateTab("Cards", "layers")
 
+CardsTab:CreateToggle({
+    Name         = "Auto Pick Cards",
+    CurrentValue = false,
+    Flag         = "AutoPickCards",
+    Info         = "Automatically selects the highest priority card or contract.",
+    Callback     = function(v)
+        State.AutoPickCards = v
+    end,
+})
+
 State.CardPriorities = {}
 
 local function stripDescription(desc)
@@ -850,6 +861,7 @@ local function loadCards()
             CurrentValue = i,
             Flag         = "CardPriority_" .. id,
             Info         = desc ~= "" and desc or nil,
+            TextScaled = true,
             Callback     = function(value)
                 State.CardPriorities[id] = value
             end,
@@ -904,7 +916,7 @@ if not IS_LOBBY then
         warn("[LixHub] Cards tab failed to load: " .. tostring(err))
     end
 else
-    CardsTab:CreateLabel("Cards are not available in the lobby — join a game first.")
+    CardsTab:CreateLabel("Cards are not available in the lobby.")
 end
 
 -- ============================================================
@@ -1598,6 +1610,7 @@ local function setupAutoCardSelection()
     local gamemodesNet = require(ReplicatedStorage:WaitForChild("gameClient"):WaitForChild("net"):WaitForChild("gamemodesNet"))
 
     gamemodesNet.showInfCards.on(function(cardIds)
+        if not State.AutoPickCards then return end
         if not cardIds or #cardIds == 0 then return end
 
         local bestId    = nil
@@ -1611,7 +1624,7 @@ local function setupAutoCardSelection()
                     bestId    = id
                 end
             else
-                warn("[LixHub] Unknown card ID from server: " .. tostring(id))
+                warn("[LixHub] Unknown card ID: " .. tostring(id))
             end
         end
 
@@ -1624,11 +1637,12 @@ local function setupAutoCardSelection()
                 end
             end)
         else
-            warn("[LixHub] No known cards in offer — nothing selected. Card IDs: " .. table.concat(cardIds, ", "))
+            warn("[LixHub] No cards, nothing selected. Card IDs: " .. table.concat(cardIds, ", "))
         end
     end)
 
     gamemodesNet.showContracts.on(function(contractIds)
+        if not State.AutoPickCards then return end
         if not contractIds or #contractIds == 0 then return end
 
         local bestId    = nil
@@ -1642,7 +1656,7 @@ local function setupAutoCardSelection()
                     bestId    = id
                 end
             else
-                warn("[LixHub] Unknown contract ID from server: " .. tostring(id))
+                warn("[LixHub] Unknown contract ID: " .. tostring(id))
             end
         end
 
@@ -1655,11 +1669,11 @@ local function setupAutoCardSelection()
                 end
             end)
         else
-            warn("[LixHub] No known contracts in offer — nothing selected. Contract IDs: " .. table.concat(contractIds, ", "))
+            warn("[LixHub] No contracts, nothing selected. Contract IDs: " .. table.concat(contractIds, ", "))
         end
     end)
 
-    print("[LixHub] Auto card selection active.")
+    print("[LixHub] Auto card active.")
 end
 
 -- ============================================================
