@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.32
+-- V0.4
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1710,10 +1710,21 @@ local MacroDropdown
 local RecordToggle
 local PlaybackToggle
 
+local function refreshAutoSelectDropdowns()
+    local opts = { "None" }
+    for _, name in ipairs(MacroSystem.getList()) do
+        table.insert(opts, name)
+    end
+    for _, dropdown in pairs(worldMacroDropdowns) do
+        pcall(function() dropdown:Refresh(opts) end)
+    end
+end
+
 local function refreshDropdown()
     local list = MacroSystem.getList()
     local sel  = MacroSystem.currentMacroName ~= "" and { MacroSystem.currentMacroName } or {}
     if MacroDropdown then MacroDropdown:Refresh(list, sel) end
+    refreshAutoSelectDropdowns()
 end
 
 local function updateStatus(name)
@@ -2464,6 +2475,8 @@ ensureFolders()
 MacroSystem.loadAll()
 loadWorldMappings()
 refreshDropdown()
+task.wait(0.5)
+refreshAutoSelectDropdowns()
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
