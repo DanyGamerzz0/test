@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.21
+-- V0.22
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1243,20 +1243,19 @@ local function setupAutoJoin()
             if not freqType then continue end
             local challenges = getChallengesByType(freqType)
             for _, entry in ipairs(challenges) do
-                print(game:GetService("HttpService"):JSONEncode(entry))
                 if isChallengeCompleted(entry.id) then continue end
                 if entry.stage and State.ChallengeIgnoreWorlds[entry.stage] then continue end
                 if next(State.ChallengeRequiredRewards) then
                     local freqRewards = challengeRewards[freqType] or {}
+                    local rewardGroup = freqRewards[entry.rewardPool] -- use the specific pool index
                     local hasReward = false
-                    for _, group in ipairs(freqRewards) do
-                        for _, reward in ipairs(group) do
+                    if rewardGroup then
+                        for _, reward in ipairs(rewardGroup) do
                             if State.ChallengeRequiredRewards[reward.id] then
                                 hasReward = true
                                 break
                             end
                         end
-                        if hasReward then break end
                     end
                     if not hasReward then continue end
                 end
