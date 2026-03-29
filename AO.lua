@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.4
+-- V0.41
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1715,8 +1715,14 @@ local function refreshAutoSelectDropdowns()
     for _, name in ipairs(MacroSystem.getList()) do
         table.insert(opts, name)
     end
-    for _, dropdown in pairs(worldMacroDropdowns) do
-        pcall(function() dropdown:Refresh(opts) end)
+    for key, dropdown in pairs(worldMacroDropdowns) do
+        pcall(function()
+            dropdown:Refresh(opts)
+            local current = worldMacroMappings[key]
+            if current and MacroSystem.library[current] then
+                dropdown:Set(current)
+            end
+        end)
     end
 end
 
@@ -2475,8 +2481,13 @@ ensureFolders()
 MacroSystem.loadAll()
 loadWorldMappings()
 refreshDropdown()
-task.wait(0.5)
 refreshAutoSelectDropdowns()
+task.wait(0.5)
+for mapKey, macroName in pairs(worldMacroMappings) do
+    if worldMacroDropdowns[mapKey] and MacroSystem.library[macroName] then
+        pcall(function() worldMacroDropdowns[mapKey]:Set(macroName) end)
+    end
+end
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
