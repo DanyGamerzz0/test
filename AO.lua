@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.07
+-- V0.08
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -800,6 +800,191 @@ local Window = Rayfield:CreateWindow({
         RememberJoins = true
     },
 })
+
+-- ============================================================
+-- AUTO JOIN TAB
+-- ============================================================
+local AutoJoinTab = Window:CreateTab("Auto Join", "play")
+
+-- Load story stages from config
+local stageList    = {} -- { name, id, maxActs }
+local stageNames   = {}
+local stageNameToId = {}
+
+do
+    local stagesFolder = ReplicatedStorage:WaitForChild("shared")
+        :WaitForChild("config")
+        :WaitForChild("stages")
+
+    local excluded = { util = true, validate = true }
+
+    for _, obj in ipairs(stagesFolder:GetChildren()) do
+        if obj:IsA("ModuleScript") and not excluded[obj.Name] then
+            local ok, config = pcall(require, obj)
+            if ok and type(config) == "table" and config.name and config.id and config.acts and not config.raidOnly and not config.gamemode then
+                table.insert(stageList, { name = config.name, id = config.id })
+                table.insert(stageNames, config.name)
+                stageNameToId[config.name] = config.id
+            end
+        end
+    end
+
+    table.sort(stageList, function(a, b) return a.name < b.name end)
+    table.sort(stageNames)
+end
+
+AutoJoinTab:CreateSection("Auto Story")
+
+AutoJoinTab:CreateToggle({
+    Name         = "Auto Join Story",
+    CurrentValue = false,
+    Flag         = "AutoJoinStory",
+    Info         = "Automatically creates and readies a solo room with the selected stage, act, and difficulty.",
+    Callback     = function(v)
+        State.AutoJoin = v
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Select World",
+    Options         = stageNames,
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoJoinStage",
+    Callback        = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        if not name or name == "" then return end
+        State.AutoJoinStageName = name
+        State.AutoJoinStageId   = stageNameToId[name] or ""
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Select Act",
+    Options         = { "1", "2", "3", "4", "5", "6", "7" },
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoJoinAct",
+    Callback        = function(selected)
+        local val = type(selected) == "table" and selected[1] or selected
+        State.AutoJoinAct = tonumber(val)
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name            = "Select Difficulty",
+    Options         = { "Normal", "Nightmare"},
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoJoinDifficulty",
+    Callback        = function(selected)
+        local val = type(selected) == "table" and selected[1] or selected
+        State.AutoJoinDifficulty = val
+    end,
+})
+
+-- ============================================================
+-- AUTO JOIN LOGIC
+-- ============================================================
+local function setupAutoJoin()
+    local roomsNet = require(ReplicatedStorage:WaitForChild("gameClient"):WaitForChild("net"):WaitForChild("rooms"))
+
+    -- Listen for join errors so we can warn and retry
+    roomsNet.roomJoinError.on(function(errMsg)
+        if State.AutoJoin then
+            warn("[LixHub] Room join error: " .. tostring(errMsg))
+            pushNotify({ Title = "Auto Join Error", Content = tostring(errMsg), Duration = 5, Image = "x-circle" })
+        end
+    end)
+
+    -- Listen for teleport — confirms the room was accepted and game is starting
+    roomsNet.teleportToGame.on(function(data)
+        if State.AutoJoin then
+            print(string.format("[LixHub] Teleporting to game: %s - %s", data.mapName, data.actName))
+            pushNotify({
+                Title   = "Auto Join",
+                Content = string.format("Joining %s — %s", data.mapName, data.actName),
+                Duration = 4,
+                Image   = "play"
+            })
+        end
+    end)
+
+    -- Main auto join loop — only runs in lobby
+    task.spawn(function()
+        while true do
+            task.wait(2)
+
+            if not State.AutoJoin then continue end
+            if not IS_LOBBY then continue end
+            if State.AutoJoinStageId == "" then continue end
+
+            task.spawn(function()
+                -- Step 1: Queue matchmaking (solo)
+                local ok1, result1 = pcall(roomsNet.queueMatchmaking.call,
+                    State.AutoJoinStageId, true)
+                if not ok1 then
+                    warn("[LixHub] queueMatchmaking failed: " .. tostring(result1))
+                    return
+                end
+                local success1 = result1
+                if not success1 then
+                    warn("[LixHub] queueMatchmaking rejected by server")
+                    return
+                end
+
+                task.wait(0.3)
+
+                -- Step 2: Select stage
+                local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinStageId)
+                if not ok2 or not result2 then
+                    warn("[LixHub] selectStage failed: " .. tostring(result2))
+                    return
+                end
+
+                task.wait(0.2)
+
+                -- Step 3: Select act
+                local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinAct)
+                if not ok3 or not result3 then
+                    warn("[LixHub] selectAct failed: " .. tostring(result3))
+                    return
+                end
+
+                task.wait(0.2)
+
+                -- Step 4: Select difficulty
+                local ok4, result4 = pcall(roomsNet.selectDifficulty.call, State.AutoJoinDifficulty)
+                if not ok4 or not result4 then
+                    warn("[LixHub] selectDifficulty failed: " .. tostring(result4))
+                    return
+                end
+
+                task.wait(0.2)
+
+                -- Step 5: Get ready
+                local ok5, result5 = pcall(roomsNet.getReady.call)
+                if not ok5 or not result5 then
+                    warn("[LixHub] getReady failed: " .. tostring(result5))
+                    return
+                end
+
+                print(string.format("[LixHub] Auto join queued: %s Act %d %s",
+                    State.AutoJoinStageId, State.AutoJoinAct, State.AutoJoinDifficulty))
+                pushNotify({
+                    Title   = "Auto Join",
+                    Content = string.format("Queued: %s Act %d (%s)",
+                        State.AutoJoinStageName, State.AutoJoinAct, State.AutoJoinDifficulty),
+                    Duration = 4,
+                    Image   = "log-in"
+                })
+            end)
+
+            -- Wait long enough that we don't spam if the teleport is coming
+            task.wait(10)
+        end
+    end)
+end
 
 -- ============================================================
 -- CARDS TAB
