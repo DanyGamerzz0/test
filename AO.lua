@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.46
+-- V0.47
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -753,6 +753,8 @@ local State = {
     Legend    = 50,
     Story     = 25,
  },
+    AutoResetActEnabled = false,
+    AutoResetActWave    = 0,
 }
 
 local function sendWebhookRaw(body)
@@ -1650,6 +1652,27 @@ GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",     Callba
 GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves", Callback = function(v) playerNet.updateSettings.fire("autoSkipWave", v) end })
 GameTab:CreateToggle({ Name = "Challenge Bug",    Flag = "ChallengeBug",  Callback = function(v) State.ChallengeBug = v end })
 
+GameTab:CreateToggle({
+    Name         = "Auto Reset On x Wave",
+    CurrentValue = false,
+    Flag         = "AutoResetAct",
+    Callback     = function(v)
+        State.AutoResetActEnabled = v
+    end,
+})
+
+GameTab:CreateSlider({
+    Name         = "Reset on Wave",
+    Range        = { 0, 500 },
+    Increment    = 1,
+    CurrentValue = 10,
+    Flag         = "AutoResetActWave",
+    Info = "0 = disable",
+    Callback     = function(v)
+        State.AutoResetActWave = v
+    end,
+})
+
 task.spawn(function()
     if IS_LOBBY then return end
 
@@ -2401,6 +2424,15 @@ local function setupWaveHook()
             end
         end
         lastWave = waveNumber
+        if State.AutoResetActEnabled and waveNumber == State.AutoResetActWave then
+            local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
+            task.spawn(function()
+                local ok, result = pcall(votingClient.resetAct.call)
+                if not ok then
+                    warn("[LixHub] Auto reset act failed: " .. tostring(result))
+                end
+            end)
+        end
     end)
 end
 
