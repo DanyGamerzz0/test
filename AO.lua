@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.42
+-- V0.43
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2128,11 +2128,6 @@ local function buildModeCollapsible(displayName, gamemodeKey, nameList, nameToId
     end
 end
 
-buildModeCollapsible("Story Stages",    "story",     stageNames,     stageNameToId)
-buildModeCollapsible("Legend Stages",   "legends",   stageNames,     stageNameToId)
-buildModeCollapsible("Raid Stages",     "raid",      raidStageNames, raidStageNameToId)
-buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameToId)
-
 -- DEBUG
 print("[LixHub] worldMacroDropdowns registered count:")
 local count = 0
@@ -2488,6 +2483,10 @@ end)
 -- ============================================================
 ensureFolders()
 MacroSystem.loadAll()
+buildModeCollapsible("Story Stages",    "story",     stageNames,     stageNameToId)
+buildModeCollapsible("Legend Stages",   "legends",   stageNames,     stageNameToId)
+buildModeCollapsible("Raid Stages",     "raid",      raidStageNames, raidStageNameToId)
+buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameToId)
 loadWorldMappings()
 refreshDropdown()
 refreshAutoSelectDropdowns()
