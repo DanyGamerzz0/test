@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.05
+-- V0.06
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -836,18 +836,18 @@ local function loadCards()
     end
     table.sort(cardModules, function(a, b) return a.name < b.name end)
 
-    for _, config in ipairs(cardModules) do
+    for i, config in ipairs(cardModules) do
         local id   = config.id or config.name
         local desc = stripDescription(config.description)
 
-        State.CardPriorities[id] = 50 -- default
+        State.CardPriorities[id] = i -- default
 
         CardsTab:CreateSlider({
             Name         = config.name,
             Range        = { 0, 100 },
             Increment    = 1,
             Suffix       = "",
-            CurrentValue = 50,
+            CurrentValue = i,
             Flag         = "CardPriority_" .. id,
             Info         = desc ~= "" and desc or nil,
             Callback     = function(value)
@@ -875,20 +875,21 @@ local function loadCards()
     end
     table.sort(contractModules, function(a, b) return a.name < b.name end)
 
-    for _, config in ipairs(contractModules) do
+    for i, config in ipairs(contractModules) do
         local id   = config.id or config.name
         local desc = stripDescription(config.description)
 
-        State.CardPriorities[id] = 50 -- default
+        State.CardPriorities[id] = i -- default
 
         CardsTab:CreateSlider({
             Name         = config.name,
             Range        = { 0, 100 },
             Increment    = 1,
             Suffix       = "",
-            CurrentValue = 50,
+            CurrentValue = i,
             Flag         = "ContractPriority_" .. id,
             Info         = desc ~= "" and desc or nil,
+            TextScaled = true,
             Callback     = function(value)
                 State.CardPriorities[id] = value
             end,
@@ -1594,7 +1595,7 @@ end
 -- AUTO CARD SELECTION
 -- ============================================================
 local function setupAutoCardSelection()
-    local gamemodesNet = require(ReplicatedStorage:WaitForChild("gameClient"):WaitForChild("net"):WaitForChild("gamemodes"))
+    local gamemodesNet = require(ReplicatedStorage:WaitForChild("gameClient"):WaitForChild("net"):WaitForChild("gamemodesNet"))
 
     gamemodesNet.showInfCards.on(function(cardIds)
         if not cardIds or #cardIds == 0 then return end
