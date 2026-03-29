@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.26
+-- V0.27
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2524,6 +2524,8 @@ else
 end
 
 Rayfield:LoadConfiguration()
+
+refreshWorldDropdowns()
 
 pushNotify({ Title = "LixHub Loaded", Content = IS_LOBBY and "Running in lobby — hooks inactive." or "Macro system ready.", Duration = 3, Image = "check-circle" })
 
