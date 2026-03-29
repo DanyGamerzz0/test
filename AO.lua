@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.17
+-- V0.18
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -853,7 +853,7 @@ do
         if obj:IsA("ModuleScript") and not excluded[obj.Name] then
             local ok, config = pcall(require, obj)
             if ok and type(config) == "table" and config.name and config.id and config.acts then
-                if config.raidOnly then
+                if config.raidOnly and not config.unreleased and not config.gamemode then
                     table.insert(raidStageNames, config.name)
                     raidStageNameToId[config.name] = config.id
                 end
