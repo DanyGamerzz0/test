@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.11
+-- V0.12
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -30,8 +30,8 @@ if not IS_LOBBY then
     local gameClient = ReplicatedStorage:WaitForChild("gameClient")
     local net        = gameClient:WaitForChild("net")
 
-    towers = require(net:WaitForChild("towers"))
-    sync   = require(net:WaitForChild("sync"))
+    towers    = require(net:WaitForChild("towers"))
+    sync      = require(net:WaitForChild("sync"))
     playerNet = require(ReplicatedStorage.gameClient.net.player)
 
     calculateClientUpgradeCostMultiplier = require(ReplicatedStorage.gameClient.utilities.calculateClientUpgradeCostMultiplier)
@@ -67,18 +67,16 @@ local heroConfigCache = {}
 
 local function getHeroConfigById(heroId)
     if heroConfigCache[heroId] then return heroConfigCache[heroId] end
-
     local heroFolder = ReplicatedStorage.shared.config.items.data.hero
     for _, obj in ipairs(heroFolder:GetDescendants()) do
         if obj:IsA("ModuleScript") then
             local ok, config = pcall(require, obj)
             if ok and type(config) == "table" and config.id then
-                heroConfigCache[config.id] = config  -- cache all found configs
+                heroConfigCache[config.id] = config
             end
         end
     end
-
-    return heroConfigCache[heroId]  -- nil if still not found after full scan
+    return heroConfigCache[heroId]
 end
 
 local function getEquippedHeroes()
@@ -91,7 +89,7 @@ local function getEquippedHeroes()
     for slot, uuid in ipairs(uuids) do
         local hero = heroData and heroData[uuid]
         if hero then
-            local config = getHeroConfigById(hero.id)  -- use id-based lookup
+            local config = getHeroConfigById(hero.id)
             result[slot] = {
                 uuid   = uuid,
                 id     = hero.id,
@@ -414,18 +412,15 @@ local function buildNextPreview(actions, currentIndex, nameToHero, labelToLevel)
     for j = currentIndex + 1, #actions do
         local next = actions[j]
         if not next then break end
-
-        local label     = next.unitName or "?"
-        local baseName  = label:match("^(.-)%s*#%d+$") or label
-        local absTime   = tonumber(next.time) or 0
-        local timeHint  = string.format(" at %.1fs", absTime)
-
+        local label    = next.unitName or "?"
+        local baseName = label:match("^(.-)%s*#%d+$") or label
+        local absTime  = tonumber(next.time) or 0
+        local timeHint = string.format(" at %.1fs", absTime)
         if next.action == "PLACE" then
             return string.format("Next: Place [%s]%s", baseName, timeHint)
         elseif next.action == "UPGRADE" then
             local currentLevel = labelToLevel and labelToLevel[label] or 1
-            return string.format("Next: Upgrade [%s] Level %d to %d%s",
-                baseName, currentLevel, currentLevel + 1, timeHint)
+            return string.format("Next: Upgrade [%s] Level %d to %d%s", baseName, currentLevel, currentLevel + 1, timeHint)
         elseif next.action == "SELL" then
             return string.format("Next: Sell [%s]%s", baseName, timeHint)
         elseif next.action == "AUTO_UPGRADE" then
@@ -466,13 +461,8 @@ local function waitForYen(cost, label, actionType, index, total, nextLine, nameT
     local actionWord = actionType == "PLACE" and "place" or "upgrade"
     while MacroSystem.isPlaying and getYen() < cost do
         local have    = getYen()
-        local waitMsg = string.format(
-            "Waiting for yen to %s [%s]  (%d / %d yen)",
-            actionWord, baseName, have, cost
-        )
-        local combinedDetail = nextLine and nextLine ~= ""
-            and (waitMsg .. "  |  " .. nextLine)
-            or waitMsg
+        local waitMsg = string.format("Waiting for yen to %s [%s]  (%d / %d yen)", actionWord, baseName, have, cost)
+        local combinedDetail = nextLine and nextLine ~= "" and (waitMsg .. "  |  " .. nextLine) or waitMsg
         playbackLastStatus = string.format("Macro: %s  [%d/%d]  Time: %s",
             MacroSystem.currentMacroName, index, total, fmtElapsed())
         playbackLastDetail = combinedDetail
@@ -532,9 +522,7 @@ function MacroSystem.playback(name)
                     end
                     while MacroSystem.isPlaying and tick() < deadline do
                         local remaining = math.max(0, deadline - tick())
-                        local waitMsg = string.format(
-                            "Waiting %.1fs before: %s [%s]", remaining, actionWord, baseName
-                        )
+                        local waitMsg = string.format("Waiting %.1fs before: %s [%s]", remaining, actionWord, baseName)
                         playbackLastStatus = string.format("Macro: %s  [%d/%d]  Time: %s",
                             MacroSystem.currentMacroName, i - 1, #actions, fmtElapsed())
                         playbackLastDetail = waitMsg
@@ -546,8 +534,8 @@ function MacroSystem.playback(name)
 
             if not MacroSystem.isPlaying then break end
 
-            local label    = action.unitName or "?"
-            local baseName = label:match("^(.-)%s*#%d+$") or label
+            local label       = action.unitName or "?"
+            local baseName    = label:match("^(.-)%s*#%d+$") or label
             local nextPreview = buildNextPreview(actions, i, nameToHero, labelToLevel)
 
             if action.action == "PLACE" then
@@ -812,9 +800,8 @@ local Window = Rayfield:CreateWindow({
 -- ============================================================
 local AutoJoinTab = Window:CreateTab("Auto Join", "play")
 
--- Load story stages from config
-local stageList    = {} -- { name, id, maxActs }
-local stageNames   = {}
+local stageList     = {}
+local stageNames    = {}
 local stageNameToId = {}
 
 do
@@ -827,7 +814,12 @@ do
     for _, obj in ipairs(stagesFolder:GetChildren()) do
         if obj:IsA("ModuleScript") and not excluded[obj.Name] then
             local ok, config = pcall(require, obj)
-            if ok and type(config) == "table" and config.name and config.id and config.acts and not config.raidOnly and not config.gamemode then
+            if ok and type(config) == "table"
+                and config.name and config.id
+                and config.acts
+                and not config.raidOnly
+                and not config.gamemode
+            then
                 table.insert(stageList, { name = config.name, id = config.id })
                 table.insert(stageNames, config.name)
                 stageNameToId[config.name] = config.id
@@ -845,7 +837,7 @@ AutoJoinTab:CreateToggle({
     Name         = "Auto Join Story",
     CurrentValue = false,
     Flag         = "AutoJoinStory",
-    Info         = "Automatically creates and readies a solo room with the selected stage, act, and difficulty.",
+    Info         = "Automatically touches a story door and readies a solo room with the selected stage, act, and difficulty.",
     Callback     = function(v)
         State.AutoJoin = v
     end,
@@ -879,7 +871,7 @@ AutoJoinTab:CreateDropdown({
 
 AutoJoinTab:CreateDropdown({
     Name            = "Select Difficulty",
-    Options         = { "Normal", "Nightmare"},
+    Options         = { "Normal", "Nightmare" },
     CurrentOption   = {},
     MultipleOptions = false,
     Flag            = "AutoJoinDifficulty",
@@ -893,7 +885,8 @@ AutoJoinTab:CreateDropdown({
 -- AUTO JOIN LOGIC
 -- ============================================================
 local function setupAutoJoin()
-    local roomsNet = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("rooms"))
+    local roomsNet       = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("rooms"))
+    local lobbyPlayerNet = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("player"))
 
     roomsNet.roomJoinError.on(function(errMsg)
         if State.AutoJoin then
@@ -914,6 +907,39 @@ local function setupAutoJoin()
         end
     end)
 
+    local function touchStoryDoor()
+        local doorsFolder = workspace:FindFirstChild("StoryDoor")
+        if not doorsFolder then
+            warn("[LixHub] StoryDoor folder not found in workspace")
+            return false
+        end
+
+        for i = 1, 10 do
+            local doorName = string.format("%03d", i)
+            local door = doorsFolder:FindFirstChild(doorName)
+            if not door then continue end
+
+            local part = door:IsA("BasePart") and door
+                or door:FindFirstChildWhichIsA("BasePart")
+            if not part then continue end
+
+            print(string.format("[LixHub] Touching story door %s", doorName))
+            lobbyPlayerNet.requestTeleport.fire(part.Position)
+            task.wait(1.5)
+
+            local ok, result = pcall(roomsNet.setConfiguring.call, true)
+            if ok and result then
+                print(string.format("[LixHub] Room created via door %s", doorName))
+                return true
+            end
+
+            print(string.format("[LixHub] Door %s didn't work, trying next...", doorName))
+        end
+
+        warn("[LixHub] No story door worked")
+        return false
+    end
+
     task.spawn(function()
         while true do
             task.wait(2)
@@ -924,9 +950,10 @@ local function setupAutoJoin()
             if not State.AutoJoinAct then continue end
             if State.AutoJoinDifficulty == "" then continue end
 
-            local ok1, result1 = pcall(roomsNet.setConfiguring.call, true)
-            if not ok1 or not result1 then
-                warn("[LixHub] setConfiguring failed: " .. tostring(result1))
+            -- Touch a door to get placed in a room
+            local inRoom = touchStoryDoor()
+            if not inRoom then
+                pushNotify({ Title = "Auto Join", Content = "Could not enter a story room — retrying...", Duration = 3, Image = "x-circle" })
                 task.wait(3) continue
             end
 
@@ -986,7 +1013,6 @@ end
 -- ============================================================
 -- CARDS TAB
 -- ============================================================
-
 local CardsTab = Window:CreateTab("Cards", "layers")
 
 CardsTab:CreateToggle({
@@ -999,19 +1025,14 @@ CardsTab:CreateToggle({
     end,
 })
 
-State.CardPriorities = {}
-
 local function stripDescription(desc)
     if type(desc) ~= "string" then return "" end
-    -- Remove rich text tags like <value>, </value>, <b>, etc.
     desc = desc:gsub("<[^>]+>", "")
-    -- Remove any leftover whitespace artifacts
     desc = desc:match("^%s*(.-)%s*$")
     return desc
 end
 
 local function loadCards()
-    -- ── Normal Cards ────────────────────────────────────────
     CardsTab:CreateSection("Cards")
 
     local cardFolder = ReplicatedStorage:WaitForChild("gameShared")
@@ -1032,9 +1053,7 @@ local function loadCards()
     for i, config in ipairs(cardModules) do
         local id   = config.id or config.name
         local desc = stripDescription(config.description)
-
-        State.CardPriorities[id] = i -- default
-
+        State.CardPriorities[id] = i
         CardsTab:CreateSlider({
             Name         = config.name,
             Range        = { 0, 100 },
@@ -1043,14 +1062,13 @@ local function loadCards()
             CurrentValue = i,
             Flag         = "CardPriority_" .. id,
             Info         = desc ~= "" and desc or nil,
-            TextScaled = true,
+            TextScaled   = true,
             Callback     = function(value)
                 State.CardPriorities[id] = value
             end,
         })
     end
 
-    -- ── Contracts ────────────────────────────────────────────
     CardsTab:CreateDivider()
     CardsTab:CreateSection("Contracts")
 
@@ -1072,9 +1090,7 @@ local function loadCards()
     for i, config in ipairs(contractModules) do
         local id   = config.id or config.name
         local desc = stripDescription(config.description)
-
-        State.CardPriorities[id] = i -- default
-
+        State.CardPriorities[id] = i
         CardsTab:CreateSlider({
             Name         = config.name,
             Range        = { 0, 100 },
@@ -1083,7 +1099,7 @@ local function loadCards()
             CurrentValue = i,
             Flag         = "ContractPriority_" .. id,
             Info         = desc ~= "" and desc or nil,
-            TextScaled = true,
+            TextScaled   = true,
             Callback     = function(value)
                 State.CardPriorities[id] = value
             end,
@@ -1091,7 +1107,6 @@ local function loadCards()
     end
 end
 
--- Only load in-game, cards don't exist in lobby
 if not IS_LOBBY then
     local ok, err = pcall(loadCards)
     if not ok then
@@ -1108,81 +1123,81 @@ local GameTab = Window:CreateTab("Game", "gamepad")
 
 GameTab:CreateSection("Player")
 
-    GameTab:CreateSlider({
-        Name         = "Max Camera Zoom Distance",
-        Range        = { 5, 100 },
-        Increment    = 1,
-        Suffix       = " studs",
-        CurrentValue = 35,
-        Flag         = "CameraZoomDistance",
-        Callback     = function(Value)
-            game:GetService("Players").LocalPlayer.CameraMaxZoomDistance = Value
-        end,
-    })
+GameTab:CreateSlider({
+    Name         = "Max Camera Zoom Distance",
+    Range        = { 5, 100 },
+    Increment    = 1,
+    Suffix       = " studs",
+    CurrentValue = 35,
+    Flag         = "CameraZoomDistance",
+    Callback     = function(Value)
+        game:GetService("Players").LocalPlayer.CameraMaxZoomDistance = Value
+    end,
+})
 
-    GameTab:CreateToggle({
-        Name         = "Low Performance Mode",
-        CurrentValue = false,
-        Flag         = "LowPerfMode",
-        Callback     = function(Value)
-            State.EnableLowPerfMode = Value
-        end,
-    })
+GameTab:CreateToggle({
+    Name         = "Low Performance Mode",
+    CurrentValue = false,
+    Flag         = "LowPerfMode",
+    Callback     = function(Value)
+        State.EnableLowPerfMode = Value
+    end,
+})
 
-    GameTab:CreateToggle({
-        Name         = "Black Screen",
-        CurrentValue = false,
-        Flag         = "BlackScreen",
-        Callback     = function(Value)
-            State.EnableBlackScreen = Value
-        end,
-    })
+GameTab:CreateToggle({
+    Name         = "Black Screen",
+    CurrentValue = false,
+    Flag         = "BlackScreen",
+    Callback     = function(Value)
+        State.EnableBlackScreen = Value
+    end,
+})
 
-    GameTab:CreateToggle({
-        Name         = "Limit FPS",
-        CurrentValue = false,
-        Flag         = "LimitFPS",
-        Callback     = function(Value)
-            State.EnableLimitFPS = Value
-            if Value and State.SelectedFPS > 0 then
-                setfpscap(State.SelectedFPS)
-            else
-                setfpscap(0)
-            end
-        end,
-    })
+GameTab:CreateToggle({
+    Name         = "Limit FPS",
+    CurrentValue = false,
+    Flag         = "LimitFPS",
+    Callback     = function(Value)
+        State.EnableLimitFPS = Value
+        if Value and State.SelectedFPS > 0 then
+            setfpscap(State.SelectedFPS)
+        else
+            setfpscap(0)
+        end
+    end,
+})
 
-    GameTab:CreateSlider({
-        Name         = "Limit FPS To",
-        Range        = { 10, 240 },
-        Increment    = 1,
-        Suffix       = " FPS",
-        CurrentValue = 60,
-        Flag         = "FPSLimit",
-        Callback     = function(Value)
-            State.SelectedFPS = Value
-            if State.EnableLimitFPS then setfpscap(Value) end
-        end,
-    })
+GameTab:CreateSlider({
+    Name         = "Limit FPS To",
+    Range        = { 10, 240 },
+    Increment    = 1,
+    Suffix       = " FPS",
+    CurrentValue = 60,
+    Flag         = "FPSLimit",
+    Callback     = function(Value)
+        State.SelectedFPS = Value
+        if State.EnableLimitFPS then setfpscap(Value) end
+    end,
+})
 
-    GameTab:CreateToggle({
-        Name         = "Streamer Mode",
-        CurrentValue = false,
-        Flag         = "StreamerMode",
-        Info         = "Hides your name, level, and title in the overhead billboard.",
-        Callback     = function(Value)
-            State.StreamerModeEnabled = Value
-        end,
-    })
+GameTab:CreateToggle({
+    Name         = "Streamer Mode",
+    CurrentValue = false,
+    Flag         = "StreamerMode",
+    Info         = "Hides your name, level, and title in the overhead billboard.",
+    Callback     = function(Value)
+        State.StreamerModeEnabled = Value
+    end,
+})
 
-    GameTab:CreateSection("Game")
+GameTab:CreateSection("Game")
 
 GameTab:CreateToggle({ Name = "Auto Start Game", Flag = "AutoStartGame", Callback = function(v) State.AutoStartGame = v end })
-GameTab:CreateToggle({ Name = "Auto Replay",      Flag = "AutoReplay",      Callback = function(v) playerNet.updateSettings.fire("autoReplay", v)  end })
-GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",        Callback = function(v) playerNet.updateSettings.fire("autoNextAct", v) end })
-GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",       Callback = function(v) State.AutoLobby = v end })
-GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves",   Callback = function(v) playerNet.updateSettings.fire("autoSkipWave", v) end })
-GameTab:CreateToggle({ Name = "Challenge Bug", Flag = "ChallengeBug", Callback = function(v) State.ChallengeBug = v end })
+GameTab:CreateToggle({ Name = "Auto Replay",     Flag = "AutoReplay",    Callback = function(v) playerNet.updateSettings.fire("autoReplay", v)  end })
+GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",      Callback = function(v) playerNet.updateSettings.fire("autoNextAct", v) end })
+GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",     Callback = function(v) State.AutoLobby = v end })
+GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves", Callback = function(v) playerNet.updateSettings.fire("autoSkipWave", v) end })
+GameTab:CreateToggle({ Name = "Challenge Bug",    Flag = "ChallengeBug",  Callback = function(v) State.ChallengeBug = v end })
 
 task.spawn(function()
     if IS_LOBBY then return end
@@ -1669,7 +1684,6 @@ WebhookTab:CreateButton({
 -- ============================================================
 -- MATCH END WEBHOOK
 -- ============================================================
-
 local itemNameCache = {}
 local function getItemName(itemId)
     if itemNameCache[itemId] then return itemNameCache[itemId] end
@@ -1702,35 +1716,28 @@ local function setupMatchEndWebhook()
         if not Webhook.sendOnFinish then return end
         if not Webhook.url or Webhook.url == "" then return end
 
-        local stageId    = clientStore:getState(selectStage)
-        local actNumber  = clientStore:getState(selectAct)  or 1
-        local difficulty = clientStore:getState(selectDiff) or "Normal"
-        local gamemode   = clientStore:getState(selectGM)   or "story"
+        local stageId   = clientStore:getState(selectStage)
+        local actNumber = clientStore:getState(selectAct)  or 1
+        local gamemode  = clientStore:getState(selectGM)   or "story"
 
         local stageData = stages.get(stageId)
         local mapName   = (stageData and stageData.name) or stageId or "Unknown"
 
         local title = string.format("%s (Act %d - %s) - %s",
-            mapName,
-            actNumber,
+            mapName, actNumber,
             tostring(gamemode):gsub("^%l", string.upper),
-            won and "Victory" or "Defeat"
-        )
+            won and "Victory" or "Defeat")
 
-        -- Format clear time
         local mins    = math.floor(finalTime / 60)
         local secs    = math.floor(finalTime % 60)
         local timeStr = string.format("%d:%02d", mins, secs)
 
-        -- Build rewards string
         local rewardLines = {}
         for _, r in ipairs(rewardsData or {}) do
-            local displayName = getItemName(r.id)
-            table.insert(rewardLines, string.format("+ %s x%d", displayName, r.amount))
+            table.insert(rewardLines, string.format("+ %s x%d", getItemName(r.id), r.amount))
         end
         local rewardStr = #rewardLines > 0 and table.concat(rewardLines, "\n") or "None"
 
-        -- Build hero exp string
         local expLines = {}
         for i, h in ipairs(heroesExp or {}) do
             local hero = getHeroByUuid(h.uuid)
@@ -1739,7 +1746,6 @@ local function setupMatchEndWebhook()
         end
         local expStr = #expLines > 0 and table.concat(expLines, "\n") or "None"
 
-        -- No ping for now (will add when unit drop detection is implemented)
         local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
         if not requestFunc then return end
 
@@ -1752,29 +1758,13 @@ local function setupMatchEndWebhook()
                     username = "LixHub",
                     content  = "",
                     embeds   = {{
-                        title       = title,
-                        color       = won and 0x57F287 or 0xED4245,
-                        fields      = {
-                            {
-                                name   = "Player",
-                                value  = "||" .. Players.LocalPlayer.Name .. "||",
-                                inline = true,
-                            },
-                            {
-                                name   = "Won in",
-                                value  = timeStr,
-                                inline = true,
-                            },
-                            {
-                                name   = "Rewards",
-                                value  = rewardStr,
-                                inline = false,
-                            },
-                            {
-                                name   = "Hero EXP",
-                                value  = expStr,
-                                inline = false,
-                            },
+                        title  = title,
+                        color  = won and 0x57F287 or 0xED4245,
+                        fields = {
+                            { name = "Player",  value = "||" .. Players.LocalPlayer.Name .. "||", inline = true },
+                            { name = "Won in",  value = timeStr,  inline = true },
+                            { name = "Rewards", value = rewardStr, inline = false },
+                            { name = "Hero EXP", value = expStr,  inline = false },
                         },
                         footer    = { text = "discord.gg/cYKnXE2Nf8" },
                         timestamp = DateTime.now():ToIsoDate(),
@@ -1794,64 +1784,46 @@ local function setupAutoCardSelection()
     gamemodesNet.showInfCards.on(function(cardIds)
         if not State.AutoPickCards then return end
         if not cardIds or #cardIds == 0 then return end
-
-        local bestId    = nil
-        local bestScore = -1
-
+        local bestId, bestScore = nil, -1
         for _, id in ipairs(cardIds) do
             local score = State.CardPriorities[id]
             if score then
-                if score > bestScore then
-                    bestScore = score
-                    bestId    = id
-                end
+                if score > bestScore then bestScore = score; bestId = id end
             else
                 warn("[LixHub] Unknown card ID: " .. tostring(id))
             end
         end
-
         if bestId then
             print(string.format("[LixHub] Auto-selecting card: %s (priority %d)", bestId, bestScore))
             task.spawn(function()
                 local ok, result = pcall(gamemodesNet.selectInfCard.call, bestId)
-                if not ok then
-                    warn("[LixHub] selectInfCard failed: " .. tostring(result))
-                end
+                if not ok then warn("[LixHub] selectInfCard failed: " .. tostring(result)) end
             end)
         else
-            warn("[LixHub] No cards, nothing selected. Card IDs: " .. table.concat(cardIds, ", "))
+            warn("[LixHub] No known cards in offer. IDs: " .. table.concat(cardIds, ", "))
         end
     end)
 
     gamemodesNet.showContracts.on(function(contractIds)
         if not State.AutoPickCards then return end
         if not contractIds or #contractIds == 0 then return end
-
-        local bestId    = nil
-        local bestScore = -1
-
+        local bestId, bestScore = nil, -1
         for _, id in ipairs(contractIds) do
             local score = State.CardPriorities[id]
             if score then
-                if score > bestScore then
-                    bestScore = score
-                    bestId    = id
-                end
+                if score > bestScore then bestScore = score; bestId = id end
             else
                 warn("[LixHub] Unknown contract ID: " .. tostring(id))
             end
         end
-
         if bestId then
             print(string.format("[LixHub] Auto-selecting contract: %s (priority %d)", bestId, bestScore))
             task.spawn(function()
                 local ok, result = pcall(gamemodesNet.selectContract.call, bestId)
-                if not ok then
-                    warn("[LixHub] selectContract failed: " .. tostring(result))
-                end
+                if not ok then warn("[LixHub] selectContract failed: " .. tostring(result)) end
             end)
         else
-            warn("[LixHub] No contracts, nothing selected. Contract IDs: " .. table.concat(contractIds, ", "))
+            warn("[LixHub] No known contracts in offer. IDs: " .. table.concat(contractIds, ", "))
         end
     end)
 
@@ -1942,18 +1914,20 @@ local function setupMatchEndHook()
         elseif not MacroSystem.isRecording then
             pushUI("Macro: — | Ready", "Waiting for input...")
         end
+
         if State.AutoLobby then
             game:GetService("TeleportService"):Teleport(126297188712308)
         end
+
         if State.ChallengeBug then
-    task.spawn(function()
-        local remote = ReplicatedStorage:WaitForChild("voting"):WaitForChild("voting_RELIABLE")
-        local buf = buffer.create(2)
-        buffer.writeu8(buf, 0, 6)
-        buffer.writeu8(buf, 1, 0)
-        remote:FireServer(buf, {})
-    end)
-end
+            task.spawn(function()
+                local remote = ReplicatedStorage:WaitForChild("voting"):WaitForChild("voting_RELIABLE")
+                local buf2 = buffer.create(2)
+                buffer.writeu8(buf2, 0, 6)
+                buffer.writeu8(buf2, 1, 0)
+                remote:FireServer(buf2, {})
+            end)
+        end
     end)
 end
 
@@ -1965,6 +1939,8 @@ MacroSystem.loadAll()
 refreshDropdown()
 
 if IS_LOBBY then
+    pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
+    print("[LixHub] Lobby detected — running auto join.")
     setupAutoJoin()
 else
     setupHooks()
@@ -1972,6 +1948,7 @@ else
     setupMatchEndHook()
     setupMatchEndWebhook()
     setupAutoCardSelection()
+    print("[LixHub] In-game — hooks active.")
 end
 
 Rayfield:LoadConfiguration()
@@ -1979,9 +1956,9 @@ Rayfield:LoadConfiguration()
 pushNotify({ Title = "LixHub Loaded", Content = IS_LOBBY and "Running in lobby — hooks inactive." or "Macro system ready.", Duration = 3, Image = "check-circle" })
 
 Rayfield:TopNotify({
-    Title = "UI is hidden",
-    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
-    Image = "eye-off",
+    Title     = "UI is hidden",
+    Content   = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
+    Image     = "eye-off",
     IconColor = Color3.fromRGB(100, 150, 255),
-    Duration = 5
+    Duration  = 5
 })
