@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.1
+-- V0.11
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -895,7 +895,6 @@ AutoJoinTab:CreateDropdown({
 local function setupAutoJoin()
     local roomsNet = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("rooms"))
 
-    -- Listen for join errors so we can warn and retry
     roomsNet.roomJoinError.on(function(errMsg)
         if State.AutoJoin then
             warn("[LixHub] Room join error: " .. tostring(errMsg))
@@ -903,20 +902,18 @@ local function setupAutoJoin()
         end
     end)
 
-    -- Listen for teleport — confirms the room was accepted and game is starting
     roomsNet.teleportToGame.on(function(data)
         if State.AutoJoin then
             print(string.format("[LixHub] Teleporting to game: %s - %s", data.mapName, data.actName))
             pushNotify({
-                Title   = "Auto Join",
-                Content = string.format("Joining %s — %s", data.mapName, data.actName),
+                Title    = "Auto Join",
+                Content  = string.format("Joining %s — %s", data.mapName, data.actName),
                 Duration = 4,
-                Image   = "play"
+                Image    = "play"
             })
         end
     end)
 
-    -- Main auto join loop — only runs in lobby
     task.spawn(function()
         while true do
             task.wait(2)
@@ -924,69 +921,63 @@ local function setupAutoJoin()
             if not State.AutoJoin then continue end
             if not IS_LOBBY then continue end
             if State.AutoJoinStageId == "" then continue end
+            if not State.AutoJoinAct then continue end
+            if State.AutoJoinDifficulty == "" then continue end
 
-            task.spawn(function()
-                -- Step 1: Queue matchmaking (solo)
-                local ok1, result1 = pcall(roomsNet.queueMatchmaking.call,
-                    State.AutoJoinStageId, true)
-                if not ok1 then
-                    warn("[LixHub] queueMatchmaking failed: " .. tostring(result1))
-                    return
-                end
-                local success1 = result1
-                if not success1 then
-                    warn("[LixHub] queueMatchmaking rejected by server")
-                    return
-                end
+            local ok1, result1 = pcall(roomsNet.setConfiguring.call, true)
+            if not ok1 or not result1 then
+                warn("[LixHub] setConfiguring failed: " .. tostring(result1))
+                task.wait(3) continue
+            end
 
-                task.wait(0.3)
+            task.wait(0.2)
 
-                -- Step 2: Select stage
-                local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinStageId)
-                if not ok2 or not result2 then
-                    warn("[LixHub] selectStage failed: " .. tostring(result2))
-                    return
-                end
+            local ok2, result2 = pcall(roomsNet.selectStage.call, State.AutoJoinStageId)
+            if not ok2 or not result2 then
+                warn("[LixHub] selectStage failed: " .. tostring(result2))
+                task.wait(3) continue
+            end
 
-                task.wait(0.2)
+            task.wait(0.2)
 
-                -- Step 3: Select act
-                local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinAct)
-                if not ok3 or not result3 then
-                    warn("[LixHub] selectAct failed: " .. tostring(result3))
-                    return
-                end
+            local ok3, result3 = pcall(roomsNet.selectAct.call, State.AutoJoinAct)
+            if not ok3 or not result3 then
+                warn("[LixHub] selectAct failed: " .. tostring(result3))
+                task.wait(3) continue
+            end
 
-                task.wait(0.2)
+            task.wait(0.2)
 
-                -- Step 4: Select difficulty
-                local ok4, result4 = pcall(roomsNet.selectDifficulty.call, State.AutoJoinDifficulty)
-                if not ok4 or not result4 then
-                    warn("[LixHub] selectDifficulty failed: " .. tostring(result4))
-                    return
-                end
+            local ok4, result4 = pcall(roomsNet.selectDifficulty.call, State.AutoJoinDifficulty:lower())
+            if not ok4 or not result4 then
+                warn("[LixHub] selectDifficulty failed: " .. tostring(result4))
+                task.wait(3) continue
+            end
 
-                task.wait(0.2)
+            task.wait(0.2)
 
-                -- Step 5: Get ready
-                local ok5, result5 = pcall(roomsNet.getReady.call)
-                if not ok5 or not result5 then
-                    warn("[LixHub] getReady failed: " .. tostring(result5))
-                    return
-                end
+            local ok5, result5 = pcall(roomsNet.getReady.call)
+            if not ok5 or not result5 then
+                warn("[LixHub] getReady failed: " .. tostring(result5))
+                task.wait(3) continue
+            end
 
-                print(string.format("[LixHub] Auto join queued: %s Act %d %s",
-                    State.AutoJoinStageId, State.AutoJoinAct, State.AutoJoinDifficulty))
-                pushNotify({
-                    Title   = "Auto Join",
-                    Content = string.format("Queued: %s Act %d (%s)",
-                        State.AutoJoinStageName, State.AutoJoinAct, State.AutoJoinDifficulty),
-                    Duration = 4,
-                    Image   = "log-in"
-                })
-            end)
+            task.wait(0.2)
 
-            -- Wait long enough that we don't spam if the teleport is coming
+            local ok6, result6 = pcall(roomsNet.setMatchStatus.call, true)
+            if not ok6 or not result6 then
+                warn("[LixHub] setMatchStatus failed: " .. tostring(result6))
+                task.wait(3) continue
+            end
+
+            pushNotify({
+                Title   = "Auto Join",
+                Content = string.format("Joining: %s Act %d (%s)",
+                    State.AutoJoinStageName, State.AutoJoinAct, State.AutoJoinDifficulty),
+                Duration = 4,
+                Image   = "log-in"
+            })
+
             task.wait(10)
         end
     end)
