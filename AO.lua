@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.58
+-- V0.6
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
