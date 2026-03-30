@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.57
+-- V0.58
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2499,108 +2499,48 @@ end
 
 local autoAbilityLoops = {}
 
-local function startAutoAbilityLoop(tid, label)
-    if autoAbilityLoops[tid] then return end -- already running
-    autoAbilityLoops[tid] = true
+local abilityLoopRunning = false
+local lastBossAbilityTime = 0
 
-    task.spawn(function()
-        local syncRemote = game:GetService("ReplicatedStorage"):WaitForChild("sync"):WaitForChild("sync_RELIABLE")
-
-        while MacroSystem.isPlaying or State.AutoAbilityEnabled do
-            if not State.AutoAbilityEnabled then
-                task.wait(0.5)
-                continue
-            end
-
-            -- Check tower still exists
-            local placedTowers = workspace:FindFirstChild("placedTowers")
-            if not placedTowers or not placedTowers:FindFirstChild(tid) then
-                break
-            end
-
-            -- Wait for cooldown to be ready via serverUltimate echo or just fire if no cooldown info
-            local confirmed = false
-            local conn = sync.serverUltimate.on(function(receivedTid)
-                if receivedTid == tid then
-                    confirmed = true
-                end
-            end)
-
-            pcall(sync.clientUltimate.fire, tid, 1)
-
-            local deadline = tick() + 2.0
-            while tick() < deadline and not confirmed do
-                task.wait(0.1)
-            end
-            conn()
-
-            if confirmed then
-                print(string.format("[LixHub] Auto-ability fired for [%s]", label))
-                -- Now wait for the cooldown to expire before firing again
-                -- Poll selectUltimatesCooldowns until it drops to 0/nil
-                repeat
-                    task.wait(1)
-                    local ok, cds = pcall(function()
-                        return clientStore:getState(selectUltimatesCooldowns)
-                    end)
-                    local cd = (ok and cds) and cds[tid] or nil
-                until not State.AutoAbilityEnabled or (cd == nil or cd <= 0)
-            else
-                -- Fire didn't confirm, wait a bit before retrying
-                task.wait(2)
-            end
+local function fireAllAbilities()
+    local placedTowers = workspace:FindFirstChild("placedTowers")
+    if not placedTowers then return end
+    for _, model in ipairs(placedTowers:GetChildren()) do
+        local uid = model:GetAttribute("uniqueId")
+        if uid then
+            pcall(sync.clientUltimate.fire, uid, 1)
         end
-
-        autoAbilityLoops[tid] = nil
-    end)
-end
-
-local function fireAbilitiesForAllTowers(reason)
-    local liveMap = _G._LixLiveTowerMap
-    if not liveMap then return end
-
-    for label, tid in pairs(liveMap) do
-        -- Check the hero has ultimates defined
-        local baseName = label:match("^(.-)%s*#%d+$") or label
-        local heroes   = getEquippedHeroes()
-        local hero
-        for _, h in ipairs(heroes) do
-            if h.name == baseName then hero = h break end
-        end
-        if not hero or not hero.config or not hero.config.ultimates or #hero.config.ultimates == 0 then
-            continue
-        end
-
-        startAutoAbilityLoop(tid, label)
     end
 end
 
+local function startAbilityLoop()
+    if abilityLoopRunning then return end
+    abilityLoopRunning = true
+    task.spawn(function()
+        while State.AutoAbilityEnabled do
+            fireAllAbilities()
+            task.wait(3)
+        end
+        abilityLoopRunning = false
+    end)
+end
+
 local function setupAutoAbility()
-    -- ── Boss detection ─────────────────────────────────────────────────────
     local enemyRemote = ReplicatedStorage:WaitForChild("enemy"):WaitForChild("enemy_RELIABLE")
     enemyRemote.OnClientEvent:Connect(function(buf, refs)
         if not State.AutoAbilityOnBoss then return end
         if not refs or #refs == 0 then return end
- 
-        -- Event ID 0x03 = entity spawn; isBoss is a boolean in the refs array.
-        -- From your sample: isBoss was the first `true` boolean after the spawn event.
-        local eventId = buffer.readu8(buf, 0)
-        if eventId ~= 3 then return end
- 
+        local ok, eventId = pcall(buffer.readu8, buf, 0)
+        if not ok or eventId ~= 3 then return end
         local isBoss = false
         for _, v in ipairs(refs) do
-            if v == true then
-                isBoss = true
-                break
-            end
+            if v == true then isBoss = true break end
         end
- 
-        if isBoss then
-            print("[LixHub] Boss spawned — firing all abilities!")
-            task.delay(0.3, function()
-                fireAbilitiesForAllTowers("boss spawn")
-            end)
-        end
+        if not isBoss then return end
+        local now = tick()
+        if now - lastBossAbilityTime < 3 then return end
+        lastBossAbilityTime = now
+        task.delay(0.3, fireAllAbilities)
     end)
 end
 
@@ -2718,7 +2658,7 @@ local function setupWaveHook()
         -- Auto ability on wave interval
         if State.AutoAbilityEnabled and State.AutoAbilityOnWave > 0 then
             if waveNumber >= State.AutoAbilityOnWave then
-                fireAbilitiesForAllTowers("wave " .. waveNumber)
+                startAbilityLoop()
             end
         end
     end)
@@ -2767,7 +2707,7 @@ local function setupMatchEndHook()
         if MacroSystem.isPlaying then
             MacroSystem.stopPlayback()
         end
-        table.clear(autoAbilityLoops)
+        abilityLoopRunning = false
         if PlaybackToggle and PlaybackToggle.CurrentValue then
             MacroSystem.pendingPlayback = true
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Waiting", "Game ended — waiting for the next game to start")
