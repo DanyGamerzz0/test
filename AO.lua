@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.52
+-- V0.53
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, selectUltimatesCooldowns, selectOnUltimate, ultimateReqs, ultimateCDMode
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, selectUltimatesCooldowns, selectOnUltimate, ultimateReqs, ultimateCDMode, getBuffs
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -39,6 +39,7 @@ if not IS_LOBBY then
     selectOnUltimate = require(ReplicatedStorage.gameClient.store.slices.towers.selectors.selectOnUltimate)
     ultimateReqs = require(ReplicatedStorage.gameShared.utilities.ultimateRequirements)
     ultimateCDMode = require(ReplicatedStorage.gameShared.utilities.ultimateCooldownMode)
+    getBuffs = require(ReplicatedStorage.gameShared.utilities.getBuffs)
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
     clientStore                          = require(gameClient.store.clientStore)
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
@@ -526,18 +527,22 @@ end
 -- PLAYBACK
 -- ============================================================
 
-local function getActualUpgradeCost(heroConfig, currentLevel)
+local function getActualUpgradeCost(heroConfig, currentLevel, towerBuffTable)
     if not heroConfig or not heroConfig.upgradeValues then return 0 end
     local nextData = heroConfig.upgradeValues[currentLevel + 1]
-    if not nextData or not nextData.cost or nextData.cost <= 0 then return 0 end
-    
-    local multiplier = calculateClientUpgradeCostMultiplier(currentLevel)
-    local rawCost = nextData.cost * multiplier
-    local finalCost = math.floor(rawCost)
-    
-    print(string.format("[LixHub] Cost debug | level=%d | baseCost=%d | multiplier=%.4f | raw=%.2f | final=%d",
-        currentLevel, nextData.cost, multiplier, rawCost, finalCost))
-    
+    if not nextData or not nextData.cost or nextData.cost <= 0 return 0 end
+
+    -- get the upgradeCost buff from the tower's buff table
+    local buffs = getBuffs(towerBuffTable)
+    local upgradeCostBuff = buffs and buffs.upgradeCost or 1
+
+    -- game DIVIDES cost by the multiplier result
+    local divisor = calculateClientUpgradeCostMultiplier(upgradeCostBuff)
+    local finalCost = math.floor(nextData.cost / divisor)
+
+    print(string.format("[LixHub] Cost debug | level=%d | baseCost=%d | buff=%.4f | divisor=%.4f | final=%d",
+        currentLevel, nextData.cost, upgradeCostBuff, divisor, finalCost))
+
     return finalCost
 end
 
@@ -664,7 +669,8 @@ function MacroSystem.playback(name)
                     if hero and hero.config and hero.config.upgradeValues then
                         local nextData = hero.config.upgradeValues[currentLevel + 1]
                         if nextData and nextData.cost and nextData.cost > 0 then
-                            actualCost = getActualUpgradeCost(hero.config, currentLevel)
+                            local buffTable = clientStore:getState(require(ReplicatedStorage.gameShared.store.slices.towers.selectors.selectTowerStat)(tid, "buffTable"))
+                            actualCost = getActualUpgradeCost(hero.config, currentLevel, buffTable)
                             print(string.format("[LixHub] [%d/%d] UPGRADE %s | level=%d | cost=%d | yen=%d",
                                 i, #actions, label, currentLevel, actualCost, getYen()))
                             if not waitForYen(actualCost, label, "UPGRADE", i, #actions, nextPreview, nameToHero, labelToLevel, actions) then
