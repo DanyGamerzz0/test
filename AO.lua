@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.54
+-- V0.55
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -746,21 +746,68 @@ function MacroSystem.playback(name)
                     setProgress(i, #actions, "[ERROR] Cannot change priority for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
             elseif action.action == "ABILITY" then
-                local tid      = labelToLiveTowerID[label]
-                local abilIdx  = action.ultimateIndex or 1
+                local tid     = labelToLiveTowerID[label]
+                local abilIdx = action.ultimateIndex or 1
                 if tid then
-                    sync.clientUltimate.fire(tid, abilIdx)
-                    setProgress(i, #actions,
-                        string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName),
-                        nextPreview)
+                    local hero = nameToHero[baseName]
+                    if not hero or not hero.config or not hero.config.ultimates or #hero.config.ultimates == 0 then
+                        setProgress(i, #actions,
+                            string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
+                    else
+                        local function getCooldown()
+                            local ok, cds = pcall(function()
+                                return clientStore:getState(selectUltimatesCooldowns)
+                            end)
+                            if not ok or not cds then return nil end
+                            return cds[tid]
+                        end
+
+                        local fired       = false
+                        local MAX_ATTEMPTS = 3
+
+                        for attempt = 1, MAX_ATTEMPTS do
+                            if not MacroSystem.isPlaying then break end
+
+                            local cdBefore = getCooldown()
+                            if cdBefore ~= nil and cdBefore > 0 then
+                                fired = true
+                                break
+                            end
+
+                            pcall(sync.clientUltimate.fire, tid, abilIdx)
+
+                            local deadline = tick() + 1.5
+                            while tick() < deadline and MacroSystem.isPlaying do
+                                task.wait(0.1)
+                                if getCooldown() ~= nil and getCooldown() > 0 then
+                                    fired = true
+                                    break
+                                end
+                            end
+
+                            if fired then
+                                print(string.format("[LixHub] Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
+                                break
+                            end
+
+                            warn(string.format("[LixHub] Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
+                            task.wait(0.2)
+                        end
+
+                        if fired then
+                            setProgress(i, #actions,
+                                string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName), nextPreview)
+                        else
+                            setProgress(i, #actions,
+                                string.format("[UNCONFIRMED] Ability %d sent for [%s] — no cooldown change detected", abilIdx, baseName), nextPreview)
+                        end
+                    end
                 else
                     setProgress(i, #actions,
-                        "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped",
-                        nextPreview)
+                        "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
                 end
             end
         end
-
         MacroSystem.isPlaying  = false
         playbackLastStatus     = ""
         playbackLastDetail     = ""
