@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.566
+-- V0.57
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2101,20 +2101,22 @@ MacroTab:CreateToggle({
     Name         = "Auto Use Abilities",
     CurrentValue = false,
     Flag         = "AutoAbility",
-    Info         = "Automatically fires abilities for all placed towers. Uses wave interval and/or boss detection below.",
+    Info         = "Automatically fires abilities for all placed towers starting on the configured wave, then re-fires whenever they come off cooldown.",
+    TextScaled = true,
     Callback     = function(v)
         State.AutoAbilityEnabled = v
     end,
 })
  
 MacroTab:CreateSlider({
-    Name         = "Fire Ability Every N Waves",
+    Name         = "Fire Ability Starting Wave",
     Range        = { 0, 50 },
     Increment    = 1,
     CurrentValue = 1,
     Suffix       = " waves",
     Flag         = "AutoAbilityWaveInterval",
-    Info         = "Fires abilities every N waves when Auto Use Abilities is on. Set to 0 to disable wave-based firing.",
+    Info         = "Starts firing abilities on this wave and keeps firing them whenever they come off cooldown. Set to 0 to disable.",
+    TextScaled = true,
     Callback     = function(v)
         State.AutoAbilityOnWave = v
     end,
@@ -2125,6 +2127,7 @@ MacroTab:CreateToggle({
     CurrentValue = false,
     Flag         = "AutoAbilityBoss",
     Info         = "Fires all abilities immediately when a boss enemy spawns.",
+    TextScaled = true,
     Callback     = function(v)
         State.AutoAbilityOnBoss = v
     end,
@@ -2494,33 +2497,81 @@ local function setupMatchEndWebhook()
     end)
 end
 
-local autoAbilityDebounce = {}   -- per-towerID debounce for auto-fire
- 
+local autoAbilityLoops = {}
+
+local function startAutoAbilityLoop(tid, label)
+    if autoAbilityLoops[tid] then return end -- already running
+    autoAbilityLoops[tid] = true
+
+    task.spawn(function()
+        local syncRemote = game:GetService("ReplicatedStorage"):WaitForChild("sync"):WaitForChild("sync_RELIABLE")
+
+        while MacroSystem.isPlaying or State.AutoAbilityEnabled do
+            if not State.AutoAbilityEnabled then
+                task.wait(0.5)
+                continue
+            end
+
+            -- Check tower still exists
+            local placedTowers = workspace:FindFirstChild("placedTowers")
+            if not placedTowers or not placedTowers:FindFirstChild(tid) then
+                break
+            end
+
+            -- Wait for cooldown to be ready via serverUltimate echo or just fire if no cooldown info
+            local confirmed = false
+            local conn = sync.serverUltimate.on(function(receivedTid)
+                if receivedTid == tid then
+                    confirmed = true
+                end
+            end)
+
+            pcall(sync.clientUltimate.fire, tid, 1)
+
+            local deadline = tick() + 2.0
+            while tick() < deadline and not confirmed do
+                task.wait(0.1)
+            end
+            conn()
+
+            if confirmed then
+                print(string.format("[LixHub] Auto-ability fired for [%s]", label))
+                -- Now wait for the cooldown to expire before firing again
+                -- Poll selectUltimatesCooldowns until it drops to 0/nil
+                repeat
+                    task.wait(1)
+                    local ok, cds = pcall(function()
+                        return clientStore:getState(selectUltimatesCooldowns)
+                    end)
+                    local cd = (ok and cds) and cds[tid] or nil
+                until not State.AutoAbilityEnabled or (cd == nil or cd <= 0)
+            else
+                -- Fire didn't confirm, wait a bit before retrying
+                task.wait(2)
+            end
+        end
+
+        autoAbilityLoops[tid] = nil
+    end)
+end
+
 local function fireAbilitiesForAllTowers(reason)
     local liveMap = _G._LixLiveTowerMap
     if not liveMap then return end
- 
-    local cooldowns = pcall(function() return clientStore:getState(selectUltimatesCooldowns) end)
-        and clientStore:getState(selectUltimatesCooldowns) or {}
- 
+
     for label, tid in pairs(liveMap) do
-        local now  = tick()
-        local last = autoAbilityDebounce[tid]
-        if last and (now - last) < 3 then continue end
- 
-        -- Check cooldown: cdEntry is remaining seconds; nil or <=0 means ready
-        local cdEntry = cooldowns[tid]
-        local isReady = (cdEntry == nil or cdEntry <= 0)
- 
-        if isReady then
-            autoAbilityDebounce[tid] = now
-            local ok, err = pcall(sync.clientUltimate.fire, tid, 1)
-            if ok then
-                print(string.format("[LixHub] Auto-ability fired for [%s] (%s)", label, reason))
-            else
-                warn(string.format("[LixHub] Auto-ability failed for [%s]: %s", label, tostring(err)))
-            end
+        -- Check the hero has ultimates defined
+        local baseName = label:match("^(.-)%s*#%d+$") or label
+        local heroes   = getEquippedHeroes()
+        local hero
+        for _, h in ipairs(heroes) do
+            if h.name == baseName then hero = h break end
         end
+        if not hero or not hero.config or not hero.config.ultimates or #hero.config.ultimates == 0 then
+            continue
+        end
+
+        startAutoAbilityLoop(tid, label)
     end
 end
 
@@ -2666,10 +2717,8 @@ local function setupWaveHook()
         end
         -- Auto ability on wave interval
         if State.AutoAbilityEnabled and State.AutoAbilityOnWave > 0 then
-            if waveNumber % State.AutoAbilityOnWave == 0 then
-                task.spawn(function()
-                    fireAbilitiesForAllTowers("wave " .. waveNumber)
-                end)
+            if waveNumber >= State.AutoAbilityOnWave then
+                fireAbilitiesForAllTowers("wave " .. waveNumber)
             end
         end
     end)
@@ -2718,7 +2767,7 @@ local function setupMatchEndHook()
         if MacroSystem.isPlaying then
             MacroSystem.stopPlayback()
         end
-
+        table.clear(autoAbilityLoops)
         if PlaybackToggle and PlaybackToggle.CurrentValue then
             MacroSystem.pendingPlayback = true
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Waiting", "Game ended — waiting for the next game to start")
