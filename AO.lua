@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.51
+-- V0.52
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -525,6 +525,22 @@ end
 -- ============================================================
 -- PLAYBACK
 -- ============================================================
+
+local function getActualUpgradeCost(heroConfig, currentLevel)
+    if not heroConfig or not heroConfig.upgradeValues then return 0 end
+    local nextData = heroConfig.upgradeValues[currentLevel + 1]
+    if not nextData or not nextData.cost or nextData.cost <= 0 then return 0 end
+    
+    local multiplier = calculateClientUpgradeCostMultiplier(currentLevel)
+    local rawCost = nextData.cost * multiplier
+    local finalCost = math.floor(rawCost)
+    
+    print(string.format("[LixHub] Cost debug | level=%d | baseCost=%d | multiplier=%.4f | raw=%.2f | final=%d",
+        currentLevel, nextData.cost, multiplier, rawCost, finalCost))
+    
+    return finalCost
+end
+
 function MacroSystem.playback(name)
     if MacroSystem.isPlaying then return false end
     local actions = MacroSystem.library[name]
@@ -648,8 +664,7 @@ function MacroSystem.playback(name)
                     if hero and hero.config and hero.config.upgradeValues then
                         local nextData = hero.config.upgradeValues[currentLevel + 1]
                         if nextData and nextData.cost and nextData.cost > 0 then
-                            local multiplier = calculateClientUpgradeCostMultiplier(currentLevel)
-                            actualCost = math.floor(nextData.cost * multiplier)
+                            actualCost = getActualUpgradeCost(hero.config, currentLevel)
                             print(string.format("[LixHub] [%d/%d] UPGRADE %s | level=%d | cost=%d | yen=%d",
                                 i, #actions, label, currentLevel, actualCost, getYen()))
                             if not waitForYen(actualCost, label, "UPGRADE", i, #actions, nextPreview, nameToHero, labelToLevel, actions) then
