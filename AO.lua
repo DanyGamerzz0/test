@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.5
+-- V0.51
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, selectUltimatesCooldowns, selectOnUltimate, ultimateReqs, ultimateCDMode
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -35,6 +35,10 @@ if not IS_LOBBY then
     playerNet = require(ReplicatedStorage.gameClient.net.player)
 
     calculateClientUpgradeCostMultiplier = require(ReplicatedStorage.gameClient.utilities.calculateClientUpgradeCostMultiplier)
+    selectUltimatesCooldowns = require(ReplicatedStorage.gameClient.store.slices.gui.selectors.selectUltimatesCooldowns)
+    selectOnUltimate = require(ReplicatedStorage.gameClient.store.slices.towers.selectors.selectOnUltimate)
+    ultimateReqs = require(ReplicatedStorage.gameShared.utilities.ultimateRequirements)
+    ultimateCDMode = require(ReplicatedStorage.gameShared.utilities.ultimateCooldownMode)
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
     clientStore                          = require(gameClient.store.clientStore)
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
@@ -216,13 +220,14 @@ end
 function MacroSystem.getStats(name)
     local actions = MacroSystem.library[name]
     if not actions or #actions == 0 then return nil end
-    local s = { total = #actions, placements = 0, upgrades = 0, sells = 0, autoUpgrades = 0, priorityChanges = 0, duration = 0 }
+    local s = { total = #actions, placements = 0, upgrades = 0, sells = 0, autoUpgrades = 0, priorityChanges = 0, abilities = 0, duration = 0 }
     for _, a in ipairs(actions) do
         if     a.action == "PLACE"           then s.placements      = s.placements      + 1
         elseif a.action == "UPGRADE"         then s.upgrades        = s.upgrades        + 1
         elseif a.action == "SELL"            then s.sells           = s.sells           + 1
         elseif a.action == "AUTO_UPGRADE"    then s.autoUpgrades    = s.autoUpgrades    + 1
         elseif a.action == "CHANGE_PRIORITY" then s.priorityChanges = s.priorityChanges + 1
+        elseif a.action == "ABILITY" then s.abilities = s.abilities + 1
         end
         local t = tonumber(a.time) or 0
         if t > s.duration then s.duration = t end
@@ -266,9 +271,12 @@ function MacroSystem.startRecording(name)
     return true
 end
 
+local abilityRecordDebounce = {}
+
 function MacroSystem.stopRecording()
     if not MacroSystem.isRecording then return false end
     MacroSystem.isRecording = false
+    abilityRecordDebounce = {}
     liveTowerLabelMap       = {}
     mappedUids              = {}
     MacroSystem.library[MacroSystem.currentMacroName] = recordingActions
@@ -330,7 +338,7 @@ local function setupHooks()
         recordAction("PLACE", { unitName = label, position = pos, rotation = { rx, ry, rz } })
         return success, liveTowerID
     end
-
+ 
     local oldUpgrade = towers.upgradeUnit.call
     towers.upgradeUnit.call = function(towerID)
         local success, errorMsg = oldUpgrade(towerID)
@@ -339,7 +347,7 @@ local function setupHooks()
         end
         return success, errorMsg
     end
-
+ 
     local oldSell = towers.sellUnit.call
     towers.sellUnit.call = function(towerID)
         local success, errorMsg = oldSell(towerID)
@@ -350,7 +358,7 @@ local function setupHooks()
         end
         return success, errorMsg
     end
-
+ 
     local oldAuto = towers.changeUpgradePriority.call
     towers.changeUpgradePriority.call = function(towerID)
         local success, errorMsg = oldAuto(towerID)
@@ -359,7 +367,7 @@ local function setupHooks()
         end
         return success, errorMsg
     end
-
+ 
     local oldPriority = towers.changePriority.call
     towers.changePriority.call = function(towerID, priority)
         local success, errorMsg = oldPriority(towerID, priority)
@@ -371,6 +379,29 @@ local function setupHooks()
         end
         return success, errorMsg
     end
+ 
+    -- ── ABILITY HOOK ──────────────────────────────────────────────────────────
+    local oldAbility = sync.clientUltimate.fire
+    sync.clientUltimate.fire = function(towerID, ultimateIndex)
+        oldAbility(towerID, ultimateIndex)                     -- always fire normally
+        if not MacroSystem.isRecording then return end
+ 
+        local now  = tick()
+        local last = abilityRecordDebounce[towerID]
+        if last and (now - last) < 3 then
+            print(string.format("[LixHub] Ability debounced for towerID %s (%.1fs ago)", towerID, now - last))
+            return
+        end
+        abilityRecordDebounce[towerID] = now
+ 
+        local label = liveTowerLabelMap[towerID] or "unknown"
+        recordAction("ABILITY", {
+            unitName      = label,
+            ultimateIndex = ultimateIndex or 1,
+        })
+        print(string.format("[LixHub] Recorded ABILITY for [%s] index=%d", label, ultimateIndex or 1))
+    end
+    -- ─────────────────────────────────────────────────────────────────────────
 end
 
 -- ============================================================
@@ -444,6 +475,9 @@ local function buildNextPreview(actions, currentIndex, nameToHero, labelToLevel)
         elseif next.action == "CHANGE_PRIORITY" then
             local prio = next.priority or "unknown"
             return string.format("Next: Set priority '%s' on [%s]%s", prio, baseName, timeHint)
+        elseif next.action == "ABILITY" then
+            local idx = next.ultimateIndex or 1
+            return string.format("Next: Ability %d [%s]%s", idx, baseName, timeHint)
         end
     end
     return "Next: End of macro"
@@ -514,6 +548,7 @@ function MacroSystem.playback(name)
         end
 
         local labelToLiveTowerID = {}
+        _G._LixLiveTowerMap = labelToLiveTowerID
         local labelToLevel       = {}
 
         for i, action in ipairs(actions) do
@@ -534,6 +569,7 @@ function MacroSystem.playback(name)
                     elseif action.action == "SELL"            then actionWord = "Sell"
                     elseif action.action == "AUTO_UPGRADE"    then actionWord = "Toggle Auto-Upgrade"
                     elseif action.action == "CHANGE_PRIORITY" then actionWord = "Change Priority"
+                    elseif action.action == "ABILITY" then actionWord = "Ability"
                     else                                           actionWord = action.action
                     end
                     while MacroSystem.isPlaying and tick() < deadline do
@@ -688,6 +724,19 @@ function MacroSystem.playback(name)
                 else
                     setProgress(i, #actions, "[ERROR] Cannot change priority for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
+            elseif action.action == "ABILITY" then
+                local tid      = labelToLiveTowerID[label]
+                local abilIdx  = action.ultimateIndex or 1
+                if tid then
+                    sync.clientUltimate.fire(tid, abilIdx)
+                    setProgress(i, #actions,
+                        string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName),
+                        nextPreview)
+                else
+                    setProgress(i, #actions,
+                        "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped",
+                        nextPreview)
+                end
             end
         end
 
@@ -703,6 +752,7 @@ end
 
 function MacroSystem.stopPlayback()
     if not MacroSystem.isPlaying then return false end
+     _G._LixLiveTowerMap = nil
     MacroSystem.isPlaying = false
     return true
 end
@@ -756,6 +806,9 @@ local State = {
     AutoResetActEnabled = false,
     AutoResetActWave    = 0,
     AutoCloseWeather = false,
+    AutoAbilityEnabled  = false,
+    AutoAbilityOnWave   = 1,
+    AutoAbilityOnBoss   = false,
 }
 
 local function sendWebhookRaw(body)
@@ -1979,6 +2032,42 @@ MacroTab:CreateToggle({
 })
 
 MacroTab:CreateDivider()
+MacroTab:CreateSection("Auto Ability")
+
+MacroTab:CreateToggle({
+    Name         = "Auto Use Abilities",
+    CurrentValue = false,
+    Flag         = "AutoAbility",
+    Info         = "Automatically fires abilities for all placed towers. Uses wave interval and/or boss detection below.",
+    Callback     = function(v)
+        State.AutoAbilityEnabled = v
+    end,
+})
+ 
+MacroTab:CreateSlider({
+    Name         = "Fire Ability Every N Waves",
+    Range        = { 0, 50 },
+    Increment    = 1,
+    CurrentValue = 1,
+    Suffix       = " waves",
+    Flag         = "AutoAbilityWaveInterval",
+    Info         = "Fires abilities every N waves when Auto Use Abilities is on. Set to 0 to disable wave-based firing.",
+    Callback     = function(v)
+        State.AutoAbilityOnWave = v
+    end,
+})
+ 
+MacroTab:CreateToggle({
+    Name         = "Auto Use Abilities on Boss",
+    CurrentValue = false,
+    Flag         = "AutoAbilityBoss",
+    Info         = "Fires all abilities immediately when a boss enemy spawns.",
+    Callback     = function(v)
+        State.AutoAbilityOnBoss = v
+    end,
+})
+
+MacroTab:CreateDivider()
 MacroTab:CreateSection("Import / Export")
 
 MacroTab:CreateButton({
@@ -2342,6 +2431,65 @@ local function setupMatchEndWebhook()
     end)
 end
 
+local autoAbilityDebounce = {}   -- per-towerID debounce for auto-fire
+ 
+local function fireAbilitiesForAllTowers(reason)
+    local liveMap = _G._LixLiveTowerMap
+    if not liveMap then return end
+ 
+    local cooldowns = pcall(function() return clientStore:getState(selectUltimatesCooldowns) end)
+        and clientStore:getState(selectUltimatesCooldowns) or {}
+ 
+    for label, tid in pairs(liveMap) do
+        local now  = tick()
+        local last = autoAbilityDebounce[tid]
+        if last and (now - last) < 3 then continue end
+ 
+        -- Check cooldown: cdEntry is remaining seconds; nil or <=0 means ready
+        local cdEntry = cooldowns[tid]
+        local isReady = (cdEntry == nil or cdEntry <= 0)
+ 
+        if isReady then
+            autoAbilityDebounce[tid] = now
+            local ok, err = pcall(sync.clientUltimate.fire, tid, 1)
+            if ok then
+                print(string.format("[LixHub] Auto-ability fired for [%s] (%s)", label, reason))
+            else
+                warn(string.format("[LixHub] Auto-ability failed for [%s]: %s", label, tostring(err)))
+            end
+        end
+    end
+end
+
+local function setupAutoAbility()
+    -- ── Boss detection ─────────────────────────────────────────────────────
+    local enemyRemote = ReplicatedStorage:WaitForChild("enemy"):WaitForChild("enemy_RELIABLE")
+    enemyRemote.OnClientEvent:Connect(function(buf, refs)
+        if not State.AutoAbilityOnBoss then return end
+        if not refs or #refs == 0 then return end
+ 
+        -- Event ID 0x03 = entity spawn; isBoss is a boolean in the refs array.
+        -- From your sample: isBoss was the first `true` boolean after the spawn event.
+        local eventId = buffer.readu8(buf, 0)
+        if eventId ~= 3 then return end
+ 
+        local isBoss = false
+        for _, v in ipairs(refs) do
+            if v == true then
+                isBoss = true
+                break
+            end
+        end
+ 
+        if isBoss then
+            print("[LixHub] Boss spawned — firing all abilities!")
+            task.delay(0.3, function()
+                fireAbilitiesForAllTowers("boss spawn")
+            end)
+        end
+    end)
+end
+
 -- ============================================================
 -- AUTO CARD SELECTION
 -- ============================================================
@@ -2452,6 +2600,14 @@ local function setupWaveHook()
                     warn("[LixHub] Auto reset act failed: " .. tostring(result))
                 end
             end)
+        end
+        -- Auto ability on wave interval
+        if State.AutoAbilityEnabled and State.AutoAbilityOnWave > 0 then
+            if waveNumber % State.AutoAbilityOnWave == 0 then
+                task.spawn(function()
+                    fireAbilitiesForAllTowers("wave " .. waveNumber)
+                end)
+            end
         end
     end)
 end
@@ -2574,6 +2730,7 @@ else
     setupMatchEndHook()
     setupMatchEndWebhook()
     setupAutoCardSelection()
+    setupAutoAbility()
     print("[LixHub] In-game — hooks active.")
 end
 
