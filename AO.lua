@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.55
+-- V0.566
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -754,38 +754,33 @@ function MacroSystem.playback(name)
                         setProgress(i, #actions,
                             string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
                     else
-                        local function getCooldown()
-                            local ok, cds = pcall(function()
-                                return clientStore:getState(selectUltimatesCooldowns)
-                            end)
-                            if not ok or not cds then return nil end
-                            return cds[tid]
-                        end
-
                         local fired       = false
                         local MAX_ATTEMPTS = 3
 
                         for attempt = 1, MAX_ATTEMPTS do
                             if not MacroSystem.isPlaying then break end
 
-                            local cdBefore = getCooldown()
-                            if cdBefore ~= nil and cdBefore > 0 then
-                                fired = true
-                                break
-                            end
+                            -- Listen for the serverUltimate echo for this specific tower
+                            local confirmed = false
+                            local disconnect
+                            disconnect = sync.serverUltimate.on(function(receivedTid, ultimateIndex)
+                                if receivedTid == tid then
+                                    confirmed = true
+                                end
+                            end)
 
                             pcall(sync.clientUltimate.fire, tid, abilIdx)
 
+                            -- Wait up to 1.5s for the server echo
                             local deadline = tick() + 1.5
-                            while tick() < deadline and MacroSystem.isPlaying do
+                            while tick() < deadline and MacroSystem.isPlaying and not confirmed do
                                 task.wait(0.1)
-                                if getCooldown() ~= nil and getCooldown() > 0 then
-                                    fired = true
-                                    break
-                                end
                             end
 
-                            if fired then
+                            disconnect()
+
+                            if confirmed then
+                                fired = true
                                 print(string.format("[LixHub] Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
                                 break
                             end
@@ -799,7 +794,7 @@ function MacroSystem.playback(name)
                                 string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName), nextPreview)
                         else
                             setProgress(i, #actions,
-                                string.format("[UNCONFIRMED] Ability %d sent for [%s] — no cooldown change detected", abilIdx, baseName), nextPreview)
+                                string.format("[UNCONFIRMED] Ability %d sent for [%s] — no server echo received", abilIdx, baseName), nextPreview)
                         end
                     end
                 else
