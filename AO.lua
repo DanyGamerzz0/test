@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.53
+-- V0.54
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -530,7 +530,7 @@ end
 local function getActualUpgradeCost(heroConfig, currentLevel, towerBuffTable)
     if not heroConfig or not heroConfig.upgradeValues then return 0 end
     local nextData = heroConfig.upgradeValues[currentLevel + 1]
-    if not nextData or not nextData.cost or nextData.cost <= 0 return 0 end
+    if not nextData or not nextData.cost or nextData.cost <= 0 then return 0 end
 
     -- get the upgradeCost buff from the tower's buff table
     local buffs = getBuffs(towerBuffTable)
