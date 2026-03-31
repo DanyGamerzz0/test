@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.77
+-- V0.8
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2413,76 +2413,6 @@ end
     end
 end
 
-local function restoreDropdownValues()
-    task.spawn(function()
-        local startTime = tick()
-        local timeout = 60
-        local restored = {}
-
-        while tick() - startTime < timeout do
-            local allDone = true
-
-            for mapKey, macroName in pairs(worldMacroMappings) do
-                if restored[mapKey] then continue end
-
-                local dropdown = worldMacroDropdowns[mapKey]
-                if not dropdown then
-                    allDone = false
-                    continue
-                end
-
-                if not MacroSystem.library[macroName] then
-                    worldMacroMappings[mapKey] = nil
-                    saveWorldMappings()
-                    restored[mapKey] = true
-                    continue
-                end
-
-                -- rebuild the options list with current macros, then set
-                local opts = { "None" }
-                for _, name in ipairs(MacroSystem.getList()) do
-                    table.insert(opts, name)
-                end
-
-                local success, err = pcall(function()
-                    dropdown:Refresh(opts)
-                    task.wait(0.1) -- give Rayfield a moment after refresh
-                    dropdown:Set(macroName)
-                end)
-
-                if success then
-                    -- verify it actually stuck
-                    local current = dropdown.CurrentOption
-                    local actual = type(current) == "table" and current[1] or current
-                    if actual == macroName then
-                        restored[mapKey] = true
-                        print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
-                    else
-                        warn(string.format("[LixHub] Set appeared to succeed but value is '%s', expected '%s'", tostring(actual), macroName))
-                        allDone = false
-                    end
-                else
-                    warn(string.format("[LixHub] pcall failed for %s: %s", mapKey, tostring(err)))
-                    allDone = false
-                end
-            end
-
-            if allDone then
-                print("[LixHub] All macro mappings restored.")
-                break
-            end
-
-            task.wait(0.5)
-        end
-
-        for mapKey, macroName in pairs(worldMacroMappings) do
-            if not restored[mapKey] then
-                warn(string.format("[LixHub] Timed out restoring: %s -> %s", mapKey, macroName))
-            end
-        end
-    end)
-end
-
 -- ============================================================
 -- WEBHOOK TAB
 -- ============================================================
@@ -2898,7 +2828,6 @@ buildModeCollapsible("Raid Stages",     "raid",      raidStageNames, raidStageNa
 buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameToId)
 refreshDropdown()
 refreshAutoSelectDropdowns()
-restoreDropdownValues()
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
@@ -2926,3 +2855,20 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration  = 5
 })
+
+task.delay(2, function()
+    for mapKey, macroName in pairs(worldMacroMappings) do
+        local dropdown = worldMacroDropdowns[mapKey]
+        if dropdown and MacroSystem.library[macroName] then
+            -- Refresh options first so the macro name exists in the list
+            local opts = { "None" }
+            for _, name in ipairs(MacroSystem.getList()) do
+                table.insert(opts, name)
+            end
+            dropdown:Refresh(opts)
+            task.wait(0.1)
+            dropdown:Set(macroName)
+            print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
+        end
+    end
+end)
