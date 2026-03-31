@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.83
+-- V0.84
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2720,23 +2720,22 @@ local function setupWaveHook()
     clientStoreLocal:subscribe(selectWave, function(waveNumber)
         if not waveNumber then return end
         if waveNumber == 1 and lastWave ~= 1 then
-            -- Check if Macro Maps is ready before proceeding
             if not MacroSystem.macroMapsReady then
                 print("[LixHub] Wave 1 detected but Macro Maps not ready yet — waiting...")
                 local waitStart = tick()
-                local maxWait = 5  -- Wait up to 5 seconds
-                
+                local maxWait = 5
+
                 while not MacroSystem.macroMapsReady and (tick() - waitStart) < maxWait do
                     task.wait(0.1)
                 end
-                
+
                 if not MacroSystem.macroMapsReady then
-                    warn("[LixHub] Macro Maps failed to initialize in time — restarting act to ensure clean start")
-                    pushNotify({ 
-                        Title = "Initializing...", 
-                        Content = "Restarting act to ensure Macro Maps loads properly", 
-                        Duration = 4, 
-                        Image = "refresh-cw" 
+                    warn("[LixHub] Macro Maps failed to initialize in time — restarting act")
+                    pushNotify({
+                        Title   = "Initializing...",
+                        Content = "Restarting act to ensure Macro Maps loads properly",
+                        Duration = 4,
+                        Image   = "refresh-cw"
                     })
                     local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
                     pcall(votingClient.resetAct.call)
@@ -2745,7 +2744,7 @@ local function setupWaveHook()
                     print("[LixHub] Macro Maps initialized — proceeding with wave 1 logic")
                 end
             end
-            
+
             -- Handle pending record
             if MacroSystem.pendingRecord then
                 MacroSystem.pendingRecord = false
@@ -2754,42 +2753,74 @@ local function setupWaveHook()
                     pushNotify({ Title = "Recording Started", Content = "Game started — recording your actions now", Duration = 3, Image = "circle" })
                 end
             end
-            
-            -- Handle pending playback
-            if MacroSystem.pendingPlayback then
-                MacroSystem.pendingPlayback = false
-                if MacroSystem.playback(MacroSystem.currentMacroName) then
-                    pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Playing", "Game started — playback in progress")
-                    pushNotify({ Title = "Playback Started", Content = "Game started — running macro now", Duration = 3, Image = "play" })
-                end
-            end
-            
-            -- Check for map-specific macro (auto-start from Macro Maps)
-            if not MacroSystem.isPlaying and not MacroSystem.pendingPlayback then
-                local ok1, gmSel    = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectGamemode)
-                local ok2, stageSel = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectStage)
-                if ok1 and ok2 then
+
+            -- Resolve the correct map macro FIRST before deciding what to play
+            local resolvedMapMacro = nil
+            do
+                local ok3, gmSel    = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectGamemode)
+                local ok4, stageSel = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectStage)
+                if ok3 and ok4 then
                     local gm      = clientStore:getState(gmSel)    or ""
                     local stageId = clientStore:getState(stageSel) or ""
                     local mapKey  = gm .. ":" .. stageId
                     local mapped  = worldMacroMappings[mapKey]
-                    
                     if mapped and MacroSystem.library[mapped] and #MacroSystem.library[mapped] > 0 then
-                        print(string.format("[LixHub] Map-specific macro found: %s for %s", mapped, mapKey))
-                        MacroSystem.currentMacroName = mapped
-                        refreshDropdown()
-                        if MacroSystem.playback(mapped) then
-                            pushUI("Macro: " .. mapped .. " | Playing", "Auto-started from Macro Maps")
-                            pushNotify({ Title = "Macro Maps", Content = "Auto-playing: " .. mapped, Duration = 3, Image = "play" })
-                        end
-                    else
-                        print(string.format("[LixHub] No map-specific macro for %s — using dropdown selection if playback is enabled", mapKey))
+                        resolvedMapMacro = mapped
+                    end
+                end
+            end
+
+            -- Handle pending playback
+            if MacroSystem.pendingPlayback then
+                local targetMacro = resolvedMapMacro or MacroSystem.currentMacroName
+
+                -- If the pending macro doesn't match the map macro, reset and restart clean
+                if resolvedMapMacro and resolvedMapMacro ~= MacroSystem.currentMacroName then
+                    print(string.format("[LixHub] Pending playback '%s' doesn't match map macro '%s' — resetting act",
+                        MacroSystem.currentMacroName, resolvedMapMacro))
+                    MacroSystem.currentMacroName = resolvedMapMacro
+                    refreshDropdown()
+                    MacroSystem.pendingPlayback = true
+                    pushUI("Macro: " .. resolvedMapMacro .. " | Restarting", "Wrong macro detected — restarting act...")
+                    pushNotify({ Title = "Macro Corrected", Content = "Restarting act to play: " .. resolvedMapMacro, Duration = 4, Image = "refresh-cw" })
+                    local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
+                    pcall(votingClient.resetAct.call)
+                else
+                    MacroSystem.pendingPlayback = false
+                    MacroSystem.currentMacroName = targetMacro
+                    refreshDropdown()
+                    if MacroSystem.playback(targetMacro) then
+                        pushUI("Macro: " .. targetMacro .. " | Playing", "Game started — playback in progress")
+                        pushNotify({ Title = "Playback Started", Content = "Game started — running macro now", Duration = 3, Image = "play" })
+                    end
+                end
+
+            -- No pending playback — check map macro for auto-start
+            elseif resolvedMapMacro and not MacroSystem.isPlaying then
+                -- If selected macro doesn't match the map macro, reset and restart clean
+                if MacroSystem.currentMacroName ~= "" and MacroSystem.currentMacroName ~= resolvedMapMacro then
+                    print(string.format("[LixHub] Selected macro '%s' doesn't match map macro '%s' — resetting act",
+                        MacroSystem.currentMacroName, resolvedMapMacro))
+                    MacroSystem.currentMacroName = resolvedMapMacro
+                    refreshDropdown()
+                    MacroSystem.pendingPlayback = true
+                    pushUI("Macro: " .. resolvedMapMacro .. " | Restarting", "Wrong macro for this map — restarting act...")
+                    pushNotify({ Title = "Macro Corrected", Content = "Restarting act to play: " .. resolvedMapMacro, Duration = 4, Image = "refresh-cw" })
+                    local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
+                    pcall(votingClient.resetAct.call)
+                else
+                    MacroSystem.currentMacroName = resolvedMapMacro
+                    refreshDropdown()
+                    if MacroSystem.playback(resolvedMapMacro) then
+                        pushUI("Macro: " .. resolvedMapMacro .. " | Playing", "Auto-started from Macro Maps")
+                        pushNotify({ Title = "Macro Maps", Content = "Auto-playing: " .. resolvedMapMacro, Duration = 3, Image = "play" })
                     end
                 end
             end
         end
+
         lastWave = waveNumber
-        
+
         -- Auto reset on specific wave
         if State.AutoResetActEnabled and waveNumber == State.AutoResetActWave then
             local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
@@ -2800,7 +2831,7 @@ local function setupWaveHook()
                 end
             end)
         end
-        
+
         -- Auto ability on wave interval
         if State.AutoAbilityEnabled and State.AutoAbilityOnWave > 0 then
             if waveNumber >= State.AutoAbilityOnWave then
@@ -2905,6 +2936,7 @@ ensureFolders()
 loadWorldMappings()
 MacroSystem.loadAll()
 buildMacroMapsTab()
+refreshDropdown()
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
