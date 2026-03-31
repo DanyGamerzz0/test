@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.3
+-- V1.0
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -899,6 +899,7 @@ local State = {
     AntiAfkEnabled      = false,
     AutoStartGame       = false,
     AutoLobby           = false,
+    ChallengeBug        = false,
     EnableLowPerfMode   = false,
     StreamerModeEnabled = false,
     EnableBlackScreen   = false,
@@ -1020,9 +1021,6 @@ local Window = Rayfield:CreateWindow({
         InputStroke                   = Color3.fromRGB(65,  65,  65),
         PlaceholderColor              = Color3.fromRGB(178, 178, 178),
     },
-    ToggleUIKeybind       = "K",
-    DisableRayfieldPrompts= true,
-    DisableBuildWarnings  = true,
     ConfigurationSaving = {
         Enabled    = true,
         FolderName = "LixHub/AO",
@@ -1032,16 +1030,6 @@ local Window = Rayfield:CreateWindow({
         Enabled       = true,
         Invite        = "cYKnXE2Nf8",
         RememberJoins = true
-    },
-    KeySystem             = true,
-    KeySettings = {
-        Title          = "LixHub - Anime Overload - Free",
-        Subtitle       = "LixHub - Key System",
-        Note           = "Free key available in the discord https://discord.gg/cYKnXE2Nf8",
-        FileName       = "LixHub_Key",
-        SaveKey        = true,
-        GrabKeyFromSite= false,
-        Key            = {"0xLIXHUB"},
     },
 })
 
@@ -1889,6 +1877,7 @@ GameTab:CreateToggle({ Name = "Auto Replay",     Flag = "AutoReplay",    Callbac
 GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",      Callback = function(v) if not IS_LOBBY then playerNet.updateSettings.fire("autoNextAct", v) end end })
 GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",     Callback = function(v) if not IS_LOBBY then State.AutoLobby = v end end })
 GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves", Callback = function(v) if not IS_LOBBY then playerNet.updateSettings.fire("autoSkipWave", v) end end })
+GameTab:CreateToggle({ Name = "Challenge Bug",    Flag = "ChallengeBug",  Callback = function(v) State.ChallengeBug = v end })
 
 GameTab:CreateToggle({
     Name         = "Auto Reset On x Wave",
@@ -2938,6 +2927,15 @@ local function setupMatchEndHook()
         if State.AutoLobby then
         game:GetService("TeleportService"):Teleport(126297188712308)
     end
+        if State.ChallengeBug then
+            task.spawn(function()
+                local buf = buffer.create(2)
+                buffer.writeu8(buf, 0, 7)  -- resetAct event ID
+                buffer.writeu8(buf, 1, 0)  -- call ID
+                local args = { buf, {} }
+                game:GetService("ReplicatedStorage"):WaitForChild("voting"):WaitForChild("voting_RELIABLE"):FireServer(unpack(args))
+            end)
+        end
         if State.ChallengeRotationPending then
     State.ChallengeRotationPending = false
     pushNotify({ Title = "Challenge Rotation", Content = "Heading to lobby for new challenges!", Duration = 4, Image = "refresh-cw" })
