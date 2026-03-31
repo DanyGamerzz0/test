@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.73
+-- V0.74
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -937,6 +937,7 @@ local State = {
     AutoAbilityEnabled  = false,
     AutoAbilityOnWave   = 1,
     AutoAbilityOnBoss   = false,
+    AutoJoinEvent = false,
 }
 
 local function sendWebhookRaw(body)
@@ -1197,13 +1198,13 @@ AutoJoinTab:CreateDropdown({
     end,
 })
 
-AutoJoinTab:CreateSection("Auto Challenge")
+AutoJoinTab:CreateSection("Auto Event")
 
 AutoJoinTab:CreateToggle({
-    Name         = "Auto Join Challenge",
+    Name         = "Auto Join Event",
     CurrentValue = false,
-    Flag         = "AutoJoinChallenge",
-    Callback     = function(v) State.AutoJoinChallenge = v end,
+    Flag         = "AutoJoinEvent",
+    Callback     = function(v) State.AutoJoinEvent = v end,
 })
 
 AutoJoinTab:CreateSection("Auto Challenge")
@@ -2386,11 +2387,11 @@ local function buildModeCollapsible(displayName, gamemodeKey, nameList, nameToId
         local stageId = nameToId[worldName]
         if not stageId then continue end
         local mapKey  = gamemodeKey .. ":" .. stageId
-        local current = worldMacroMappings[mapKey] or "None"
+        -- Don't try to set current here - let the restore function handle it
         local dropdown = collapsible.Tab:CreateDropdown({
             Name            = worldName,
             Options         = opts,
-            CurrentOption   = { current },
+            CurrentOption   = {},  -- Start empty
             MultipleOptions = false,
             Callback        = function(selected)
                 local picked = type(selected) == "table" and selected[1] or selected
@@ -2404,6 +2405,79 @@ local function buildModeCollapsible(displayName, gamemodeKey, nameList, nameToId
         })
         worldMacroDropdowns[mapKey] = dropdown
     end
+end
+
+local function restoreDropdownValues(maxRetries)
+    maxRetries = maxRetries or 10
+    local attempt = 0
+    
+    task.spawn(function()
+        while attempt < maxRetries do
+            attempt = attempt + 1
+            task.wait(0.5)
+            
+            local allRestored = true
+            local restoredCount = 0
+            local totalCount = 0
+            
+            for mapKey, macroName in pairs(worldMacroMappings) do
+                totalCount = totalCount + 1
+                local dropdown = worldMacroDropdowns[mapKey]
+                
+                if dropdown then
+                    -- Check if the macro still exists in the library
+                    if MacroSystem.library[macroName] then
+                        local success = pcall(function()
+                            dropdown:Set(macroName)
+                        end)
+                        
+                        if success then
+                            restoredCount = restoredCount + 1
+                            print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
+                        else
+                            allRestored = false
+                            warn(string.format("[LixHub] Failed to restore: %s -> %s (attempt %d)", mapKey, macroName, attempt))
+                        end
+                    else
+                        -- Macro no longer exists, remove the mapping
+                        worldMacroMappings[mapKey] = nil
+                        saveWorldMappings()
+                        print(string.format("[LixHub] Removed invalid mapping: %s -> %s (macro deleted)", mapKey, macroName))
+                        restoredCount = restoredCount + 1
+                    end
+                else
+                    allRestored = false
+                    warn(string.format("[LixHub] Dropdown not found for: %s (attempt %d)", mapKey, attempt))
+                end
+            end
+            
+            if totalCount == 0 then
+                print("[LixHub] No macro mappings to restore")
+                break
+            end
+            
+            if allRestored or restoredCount == totalCount then
+                print(string.format("[LixHub] Successfully restored %d/%d macro mappings (attempt %d)", restoredCount, totalCount, attempt))
+                pushNotify({ 
+                    Title = "Macro Maps Loaded", 
+                    Content = string.format("Restored %d world mapping%s", restoredCount, restoredCount == 1 and "" or "s"), 
+                    Duration = 3, 
+                    Image = "check-circle" 
+                })
+                break
+            end
+            
+            if attempt == maxRetries then
+                warn(string.format("[LixHub] Failed to restore all mappings after %d attempts (%d/%d restored)", maxRetries, restoredCount, totalCount))
+                pushNotify({ 
+                    Title = "Macro Maps Warning", 
+                    Content = string.format("Only restored %d/%d mappings", restoredCount, totalCount), 
+                    Duration = 4, 
+                    Image = "alert-triangle" 
+                })
+            end
+        end
+    end)
 end
 
 -- ============================================================
@@ -2814,21 +2888,14 @@ end)
 -- ============================================================
 ensureFolders()
 MacroSystem.loadAll()
+loadWorldMappings()
 buildModeCollapsible("Story Stages",    "story",     stageNames,     stageNameToId)
 buildModeCollapsible("Legend Stages",   "legends",   stageNames,     stageNameToId)
 buildModeCollapsible("Raid Stages",     "raid",      raidStageNames, raidStageNameToId)
 buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameToId)
-loadWorldMappings()
 refreshDropdown()
 refreshAutoSelectDropdowns()
-task.wait(1)
-for mapKey, macroName in pairs(worldMacroMappings) do
-    local dropdown = worldMacroDropdowns[mapKey]
-    if dropdown then
-        pcall(function() dropdown:Set(macroName) end)
-        print("Restored world macro mapping:", mapKey, "->", macroName)
-    end
-end
+restoreDropdownValues(10)
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
