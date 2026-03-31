@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.0
+-- V1.1
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -142,27 +142,12 @@ local function saveWorldMappings()
     pcall(writefile, WORLD_MAPPING_FILE, HttpService:JSONEncode(worldMacroMappings))
 end
 
-local function saveCardPriorities()
-    pcall(writefile, CARD_PRIORITIES_FILE, HttpService:JSONEncode(State.CardPriorities))
-end
-
 local function loadWorldMappings()
     if not isfile(WORLD_MAPPING_FILE) then return end
     local ok, result = pcall(function()
         return HttpService:JSONDecode(readfile(WORLD_MAPPING_FILE))
     end)
     if ok and type(result) == "table" then worldMacroMappings = result end
-end
-
-local function loadCardPriorities()
-    if not isfile(CARD_PRIORITIES_FILE) then return end
-    local ok, result = pcall(function()
-        return HttpService:JSONDecode(readfile(CARD_PRIORITIES_FILE))
-    end)
-    if ok and type(result) == "table" then
-        State.CardPriorities = result
-        print("[LixHub] Card priorities loaded: " .. tostring(#result) .. " entries")
-    end
 end
 
 local function getUnitLabel(name)
@@ -969,6 +954,21 @@ local function sendWebhookRaw(body)
         })
     end)
     return ok, err
+end
+
+local function saveCardPriorities()
+    pcall(writefile, CARD_PRIORITIES_FILE, HttpService:JSONEncode(State.CardPriorities))
+end
+
+local function loadCardPriorities()
+    if not isfile(CARD_PRIORITIES_FILE) then return end
+    local ok, result = pcall(function()
+        return HttpService:JSONDecode(readfile(CARD_PRIORITIES_FILE))
+    end)
+    if ok and type(result) == "table" then
+        State.CardPriorities = result
+        print("[LixHub] Card priorities loaded: " .. tostring(#result) .. " entries")
+    end
 end
 
 local script_version = "V0.01"
