@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.84
+-- V0.85
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1597,7 +1597,7 @@ local function setupAutoJoin()
             end
 
             if not joined then
-                pushUI("Auto Join: Waiting", "No available mode — all challenges done or nothing configured")
+                pushUI("Auto Join: Waiting", "No available mode")
                 task.wait(8)
             else
                 task.wait(10)
@@ -2142,12 +2142,6 @@ MacroTab:CreateToggle({
     Flag         = "IgnoreTiming",
     Callback     = function(value)
         MacroSystem.ignoreTiming = value
-        pushNotify({
-            Title    = value and "Timing Disabled" or "Timing Enabled",
-            Content  = value and "Actions fire as soon as affordable" or "Using recorded timing",
-            Duration = 2,
-            Image    = "zap"
-        })
     end,
 })
 
@@ -2732,10 +2726,10 @@ local function setupWaveHook()
                 if not MacroSystem.macroMapsReady then
                     warn("[LixHub] Macro Maps failed to initialize in time — restarting act")
                     pushNotify({
-                        Title   = "Initializing...",
-                        Content = "Restarting act to ensure Macro Maps loads properly",
+                        Title    = "Initializing...",
+                        Content  = "Restarting act to ensure Macro Maps loads properly",
                         Duration = 4,
-                        Image   = "refresh-cw"
+                        Image    = "refresh-cw"
                     })
                     local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
                     pcall(votingClient.resetAct.call)
@@ -2774,47 +2768,31 @@ local function setupWaveHook()
             if MacroSystem.pendingPlayback then
                 local targetMacro = resolvedMapMacro or MacroSystem.currentMacroName
 
-                -- If the pending macro doesn't match the map macro, reset and restart clean
                 if resolvedMapMacro and resolvedMapMacro ~= MacroSystem.currentMacroName then
-                    print(string.format("[LixHub] Pending playback '%s' doesn't match map macro '%s' — resetting act",
+                    print(string.format("[LixHub] Correcting macro '%s' -> '%s'",
                         MacroSystem.currentMacroName, resolvedMapMacro))
                     MacroSystem.currentMacroName = resolvedMapMacro
-                    refreshDropdown()
-                    MacroSystem.pendingPlayback = true
-                    pushUI("Macro: " .. resolvedMapMacro .. " | Restarting", "Wrong macro detected — restarting act...")
-                    pushNotify({ Title = "Macro Corrected", Content = "Restarting act to play: " .. resolvedMapMacro, Duration = 4, Image = "refresh-cw" })
-                    local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
-                    pcall(votingClient.resetAct.call)
-                else
-                    MacroSystem.pendingPlayback = false
-                    MacroSystem.currentMacroName = targetMacro
-                    refreshDropdown()
-                    if MacroSystem.playback(targetMacro) then
-                        pushUI("Macro: " .. targetMacro .. " | Playing", "Game started — playback in progress")
-                        pushNotify({ Title = "Playback Started", Content = "Game started — running macro now", Duration = 3, Image = "play" })
-                    end
+                    pcall(function() MacroDropdown:Set(resolvedMapMacro) end)
+                    targetMacro = resolvedMapMacro
+                end
+
+                MacroSystem.pendingPlayback = false
+                if MacroSystem.playback(targetMacro) then
+                    pushUI("Macro: " .. targetMacro .. " | Playing", "Game started — playback in progress")
+                    pushNotify({ Title = "Playback Started", Content = "Now playing: " .. targetMacro, Duration = 3, Image = "play" })
                 end
 
             -- No pending playback — check map macro for auto-start
             elseif resolvedMapMacro and not MacroSystem.isPlaying then
-                -- If selected macro doesn't match the map macro, reset and restart clean
-                if MacroSystem.currentMacroName ~= "" and MacroSystem.currentMacroName ~= resolvedMapMacro then
-                    print(string.format("[LixHub] Selected macro '%s' doesn't match map macro '%s' — resetting act",
+                if MacroSystem.currentMacroName ~= resolvedMapMacro then
+                    print(string.format("[LixHub] Auto-correcting macro '%s' -> '%s'",
                         MacroSystem.currentMacroName, resolvedMapMacro))
                     MacroSystem.currentMacroName = resolvedMapMacro
-                    refreshDropdown()
-                    MacroSystem.pendingPlayback = true
-                    pushUI("Macro: " .. resolvedMapMacro .. " | Restarting", "Wrong macro for this map — restarting act...")
-                    pushNotify({ Title = "Macro Corrected", Content = "Restarting act to play: " .. resolvedMapMacro, Duration = 4, Image = "refresh-cw" })
-                    local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
-                    pcall(votingClient.resetAct.call)
-                else
-                    MacroSystem.currentMacroName = resolvedMapMacro
-                    refreshDropdown()
-                    if MacroSystem.playback(resolvedMapMacro) then
-                        pushUI("Macro: " .. resolvedMapMacro .. " | Playing", "Auto-started from Macro Maps")
-                        pushNotify({ Title = "Macro Maps", Content = "Auto-playing: " .. resolvedMapMacro, Duration = 3, Image = "play" })
-                    end
+                    pcall(function() MacroDropdown:Set(resolvedMapMacro) end)
+                end
+                if MacroSystem.playback(resolvedMapMacro) then
+                    pushUI("Macro: " .. resolvedMapMacro .. " | Playing", "Auto-started from Macro Maps")
+                    pushNotify({ Title = "Macro Maps", Content = "Auto-playing: " .. resolvedMapMacro, Duration = 3, Image = "play" })
                 end
             end
         end
@@ -2939,7 +2917,6 @@ buildMacroMapsTab()
 refreshDropdown()
 
 if IS_LOBBY then
-    pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
     print("[LixHub] Lobby detected — running auto join.")
     setupAutoJoin()
 else
@@ -2950,12 +2927,9 @@ else
     setupMatchEndWebhook()
     setupAutoCardSelection()
     setupAutoAbility()
-    print("[LixHub] In-game — hooks active.")
 end
 
 Rayfield:LoadConfiguration()
-
-pushNotify({ Title = "LixHub Loaded", Content = IS_LOBBY and "Running in lobby — hooks inactive." or "Macro system ready.", Duration = 3, Image = "check-circle" })
 
 Rayfield:TopNotify({
     Title     = "UI is hidden",
