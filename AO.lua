@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.71
+-- V0.72
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1208,6 +1208,16 @@ AutoJoinTab:CreateToggle({
     Callback     = function(v) State.AutoJoinChallenge = v end,
 })
 
+AutoJoinTab:CreateSection("Auto Challenge")
+
+AutoJoinTab:CreateToggle({
+    Name         = "Auto Join Challenge",
+    CurrentValue = false,
+    Flag         = "AutoJoinChallenge",
+    Info         = "Automatically joins a challenge room based on selected frequency, ignoring specified worlds.",
+    Callback     = function(v) State.AutoJoinChallenge = v end,
+})
+
 AutoJoinTab:CreateDropdown({
     Name            = "Challenge Frequency",
     Options         = { "hourly", "daily", "weekly" },
@@ -2062,11 +2072,11 @@ RecordToggle = MacroTab:CreateToggle({
                 pushNotify({ Title = "Restarting game...", Content = "The act will reset and recording will begin at Wave 1", Duration = 3, Image = "refresh-cw" })
                 pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Waiting for the game to restart...")
                 task.spawn(function()
-                    local remote = ReplicatedStorage:WaitForChild("voting"):WaitForChild("voting_RELIABLE")
-                    local buf = buffer.create(2)
-                    buffer.writeu8(buf, 0, 6)
-                    buffer.writeu8(buf, 1, 0)
-                    remote:FireServer(buf, {})
+                local buf = buffer.create(2)
+                buffer.writeu8(buf, 0, 7)  -- resetAct event ID
+                buffer.writeu8(buf, 1, 0)  -- call ID
+                local args = { buf, {} }
+                game:GetService("ReplicatedStorage"):WaitForChild("voting"):WaitForChild("voting_RELIABLE"):FireServer(unpack(args))
                     MacroSystem.pendingRecord = true
                 end)
             else
@@ -2121,11 +2131,11 @@ PlaybackToggle = MacroTab:CreateToggle({
                 pushNotify({ Title = "Restarting game...", Content = "The act will reset and playback will begin at Wave 1", Duration = 3, Image = "refresh-cw" })
                 pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Waiting for the game to restart...")
                 task.spawn(function()
-                    local remote = ReplicatedStorage:WaitForChild("voting"):WaitForChild("voting_RELIABLE")
-                    local buf = buffer.create(2)
-                    buffer.writeu8(buf, 0, 6)
-                    buffer.writeu8(buf, 1, 0)
-                    remote:FireServer(buf, {})
+                local buf = buffer.create(2)
+                buffer.writeu8(buf, 0, 7)  -- resetAct event ID
+                buffer.writeu8(buf, 1, 0)  -- call ID
+                local args = { buf, {} }
+                game:GetService("ReplicatedStorage"):WaitForChild("voting"):WaitForChild("voting_RELIABLE"):FireServer(unpack(args))
                     MacroSystem.pendingPlayback = true
                 end)
             else
@@ -2786,11 +2796,11 @@ local function setupMatchEndHook()
     end
         if State.ChallengeBug then
             task.spawn(function()
-                local remote = ReplicatedStorage:WaitForChild("voting"):WaitForChild("voting_RELIABLE")
-                local buf2 = buffer.create(2)
-                buffer.writeu8(buf2, 0, 6)
-                buffer.writeu8(buf2, 1, 0)
-                remote:FireServer(buf2, {})
+                local buf = buffer.create(2)
+                buffer.writeu8(buf, 0, 7)  -- resetAct event ID
+                buffer.writeu8(buf, 1, 0)  -- call ID
+                local args = { buf, {} }
+                game:GetService("ReplicatedStorage"):WaitForChild("voting"):WaitForChild("voting_RELIABLE"):FireServer(unpack(args))
             end)
         end
         if State.ChallengeRotationPending then
@@ -2829,10 +2839,12 @@ buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameTo
 loadWorldMappings()
 refreshDropdown()
 refreshAutoSelectDropdowns()
-task.wait(0.5)
+task.wait(1)
 for mapKey, macroName in pairs(worldMacroMappings) do
-    if worldMacroDropdowns[mapKey] and MacroSystem.library[macroName] then
-        pcall(function() worldMacroDropdowns[mapKey]:Set(macroName) end)
+    local dropdown = worldMacroDropdowns[mapKey]
+    if dropdown then
+        pcall(function() dropdown:Set(macroName) end)
+        print("Restored world macro mapping:", mapKey, "->", macroName)
     end
 end
 
