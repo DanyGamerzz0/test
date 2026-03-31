@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.8
+-- V0.81
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1935,12 +1935,15 @@ local function refreshAutoSelectDropdowns()
     for _, name in ipairs(MacroSystem.getList()) do
         table.insert(opts, name)
     end
+    
     for key, dropdown in pairs(worldMacroDropdowns) do
         pcall(function()
             dropdown:Refresh(opts)
             local current = worldMacroMappings[key]
             if current and MacroSystem.library[current] then
-                dropdown:Set(current)
+                task.defer(function()
+                    dropdown:Set(current)
+                end)
             end
         end)
     end
@@ -2348,6 +2351,57 @@ MacroTab:CreateButton({
 
 MacroTab:CreateDivider()
 MacroTab:CreateSection("Macro Maps")
+
+local function rebuildMacroMaps()
+    -- Clear existing dropdowns
+    worldMacroDropdowns = {}
+    
+    -- Get fresh macro list
+    local opts = { "None" }
+    for _, name in ipairs(MacroSystem.getList()) do
+        table.insert(opts, name)
+    end
+    
+    -- Helper to build a collapsible section
+    local function buildModeCollapsible(displayName, gamemodeKey, nameList, nameToId)
+        local collapsible = MacroTab:CreateCollapsible({
+            Name            = displayName,
+            DefaultExpanded = false,
+        })
+        
+        for _, worldName in ipairs(nameList) do
+            local stageId = nameToId[worldName]
+            if not stageId then continue end
+            
+            local mapKey = gamemodeKey .. ":" .. stageId
+            local saved  = worldMacroMappings[mapKey]
+            
+            local dropdown = collapsible.Tab:CreateDropdown({
+                Name            = worldName,
+                Options         = opts,
+                CurrentOption   = (saved and MacroSystem.library[saved]) and { saved } or {},
+                MultipleOptions = false,
+                Callback        = function(selected)
+                    local picked = type(selected) == "table" and selected[1] or selected
+                    if picked == "None" or picked == "" then
+                        worldMacroMappings[mapKey] = nil
+                    else
+                        worldMacroMappings[mapKey] = picked
+                    end
+                    saveWorldMappings()
+                end,
+            })
+            
+            worldMacroDropdowns[mapKey] = dropdown
+        end
+    end
+    
+    -- Build all sections
+    buildModeCollapsible("Story Stages",     "story",     stageNames,     stageNameToId)
+    buildModeCollapsible("Legend Stages",    "legends",   stageNames,     stageNameToId)
+    buildModeCollapsible("Raid Stages",      "raid",      raidStageNames, raidStageNameToId)
+    buildModeCollapsible("Challenge Stages", "challenge", stageNames,     stageNameToId)
+end
 
 local function setupRestartHook()
     local votingClient = require(ReplicatedStorage.gameClient.net.votingNet)
@@ -2820,14 +2874,13 @@ end)
 -- INIT
 -- ============================================================
 ensureFolders()
-MacroSystem.loadAll()
 loadWorldMappings()
-buildModeCollapsible("Story Stages",    "story",     stageNames,     stageNameToId)
-buildModeCollapsible("Legend Stages",   "legends",   stageNames,     stageNameToId)
-buildModeCollapsible("Raid Stages",     "raid",      raidStageNames, raidStageNameToId)
-buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameToId)
-refreshDropdown()
-refreshAutoSelectDropdowns()
+MacroSystem.loadAll()
+task.defer(function()
+    task.wait(3) -- Small delay to ensure UI is ready
+    rebuildMacroMaps()
+    refreshDropdown()
+end)
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
