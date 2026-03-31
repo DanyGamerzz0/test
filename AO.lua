@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.82
+-- V0.83
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1936,16 +1936,10 @@ local function refreshAutoSelectDropdowns()
     for _, name in ipairs(MacroSystem.getList()) do
         table.insert(opts, name)
     end
-    
     for key, dropdown in pairs(worldMacroDropdowns) do
         pcall(function()
-            dropdown:Refresh(opts)
             local current = worldMacroMappings[key]
-            if current and MacroSystem.library[current] then
-                task.defer(function()
-                    dropdown:Set(current)
-                end)
-            end
+            dropdown:Refresh(opts, (current and MacroSystem.library[current]) and { current } or {})
         end)
     end
 end
@@ -2350,34 +2344,27 @@ MacroTab:CreateButton({
     end,
 })
 
-MacroTab:CreateDivider()
-MacroTab:CreateSection("Macro Maps")
+-- ============================================================
+-- MACRO MAPS TAB
+-- ============================================================
+local MacroMapsTab = Window:CreateTab("Macro Maps", "map")
 
-local function rebuildMacroMaps()
-    -- Clear existing dropdowns
-    worldMacroDropdowns = {}
-    
-    -- Get fresh macro list
+worldMacroDropdowns = {}
+
+local function buildMacroMapsTab()
     local opts = { "None" }
     for _, name in ipairs(MacroSystem.getList()) do
         table.insert(opts, name)
     end
-    
-    -- Helper to build a collapsible section
-    local function buildModeCollapsible(displayName, gamemodeKey, nameList, nameToId)
-        local collapsible = MacroTab:CreateCollapsible({
-            Name            = displayName,
-            DefaultExpanded = false,
-        })
-        
+
+    local function buildSection(displayName, gamemodeKey, nameList, nameToId)
+        MacroMapsTab:CreateSection(displayName)
         for _, worldName in ipairs(nameList) do
             local stageId = nameToId[worldName]
             if not stageId then continue end
-            
             local mapKey = gamemodeKey .. ":" .. stageId
             local saved  = worldMacroMappings[mapKey]
-            
-            local dropdown = collapsible.Tab:CreateDropdown({
+            local dropdown = MacroMapsTab:CreateDropdown({
                 Name            = worldName,
                 Options         = opts,
                 CurrentOption   = (saved and MacroSystem.library[saved]) and { saved } or {},
@@ -2392,16 +2379,17 @@ local function rebuildMacroMaps()
                     saveWorldMappings()
                 end,
             })
-            
             worldMacroDropdowns[mapKey] = dropdown
         end
     end
-    
-    -- Build all sections
-    buildModeCollapsible("Story Stages",     "story",     stageNames,     stageNameToId)
-    buildModeCollapsible("Legend Stages",    "legends",   stageNames,     stageNameToId)
-    buildModeCollapsible("Raid Stages",      "raid",      raidStageNames, raidStageNameToId)
-    buildModeCollapsible("Challenge Stages", "challenge", stageNames,     stageNameToId)
+
+    buildSection("Story Stages",     "story",     stageNames,     stageNameToId)
+    buildSection("Legend Stages",    "legends",   stageNames,     stageNameToId)
+    buildSection("Raid Stages",      "raid",      raidStageNames, raidStageNameToId)
+    buildSection("Challenge Stages", "challenge", stageNames,     stageNameToId)
+
+    MacroSystem.macroMapsReady = true
+    print("[LixHub] Macro Maps tab built and ready.")
 end
 
 local function setupRestartHook()
@@ -2916,11 +2904,7 @@ end)
 ensureFolders()
 loadWorldMappings()
 MacroSystem.loadAll()
-task.defer(function()
-    task.wait(3) -- Small delay to ensure UI is ready
-    rebuildMacroMaps()
-    refreshDropdown()
-end)
+buildMacroMapsTab()
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
@@ -2948,23 +2932,3 @@ Rayfield:TopNotify({
     IconColor = Color3.fromRGB(100, 150, 255),
     Duration  = 5
 })
-
-task.delay(2, function()
-    for mapKey, macroName in pairs(worldMacroMappings) do
-        local dropdown = worldMacroDropdowns[mapKey]
-        if dropdown and MacroSystem.library[macroName] then
-            local opts = { "None" }
-            for _, name in ipairs(MacroSystem.getList()) do
-                table.insert(opts, name)
-            end
-            dropdown:Refresh(opts)
-            task.wait(0.1)
-            dropdown:Set(macroName)
-            print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
-        end
-    end
-    
-    -- Mark Macro Maps as fully initialized
-    MacroSystem.macroMapsReady = true
-    print("[LixHub] Macro Maps system initialized and ready")
-end)
