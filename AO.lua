@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.72
+-- V0.73
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1168,7 +1168,6 @@ AutoJoinTab:CreateToggle({
     Name         = "Auto Join Raid",
     CurrentValue = false,
     Flag         = "AutoJoinRaid",
-    Info         = "Automatically joins a raid room with the selected stage and act.",
     Callback     = function(v) State.AutoJoinRaid = v end,
 })
 
@@ -1204,7 +1203,6 @@ AutoJoinTab:CreateToggle({
     Name         = "Auto Join Challenge",
     CurrentValue = false,
     Flag         = "AutoJoinChallenge",
-    Info         = "Automatically joins a challenge room based on selected frequency, ignoring specified worlds.",
     Callback     = function(v) State.AutoJoinChallenge = v end,
 })
 
@@ -1214,7 +1212,6 @@ AutoJoinTab:CreateToggle({
     Name         = "Auto Join Challenge",
     CurrentValue = false,
     Flag         = "AutoJoinChallenge",
-    Info         = "Automatically joins a challenge room based on selected frequency, ignoring specified worlds.",
     Callback     = function(v) State.AutoJoinChallenge = v end,
 })
 
@@ -1224,7 +1221,6 @@ AutoJoinTab:CreateDropdown({
     CurrentOption   = {},
     MultipleOptions = true,
     Flag            = "ChallengeFrequency",
-    Info            = "Which challenge rotations to join.",
     Callback        = function(selected)
         State.ChallengeFrequencies = type(selected) == "table" and selected or { selected }
     end,
@@ -1236,7 +1232,6 @@ AutoJoinTab:CreateDropdown({
     CurrentOption   = {},
     MultipleOptions = true,
     Flag            = "ChallengeIgnoreWorlds",
-    Info            = "Skip challenges on these worlds.",
     Callback        = function(selected)
         local t = {}
         for _, name in ipairs(type(selected) == "table" and selected or { selected }) do
@@ -1291,7 +1286,6 @@ if #rewardOptions > 0 then
         CurrentOption   = {},
         MultipleOptions = true,
         Flag            = "ChallengeRequiredRewards",
-        Info            = "Only join challenges that offer at least one of these rewards.",
         Callback        = function(selected)
             local t = {}
             for _, name in ipairs(type(selected) == "table" and selected or { selected }) do
@@ -1304,10 +1298,9 @@ if #rewardOptions > 0 then
 end
 
 AutoJoinTab:CreateToggle({
-    Name         = "Auto Lobby on Rotation",
+    Name         = "Return to lobby on new challenge",
     CurrentValue = false,
     Flag         = "ChallengAutoLobbyOnRotation",
-    Info         = "Teleports you to lobby at the top of the hour when challenges rotate.",
     Callback     = function(v) State.ChallengeAutoLobbyOnRotation = v end,
 })
 
@@ -1617,7 +1610,7 @@ end
 local PriorityTab = Window:CreateTab("Priority", "layers")
 
 PriorityTab:CreateSection("Auto Join Priority")
-PriorityTab:CreateLabel("Higher value = joins first. Set to 0 to disable a mode from the shared loop.")
+PriorityTab:CreateLabel("Higher value = joins first")
 
 PriorityTab:CreateSlider({
     Name         = "Challenge Stage Priority",
@@ -1715,7 +1708,7 @@ local function loadCards()
     end
 
     CardsTab:CreateDivider()
-    CardsTab:CreateSection("Contracts")
+    CardsTab:CreateSection("Event Cards")
 
     local contractFolder = ReplicatedStorage:WaitForChild("gameShared")
         :WaitForChild("config")
@@ -1822,16 +1815,6 @@ GameTab:CreateSlider({
     Callback     = function(Value)
         State.SelectedFPS = Value
         if State.EnableLimitFPS then setfpscap(Value) end
-    end,
-})
-
-GameTab:CreateToggle({
-    Name         = "Streamer Mode",
-    CurrentValue = false,
-    Flag         = "StreamerMode",
-    Info         = "Hides your name, level, and title in the overhead billboard.",
-    Callback     = function(Value)
-        State.StreamerModeEnabled = Value
     end,
 })
 
@@ -2176,7 +2159,6 @@ MacroTab:CreateToggle({
     Name         = "Auto Use Abilities",
     CurrentValue = false,
     Flag         = "AutoAbility",
-    Info         = "Automatically fires abilities for all placed towers starting on the configured wave, then re-fires whenever they come off cooldown.",
     TextScaled = true,
     Callback     = function(v)
         State.AutoAbilityEnabled = v
@@ -2190,7 +2172,7 @@ MacroTab:CreateSlider({
     CurrentValue = 1,
     Suffix       = " waves",
     Flag         = "AutoAbilityWaveInterval",
-    Info         = "Starts firing abilities on this wave and keeps firing them whenever they come off cooldown. Set to 0 to disable.",
+    Info         = "Starts firing abilities on this wave and keeps firing them whenever they come off cooldown.",
     TextScaled = true,
     Callback     = function(v)
         State.AutoAbilityOnWave = v
@@ -2201,7 +2183,7 @@ MacroTab:CreateToggle({
     Name         = "Auto Use Abilities on Boss",
     CurrentValue = false,
     Flag         = "AutoAbilityBoss",
-    Info         = "Fires all abilities immediately when a boss enemy spawns.",
+    Info         = "Fires all abilities immediately when a boss spawns. Don't use with 'Auto Use Abilities'",
     TextScaled = true,
     Callback     = function(v)
         State.AutoAbilityOnBoss = v
