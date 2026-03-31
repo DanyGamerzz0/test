@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.74
+-- V0.75
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1821,11 +1821,11 @@ GameTab:CreateSlider({
 
 GameTab:CreateSection("Game")
 
-GameTab:CreateToggle({ Name = "Auto Start Game", Flag = "AutoStartGame", Callback = function(v) State.AutoStartGame = v end })
-GameTab:CreateToggle({ Name = "Auto Replay",     Flag = "AutoReplay",    Callback = function(v) playerNet.updateSettings.fire("autoReplay", v)  end })
-GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",      Callback = function(v) playerNet.updateSettings.fire("autoNextAct", v) end })
-GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",     Callback = function(v) State.AutoLobby = v end })
-GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves", Callback = function(v) playerNet.updateSettings.fire("autoSkipWave", v) end })
+GameTab:CreateToggle({ Name = "Auto Start Game", Flag = "AutoStartGame", Callback = function(v) if not IS_LOBBY then State.AutoStartGame = v end end })
+GameTab:CreateToggle({ Name = "Auto Replay",     Flag = "AutoReplay",    Callback = function(v) if not IS_LOBBY then playerNet.updateSettings.fire("autoReplay", v) end  end })
+GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",      Callback = function(v) if not IS_LOBBY then playerNet.updateSettings.fire("autoNextAct", v) end end })
+GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",     Callback = function(v) if not IS_LOBBY then State.AutoLobby = v end end })
+GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves", Callback = function(v) if not IS_LOBBY then playerNet.updateSettings.fire("autoSkipWave", v) end end })
 GameTab:CreateToggle({ Name = "Challenge Bug",    Flag = "ChallengeBug",  Callback = function(v) State.ChallengeBug = v end })
 
 GameTab:CreateToggle({
@@ -2404,6 +2404,12 @@ local function buildModeCollapsible(displayName, gamemodeKey, nameList, nameToId
             end,
         })
         worldMacroDropdowns[mapKey] = dropdown
+        local saved = worldMacroMappings[mapKey]
+if saved and MacroSystem.library[saved] then
+    task.defer(function()
+        pcall(function() dropdown:Set(saved) end)
+    end)
+end
     end
 end
 
