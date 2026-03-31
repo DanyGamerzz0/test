@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.86
+-- V0.87
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -927,10 +927,11 @@ local State = {
     ChallengeAutoLobbyOnRotation = false,
     ChallengeRotationPending = false,
     ModePriorities = {
-    Challenge = 100,
-    Raid      = 75,
-    Legend    = 50,
-    Story     = 25,
+    Challenge = 5,
+    Raid      = 4,
+    Legend    = 3,
+    Story     = 2,
+    Event = 1,
  },
     AutoResetActEnabled = false,
     AutoResetActWave    = 0,
@@ -1509,6 +1510,41 @@ local function setupAutoJoin()
         return true
     end
 
+    local function tryJoinEvent()
+    if not State.AutoJoinEvent then return false end
+    
+    -- Use joinLobby with "release" as the event stage ID
+    local ok1, r1 = pcall(roomsNet.joinLobby.call, "release")
+    if not ok1 or not r1 then
+        warn("[LixHub] Event joinLobby failed: " .. tostring(r1))
+        return false
+    end
+    task.wait(0.2)
+    
+    local ok2, r2 = pcall(roomsNet.selectStage.call, "release")
+    if not ok2 or not r2 then
+        warn("[LixHub] Event selectStage failed: " .. tostring(r2))
+        return false
+    end
+    task.wait(0.2)
+    
+    local ok3, r3 = pcall(roomsNet.getReady.call)
+    if not ok3 or not r3 then
+        warn("[LixHub] Event getReady failed: " .. tostring(r3))
+        return false
+    end
+    task.wait(0.2)
+    
+    local ok4, r4 = pcall(roomsNet.setMatchStatus.call, true)
+    if not ok4 or not r4 then
+        warn("[LixHub] Event setMatchStatus failed: " .. tostring(r4))
+        return false
+    end
+    
+    pushNotify({ Title = "Auto Event", Content = "Joining event stage!", Duration = 4, Image = "log-in" })
+    return true
+    end
+
     local function tryJoinLegend()
         if not State.AutoJoinLegend or State.AutoJoinLegendStageId == "" or not State.AutoJoinLegendAct then return false end
         local inRoom = touchStoryDoor()
@@ -1565,6 +1601,7 @@ local function setupAutoJoin()
                 { name = "Raid",      priority = State.ModePriorities.Raid      },
                 { name = "Legend",    priority = State.ModePriorities.Legend    },
                 { name = "Story",     priority = State.ModePriorities.Story     },
+                { name = "Event",     priority = State.ModePriorities.Event     },
             }
             table.sort(modes, function(a, b) return a.priority > b.priority end)
 
@@ -1593,6 +1630,11 @@ local function setupAutoJoin()
                         joined = tryJoinStory()
                         if joined then break end
                     end
+                elseif mode.name == "Event" then
+                    if State.AutoJoinEvent then
+                        joined = tryJoinEvent()
+                        if joined then break end
+                    end
                 end
             end
 
@@ -1616,38 +1658,47 @@ PriorityTab:CreateLabel("Higher value = joins first")
 
 PriorityTab:CreateSlider({
     Name         = "Challenge Stage Priority",
-    Range        = { 1, 4 },
+    Range        = { 1, 5 },
     Increment    = 1,
-    CurrentValue = 4,
+    CurrentValue = 5,
     Flag         = "PriorityChallenge",
     Callback     = function(v) State.ModePriorities.Challenge = v end,
 })
 
 PriorityTab:CreateSlider({
     Name         = "Raid Stage Priority",
-    Range        = { 1, 4 },
+    Range        = { 1, 5 },
     Increment    = 1,
-    CurrentValue = 3,
+    CurrentValue = 4,
     Flag         = "PriorityRaid",
     Callback     = function(v) State.ModePriorities.Raid = v end,
 })
 
 PriorityTab:CreateSlider({
     Name         = "Legend Stage Priority",
-    Range        = { 1, 4 },
+    Range        = { 1, 5 },
     Increment    = 1,
-    CurrentValue = 2,
+    CurrentValue = 3,
     Flag         = "PriorityLegend",
     Callback     = function(v) State.ModePriorities.Legend = v end,
 })
 
 PriorityTab:CreateSlider({
     Name         = "Story Stage Priority",
-    Range        = { 1, 4 },
+    Range        = { 1, 5 },
     Increment    = 1,
-    CurrentValue = 1,
+    CurrentValue = 2,
     Flag         = "PriorityStory",
     Callback     = function(v) State.ModePriorities.Story = v end,
+})
+
+PriorityTab:CreateSlider({
+    Name         = "Release Event Priority",
+    Range        = { 1, 5 },
+    Increment    = 1,
+    CurrentValue = 1,
+    Flag         = "PriorityEvent",
+    Callback     = function(v) State.ModePriorities.Event = v end,
 })
 
 -- ============================================================
