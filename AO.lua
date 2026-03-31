@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.61
+-- V0.62
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2593,27 +2593,22 @@ end
 local function setupAutoAbility()
     local enemyRemote = ReplicatedStorage:WaitForChild("enemy"):WaitForChild("enemy_RELIABLE")
     enemyRemote.OnClientEvent:Connect(function(buf, refs)
-        if not State.AutoAbilityOnBoss then return end
         if not buf or buffer.len(buf) == 0 then return end
-
-        -- Only handle event ID 3 (enemy spawn)
         local ok, eventId = pcall(buffer.readu8, buf, 0)
         if not ok or eventId ~= 3 then return end
 
-        -- refs is a flat array of field values matching the schema in the buffer header.
-        -- From the captured data, isBoss sits at index 6 in the refs table.
-        -- We also check category (index 8) == "boss" as a second guard against mini-bosses.
-        local isBoss    = refs[6]  == true
-        local category  = refs[8]
-        local isBossCategory = (category == "boss")
+        -- DEBUG: print all refs to find isBoss and category indices
+        for idx, v in ipairs(refs) do
+            if v == true or v == "boss" or v == "miniboss" then
+                print(string.format("[LixHub DEBUG] refs[%d] = %s", idx, tostring(v)))
+            end
+        end
 
-        if not isBoss or not isBossCategory then return end
+        if not State.AutoAbilityOnBoss then return end
 
         local now = tick()
         if now - lastBossAbilityTime < 3 then return end
         lastBossAbilityTime = now
-
-        print(string.format("[LixHub] Boss spawned — firing all abilities"))
         task.delay(0.3, fireAllAbilities)
     end)
 end
