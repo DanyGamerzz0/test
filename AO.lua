@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.6
+-- V0.61
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -746,61 +746,126 @@ function MacroSystem.playback(name)
                     setProgress(i, #actions, "[ERROR] Cannot change priority for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
             elseif action.action == "ABILITY" then
-                local tid     = labelToLiveTowerID[label]
-                local abilIdx = action.ultimateIndex or 1
-                if tid then
-                    local hero = nameToHero[baseName]
-                    if not hero or not hero.config or not hero.config.ultimates or #hero.config.ultimates == 0 then
-                        setProgress(i, #actions,
-                            string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
-                    else
-                        local fired       = false
-                        local MAX_ATTEMPTS = 3
+    local tid     = labelToLiveTowerID[label]
+    local abilIdx = action.ultimateIndex or 1
 
-                        for attempt = 1, MAX_ATTEMPTS do
-                            if not MacroSystem.isPlaying then break end
+    -- If ignore timing is ON, schedule this ability to fire at the recorded absolute time
+    -- instead of skipping the wait, so abilities don't fire prematurely.
+    if MacroSystem.ignoreTiming then
+        local scheduledTime = tonumber(action.time) or 0
+        local fireAt        = playbackStartTime + scheduledTime
+        local remaining     = fireAt - tick()
 
-                            -- Listen for the serverUltimate echo for this specific tower
-                            local confirmed = false
-                            local disconnect
-                            disconnect = sync.serverUltimate.on(function(receivedTid, ultimateIndex)
-                                if receivedTid == tid then
-                                    confirmed = true
-                                end
-                            end)
+        if remaining > 0 then
+            setProgress(i, #actions,
+                string.format("[SCHEDULED] Ability %d for [%s] fires in %.1fs (at t=%.1fs)", abilIdx, baseName, remaining, scheduledTime),
+                nextPreview)
 
-                            pcall(sync.clientUltimate.fire, tid, abilIdx)
+            task.spawn(function()
+                -- Wait until the scheduled absolute time
+                while tick() < fireAt and MacroSystem.isPlaying do
+                    task.wait(0.1)
+                end
+                if not MacroSystem.isPlaying then return end
 
-                            -- Wait up to 1.5s for the server echo
-                            local deadline = tick() + 1.5
-                            while tick() < deadline and MacroSystem.isPlaying and not confirmed do
-                                task.wait(0.1)
-                            end
+                local heroCheck = nameToHero[baseName]
+                if not heroCheck or not heroCheck.config or not heroCheck.config.ultimates or #heroCheck.config.ultimates == 0 then
+                    pushNotify({ Title = "Ability Skipped", Content = string.format("No ultimate defined for [%s]", baseName), Duration = 3, Image = "zap" })
+                    return
+                end
 
-                            disconnect()
-
-                            if confirmed then
-                                fired = true
-                                print(string.format("[LixHub] Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
-                                break
-                            end
-
-                            warn(string.format("[LixHub] Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
-                            task.wait(0.2)
-                        end
-
-                        if fired then
-                            setProgress(i, #actions,
-                                string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName), nextPreview)
-                        else
-                            setProgress(i, #actions,
-                                string.format("[UNCONFIRMED] Ability %d sent for [%s] — no server echo received", abilIdx, baseName), nextPreview)
-                        end
+                local fired        = false
+                local MAX_ATTEMPTS = 3
+                for attempt = 1, MAX_ATTEMPTS do
+                    if not MacroSystem.isPlaying then break end
+                    local confirmed = false
+                    local disconnect
+                    disconnect = sync.serverUltimate.on(function(receivedTid, _)
+                        if receivedTid == tid then confirmed = true end
+                    end)
+                    pcall(sync.clientUltimate.fire, tid, abilIdx)
+                    local deadline2 = tick() + 1.5
+                    while tick() < deadline2 and MacroSystem.isPlaying and not confirmed do
+                        task.wait(0.1)
                     end
+                    disconnect()
+                    if confirmed then
+                        fired = true
+                        print(string.format("[LixHub] Scheduled Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
+                        break
+                    end
+                    warn(string.format("[LixHub] Scheduled Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
+                    task.wait(0.2)
+                end
+
+                local msg = fired
+                    and string.format("[SCHEDULED ✓] Ability %d fired for [%s] at t=%.1fs", abilIdx, baseName, scheduledTime)
+                    or  string.format("[SCHEDULED ?] Ability %d unconfirmed for [%s] at t=%.1fs", abilIdx, baseName, scheduledTime)
+                pushNotify({ Title = fired and "Ability Fired" or "Ability Unconfirmed", Content = msg, Duration = 3, Image = fired and "zap" or "alert-triangle" })
+            end)
+
+            -- Continue the macro immediately — don't block here
+        else
+            -- We're already past the scheduled time, fire immediately
+            if not tid then
+                setProgress(i, #actions,
+                    "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
+            else
+                local heroCheck = nameToHero[baseName]
+                if heroCheck and heroCheck.config and heroCheck.config.ultimates and #heroCheck.config.ultimates > 0 then
+                    pcall(sync.clientUltimate.fire, tid, abilIdx)
+                    setProgress(i, #actions,
+                        string.format("[ABILITY] Fired immediately (past scheduled time) for [%s]", baseName), nextPreview)
                 else
                     setProgress(i, #actions,
-                        "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
+                        string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
                 end
+            end
+        end
+    else
+        -- Original timed playback ability logic (unchanged)
+        if tid then
+            local hero = nameToHero[baseName]
+            if not hero or not hero.config or not hero.config.ultimates or #hero.config.ultimates == 0 then
+                setProgress(i, #actions,
+                    string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
+            else
+                local fired        = false
+                local MAX_ATTEMPTS = 3
+                for attempt = 1, MAX_ATTEMPTS do
+                    if not MacroSystem.isPlaying then break end
+                    local confirmed = false
+                    local disconnect
+                    disconnect = sync.serverUltimate.on(function(receivedTid, ultimateIndex)
+                        if receivedTid == tid then confirmed = true end
+                    end)
+                    pcall(sync.clientUltimate.fire, tid, abilIdx)
+                    local deadline = tick() + 1.5
+                    while tick() < deadline and MacroSystem.isPlaying and not confirmed do
+                        task.wait(0.1)
+                    end
+                    disconnect()
+                    if confirmed then
+                        fired = true
+                        print(string.format("[LixHub] Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
+                        break
+                    end
+                    warn(string.format("[LixHub] Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
+                    task.wait(0.2)
+                end
+                if fired then
+                    setProgress(i, #actions,
+                        string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName), nextPreview)
+                else
+                    setProgress(i, #actions,
+                        string.format("[UNCONFIRMED] Ability %d sent for [%s] — no server echo received", abilIdx, baseName), nextPreview)
+                end
+            end
+        else
+            setProgress(i, #actions,
+                "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
+        end
+    end
             end
         end
         MacroSystem.isPlaying  = false
@@ -2529,17 +2594,26 @@ local function setupAutoAbility()
     local enemyRemote = ReplicatedStorage:WaitForChild("enemy"):WaitForChild("enemy_RELIABLE")
     enemyRemote.OnClientEvent:Connect(function(buf, refs)
         if not State.AutoAbilityOnBoss then return end
-        if not refs or #refs == 0 then return end
+        if not buf or buffer.len(buf) == 0 then return end
+
+        -- Only handle event ID 3 (enemy spawn)
         local ok, eventId = pcall(buffer.readu8, buf, 0)
         if not ok or eventId ~= 3 then return end
-        local isBoss = false
-        for _, v in ipairs(refs) do
-            if v == true then isBoss = true break end
-        end
-        if not isBoss then return end
+
+        -- refs is a flat array of field values matching the schema in the buffer header.
+        -- From the captured data, isBoss sits at index 6 in the refs table.
+        -- We also check category (index 8) == "boss" as a second guard against mini-bosses.
+        local isBoss    = refs[6]  == true
+        local category  = refs[8]
+        local isBossCategory = (category == "boss")
+
+        if not isBoss or not isBossCategory then return end
+
         local now = tick()
         if now - lastBossAbilityTime < 3 then return end
         lastBossAbilityTime = now
+
+        print(string.format("[LixHub] Boss spawned — firing all abilities"))
         task.delay(0.3, fireAllAbilities)
     end)
 end
