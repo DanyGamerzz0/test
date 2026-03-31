@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.87
+-- V0.9
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1510,39 +1510,32 @@ local function setupAutoJoin()
         return true
     end
 
-    local function tryJoinEvent()
-    if not State.AutoJoinEvent then return false end
-    
-    -- Use joinLobby with "release" as the event stage ID
-    local ok1, r1 = pcall(roomsNet.joinLobby.call, "release")
-    if not ok1 or not r1 then
-        warn("[LixHub] Event joinLobby failed: " .. tostring(r1))
-        return false
-    end
-    task.wait(0.2)
-    
-    local ok2, r2 = pcall(roomsNet.selectStage.call, "release")
-    if not ok2 or not r2 then
-        warn("[LixHub] Event selectStage failed: " .. tostring(r2))
-        return false
-    end
-    task.wait(0.2)
-    
-    local ok3, r3 = pcall(roomsNet.getReady.call)
-    if not ok3 or not r3 then
-        warn("[LixHub] Event getReady failed: " .. tostring(r3))
-        return false
-    end
-    task.wait(0.2)
-    
-    local ok4, r4 = pcall(roomsNet.setMatchStatus.call, true)
-    if not ok4 or not r4 then
-        warn("[LixHub] Event setMatchStatus failed: " .. tostring(r4))
-        return false
-    end
-    
-    pushNotify({ Title = "Auto Event", Content = "Joining event stage!", Duration = 4, Image = "log-in" })
-    return true
+    local function autoJoinChainOfControl()
+        -- Step 1: Join the Chain of Control room
+        local ok1, r1 = pcall(roomsNet.joinChainOfControlRoom.call)
+        if not ok1 or not r1 then 
+            warn("[AutoJoin] joinChainOfControlRoom failed: " .. tostring(r1)) 
+            return false 
+        end
+        task.wait(0.2)
+
+        -- Step 2: Ready up
+        local ok2, r2 = pcall(roomsNet.getReady.call)
+        if not ok2 or not r2 then 
+            warn("[AutoJoin] getReady failed: " .. tostring(r2)) 
+            return false 
+        end
+        task.wait(0.2)
+
+        -- Step 3: Start the match
+        local ok3, r3 = pcall(roomsNet.setMatchStatus.call, true)
+        if not ok3 or not r3 then 
+            warn("[AutoJoin] setMatchStatus failed: " .. tostring(r3)) 
+            return false 
+        end
+
+        print("[AutoJoin] Successfully joined Chain of Control!")
+        return true
     end
 
     local function tryJoinLegend()
@@ -1632,7 +1625,7 @@ local function setupAutoJoin()
                     end
                 elseif mode.name == "Event" then
                     if State.AutoJoinEvent then
-                        joined = tryJoinEvent()
+                        joined = autoJoinChainOfControl()
                         if joined then break end
                     end
                 end
@@ -2432,6 +2425,7 @@ local function buildMacroMapsTab()
     buildSection("Legend Stages",    "legends",   stageNames,     stageNameToId)
     buildSection("Raid Stages",      "raid",      raidStageNames, raidStageNameToId)
     buildSection("Challenge Stages", "challenge", stageNames,     stageNameToId)
+    buildSection("Event Stages",     "release",   {"Chain of Control"}, {["Chain of Control"] = "release"})
 
     MacroSystem.macroMapsReady = true
     print("[LixHub] Macro Maps tab built and ready.")
