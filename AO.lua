@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.2
+-- V1.3
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1020,6 +1020,9 @@ local Window = Rayfield:CreateWindow({
         InputStroke                   = Color3.fromRGB(65,  65,  65),
         PlaceholderColor              = Color3.fromRGB(178, 178, 178),
     },
+    ToggleUIKeybind       = "K",
+    DisableRayfieldPrompts= true,
+    DisableBuildWarnings  = true,
     ConfigurationSaving = {
         Enabled    = true,
         FolderName = "LixHub/AO",
@@ -1029,6 +1032,16 @@ local Window = Rayfield:CreateWindow({
         Enabled       = true,
         Invite        = "cYKnXE2Nf8",
         RememberJoins = true
+    },
+    KeySystem             = true,
+    KeySettings = {
+        Title          = "LixHub - Anime Overload - Free",
+        Subtitle       = "LixHub - Key System",
+        Note           = "Free key available in the discord https://discord.gg/cYKnXE2Nf8",
+        FileName       = "LixHub_Key",
+        SaveKey        = true,
+        GrabKeyFromSite= false,
+        Key            = {"0xLIXHUB"},
     },
 })
 
