@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.75
+-- V0.76
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2413,74 +2413,56 @@ end
     end
 end
 
-local function restoreDropdownValues(maxRetries)
-    maxRetries = maxRetries or 10
-    local attempt = 0
-    
+local function restoreDropdownValues()
     task.spawn(function()
-        while attempt < maxRetries do
-            attempt = attempt + 1
-            task.wait(0.5)
-            
-            local allRestored = true
-            local restoredCount = 0
-            local totalCount = 0
-            
+        local startTime = tick()
+        local timeout = 60 -- keep trying for 1 minute
+        local restored = {}
+
+        while tick() - startTime < timeout do
+            local allDone = true
+
             for mapKey, macroName in pairs(worldMacroMappings) do
-                totalCount = totalCount + 1
+                if restored[mapKey] then continue end
+
                 local dropdown = worldMacroDropdowns[mapKey]
-                
-                if dropdown then
-                    -- Check if the macro still exists in the library
-                    if MacroSystem.library[macroName] then
-                        local success = pcall(function()
-                            dropdown:Set(macroName)
-                        end)
-                        
-                        if success then
-                            restoredCount = restoredCount + 1
-                            print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
-                        else
-                            allRestored = false
-                            warn(string.format("[LixHub] Failed to restore: %s -> %s (attempt %d)", mapKey, macroName, attempt))
-                        end
-                    else
-                        -- Macro no longer exists, remove the mapping
-                        worldMacroMappings[mapKey] = nil
-                        saveWorldMappings()
-                        print(string.format("[LixHub] Removed invalid mapping: %s -> %s (macro deleted)", mapKey, macroName))
-                        restoredCount = restoredCount + 1
-                    end
+                if not dropdown then
+                    allDone = false
+                    continue
+                end
+
+                if not MacroSystem.library[macroName] then
+                    -- macro was deleted, clean up mapping
+                    worldMacroMappings[mapKey] = nil
+                    saveWorldMappings()
+                    restored[mapKey] = true
+                    continue
+                end
+
+                local success = pcall(function()
+                    dropdown:Set(macroName)
+                end)
+
+                if success then
+                    restored[mapKey] = true
+                    print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
                 else
-                    allRestored = false
-                    warn(string.format("[LixHub] Dropdown not found for: %s (attempt %d)", mapKey, attempt))
+                    allDone = false
                 end
             end
-            
-            if totalCount == 0 then
-                print("[LixHub] No macro mappings to restore")
+
+            if allDone then
+                print("[LixHub] All macro mappings restored.")
                 break
             end
-            
-            if allRestored or restoredCount == totalCount then
-                print(string.format("[LixHub] Successfully restored %d/%d macro mappings (attempt %d)", restoredCount, totalCount, attempt))
-                pushNotify({ 
-                    Title = "Macro Maps Loaded", 
-                    Content = string.format("Restored %d world mapping%s", restoredCount, restoredCount == 1 and "" or "s"), 
-                    Duration = 3, 
-                    Image = "check-circle" 
-                })
-                break
-            end
-            
-            if attempt == maxRetries then
-                warn(string.format("[LixHub] Failed to restore all mappings after %d attempts (%d/%d restored)", maxRetries, restoredCount, totalCount))
-                pushNotify({ 
-                    Title = "Macro Maps Warning", 
-                    Content = string.format("Only restored %d/%d mappings", restoredCount, totalCount), 
-                    Duration = 4, 
-                    Image = "alert-triangle" 
-                })
+
+            task.wait(0.5)
+        end
+
+        -- report anything that never got restored
+        for mapKey, macroName in pairs(worldMacroMappings) do
+            if not restored[mapKey] then
+                warn(string.format("[LixHub] Timed out restoring: %s -> %s", mapKey, macroName))
             end
         end
     end)
@@ -2901,7 +2883,7 @@ buildModeCollapsible("Raid Stages",     "raid",      raidStageNames, raidStageNa
 buildModeCollapsible("Challenge Stages","challenge", stageNames,     stageNameToId)
 refreshDropdown()
 refreshAutoSelectDropdowns()
-restoreDropdownValues(10)
+restoreDropdownValues()
 
 if IS_LOBBY then
     pushUI("Macro: — | Lobby", "Hooks inactive in lobby — enter a game to record or play")
