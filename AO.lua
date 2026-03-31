@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.7
+-- V0.71
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2604,8 +2604,8 @@ local function setupAutoAbility()
         if now - lastBossAbilityTime < 3 then return end
         lastBossAbilityTime = now
 
-        print("[LixHub] Boss spawned — firing all abilities")
-        task.delay(0.3, fireAllAbilities)
+        print("[LixHub] Boss spawned — starting ability loop")
+        task.delay(0.3, startAbilityLoop)  -- starts the loop, which keeps firing every 3s
     end)
 end
 
