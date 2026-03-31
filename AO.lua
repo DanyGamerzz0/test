@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.85
+-- V0.86
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2755,7 +2755,9 @@ local function setupWaveHook()
                 local ok4, stageSel = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectStage)
                 if ok3 and ok4 then
                     local gm      = clientStore:getState(gmSel)    or ""
+                    print("[LixHub] Current gamemode:", gm)
                     local stageId = clientStore:getState(stageSel) or ""
+                    print("[LixHub] Current stage ID:", stageId)
                     local mapKey  = gm .. ":" .. stageId
                     local mapped  = worldMacroMappings[mapKey]
                     if mapped and MacroSystem.library[mapped] and #MacroSystem.library[mapped] > 0 then
