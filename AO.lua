@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.76
+-- V0.77
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2416,7 +2416,7 @@ end
 local function restoreDropdownValues()
     task.spawn(function()
         local startTime = tick()
-        local timeout = 60 -- keep trying for 1 minute
+        local timeout = 60
         local restored = {}
 
         while tick() - startTime < timeout do
@@ -2432,21 +2432,37 @@ local function restoreDropdownValues()
                 end
 
                 if not MacroSystem.library[macroName] then
-                    -- macro was deleted, clean up mapping
                     worldMacroMappings[mapKey] = nil
                     saveWorldMappings()
                     restored[mapKey] = true
                     continue
                 end
 
-                local success = pcall(function()
+                -- rebuild the options list with current macros, then set
+                local opts = { "None" }
+                for _, name in ipairs(MacroSystem.getList()) do
+                    table.insert(opts, name)
+                end
+
+                local success, err = pcall(function()
+                    dropdown:Refresh(opts)
+                    task.wait(0.1) -- give Rayfield a moment after refresh
                     dropdown:Set(macroName)
                 end)
 
                 if success then
-                    restored[mapKey] = true
-                    print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
+                    -- verify it actually stuck
+                    local current = dropdown.CurrentOption
+                    local actual = type(current) == "table" and current[1] or current
+                    if actual == macroName then
+                        restored[mapKey] = true
+                        print(string.format("[LixHub] Restored: %s -> %s", mapKey, macroName))
+                    else
+                        warn(string.format("[LixHub] Set appeared to succeed but value is '%s', expected '%s'", tostring(actual), macroName))
+                        allDone = false
+                    end
                 else
+                    warn(string.format("[LixHub] pcall failed for %s: %s", mapKey, tostring(err)))
                     allDone = false
                 end
             end
@@ -2459,7 +2475,6 @@ local function restoreDropdownValues()
             task.wait(0.5)
         end
 
-        -- report anything that never got restored
         for mapKey, macroName in pairs(worldMacroMappings) do
             if not restored[mapKey] then
                 warn(string.format("[LixHub] Timed out restoring: %s -> %s", mapKey, macroName))
