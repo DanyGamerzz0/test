@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.9
+-- V1.0
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -136,9 +136,14 @@ local mappedUids         = {}
 local worldMacroMappings  = {}
 local worldMacroDropdowns = {}
 local WORLD_MAPPING_FILE = "LixHub/AO/worldMacroMappings_" .. Players.LocalPlayer.Name .. ".json"
+local CARD_PRIORITIES_FILE = "LixHub/AO/cardPriorities_" .. Players.LocalPlayer.Name .. ".json"
 
 local function saveWorldMappings()
     pcall(writefile, WORLD_MAPPING_FILE, HttpService:JSONEncode(worldMacroMappings))
+end
+
+local function saveCardPriorities()
+    pcall(writefile, CARD_PRIORITIES_FILE, HttpService:JSONEncode(State.CardPriorities))
 end
 
 local function loadWorldMappings()
@@ -149,6 +154,16 @@ local function loadWorldMappings()
     if ok and type(result) == "table" then worldMacroMappings = result end
 end
 
+local function loadCardPriorities()
+    if not isfile(CARD_PRIORITIES_FILE) then return end
+    local ok, result = pcall(function()
+        return HttpService:JSONDecode(readfile(CARD_PRIORITIES_FILE))
+    end)
+    if ok and type(result) == "table" then
+        State.CardPriorities = result
+        print("[LixHub] Card priorities loaded: " .. tostring(#result) .. " entries")
+    end
+end
 
 local function getUnitLabel(name)
     unitLabelCount[name] = (unitLabelCount[name] or 0) + 1
@@ -1737,18 +1752,22 @@ local function loadCards()
     for i, config in ipairs(cardModules) do
         local id   = config.id or config.name
         local desc = stripDescription(config.description)
-        State.CardPriorities[id] = i
+        if State.CardPriorities[id] == nil then
+            State.CardPriorities[id] = i
+        end
+        local savedValue = State.CardPriorities[id]
         CardsTab:CreateSlider({
             Name         = config.name,
             Range        = { 0, 100 },
             Increment    = 1,
             Suffix       = "",
-            CurrentValue = i,
+            CurrentValue = savedValue,
             Flag         = "CardPriority_" .. id,
             Info         = desc ~= "" and desc or nil,
             TextScaled   = true,
             Callback     = function(value)
                 State.CardPriorities[id] = value
+                saveCardPriorities()
             end,
         })
     end
@@ -1774,18 +1793,22 @@ local function loadCards()
     for i, config in ipairs(contractModules) do
         local id   = config.id or config.name
         local desc = stripDescription(config.description)
-        State.CardPriorities[id] = i
+        if State.CardPriorities[id] == nil then
+            State.CardPriorities[id] = i
+        end
+        local savedValue = State.CardPriorities[id]
         CardsTab:CreateSlider({
             Name         = config.name,
             Range        = { 0, 100 },
             Increment    = 1,
             Suffix       = "",
-            CurrentValue = i,
+            CurrentValue = savedValue,
             Flag         = "ContractPriority_" .. id,
             Info         = desc ~= "" and desc or nil,
             TextScaled   = true,
             Callback     = function(value)
                 State.CardPriorities[id] = value
+                saveCardPriorities()
             end,
         })
     end
@@ -1819,23 +1842,6 @@ GameTab:CreateSlider({
     end,
 })
 
-GameTab:CreateToggle({
-    Name         = "Low Performance Mode",
-    CurrentValue = false,
-    Flag         = "LowPerfMode",
-    Callback     = function(Value)
-        State.EnableLowPerfMode = Value
-    end,
-})
-
-GameTab:CreateToggle({
-    Name         = "Black Screen",
-    CurrentValue = false,
-    Flag         = "BlackScreen",
-    Callback     = function(Value)
-        State.EnableBlackScreen = Value
-    end,
-})
 
 GameTab:CreateToggle({
     Name         = "Limit FPS",
@@ -2539,7 +2545,7 @@ WebhookTab:CreateButton({
         end
         local ok, err = sendWebhookRaw({
             username = "LixHub",
-            embeds   = {{ title = "✅ Test", description = "Webhook is working!", color = 0x57F287 }},
+            embeds   = {{ title = "Test", description = "Webhook is working!", color = 0x57F287 }},
         })
         if ok then
             pushNotify({ Title = "Webhook", Content = "Test sent successfully!", Duration = 3, Image = "check-circle" })
@@ -2959,6 +2965,7 @@ end)
 -- ============================================================
 ensureFolders()
 loadWorldMappings()
+loadCardPriorities()
 MacroSystem.loadAll()
 buildMacroMapsTab()
 refreshDropdown()
