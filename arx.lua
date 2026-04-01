@@ -118,7 +118,6 @@ local State = {
     AutoPurchaseMerchant = false,
     AutoPurchaseSwarmEvent = false,
     challengeAutoReturnEnabled = false,
-    autoBossAttackEnabled = false,
     autoInfinityCastleEnabled = false,
     autoUpgradeEnabled = false,
     autoAfkTeleportEnabled = false,
@@ -155,6 +154,8 @@ local State = {
     enableDeleteMap = false,
     autoPlayEnabled = false,
     autoCalamityEnabled = false,
+    autoBountyHuntInvasionEnabled = false,
+    autoBossAttackEnabled = false,
 }
 
 local Data = {
@@ -177,7 +178,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.19"
+local script_version = "V0.2"
 
 local ValidWebhook
 
@@ -1767,6 +1768,32 @@ local function checkAndExecuteHighestPriority()
     Remotes.PlayEvent:FireServer("Change-World", { World = "Calamity" })
     task.wait(0.2)
     Remotes.PlayEvent:FireServer("Change-Chapter", { Chapter = "Calamity_Chapter1" })
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Submit")
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Start")
+    task.delay(5, clearProcessingState)
+    return
+end
+
+    if State.autoBossAttackEnabled then
+    setProcessingState("Boss Attack Auto Join")
+    handleTeamEquipping("BossAttack")
+    Remotes.PlayEvent:FireServer("Boss-Attack-2.5")
+    task.delay(5, clearProcessingState)
+    return
+end
+
+    if State.autoBountyHuntInvasionEnabled then
+    setProcessingState("Bounty Hunt Invasion Auto Join")
+    handleTeamEquipping("BountyHuntInvasion")
+    Remotes.PlayEvent:FireServer("Create")
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Change-Mode", { Mode = "Calamity" })
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Change-World", { World = "Invasion" })
+    task.wait(0.2)
+    Remotes.PlayEvent:FireServer("Change-Chapter", { Chapter = "Invasion_Chapter1" })
     task.wait(0.2)
     Remotes.PlayEvent:FireServer("Submit")
     task.wait(0.2)
@@ -3634,6 +3661,28 @@ JoinerTab:CreateToggle({
     Flag = "AutoCalamityToggle",
     Callback = function(Value)
         State.autoCalamityEnabled = Value
+    end,
+})
+
+JoinerTab:CreateSection("Invasion Joiner")
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Bounty Hunt Invasion",
+    CurrentValue = false,
+    Flag = "AutoBountyHuntInvasionToggle",
+    Callback = function(Value)
+        State.autoBountyHuntInvasionEnabled = Value
+    end,
+})
+
+JoinerTab:CreateSection("Boss Attack Joiner")
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Boss Attack",
+    CurrentValue = false,
+    Flag = "AutoBossAttackToggle",
+    Callback = function(Value)
+        State.autoBossAttackEnabled = Value
     end,
 })
 
