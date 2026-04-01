@@ -179,7 +179,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local ValidWebhook
 
@@ -2713,27 +2713,7 @@ task.spawn(function()
                 resetUpgradeOrder()
                 lastCheckedLevels = {}
                 processedUnits = {}
-
-                -- Fire retry to restart the game
-                task.wait(0.5)
-                startRetryLoop()
-
-                -- Wait for game to restart, stop retry loop once it does
-                local elapsed = 0
-                while elapsed < 15 do
-                    task.wait(1)
-                    elapsed = elapsed + 1
-                    if State.gameRunning then
-                        stopRetryLoop()
-                        print("Game restarted successfully after wave reset.")
-                        break
-                    end
-                end
-
-                if not State.gameRunning then
-                    stopRetryLoop()
-                    warn("Game didn't restart within timeout after wave reset.")
-                end
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("RestartMatch"):FireServer()
             end
         end
     end
