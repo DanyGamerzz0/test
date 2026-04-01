@@ -156,6 +156,7 @@ local State = {
     autoCalamityEnabled = false,
     autoBountyHuntInvasionEnabled = false,
     autoBossAttackEnabled = false,
+    RestartGameOnWave = 0,
 }
 
 local Data = {
@@ -2678,6 +2679,66 @@ task.spawn(function()
     end
 end)
 
+task.spawn(function()
+    while true do
+        task.wait(1)
+
+        if State.RestartGameOnWave > 0 and State.gameRunning and not isInLobby() then
+            local success, currentWave = pcall(function()
+                return game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
+            end)
+
+            if success and currentWave and currentWave >= State.RestartGameOnWave then
+                print("Wave limit reached (" .. currentWave .. "), restarting game...")
+                notify("Wave Restart", "Wave " .. currentWave .. " reached! Restarting...", 3)
+
+                -- Treat it like a game end
+                State.gameRunning = false
+                State.hasGameEnded = true
+                State.autoPlayDelayActive = false
+
+                -- Send webhook if enabled
+                if State.SendStageCompletedWebhook and not State.hasSentWebhook then
+                    State.hasSentWebhook = true
+                    local clearTimeStr = "Unknown"
+                    if State.stageStartTime then
+                        local dt = math.floor(tick() - State.stageStartTime)
+                        clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
+                    end
+                    State.matchResult = "Wave Restart"
+                    sendWebhook("stage", nil, clearTimeStr, State.matchResult)
+                end
+
+                -- Reset upgrade/redeploy tracking
+                resetUpgradeOrder()
+                lastCheckedLevels = {}
+                processedUnits = {}
+
+                -- Fire retry to restart the game
+                task.wait(0.5)
+                startRetryLoop()
+
+                -- Wait for game to restart, stop retry loop once it does
+                local elapsed = 0
+                while elapsed < 15 do
+                    task.wait(1)
+                    elapsed = elapsed + 1
+                    if State.gameRunning then
+                        stopRetryLoop()
+                        print("Game restarted successfully after wave reset.")
+                        break
+                    end
+                end
+
+                if not State.gameRunning then
+                    stopRetryLoop()
+                    warn("Game didn't restart within timeout after wave reset.")
+                end
+            end
+        end
+    end
+end)
+
 --// BUTTONS //--
 
 local function redeemallcodes()
@@ -3965,6 +4026,19 @@ GameTab:CreateSlider({
     Flag = "FailsafeSlider",
     Callback = function(Value)
         State.AutoFailSafeNumber = Value
+    end,
+})
+
+GameTab:CreateSlider({
+    Name = "Restart Game On Wave",
+    Range = {0, 300},
+    Increment = 1,
+    Suffix = "wave",
+    CurrentValue = 0,
+    Flag = "FailsafeSlider",
+    Info = "0 = disable",
+    Callback = function(Value)
+        State.RestartGameOnWave = Value
     end,
 })
 
