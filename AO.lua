@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.1
+-- V1.2
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -629,6 +629,7 @@ function MacroSystem.playback(name)
                         local heroData = clientStore:getState().data.heroes[tostring(Players.LocalPlayer.UserId)]
                         local rawHero  = heroData and heroData[uuid]
                         local cost     = rawHero and getActualPlacementCost(rawHero, hero.config) or (hero.config.cost or 0)
+                        print(HttpService:JSONEncode(rawHero))
                         print(string.format("[LixHub] [%d/%d] PLACE %s | cost=%d | yen=%d",
                             i, #actions, label, cost, getYen()))
                         if cost > 0 and not waitForYen(cost, label, "PLACE", i, #actions, nextPreview, nameToHero, labelToLevel, actions) then
