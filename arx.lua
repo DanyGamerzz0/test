@@ -1,4 +1,4 @@
-local script_version = "V0.25"
+local script_version = "V0.26"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -2548,59 +2548,39 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function()
-    while true do
-        task.wait(1)
+local CurrentWave = game:GetService("ReplicatedStorage"):WaitForChild("Values"):WaitForChild("Waves"):WaitForChild("CurrentWave")
 
-        if State.RestartGameOnWave > 0 and not isInLobby() then
-            local success, currentWave = pcall(function()
-                return game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
-            end)
+CurrentWave.Changed:Connect(function(newWave)
+    if isInLobby() then return end
 
-            if success and currentWave and currentWave >= State.RestartGameOnWave then
-                print("Wave limit reached (" .. currentWave .. "), restarting game...")
-                notify("Wave Restart", "Wave " .. currentWave .. " reached! Restarting...", 3)
+    -- Restart on wave
+    if State.RestartGameOnWave > 0 and newWave >= State.RestartGameOnWave then
+        print("Wave limit reached (" .. newWave .. "), restarting game...")
+        notify("Wave Restart", "Wave " .. newWave .. " reached! Restarting...", 3)
 
-                -- Treat it like a game end
-                State.gameRunning = false
-                State.hasGameEnded = true
-                State.autoPlayDelayActive = false
+        State.gameRunning = false
+        State.hasGameEnded = true
+        State.autoPlayDelayActive = false
 
-                -- Reset upgrade/redeploy tracking
-                resetUpgradeOrder()
-                lastCheckedLevels = {}
-                processedUnits = {}
-                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("RestartMatch"):FireServer()
-            end
-        end
+        resetUpgradeOrder()
+        lastCheckedLevels = {}
+        processedUnits = {}
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("RestartMatch"):FireServer()
     end
-end)
 
-task.spawn(function()
-    while true do
-        task.wait(1)
+    -- End on wave
+    if State.EndGameOnWave > 0 and newWave >= State.EndGameOnWave then
+        print("Wave limit reached (" .. newWave .. "), ending game...")
+        notify("Wave End", "Wave " .. newWave .. " reached! Ending...", 3)
 
-        if State.EndGameOnWave > 0 and not isInLobby() then
-            local success, currentWave = pcall(function()
-                return game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
-            end)
+        State.gameRunning = false
+        State.hasGameEnded = true
+        State.autoPlayDelayActive = false
 
-            if success and currentWave and currentWave >= State.EndGameOnWave then
-                print("Wave limit reached (" .. currentWave .. "), ending game...")
-                notify("Wave End", "Wave " .. currentWave .. " reached! Ending...", 3)
-
-                -- Treat it like a game end
-                State.gameRunning = false
-                State.hasGameEnded = true
-                State.autoPlayDelayActive = false
-
-                -- Reset upgrade/redeploy tracking
-                resetUpgradeOrder()
-                lastCheckedLevels = {}
-                processedUnits = {}
-                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("EndMatch"):FireServer()
-            end
-        end
+        resetUpgradeOrder()
+        lastCheckedLevels = {}
+        processedUnits = {}
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("EndMatch"):FireServer()
     end
 end)
 
