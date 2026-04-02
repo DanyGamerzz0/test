@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.0
+-- V1.1
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, selectUltimatesCooldowns, selectOnUltimate, ultimateReqs, ultimateCDMode, getBuffs
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementBuffs, getPlacementCost
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -35,10 +35,8 @@ if not IS_LOBBY then
     playerNet = require(ReplicatedStorage.gameClient.net.player)
 
     calculateClientUpgradeCostMultiplier = require(ReplicatedStorage.gameClient.utilities.calculateClientUpgradeCostMultiplier)
-    selectUltimatesCooldowns = require(ReplicatedStorage.gameClient.store.slices.gui.selectors.selectUltimatesCooldowns)
-    selectOnUltimate = require(ReplicatedStorage.gameClient.store.slices.towers.selectors.selectOnUltimate)
-    ultimateReqs = require(ReplicatedStorage.gameShared.utilities.ultimateRequirements)
-    ultimateCDMode = require(ReplicatedStorage.gameShared.utilities.ultimateCooldownMode)
+    getPlacementBuffs = require(ReplicatedStorage.gameShared.utilities.getPlacementBuffs)
+    getPlacementCost  = require(ReplicatedStorage.gameShared.utilities.getPlacementCost)
     getBuffs = require(ReplicatedStorage.gameShared.utilities.getBuffs)
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
     clientStore                          = require(gameClient.store.clientStore)
@@ -547,6 +545,13 @@ local function getActualUpgradeCost(heroConfig, currentLevel, towerBuffTable)
     return finalCost
 end
 
+local function getActualPlacementCost(heroData, heroConfig)
+    local baseCost = heroConfig.cost or 0
+    if baseCost <= 0 then return 0 end
+    local buffs = getPlacementBuffs(heroData) or {}
+    return math.floor(getPlacementCost(baseCost, buffs))
+end
+
 function MacroSystem.playback(name)
     if MacroSystem.isPlaying then return false end
     local actions = MacroSystem.library[name]
@@ -621,7 +626,11 @@ function MacroSystem.playback(name)
                     end
                     local hero = nameToHero[baseName]
                     if hero and hero.config then
-                        local cost = hero.config.cost or 0
+                        local heroData = clientStore:getState().data.heroes[tostring(Players.LocalPlayer.UserId)]
+                        local rawHero  = heroData and heroData[uuid]
+                        local cost     = rawHero and getActualPlacementCost(rawHero, hero.config) or (hero.config.cost or 0)
+                        print(string.format("[LixHub] [%d/%d] PLACE %s | cost=%d | yen=%d",
+                            i, #actions, label, cost, getYen()))
                         if cost > 0 and not waitForYen(cost, label, "PLACE", i, #actions, nextPreview, nameToHero, labelToLevel, actions) then
                             break
                         end
@@ -899,7 +908,6 @@ local State = {
     AntiAfkEnabled      = false,
     AutoStartGame       = false,
     AutoLobby           = false,
-    ChallengeBug        = false,
     EnableLowPerfMode   = false,
     StreamerModeEnabled = false,
     EnableBlackScreen   = false,
@@ -1021,6 +1029,9 @@ local Window = Rayfield:CreateWindow({
         InputStroke                   = Color3.fromRGB(65,  65,  65),
         PlaceholderColor              = Color3.fromRGB(178, 178, 178),
     },
+    ToggleUIKeybind       = "K",
+    DisableRayfieldPrompts= true,
+    DisableBuildWarnings  = true,
     ConfigurationSaving = {
         Enabled    = true,
         FolderName = "LixHub/AO",
@@ -1030,6 +1041,16 @@ local Window = Rayfield:CreateWindow({
         Enabled       = true,
         Invite        = "cYKnXE2Nf8",
         RememberJoins = true
+    },
+    KeySystem             = true,
+    KeySettings = {
+        Title          = "LixHub - Anime Overload - Free",
+        Subtitle       = "LixHub - Key System",
+        Note           = "Free key available in the discord https://discord.gg/cYKnXE2Nf8",
+        FileName       = "LixHub_Key",
+        SaveKey        = true,
+        GrabKeyFromSite= false,
+        Key            = {"0xLIXHUB"},
     },
 })
 
@@ -1877,7 +1898,6 @@ GameTab:CreateToggle({ Name = "Auto Replay",     Flag = "AutoReplay",    Callbac
 GameTab:CreateToggle({ Name = "Auto Next",        Flag = "AutoNext",      Callback = function(v) if not IS_LOBBY then playerNet.updateSettings.fire("autoNextAct", v) end end })
 GameTab:CreateToggle({ Name = "Auto Lobby",       Flag = "AutoLobby",     Callback = function(v) if not IS_LOBBY then State.AutoLobby = v end end })
 GameTab:CreateToggle({ Name = "Auto Skip Waves",  Flag = "AutoSkipWaves", Callback = function(v) if not IS_LOBBY then playerNet.updateSettings.fire("autoSkipWave", v) end end })
-GameTab:CreateToggle({ Name = "Challenge Bug",    Flag = "ChallengeBug",  Callback = function(v) State.ChallengeBug = v end })
 
 GameTab:CreateToggle({
     Name         = "Auto Reset On x Wave",
@@ -2927,15 +2947,6 @@ local function setupMatchEndHook()
         if State.AutoLobby then
         game:GetService("TeleportService"):Teleport(126297188712308)
     end
-        if State.ChallengeBug then
-            task.spawn(function()
-                local buf = buffer.create(2)
-                buffer.writeu8(buf, 0, 7)  -- resetAct event ID
-                buffer.writeu8(buf, 1, 0)  -- call ID
-                local args = { buf, {} }
-                game:GetService("ReplicatedStorage"):WaitForChild("voting"):WaitForChild("voting_RELIABLE"):FireServer(unpack(args))
-            end)
-        end
         if State.ChallengeRotationPending then
     State.ChallengeRotationPending = false
     pushNotify({ Title = "Challenge Rotation", Content = "Heading to lobby for new challenges!", Duration = 4, Image = "refresh-cw" })
