@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.3
+-- V1.4
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementBuffs, getPlacementCost, selectPlayerHeroFortune
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -37,7 +37,9 @@ if not IS_LOBBY then
     calculateClientUpgradeCostMultiplier = require(ReplicatedStorage.gameClient.utilities.calculateClientUpgradeCostMultiplier)
     getPlacementBuffs = require(ReplicatedStorage.gameShared.utilities.getPlacementBuffs)
     getPlacementCost  = require(ReplicatedStorage.gameShared.utilities.getPlacementCost)
-    selectPlayerHeroFortune = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerHeroFortune)
+    getEffectivePlacementTrait = require(ReplicatedStorage.gameShared.utilities.getEffectivePlacementTrait).getEffectivePlacementTrait
+    FEECS                     = require(ReplicatedStorage.Packages.FEECS)
+    selectCards               = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.legends.selectCards)
     getBuffs = require(ReplicatedStorage.gameShared.utilities.getBuffs)
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
     clientStore                          = require(gameClient.store.clientStore)
@@ -556,16 +558,27 @@ local function getActualPlacementCost(uuid, heroConfig)
     local rawHero  = heroData and heroData[uuid]
     if not rawHero then return baseCost end
 
-    -- fetch fortune separately since it's not in rawHero directly
-    local fortune = clientStore:getState(selectPlayerHeroFortune(nil, uuid))
-    local heroWithFortune = rawHero
-    if fortune then
-        heroWithFortune = table.clone(rawHero)
-        heroWithFortune.fortune = fortune
-    end
+    -- get effective trait (may differ from stored trait due to legend cards)
+    local cards = clientStore:getState(selectCards)
+    local effectiveTrait = getEffectivePlacementTrait(rawHero, cards)
 
-    local buffs = getPlacementBuffs(heroWithFortune) or {}
-    return math.floor(getPlacementCost(baseCost, buffs))
+    -- build params table same way hotbar does
+    local params = {
+        trait   = effectiveTrait,
+        fortune = rawHero.fortune,
+    }
+
+    -- get stage cost percentage from stageEntity buffs
+    local stageEntity = FEECS.refEntity("stageEntity")
+    local stageCostPct = nil
+    if type(stageEntity) == "number" then
+        local components = FEECS.getAllEntityComponents(stageEntity)
+        stageCostPct = components and components.buffs and components.buffs.costs
+        if type(stageCostPct) ~= "number" then stageCostPct = nil end
+    end
+    params.stageCostPercentage = stageCostPct
+
+    return math.floor(getPlacementCost(baseCost, params))
 end
 
 function MacroSystem.playback(name)
