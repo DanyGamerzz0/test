@@ -158,6 +158,7 @@ local State = {
     autoBossAttackEnabled = false,
     RestartGameOnWave = 0,
     EndGameOnWave = 0,
+    capturedClearTime = nil,
 }
 
 local Data = {
@@ -180,7 +181,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 
 local ValidWebhook
 
@@ -4373,6 +4374,7 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         State.NextAttempted = false
         State.hasGameEnded = false
         State.hasSentWebhook = false
+        State.capturedClearTime = nil
         State.stageStartTime = tick()
         print("Stage started at", State.stageStartTime)
     end
@@ -4423,7 +4425,6 @@ local function buildRewardLines()
 end
 
 Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
-    -- Win/loss detection (keeps existing behavior)
     if eventType == "GameEnded_TextAnimation" then
         if typeof(data) == "string" then
             local l = data:lower()
@@ -4434,33 +4435,36 @@ Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
             else
                 State.matchResult = "Unknown"
             end
-            print("Match result detected:", State.matchResult)
         end
         return
     end
 
-    -- Reward buffering
     if eventType == "Rewards - Items" and typeof(data) == "table" then
+        -- Capture clear time NOW while stageStartTime is still valid
+        if not State.capturedClearTime then
+            if State.stageStartTime then
+                local dt = math.floor(tick() - State.stageStartTime)
+                State.capturedClearTime = string.format("%d:%02d", dt // 60, dt % 60)
+            else
+                State.capturedClearTime = "Unknown"
+            end
+        end
+
         table.insert(rewardBuffer, {
             rewardType = eventType,
             items = data
         })
 
-        -- Cancel existing timer and reset it so we
-        -- wait for all reward events to fire before sending
         if rewardBufferTimer then task.cancel(rewardBufferTimer) end
         rewardBufferTimer = task.delay(2, function()
             if not State.SendStageCompletedWebhook then
                 rewardBuffer = {}
+                State.capturedClearTime = nil
                 return
             end
-            local clearTimeStr = "Unknown"
-            if State.stageStartTime then
-                local dt = math.floor(tick() - State.stageStartTime)
-                clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
-            end
-            sendWebhook("stage", buildRewardLines(), clearTimeStr, State.matchResult)
+            sendWebhook("stage", buildRewardLines(), State.capturedClearTime, State.matchResult)
             rewardBuffer = {}
+            State.capturedClearTime = nil
             rewardBufferTimer = nil
         end)
     end
