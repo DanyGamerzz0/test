@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.5
+-- V1.6
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -35,10 +35,13 @@ if not IS_LOBBY then
     playerNet = require(ReplicatedStorage.gameClient.net.player)
 
     calculateClientUpgradeCostMultiplier = require(ReplicatedStorage.gameClient.utilities.calculateClientUpgradeCostMultiplier)
-    getPlacementBuffs = require(ReplicatedStorage.gameShared.utilities.getPlacementBuffs)
     getPlacementCost  = require(ReplicatedStorage.gameShared.utilities.getPlacementCost)
     getEffectivePlacementTrait = require(ReplicatedStorage.gameShared.utilities.getEffectivePlacementTrait).getEffectivePlacementTrait
     FEECS                     = require(ReplicatedStorage.Packages.FEECS)
+    challengeBuffUtils  = require(ReplicatedStorage.gameShared.utilities.challengeBuffUtils)
+    challengesCfg       = require(ReplicatedStorage.shared.config.gamemodes.challenges)
+    selectChallenges    = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.challenges.selectChallenges)
+    selectChallengeFreq = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.challenges.selectChallengeFrequency)
     selectCards               = require(ReplicatedStorage.gameShared.store.slices.gamemode.selectors.legends.selectCards)
     getBuffs = require(ReplicatedStorage.gameShared.utilities.getBuffs)
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
@@ -548,6 +551,24 @@ local function getActualUpgradeCost(heroConfig, currentLevel, towerBuffTable)
     return finalCost
 end
 
+local function getChallengesCostPercentage()
+    local challenges = clientStore:getState(selectChallenges)
+    if type(challenges) ~= "table" or #challenges == 0 then return nil end
+    local freq = clientStore:getState(selectChallengeFreq)
+    if type(freq) ~= "string" then
+        freq = challengeBuffUtils.DEFAULT_FREQUENCY
+    end
+    local total = 0
+    for _, id in challenges do
+        local cfg = challengesCfg.get(id)
+        local buffs = cfg and cfg.buffs
+        local resolved = challengeBuffUtils.resolveFrequencyBuffs(buffs, freq)
+        local multiplier = resolved and resolved.costMultiplier
+        total = total + challengeBuffUtils.multiplierToPercent(multiplier)
+    end
+    return total ~= 0 and total or nil
+end
+
 local function getActualPlacementCost(uuid, heroConfig)
     local baseCost = heroConfig.cost or 0
     if baseCost <= 0 then return 0 end
@@ -569,14 +590,17 @@ local function getActualPlacementCost(uuid, heroConfig)
     }
 
     -- get stage cost percentage from stageEntity buffs
-    local stageEntity = FEECS.refEntity("stageEntity")
-    local stageCostPct = nil
-    if type(stageEntity) == "number" then
-        local components = FEECS.getAllEntityComponents(stageEntity)
-        stageCostPct = components and components.buffs and components.buffs.costs
-        if type(stageCostPct) ~= "number" then stageCostPct = nil end
-    end
-    params.stageCostPercentage = stageCostPct
+        local stageCostPct = nil
+        local stageEntity = FEECS.refEntity("stageEntity")
+        if type(stageEntity) == "number" then
+            local components = FEECS.getAllEntityComponents(stageEntity)
+            stageCostPct = components and components.buffs and components.buffs.costs
+            if type(stageCostPct) ~= "number" then stageCostPct = nil end
+        end
+        if stageCostPct == nil then
+            stageCostPct = getChallengesCostPercentage()
+        end
+        params.stageCostPercentage = stageCostPct
 
     return math.floor(getPlacementCost(baseCost, params))
 end
