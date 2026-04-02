@@ -1,4 +1,4 @@
-local script_version = "V0.31"
+local script_version = "V0.32"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -856,7 +856,7 @@ local function getOrderedUnits()
     return table.concat(units, "\n")
 end
 
-local function sendWebhook(messageType, rewards, clearTime, matchResult, gearData)
+local function sendWebhook(messageType, rewards, clearTime, matchResult, gearData, shouldPing, detectedUnits)
     if not ValidWebhook then return end
 
     local data
@@ -917,8 +917,10 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
         local rewardsText = rewards
-        local detectedUnits = {}
-        local shouldPing = false
+        local detectedUnits = detectedUnits or {}
+        local shouldPing = shouldPing or false
+
+        local pingText = shouldPing and string.format("<@%s> UNIT DROP!", Config.DISCORD_USER_ID) or nil
 
         local waveField = nil
         if State.capturedWave then
@@ -927,15 +929,24 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
 
         if #detectedUnits > 1 then return end
 
-        local pingText = shouldPing and string.format("<@%s> SECRET UNIT OBTAINED!", Config.DISCORD_USER_ID) or ""
-
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
+
+        local unitObtainedField = nil
+        if #detectedUnits > 0 then
+            local unitNames = {}
+            for _, u in ipairs(detectedUnits) do
+                table.insert(unitNames, u.name .. (u.isShiny and " [Shiny]" or ""))
+            end
+            unitObtainedField = { name = "Units Obtained", value = table.concat(unitNames, "\n"), inline = false }
+        end
+
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
         local orderedUnits = getOrderedUnits()
 
         data = {
             username = "LixHub",
+            content = pingText or "",
             embeds = {{
                 title = shouldPing and "Unit Drop!" or "Stage Finished",
                 description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
@@ -4410,14 +4421,25 @@ local function buildRewardLines()
                 local ok, name = pcall(function() return item.Name end)
                 if not ok or not name then continue end
 
-                local amountChild = item:FindFirstChild("Amount")
-                local amount = amountChild and amountChild.Value or 0
-                if amount <= 0 then continue end
+                local isUnit = item.Parent and item.Parent == Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection
 
-                local total = getItemTotal(name)
-                local totalText = total and string.format(" [%d total]", total) or ""
+                if isUnit then
+                    local unitName, shinyTag = name:match("^(.-):(Shiny)$")
+                    if not unitName then
+                        unitName = name
+                        shinyTag = nil
+                    end
+                    local shinyText = shinyTag and " [Shiny]" or ""
+                    table.insert(lines, string.format("+ 1 %s%s", unitName, shinyText))
+                else
+                    local amountChild = item:FindFirstChild("Amount")
+                    local amount = amountChild and amountChild.Value or 0
+                    if amount <= 0 then continue end
 
-                table.insert(lines, string.format("+ %d %s%s", amount, name, totalText))
+                    local total = getItemTotal(name)
+                    local totalText = total and string.format(" [%d total]", total) or ""
+                    table.insert(lines, string.format("+ %d %s%s", amount, name, totalText))
+                end
             end
         end
     end
@@ -4458,17 +4480,42 @@ Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
             items = data
         })
 
-        if rewardBufferTimer then task.cancel(rewardBufferTimer) end
-        rewardBufferTimer = task.delay(2, function()
-            if not State.SendStageCompletedWebhook then
-                rewardBuffer = {}
-                return
-            end
-            sendWebhook("stage", buildRewardLines(), getClearTime(), State.matchResult)
-            rewardBuffer = {}
-            rewardBufferTimer = nil
-        end)
+if rewardBufferTimer then task.cancel(rewardBufferTimer) end
+rewardBufferTimer = task.delay(2, function()
+    if not State.SendStageCompletedWebhook then
+        rewardBuffer = {}
+        return
     end
+
+    local clearTimeStr = getClearTime()
+
+    -- Check for unit drops for ping
+    local detectedUnits = {}
+    for _, entry in ipairs(rewardBuffer) do
+        if entry.rewardType == "Rewards - Items" then
+            for _, item in ipairs(entry.items) do
+                local ok, name = pcall(function() return item.Name end)
+                if not ok or not name then continue end
+
+                local isUnit = item.Parent and item.Parent == Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection
+                if isUnit then
+                    local unitName, shinyTag = name:match("^(.-):(Shiny)$")
+                    table.insert(detectedUnits, {
+                        name = unitName or name,
+                        isShiny = shinyTag ~= nil
+                    })
+                end
+            end
+        end
+    end
+
+    local shouldPing = #detectedUnits > 0 and Config.DISCORD_USER_ID ~= ""
+
+    sendWebhook("stage", buildRewardLines(), clearTimeStr, State.matchResult, nil, shouldPing, detectedUnits)
+    rewardBuffer = {}
+    rewardBufferTimer = nil
+end)
+end
 end)
 
 Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Connect(function()
@@ -4494,14 +4541,6 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
     resetUpgradeOrder()
 
     task.wait(0.5)
-    local clearTimeStr = "Unknown"
-    if State.stageStartTime then
-        local dt = math.floor(tick() - State.stageStartTime)
-        clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
-    end
-
-    if State.SendStageCompletedWebhook then
-    end
 
     State.autoPlayDelayActive = false
     State.actionTaken = false
