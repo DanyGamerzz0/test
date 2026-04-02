@@ -1,3 +1,5 @@
+local script_version = "V0.23"
+
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -180,8 +182,6 @@ local Data = {
 local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
-
-local script_version = "V0.22"
 
 local ValidWebhook
 
@@ -931,14 +931,13 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
 
         data = {
             username = "LixHub",
-            content = shouldPing and pingText or nil,
             embeds = {{
                 title = shouldPing and "Unit Drop!" or "Stage Finished",
                 description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
                 color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
                 fields = {
                     { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                    { name = isWin and "Won in:" or "Lost after:", value = clearTime, inline = true },
+                    { name = isWin and "Won in:" or "Lost after:", value = clearTime or "Unknown", inline = true },
                     { name = "Rewards", value = rewardsText, inline = false },
                     { name = "Units Loadout", value = orderedUnits, inline = false },
                     shouldPing and { name = "Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
