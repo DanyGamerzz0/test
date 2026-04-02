@@ -1,4 +1,4 @@
-local script_version = "V0.3"
+local script_version = "V0.31"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -160,6 +160,7 @@ local State = {
     autoBossAttackEnabled = false,
     RestartGameOnWave = 0,
     EndGameOnWave = 0,
+    capturedWave = nil,
 }
 
 local Data = {
@@ -920,16 +921,8 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local shouldPing = false
 
         local waveField = nil
-        local waveBasedSuccess, isWaveBased = pcall(function()
-            return game:GetService("ReplicatedStorage").Values.Waves.WaveBased.Value
-        end)
-        if waveBasedSuccess and isWaveBased then
-            local waveSuccess, currentWave = pcall(function()
-                return game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
-            end)
-            if waveSuccess and currentWave then
-                waveField = { name = "Wave Reached", value = tostring(currentWave), inline = true }
-            end
+        if State.capturedWave then
+            waveField = { name = "Wave Reached", value = tostring(State.capturedWave), inline = true }
         end
 
         if #detectedUnits > 1 then return end
@@ -4485,6 +4478,14 @@ Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Conn
 end)
 
 Remotes.GameEnd.OnClientEvent:Connect(function()
+    pcall(function()
+        local isWaveBased = game:GetService("ReplicatedStorage").Values.Waves.WaveBased.Value
+        if isWaveBased then
+            State.capturedWave = game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
+        else
+            State.capturedWave = nil
+        end
+    end)
     State.hasGameEnded = true
     State.gameRunning = false
     if State.AutoFailSafeEnabled == true then
