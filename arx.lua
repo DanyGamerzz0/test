@@ -1,4 +1,4 @@
-local script_version = "V0.32"
+local script_version = "V0.2"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -931,15 +931,6 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
 
         local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
 
-        local unitObtainedField = nil
-        if #detectedUnits > 0 then
-            local unitNames = {}
-            for _, u in ipairs(detectedUnits) do
-                table.insert(unitNames, u.name .. (u.isShiny and " [Shiny]" or ""))
-            end
-            unitObtainedField = { name = "Units Obtained", value = table.concat(unitNames, "\n"), inline = false }
-        end
-
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
         local orderedUnits = getOrderedUnits()
@@ -957,7 +948,6 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
                     waveField,
                     { name = "Rewards", value = rewardsText, inline = false },
                     { name = "Units Loadout", value = orderedUnits, inline = false },
-                    shouldPing and { name = "Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
                 },
                 footer = { text = "discord.gg/cYKnXE2Nf8" },
                 timestamp = timestamp
