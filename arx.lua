@@ -180,7 +180,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local ValidWebhook
 
@@ -4454,7 +4454,12 @@ Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
                 rewardBuffer = {}
                 return
             end
-            sendWebhook("stage", buildRewardLines())
+            local clearTimeStr = "Unknown"
+            if State.stageStartTime then
+                local dt = math.floor(tick() - State.stageStartTime)
+                clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
+            end
+            sendWebhook("stage", buildRewardLines(), clearTimeStr, State.matchResult)
             rewardBuffer = {}
             rewardBufferTimer = nil
         end)
