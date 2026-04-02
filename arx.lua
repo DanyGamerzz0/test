@@ -1,4 +1,4 @@
-local script_version = "V0.24"
+local script_version = "V0.25"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -2552,7 +2552,7 @@ task.spawn(function()
     while true do
         task.wait(1)
 
-        if State.RestartGameOnWave > 0 and State.gameRunning and not isInLobby() then
+        if State.RestartGameOnWave > 0 and not isInLobby() then
             local success, currentWave = pcall(function()
                 return game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
             end)
@@ -2566,22 +2566,39 @@ task.spawn(function()
                 State.hasGameEnded = true
                 State.autoPlayDelayActive = false
 
-                -- Send webhook if enabled
-                if State.SendStageCompletedWebhook and not State.hasSentWebhook then
-                    State.hasSentWebhook = true
-                    local clearTimeStr = "Unknown"
-                    if State.stageStartTime then
-                        local dt = math.floor(tick() - State.stageStartTime)
-                        clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
-                    end
-                    State.matchResult = "Wave Restart"
-                end
-
                 -- Reset upgrade/redeploy tracking
                 resetUpgradeOrder()
                 lastCheckedLevels = {}
                 processedUnits = {}
                 game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("RestartMatch"):FireServer()
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+
+        if State.EndGameOnWave > 0 and not isInLobby() then
+            local success, currentWave = pcall(function()
+                return game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
+            end)
+
+            if success and currentWave and currentWave >= State.EndGameOnWave then
+                print("Wave limit reached (" .. currentWave .. "), ending game...")
+                notify("Wave End", "Wave " .. currentWave .. " reached! Ending...", 3)
+
+                -- Treat it like a game end
+                State.gameRunning = false
+                State.hasGameEnded = true
+                State.autoPlayDelayActive = false
+
+                -- Reset upgrade/redeploy tracking
+                resetUpgradeOrder()
+                lastCheckedLevels = {}
+                processedUnits = {}
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("EndMatch"):FireServer()
             end
         end
     end
