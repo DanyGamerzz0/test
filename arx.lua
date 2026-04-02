@@ -157,6 +157,7 @@ local State = {
     autoBountyHuntInvasionEnabled = false,
     autoBossAttackEnabled = false,
     RestartGameOnWave = 0,
+    EndGameOnWave = 0,
 }
 
 local Data = {
@@ -179,7 +180,7 @@ local autoSummonActive = false
 local initialUnits = {}
 local summonTask = nil
 
-local script_version = "V0.21"
+local script_version = "V0.2"
 
 local ValidWebhook
 
@@ -824,138 +825,6 @@ local function fetchRangerStageData(storyData)
     return rangerStages
 end
 
-local function snapshotInventory()
-    local snapshot = {}
-    State.unitNameSet = {}
-
-    snapshot.Gold = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gold.Value
-    snapshot.Gem = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Gem.Value
-    snapshot["Beach Balls"] = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data["Beach Balls"].Value
-
-    local itemInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Scrolling")
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = true
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = false
-    task.wait(1)
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Enabled = false
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Items").Main.Visible = true
-    local unitInventory = Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection"):WaitForChild("Main"):WaitForChild("Base"):WaitForChild("Space"):WaitForChild("Unit")
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = true
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Main.Visible = false
-    task.wait(1)
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Enabled = false
-    Services.Players.LocalPlayer.PlayerGui:WaitForChild("Collection").Main.Visible = true
-
-    for _, item in pairs(itemInventory:GetChildren()) do
-        if item:IsA("TextButton") or item:IsA("ImageButton") then
-            local text = item:WaitForChild("Frame"):WaitForChild("ItemFrame"):WaitForChild("Info"):WaitForChild("Amonut").Text
-            local formattedtext = text:gsub("%D", "")
-            snapshot[item.Name] = tonumber(formattedtext)
-        end
-    end
-
-    local unitCounts = {}
-    for _, unit in pairs(unitInventory:GetChildren()) do
-        if unit:IsA("TextButton") or unit:IsA("ImageButton") then
-            unitCounts[unit.Name] = (unitCounts[unit.Name] or 0) + 1
-            State.unitNameSet[unit.Name] = true
-        end
-    end
-
-    for unitName, count in pairs(unitCounts) do
-        snapshot[unitName] = count
-    end
-
-    return snapshot
-end
-
-local function compareInventories(startInv, endInv)
-    local gained = {}
-    for itemName, endValue in pairs(endInv) do
-        local startValue = startInv[itemName] or 0
-        if endValue > startValue then
-            local isUnit = State.unitNameSet[itemName] == true
-            table.insert(gained, { name = itemName, amount = endValue - startValue, isUnit = isUnit })
-        end
-    end
-    return gained
-end
-
-local function getTotalAmount(itemName)
-    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
-
-    local dataItem = playerData.Data:FindFirstChild(itemName)
-    if dataItem and dataItem.Value then
-        return dataItem.Value, "Data"
-    end
-
-    local itemObj = playerData.Items:FindFirstChild(itemName)
-    if itemObj then
-        local amountValue = itemObj:FindFirstChild("Amount")
-        if amountValue then
-            return amountValue.Value, "Items"
-        end
-    end
-
-    return nil, nil
-end
-
-local function patchRewardsFromFolder(existingGained, detectedRewards, detectedUnits, lines)
-    local rewardFolder = Services.Players.LocalPlayer:FindFirstChild("RewardsShow")
-    if not rewardFolder then return end
-
-    for _, rewardEntry in pairs(rewardFolder:GetChildren()) do
-        if not detectedRewards[rewardEntry.Name] and rewardEntry:FindFirstChild("Amount") then
-            local amount = rewardEntry.Amount.Value
-
-            if amount > 0 then
-                detectedRewards[rewardEntry.Name] = amount
-                table.insert(existingGained, { name = rewardEntry.Name, amount = amount, isUnit = false })
-
-                local totalValue, _ = getTotalAmount(rewardEntry.Name)
-                local totalText = totalValue and string.format(" [%d total]", totalValue) or ""
-
-                table.insert(lines, string.format("+ %s %s%s", amount, rewardEntry.Name, totalText))
-            end
-        end
-    end
-end
-
-local function buildRewardsText()
-    local endingInventory = snapshotInventory()
-    local gainedItems = compareInventories(State.startingInventory, endingInventory)
-    local lines = {}
-    local detectedRewards = {}
-    local detectedUnits = {}
-
-    for _, reward in ipairs(gainedItems) do
-        local itemName = reward.name
-        local amount = reward.amount
-
-        detectedRewards[itemName] = amount
-
-        if reward.isUnit then
-            table.insert(detectedUnits, itemName)
-            table.insert(lines, string.format("* %s x%d", itemName, amount))
-        else
-            local totalAmount, location = getTotalAmount(itemName)
-            local totalText = totalAmount and string.format(" [%d total]", totalAmount) or ""
-
-            local displayName = itemName == "Gem" and itemName.."(s)" or itemName
-            table.insert(lines, string.format("+ %s %s%s", amount, displayName, totalText))
-        end
-    end
-
-    patchRewardsFromFolder(gainedItems, detectedRewards, detectedUnits, lines)
-
-    if #gainedItems == 0 then
-        return "_No rewards found after match_", {}, {}
-    end
-
-    local rewardsText = table.concat(lines, "\n")
-    notify("Gained rewards:", rewardsText, 2)
-    return rewardsText, detectedRewards, detectedUnits
-end
-
 local function getUnitNameFromSlot(slotNumber)
     local success, unitInstance = pcall(function()
         return Services.Players.LocalPlayer.PlayerGui.UnitsLoadout.Main["UnitLoadout" .. slotNumber].Frame.UnitFrame.Info.Folder.Value
@@ -1046,8 +915,9 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local isWin = matchResult == "Victory"
         local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
-        local rewardsText, detectedRewards, detectedUnits = buildRewardsText()
-        local shouldPing = #detectedUnits > 0
+        local rewardsText = rewards
+        local detectedUnits = {}
+        local shouldPing = false
 
         if #detectedUnits > 1 then return end
 
@@ -2706,7 +2576,6 @@ task.spawn(function()
                         clearTimeStr = string.format("%d:%02d", dt // 60, dt % 60)
                     end
                     State.matchResult = "Wave Restart"
-                    sendWebhook("stage", nil, clearTimeStr, State.matchResult)
                 end
 
                 -- Reset upgrade/redeploy tracking
@@ -4010,15 +3879,28 @@ GameTab:CreateSlider({
 })
 
 GameTab:CreateSlider({
-    Name = "Restart Game On Wave",
+    Name = "Restart Match On Wave",
     Range = {0, 300},
     Increment = 1,
     Suffix = "wave",
     CurrentValue = 0,
-    Flag = "FailsafeSlider",
+    Flag = "RestartMatchOnWaveSlider",
     Info = "0 = disable",
     Callback = function(Value)
         State.RestartGameOnWave = Value
+    end,
+})
+
+GameTab:CreateSlider({
+    Name = "End Match On Wave",
+    Range = {0, 300},
+    Increment = 1,
+    Suffix = "wave",
+    CurrentValue = 0,
+    Flag = "EndMatchOnWaveSlider",
+    Info = "0 = disable",
+    Callback = function(Value)
+        State.EndGameOnWave = Value
     end,
 })
 
@@ -4480,7 +4362,6 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
     local args = {...}
     if table.find(args, "Game_Start") then
         State.gameRunning = true
-        State.startingInventory = snapshotInventory()
         resetUpgradeOrder()
         stopRetryLoop()
         stopNextLoop()
@@ -4497,17 +4378,86 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
     end
 end)
 
-Remotes.GameEndedUI.OnClientEvent:Connect(function(_, outcome)
-    if typeof(outcome) == "string" then
-        local l = outcome:lower()
-        if l:find("defeat") then
-            State.matchResult = "Defeat"
-        elseif l:find("won") or l:find("win") then
-            State.matchResult = "Victory"
-        else
-            State.matchResult = "Unknown"
+local rewardBuffer = {}
+local rewardBufferTimer = nil
+
+local function getItemTotal(itemName)
+    local playerData = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name]
+
+    local dataChild = playerData.Data:FindFirstChild(itemName)
+    if dataChild and (dataChild:IsA("NumberValue") or dataChild:IsA("IntValue")) then
+        return dataChild.Value
+    end
+
+    local itemFolder = playerData.Items:FindFirstChild(itemName)
+    if itemFolder then
+        local amount = itemFolder:FindFirstChild("Amount")
+        if amount then return amount.Value end
+    end
+
+    return nil
+end
+
+local function buildRewardLines()
+    local lines = {}
+
+    for _, entry in ipairs(rewardBuffer) do
+        if entry.rewardType == "Rewards - Items" then
+            for _, item in ipairs(entry.items) do
+                local ok, name = pcall(function() return item.Name end)
+                if not ok or not name then continue end
+
+                local amountChild = item:FindFirstChild("Amount")
+                local amount = amountChild and amountChild.Value or 0
+                if amount <= 0 then continue end
+
+                local total = getItemTotal(name)
+                local totalText = total and string.format(" [%d total]", total) or ""
+
+                table.insert(lines, string.format("+ %d %s%s", amount, name, totalText))
+            end
         end
-        print("Match result detected:", State.matchResult)
+    end
+
+    return #lines > 0 and table.concat(lines, "\n") or "_No rewards detected_"
+end
+
+Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
+    -- Win/loss detection (keeps existing behavior)
+    if eventType == "GameEnded_TextAnimation" then
+        if typeof(data) == "string" then
+            local l = data:lower()
+            if l:find("won") or l:find("win") then
+                State.matchResult = "Victory"
+            elseif l:find("defeat") or l:find("lost") then
+                State.matchResult = "Defeat"
+            else
+                State.matchResult = "Unknown"
+            end
+            print("Match result detected:", State.matchResult)
+        end
+        return
+    end
+
+    -- Reward buffering
+    if eventType == "Rewards - Items" and typeof(data) == "table" then
+        table.insert(rewardBuffer, {
+            rewardType = eventType,
+            items = data
+        })
+
+        -- Cancel existing timer and reset it so we
+        -- wait for all reward events to fire before sending
+        if rewardBufferTimer then task.cancel(rewardBufferTimer) end
+        rewardBufferTimer = task.delay(2, function()
+            if not State.SendStageCompletedWebhook then
+                rewardBuffer = {}
+                return
+            end
+            sendWebhook("stage", buildRewardLines())
+            rewardBuffer = {}
+            rewardBufferTimer = nil
+        end)
     end
 end)
 
@@ -4518,13 +4468,7 @@ Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Conn
 end)
 
 Remotes.GameEnd.OnClientEvent:Connect(function()
-    if State.hasSentWebhook then
-        return
-    end
     State.hasGameEnded = true
-    if State.SendStageCompletedWebhook then
-        State.hasSentWebhook = true
-    end
     State.gameRunning = false
     if State.AutoFailSafeEnabled == true then
         startFailsafeAfterGameEnd()
@@ -4539,7 +4483,6 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
     end
 
     if State.SendStageCompletedWebhook then
-        sendWebhook("stage", nil, clearTimeStr, State.matchResult)
     end
 
     State.autoPlayDelayActive = false
