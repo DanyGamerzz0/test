@@ -1,4 +1,4 @@
-local script_version = "V0.26"
+local script_version = "V0.3"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -919,6 +919,19 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
         local detectedUnits = {}
         local shouldPing = false
 
+        local waveField = nil
+        local waveBasedSuccess, isWaveBased = pcall(function()
+            return game:GetService("ReplicatedStorage").Values.Waves.WaveBased.Value
+        end)
+        if waveBasedSuccess and isWaveBased then
+            local waveSuccess, currentWave = pcall(function()
+                return game:GetService("ReplicatedStorage").Values.Waves.CurrentWave.Value
+            end)
+            if waveSuccess and currentWave then
+                waveField = { name = "Wave Reached", value = tostring(currentWave), inline = true }
+            end
+        end
+
         if #detectedUnits > 1 then return end
 
         local pingText = shouldPing and string.format("<@%s> SECRET UNIT OBTAINED!", Config.DISCORD_USER_ID) or ""
@@ -937,6 +950,7 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
                 fields = {
                     { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
                     { name = isWin and "Won in:" or "Lost after:", value = clearTime or "Unknown", inline = true },
+                    waveField,
                     { name = "Rewards", value = rewardsText, inline = false },
                     { name = "Units Loadout", value = orderedUnits, inline = false },
                     shouldPing and { name = "Units Obtained", value = table.concat(detectedUnits, ", "), inline = false } or nil,
