@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.6
+-- V0.6
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2518,16 +2518,66 @@ local function setupRestartHook()
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Act reset — waiting for wave 1 to resume...")
             pushNotify({ Title = "Macro Paused", Content = "Act restarted — playback will resume at wave 1", Duration = 3, Image = "refresh-cw" })
         elseif PlaybackToggle and PlaybackToggle.CurrentValue and MacroSystem.currentMacroName ~= "" then
-            -- macro finished but playback toggle is still on, re-queue it
             MacroSystem.pendingPlayback = true
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Act reset — waiting for wave 1 to replay...")
             pushNotify({ Title = "Macro Queued", Content = "Act restarted — playback will begin at wave 1", Duration = 3, Image = "refresh-cw" })
         end
         if MacroSystem.isRecording then
             MacroSystem.stopRecording()
+            RecordToggle:Set(false)
             MacroSystem.pendingRecord = true
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Restarting", "Act reset — waiting for wave 1 to resume recording...")
             pushNotify({ Title = "Recording Paused", Content = "Act restarted — recording will resume at wave 1", Duration = 3, Image = "refresh-cw" })
+
+            if Webhook.sendOnFinish and Webhook.url and Webhook.url ~= "" then
+                local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+                if requestFunc then
+                    local ok3, gmSel    = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectGamemode)
+                    local ok4, stageSel = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectStage)
+                    local ok5, actSel   = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectAct)
+
+                    local mapName   = "Unknown"
+                    local actNumber = 1
+                    local gamemode  = "story"
+
+                    if ok3 and ok4 and ok5 then
+                        gamemode      = clientStore:getState(gmSel)    or "story"
+                        local stageId = clientStore:getState(stageSel) or ""
+                        actNumber     = clientStore:getState(actSel)   or 1
+                        local stages  = require(ReplicatedStorage.shared.config.stages)
+                        local stageData = stages.get(stageId)
+                        mapName = (stageData and stageData.name) or stageId or "Unknown"
+                    end
+
+                    local title = string.format("%s (Act %d - %s) - Match Restarted",
+                        mapName, actNumber,
+                        tostring(gamemode):gsub("^%l", string.upper))
+
+                    pcall(function()
+                        requestFunc({
+                            Url     = Webhook.url,
+                            Method  = "POST",
+                            Headers = { ["Content-Type"] = "application/json" },
+                            Body    = HttpService:JSONEncode({
+                                username = "LixHub",
+                                content  = "",
+                                embeds   = {{
+                                    title  = title,
+                                    color  = 0xFEE75C,
+                                    fields = {
+                                        { name = "Player",   value = "||" .. Players.LocalPlayer.Name .. "||", inline = true },
+                                        { name = "Result",   value = "Match Restarted",                        inline = true },
+                                        { name = "Rewards",  value = "No rewards",                             inline = false },
+                                        { name = "Hero EXP", value = "No EXP gained",                         inline = false },
+                                    },
+                                    footer    = { text = "discord.gg/cYKnXE2Nf8" },
+                                    timestamp = DateTime.now():ToIsoDate(),
+                                }},
+                            }),
+                        })
+                    end)
+                end
+            end
         end
         return oldResetAct(...)
     end
