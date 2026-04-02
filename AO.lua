@@ -1,5 +1,5 @@
 -- ============================================================
--- V1.2
+-- V1.3
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementBuffs, getPlacementCost
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementBuffs, getPlacementCost, selectPlayerHeroFortune
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -37,6 +37,7 @@ if not IS_LOBBY then
     calculateClientUpgradeCostMultiplier = require(ReplicatedStorage.gameClient.utilities.calculateClientUpgradeCostMultiplier)
     getPlacementBuffs = require(ReplicatedStorage.gameShared.utilities.getPlacementBuffs)
     getPlacementCost  = require(ReplicatedStorage.gameShared.utilities.getPlacementCost)
+    selectPlayerHeroFortune = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerHeroFortune)
     getBuffs = require(ReplicatedStorage.gameShared.utilities.getBuffs)
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
     clientStore                          = require(gameClient.store.clientStore)
@@ -545,10 +546,25 @@ local function getActualUpgradeCost(heroConfig, currentLevel, towerBuffTable)
     return finalCost
 end
 
-local function getActualPlacementCost(heroData, heroConfig)
+local function getActualPlacementCost(uuid, heroConfig)
     local baseCost = heroConfig.cost or 0
     if baseCost <= 0 then return 0 end
-    local buffs = getPlacementBuffs(heroData) or {}
+
+    local state    = clientStore:getState()
+    local userId   = tostring(Players.LocalPlayer.UserId)
+    local heroData = state.data.heroes[userId]
+    local rawHero  = heroData and heroData[uuid]
+    if not rawHero then return baseCost end
+
+    -- fetch fortune separately since it's not in rawHero directly
+    local fortune = clientStore:getState(selectPlayerHeroFortune(nil, uuid))
+    local heroWithFortune = rawHero
+    if fortune then
+        heroWithFortune = table.clone(rawHero)
+        heroWithFortune.fortune = fortune
+    end
+
+    local buffs = getPlacementBuffs(heroWithFortune) or {}
     return math.floor(getPlacementCost(baseCost, buffs))
 end
 
@@ -626,10 +642,7 @@ function MacroSystem.playback(name)
                     end
                     local hero = nameToHero[baseName]
                     if hero and hero.config then
-                        local heroData = clientStore:getState().data.heroes[tostring(Players.LocalPlayer.UserId)]
-                        local rawHero  = heroData and heroData[uuid]
-                        local cost     = rawHero and getActualPlacementCost(rawHero, hero.config) or (hero.config.cost or 0)
-                        print(HttpService:JSONEncode(rawHero))
+                        local cost = getActualPlacementCost(uuid, hero.config)
                         print(string.format("[LixHub] [%d/%d] PLACE %s | cost=%d | yen=%d",
                             i, #actions, label, cost, getYen()))
                         if cost > 0 and not waitForYen(cost, label, "PLACE", i, #actions, nextPreview, nameToHero, labelToLevel, actions) then
