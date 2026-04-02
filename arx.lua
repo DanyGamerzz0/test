@@ -1,4 +1,4 @@
-local script_version = "V0.23"
+local script_version = "V0.24"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -160,7 +160,6 @@ local State = {
     autoBossAttackEnabled = false,
     RestartGameOnWave = 0,
     EndGameOnWave = 0,
-    capturedClearTime = nil,
 }
 
 local Data = {
@@ -4373,7 +4372,6 @@ game.ReplicatedStorage.Remote.Replicate.OnClientEvent:Connect(function(...)
         State.NextAttempted = false
         State.hasGameEnded = false
         State.hasSentWebhook = false
-        State.capturedClearTime = nil
         State.stageStartTime = tick()
         print("Stage started at", State.stageStartTime)
     end
@@ -4423,6 +4421,18 @@ local function buildRewardLines()
     return #lines > 0 and table.concat(lines, "\n") or "_No rewards detected_"
 end
 
+local function getClearTime()
+    local success, totalTime = pcall(function()
+        return game:GetService("ReplicatedStorage").Values.Game.TotalTime.Value
+    end)
+    if success and totalTime then
+        local minutes = math.floor(totalTime / 60)
+        local seconds = totalTime % 60
+        return string.format("%d:%02d", minutes, seconds)
+    end
+    return "Unknown"
+end
+
 Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
     if eventType == "GameEnded_TextAnimation" then
         if typeof(data) == "string" then
@@ -4439,16 +4449,6 @@ Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
     end
 
     if eventType == "Rewards - Items" and typeof(data) == "table" then
-        -- Capture clear time NOW while stageStartTime is still valid
-        if not State.capturedClearTime then
-            if State.stageStartTime then
-                local dt = math.floor(tick() - State.stageStartTime)
-                State.capturedClearTime = string.format("%d:%02d", dt // 60, dt % 60)
-            else
-                State.capturedClearTime = "Unknown"
-            end
-        end
-
         table.insert(rewardBuffer, {
             rewardType = eventType,
             items = data
@@ -4458,12 +4458,10 @@ Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
         rewardBufferTimer = task.delay(2, function()
             if not State.SendStageCompletedWebhook then
                 rewardBuffer = {}
-                State.capturedClearTime = nil
                 return
             end
-            sendWebhook("stage", buildRewardLines(), State.capturedClearTime, State.matchResult)
+            sendWebhook("stage", buildRewardLines(), getClearTime(), State.matchResult)
             rewardBuffer = {}
-            State.capturedClearTime = nil
             rewardBufferTimer = nil
         end)
     end
