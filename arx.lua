@@ -1,4 +1,4 @@
-local script_version = "V0.23"
+local script_version = "V0.24"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -4508,38 +4508,48 @@ local function tryFireWebhook()
 end
 
 Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
-    print("GameEndedUI fired:", eventType, typeof(data))
-    if eventType == "GameEnded_TextAnimation" then
-        if typeof(data) == "string" then
-            local l = data:lower()
-            if l:find("won") or l:find("win") then
-                pendingWebhookData.matchResult = "Victory"
-            elseif l:find("defeat") or l:find("lost") then
-                pendingWebhookData.matchResult = "Defeat"
-            else
-                pendingWebhookData.matchResult = "Unknown"
-            end
-            pendingWebhookData.clearTime = getClearTime()
-        end
-        tryFireWebhook()
-        return
-    end
-
     if eventType == "Rewards - Items" and typeof(data) == "table" then
-                print("Items count:", #data)
-        for i, item in ipairs(data) do
+        if not State.SendStageCompletedWebhook then return end
+
+        task.wait(0.5)
+
+        local matchResult = "Unknown"
+        pcall(function()
+            local resultText = Services.Players.LocalPlayer.PlayerGui.HUD.InGame.Main.GameInfo.Result.Text
+            local l = resultText:lower()
+            if l:find("won") or l:find("win") or l:find("victory") then
+                matchResult = "Victory"
+            elseif l:find("defeat") or l:find("lost") then
+                matchResult = "Defeat"
+            end
+        end)
+
+        local clearTimeStr = getClearTime()
+        local detectedUnits = {}
+        local lines = {}
+
+        for _, item in ipairs(data) do
             local ok, name = pcall(function() return item.Name end)
-            local ok2, parent = pcall(function() return tostring(item.Parent) end)
-            print(string.format("  Item %d: name=%s, parent=%s", i, ok and name or "ERR", ok2 and parent or "ERR"))
+            if not ok or not name then continue end
+
+            local inCollection = false
+            pcall(function()
+                inCollection = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection:FindFirstChild(name) ~= nil
+            end)
+
+            if inCollection then
+                local unitName, shinyTag = name:match("^(.-):(Shiny)$")
+                local shinyText = shinyTag and " [Shiny]" or ""
+                table.insert(lines, string.format("+ 1 %s%s", unitName or name, shinyText))
+                table.insert(detectedUnits, { name = unitName or name, isShiny = shinyTag ~= nil })
+            else
+                table.insert(lines, string.format("+ %s", name))
+            end
         end
-        if not pendingWebhookData.rewards then
-            pendingWebhookData.rewards = {}
-        end
-        table.insert(pendingWebhookData.rewards, {
-            rewardType = eventType,
-            items = data
-        })
-        tryFireWebhook()
+
+        local rewardText = #lines > 0 and table.concat(lines, "\n") or "_No rewards detected_"
+        local shouldPing = #detectedUnits > 0 and Config.DISCORD_USER_ID ~= ""
+        sendWebhook("stage", rewardText, clearTimeStr, matchResult, nil, shouldPing, detectedUnits)
     end
 end)
 
