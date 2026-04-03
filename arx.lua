@@ -1,4 +1,4 @@
-local script_version = "V0.26"
+local script_version = "V0.27"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -4581,8 +4581,17 @@ for _, Connection in getconnections(Event.OnClientEvent) do
                         table.insert(lines, string.format("+ 1 %s%s", unitName or name, shinyText))
                         table.insert(detectedUnits, { name = unitName or name, isShiny = shinyTag ~= nil })
                     else
-                        local amountChild = item:FindFirstChild("Amount")
-                        local amount = amountChild and amountChild.Value or 1
+                        -- Read amount from RewardsShow item directly
+                        local amount = 0
+                        pcall(function()
+                            amount = item.Value or 0
+                        end)
+                        if amount <= 0 then
+                            -- fallback: try Amount child
+                            pcall(function()
+                                amount = item:FindFirstChild("Amount") and item:FindFirstChild("Amount").Value or 1
+                            end)
+                        end
                         local total = getItemTotal(name)
                         local totalText = total and string.format(" [%d total]", total) or ""
                         table.insert(lines, string.format("+ %d %s%s", amount, name, totalText))
