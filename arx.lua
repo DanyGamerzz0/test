@@ -1,4 +1,4 @@
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -4470,42 +4470,68 @@ Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
             items = data
         })
 
-if rewardBufferTimer then task.cancel(rewardBufferTimer) end
-rewardBufferTimer = task.delay(2, function()
-    if not State.SendStageCompletedWebhook then
-        rewardBuffer = {}
-        return
-    end
+        if rewardBufferTimer then task.cancel(rewardBufferTimer) end
+        rewardBufferTimer = task.delay(3.5, function()
+            if not State.SendStageCompletedWebhook then
+                rewardBuffer = {}
+                rewardBufferTimer = nil
+                return
+            end
 
-    local clearTimeStr = getClearTime()
+            local bufferedRewards = rewardBuffer
+            rewardBuffer = {}
+            rewardBufferTimer = nil
 
-    -- Check for unit drops for ping
-    local detectedUnits = {}
-    for _, entry in ipairs(rewardBuffer) do
-        if entry.rewardType == "Rewards - Items" then
-            for _, item in ipairs(entry.items) do
-                local ok, name = pcall(function() return item.Name end)
-                if not ok or not name then continue end
+            local clearTimeStr = getClearTime()
+            local detectedUnits = {}
 
-                local isUnit = item.Parent and item.Parent == Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection
-                if isUnit then
-                    local unitName, shinyTag = name:match("^(.-):(Shiny)$")
-                    table.insert(detectedUnits, {
-                        name = unitName or name,
-                        isShiny = shinyTag ~= nil
-                    })
+            for _, entry in ipairs(bufferedRewards) do
+                if entry.rewardType == "Rewards - Items" then
+                    for _, item in ipairs(entry.items) do
+                        local ok, name = pcall(function() return item.Name end)
+                        if not ok or not name then continue end
+                        local isUnit = item.Parent and item.Parent ==
+                            Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection
+                        if isUnit then
+                            local unitName, shinyTag = name:match("^(.-):(Shiny)$")
+                            table.insert(detectedUnits, {
+                                name = unitName or name,
+                                isShiny = shinyTag ~= nil
+                            })
+                        end
+                    end
                 end
             end
-        end
+
+            local lines = {}
+            for _, entry in ipairs(bufferedRewards) do
+                if entry.rewardType == "Rewards - Items" then
+                    for _, item in ipairs(entry.items) do
+                        local ok, name = pcall(function() return item.Name end)
+                        if not ok or not name then continue end
+                        local isUnit = item.Parent and item.Parent ==
+                            Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Collection
+                        if isUnit then
+                            local unitName, shinyTag = name:match("^(.-):(Shiny)$")
+                            local shinyText = shinyTag and " [Shiny]" or ""
+                            table.insert(lines, string.format("+ 1 %s%s", unitName or name, shinyText))
+                        else
+                            local amountChild = item:FindFirstChild("Amount")
+                            local amount = amountChild and amountChild.Value or 0
+                            if amount <= 0 then continue end
+                            local total = getItemTotal(name)
+                            local totalText = total and string.format(" [%d total]", total) or ""
+                            table.insert(lines, string.format("+ %d %s%s", amount, name, totalText))
+                        end
+                    end
+                end
+            end
+
+            local rewardText = #lines > 0 and table.concat(lines, "\n") or "_No rewards detected_"
+            local shouldPing = #detectedUnits > 0 and Config.DISCORD_USER_ID ~= ""
+            sendWebhook("stage", rewardText, clearTimeStr, State.matchResult, nil, shouldPing, detectedUnits)
+        end)
     end
-
-    local shouldPing = #detectedUnits > 0 and Config.DISCORD_USER_ID ~= ""
-
-    sendWebhook("stage", buildRewardLines(), clearTimeStr, State.matchResult, nil, shouldPing, detectedUnits)
-    rewardBuffer = {}
-    rewardBufferTimer = nil
-end)
-end
 end)
 
 Services.ReplicatedStorage.Remote.Client.UI.Challenge_Updated.OnClientEvent:Connect(function()
