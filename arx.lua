@@ -1,4 +1,4 @@
-local script_version = "V0.27"
+local script_version = "V0.28"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -917,49 +917,45 @@ local function sendWebhook(messageType, rewards, clearTime, matchResult, gearDat
             }}
         }
     elseif messageType == "stage" then
-        local RewardsUI = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo")
-        local stageName = RewardsUI and RewardsUI:FindFirstChild("Stage") and RewardsUI.Stage.Label.Text or "Unknown Stage"
-        local gameMode = RewardsUI and RewardsUI:FindFirstChild("Gamemode") and RewardsUI.Gamemode.Label.Text or "Unknown Time"
-        local isWin = matchResult == "Victory"
-        local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
+    local RewardsUI = Services.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("InGame"):WaitForChild("Main"):WaitForChild("GameInfo")
+    local stageName = RewardsUI and RewardsUI:FindFirstChild("Stage") and RewardsUI.Stage.Label.Text or "Unknown Stage"
+    local gameMode = RewardsUI and RewardsUI:FindFirstChild("Gamemode") and RewardsUI.Gamemode.Label.Text or "Unknown Time"
+    local isWin = matchResult == "Victory"
+    local plrlevel = Services.ReplicatedStorage.Player_Data[Services.Players.LocalPlayer.Name].Data.Level.Value or ""
 
-        local rewardsText = rewards
-        local detectedUnits = detectedUnits or {}
-        local shouldPing = shouldPing or false
+    local rewardsText = rewards
+    local detectedUnits = detectedUnits or {}
+    local shouldPing = shouldPing or false
 
-        local pingText = shouldPing and string.format("<@%s> UNIT DROP!", Config.DISCORD_USER_ID) or nil
+    local pingText = shouldPing and string.format("<@%s> UNIT DROP!", Config.DISCORD_USER_ID) or nil
 
-        local waveField = nil
-        if State.capturedWave then
-            waveField = { name = "Wave Reached", value = tostring(State.capturedWave), inline = true }
-        end
+    local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    local orderedUnits = getOrderedUnits()
 
-        if #detectedUnits > 1 then return end
+    local fields = {
+        { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
+        { name = isWin and "Won in:" or "Lost after:", value = clearTime or "Unknown", inline = true },
+        { name = "Rewards", value = rewardsText or "_No rewards detected_", inline = false },
+        { name = "Units Loadout", value = orderedUnits, inline = false },
+    }
 
-        local stageResult = stageName .. " (" .. gameMode .. ")" .. " - " .. matchResult
+    if State.capturedWave then
+        table.insert(fields, 3, { name = "Wave Reached", value = tostring(State.capturedWave), inline = true })
+    end
 
-        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-
-        local orderedUnits = getOrderedUnits()
-
-        data = {
-            username = "LixHub",
-            content = pingText or "",
-            embeds = {{
-                title = shouldPing and "Unit Drop!" or "Stage Finished",
-                description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
-                color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
-                fields = {
-                    { name = "Player", value = "||" .. Services.Players.LocalPlayer.Name .. " [" .. plrlevel .. "]||", inline = true },
-                    { name = isWin and "Won in:" or "Lost after:", value = clearTime or "Unknown", inline = true },
-                    waveField,
-                    { name = "Rewards", value = rewardsText, inline = false },
-                    { name = "Units Loadout", value = orderedUnits, inline = false },
-                },
-                footer = { text = "discord.gg/cYKnXE2Nf8" },
-                timestamp = timestamp
-            }}
-        }
+    data = {
+        username = "LixHub",
+        content = pingText or "",
+        embeds = {{
+            title = shouldPing and "Unit Drop!" or "Stage Finished",
+            description = shouldPing and (pingText .. "\n" .. stageResult) or stageResult,
+            color = shouldPing and 0xFFD700 or (isWin and 0x57F287 or 0xED4245),
+            fields = fields,
+            footer = { text = "discord.gg/cYKnXE2Nf8" },
+            timestamp = timestamp
+        }}
+    }
 
         local filteredFields = {}
         for _, field in ipairs(data.embeds[1].fields) do if field then table.insert(filteredFields, field) end end
