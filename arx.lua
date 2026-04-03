@@ -1,4 +1,4 @@
-local script_version = "V0.22"
+local script_version = "V0.23"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -4508,6 +4508,7 @@ local function tryFireWebhook()
 end
 
 Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
+    print("GameEndedUI fired:", eventType, typeof(data))
     if eventType == "GameEnded_TextAnimation" then
         if typeof(data) == "string" then
             local l = data:lower()
@@ -4525,6 +4526,12 @@ Remotes.GameEndedUI.OnClientEvent:Connect(function(eventType, data)
     end
 
     if eventType == "Rewards - Items" and typeof(data) == "table" then
+                print("Items count:", #data)
+        for i, item in ipairs(data) do
+            local ok, name = pcall(function() return item.Name end)
+            local ok2, parent = pcall(function() return tostring(item.Parent) end)
+            print(string.format("  Item %d: name=%s, parent=%s", i, ok and name or "ERR", ok2 and parent or "ERR"))
+        end
         if not pendingWebhookData.rewards then
             pendingWebhookData.rewards = {}
         end
