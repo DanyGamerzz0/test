@@ -1,4 +1,4 @@
-local script_version = "V0.25"
+local script_version = "V0.26"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -4581,12 +4581,17 @@ for _, Connection in getconnections(Event.OnClientEvent) do
                         table.insert(lines, string.format("+ 1 %s%s", unitName or name, shinyText))
                         table.insert(detectedUnits, { name = unitName or name, isShiny = shinyTag ~= nil })
                     else
-                        table.insert(lines, string.format("+ %s", name))
+                        local amountChild = item:FindFirstChild("Amount")
+                        local amount = amountChild and amountChild.Value or 1
+                        local total = getItemTotal(name)
+                        local totalText = total and string.format(" [%d total]", total) or ""
+                        table.insert(lines, string.format("+ %d %s%s", amount, name, totalText))
                     end
                 end
 
                 local rewardText = #lines > 0 and table.concat(lines, "\n") or "_No rewards detected_"
                 local shouldPing = #detectedUnits > 0 and Config.DISCORD_USER_ID ~= ""
+                task.wait(0.5)
                 sendWebhook("stage", rewardText, clearTimeStr, State.matchResult, nil, shouldPing, detectedUnits)
             end)
         end
