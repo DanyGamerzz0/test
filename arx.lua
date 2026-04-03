@@ -1,4 +1,4 @@
-local script_version = "V0.28"
+local script_version = "V0.3"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -4549,6 +4549,9 @@ Remotes.GameEnd.OnClientEvent:Connect(function()
     end)
 end)
 
+local webhookDebounce = false
+local webhookDebounceTime = 2
+
 local Event = game:GetService("ReplicatedStorage").Remote.Client.UI.GameEndedUI
 for _, Connection in getconnections(Event.OnClientEvent) do
     local old; old = hookfunction(Connection.Function, function(...)
@@ -4557,6 +4560,12 @@ for _, Connection in getconnections(Event.OnClientEvent) do
         local data = args[2]
 
         if eventType == "Rewards - Items" and typeof(data) == "table" and State.SendStageCompletedWebhook then
+            if webhookDebounce then return old(...) end
+            webhookDebounce = true
+            task.delay(webhookDebounceTime, function()
+                webhookDebounce = false
+            end)
+
             task.spawn(function()
                 local clearTimeStr = getClearTime()
                 local detectedUnits = {}
