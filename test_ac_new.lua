@@ -1,6 +1,6 @@
-local DEBUG = false
+local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.2"
+local script_version = "V0.21"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -107,6 +107,12 @@ local State = {
     AutoJoinSamuraiHunt      = false,
     AutoJoinInfinitycastle   = false,
     AutoJoinExpedition       = false,
+
+    -- Contracts
+    AutoJoinContracts       = false,
+    SelectedContractType    = nil,
+    IgnoreContractModifiers = {},
+    AutoNextContract        = false,
 }
 
 local Webhook = {
@@ -606,6 +612,79 @@ end
 -- ============================================================
 -- AUTO JOIN MODULE
 -- ============================================================
+local function getAvailableGates()
+    local gates = {}
+    local gatesFolder = Services.Workspace:FindFirstChild("_GATES")
+    if not gatesFolder then return gates end
+    local gatesData = gatesFolder:FindFirstChild("gates")
+    if not gatesData then return gates end
+    for _, folder in ipairs(gatesData:GetChildren()) do
+        local gateType      = folder:FindFirstChild("GateType")
+        local challenge     = folder:FindFirstChild("current_challenge")
+        local uuid          = folder:FindFirstChild("current_challenge_uuid")
+        local levelId       = folder:FindFirstChild("current_level_id")
+        if gateType then
+            table.insert(gates, {
+                folderName = folder.Name,
+                gateType   = gateType.Value,
+                challenge  = challenge and challenge.Value or "",
+                levelId    = levelId and levelId.Value or "",
+            })
+        end
+    end
+    return gates
+end
+
+local function findBestGate()
+    if not State.SelectedContractType then return nil end
+            local modifierKeyMap = {
+            ["High Cost"]            = "double_cost",
+            ["Short Range"]          = "short_range",
+            ["Fast Enemies"]         = "fast_enemies",
+            ["Regen Enemies"]        = "regen_enemies",
+            ["Tank Enemies"]         = "tank_enemies",
+            ["Shield Enemies"]       = "shield_enemies",
+            ["Triple Cost"]          = "triple_cost",
+            ["Hyper-Regen Enemies"]  = "hyper_regen_enemies",
+            ["Steel-Plated Enemies"] = "hyper_shield_enemies",
+            ["Godspeed Enemies"]     = "godspeed_enemies",
+            ["Flying Enemies"]       = "flying_enemies",
+            ["Mini-Range"]           = "mini_range",
+        }
+    local gates = getAvailableGates()
+    for _, gate in ipairs(gates) do
+        -- Check gate type matches selection
+        if gate.gateType ~= State.SelectedContractType then continue end
+        -- Check modifier is not in ignore list
+        local ignored = false
+        if gate.challenge ~= "" and #State.IgnoreContractModifiers > 0 then
+            for _, ignoredMod in ipairs(State.IgnoreContractModifiers) do
+                local key = modifierKeyMap[ignoredMod] or ignoredMod:lower():gsub(" ", "_")
+                if gate.challenge:lower() == key:lower() then
+                    ignored = true
+                    break
+                end
+            end
+        end
+        if not ignored then return gate end
+    end
+    return nil
+end
+
+local function joinGate(gate)
+    local lobbyId = "_GATE" .. gate.folderName
+    local ok = pcall(function()
+        Services.ReplicatedStorage
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_join_lobby")
+            :InvokeServer(lobbyId)
+    end)
+    if ok then
+        Util.notify("Auto Join", "Joining " .. gate.gateType)
+    end
+    return ok
+end
 local AutoJoin = {}
 
 local AutoJoinState = {
@@ -2654,157 +2733,71 @@ local function initialize()
 -- ══════════════════════════════════════════════
     -- TAB: AUTO JOIN
     -- ══════════════════════════════════════════════
-    --[[local AutoJoinTab = Window:CreateTab("Auto Join", "log-in")
+    local AutoJoinTab = Window:CreateTab("Auto Join", "log-in")
 
-    AutoJoinTab:CreateSection("Stage Auto Join")
+    AutoJoinTab:CreateSection("Contract Joiner")
 
-    AutoJoinTab:CreateDropdown({
-        Name            = "Stage Type",
-        Options         = { "Story", "Legend", "Raid" },
-        CurrentOption   = { "Story" },
-        MultipleOptions = false,
-        Flag            = "AutoJoinStageType",
-        Callback        = function(val)
-            State.SelectedStageType = type(val) == "table" and val[1] or val
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Contracts",
+        CurrentValue = false,
+        Flag         = "AutoJoinContracts",
+        Callback     = function(Value)
+            State.AutoJoinContracts = Value
         end,
     })
 
-    AutoJoinTab:CreateInput({
-        Name                     = "World Name",
-        CurrentValue             = "",
-        PlaceholderText          = "e.g. Marineford",
-        RemoveTextAfterFocusLost = false,
-        Flag                     = "AutoJoinWorld",
-        Callback                 = function(text) State.SelectedWorld = text end,
-    })
-
-    AutoJoinTab:CreateInput({
-        Name                     = "Stage Name",
-        CurrentValue             = "",
-        PlaceholderText          = "e.g. Stage 5",
-        RemoveTextAfterFocusLost = false,
-        Flag                     = "AutoJoinStage",
-        Callback                 = function(text) State.SelectedStage = text end,
-    })
-
     AutoJoinTab:CreateDropdown({
-        Name            = "Difficulty",
-        Options         = { "Normal", "Hard", "Nightmare" },
-        CurrentOption   = { "Normal" },
-        MultipleOptions = false,
-        Flag            = "AutoJoinDifficulty",
-        Callback        = function(val)
-            State.SelectedDifficulty = type(val) == "table" and val[1] or val
-        end,
-    })
-
-    AutoJoinTab:CreateToggle({
-        Name         = "Use Matchmaking",
-        CurrentValue = false,
-        Flag         = "AutoJoinMatchmaking",
-        Info         = "Join via matchmaking instead of creating a solo lobby.",
-        Callback     = function(Value) State.UseMatchmaking = Value end,
-    })
-
-    AutoJoinTab:CreateToggle({
-        Name         = "Auto Join Stage",
-        CurrentValue = false,
-        Flag         = "AutoJoinEnabled",
-        Callback     = function(Value) State.AutoJoinEnabled = Value end,
-    })
-
-    AutoJoinTab:CreateDivider()
-    AutoJoinTab:CreateSection("Challenge")
-
-    AutoJoinTab:CreateToggle({
-        Name         = "Auto Join Daily Challenge",
-        CurrentValue = false,
-        Flag         = "AutoJoinDailyChallenge",
-        Callback     = function(Value) State.AutoJoinDailyChallenge = Value end,
-    })
-
-    AutoJoinTab:CreateToggle({
-        Name         = "Auto Join Challenge",
-        CurrentValue = false,
-        Flag         = "AutoJoinChallenge",
-        Callback     = function(Value) State.AutoJoinChallenge = Value end,
-    })
-
-    AutoJoinTab:CreateDivider()
-    AutoJoinTab:CreateSection("Portal")
-
-    local portalDropdown = AutoJoinTab:CreateDropdown({
-        Name            = "Select Portal",
-        Options         = {},
+        Name            = "Select Contract(s)",
+        Options         = {
+            "Rookie Contract",
+            "Standard Contract",
+            "Elite Contract",
+            "Legendary Contract",
+            "Mythic Contract",
+            "Godlike Contract",
+        },
         CurrentOption   = {},
-        MultipleOptions = false,
-        Flag            = "AutoJoinPortal",
-        Callback        = function(val)
-            local selected = type(val) == "table" and val[1] or val
-            if selected == "" or selected == "None" then
-                State.SelectedPortalId = nil
-                return
-            end
-            -- find portal id from label
-            local portals = AutoJoin.getOwnedPortals()
-            for _, p in ipairs(portals) do
-                local label = string.format("%s (Depth %d)", p.item, p.depth)
-                if label == selected then
-                    State.SelectedPortalId = p.id
-                    break
-                end
-            end
+        MultipleOptions = true,
+        Flag            = "SelectedContract",
+        Callback        = function(Option)
+            State.SelectedContractType = type(Option) == "table" and Option[1] or Option
         end,
-    })
-
-    AutoJoinTab:CreateButton({
-        Name     = "Refresh Portals",
-        Callback = function()
-            local portals = AutoJoin.getOwnedPortals()
-            local options = { "None" }
-            for _, p in ipairs(portals) do
-                table.insert(options, string.format("%s (Depth %d)", p.item, p.depth))
-            end
-            portalDropdown:Refresh(options, { "None" })
-            State.SelectedPortalId = nil
-            Util.notify("Portals", string.format("Found %d portal(s)", #portals))
-        end,
-    })
-
-    AutoJoinTab:CreateDivider()
-    AutoJoinTab:CreateSection("Events")
-
-    AutoJoinTab:CreateToggle({
-        Name         = "Auto Join Boss Rush",
-        CurrentValue = false,
-        Flag         = "AutoJoinBossRush",
-        Callback     = function(Value) State.AutoJoinBossRush = Value end,
     })
 
     AutoJoinTab:CreateDropdown({
-        Name            = "Boss Rush Lobby",
-        Options         = { "BossRush1", "BossRush2", "Chainsaw", "Aizen" },
-        CurrentOption   = { "BossRush1" },
-        MultipleOptions = false,
-        Flag            = "BossRushLobbyId",
-        Callback        = function(val)
-            State.BossRushLobbyId = type(val) == "table" and val[1] or val
+        Name            = "Ignore Contract Modifiers",
+        Options         = {
+            "High Cost",
+            "Short Range",
+            "Fast Enemies",
+            "Regen Enemies",
+            "Tank Enemies",
+            "Shield Enemies",
+            "Triple Cost",
+            "Hyper-Regen Enemies",
+            "Steel-Plated Enemies",
+            "Godspeed Enemies",
+            "Flying Enemies",
+            "Mini-Range",
+        },
+        CurrentOption   = {},
+        MultipleOptions = true,
+        Flag            = "IgnoreContractModifiers",
+        Info            = "Skip contracts that have any of these active modifiers.",
+        Callback        = function(Options)
+            State.IgnoreContractModifiers = Options or {}
         end,
     })
 
     AutoJoinTab:CreateToggle({
-        Name         = "Auto Join Samurai Hunt",
+        Name         = "Auto Next Contract",
         CurrentValue = false,
-        Flag         = "AutoJoinSamuraiHunt",
-        Callback     = function(Value) State.AutoJoinSamuraiHunt = Value end,
+        Flag         = "AutoNextContract",
+        Info         = "Automatically vote to play the next contract after finishing.",
+        Callback     = function(Value)
+            State.AutoNextContract = Value
+        end,
     })
-
-    AutoJoinTab:CreateToggle({
-        Name         = "Auto Join Infinity Castle",
-        CurrentValue = false,
-        Flag         = "AutoJoinInfinitycastle",
-        Callback     = function(Value) State.AutoJoinInfinitycastle = Value end,
-    })--]]
 
     -- ══════════════════════════════════════════════
     -- TAB: AUTO DUNGEON
@@ -3820,6 +3813,20 @@ end)
                 end
 
                 GameTracking.endGame()
+                if State.AutoNextContract then
+                    task.spawn(function()
+                        task.wait(1)
+                        local gate = findBestGate()
+                        if not gate then return end
+                        pcall(function()
+                            Services.ReplicatedStorage
+                                :WaitForChild("endpoints")
+                                :WaitForChild("client_to_server")
+                                :WaitForChild("set_game_finished_vote")
+                                :InvokeServer("play_gate_next", { GateUuid = tonumber(gate.folderName) })
+                        end)
+                    end)
+                end
                 Macro.hasPlayedThisGame = false
 
                 State.TotalGamesPlayed += 1
@@ -4051,7 +4058,20 @@ end)
             end)
         end
     end
-
+        task.spawn(function()
+        while true do
+            task.wait(3)
+            pcall(function()
+                if not State.AutoJoinContracts then return end
+                if not Util.isInLobby() then return end
+                if GameTracking.gameInProgress then return end
+                local gate = findBestGate()
+                if gate then
+                    joinGate(gate)
+                end
+            end)
+        end
+    end)
     -- ── FINALIZE ──────────────────────────────────
     Util.ensureFolders()
     Macro.loadAll()
@@ -4060,7 +4080,6 @@ end)
     setupRemoteConnections()
     if not Util.isInLobby() then monitorWaves() end
     _G.Rayfield:LoadConfiguration()
-    Util.notify("LixHub", "Loaded successfully!")
 end
 
 initialize()
