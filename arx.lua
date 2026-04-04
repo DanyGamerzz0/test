@@ -1,4 +1,4 @@
-local script_version = "V0.3"
+local script_version = "V0.2"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
