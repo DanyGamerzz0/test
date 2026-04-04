@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.62
+-- V0.63
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1006,6 +1006,8 @@ local State = {
     AutoAbilityOnBoss   = false,
     AutoJoinEvent = false,
     AutoClaimQuests = false,
+    AutoSummon = false,
+    AutoSummonBanner = false,
 }
 
 local function sendWebhookRaw(body)
@@ -1136,6 +1138,39 @@ task.spawn(function()
                     print("[LixHub] Claimed: ", questId)
                 end
                 end
+            end
+        end
+    end
+end)
+
+LobbyTab:CreateToggle({
+    Name         = "Auto Summon",
+    CurrentValue = false,
+    Flag         = "AutoSummon",
+    Callback     = function(v)
+        State.AutoSummon = v
+    end,
+})
+
+LobbyTab:CreateDropdown({
+    Name            = "Summon Banner",
+    Options         = { "Animania", "Control" },
+    CurrentOption   = {},
+    MultipleOptions = false,
+    Flag            = "AutoSummonBanner",
+    Callback        = function(selected)
+        State.AutoSummonBanner = type(selected) == "table" and selected[1] or selected
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if State.AutoSummon and IS_LOBBY then
+            if State.AutoSummonBanner == "Animania" then
+                game:GetService("ReplicatedStorage").summon.summon_RELIABLE:FireServer(buffer.fromstring("\x00\x01\n\x01\x06\x00NORMAL"), {})
+            elseif State.AutoSummonBanner == "Control" then
+                game:GetService("ReplicatedStorage").summon.summon_RELIABLE:FireServer(buffer.fromstring("\x00\x02\n\x01\a\x00CRIMSON"), {})
             end
         end
     end
