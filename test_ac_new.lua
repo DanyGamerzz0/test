@@ -1,4 +1,4 @@
-local DEBUG = true
+local DEBUG = false
 local NOTIFICATION_ENABLED = true
 local script_version = "V0.21"
 -- ============================================================
@@ -110,7 +110,7 @@ local State = {
 
     -- Contracts
     AutoJoinContracts       = false,
-    SelectedContractType    = nil,
+    SelectedContractType    = {},
     IgnoreContractModifiers = {},
     AutoNextContract        = false,
 }
@@ -636,25 +636,35 @@ local function getAvailableGates()
 end
 
 local function findBestGate()
-    if not State.SelectedContractType then return nil end
-            local modifierKeyMap = {
-            ["High Cost"]            = "double_cost",
-            ["Short Range"]          = "short_range",
-            ["Fast Enemies"]         = "fast_enemies",
-            ["Regen Enemies"]        = "regen_enemies",
-            ["Tank Enemies"]         = "tank_enemies",
-            ["Shield Enemies"]       = "shield_enemies",
-            ["Triple Cost"]          = "triple_cost",
-            ["Hyper-Regen Enemies"]  = "hyper_regen_enemies",
-            ["Steel-Plated Enemies"] = "hyper_shield_enemies",
-            ["Godspeed Enemies"]     = "godspeed_enemies",
-            ["Flying Enemies"]       = "flying_enemies",
-            ["Mini-Range"]           = "mini_range",
-        }
+    if not State.SelectedContractTypes or #State.SelectedContractTypes == 0 then return nil end
+
+    local modifierKeyMap = {
+        ["High Cost"]            = "double_cost",
+        ["Short Range"]          = "short_range",
+        ["Fast Enemies"]         = "fast_enemies",
+        ["Regen Enemies"]        = "regen_enemies",
+        ["Tank Enemies"]         = "tank_enemies",
+        ["Shield Enemies"]       = "shield_enemies",
+        ["Triple Cost"]          = "triple_cost",
+        ["Hyper-Regen Enemies"]  = "hyper_regen_enemies",
+        ["Steel-Plated Enemies"] = "hyper_shield_enemies",
+        ["Godspeed Enemies"]     = "godspeed_enemies",
+        ["Flying Enemies"]       = "flying_enemies",
+        ["Mini-Range"]           = "mini_range",
+    }
+
     local gates = getAvailableGates()
     for _, gate in ipairs(gates) do
-        -- Check gate type matches selection
-        if gate.gateType ~= State.SelectedContractType then continue end
+        -- Check gate type is one of the selected types
+        local typeMatch = false
+        for _, selectedType in ipairs(State.SelectedContractTypes) do
+            if gate.gateType == selectedType then
+                typeMatch = true
+                break
+            end
+        end
+        if not typeMatch then continue end
+
         -- Check modifier is not in ignore list
         local ignored = false
         if gate.challenge ~= "" and #State.IgnoreContractModifiers > 0 then
@@ -2760,7 +2770,7 @@ local function initialize()
         MultipleOptions = true,
         Flag            = "SelectedContract",
         Callback        = function(Option)
-            State.SelectedContractType = type(Option) == "table" and Option[1] or Option
+            State.SelectedContractTypes = type(Option) == "table" and Option or { Option }
         end,
     })
 
