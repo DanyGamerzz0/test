@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.61
+-- V0.62
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1128,8 +1128,8 @@ LobbyTab:CreateToggle({
 task.spawn(function()
     while true do
         task.wait(2)
-        if State.AutoClaimQuests then
-            for questId, questData in clientStore:getState(selectPlayerCurrentQuests(Players.LocalPlayer.UserId)) or {} do
+        if State.AutoClaimQuests and IS_LOBBY then
+            for questId, questData in clientStore:getState(selectPlayerCurrentQuests(tostring(Players.LocalPlayer.UserId))) or {} do
             local config = questConfig.get(questId)
             if config and questData.progress >= config.target then
                 if questsNet.claimQuest.call(questId) then
