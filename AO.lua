@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.6
+-- V0.61
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -47,6 +47,13 @@ if not IS_LOBBY then
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
     clientStore                          = require(gameClient.store.clientStore)
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
+end
+
+if IS_LOBBY then
+    clientStore = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("store"):WaitForChild("clientStore"))
+    questsNet = require(ReplicatedStorage:WaitForChild("lobbyClient"):WaitForChild("net"):WaitForChild("quests"))
+    questConfig = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("config"):WaitForChild("quests"))
+    selectPlayerCurrentQuests = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("store"):WaitForChild("slices"):WaitForChild("data"):WaitForChild("selectors"):WaitForChild("quest"):WaitForChild("selectPlayerCurrentQuests"))
 end
 
 -- ============================================================
@@ -998,6 +1005,7 @@ local State = {
     AutoAbilityOnWave   = 1,
     AutoAbilityOnBoss   = false,
     AutoJoinEvent = false,
+    AutoClaimQuests = false,
 }
 
 local function sendWebhookRaw(body)
@@ -1103,6 +1111,35 @@ local Window = Rayfield:CreateWindow({
         Key            = {"0xLIXHUB"},
     },
 })
+-- ============================================================
+-- LOBBY TAB
+-- ============================================================
+local LobbyTab = Window:CreateTab("Lobby", "tv")
+
+LobbyTab:CreateToggle({
+    Name         = "Auto Claim Quests",
+    CurrentValue = false,
+    Flag         = "AutoClaimQuests",
+    Callback     = function(v)
+        State.AutoClaimQuests = v
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if State.AutoClaimQuests then
+            for questId, questData in clientStore:getState(selectPlayerCurrentQuests(Players.LocalPlayer.UserId)) or {} do
+            local config = questConfig.get(questId)
+            if config and questData.progress >= config.target then
+                if questsNet.claimQuest.call(questId) then
+                    print("[LixHub] Claimed: ", questId)
+                end
+                end
+            end
+        end
+    end
+end)
 
 -- ============================================================
 -- AUTO JOIN TAB
