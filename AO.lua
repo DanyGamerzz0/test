@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.69
+-- V0.7
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2770,6 +2770,16 @@ local function getItemName(itemId)
     return cleaned
 end
 
+local function isUnitDrop(itemId)
+    local heroFolder = ReplicatedStorage.shared.config.items.data.hero
+    for _, obj in ipairs(heroFolder:GetDescendants()) do
+        if obj:IsA("ModuleScript") and obj.Name == itemId then
+            return true
+        end
+    end
+    return false
+end
+
 local function setupMatchEndWebhook()
     if IS_LOBBY then return end
 
@@ -2805,6 +2815,19 @@ local function setupMatchEndWebhook()
             table.insert(rewardLines, string.format("+ %s x%d", getItemName(r.id), r.amount))
         end
         local rewardStr = #rewardLines > 0 and table.concat(rewardLines, "\n") or "None"
+
+        local hasUnitDrop = false
+        for _, r in ipairs(rewardsData or {}) do
+            if r.id and isUnitDrop(r.id) then
+                hasUnitDrop = true
+                break
+            end
+        end
+
+        local embedColor  = hasUnitDrop and 0xFEE75C or (won and 0x57F287 or 0xED4245)
+        local pingContent = (hasUnitDrop and Webhook.discordUserId and Webhook.discordUserId ~= "")
+            and ("<@" .. Webhook.discordUserId .. ">")
+            or ""
 
         local unitsStr = ""
         local heroStateData = clientStore:getState().data.heroes[tostring(Players.LocalPlayer.UserId)]
@@ -2850,10 +2873,10 @@ local function setupMatchEndWebhook()
                 Headers = { ["Content-Type"] = "application/json" },
                 Body    = HttpService:JSONEncode({
                     username = "LixHub",
-                    content  = "",
+                    content  = pingContent,
                     embeds   = {{
                         title  = title,
-                        color  = won and 0x57F287 or 0xED4245,
+                        color  = embedColor,
                         fields = {
                             { name = "Player",  value = "||" .. Players.LocalPlayer.Name .. "||", inline = true },
                             { name = "Won in",  value = timeStr,  inline = true },
@@ -3205,6 +3228,7 @@ else
 end
 
 Rayfield:LoadConfiguration()
+Rayfield:SetVisibility(false)
 
 Rayfield:TopNotify({
     Title     = "UI is hidden",
