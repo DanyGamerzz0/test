@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.66
+-- V0.67
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience, coreData, raidData
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -48,8 +48,6 @@ if not IS_LOBBY then
     clientStore                          = require(gameClient.store.clientStore)
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
     getLevelFromExperience = require(ReplicatedStorage.shared.config.gameData.functions.getLevelFromExperience)
-    coreData = clientStore:getState().data.core[tostring(Players.LocalPlayer.UserId)] or {}
-    raidData = clientStore:getState().data.raids[tostring(Players.LocalPlayer.UserId)] or {}
 end
 
 if IS_LOBBY then
@@ -2816,6 +2814,9 @@ local function setupMatchEndWebhook()
             local level = getLevelFromExperience((raw and raw.totalExperience or 0), "hero")
             unitsStr = unitsStr .. "[" .. tostring(level) .. "] " .. h.name .. "\n"
         end
+
+        local coreData = clientStore:getState().data.core[tostring(Players.LocalPlayer.UserId)] or {}
+        local raidData = clientStore:getState().data.raids[tostring(Players.LocalPlayer.UserId)] or {}
 
         local ICONS = {
         gold             = "",
