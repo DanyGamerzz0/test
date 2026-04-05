@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.63
+-- V0.64
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -47,6 +47,7 @@ if not IS_LOBBY then
     selectPlayerYen                      = require(ReplicatedStorage.gameShared.store.slices.currency.selectors.selectPlayerYen)()
     clientStore                          = require(gameClient.store.clientStore)
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
+    getLevelFromExperience = require(ReplicatedStorage.shared.config.gameData.functions.getLevelFromExperience)
 end
 
 if IS_LOBBY then
@@ -2805,13 +2806,14 @@ local function setupMatchEndWebhook()
         end
         local rewardStr = #rewardLines > 0 and table.concat(rewardLines, "\n") or "None"
 
-        local expLines = {}
-        for i, h in ipairs(heroesExp or {}) do
-            local hero = getHeroByUuid(h.uuid)
-            local name = hero and hero.name or h.uuid
-            table.insert(expLines, string.format("%d - %s +%d exp", i, name, h.exp))
+        local unitsStr = ""
+        local heroStateData = clientStore:getState().data.heroes[tostring(Players.LocalPlayer.UserId)]
+
+        for _, h in ipairs(getEquippedHeroes()) do
+            local raw = heroStateData and heroStateData[h.uuid]
+            local level = getLevelFromExperience((raw and raw.totalExperience or 0), "hero")
+            unitsStr = unitsStr .. "[" .. tostring(level) .. "] " .. h.name .. "\n"
         end
-        local expStr = #expLines > 0 and table.concat(expLines, "\n") or "None"
 
         local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
         if not requestFunc then return end
@@ -2831,7 +2833,7 @@ local function setupMatchEndWebhook()
                             { name = "Player",  value = "||" .. Players.LocalPlayer.Name .. "||", inline = true },
                             { name = "Won in",  value = timeStr,  inline = true },
                             { name = "Rewards", value = rewardStr, inline = false },
-                            { name = "Hero EXP", value = expStr,  inline = false },
+                            { name = "Units", value = unitsStr ~= "" and unitsStr or "None", inline = false },
                         },
                         footer    = { text = "discord.gg/cYKnXE2Nf8" },
                         timestamp = DateTime.now():ToIsoDate(),
