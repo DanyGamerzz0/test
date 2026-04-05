@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.67
+-- V0.68
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2819,14 +2819,15 @@ local function setupMatchEndWebhook()
         local raidData = clientStore:getState().data.raids[tostring(Players.LocalPlayer.UserId)] or {}
 
         local ICONS = {
-        gold             = "",
-        statLocker       = "",
-        bloodiedChains   = "",
-        crystalShard     = "",
-        token            = "",
-        rerollTraitTicket = "",
-        crystallineShell  = "",
-        grimoires         = "",
+        gold             = "<:Gold:1490166958602190978>",
+        statLocker       = "<:StatLocker:1490166564820095047>",
+        bloodiedChains   = "<:Chains:1490166524915351723>",
+        crystalShard     = "<:Gems:1490166990189494492>",
+        token            = "<:Token:1490166928017330236>",
+        rerollTraitTicket = "<:TraitReroll:1490166618746257582>",
+        crystallineShell  = "<:Shells:1490166825286111372>",
+        grimoires         = "<:Grimoire:1490166893716308019>",
+        systemFragments = "<:SystemFragments:1490166666217394347>",
     }
  local statsStr = ICONS.gold              .. " " .. tostring(coreData.gold or 0)                  .. "\n"
               .. ICONS.statLocker        .. " " .. tostring(coreData.statLocker or 0)             .. "\n"
@@ -2835,7 +2836,8 @@ local function setupMatchEndWebhook()
               .. ICONS.token             .. " " .. tostring(coreData.token or 0)                  .. "\n"
               .. ICONS.rerollTraitTicket .. " " .. tostring(coreData.rerollTraitTicket or 0)      .. "\n"
               .. ICONS.crystallineShell  .. " " .. tostring(raidData.crystallineShell or 0)       .. "\n"
-              .. ICONS.grimoires         .. " " .. tostring(raidData.grimoires or 0)
+              .. ICONS.grimoires         .. " " .. tostring(raidData.grimoires or 0)              .. "\n"
+              .. ICONS.systemFragments   .. " " .. tostring(raidData.systemFragments or 0)
 
         local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
         if not requestFunc then return end
