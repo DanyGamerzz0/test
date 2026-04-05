@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.65
+-- V0.66
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience, coreData
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience, coreData, raidData
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -49,6 +49,7 @@ if not IS_LOBBY then
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
     getLevelFromExperience = require(ReplicatedStorage.shared.config.gameData.functions.getLevelFromExperience)
     coreData = clientStore:getState().data.core[tostring(Players.LocalPlayer.UserId)] or {}
+    raidData = clientStore:getState().data.raids[tostring(Players.LocalPlayer.UserId)] or {}
 end
 
 if IS_LOBBY then
@@ -2821,19 +2822,19 @@ local function setupMatchEndWebhook()
         statLocker       = "",
         bloodiedChains   = "",
         crystalShard     = "",
-        fishmanShards    = "",
         token            = "",
         rerollTraitTicket = "",
-        desertShards     = "",
+        crystallineShell  = "",
+        grimoires         = "",
     }
-        local statsStr = ICONS.gold              .. " " .. tostring(coreData.gold or 0)              .. "\n"
-              .. ICONS.statLocker        .. " " .. tostring(coreData.statLocker or 0)        .. "\n"
-              .. ICONS.bloodiedChains    .. " " .. tostring(coreData.bloodiedChains or 0)    .. "\n"
-              .. ICONS.crystalShard      .. " " .. tostring(coreData.crystalShard or 0)      .. "\n"
-              .. ICONS.fishmanShards     .. " " .. tostring(coreData.fishmanShards or 0)     .. "\n"
-              .. ICONS.token             .. " " .. tostring(coreData.token or 0)             .. "\n"
-              .. ICONS.rerollTraitTicket .. " " .. tostring(coreData.rerollTraitTicket or 0) .. "\n"
-              .. ICONS.desertShards      .. " " .. tostring(coreData.desertShards or 0)
+ local statsStr = ICONS.gold              .. " " .. tostring(coreData.gold or 0)                  .. "\n"
+              .. ICONS.statLocker        .. " " .. tostring(coreData.statLocker or 0)             .. "\n"
+              .. ICONS.bloodiedChains    .. " " .. tostring(coreData.bloodiedChains or 0)         .. "\n"
+              .. ICONS.crystalShard      .. " " .. tostring(coreData.crystalShard or 0)           .. "\n"
+              .. ICONS.token             .. " " .. tostring(coreData.token or 0)                  .. "\n"
+              .. ICONS.rerollTraitTicket .. " " .. tostring(coreData.rerollTraitTicket or 0)      .. "\n"
+              .. ICONS.crystallineShell  .. " " .. tostring(raidData.crystallineShell or 0)       .. "\n"
+              .. ICONS.grimoires         .. " " .. tostring(raidData.grimoires or 0)
 
         local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
         if not requestFunc then return end
