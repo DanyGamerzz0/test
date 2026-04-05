@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.64
+-- V0.65
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience, coreData
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -48,6 +48,7 @@ if not IS_LOBBY then
     clientStore                          = require(gameClient.store.clientStore)
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
     getLevelFromExperience = require(ReplicatedStorage.shared.config.gameData.functions.getLevelFromExperience)
+    coreData = clientStore:getState().data.core[tostring(Players.LocalPlayer.UserId)] or {}
 end
 
 if IS_LOBBY then
@@ -2815,6 +2816,25 @@ local function setupMatchEndWebhook()
             unitsStr = unitsStr .. "[" .. tostring(level) .. "] " .. h.name .. "\n"
         end
 
+        local ICONS = {
+        gold             = "",
+        statLocker       = "",
+        bloodiedChains   = "",
+        crystalShard     = "",
+        fishmanShards    = "",
+        token            = "",
+        rerollTraitTicket = "",
+        desertShards     = "",
+    }
+        local statsStr = ICONS.gold              .. " " .. tostring(coreData.gold or 0)              .. "\n"
+              .. ICONS.statLocker        .. " " .. tostring(coreData.statLocker or 0)        .. "\n"
+              .. ICONS.bloodiedChains    .. " " .. tostring(coreData.bloodiedChains or 0)    .. "\n"
+              .. ICONS.crystalShard      .. " " .. tostring(coreData.crystalShard or 0)      .. "\n"
+              .. ICONS.fishmanShards     .. " " .. tostring(coreData.fishmanShards or 0)     .. "\n"
+              .. ICONS.token             .. " " .. tostring(coreData.token or 0)             .. "\n"
+              .. ICONS.rerollTraitTicket .. " " .. tostring(coreData.rerollTraitTicket or 0) .. "\n"
+              .. ICONS.desertShards      .. " " .. tostring(coreData.desertShards or 0)
+
         local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
         if not requestFunc then return end
 
@@ -2832,6 +2852,7 @@ local function setupMatchEndWebhook()
                         fields = {
                             { name = "Player",  value = "||" .. Players.LocalPlayer.Name .. "||", inline = true },
                             { name = "Won in",  value = timeStr,  inline = true },
+                            { name = "Player Stats", value = statsStr, inline = false },
                             { name = "Rewards", value = rewardStr, inline = false },
                             { name = "Units", value = unitsStr ~= "" and unitsStr or "None", inline = false },
                         },
