@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.68
+-- V0.69
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2812,7 +2812,8 @@ local function setupMatchEndWebhook()
         for _, h in ipairs(getEquippedHeroes()) do
             local raw = heroStateData and heroStateData[h.uuid]
             local level = getLevelFromExperience((raw and raw.totalExperience or 0), "hero")
-            unitsStr = unitsStr .. "[" .. tostring(level) .. "] " .. h.name .. "\n"
+            local takedowns = raw and raw.takeDowns or 0
+            unitsStr = unitsStr .. "[Lvl. " .. tostring(level) .. "] [" .. tostring(takedowns) .. " Takedowns] " .. h.name .. "\n"
         end
 
         local coreData = clientStore:getState().data.core[tostring(Players.LocalPlayer.UserId)] or {}
