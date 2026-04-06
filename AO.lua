@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.91
+-- V0.92
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2359,21 +2359,17 @@ local function setupAutoKneel()
         warn("[LixHub] doubleDungeon net not found: " .. tostring(ddNet))
         return
     end
-
     ddNet.attackCountdown.on(function()
         if not State.AutoKneel then return end
         task.spawn(function()
-            pushNotify("[LixHub] Kneeling...")
+            task.wait(2)
+            pushNotify({ Title = "Auto Kneel", Content = string.format("Kneeling..."), Duration = 1, Image = "zap" })
             ddRemote:FireServer(kneelBuf, {})
-            task.wait(2) -- wait for laser to pass
-            pushNotify("[LixHub] Unqueeling...")
+            task.wait(1) -- wait for laser to pass
+            pushNotify({ Title = "Auto Kneel", Content = string.format("Unkneeling..."), Duration = 1, Image = "zap" })
             ddRemote:FireServer(unkneelBuf, {})
-            task.wait(1) -- cooldown before next kneel is allowed
-            pushNotify("[LixHub] Ready for next kneel")
         end)
     end)
-
-    print("[LixHub] Auto Kneel active")
 end
 
 -- ============================================================
