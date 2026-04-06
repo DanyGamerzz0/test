@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.82
+-- V0.83
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -23,7 +23,7 @@ local RunService        = game:GetService("RunService")
 
 local IS_LOBBY = (workspace:GetAttribute("placeId") == "lobby")
 
-local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience
+local towers, sync, playerNet, calculateClientUpgradeCostMultiplier, getBuffs, getPlacementCost, getEffectivePlacementTrait, FEECS, selectCards, challengeBuffUtils, challengesCfg, selectChallenges, selectChallengeFreq, questsNet, questConfig, selectPlayerCurrentQuests, getLevelFromExperience, reflexRemote, excClient
 local selectPlayerYen, clientStore, selectEquipped
 
 if not IS_LOBBY then
@@ -48,6 +48,8 @@ if not IS_LOBBY then
     clientStore                          = require(gameClient.store.clientStore)
     selectEquipped                       = require(ReplicatedStorage.shared.store.slices.data.selectors.heroes.selectPlayerEquippedHeroes)()
     getLevelFromExperience = require(ReplicatedStorage.shared.config.gameData.functions.getLevelFromExperience)
+    reflexRemote = ReplicatedStorage:WaitForChild("reflex"):WaitForChild("reflex_RELIABLE")
+    excClient = require(ReplicatedStorage.gameClient.net.excavationNet)
 end
 
 if IS_LOBBY then
@@ -149,6 +151,7 @@ local worldMacroMappings  = {}
 local worldMacroDropdowns = {}
 local WORLD_MAPPING_FILE = "LixHub/AO/worldMacroMappings_" .. Players.LocalPlayer.Name .. ".json"
 local CARD_PRIORITIES_FILE = "LixHub/AO/cardPriorities_" .. Players.LocalPlayer.Name .. ".json"
+local DRILL_POSITION_FILE = "LixHub/AO/drillPosition_" .. Players.LocalPlayer.Name .. ".json"
 
 local function saveWorldMappings()
     pcall(writefile, WORLD_MAPPING_FILE, HttpService:JSONEncode(worldMacroMappings))
@@ -1042,6 +1045,26 @@ local function loadCardPriorities()
     if ok and type(result) == "table" then
         State.CardPriorities = result
         print("[LixHub] Card priorities loaded: " .. tostring(#result) .. " entries")
+    end
+end
+
+local function saveDrillPosition()
+    if not State.DrillPosition then return end
+    pcall(writefile, DRILL_POSITION_FILE, HttpService:JSONEncode({
+        X = State.DrillPosition.X,
+        Y = State.DrillPosition.Y,
+        Z = State.DrillPosition.Z,
+    }))
+end
+
+local function loadDrillPosition()
+    if not isfile(DRILL_POSITION_FILE) then return end
+    local ok, result = pcall(function()
+        return HttpService:JSONDecode(readfile(DRILL_POSITION_FILE))
+    end)
+    if ok and type(result) == "table" and result.X and result.Y and result.Z then
+        State.DrillPosition = Vector3.new(result.X, result.Y, result.Z)
+        print(string.format("[LixHub] Drill position loaded: (%.1f, %.1f, %.1f)", result.X, result.Y, result.Z))
     end
 end
 
@@ -2158,10 +2181,10 @@ task.spawn(function()
 
                 local voteValue
                 if waveNumber >= State.AutoVoteExtractWave then
-                    voteValue = 2 -- extract (accept button)
+                    voteValue = 1 -- extract (accept button)
                     pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
                 else
-                    voteValue = 1 -- continue (decline button)
+                    voteValue = 2 -- continue (decline button)
                     print(string.format("[LixHub] Voted CONTINUE on wave %d (target=%d)", waveNumber, State.AutoVoteExtractWave))
                 end
 
@@ -2172,8 +2195,6 @@ task.spawn(function()
     end
 end)
 
-local reflexRemote = ReplicatedStorage:WaitForChild("reflex"):WaitForChild("reflex_RELIABLE")
-local excClient = require(ReplicatedStorage.gameClient.net.excavationNet)
 reflexRemote.OnClientEvent:Connect(function(buf, refs)
     if not State.AutoPlaceDrill then return end
     if not State.DrillPosition then
@@ -2262,6 +2283,7 @@ GameTab:CreateButton({
         local hrp  = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
             State.DrillPosition = hrp.Position
+            saveDrillPosition()
             pushNotify({ Title = "Drill Position Set", Content = string.format("X: %.1f Y: %.1f Z: %.1f", hrp.Position.X, hrp.Position.Y, hrp.Position.Z), Duration = 4, Image = "check-circle" })
         else
             pushNotify({ Title = "Error", Content = "Could not find HumanoidRootPart", Duration = 3, Image = "x-circle" })
@@ -3413,6 +3435,7 @@ end)
 ensureFolders()
 loadWorldMappings()
 loadCardPriorities()
+loadDrillPosition()
 MacroSystem.loadAll()
 buildMacroMapsTab()
 refreshDropdown()
