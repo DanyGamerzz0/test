@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.84
+-- V0.85
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2347,26 +2347,56 @@ GameTab:CreateToggle({
 local function setupAutoKneel()
     if IS_LOBBY then return end
     local ok, ddNet = pcall(function()
-        return require(ReplicatedStorage.gameClient.net.doubleDungeonNet)
+        return require(ReplicatedStorage
+            :WaitForChild("doubleDungeon")
+            :WaitForChild("doubleDungeon"))
     end)
     if not ok or not ddNet then
-        warn("[LixHub] doubleDungeon net not found")
+        warn("[LixHub] doubleDungeon net not found: " .. tostring(ddNet))
         return
     end
 
-    ddNet.attackCountdown.on(function()
-        if not State.AutoKneel then return end
+    print("[LixHub] doubleDungeon net loaded successfully")
+
+    local isKneeling = false
+
+    ddNet.stunnedFXs.on(function()
+        print("[LixHub] stunnedFXs fired | isKneeling=" .. tostring(isKneeling))
+        if not isKneeling then
+            print("[LixHub] stunnedFXs: not kneeling, skipping unkneel")
+            return
+        end
         task.spawn(function()
+            isKneeling = false
+            print("[LixHub] Sending unkneel packet...")
             local success, errMsg = ddNet.kneel.call()
-            if success then
-                ddNet.kneel.call()
-            else
+            print("[LixHub] Unkneel response | success=" .. tostring(success) .. " err=" .. tostring(errMsg))
+        end)
+    end)
+
+    ddNet.attackCountdown.on(function()
+        print("[LixHub] attackCountdown fired | AutoKneel=" .. tostring(State.AutoKneel) .. " isKneeling=" .. tostring(isKneeling))
+        if not State.AutoKneel then
+            print("[LixHub] AutoKneel is off, skipping")
+            return
+        end
+        if isKneeling then
+            print("[LixHub] Already kneeling, skipping")
+            return
+        end
+        task.spawn(function()
+            isKneeling = true
+            print("[LixHub] Sending kneel packet...")
+            local success, errMsg = ddNet.kneel.call()
+            print("[LixHub] Kneel response | success=" .. tostring(success) .. " err=" .. tostring(errMsg))
+            if not success then
+                isKneeling = false
                 warn("[LixHub] Kneel failed: " .. tostring(errMsg))
             end
         end)
     end)
 
-    print("[LixHub] Auto Kneel active")
+    print("[LixHub] Auto Kneel active — listeners attached")
 end
 
 -- ============================================================
