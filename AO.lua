@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.76
+-- V0.77
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -234,7 +234,7 @@ end
 function MacroSystem.getStats(name)
     local actions = MacroSystem.library[name]
     if not actions or #actions == 0 then return nil end
-    local s = { total = #actions, placements = 0, upgrades = 0, sells = 0, autoUpgrades = 0, priorityChanges = 0, abilities = 0, duration = 0, excPlacements = 0, excResources  = 0 }
+    local s = { total = #actions, placements = 0, upgrades = 0, sells = 0, autoUpgrades = 0, priorityChanges = 0, abilities = 0, duration = 0 }
     for _, a in ipairs(actions) do
         if     a.action == "PLACE"           then s.placements      = s.placements      + 1
         elseif a.action == "UPGRADE"         then s.upgrades        = s.upgrades        + 1
@@ -242,8 +242,6 @@ function MacroSystem.getStats(name)
         elseif a.action == "AUTO_UPGRADE"    then s.autoUpgrades    = s.autoUpgrades    + 1
         elseif a.action == "CHANGE_PRIORITY" then s.priorityChanges = s.priorityChanges + 1
         elseif a.action == "ABILITY" then s.abilities = s.abilities + 1
-        elseif a.action == "EXC_PLACE"    then s.excPlacements = s.excPlacements + 1
-        elseif a.action == "EXC_RESOURCE" then s.excResources  = s.excResources  + 1
         end
         local t = tonumber(a.time) or 0
         if t > s.duration then s.duration = t end
@@ -417,34 +415,6 @@ local function setupHooks()
         })
         print(string.format("[LixHub] Recorded ABILITY for [%s] index=%d", label, ultimateIndex or 1))
     end
-    -- ─────────────────────────────────────────────────────────────────────────
-    -- EXCAVATION HOOKS
-local ok_exc, excClient = pcall(require, ReplicatedStorage.gameClient.net.excavationNet)
-if ok_exc and excClient then
-
-    local oldExcPlace = excClient.place.fire
-    excClient.place.fire = function(position)
-        oldExcPlace(position)
-        if not MacroSystem.isRecording then return end
-        recordAction("EXC_PLACE", {
-            position = { position.X, position.Y, position.Z }
-        })
-        print(string.format("[LixHub] Recorded EXC_PLACE at (%.1f, %.1f, %.1f)", position.X, position.Y, position.Z))
-    end
-
-    local oldChooseResource = excClient.chooseResource.call
-    excClient.chooseResource.call = function(resourceEnum)
-        local success, err = oldChooseResource(resourceEnum)
-        if success and MacroSystem.isRecording then
-            recordAction("EXC_RESOURCE", { resource = resourceEnum })
-            print(string.format("[LixHub] Recorded EXC_RESOURCE: %d", resourceEnum))
-        end
-        return success, err
-    end
-
-else
-    warn("[LixHub] Could not hook excavation module: " .. tostring(excClient))
-end
 end
 
 -- ============================================================
@@ -646,7 +616,7 @@ function MacroSystem.playback(name)
     if MacroSystem.isPlaying then return false end
     local actions = MacroSystem.library[name]
     if not actions or #actions == 0 then return false end
- 
+
     MacroSystem.isPlaying   = true
     mappedUids              = {}
     playbackStartTime       = tick()
@@ -654,7 +624,7 @@ function MacroSystem.playback(name)
     playbackLastStatus      = ""
     playbackLastDetail      = ""
     print(string.format("[LixHub] Playback: '%s' (%d actions)", name, #actions))
- 
+
     task.spawn(function()
         local heroes     = getEquippedHeroes()
         local nameToUuid = {}
@@ -663,28 +633,17 @@ function MacroSystem.playback(name)
             nameToUuid[h.name] = h.uuid
             nameToHero[h.name] = h
         end
- 
+
         local labelToLiveTowerID = {}
         _G._LixLiveTowerMap = labelToLiveTowerID
         local labelToLevel       = {}
- 
-        -- NEW: cache the excavation module once for the whole playback
-        local excClient = nil
-        do
-            local ok_exc, result = pcall(require, ReplicatedStorage.gameClient.net.excavationNet)
-            if ok_exc and result then
-                excClient = result
-            else
-                warn("[LixHub] Playback: could not load excavation module: " .. tostring(result))
-            end
-        end
- 
+
         for i, action in ipairs(actions) do
             if not MacroSystem.isPlaying then
                 print("[LixHub] Playback stopped.")
                 break
             end
- 
+
             if not MacroSystem.ignoreTiming and i > 1 then
                 local dt = (tonumber(actions[i].time) or 0) - (tonumber(actions[i-1].time) or 0)
                 if dt > 0 then
@@ -697,9 +656,7 @@ function MacroSystem.playback(name)
                     elseif action.action == "SELL"            then actionWord = "Sell"
                     elseif action.action == "AUTO_UPGRADE"    then actionWord = "Toggle Auto-Upgrade"
                     elseif action.action == "CHANGE_PRIORITY" then actionWord = "Change Priority"
-                    elseif action.action == "ABILITY"         then actionWord = "Ability"
-                    elseif action.action == "EXC_PLACE"       then actionWord = "Place Drill"       -- NEW
-                    elseif action.action == "EXC_RESOURCE"    then actionWord = "Select Resource"   -- NEW
+                    elseif action.action == "ABILITY" then actionWord = "Ability"
                     else                                           actionWord = action.action
                     end
                     while MacroSystem.isPlaying and tick() < deadline do
@@ -713,13 +670,13 @@ function MacroSystem.playback(name)
                     end
                 end
             end
- 
+
             if not MacroSystem.isPlaying then break end
- 
+
             local label       = action.unitName or "?"
             local baseName    = label:match("^(.-)%s*#%d+$") or label
             local nextPreview = buildNextPreview(actions, i, nameToHero, labelToLevel)
- 
+
             if action.action == "PLACE" then
                 repeat
                     local uuid = nameToUuid[baseName]
@@ -766,7 +723,7 @@ function MacroSystem.playback(name)
                         setProgress(i, #actions, "[FAIL] Could not place [" .. baseName .. "] — server rejected the placement", nextPreview)
                     end
                 until true
- 
+
             elseif action.action == "UPGRADE" then
                 repeat
                     local tid = labelToLiveTowerID[label]
@@ -810,7 +767,7 @@ function MacroSystem.playback(name)
                         setProgress(i, #actions, "[FAIL] Upgrade failed for [" .. baseName .. "] — server rejected the request", nextPreview)
                     end
                 until true
- 
+
             elseif action.action == "SELL" then
                 local tid = labelToLiveTowerID[label]
                 if tid then
@@ -825,7 +782,7 @@ function MacroSystem.playback(name)
                 else
                     setProgress(i, #actions, "[ERROR] Cannot sell [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
- 
+
             elseif action.action == "AUTO_UPGRADE" then
                 local tid = labelToLiveTowerID[label]
                 if tid then
@@ -838,7 +795,7 @@ function MacroSystem.playback(name)
                 else
                     setProgress(i, #actions, "[ERROR] Cannot toggle auto-upgrade for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
- 
+
             elseif action.action == "CHANGE_PRIORITY" then
                 local tid = labelToLiveTowerID[label]
                 if tid then
@@ -854,175 +811,136 @@ function MacroSystem.playback(name)
                 else
                     setProgress(i, #actions, "[ERROR] Cannot change priority for [" .. baseName .. "] — tower was not placed or mapping failed", nextPreview)
                 end
- 
             elseif action.action == "ABILITY" then
-                local tid     = labelToLiveTowerID[label]
-                local abilIdx = action.ultimateIndex or 1
- 
-                if MacroSystem.ignoreTiming then
-                    local scheduledTime = tonumber(action.time) or 0
-                    local fireAt        = playbackStartTime + scheduledTime
-                    local remaining     = fireAt - tick()
- 
-                    if remaining > 0 then
-                        setProgress(i, #actions,
-                            string.format("[SCHEDULED] Ability %d for [%s] fires in %.1fs (at t=%.1fs)", abilIdx, baseName, remaining, scheduledTime),
-                            nextPreview)
- 
-                        task.spawn(function()
-                            while tick() < fireAt and MacroSystem.isPlaying do
-                                task.wait(0.1)
-                            end
-                            if not MacroSystem.isPlaying then return end
- 
-                            local heroCheck = nameToHero[baseName]
-                            if not heroCheck or not heroCheck.config or not heroCheck.config.ultimates or #heroCheck.config.ultimates == 0 then
-                                pushNotify({ Title = "Ability Skipped", Content = string.format("No ultimate defined for [%s]", baseName), Duration = 3, Image = "zap" })
-                                return
-                            end
- 
-                            local fired        = false
-                            local MAX_ATTEMPTS = 3
-                            for attempt = 1, MAX_ATTEMPTS do
-                                if not MacroSystem.isPlaying then break end
-                                local confirmed = false
-                                local disconnect
-                                disconnect = sync.serverUltimate.on(function(receivedTid, _)
-                                    if receivedTid == tid then confirmed = true end
-                                end)
-                                pcall(sync.clientUltimate.fire, tid, abilIdx)
-                                local deadline2 = tick() + 1.5
-                                while tick() < deadline2 and MacroSystem.isPlaying and not confirmed do
-                                    task.wait(0.1)
-                                end
-                                disconnect()
-                                if confirmed then
-                                    fired = true
-                                    print(string.format("[LixHub] Scheduled Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
-                                    break
-                                end
-                                warn(string.format("[LixHub] Scheduled Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
-                                task.wait(0.2)
-                            end
- 
-                            local msg = fired
-                                and string.format("[SCHEDULED ✓] Ability %d fired for [%s] at t=%.1fs", abilIdx, baseName, scheduledTime)
-                                or  string.format("[SCHEDULED ?] Ability %d unconfirmed for [%s] at t=%.1fs", abilIdx, baseName, scheduledTime)
-                            pushNotify({ Title = fired and "Ability Fired" or "Ability Unconfirmed", Content = msg, Duration = 3, Image = fired and "zap" or "alert-triangle" })
-                        end)
-                    else
-                        if not tid then
-                            setProgress(i, #actions,
-                                "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
-                        else
-                            local heroCheck = nameToHero[baseName]
-                            if heroCheck and heroCheck.config and heroCheck.config.ultimates and #heroCheck.config.ultimates > 0 then
-                                pcall(sync.clientUltimate.fire, tid, abilIdx)
-                                setProgress(i, #actions,
-                                    string.format("[ABILITY] Fired immediately (past scheduled time) for [%s]", baseName), nextPreview)
-                            else
-                                setProgress(i, #actions,
-                                    string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
-                            end
-                        end
-                    end
-                else
-                    if tid then
-                        local hero = nameToHero[baseName]
-                        if not hero or not hero.config or not hero.config.ultimates or #hero.config.ultimates == 0 then
-                            setProgress(i, #actions,
-                                string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
-                        else
-                            local fired        = false
-                            local MAX_ATTEMPTS = 3
-                            for attempt = 1, MAX_ATTEMPTS do
-                                if not MacroSystem.isPlaying then break end
-                                local confirmed = false
-                                local disconnect
-                                disconnect = sync.serverUltimate.on(function(receivedTid, ultimateIndex)
-                                    if receivedTid == tid then confirmed = true end
-                                end)
-                                pcall(sync.clientUltimate.fire, tid, abilIdx)
-                                local deadline = tick() + 1.5
-                                while tick() < deadline and MacroSystem.isPlaying and not confirmed do
-                                    task.wait(0.1)
-                                end
-                                disconnect()
-                                if confirmed then
-                                    fired = true
-                                    print(string.format("[LixHub] Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
-                                    break
-                                end
-                                warn(string.format("[LixHub] Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
-                                task.wait(0.2)
-                            end
-                            if fired then
-                                setProgress(i, #actions,
-                                    string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName), nextPreview)
-                            else
-                                setProgress(i, #actions,
-                                    string.format("[UNCONFIRMED] Ability %d sent for [%s] — no server echo received", abilIdx, baseName), nextPreview)
-                            end
-                        end
-                    else
-                        setProgress(i, #actions,
-                            "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
-                    end
+    local tid     = labelToLiveTowerID[label]
+    local abilIdx = action.ultimateIndex or 1
+
+    -- If ignore timing is ON, schedule this ability to fire at the recorded absolute time
+    -- instead of skipping the wait, so abilities don't fire prematurely.
+    if MacroSystem.ignoreTiming then
+        local scheduledTime = tonumber(action.time) or 0
+        local fireAt        = playbackStartTime + scheduledTime
+        local remaining     = fireAt - tick()
+
+        if remaining > 0 then
+            setProgress(i, #actions,
+                string.format("[SCHEDULED] Ability %d for [%s] fires in %.1fs (at t=%.1fs)", abilIdx, baseName, remaining, scheduledTime),
+                nextPreview)
+
+            task.spawn(function()
+                -- Wait until the scheduled absolute time
+                while tick() < fireAt and MacroSystem.isPlaying do
+                    task.wait(0.1)
                 end
- 
-            -- ── NEW: EXCAVATION DRILL PLACEMENT ──────────────────────────────────
-            elseif action.action == "EXC_PLACE" then
-                local pos = action.position
-                if not pos then
-                    setProgress(i, #actions, "[ERROR] EXC_PLACE missing position data", nextPreview)
-                elseif not excClient or not excClient.place then
-                    setProgress(i, #actions, "[ERROR] Excavation module unavailable for playback", nextPreview)
-                else
-                    local vec = Vector3.new(pos[1], pos[2], pos[3])
-                    local ok_p, err_p = pcall(excClient.place.fire, vec)
-                    if ok_p then
-                        setProgress(i, #actions,
-                            string.format("[SUCCESS] Drill placed at (%.1f, %.1f, %.1f)", pos[1], pos[2], pos[3]),
-                            nextPreview)
-                    else
-                        setProgress(i, #actions,
-                            string.format("[FAIL] Drill placement rejected: %s", tostring(err_p)),
-                            nextPreview)
-                    end
+                if not MacroSystem.isPlaying then return end
+
+                local heroCheck = nameToHero[baseName]
+                if not heroCheck or not heroCheck.config or not heroCheck.config.ultimates or #heroCheck.config.ultimates == 0 then
+                    pushNotify({ Title = "Ability Skipped", Content = string.format("No ultimate defined for [%s]", baseName), Duration = 3, Image = "zap" })
+                    return
                 end
- 
-            -- ── NEW: EXCAVATION RESOURCE SELECTION ───────────────────────────────
-            elseif action.action == "EXC_RESOURCE" then
-                local resourceEnum = action.resource
-                if not resourceEnum then
-                    setProgress(i, #actions, "[ERROR] EXC_RESOURCE missing resource value", nextPreview)
-                elseif not excClient or not excClient.chooseResource then
-                    setProgress(i, #actions, "[ERROR] Excavation module unavailable for playback", nextPreview)
-                else
-                    local success, err_r = excClient.chooseResource.call(resourceEnum)
-                    if success then
-                        setProgress(i, #actions,
-                            string.format("[SUCCESS] Resource %d selected", resourceEnum),
-                            nextPreview)
-                    else
-                        setProgress(i, #actions,
-                            string.format("[FAIL] Resource selection rejected: %s", tostring(err_r)),
-                            nextPreview)
+
+                local fired        = false
+                local MAX_ATTEMPTS = 3
+                for attempt = 1, MAX_ATTEMPTS do
+                    if not MacroSystem.isPlaying then break end
+                    local confirmed = false
+                    local disconnect
+                    disconnect = sync.serverUltimate.on(function(receivedTid, _)
+                        if receivedTid == tid then confirmed = true end
+                    end)
+                    pcall(sync.clientUltimate.fire, tid, abilIdx)
+                    local deadline2 = tick() + 1.5
+                    while tick() < deadline2 and MacroSystem.isPlaying and not confirmed do
+                        task.wait(0.1)
                     end
+                    disconnect()
+                    if confirmed then
+                        fired = true
+                        print(string.format("[LixHub] Scheduled Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
+                        break
+                    end
+                    warn(string.format("[LixHub] Scheduled Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
+                    task.wait(0.2)
                 end
- 
+
+                local msg = fired
+                    and string.format("[SCHEDULED ✓] Ability %d fired for [%s] at t=%.1fs", abilIdx, baseName, scheduledTime)
+                    or  string.format("[SCHEDULED ?] Ability %d unconfirmed for [%s] at t=%.1fs", abilIdx, baseName, scheduledTime)
+                pushNotify({ Title = fired and "Ability Fired" or "Ability Unconfirmed", Content = msg, Duration = 3, Image = fired and "zap" or "alert-triangle" })
+            end)
+
+            -- Continue the macro immediately — don't block here
+        else
+            -- We're already past the scheduled time, fire immediately
+            if not tid then
+                setProgress(i, #actions,
+                    "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
             else
-                warn("[LixHub] Unknown action in playback: " .. tostring(action.action))
+                local heroCheck = nameToHero[baseName]
+                if heroCheck and heroCheck.config and heroCheck.config.ultimates and #heroCheck.config.ultimates > 0 then
+                    pcall(sync.clientUltimate.fire, tid, abilIdx)
+                    setProgress(i, #actions,
+                        string.format("[ABILITY] Fired immediately (past scheduled time) for [%s]", baseName), nextPreview)
+                else
+                    setProgress(i, #actions,
+                        string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
+                end
             end
         end
- 
+    else
+        -- Original timed playback ability logic (unchanged)
+        if tid then
+            local hero = nameToHero[baseName]
+            if not hero or not hero.config or not hero.config.ultimates or #hero.config.ultimates == 0 then
+                setProgress(i, #actions,
+                    string.format("[SKIP] No ultimate defined for [%s]", baseName), nextPreview)
+            else
+                local fired        = false
+                local MAX_ATTEMPTS = 3
+                for attempt = 1, MAX_ATTEMPTS do
+                    if not MacroSystem.isPlaying then break end
+                    local confirmed = false
+                    local disconnect
+                    disconnect = sync.serverUltimate.on(function(receivedTid, ultimateIndex)
+                        if receivedTid == tid then confirmed = true end
+                    end)
+                    pcall(sync.clientUltimate.fire, tid, abilIdx)
+                    local deadline = tick() + 1.5
+                    while tick() < deadline and MacroSystem.isPlaying and not confirmed do
+                        task.wait(0.1)
+                    end
+                    disconnect()
+                    if confirmed then
+                        fired = true
+                        print(string.format("[LixHub] Ability %d confirmed for [%s] (attempt %d)", abilIdx, baseName, attempt))
+                        break
+                    end
+                    warn(string.format("[LixHub] Ability %d unconfirmed for [%s], retrying (%d/%d)", abilIdx, baseName, attempt, MAX_ATTEMPTS))
+                    task.wait(0.2)
+                end
+                if fired then
+                    setProgress(i, #actions,
+                        string.format("[SUCCESS] Ability %d fired for [%s]", abilIdx, baseName), nextPreview)
+                else
+                    setProgress(i, #actions,
+                        string.format("[UNCONFIRMED] Ability %d sent for [%s] — no server echo received", abilIdx, baseName), nextPreview)
+                end
+            end
+        else
+            setProgress(i, #actions,
+                "[ERROR] Cannot fire ability for [" .. baseName .. "] — tower not mapped", nextPreview)
+        end
+    end
+            end
+        end
         MacroSystem.isPlaying  = false
         playbackLastStatus     = ""
         playbackLastDetail     = ""
         setProgress(playbackTotal, playbackTotal, "Macro completed.", "")
         print(string.format("[LixHub] Playback finished: '%s'", name))
     end)
- 
+
     return true
 end
 
@@ -2192,12 +2110,24 @@ task.spawn(function()
     end
 
     -- listen for crate drops and collect immediately if toggle is on
-    excClient.crateDrop.on(function(crates)
+        excClient.crateDrop.on(function(crates)
         if not State.AutoCollectCrates then return end
         for _, crate in ipairs(crates) do
             task.spawn(function()
-                task.wait(0.3)
-                -- collectCrate.call uses coroutine.yield so it must run in a thread
+                task.wait(0.5) -- let the crate spawn in
+
+                -- teleport to crate position
+                local char = Players.LocalPlayer.Character
+                local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp and crate.position then
+                    hrp.CFrame = CFrame.new(
+                        crate.position.X or crate.position[1],
+                        crate.position.Y or crate.position[2],
+                        crate.position.Z or crate.position[3]
+                    )
+                    task.wait(0.2) -- let the server register position
+                end
+
                 local ok, result = pcall(function()
                     return excClient.collectCrate.call(crate.id)
                 end)
@@ -2216,24 +2146,25 @@ task.spawn(function()
             if waveNumber % 5 ~= 0 then return end
 
             task.spawn(function()
-                task.wait(0.8) -- give the vote UI more time to open
-
                 local voteValue = waveNumber >= State.AutoVoteExtractWave and 1 or 0
-                print(string.format("[LixHub] Voting %s on wave %d (target=%d)",
-                    voteValue == 1 and "EXTRACT" or "CONTINUE",
-                    waveNumber, State.AutoVoteExtractWave))
+                local label     = voteValue == 1 and "EXTRACT" or "CONTINUE"
+                print(string.format("[LixHub] Voting %s on wave %d (target=%d)", label, waveNumber, State.AutoVoteExtractWave))
 
-                local ok_v, err_v = pcall(function()
-                    return excClient.voteExtraction.call(voteValue)
-                end)
-
-                if ok_v then
-                    if voteValue == 1 then
-                        pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
+                -- retry with delays since the vote window opens slightly after the wave ticks
+                for attempt = 1, 5 do
+                    task.wait(attempt * 0.5)
+                    local buf = buffer.create(3)
+                    buffer.writeu8(buf, 0, 3)          -- voteExtraction event ID
+                    buffer.writeu8(buf, 1, attempt % 256) -- call ID, increment each attempt
+                    buffer.writeu8(buf, 2, voteValue)  -- 1 = extract, 0 = continue
+                    local ok_v, err_v = pcall(excRemote.FireServer, excRemote, buf, {})
+                    print(string.format("[LixHub] Vote attempt %d: ok=%s err=%s", attempt, tostring(ok_v), tostring(err_v)))
+                    if ok_v then
+                        if voteValue == 1 then
+                            pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
+                        end
+                        break -- fired successfully, stop retrying
                     end
-                    print(string.format("[LixHub] Vote result: %s", tostring(err_v)))
-                else
-                    warn(string.format("[LixHub] Vote failed on wave %d: %s", waveNumber, tostring(err_v)))
                 end
             end)
         end)
@@ -2251,6 +2182,41 @@ Players.LocalPlayer.Idled:Connect(function()
 end)
 
 GameTab:CreateSection("Excavation")
+
+GameTab:CreateToggle({
+    Name         = "Auto Place Drill",
+    CurrentValue = false,
+    Flag         = "AutoPlaceDrill",
+    Callback     = function(v)
+        State.AutoPlaceDrill = v
+    end,
+})
+
+GameTab:CreateButton({
+   Name = "Set Drill Position",
+   Callback = function()
+        if IS_LOBBY then return end
+        local char = Players.LocalPlayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            State.DrillPosition = hrp.Position
+            pushNotify({ Title = "Drill Position Set", Content = string.format("X: %.1f Y: %.1f Z: %.1f", hrp.Position.X, hrp.Position.Y, hrp.Position.Z), Duration = 4, Image = "check-circle" })
+        else
+            pushNotify({ Title = "Error", Content = "Could not find HumanoidRootPart", Duration = 3, Image = "x-circle" })
+        end
+   end,
+})
+
+GameTab:CreateDropdown({
+   Name = "Select Drill Resource",
+   Options = {"Trait Reroll Tickets", "Star Crafting Items", "Stat Cubes + Stat Seals"},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "SelectedDrillResource",
+   Callback = function(Options)
+        State.SelectedDrillResource = Options[1]
+   end,
+})
 
 GameTab:CreateToggle({
     Name         = "Auto Collect Supply Crates",
@@ -2431,18 +2397,9 @@ RecordToggle = MacroTab:CreateToggle({
                     MacroSystem.pendingRecord = true
                 end)
             else
-                if MacroSystem.startRecording(MacroSystem.currentMacroName) then
-            pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Recording", "Recording started — place your drill and pick a resource")
-            pushNotify({ Title = "Recording Started", Content = "Recording now — drill placement and resource selection will be captured", Duration = 3, Image = "circle" })
-            task.delay(0.2, function()
-    if not IS_LOBBY then
-        local ok_v, votingClient = pcall(require, ReplicatedStorage.gameClient.net.votingNet)
-        if ok_v and votingClient then
-            pcall(votingClient.startMatch.fire)
-        end
-    end
-end)
-        end
+                MacroSystem.pendingRecord = true
+                pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Waiting", "Waiting for the next game to start recording...")
+                pushNotify({ Title = "Ready to Record", Content = "Recording will begin automatically when the next game starts", Duration = 3, Image = "clock" })
             end
         else
             MacroSystem.pendingRecord = false
@@ -2499,20 +2456,9 @@ PlaybackToggle = MacroTab:CreateToggle({
                     MacroSystem.pendingPlayback = true
                 end)
             else
-               if MacroSystem.playback(MacroSystem.currentMacroName) then
-            pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Playing", "Playback started — executing drill placement and resource selection")
-            pushNotify({ Title = "Playback Started", Content = "Now playing: " .. MacroSystem.currentMacroName, Duration = 3, Image = "play" })
-            task.delay(0.2, function()
-    if not IS_LOBBY then
-        local ok_v, votingClient = pcall(require, ReplicatedStorage.gameClient.net.votingNet)
-        if ok_v and votingClient then
-            pcall(votingClient.startMatch.fire)
-        end
-    end
-end)
-        else
-            pushNotify({ Title = "Error", Content = "Macro is empty or not found", Duration = 3, Image = "x-circle" })
-        end
+                MacroSystem.pendingPlayback = true
+                pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Waiting", "Waiting for the next game to start playback...")
+                pushNotify({ Title = "Ready to Play", Content = "Playback will begin automatically when the next game starts", Duration = 3, Image = "clock" })
             end
         else
             MacroSystem.pendingPlayback = false
