@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.83
+-- V0.84
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1017,6 +1017,7 @@ local State = {
     AutoPlaceDrill       = false,
     DrillPosition        = nil,
     SelectedDrillResource = nil,
+    AutoKneel = false,
 }
 
 local function sendWebhookRaw(body)
@@ -2334,6 +2335,40 @@ GameTab:CreateSlider({
     end,
 })
 
+GameTab:CreateSection("Double Dungeon")
+
+GameTab:CreateToggle({
+    Name         = "Auto Kneel",
+    CurrentValue = false,
+    Flag         = "AutoKneel",
+    Callback     = function(v) State.AutoKneel = v end,
+})
+
+local function setupAutoKneel()
+    if IS_LOBBY then return end
+    local ok, ddNet = pcall(function()
+        return require(ReplicatedStorage.gameClient.net.doubleDungeonNet)
+    end)
+    if not ok or not ddNet then
+        warn("[LixHub] doubleDungeon net not found")
+        return
+    end
+
+    ddNet.attackCountdown.on(function()
+        if not State.AutoKneel then return end
+        task.spawn(function()
+            local success, errMsg = ddNet.kneel.call()
+            if success then
+                ddNet.kneel.call()
+            else
+                warn("[LixHub] Kneel failed: " .. tostring(errMsg))
+            end
+        end)
+    end)
+
+    print("[LixHub] Auto Kneel active")
+end
+
 -- ============================================================
 -- MACRO TAB
 -- ============================================================
@@ -3451,6 +3486,7 @@ else
     setupMatchEndWebhook()
     setupAutoCardSelection()
     setupAutoAbility()
+    setupAutoKneel()
 end
 
 Rayfield:LoadConfiguration()
