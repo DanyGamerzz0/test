@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.73
+-- V0.74
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -419,7 +419,7 @@ local function setupHooks()
     end
     -- ─────────────────────────────────────────────────────────────────────────
     -- EXCAVATION HOOKS
-local ok_exc, excClient = pcall(require, ReplicatedStorage:WaitForChild("excavation"))
+local ok_exc, excClient = pcall(require, ReplicatedStorage.gameClient.net.excavationNet)
 if ok_exc and excClient then
 
     local oldExcPlace = excClient.place.fire
