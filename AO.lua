@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.71
+-- V0.72
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1124,7 +1124,7 @@ local function loadCardPriorities()
     end
 end
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 -- ============================================================
 -- RAYFIELD UI
@@ -2260,6 +2260,15 @@ Players.LocalPlayer.Idled:Connect(function()
 end)
 
 GameTab:CreateSection("Excavation")
+
+GameTab:CreateToggle({
+    Name         = "Auto Collect Supply Crates",
+    CurrentValue = false,
+    Flag         = "AutoCollectCrates",
+    Callback     = function(v)
+        State.AutoCollectCrates = v
+    end,
+})
 
 GameTab:CreateToggle({
     Name         = "Auto Vote Extract",
