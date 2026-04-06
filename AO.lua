@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.78
+-- V0.79
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2177,43 +2177,22 @@ end)
 
 local reflexRemote = ReplicatedStorage:WaitForChild("reflex"):WaitForChild("reflex_RELIABLE")
 reflexRemote.OnClientEvent:Connect(function(buf, refs)
-    if not State.AutoPlaceDrill then return end
-    if not State.DrillPosition then
-        warn("[LixHub] Auto Place Drill: no position set — use 'Set Drill Position' first")
-        return
-    end
-
-    -- check if any ref value is "DrillPlacement"
-    local isDrillRound = false
-    for _, v in ipairs(refs) do
-        if v == "DrillPlacement" then
-            isDrillRound = true
-            break
+    -- debug: print everything we receive
+    print("[LixHub] reflex event fired!")
+    print("[LixHub] refs type:", type(refs))
+    if type(refs) == "table" then
+        for i, v in ipairs(refs) do
+            print(string.format("[LixHub] refs[%d] = %s (type: %s)", i, tostring(v), type(v)))
+            if type(v) == "table" then
+                for j, v2 in ipairs(v) do
+                    print(string.format("[LixHub]   refs[%d][%d] = %s", i, j, tostring(v2)))
+                end
+            end
         end
     end
-    if not isDrillRound then return end
-
-    print("[LixHub] DrillPlacement round detected — placing drill")
-    task.spawn(function()
-        task.wait(0.3) -- let the round fully initialize
-
-        -- teleport to the saved drill position
-        local char = Players.LocalPlayer.Character
-        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = CFrame.new(State.DrillPosition)
-            task.wait(0.2)
-        end
-
-        local pos = State.DrillPosition
-        local ok_p, err_p = pcall(excClient.place.fire, pos)
-        if ok_p then
-            print(string.format("[LixHub] Drill placed at (%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z))
-            pushNotify({ Title = "Auto Drill", Content = "Drill placed!", Duration = 3, Image = "check-circle" })
-        else
-            warn("[LixHub] Drill placement failed: " .. tostring(err_p))
-        end
-    end)
+    if buf then
+        print("[LixHub] buf length:", buffer.len(buf))
+    end
 end)
 
 GameTab:CreateToggle({ Name = "Anti-AFK", Flag = "AntiAfk", Callback = function(v) State.AntiAfkEnabled = v end })
