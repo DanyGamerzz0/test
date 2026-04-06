@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.8
+-- V0.81
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2143,32 +2143,29 @@ task.spawn(function()
     -- auto vote extract — hook into the wave store
     local ok2, clientStoreLocal = pcall(require, ReplicatedStorage.gameClient.store.clientStore)
     local ok3, selectWave       = pcall(require, ReplicatedStorage.gameShared.store.slices.wave.selectors.selectWave)
-    local excRemote = ReplicatedStorage:WaitForChild("excavation"):WaitForChild("excavation_RELIABLE")
     if ok2 and ok3 then
         clientStoreLocal:subscribe(selectWave, function(waveNumber)
             if not State.AutoVoteExtract or not waveNumber then return end
             if waveNumber % 5 ~= 0 then return end
 
             task.spawn(function()
+                task.wait(1) -- give the vote window time to open
+
                 local voteValue = waveNumber >= State.AutoVoteExtractWave and 1 or 0
                 local label     = voteValue == 1 and "EXTRACT" or "CONTINUE"
                 print(string.format("[LixHub] Voting %s on wave %d (target=%d)", label, waveNumber, State.AutoVoteExtractWave))
 
-                -- retry with delays since the vote window opens slightly after the wave ticks
-                for attempt = 1, 5 do
-                    task.wait(attempt * 0.5)
-                    local buf = buffer.create(3)
-                    buffer.writeu8(buf, 0, 3)          -- voteExtraction event ID
-                    buffer.writeu8(buf, 1, attempt % 256) -- call ID, increment each attempt
-                    buffer.writeu8(buf, 2, voteValue)  -- 1 = extract, 0 = continue
-                    local ok_v, err_v = pcall(excRemote.FireServer, excRemote, buf, {})
-                    print(string.format("[LixHub] Vote attempt %d: ok=%s err=%s", attempt, tostring(ok_v), tostring(err_v)))
-                    if ok_v then
-                        if voteValue == 1 then
-                            pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
-                        end
-                        break -- fired successfully, stop retrying
+                local success, err = excClient.voteExtraction.call(voteValue)
+                print(string.format("[LixHub] Vote result: success=%s err=%s", tostring(success), tostring(err)))
+
+                if success then
+                    if voteValue == 1 then
+                        pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
+                    else
+                        print(string.format("[LixHub] Voted CONTINUE on wave %d", waveNumber))
                     end
+                else
+                    warn(string.format("[LixHub] Vote rejected on wave %d: %s", waveNumber, tostring(err)))
                 end
             end)
         end)
