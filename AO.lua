@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.79
+-- V0.8
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2176,23 +2176,64 @@ task.spawn(function()
 end)
 
 local reflexRemote = ReplicatedStorage:WaitForChild("reflex"):WaitForChild("reflex_RELIABLE")
+local excClient = require(ReplicatedStorage.gameClient.net.excavationNet)
 reflexRemote.OnClientEvent:Connect(function(buf, refs)
-    -- debug: print everything we receive
-    print("[LixHub] reflex event fired!")
-    print("[LixHub] refs type:", type(refs))
-    if type(refs) == "table" then
-        for i, v in ipairs(refs) do
-            print(string.format("[LixHub] refs[%d] = %s (type: %s)", i, tostring(v), type(v)))
-            if type(v) == "table" then
-                for j, v2 in ipairs(v) do
-                    print(string.format("[LixHub]   refs[%d][%d] = %s", i, j, tostring(v2)))
-                end
-            end
+    if not State.AutoPlaceDrill then return end
+    if not State.DrillPosition then
+        warn("[LixHub] Auto Place Drill: no position set — use 'Set Drill Position' first")
+        return
+    end
+
+    -- refs are paired: [odd] = action name, [even] = arguments table
+    -- look for refs[n] == "setRound" and refs[n+1][1] == "DrillPlacement"
+    local isDrillRound = false
+    for i = 1, #refs - 1 do
+        if refs[i] == "setRound" and type(refs[i+1]) == "table" and refs[i+1][1] == "DrillPlacement" then
+            isDrillRound = true
+            break
         end
     end
-    if buf then
-        print("[LixHub] buf length:", buffer.len(buf))
-    end
+    if not isDrillRound then return end
+
+    print("[LixHub] DrillPlacement round detected — placing drill")
+    task.spawn(function()
+        task.wait(0.3)
+
+        local char = Players.LocalPlayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(State.DrillPosition)
+            task.wait(0.2)
+        end
+
+        local pos = State.DrillPosition
+        local ok_p, err_p = pcall(excClient.place.fire, pos)
+        if ok_p then
+            print(string.format("[LixHub] Drill placed at (%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z))
+            pushNotify({ Title = "Auto Drill", Content = "Drill placed!", Duration = 3, Image = "check-circle" })
+
+            if State.SelectedDrillResource then
+                task.wait(0.5)
+                local resourceMap = {
+                    ["Trait Reroll Tickets"]    = 1,
+                    ["Star Crafting Items"]     = 2,
+                    ["Stat Cubes + Stat Seals"] = 3,
+                }
+                local resourceEnum = resourceMap[State.SelectedDrillResource]
+                if resourceEnum ~= nil then
+                    local ok_r, err_r = pcall(excClient.chooseResource.call, resourceEnum)
+                    if ok_r then
+                        print(string.format("[LixHub] Resource selected: %s (%d)", State.SelectedDrillResource, resourceEnum))
+                        pushNotify({ Title = "Auto Drill", Content = "Resource: " .. State.SelectedDrillResource, Duration = 3, Image = "check-circle" })
+                    else
+                        warn("[LixHub] Resource selection failed: " .. tostring(err_r))
+                    end
+                end
+            end
+        else
+            warn("[LixHub] Drill placement failed: " .. tostring(err_p))
+        end
+    end)
 end)
 
 GameTab:CreateToggle({ Name = "Anti-AFK", Flag = "AntiAfk", Callback = function(v) State.AntiAfkEnabled = v end })
