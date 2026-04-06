@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.74
+-- V0.75
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -671,7 +671,7 @@ function MacroSystem.playback(name)
         -- NEW: cache the excavation module once for the whole playback
         local excClient = nil
         do
-            local ok_exc, result = pcall(require, ReplicatedStorage:WaitForChild("excavation"))
+            local ok_exc, result = pcall(require, ReplicatedStorage.gameClient.net.excavationNet)
             if ok_exc and result then
                 excClient = result
             else
@@ -2185,7 +2185,7 @@ end)
 
 task.spawn(function()
     if IS_LOBBY then return end
-    local ok_exc, excClient = pcall(require, ReplicatedStorage:WaitForChild("excavation"))
+    local ok_exc, excClient = pcall(require, ReplicatedStorage.gameClient.net.excavationNet)
     if not ok_exc or not excClient then
         warn("[LixHub] Auto excavation features unavailable: " .. tostring(excClient))
         return
