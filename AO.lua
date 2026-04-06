@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.85
+-- V0.86
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2347,9 +2347,7 @@ GameTab:CreateToggle({
 local function setupAutoKneel()
     if IS_LOBBY then return end
     local ok, ddNet = pcall(function()
-        return require(ReplicatedStorage
-            :WaitForChild("doubleDungeon")
-            :WaitForChild("doubleDungeon"))
+        return require(ReplicatedStorage.gameClient.net.doubleDungeonNet)
     end)
     if not ok or not ddNet then
         warn("[LixHub] doubleDungeon net not found: " .. tostring(ddNet))
