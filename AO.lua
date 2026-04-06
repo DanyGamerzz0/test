@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.75
+-- V0.76
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2196,19 +2196,13 @@ task.spawn(function()
         if not State.AutoCollectCrates then return end
         for _, crate in ipairs(crates) do
             task.spawn(function()
-                -- small delay so the crate part has time to exist in workspace
                 task.wait(0.3)
-                local ok, result = pcall(excClient.collectCrate.call, crate.id)
-                if ok and result then
-                    print(string.format("[LixHub] Collected crate: %s", crate.id))
-                else
-                    -- fallback: find by name in workspace
-                    local crateModel = workspace:FindFirstChild(crate.id)
-                    if crateModel then
-                        local ok2, r2 = pcall(excClient.collectCrate.call, crate.id)
-                        print(string.format("[LixHub] Crate fallback collect %s: %s", crate.id, tostring(r2)))
-                    end
-                end
+                -- collectCrate.call uses coroutine.yield so it must run in a thread
+                local ok, result = pcall(function()
+                    return excClient.collectCrate.call(crate.id)
+                end)
+                print(string.format("[LixHub] Collect crate %s: ok=%s result=%s",
+                    tostring(crate.id), tostring(ok), tostring(result)))
             end)
         end
     end)
@@ -2219,30 +2213,27 @@ task.spawn(function()
     if ok2 and ok3 then
         clientStoreLocal:subscribe(selectWave, function(waveNumber)
             if not State.AutoVoteExtract or not waveNumber then return end
-
-            -- votes happen every 5 waves so only act on those
             if waveNumber % 5 ~= 0 then return end
 
             task.spawn(function()
-                task.wait(0.5) -- slight delay so the vote window opens
+                task.wait(0.8) -- give the vote UI more time to open
 
-                if waveNumber >= State.AutoVoteExtractWave then
-                    -- target wave reached, vote to extract
-                    local ok_v, err_v = pcall(excClient.voteExtraction.call, 1)
-                    if ok_v then
-                        print(string.format("[LixHub] Voted EXTRACT on wave %d", waveNumber))
+                local voteValue = waveNumber >= State.AutoVoteExtractWave and 1 or 0
+                print(string.format("[LixHub] Voting %s on wave %d (target=%d)",
+                    voteValue == 1 and "EXTRACT" or "CONTINUE",
+                    waveNumber, State.AutoVoteExtractWave))
+
+                local ok_v, err_v = pcall(function()
+                    return excClient.voteExtraction.call(voteValue)
+                end)
+
+                if ok_v then
+                    if voteValue == 1 then
                         pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
-                    else
-                        warn(string.format("[LixHub] Extract vote failed on wave %d: %s", waveNumber, tostring(err_v)))
                     end
+                    print(string.format("[LixHub] Vote result: %s", tostring(err_v)))
                 else
-                    -- not there yet, vote to continue
-                    local ok_v, err_v = pcall(excClient.voteExtraction.call, 0)
-                    if ok_v then
-                        print(string.format("[LixHub] Voted CONTINUE on wave %d (target: %d)", waveNumber, State.AutoVoteExtractWave))
-                    else
-                        warn(string.format("[LixHub] Continue vote failed on wave %d: %s", waveNumber, tostring(err_v)))
-                    end
+                    warn(string.format("[LixHub] Vote failed on wave %d: %s", waveNumber, tostring(err_v)))
                 end
             end)
         end)
@@ -2443,6 +2434,14 @@ RecordToggle = MacroTab:CreateToggle({
                 if MacroSystem.startRecording(MacroSystem.currentMacroName) then
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Recording", "Recording started — place your drill and pick a resource")
             pushNotify({ Title = "Recording Started", Content = "Recording now — drill placement and resource selection will be captured", Duration = 3, Image = "circle" })
+            task.delay(0.2, function()
+    if not IS_LOBBY then
+        local ok_v, votingClient = pcall(require, ReplicatedStorage.gameClient.net.votingNet)
+        if ok_v and votingClient then
+            pcall(votingClient.startMatch.fire)
+        end
+    end
+end)
         end
             end
         else
@@ -2503,6 +2502,14 @@ PlaybackToggle = MacroTab:CreateToggle({
                if MacroSystem.playback(MacroSystem.currentMacroName) then
             pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Playing", "Playback started — executing drill placement and resource selection")
             pushNotify({ Title = "Playback Started", Content = "Now playing: " .. MacroSystem.currentMacroName, Duration = 3, Image = "play" })
+            task.delay(0.2, function()
+    if not IS_LOBBY then
+        local ok_v, votingClient = pcall(require, ReplicatedStorage.gameClient.net.votingNet)
+        if ok_v and votingClient then
+            pcall(votingClient.startMatch.fire)
+        end
+    end
+end)
         else
             pushNotify({ Title = "Error", Content = "Macro is empty or not found", Duration = 3, Image = "x-circle" })
         end
