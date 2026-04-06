@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.81
+-- V0.82
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2141,32 +2141,32 @@ task.spawn(function()
     end)
 
     -- auto vote extract — hook into the wave store
+    local ok_round, selectRound = pcall(require, ReplicatedStorage.gameShared.store.slices.gamemode.selectors.selectRound)
+    local ok_exc_round, roundEnum = pcall(require, ReplicatedStorage.gameShared.enums.round)
     local ok2, clientStoreLocal = pcall(require, ReplicatedStorage.gameClient.store.clientStore)
-    local ok3, selectWave       = pcall(require, ReplicatedStorage.gameShared.store.slices.wave.selectors.selectWave)
-    if ok2 and ok3 then
-        clientStoreLocal:subscribe(selectWave, function(waveNumber)
-            if not State.AutoVoteExtract or not waveNumber then return end
-            if waveNumber % 5 ~= 0 then return end
+
+    if ok_round and ok_exc_round and ok2 then
+        clientStoreLocal:subscribe(selectRound, function(round)
+            if not State.AutoVoteExtract then return end
+            if round ~= roundEnum.votingExtraction then return end
 
             task.spawn(function()
-                task.wait(1) -- give the vote window time to open
+                task.wait(0.5) -- small delay to let the UI initialize
 
-                local voteValue = waveNumber >= State.AutoVoteExtractWave and 1 or 0
-                local label     = voteValue == 1 and "EXTRACT" or "CONTINUE"
-                print(string.format("[LixHub] Voting %s on wave %d (target=%d)", label, waveNumber, State.AutoVoteExtractWave))
+                local ok2w, selectWave = pcall(require, ReplicatedStorage.gameShared.store.slices.wave.selectors.selectWave)
+                local waveNumber = ok2w and clientStoreLocal:getState(selectWave) or 0
+
+                local voteValue
+                if waveNumber >= State.AutoVoteExtractWave then
+                    voteValue = 2 -- extract (accept button)
+                    pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
+                else
+                    voteValue = 1 -- continue (decline button)
+                    print(string.format("[LixHub] Voted CONTINUE on wave %d (target=%d)", waveNumber, State.AutoVoteExtractWave))
+                end
 
                 local success, err = excClient.voteExtraction.call(voteValue)
                 print(string.format("[LixHub] Vote result: success=%s err=%s", tostring(success), tostring(err)))
-
-                if success then
-                    if voteValue == 1 then
-                        pushNotify({ Title = "Auto Extract", Content = "Voted to extract on wave " .. waveNumber, Duration = 4, Image = "log-out" })
-                    else
-                        print(string.format("[LixHub] Voted CONTINUE on wave %d", waveNumber))
-                    end
-                else
-                    warn(string.format("[LixHub] Vote rejected on wave %d: %s", waveNumber, tostring(err)))
-                end
             end)
         end)
     end
