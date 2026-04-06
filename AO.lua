@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.87
+-- V0.88
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2357,17 +2357,23 @@ local function setupAutoKneel()
     print("[LixHub] doubleDungeon net loaded successfully")
 
     local isKneeling = false
-    local kneelSent = false -- guard against multiple attackCountdown fires
+    local kneelSent  = false
 
-    -- Unkneel when the attack resolves
-    ddNet.bossAttack.on(function()
-        print("[LixHub] bossAttack fired | isKneeling=" .. tostring(isKneeling))
-        kneelSent = false -- reset for next round
-        if not isKneeling then
-            print("[LixHub] bossAttack: not kneeling, skipping unkneel")
-            return
-        end
+    -- bossAttack gives us the exact timestamp of when the attack lands
+    ddNet.bossAttack.on(function(pos, dir, size, timestamp)
+        print("[LixHub] bossAttack fired | timestamp=" .. tostring(timestamp) .. " isKneeling=" .. tostring(isKneeling))
+        kneelSent = false
+        if not isKneeling then return end
+
         task.spawn(function()
+            -- wait until the attack timestamp has passed
+            local now = workspace:GetServerTimeNow()
+            local remaining = timestamp - now
+            print("[LixHub] Attack lands in " .. string.format("%.3f", remaining) .. "s — holding kneel")
+            if remaining > 0 then
+                task.wait(remaining)
+            end
+            -- attack has landed, safe to unkneel now
             isKneeling = false
             print("[LixHub] Sending unkneel packet...")
             local success, errMsg = ddNet.kneel.call()
@@ -2376,12 +2382,9 @@ local function setupAutoKneel()
     end)
 
     ddNet.attackCountdown.on(function()
-        print("[LixHub] attackCountdown fired | AutoKneel=" .. tostring(State.AutoKneel) .. " isKneeling=" .. tostring(isKneeling) .. " kneelSent=" .. tostring(kneelSent))
+        print("[LixHub] attackCountdown fired | AutoKneel=" .. tostring(State.AutoKneel) .. " kneelSent=" .. tostring(kneelSent))
         if not State.AutoKneel then return end
-        if isKneeling or kneelSent then
-            print("[LixHub] Already kneeling or kneel already sent, skipping")
-            return
-        end
+        if isKneeling or kneelSent then return end
         task.spawn(function()
             kneelSent = true
             isKneeling = true
@@ -2390,7 +2393,7 @@ local function setupAutoKneel()
             print("[LixHub] Kneel response | success=" .. tostring(success) .. " err=" .. tostring(errMsg))
             if not success then
                 isKneeling = false
-                kneelSent = false
+                kneelSent  = false
                 warn("[LixHub] Kneel failed: " .. tostring(errMsg))
             end
         end)
