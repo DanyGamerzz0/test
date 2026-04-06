@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.9
+-- V0.91
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2347,9 +2347,10 @@ GameTab:CreateToggle({
 local function setupAutoKneel()
     if IS_LOBBY then return end
 
-    local ddRemote = ReplicatedStorage:WaitForChild("doubleDungeon"):WaitForChild("doubleDungeon_RELIABLE")
+    local ddRemote = game.ReplicatedStorage:WaitForChild("doubleDungeon"):WaitForChild("doubleDungeon_RELIABLE")
     local kneelBuf   = buffer.fromstring("\x00\x05")
     local unkneelBuf = buffer.fromstring("\x00\x07")
+    ddRemote:FireServer(unkneelBuf, {})
 
     local ok, ddNet = pcall(function()
         return require(ReplicatedStorage.gameClient.net.doubleDungeonNet)
@@ -2359,21 +2360,16 @@ local function setupAutoKneel()
         return
     end
 
-    local kneelSent = false
-
     ddNet.attackCountdown.on(function()
         if not State.AutoKneel then return end
-        if kneelSent then return end
-        kneelSent = true
         task.spawn(function()
-            print("[LixHub] Kneeling...")
+            pushNotify("[LixHub] Kneeling...")
             ddRemote:FireServer(kneelBuf, {})
             task.wait(2) -- wait for laser to pass
-            print("[LixHub] Unqueeling...")
+            pushNotify("[LixHub] Unqueeling...")
             ddRemote:FireServer(unkneelBuf, {})
             task.wait(1) -- cooldown before next kneel is allowed
-            kneelSent = false
-            print("[LixHub] Ready for next kneel")
+            pushNotify("[LixHub] Ready for next kneel")
         end)
     end)
 
