@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.86
+-- V0.87
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2357,11 +2357,14 @@ local function setupAutoKneel()
     print("[LixHub] doubleDungeon net loaded successfully")
 
     local isKneeling = false
+    local kneelSent = false -- guard against multiple attackCountdown fires
 
-    ddNet.stunnedFXs.on(function()
-        print("[LixHub] stunnedFXs fired | isKneeling=" .. tostring(isKneeling))
+    -- Unkneel when the attack resolves
+    ddNet.bossAttack.on(function()
+        print("[LixHub] bossAttack fired | isKneeling=" .. tostring(isKneeling))
+        kneelSent = false -- reset for next round
         if not isKneeling then
-            print("[LixHub] stunnedFXs: not kneeling, skipping unkneel")
+            print("[LixHub] bossAttack: not kneeling, skipping unkneel")
             return
         end
         task.spawn(function()
@@ -2373,22 +2376,21 @@ local function setupAutoKneel()
     end)
 
     ddNet.attackCountdown.on(function()
-        print("[LixHub] attackCountdown fired | AutoKneel=" .. tostring(State.AutoKneel) .. " isKneeling=" .. tostring(isKneeling))
-        if not State.AutoKneel then
-            print("[LixHub] AutoKneel is off, skipping")
-            return
-        end
-        if isKneeling then
-            print("[LixHub] Already kneeling, skipping")
+        print("[LixHub] attackCountdown fired | AutoKneel=" .. tostring(State.AutoKneel) .. " isKneeling=" .. tostring(isKneeling) .. " kneelSent=" .. tostring(kneelSent))
+        if not State.AutoKneel then return end
+        if isKneeling or kneelSent then
+            print("[LixHub] Already kneeling or kneel already sent, skipping")
             return
         end
         task.spawn(function()
+            kneelSent = true
             isKneeling = true
             print("[LixHub] Sending kneel packet...")
             local success, errMsg = ddNet.kneel.call()
             print("[LixHub] Kneel response | success=" .. tostring(success) .. " err=" .. tostring(errMsg))
             if not success then
                 isKneeling = false
+                kneelSent = false
                 warn("[LixHub] Kneel failed: " .. tostring(errMsg))
             end
         end)
