@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.72
+-- V0.73
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2440,9 +2440,10 @@ RecordToggle = MacroTab:CreateToggle({
                     MacroSystem.pendingRecord = true
                 end)
             else
-                MacroSystem.pendingRecord = true
-                pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Waiting", "Waiting for the next game to start recording...")
-                pushNotify({ Title = "Ready to Record", Content = "Recording will begin automatically when the next game starts", Duration = 3, Image = "clock" })
+                if MacroSystem.startRecording(MacroSystem.currentMacroName) then
+            pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Recording", "Recording started — place your drill and pick a resource")
+            pushNotify({ Title = "Recording Started", Content = "Recording now — drill placement and resource selection will be captured", Duration = 3, Image = "circle" })
+        end
             end
         else
             MacroSystem.pendingRecord = false
@@ -2499,9 +2500,12 @@ PlaybackToggle = MacroTab:CreateToggle({
                     MacroSystem.pendingPlayback = true
                 end)
             else
-                MacroSystem.pendingPlayback = true
-                pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Waiting", "Waiting for the next game to start playback...")
-                pushNotify({ Title = "Ready to Play", Content = "Playback will begin automatically when the next game starts", Duration = 3, Image = "clock" })
+               if MacroSystem.playback(MacroSystem.currentMacroName) then
+            pushUI("Macro: " .. MacroSystem.currentMacroName .. " | Playing", "Playback started — executing drill placement and resource selection")
+            pushNotify({ Title = "Playback Started", Content = "Now playing: " .. MacroSystem.currentMacroName, Duration = 3, Image = "play" })
+        else
+            pushNotify({ Title = "Error", Content = "Macro is empty or not found", Duration = 3, Image = "x-circle" })
+        end
             end
         else
             MacroSystem.pendingPlayback = false
