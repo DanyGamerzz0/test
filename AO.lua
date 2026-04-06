@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.77
+-- V0.78
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -1011,6 +1011,9 @@ local State = {
     AutoCollectCrates = false,
     AutoVoteExtract   = false,
     AutoVoteExtractWave = 5,
+    AutoPlaceDrill       = false,
+    DrillPosition        = nil,
+    SelectedDrillResource = nil,
 }
 
 local function sendWebhookRaw(body)
@@ -2140,6 +2143,7 @@ task.spawn(function()
     -- auto vote extract — hook into the wave store
     local ok2, clientStoreLocal = pcall(require, ReplicatedStorage.gameClient.store.clientStore)
     local ok3, selectWave       = pcall(require, ReplicatedStorage.gameShared.store.slices.wave.selectors.selectWave)
+    local excRemote = ReplicatedStorage:WaitForChild("excavation"):WaitForChild("excavation_RELIABLE")
     if ok2 and ok3 then
         clientStoreLocal:subscribe(selectWave, function(waveNumber)
             if not State.AutoVoteExtract or not waveNumber then return end
@@ -2169,6 +2173,47 @@ task.spawn(function()
             end)
         end)
     end
+end)
+
+local reflexRemote = ReplicatedStorage:WaitForChild("reflex"):WaitForChild("reflex_RELIABLE")
+reflexRemote.OnClientEvent:Connect(function(buf, refs)
+    if not State.AutoPlaceDrill then return end
+    if not State.DrillPosition then
+        warn("[LixHub] Auto Place Drill: no position set — use 'Set Drill Position' first")
+        return
+    end
+
+    -- check if any ref value is "DrillPlacement"
+    local isDrillRound = false
+    for _, v in ipairs(refs) do
+        if v == "DrillPlacement" then
+            isDrillRound = true
+            break
+        end
+    end
+    if not isDrillRound then return end
+
+    print("[LixHub] DrillPlacement round detected — placing drill")
+    task.spawn(function()
+        task.wait(0.3) -- let the round fully initialize
+
+        -- teleport to the saved drill position
+        local char = Players.LocalPlayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(State.DrillPosition)
+            task.wait(0.2)
+        end
+
+        local pos = State.DrillPosition
+        local ok_p, err_p = pcall(excClient.place.fire, pos)
+        if ok_p then
+            print(string.format("[LixHub] Drill placed at (%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z))
+            pushNotify({ Title = "Auto Drill", Content = "Drill placed!", Duration = 3, Image = "check-circle" })
+        else
+            warn("[LixHub] Drill placement failed: " .. tostring(err_p))
+        end
+    end)
 end)
 
 GameTab:CreateToggle({ Name = "Anti-AFK", Flag = "AntiAfk", Callback = function(v) State.AntiAfkEnabled = v end })
