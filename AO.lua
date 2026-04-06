@@ -1,5 +1,5 @@
 -- ============================================================
--- V0.89
+-- V0.9
 -- ============================================================
 
 if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
@@ -2344,9 +2344,13 @@ GameTab:CreateToggle({
     Callback     = function(v) State.AutoKneel = v end,
 })
 
-
 local function setupAutoKneel()
     if IS_LOBBY then return end
+
+    local ddRemote = ReplicatedStorage:WaitForChild("doubleDungeon"):WaitForChild("doubleDungeon_RELIABLE")
+    local kneelBuf   = buffer.fromstring("\x00\x05")
+    local unkneelBuf = buffer.fromstring("\x00\x07")
+
     local ok, ddNet = pcall(function()
         return require(ReplicatedStorage.gameClient.net.doubleDungeonNet)
     end)
@@ -2355,69 +2359,25 @@ local function setupAutoKneel()
         return
     end
 
-    print("[LixHub] doubleDungeon net loaded successfully")
-
-    local isKneeling = false
-    local kneelSent  = false
-    local unkeelDisconnect = nil
-
-    local function tryUnkneel()
-        if not isKneeling then return end
-        isKneeling = false
-        kneelSent  = false
-        if unkeelDisconnect then
-            unkeelDisconnect()
-            unkeelDisconnect = nil
-        end
-        task.spawn(function()
-            print("[LixHub] Sending unkneel packet...")
-            local success, errMsg = ddNet.kneel.call()
-            print("[LixHub] Unkneel response | success=" .. tostring(success) .. " err=" .. tostring(errMsg))
-        end)
-    end
+    local kneelSent = false
 
     ddNet.attackCountdown.on(function()
-        print("[LixHub] attackCountdown fired | AutoKneel=" .. tostring(State.AutoKneel) .. " kneelSent=" .. tostring(kneelSent))
         if not State.AutoKneel then return end
-        if isKneeling or kneelSent then return end
+        if kneelSent then return end
+        kneelSent = true
         task.spawn(function()
-            kneelSent  = true
-            isKneeling = true
-            print("[LixHub] Sending kneel packet...")
-            local success, errMsg = ddNet.kneel.call()
-            print("[LixHub] Kneel response | success=" .. tostring(success) .. " err=" .. tostring(errMsg))
-            if not success then
-                isKneeling = false
-                kneelSent  = false
-                warn("[LixHub] Kneel failed: " .. tostring(errMsg))
-                return
-            end
-
-            -- Subscribe to stunnedPlayers — fires the moment the attack resolves
-            local ok2, selectStunnedPlayers = pcall(require,
-                ReplicatedStorage.shared.store.slices.players.slices.stuns)
-            if not ok2 then
-                warn("[LixHub] Could not load stuns slice: " .. tostring(selectStunnedPlayers))
-                return
-            end
-
-            local prevList = nil
-            unkeelDisconnect = clientStore:subscribe(
-                function(state) return state.players and state.players.stunnedPlayers end,
-                function(stunnedPlayers)
-                    if prevList == nil then
-                        prevList = stunnedPlayers
-                        return
-                    end
-                    -- stunnedPlayers changed = attack resolved
-                    print("[LixHub] stunnedPlayers changed — attack resolved, unqueeling")
-                    tryUnkneel()
-                end
-            )
+            print("[LixHub] Kneeling...")
+            ddRemote:FireServer(kneelBuf, {})
+            task.wait(2) -- wait for laser to pass
+            print("[LixHub] Unqueeling...")
+            ddRemote:FireServer(unkneelBuf, {})
+            task.wait(1) -- cooldown before next kneel is allowed
+            kneelSent = false
+            print("[LixHub] Ready for next kneel")
         end)
     end)
 
-    print("[LixHub] Auto Kneel active — listeners attached")
+    print("[LixHub] Auto Kneel active")
 end
 
 -- ============================================================
