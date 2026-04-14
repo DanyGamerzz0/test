@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.07"
+local script_version = "V0.08"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3925,6 +3925,31 @@ local function createAutoSelectDropdowns()
         
     task.wait(1)
     
+    -- Story Stages
+    Tab:CreateSection("Story Stage Macros")
+    
+    if StoryStageDropdown and StoryStageDropdown.Options then
+        for _, stageName in ipairs(StoryStageDropdown.Options) do
+            local worldKey = "story_" .. stageName:lower():gsub("%s+", "_")
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            
+            local dropdown = Tab:CreateDropdown({
+                Name = stageName,
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
+                MultipleOptions = false,
+                Flag = "WorldMacro_" .. worldKey,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                    saveWorldMappings()
+                end,
+            })
+            
+            worldDropdowns[worldKey] = dropdown
+        end
+    end
+
     -- Legend Stages
     Tab:CreateSection("Legend Stage Macros")
     
@@ -3989,54 +4014,6 @@ local function createAutoSelectDropdowns()
             worldDropdowns[worldKey] = dropdown
         end
     end
-    
-    -- Featured Challenge
-    Tab:CreateSection("Featured Challenge Macro")
-    
-    do
-        local worldKey = "challenge_featured"
-        local currentMapping = worldMacroMappings[worldKey] or "None"
-        
-        local dropdown = Tab:CreateDropdown({
-            Name = "Frozen Stronghold",
-            Options = initialMacroOptions,
-            CurrentOption = {currentMapping},
-            MultipleOptions = false,
-            Flag = "WorldMacro_" .. worldKey,
-            Callback = function(Option)
-                local selectedMacro = type(Option) == "table" and Option[1] or Option
-                worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                saveWorldMappings()
-            end,
-        })
-        
-        worldDropdowns[worldKey] = dropdown
-    end
-    
-    -- Regular Challenges
-    Tab:CreateSection("Challenge Macros")
-    
-    if StoryStageDropdown and StoryStageDropdown.Options then
-        for _, stageName in ipairs(StoryStageDropdown.Options) do
-            local worldKey = "challenge_" .. stageName:lower():gsub("%s+", "_")
-            local currentMapping = worldMacroMappings[worldKey] or "None"
-            
-            local dropdown = Tab:CreateDropdown({
-                Name = stageName,
-                Options = initialMacroOptions,
-                CurrentOption = {currentMapping},
-                MultipleOptions = false,
-                Flag = "WorldMacro_" .. worldKey,
-                Callback = function(Option)
-                    local selectedMacro = type(Option) == "table" and Option[1] or Option
-                    worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                    saveWorldMappings()
-                end,
-            })
-            
-            worldDropdowns[worldKey] = dropdown
-        end
-    end
 
     -- Raid Stages
     Tab:CreateSection("Raid Stage Macros")
@@ -4076,6 +4053,54 @@ local function createAutoSelectDropdowns()
                 worldDropdowns[worldKey] = dropdown
             end
         end
+    end
+
+    -- Regular Challenges
+    Tab:CreateSection("Challenge Macros")
+    
+    if StoryStageDropdown and StoryStageDropdown.Options then
+        for _, stageName in ipairs(StoryStageDropdown.Options) do
+            local worldKey = "challenge_" .. stageName:lower():gsub("%s+", "_")
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            
+            local dropdown = Tab:CreateDropdown({
+                Name = stageName,
+                Options = initialMacroOptions,
+                CurrentOption = {currentMapping},
+                MultipleOptions = false,
+                Flag = "WorldMacro_" .. worldKey,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                    saveWorldMappings()
+                end,
+            })
+            
+            worldDropdowns[worldKey] = dropdown
+        end
+    end
+    
+    -- Featured Challenge
+    Tab:CreateSection("Featured Challenge Macro")
+    
+    do
+        local worldKey = "challenge_featured"
+        local currentMapping = worldMacroMappings[worldKey] or "None"
+        
+        local dropdown = Tab:CreateDropdown({
+            Name = "Frozen Stronghold",
+            Options = initialMacroOptions,
+            CurrentOption = {currentMapping},
+            MultipleOptions = false,
+            Flag = "WorldMacro_" .. worldKey,
+            Callback = function(Option)
+                local selectedMacro = type(Option) == "table" and Option[1] or Option
+                worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                saveWorldMappings()
+            end,
+        })
+        
+        worldDropdowns[worldKey] = dropdown
     end
 
     print("✓ Created auto-select dropdowns")
