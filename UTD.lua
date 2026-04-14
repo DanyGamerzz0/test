@@ -10,7 +10,9 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.06"
+local script_version = "V0.07"
+getgenv().RAYFIELD_SECURE = true
+getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
@@ -3024,7 +3026,7 @@ task.spawn(function()
     end
 end)
 
-section = JoinerTab:CreateSection("Story Joiner")
+JoinerTab:CreateSection("Story Joiner")
 
      AutoJoinStoryToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Story",
@@ -3093,7 +3095,7 @@ local StoryStageDropdown = JoinerTab:CreateDropdown({
    end,
 })
 
-    section = JoinerTab:CreateSection("Legend Stage Joiner")
+JoinerTab:CreateSection("Legend Stage Joiner")
 
     AutoJoinLegendToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Legend Stage",
@@ -3142,7 +3144,7 @@ local LegendStageDropdown = JoinerTab:CreateDropdown({
    end,
 })
 
-   section = JoinerTab:CreateSection("Virtual Stage Joiner")
+JoinerTab:CreateSection("Virtual Stage Joiner")
 
     AutoJoinVirtualToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Virtual Stage",
@@ -3208,7 +3210,7 @@ local VirtualStageDropdown = JoinerTab:CreateDropdown({
    end,
 })
 
-section = JoinerTab:CreateSection("Raid Joiner")
+JoinerTab:CreateSection("Raid Joiner")
 
 AutoJoinRaidToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Raid",
@@ -3249,7 +3251,7 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
     end,
 })
 
-section = JoinerTab:CreateSection("Challenge Joiner")
+JoinerTab:CreateSection("Challenge Joiner")
 
         AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Featured Challenge (The Hunt)",
@@ -3326,7 +3328,7 @@ section = JoinerTab:CreateSection("Challenge Joiner")
         end,
     })
 
-    section = JoinerTab:CreateSection("Winter Event Joiner")
+JoinerTab:CreateSection("Winter Event Joiner")
 
      AutoCollectPresentsToggle = JoinerTab:CreateToggle({
     Name = "Auto Collect Present Drops",
@@ -3915,27 +3917,20 @@ end
 local function createAutoSelectDropdowns()
     print("Creating auto-select dropdowns...")
     
-    -- Get initial macro options
     local initialMacroOptions = {"None"}
     for macroName in pairs(macroManager) do
         table.insert(initialMacroOptions, macroName)
     end
     table.sort(initialMacroOptions)
         
-    -- Wait for story stages to load
     task.wait(1)
     
-    -- Legend Stages Collapsible
-    local LegendCollapsible = Tab:CreateCollapsible({
-        Name = "Select Legend Stage Macro",
-        DefaultExpanded = false,
-        Flag = "LegendMacroCollapsible"
-    })
+    -- Legend Stages
+    Tab:CreateSection("Legend Stage Macros")
     
     if LegendStageDropdown and LegendStageDropdown.Options then
         for _, stageName in ipairs(LegendStageDropdown.Options) do
-            -- Get module name from ReplicatedStorage
-            local success, legendData = pcall(function()
+            local success, legendModuleName = pcall(function()
                 local LegendFolder = Services.ReplicatedStorage.Shared.Data.LegendStages
                 for _, stageModule in ipairs(LegendFolder:GetChildren()) do
                     if stageModule:IsA("ModuleScript") then
@@ -3948,11 +3943,11 @@ local function createAutoSelectDropdowns()
                 return nil
             end)
             
-            if success and legendData then
-                local worldKey = "legend_" .. legendData:lower()
+            if success and legendModuleName then
+                local worldKey = "legend_" .. legendModuleName:lower()
                 local currentMapping = worldMacroMappings[worldKey] or "None"
                 
-                local dropdown = LegendCollapsible.Tab:CreateDropdown({
+                local dropdown = Tab:CreateDropdown({
                     Name = stageName,
                     Options = initialMacroOptions,
                     CurrentOption = {currentMapping},
@@ -3960,15 +3955,7 @@ local function createAutoSelectDropdowns()
                     Flag = "WorldMacro_" .. worldKey,
                     Callback = function(Option)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
-                        
-                        if selectedMacro == "None" or selectedMacro == "" then
-                            worldMacroMappings[worldKey] = nil
-                            print("Cleared auto-select for", stageName, "(Legend)")
-                        else
-                            worldMacroMappings[worldKey] = selectedMacro
-                            print("Set auto-select:", stageName, "(Legend) ->", selectedMacro)
-                        end
-                        
+                        worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                         saveWorldMappings()
                     end,
                 })
@@ -3978,19 +3965,15 @@ local function createAutoSelectDropdowns()
         end
     end
     
-    -- Virtual Stages Collapsible
-    local VirtualCollapsible = Tab:CreateCollapsible({
-        Name = "Select Virtual Stage Macro",
-        DefaultExpanded = false,
-        Flag = "VirtualMacroCollapsible"
-    })
+    -- Virtual Stages
+    Tab:CreateSection("Virtual Stage Macros")
     
     if VirtualStageDropdown and VirtualStageDropdown.Options then
         for _, stageName in ipairs(VirtualStageDropdown.Options) do
             local worldKey = "virtual_" .. stageName:lower():gsub("%s+", "_")
             local currentMapping = worldMacroMappings[worldKey] or "None"
             
-            local dropdown = VirtualCollapsible.Tab:CreateDropdown({
+            local dropdown = Tab:CreateDropdown({
                 Name = stageName,
                 Options = initialMacroOptions,
                 CurrentOption = {currentMapping},
@@ -3998,15 +3981,7 @@ local function createAutoSelectDropdowns()
                 Flag = "WorldMacro_" .. worldKey,
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
-                    
-                    if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[worldKey] = nil
-                        print("Cleared auto-select for", stageName, "(Virtual)")
-                    else
-                        worldMacroMappings[worldKey] = selectedMacro
-                        print("Set auto-select:", stageName, "(Virtual) ->", selectedMacro)
-                    end
-                    
+                    worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                     saveWorldMappings()
                 end,
             })
@@ -4015,54 +3990,38 @@ local function createAutoSelectDropdowns()
         end
     end
     
-    -- Featured Challenge Collapsible
-    local FeaturedChallengeCollapsible = Tab:CreateCollapsible({
-        Name = "Select Featured Challenge Macro",
-        DefaultExpanded = false,
-        Flag = "FeaturedChallengeMacroCollapsible"
-    })
+    -- Featured Challenge
+    Tab:CreateSection("Featured Challenge Macro")
     
-    -- Add a single dropdown for Featured Challenge (The Hunt)
-    local worldKey = "challenge_featured"
-    local currentMapping = worldMacroMappings[worldKey] or "None"
+    do
+        local worldKey = "challenge_featured"
+        local currentMapping = worldMacroMappings[worldKey] or "None"
+        
+        local dropdown = Tab:CreateDropdown({
+            Name = "Frozen Stronghold",
+            Options = initialMacroOptions,
+            CurrentOption = {currentMapping},
+            MultipleOptions = false,
+            Flag = "WorldMacro_" .. worldKey,
+            Callback = function(Option)
+                local selectedMacro = type(Option) == "table" and Option[1] or Option
+                worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                saveWorldMappings()
+            end,
+        })
+        
+        worldDropdowns[worldKey] = dropdown
+    end
     
-    local dropdown = FeaturedChallengeCollapsible.Tab:CreateDropdown({
-        Name = "Frozen Stronghold",
-        Options = initialMacroOptions,
-        CurrentOption = {currentMapping},
-        MultipleOptions = false,
-        Flag = "WorldMacro_" .. worldKey,
-        Callback = function(Option)
-            local selectedMacro = type(Option) == "table" and Option[1] or Option
-            
-            if selectedMacro == "None" or selectedMacro == "" then
-                worldMacroMappings[worldKey] = nil
-                print("Cleared auto-select for Featured Challenge")
-            else
-                worldMacroMappings[worldKey] = selectedMacro
-                print("Set auto-select: Featured Challenge ->", selectedMacro)
-            end
-            
-            saveWorldMappings()
-        end,
-    })
+    -- Regular Challenges
+    Tab:CreateSection("Challenge Macros")
     
-    worldDropdowns[worldKey] = dropdown
-    
-    -- Regular Challenge Collapsible (for Half Hourly challenges with different maps)
-    local ChallengeCollapsible = Tab:CreateCollapsible({
-        Name = "Select Challenge Macro",
-        DefaultExpanded = false,
-        Flag = "ChallengeMacroCollapsible"
-    })
-    
-    -- Get all unique challenge maps from StoryStageDropdown (challenges use story maps)
     if StoryStageDropdown and StoryStageDropdown.Options then
         for _, stageName in ipairs(StoryStageDropdown.Options) do
             local worldKey = "challenge_" .. stageName:lower():gsub("%s+", "_")
             local currentMapping = worldMacroMappings[worldKey] or "None"
             
-            local dropdown = ChallengeCollapsible.Tab:CreateDropdown({
+            local dropdown = Tab:CreateDropdown({
                 Name = stageName,
                 Options = initialMacroOptions,
                 CurrentOption = {currentMapping},
@@ -4070,15 +4029,7 @@ local function createAutoSelectDropdowns()
                 Flag = "WorldMacro_" .. worldKey,
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
-                    
-                    if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[worldKey] = nil
-                        print("Cleared auto-select for", stageName, "(Challenge)")
-                    else
-                        worldMacroMappings[worldKey] = selectedMacro
-                        print("Set auto-select:", stageName, "(Challenge) ->", selectedMacro)
-                    end
-                    
+                    worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                     saveWorldMappings()
                 end,
             })
@@ -4087,57 +4038,46 @@ local function createAutoSelectDropdowns()
         end
     end
 
-    local RaidCollapsible = Tab:CreateCollapsible({
-    Name = "Select Raid Stage Macro",
-    DefaultExpanded = false,
-    Flag = "RaidMacroCollapsible"
-})
+    -- Raid Stages
+    Tab:CreateSection("Raid Stage Macros")
 
-if RaidStageDropdown and RaidStageDropdown.Options then
-    for _, stageName in ipairs(RaidStageDropdown.Options) do
-        -- Get module name from ReplicatedStorage
-        local success, raidData = pcall(function()
-            local RaidFolder = Services.ReplicatedStorage.Shared.Data.Raids
-            for _, stageModule in ipairs(RaidFolder:GetChildren()) do
-                if stageModule:IsA("ModuleScript") then
-                    local stageData = require(stageModule)
-                    if stageData.Information and stageData.Information.Name == stageName then
-                        return stageModule.Name
+    if RaidStageDropdown and RaidStageDropdown.Options then
+        for _, stageName in ipairs(RaidStageDropdown.Options) do
+            local success, raidModuleName = pcall(function()
+                local RaidFolder = Services.ReplicatedStorage.Shared.Data.Raids
+                for _, stageModule in ipairs(RaidFolder:GetChildren()) do
+                    if stageModule:IsA("ModuleScript") then
+                        local stageData = require(stageModule)
+                        if stageData.Information and stageData.Information.Name == stageName then
+                            return stageModule.Name
+                        end
                     end
                 end
+                return nil
+            end)
+            
+            if success and raidModuleName then
+                local worldKey = "raid_" .. raidModuleName:lower()
+                local currentMapping = worldMacroMappings[worldKey] or "None"
+                
+                local dropdown = Tab:CreateDropdown({
+                    Name = stageName,
+                    Options = initialMacroOptions,
+                    CurrentOption = {currentMapping},
+                    MultipleOptions = false,
+                    Flag = "WorldMacro_" .. worldKey,
+                    Callback = function(Option)
+                        local selectedMacro = type(Option) == "table" and Option[1] or Option
+                        worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                        saveWorldMappings()
+                    end,
+                })
+                
+                worldDropdowns[worldKey] = dropdown
             end
-            return nil
-        end)
-        
-        if success and raidData then
-            local worldKey = "raid_" .. raidData:lower()
-            local currentMapping = worldMacroMappings[worldKey] or "None"
-            
-            local dropdown = RaidCollapsible.Tab:CreateDropdown({
-                Name = stageName,
-                Options = initialMacroOptions,
-                CurrentOption = {currentMapping},
-                MultipleOptions = false,
-                Flag = "WorldMacro_" .. worldKey,
-                Callback = function(Option)
-                    local selectedMacro = type(Option) == "table" and Option[1] or Option
-                    
-                    if selectedMacro == "None" or selectedMacro == "" then
-                        worldMacroMappings[worldKey] = nil
-                        print("Cleared auto-select for", stageName, "(Raid)")
-                    else
-                        worldMacroMappings[worldKey] = selectedMacro
-                        print("Set auto-select:", stageName, "(Raid) ->", selectedMacro)
-                    end
-                    
-                    saveWorldMappings()
-                end,
-            })
-            
-            worldDropdowns[worldKey] = dropdown
         end
     end
-end 
+
     print("✓ Created auto-select dropdowns")
 end
 
