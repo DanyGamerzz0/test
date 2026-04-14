@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -225,6 +225,9 @@ local State = {
     LastFailedChallengeAttempt = 0,
     ChallengeJoinCooldown = 60,
     NewChallengesAvailable = false,
+    AutoJoinOlympusJudgement = false,
+    AutoJoinShinobiAlliance = false,
+    AutoJoinRagnarok = false,
 
     -- Raid
     AutoJoinRaid = false,
@@ -424,7 +427,7 @@ local function getPlayerLoadout()
         local hotbar = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.HUD.Bottom.Hotbar.Units
         
         if not hotbar then
-            warn("❌ Hotbar not found!")
+            warn(" Hotbar not found!")
             return
         end
         
@@ -470,12 +473,12 @@ local function getPlayerLoadout()
                         end
                         
                         if unitModel then
-                            -- ✅ CLEAN THE UNIT NAME HERE
+                            --  CLEAN THE UNIT NAME HERE
                             local rawName = unitModel.Name
                             local cleanedName = cleanUnitName(rawName)  -- Remove :shiny
                             
                             loadout[slot] = cleanedName
-                            --print(string.format("✅ Slot %d: %s (raw: %s)", slot, cleanedName, rawName))
+                            --print(string.format(" Slot %d: %s (raw: %s)", slot, cleanedName, rawName))
                         else
                             warn(string.format("⚠️ Slot %d: Could not find unit model", slot))
                         end
@@ -486,7 +489,7 @@ local function getPlayerLoadout()
     end)
     
     if not success then
-        warn("❌ Failed to get player loadout")
+        warn(" Failed to get player loadout")
     end
     
     return loadout
@@ -541,7 +544,7 @@ local function getUnitData(unitName)
         return result
     end
     
-    warn(string.format("❌ Could not find unit data for: %s", unitName))
+    warn(string.format(" Could not find unit data for: %s", unitName))
     return nil
 end
 
@@ -568,7 +571,7 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
     excludeUUIDs = excludeUUIDs or {}
     
     -- Clean the search name (use different variable name!)
-    local cleanedUnitName = cleanUnitName(unitName)  -- ✅ FIXED
+    local cleanedUnitName = cleanUnitName(unitName)  --  FIXED
     
     local candidates = {}
     
@@ -617,7 +620,7 @@ local function findNewUnitInGC(unitName, excludeUUIDs)
     end
     
     if #candidates == 0 then
-        warn(string.format("❌ No new units found for: %s", unitName))
+        warn(string.format(" No new units found for: %s", unitName))
         return nil, nil
     end
     
@@ -649,7 +652,7 @@ local function findUnitDataInGC(uuid)
                 local hasUnitId = rawget(obj, "UnitId") ~= nil or rawget(obj, "TowerID") ~= nil
                 
                 if hasUpgrade or hasUnitId then
-                    --print("✅ Found unit data in GC!")
+                    --print(" Found unit data in GC!")
                     
                     -- Print the table contents
                     --print("=== UNIT DATA TABLE ===")
@@ -670,7 +673,7 @@ local function findUnitDataInGC(uuid)
                     if model.Name == uuid then
                         local hasUpgrade = rawget(obj, "Upgrade") ~= nil
                         if hasUpgrade then
-                            --print("✅ Found unit data via model reference!")
+                            --print(" Found unit data via model reference!")
                             return obj
                         end
                     end
@@ -678,7 +681,7 @@ local function findUnitDataInGC(uuid)
             end
         end
     end
-    warn("❌ Could not find unit data in GC")
+    warn(" Could not find unit data in GC")
     return nil
 end
 
@@ -796,11 +799,11 @@ local generalHook = newcclosure(function(self, ...)
     local unitName = loadout[slot]
     
     if not unitName then
-        warn("❌ Could not determine unit name for slot", slot)
+        warn(" Could not determine unit name for slot", slot)
         return
     end
     
-    print(string.format("✅ Unit in slot %d: %s", slot, unitName))
+    print(string.format(" Unit in slot %d: %s", slot, unitName))
     
     -- Wait for unit to appear in GC
     task.wait(0.5)
@@ -818,7 +821,7 @@ local generalHook = newcclosure(function(self, ...)
         uuid, detectedName = findNewUnitInGC(unitName, excludeUUIDs)
         
         if uuid then
-            --print(string.format("✅ Found new unit in GC on attempt %d", attempt))
+            --print(string.format(" Found new unit in GC on attempt %d", attempt))
             break
         end
         
@@ -859,7 +862,7 @@ local generalHook = newcclosure(function(self, ...)
         
         print(string.format("✓ Recorded: %s (UUID=%s)", unitTag, uuid))
     else
-        warn("❌ Failed to find placed unit in GC!")
+        warn(" Failed to find placed unit in GC!")
     end
                 
             -- UPGRADE HOOK
@@ -1661,11 +1664,11 @@ elseif messageType == "game_end" then
     if finishedRewardData and finishedRewardData.rewards then
         local rewardData = finishedRewardData.rewards
         
-        -- ✅ Process ALL rewards dynamically - only show what we actually got
+        --  Process ALL rewards dynamically - only show what we actually got
         for rewardKey, rewardValue in pairs(rewardData) do
             -- Handle numeric rewards (currency, XP, etc)
             if type(rewardValue) == "number" then
-                if rewardValue > 0 then  -- ✅ Only show if we got more than 0
+                if rewardValue > 0 then  --  Only show if we got more than 0
                     local friendlyName = rewardKey
                     if rewardKey == "Experience" then
                         friendlyName = "XP"
@@ -1692,7 +1695,7 @@ elseif messageType == "game_end" then
         rewards[displayName] = relicData.Amount or 1
     end
                 
-            -- ✅ Handle unit drops (comes as "Unit" table with Unit/Name/Rarity)
+            --  Handle unit drops (comes as "Unit" table with Unit/Name/Rarity)
 elseif type(rewardValue) == "table" and rewardKey == "Unit" then
     if rewardValue.Unit and rewardValue.Rarity then
         hasUnitDrop = true
@@ -1986,12 +1989,12 @@ local function joinStoryViaAPI(mapUIName, act, difficulty, difficultyPercent)
         return false
     end
     
-    -- ✅ CONVERT UI NAME TO MODULE NAME
+    --  CONVERT UI NAME TO MODULE NAME
     local mapModuleName = getModuleNameFromUI(mapUIName, "Story")
     
     local gameData = {
         Category = "Story",
-        Map = mapModuleName, -- ✅ Use module name, not UI name
+        Map = mapModuleName, --  Use module name, not UI name
         Act = tostring(act),
         Difficulty = difficulty,
         Modulation = convertDifficultyMeter(difficultyPercent),
@@ -2006,10 +2009,10 @@ local function joinStoryViaAPI(mapUIName, act, difficulty, difficultyPercent)
     end)
     
     if success then
-        print("✅ Story join request sent via API")
+        print(" Story join request sent via API")
         return true
     else
-        warn("❌ Story join failed")
+        warn(" Story join failed")
         return false
     end
 end
@@ -2033,10 +2036,10 @@ local function joinWinterViaAPI(act, difficulty, difficultyPercent)
     end)
     
     if success then
-        print("✅ Winter Event join request sent via API")
+        print(" Winter Event join request sent via API")
         return true
     else
-        warn("❌ Winter Event join failed")
+        warn(" Winter Event join failed")
         return false
     end
 end
@@ -2047,12 +2050,12 @@ local function joinLegendViaAPI(mapUIName, act, difficultyPercent)
         return false
     end
     
-    -- ✅ CONVERT UI NAME TO MODULE NAME
+    --  CONVERT UI NAME TO MODULE NAME
     local mapModuleName = getModuleNameFromUI(mapUIName, "LegendStage")
     
     local gameData = {
         Category = "LegendStage",
-        Map = mapModuleName, -- ✅ Use module name, not UI name
+        Map = mapModuleName, --  Use module name, not UI name
         Act = tostring(act),
         Difficulty = nil,
         Modulation = convertDifficultyMeter(difficultyPercent),
@@ -2067,10 +2070,10 @@ local function joinLegendViaAPI(mapUIName, act, difficultyPercent)
     end)
     
     if success then
-        print("✅ Legend join request sent via API")
+        print(" Legend join request sent via API")
         return true
     else
-        warn("❌ Legend join failed")
+        warn(" Legend join failed")
         return false
     end
 end
@@ -2081,12 +2084,12 @@ local function joinVirtualViaAPI(mapUIName, act, difficulty, difficultyPercent)
         return false
     end
     
-    -- ✅ CONVERT UI NAME TO MODULE NAME
+    --  CONVERT UI NAME TO MODULE NAME
     local mapModuleName = getModuleNameFromUI(mapUIName, "VirtualRealm")
     
     local gameData = {
         Category = "VirtualRealm",
-        Map = mapModuleName, -- ✅ Use module name, not UI name
+        Map = mapModuleName, --  Use module name, not UI name
         Act = tostring(act),
         Difficulty = difficulty,
         Modulation = convertDifficultyMeter(difficultyPercent),
@@ -2101,10 +2104,10 @@ local function joinVirtualViaAPI(mapUIName, act, difficulty, difficultyPercent)
     end)
     
     if success then
-        print("✅ Virtual join request sent via API")
+        print(" Virtual join request sent via API")
         return true
     else
-        warn("❌ Virtual join failed")
+        warn(" Virtual join failed")
         return false
     end
 end
@@ -2115,10 +2118,10 @@ local function joinRaidViaAPI(mapUIName, act)
         return false
     end
     
-    -- ✅ CONVERT UI NAME TO MODULE NAME
+    --  CONVERT UI NAME TO MODULE NAME
     local mapModuleName = getModuleNameFromUI(mapUIName, "Raid")
     
-    -- ✅ Handle Boss Rush act
+    --  Handle Boss Rush act
     local actValue = act
     if act == "BossRush" or act == "Boss Rush" then
         actValue = "Boss Rush"
@@ -2129,7 +2132,7 @@ local function joinRaidViaAPI(mapUIName, act)
     local gameData = {
         Category = "Raid",
         Map = mapModuleName,
-        Act = actValue, -- ✅ Can be "1", "2", "3", "4", "5", or "Boss Rush"
+        Act = actValue, --  Can be "1", "2", "3", "4", "5", or "Boss Rush"
         Difficulty = "Nightmare",
         Modulation = 1.0,
         FriendsOnly = false
@@ -2146,10 +2149,10 @@ local function joinRaidViaAPI(mapUIName, act)
     end)
     
     if success then
-        print("✅ Raid join request sent via API")
+        print(" Raid join request sent via API")
         return true
     else
-        warn("❌ Raid join failed")
+        warn(" Raid join failed")
         return false
     end
 end
@@ -2208,7 +2211,7 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
     
     local challengeData = challenges[challengeType][challengeNumber]
     
-    -- ✅ Check if challenge is already completed in data
+    --  Check if challenge is already completed in data
     if challengeData.Completed == true then
         print(string.format("⚠️ Challenge already completed: %s #%d (Map: %s Act %s)", 
             challengeType, challengeNumber, challengeData.Map, challengeData.Act))
@@ -2236,9 +2239,9 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
     end)
     
     if success then
-        print("✅ Challenge join request sent via API")
+        print(" Challenge join request sent via API")
         
-        -- ✅ Wait and check for "already beaten" error popup
+        --  Wait and check for "already beaten" error popup
         task.wait(1)
         
         local errorDetected = waitForChallengeError(3)
@@ -2266,7 +2269,7 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
         
         return true
     else
-        warn("❌ Challenge join failed")
+        warn(" Challenge join failed")
         return false
     end
 end
@@ -2299,10 +2302,61 @@ local function joinFeaturedChallengeViaAPI()
     end)
     
     if success then
-        print("✅ Featured Challenge join request sent via API")
+        print("Featured Challenge join request sent via API")
         return true
     else
-        warn("❌ Featured Challenge join failed")
+        warn("Featured Challenge join failed")
+        return false
+    end
+end
+
+local function joinOlympusJudgementViaAPI()
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(
+            buffer.fromstring(")\x11\x00Olympus Judgement\x01\x01\a\x00Special\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\t\x00Challenge\x00\x00"),
+            nil
+        )
+    end)
+    if success then
+        print("Olympus Judgement join request sent")
+        return true
+    else
+        warn("Olympus Judgement join failed")
+        return false
+    end
+end
+
+local function joinShinobiAllianceViaAPI()
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(
+            buffer.fromstring(")\x0F\x00ShinobiAlliance\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\x0F\x00ShinobiAlliance\x10\x00LimitedTimeModes\x00\x00"),
+            nil
+        )
+    end)
+    if success then
+        print("Shinobi Alliance join request sent")
+        return true
+    else
+        warn("Shinobi Alliance join failed")
+        return false
+    end
+end
+
+local function joinRagnarokViaAPI()
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(
+            buffer.fromstring(")\b\x00Ragnarok\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\b\x00Ragnarok\x10\x00LimitedTimeModes\x00\x00"),
+            nil
+        )
+    end)
+    if success then
+        print("Ragnarok Infinite join request sent")
+        return true
+    else
+        warn("Ragnarok Infinite join failed")
         return false
     end
 end
@@ -2326,10 +2380,10 @@ local function startGameViaAPI()
     end)
     
     if success then
-        print("✅ Clicked start button")
+        print(" Clicked start button")
         return true
     else
-        warn("❌ Failed to click start button")
+        warn(" Failed to click start button")
         return false
     end
 end
@@ -2421,7 +2475,7 @@ local function tryStartGameWithRetry(maxRetries)
     end
     
     -- All attempts failed - click Leave button
-    warn("❌ Failed to start game after", maxRetries, "attempts - clicking Leave button")
+    warn(" Failed to start game after", maxRetries, "attempts - clicking Leave button")
     
     local leaveSuccess = pcall(function()
         local leaveButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Leave.Hitbox
@@ -2437,7 +2491,7 @@ local function tryStartGameWithRetry(maxRetries)
         print("✓ Clicked Leave button - returning to lobby")
         task.wait(2)  -- Wait for leave to complete
     else
-        warn("❌ Failed to click Leave button")
+        warn(" Failed to click Leave button")
     end
     
     return false
@@ -2481,7 +2535,7 @@ local function challengeMatchesFilters(challengeData)
             local ignoredMapModule = UINameToModuleName[ignoredMapUI]
             
             if ignoredMapModule and challengeMapModule == ignoredMapModule then
-                --print(string.format("❌ Skipping - Map '%s' (UI: '%s') is in ignore list", 
+                --print(string.format(" Skipping - Map '%s' (UI: '%s') is in ignore list", 
                     --challengeMapModule, ignoredMapUI))
                 return false
             end
@@ -2508,7 +2562,7 @@ local function challengeMatchesFilters(challengeData)
             for _, ignoredModifier in ipairs(State.IgnoreModifier) do
                 -- ignoredModifier is the display name (ChallengeTag) from dropdown
                 if modifierName == ignoredModifier then
-                    --print(string.format("❌ Skipping - Modifier '%s' is in ignore list", modifierName))
+                    --print(string.format(" Skipping - Modifier '%s' is in ignore list", modifierName))
                     return false
                 end
             end
@@ -2539,14 +2593,14 @@ local function challengeMatchesFilters(challengeData)
         end
         
         if not rewardMatches then
-            --print(string.format("❌ Skipping - Reward '%s' not in selected rewards", friendlyReward))
+            --print(string.format(" Skipping - Reward '%s' not in selected rewards", friendlyReward))
             return false
         end
     else
         -- NO REWARDS SELECTED - This means user doesn't want to filter by rewards at all
         -- So we should REJECT challenges unless they explicitly want to run any challenge
         -- For now, let's reject if no rewards are selected
-        --print("❌ Skipping - No rewards selected (filter active but empty)")
+        --print(" Skipping - No rewards selected (filter active but empty)")
         return false
     end
     
@@ -2638,7 +2692,7 @@ local function checkAndExecuteHighestPriority()
                         local success = joinChallengeViaAPI("HalfHour", challenge.index)
                         
                         if success == true then
-                            print("✅ Successfully joined challenge via API!")
+                            print(" Successfully joined challenge via API!")
                             State.LastFailedChallengeAttempt = 0
                             
                             if waitForJoinSuccess(10) then
@@ -2652,7 +2706,7 @@ local function checkAndExecuteHighestPriority()
                             print("⚠️ Challenge already completed - trying next one...")
                             continue
                         else
-                            warn("❌ Failed to join challenge - trying next one...")
+                            warn(" Failed to join challenge - trying next one...")
                             continue
                         end
                     end
@@ -2679,7 +2733,7 @@ local function checkAndExecuteHighestPriority()
         local success = joinFeaturedChallengeViaAPI()
         
         if success then
-            print("✅ Successfully joined Featured Challenge via API!")
+            print(" Successfully joined Featured Challenge via API!")
             
             if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
@@ -2692,6 +2746,51 @@ local function checkAndExecuteHighestPriority()
         
         clearProcessingState()
     end
+
+    if State.AutoJoinOlympusJudgement then
+    setProcessingState("Olympus Judgement Auto Join")
+    local success = joinOlympusJudgementViaAPI()
+    if success then
+        if waitForJoinSuccess(10) then
+            if tryStartGameWithRetry(3) then
+                task.wait(3)
+                clearProcessingState()
+                return
+            end
+        end
+    end
+    clearProcessingState()
+end
+
+if State.AutoJoinShinobiAlliance then
+    setProcessingState("Shinobi Alliance Auto Join")
+    local success = joinShinobiAllianceViaAPI()
+    if success then
+        if waitForJoinSuccess(10) then
+            if tryStartGameWithRetry(3) then
+                task.wait(3)
+                clearProcessingState()
+                return
+            end
+        end
+    end
+    clearProcessingState()
+end
+
+if State.AutoJoinRagnarok then
+    setProcessingState("Ragnarok Infinite Auto Join")
+    local success = joinRagnarokViaAPI()
+    if success then
+        if waitForJoinSuccess(10) then
+            if tryStartGameWithRetry(3) then
+                task.wait(3)
+                clearProcessingState()
+                return
+            end
+        end
+    end
+    clearProcessingState()
+end
 
     -- Priority 3: Story Auto Join
     if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and 
@@ -2706,7 +2805,7 @@ local function checkAndExecuteHighestPriority()
         )
         
         if success then
-            print("✅ Successfully joined Story via API!")
+            print(" Successfully joined Story via API!")
             
             if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
@@ -2732,7 +2831,7 @@ local function checkAndExecuteHighestPriority()
         )
         
         if success then
-            print("✅ Successfully joined Legend Stage via API!")
+            print(" Successfully joined Legend Stage via API!")
             
             if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
@@ -2759,7 +2858,7 @@ local function checkAndExecuteHighestPriority()
         )
         
         if success then
-            print("✅ Successfully joined Virtual Stage via API!")
+            print(" Successfully joined Virtual Stage via API!")
             
             if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
@@ -2783,7 +2882,7 @@ local function checkAndExecuteHighestPriority()
         )
         
         if success then
-            print("✅ Successfully joined Raid via API!")
+            print(" Successfully joined Raid via API!")
             
             if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
@@ -2807,7 +2906,7 @@ local function checkAndExecuteHighestPriority()
         )
         
         if success then
-            print("✅ Successfully joined Winter Event via API!")
+            print(" Successfully joined Winter Event via API!")
             
             if waitForJoinSuccess(10) then
                 if tryStartGameWithRetry(3) then
@@ -3262,6 +3361,15 @@ JoinerTab:CreateSection("Challenge Joiner")
         end,
     })
 
+    AutoJoinOlympusToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Featured Challenge (Olympus Judgement)",
+    CurrentValue = false,
+    Flag = "AutoJoinOlympusJudgement",
+    Callback = function(Value)
+        State.AutoJoinOlympusJudgement = Value
+    end,
+})
+
         AutoJoinChallengeToggle = JoinerTab:CreateToggle({
         Name = "Auto Join Challenge",
         CurrentValue = false,
@@ -3328,19 +3436,25 @@ JoinerTab:CreateSection("Challenge Joiner")
         end,
     })
 
-JoinerTab:CreateSection("Winter Event Joiner")
-
-     AutoCollectPresentsToggle = JoinerTab:CreateToggle({
-    Name = "Auto Collect Present Drops",
+    AutoJoinShinobiToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Shinobi Alliance",
     CurrentValue = false,
-    Flag = "AutoCollectPresents",
-    Info = "Automatically teleport and collect present drops around the map",
+    Flag = "AutoJoinShinobiAlliance",
     Callback = function(Value)
-        State.AutoCollectPresents = Value
+        State.AutoJoinShinobiAlliance = Value
     end,
 })
 
-task.spawn(function()
+AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Ragnarok Infinite",
+    CurrentValue = false,
+    Flag = "AutoJoinRagnarok",
+    Callback = function(Value)
+        State.AutoJoinRagnarok = Value
+    end,
+})
+
+--[[task.spawn(function()
     local isCollecting = false
     
     while true do
@@ -3399,64 +3513,7 @@ task.spawn(function()
             isCollecting = false
         end
     end
-end)
-
-AutoJoinWinterEventToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Winter Event",
-        CurrentValue = false,
-        Flag = "AutoJoinWinterEvent",
-        Callback = function(Value)
-            State.AutoJoinWinterEvent = Value
-        end,
-    })
-
-WinterChapterDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Winter Event Act",
-    Options = {"Act 1", "Infinite"},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "WinterStageActSelector",
-    Callback = function(Option)
-        local selectedOption = type(Option) == "table" and Option[1] or Option
-            if selectedOption == "Infinite" then
-                State.WinterActSelected = "Infinite"
-            else
-                local num = selectedOption:match("%d+")
-                if num then
-                    State.WinterActSelected = num
-                end
-            end
-    end,
-})
-
- WinterDifficultyDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Winter Stage Difficulty",
-        Options = {"Easy","Hard","Nightmare"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "WinterStageDifficultySelector",
-        Callback = function(Option)
-            if Option[1] == "Easy" then
-                State.WinterStageDifficultySelected = "Easy"
-            elseif Option[1] == "Hard" then
-                State.WinterStageDifficultySelected = "Hard"
-            elseif Option[1] == "Nightmare" then
-                State.WinterStageDifficultySelected = "Nightmare"
-            end
-        end,
-    })
-
-   WinterSlider = JoinerTab:CreateSlider({
-   Name = "Select Difficulty Meter",
-   Range = {100, 700},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 100,
-   Flag = "WinterStageDifficultyMeterSelector",
-   Callback = function(Value)
-    State.WinterStageDifficultyMeterSelected = Value
-   end,
-})
+end)--]]
 
 local function buildMapLookup()
     print("Building map name lookup...")
@@ -4399,7 +4456,7 @@ local function StreamerMode()
         streamerLabel.Parent = originalNumbers.Parent
     end
 
-    -- ✅ Extract player's level from the UI text
+    --  Extract player's level from the UI text
     local playerLevel = "1"
     pcall(function()
         local levelText = originalNumbers.Text -- e.g., "Level 14 [59.32K/368.91K]"
@@ -4409,7 +4466,7 @@ local function StreamerMode()
         end
     end)
 
-    -- ✅ Get player's actual title
+    --  Get player's actual title
     local playerTitle = ""
 
     if State.streamerModeEnabled then
@@ -4718,7 +4775,7 @@ end)
                 
                 if success then
                     hasRestarted = true
-                    --print(string.format("✅ Auto Restart: Restarted match at wave %d", currentWave))
+                    --print(string.format(" Auto Restart: Restarted match at wave %d", currentWave))
                     
                     Rayfield:Notify({
                         Title = "Auto Restart",
@@ -5865,7 +5922,7 @@ end
         
         if RequestData then
             beforeRewardData = deepCopy(RequestData:InvokeServer())
-            --print("✅ Took BEFORE reward snapshot")
+            --print(" Took BEFORE reward snapshot")
         else
             warn("⚠️ RequestData not initialized - rewards won't be tracked")
         end
@@ -5915,7 +5972,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
         print("Game ended")
 
         afterRewardData = deepCopy(RequestData:InvokeServer())
-        --print("✅ Took AFTER reward snapshot")
+        --print(" Took AFTER reward snapshot")
 
         if State.SendStageCompletedWebhook then
         -- Determine victory or loss based on health
@@ -5999,7 +6056,7 @@ task.spawn(function()
             if currentWave == 0 then
                 print("Auto Start Game enabled - Voting to start...")
 
-                -- ✅ NEW: Check and switch macro BEFORE starting
+                --  NEW: Check and switch macro BEFORE starting
                 if isPlaybackEnabled then
                     checkAndSwitchMacroForCurrentWorld()
                     task.wait(0.5) -- Small delay to let user see the notification
