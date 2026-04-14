@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -133,6 +133,29 @@ local ModifierMapping = {}
 local worldMacroMappings = {}
 local worldDropdowns = {}
 
+-- ============================================
+-- NAMESPACE TABLES
+-- ============================================
+ 
+-- Groups utility/helper functions
+local Util = {}
+-- Groups macro file I/O
+local MacroIO = {}
+-- Groups unit tracking/GC search
+local UnitTracker = {}
+-- Groups playback execution
+local Playback = {}
+-- Groups auto-join logic
+local AutoJoin = {}
+-- Groups webhook logic
+local Webhook = {}
+-- Groups path/blessing logic
+local PathSystem = {}
+-- Groups loader functions (stages, modifiers, etc.)
+local Loader = {}
+-- Groups game/match state helpers
+local GameState = {}
+
 local Services = {
     HttpService = game:GetService("HttpService"),
     Players = game:GetService("Players"),
@@ -146,22 +169,11 @@ local Services = {
 
 task.spawn(function()
     task.wait(2)
-    
     pcall(function()
         local SendFinished = Services.ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.WaveService.RE.SendFinished
-        
         SendFinished.OnClientEvent:Connect(function(result, rewards, gameInfo, ...)
-            print("SendFinished hook triggered!")
-            print("Result:", result)
-            
-            finishedRewardData = {
-                result = result,
-                rewards = rewards,
-                gameInfo = gameInfo
-            }
+            finishedRewardData = { result = result, rewards = rewards, gameInfo = gameInfo }
         end)
-        
-        print("Hooked SendFinished remote for reward tracking")
     end)
 end)
 
@@ -265,10 +277,9 @@ local Config = {
     DISCORD_USER_ID = nil,
 }
 
-local function isInLobby()
+function Util.isInLobby()
     return Services.Workspace:GetAttribute("IsLobby") or false
 end
-
 
 local TowerService = nil
 local BlessingService = nil
@@ -277,39 +288,11 @@ local ChallengeController = nil
 local PodController = nil
 
 task.spawn(function()
-    -- Wait for game to load
     task.wait(2)
-    
     pcall(function()
-        TowerService = game:GetService("ReplicatedStorage")
-            :WaitForChild("Packages", 10)
-            :WaitForChild("_Index")
-            :WaitForChild("sleitnick_knit@1.7.0")
-            :WaitForChild("knit")
-            :WaitForChild("Services")
-            :WaitForChild("TowerService")
-            :WaitForChild("RF")
-
-        BlessingService = game:GetService("ReplicatedStorage")
-            :WaitForChild("Packages", 10)
-            :WaitForChild("_Index")
-            :WaitForChild("sleitnick_knit@1.7.0")
-            :WaitForChild("knit")
-            :WaitForChild("Services")
-            :WaitForChild("BlessingService")
-            :WaitForChild("RE")
-
-        RequestData = game:GetService("ReplicatedStorage")
-            :WaitForChild("Packages", 10)
-            :WaitForChild("_Index")
-            :WaitForChild("sleitnick_knit@1.7.0")
-            :WaitForChild("knit")
-            :WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RF"):WaitForChild("RequestData")
-
-        print("TowerService initialized")
-        print("BlessingService initialized")
-        print("RequestData initialized")
-        print("ChallengeController initialized")
+        TowerService = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 10):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("TowerService"):WaitForChild("RF")
+        BlessingService = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 10):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("BlessingService"):WaitForChild("RE")
+        RequestData = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 10):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RF"):WaitForChild("RequestData")
     end)
 end)
 
@@ -317,7 +300,6 @@ task.spawn(function()
     task.wait(2)
     local Knit = require(Services.ReplicatedStorage.Packages.knit)
     ChallengeController = Knit.GetController("ChallengeController")
-    print("ChallengeController initialized")
 end)
 
 task.spawn(function()
@@ -325,7 +307,6 @@ task.spawn(function()
     pcall(function()
         local Knit = require(Services.ReplicatedStorage.Packages.knit)
         PodController = Knit.GetController("PodController")
-        print("PodController initialized")
     end)
 end)
 
@@ -333,64 +314,45 @@ end)
 -- LOADOUT MANAGEMENT
 -- ============================================
 
-
-
-local function ensureMacroFolders()
-    if not isfolder("LixHub") then
-        makefolder("LixHub")
-    end
-    if not isfolder("LixHub/Macros") then
-        makefolder("LixHub/Macros")
-    end
-    if not isfolder("LixHub/Macros/UTD") then
-        makefolder("LixHub/Macros/UTD")
-    end
+function MacroIO.ensureFolders()
+    if not isfolder("LixHub") then makefolder("LixHub") end
+    if not isfolder("LixHub/Macros") then makefolder("LixHub/Macros") end
+    if not isfolder("LixHub/Macros/UTD") then makefolder("LixHub/Macros/UTD") end
 end
 
-local function getMacroFilename(name)
+function MacroIO.getFilename(name)
     return "LixHub/Macros/UTD/" .. name .. ".json"
 end
 
-local function saveMacroToFile(name, macroData)
-    ensureMacroFolders()
-    
+function MacroIO.save(name, macroData)
+    MacroIO.ensureFolders()
     local json = game:GetService("HttpService"):JSONEncode(macroData)
-    writefile(getMacroFilename(name), json)
-    
+    writefile(MacroIO.getFilename(name), json)
     print(string.format("✓ Saved macro: %s (%d actions)", name, #macroData))
 end
 
-local function loadMacroFromFile(name)
-    local filePath = getMacroFilename(name)
-    if not isfile(filePath) then 
-        return nil 
-    end
-    
+function MacroIO.load(name)
+    local filePath = MacroIO.getFilename(name)
+    if not isfile(filePath) then return nil end
     local json = readfile(filePath)
-    local data = game:GetService("HttpService"):JSONDecode(json)
-    
-    return data
+    return game:GetService("HttpService"):JSONDecode(json)
 end
 
-local function deleteMacroFile(name)
-    local filePath = getMacroFilename(name)
-    if isfile(filePath) then
-        delfile(filePath)
-    end
+function MacroIO.delete(name)
+    local filePath = MacroIO.getFilename(name)
+    if isfile(filePath) then delfile(filePath) end
     macroManager[name] = nil
-    
     print(string.format("🗑️ Deleted macro: %s", name))
 end
 
-local function loadAllMacros()
-    ensureMacroFolders()
+function MacroIO.loadAll()
+    MacroIO.ensureFolders()
     macroManager = {}
-    
     local files = listfiles("LixHub/Macros/UTD/")
     for _, file in ipairs(files) do
         if file:match("%.json$") then
             local name = file:match("([^/\\]+)%.json$")
-            local data = loadMacroFromFile(name)
+            local data = MacroIO.load(name)
             if data then
                 macroManager[name] = data
                 print(string.format("📂 Loaded macro: %s (%d actions)", name, #data))
@@ -399,52 +361,39 @@ local function loadAllMacros()
     end
 end
 
-local function getMacroList()
+function MacroIO.getList()
     local list = {}
-    for name in pairs(macroManager) do
-        table.insert(list, name)
-    end
+    for name in pairs(macroManager) do table.insert(list, name) end
     table.sort(list)
     return list
 end
 
-local function updateMacroStatus(message)
+function Util.updateMacroStatus(message)
     StatusLabel:Set("Status: " .. message)
 end
 
-local function updateDetailedStatus(message)
+function Util.updateDetailedStatus(message)
     DetailLabel:Set(message)
 end
 
-local function cleanUnitName(unitName)
+function Util.cleanUnitName(unitName)
     return unitName:gsub(":[Ss]hiny", "")
 end
 
-local function getPlayerLoadout()
+function UnitTracker.getPlayerLoadout()
     local loadout = {}
-    
     local success = pcall(function()
         local hotbar = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.HUD.Bottom.Hotbar.Units
-        
-        if not hotbar then
-            warn(" Hotbar not found!")
-            return
-        end
-        
-        -- Get all ContainerBig frames
+        if not hotbar then return end
         local containers = {}
         for _, child in pairs(hotbar:GetChildren()) do
             if child.Name == "ContainerBig" and child:IsA("Frame") then
                 table.insert(containers, child)
             end
         end
-        
-        -- Sort by ABSOLUTE position (left to right)
         table.sort(containers, function(a, b)
             return a.AbsolutePosition.X < b.AbsolutePosition.X
         end)
-        
-        -- Extract unit names in order
         for slot, container in ipairs(containers) do
             local unitPath = container:FindFirstChild("Unit")
             if unitPath then
@@ -452,17 +401,13 @@ local function getPlayerLoadout()
                 if unitPath then
                     unitPath = unitPath:FindFirstChild("Unit")
                     if unitPath then
-                        -- Find the FIRST Model that is NOT "WorldModel"
                         local unitModel = nil
-                        
                         for _, child in pairs(unitPath:GetChildren()) do
                             if child:IsA("Model") and child.Name ~= "WorldModel" then
                                 unitModel = child
                                 break
                             end
                         end
-                        
-                        -- Fallback: check descendants
                         if not unitModel then
                             for _, descendant in pairs(unitPath:GetDescendants()) do
                                 if descendant:IsA("Model") and descendant.Name ~= "WorldModel" then
@@ -471,79 +416,40 @@ local function getPlayerLoadout()
                                 end
                             end
                         end
-                        
                         if unitModel then
-                            --  CLEAN THE UNIT NAME HERE
-                            local rawName = unitModel.Name
-                            local cleanedName = cleanUnitName(rawName)  -- Remove :shiny
-                            
-                            loadout[slot] = cleanedName
-                            --print(string.format(" Slot %d: %s (raw: %s)", slot, cleanedName, rawName))
-                        else
-                            warn(string.format("⚠️ Slot %d: Could not find unit model", slot))
+                            loadout[slot] = Util.cleanUnitName(unitModel.Name)
                         end
                     end
                 end
             end
         end
     end)
-    
-    if not success then
-        warn(" Failed to get player loadout")
-    end
-    
+    if not success then warn(" Failed to get player loadout") end
     return loadout
 end
 
-local function getSlotForUnit(unitName)
-    local loadout = getPlayerLoadout()
-
-    -- Clean BOTH names using the new function
-    local cleanSearchName = cleanUnitName(unitName)
-    
+function UnitTracker.getSlotForUnit(unitName)
+    local loadout = UnitTracker.getPlayerLoadout()
+    local cleanSearchName = Util.cleanUnitName(unitName)
     for slot, name in pairs(loadout) do
-        local cleanLoadoutName = cleanUnitName(name)
-
-        if cleanLoadoutName == cleanSearchName then
-            return slot
-        end
+        if Util.cleanUnitName(name) == cleanSearchName then return slot end
     end
-    
     return nil
 end
 
-local function getUnitData(unitName)
-    -- Clean the unit name (remove :shiny from anywhere)
-    local cleanUnitName = cleanUnitName(unitName)
-    
+function UnitTracker.getUnitData(unitName)
+    local cleanName = Util.cleanUnitName(unitName)
     local success, result = pcall(function()
-        local module = game:GetService("ReplicatedStorage")
-            .Shared
-            .Data
-            .Towers
-            :FindFirstChild(cleanUnitName)  -- Use cleaned name
-        
-        if not module then
-            return nil
-        end
-        
+        local module = game:GetService("ReplicatedStorage").Shared.Data.Towers:FindFirstChild(cleanName)
+        if not module then return nil end
         if module:IsA("ModuleScript") then
             local required = require(module)
-            
-            if type(required) == "function" then
-                return required()
-            end
-            
+            if type(required) == "function" then return required() end
             return required
         end
-        
         return nil
     end)
-    
-    if success and result then
-        return result
-    end
-    
+    if success and result then return result end
     warn(string.format(" Could not find unit data for: %s", unitName))
     return nil
 end
@@ -552,130 +458,72 @@ end
 -- UNIT TRACKING
 -- ============================================
 
-local function getUnitByUUID(uuid)
-    -- Find unit in workspace by UUID
-    -- UUID is stored as the model's Name in workspace.Ignore.Units
+function UnitTracker.getByUUID(uuid)
     local unitsFolder = workspace:FindFirstChild("Ignore")
-    if unitsFolder then
-        unitsFolder = unitsFolder:FindFirstChild("Units")
-    end
-    
+    if unitsFolder then unitsFolder = unitsFolder:FindFirstChild("Units") end
     if not unitsFolder then return nil end
-    
-    -- Direct lookup since UUID is the model name
-    local unit = unitsFolder:FindFirstChild(uuid)
-    return unit
+    return unitsFolder:FindFirstChild(uuid)
 end
 
-local function findNewUnitInGC(unitName, excludeUUIDs)
+function UnitTracker.findNewInGC(unitName, excludeUUIDs)
     excludeUUIDs = excludeUUIDs or {}
-    
-    -- Clean the search name (use different variable name!)
-    local cleanedUnitName = cleanUnitName(unitName)  --  FIXED
-    
+    local cleanedUnitName = Util.cleanUnitName(unitName)
     local candidates = {}
-    
     for _, obj in pairs(getgc(true)) do
         if type(obj) == "table" then
             local guid = rawget(obj, "GUID")
-            
             if guid and type(guid) == "string" and string.find(guid, "-") then
-                if excludeUUIDs[guid] then
-                    continue
-                end
-                
+                if excludeUUIDs[guid] then continue end
                 local objUnitId = rawget(obj, "UnitId") or rawget(obj, "TowerID")
                 local objName = rawget(obj, "Name")
-                
-                -- Clean the unit names from GC too
-                local cleanObjUnitId = objUnitId and cleanUnitName(objUnitId) or nil
-                local cleanObjName = objName and cleanUnitName(objName) or nil
-                
-                -- Compare cleaned names (use new variable name)
+                local cleanObjUnitId = objUnitId and Util.cleanUnitName(objUnitId) or nil
+                local cleanObjName = objName and Util.cleanUnitName(objName) or nil
                 if cleanObjUnitId == cleanedUnitName or cleanObjName == cleanedUnitName then
                     local hasUpgrade = rawget(obj, "Upgrade") ~= nil
                     local hasModel = rawget(obj, "Model") ~= nil
-                    
                     if hasUpgrade and hasModel then
                         local model = rawget(obj, "Model")
                         local modelExists = false
-                        
                         pcall(function()
-                            if model and model.Parent then
-                                modelExists = true
-                            end
+                            if model and model.Parent then modelExists = true end
                         end)
-                        
                         if modelExists then
-                            table.insert(candidates, {
-                                uuid = guid,
-                                unitName = objUnitId or objName,
-                                data = obj
-                            })
+                            table.insert(candidates, { uuid = guid, unitName = objUnitId or objName, data = obj })
                         end
                     end
                 end
             end
         end
     end
-    
     if #candidates == 0 then
         warn(string.format(" No new units found for: %s", unitName))
         return nil, nil
     end
-    
-    table.sort(candidates, function(a, b) 
+    table.sort(candidates, function(a, b)
         local aLevel = rawget(a.data, "Upgrade") or 1
         local bLevel = rawget(b.data, "Upgrade") or 1
         return aLevel < bLevel
     end)
-    
     local best = candidates[1]
-    
     return best.uuid, best.unitName
 end
 
 local unitChangeListeners = {}
 
-local function findUnitDataInGC(uuid)
-    -- Search garbage collection for unit data tables
-    --print(string.format("🔍 Searching GC for unit: %s", uuid))
-    
+function UnitTracker.findDataInGC(uuid)
     for _, obj in pairs(getgc(true)) do
         if type(obj) == "table" then
-            -- Look for tables that have GUID field (not UUID, not uuid)
             local guid = rawget(obj, "GUID")
-            
             if guid == uuid then
-                -- Make sure it has other unit-specific fields to confirm it's the right table
                 local hasUpgrade = rawget(obj, "Upgrade") ~= nil
                 local hasUnitId = rawget(obj, "UnitId") ~= nil or rawget(obj, "TowerID") ~= nil
-                
-                if hasUpgrade or hasUnitId then
-                    --print(" Found unit data in GC!")
-                    
-                    -- Print the table contents
-                    --print("=== UNIT DATA TABLE ===")
-                    for key, value in pairs(obj) do
-                        if type(value) ~= "table" and type(value) ~= "function" then
-                            --print(string.format("  %s = %s (%s)", tostring(key), tostring(value), type(value)))
-                        end
-                    end
-                    --print("=== END ===")
-                    return obj
-                end
+                if hasUpgrade or hasUnitId then return obj end
             end
-            
-            -- Fallback: check Model reference
             local model = rawget(obj, "Model")
             if model and type(model) == "userdata" then
                 pcall(function()
-                    if model.Name == uuid then
-                        local hasUpgrade = rawget(obj, "Upgrade") ~= nil
-                        if hasUpgrade then
-                            --print(" Found unit data via model reference!")
-                            return obj
-                        end
+                    if model.Name == uuid and rawget(obj, "Upgrade") ~= nil then
+                        return obj
                     end
                 end)
             end
@@ -685,79 +533,52 @@ local function findUnitDataInGC(uuid)
     return nil
 end
 
-local function startTrackingUnitChanges(uuid, unitTag, unitName)
-    local unit = getUnitByUUID(uuid)
+function UnitTracker.startTracking(uuid, unitTag, unitName)
+    local unit = UnitTracker.getByUUID(uuid)
     if not unit then return end
-    
-    --print(string.format("Started tracking: %s (UUID=%s)", unitTag, uuid))
-    
-    -- Find unit data in garbage collection
-    local unitData = findUnitDataInGC(uuid)
-    
+    local unitData = UnitTracker.findDataInGC(uuid)
     if unitData then
-        -- Store the unit data reference
-        unitChangeListeners[uuid] = {
-            data = unitData,
-            unitTag = unitTag,
-            lastUpgradeLevel = unitData.Upgrade or 1
-        }
-        
-        --print(string.format("Tracking %s - Current upgrade level: %d", 
-            --unitTag, unitData.Upgrade or 1))
+        unitChangeListeners[uuid] = { data = unitData, unitTag = unitTag, lastUpgradeLevel = unitData.Upgrade or 1 }
     else
-        --warn(string.format("⚠️ Could not find GC data for %s", unitTag))
         unitChangeListeners[uuid] = { unitTag = unitTag }
     end
 end
 
-local function stopTrackingUnitChanges(uuid)
+function UnitTracker.stopTracking(uuid)
     if unitChangeListeners[uuid] then
         unitChangeListeners[uuid] = nil
-        --print(string.format("Stopped tracking UUID: %s", uuid))
     end
 end
 
 local upgradeCheckThread = nil
 
-local function startUpgradePolling()
+function UnitTracker.startUpgradePolling()
     if upgradeCheckThread then return end
-    
     upgradeCheckThread = task.spawn(function()
         while isRecording and recordingHasStarted do
-            task.wait(0.5) -- Check every 0.5 seconds
-            
+            task.wait(0.5)
             for uuid, listener in pairs(unitChangeListeners) do
                 if type(listener) == "table" and listener.data then
                     local currentLevel = listener.data.Upgrade
                     local lastLevel = listener.lastUpgradeLevel
-                    
                     if currentLevel and lastLevel and currentLevel > lastLevel then
-                        -- Upgrade detected!
-                        --print(string.format("UPGRADE DETECTED: %s went from level %d -> %d", 
-                            --listener.unitTag, lastLevel, currentLevel))
-                        
-                        -- Update tracked level
                         listener.lastUpgradeLevel = currentLevel
-                        
-                        -- This will be caught by the hook, but good to log here too
                     end
                 end
             end
         end
-        
         upgradeCheckThread = nil
     end)
 end
 
-local function stopUpgradePolling()
+function UnitTracker.stopUpgradePolling()
     if upgradeCheckThread then
         task.cancel(upgradeCheckThread)
         upgradeCheckThread = nil
     end
 end
 
-local function getUnitNameFromTag(unitTag)
-    -- Extract "FastCart" from "FastCart #1"
+function Util.getUnitNameFromTag(unitTag)
     return unitTag:match("^(.+) #%d+$") or unitTag
 end
 
@@ -772,174 +593,71 @@ local playbackUnitTagToUUID = {} -- Maps "UnitName #N" -> UUID (for playback)
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local originalNamecall = mt.__namecall
-
+ 
 local generalHook = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
-    
     if not checkcaller() and isRecording and recordingHasStarted then
         task.spawn(function()
             local timestamp = tick()
             local gameRelativeTime = timestamp - gameStartTime
-            
-            -- PLACEMENT HOOK
             if method == "InvokeServer" and self.Name == "PlaceUnit" then
-    local slot = args[1]
-    local cframe = args[2]
-    
-    -- Capture immediately
-    local capturedSlot = slot
-    local capturedCFrame = cframe
-    
-    --print(string.format("📝 Placement detected: Slot %d at (%.1f, %.1f, %.1f)", 
-        --slot, cframe.Position.X, cframe.Position.Y, cframe.Position.Z))
-    
-    -- Get unit name from loadout
-    local loadout = getPlayerLoadout()
-    local unitName = loadout[slot]
-    
-    if not unitName then
-        warn(" Could not determine unit name for slot", slot)
-        return
-    end
-    
-    print(string.format(" Unit in slot %d: %s", slot, unitName))
-    
-    -- Wait for unit to appear in GC
-    task.wait(0.5)
-    
-    -- Build exclude list from already tracked units
-    local excludeUUIDs = {}
-    for uuid, _ in pairs(recordingUUIDToTag) do
-        excludeUUIDs[uuid] = true
-    end
-    
-    local uuid, detectedName = nil, nil
-    
-    -- Try to find the new unit in GC (much faster than position search!)
-    for attempt = 1, 10 do
-        uuid, detectedName = findNewUnitInGC(unitName, excludeUUIDs)
-        
-        if uuid then
-            --print(string.format(" Found new unit in GC on attempt %d", attempt))
-            break
-        end
-        
-        task.wait(0.3)
-    end
-    
-    if uuid then
-
-        local cleanUnitName = cleanUnitName(unitName)
-        -- Verify the unit exists in workspace
-        local unit = getUnitByUUID(uuid)
-        if not unit then
-            warn(string.format("⚠️ UUID %s found in GC but not in workspace!", uuid))
-            return
-        end
-        
-        -- Increment counter for this unit type
-        recordingUnitCounter[cleanUnitName] = (recordingUnitCounter[cleanUnitName] or 0) + 1
-        local unitNumber = recordingUnitCounter[cleanUnitName]
-        local unitTag = string.format("%s #%d", cleanUnitName, unitNumber)
-        
-        -- Track this unit
-        recordingUUIDToTag[uuid] = unitTag
-        
-        -- Record to macro
-        local record = {
-            Type = "spawn_unit",
-            Unit = unitTag,
-            --UnitName = unitName,
-            Time = string.format("%.2f", gameRelativeTime),
-            Position = {capturedCFrame.Position.X, capturedCFrame.Position.Y, capturedCFrame.Position.Z}
-        }
-        
-        table.insert(macro, record)
-        
-        -- Start tracking upgrades for this unit
-        startTrackingUnitChanges(uuid, unitTag, unitName)
-        
-        print(string.format("✓ Recorded: %s (UUID=%s)", unitTag, uuid))
-    else
-        warn(" Failed to find placed unit in GC!")
-    end
-                
-            -- UPGRADE HOOK
+                local slot = args[1]
+                local cframe = args[2]
+                local loadout = UnitTracker.getPlayerLoadout()
+                local unitName = loadout[slot]
+                if not unitName then warn(" Could not determine unit name for slot", slot) return end
+                task.wait(0.5)
+                local excludeUUIDs = {}
+                for uuid, _ in pairs(recordingUUIDToTag) do excludeUUIDs[uuid] = true end
+                local uuid, detectedName = nil, nil
+                for attempt = 1, 10 do
+                    uuid, detectedName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
+                    if uuid then break end
+                    task.wait(0.3)
+                end
+                if uuid then
+                    local cleanName = Util.cleanUnitName(unitName)
+                    local unit = UnitTracker.getByUUID(uuid)
+                    if not unit then warn(string.format("⚠️ UUID %s found in GC but not in workspace!", uuid)) return end
+                    recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
+                    local unitNumber = recordingUnitCounter[cleanName]
+                    local unitTag = string.format("%s #%d", cleanName, unitNumber)
+                    recordingUUIDToTag[uuid] = unitTag
+                    table.insert(macro, {
+                        Type = "spawn_unit", Unit = unitTag,
+                        Time = string.format("%.2f", gameRelativeTime),
+                        Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
+                    })
+                    UnitTracker.startTracking(uuid, unitTag, unitName)
+                    print(string.format("✓ Recorded: %s (UUID=%s)", unitTag, uuid))
+                else
+                    warn(" Failed to find placed unit in GC!")
+                end
             elseif method == "InvokeServer" and self.Name == "UpgradeUnit" then
-    local uuid = args[1]
-    
-    local unitTag = recordingUUIDToTag[uuid]
-    if not unitTag then
-        warn("⚠️ Upgrade detected for untracked unit:", uuid)
-        return
-    end
-    
-    -- Get current level BEFORE upgrade
-    local currentLevel = nil
-    if unitChangeListeners[uuid] and type(unitChangeListeners[uuid]) == "table" then
-        currentLevel = unitChangeListeners[uuid].lastUpgradeLevel
-    end
-    
-    table.insert(macro, {
-        Type = "upgrade_unit",
-        Unit = unitTag,
-        Time = string.format("%.2f", gameRelativeTime)
-    })
-    
-    if currentLevel then
-        print(string.format("✓ Recorded upgrade: %s (UUID=%s) Level %d -> %d", 
-            unitTag, uuid, currentLevel, currentLevel + 1))
-    else
-        print(string.format("✓ Recorded upgrade: %s (UUID=%s)", unitTag, uuid))
-    end
-                
-            -- SELL HOOK
+                local uuid = args[1]
+                local unitTag = recordingUUIDToTag[uuid]
+                if not unitTag then warn("⚠️ Upgrade detected for untracked unit:", uuid) return end
+                table.insert(macro, { Type = "upgrade_unit", Unit = unitTag, Time = string.format("%.2f", gameRelativeTime) })
             elseif method == "InvokeServer" and self.Name == "SellUnit" then
                 local uuid = args[1]
-                
                 local unitTag = recordingUUIDToTag[uuid]
-                if not unitTag then
-                    warn("⚠️ Sell detected for untracked unit:", uuid)
-                    return
-                end
-                
-                table.insert(macro, {
-                    Type = "sell_unit",
-                    Unit = unitTag,
-                    Time = string.format("%.2f", gameRelativeTime)
-                })
-                
-                print(string.format("✓ Recorded sell: %s (UUID=%s)", unitTag, uuid))
-                
-                -- Stop tracking this unit
-                stopTrackingUnitChanges(uuid)
+                if not unitTag then warn("⚠️ Sell detected for untracked unit:", uuid) return end
+                table.insert(macro, { Type = "sell_unit", Unit = unitTag, Time = string.format("%.2f", gameRelativeTime) })
+                UnitTracker.stopTracking(uuid)
                 recordingUUIDToTag[uuid] = nil
-                elseif method == "FireServer" and self.Name == "UseAbility" then
-    local uuid = args[1]
-    local abilitySlot = args[2]
-    
-    local unitTag = recordingUUIDToTag[uuid]
-    if not unitTag then
-        warn("⚠️ Ability used for untracked unit:", uuid)
-        return
-    end
-    
-    table.insert(macro, {
-        Type = "use_ability",
-        Unit = unitTag,
-        AbilitySlot = abilitySlot,
-        Time = string.format("%.2f", gameRelativeTime)
-    })
-    
-    print(string.format("✓ Recorded ability: %s (UUID=%s) Slot %d", unitTag, uuid, abilitySlot))
+            elseif method == "FireServer" and self.Name == "UseAbility" then
+                local uuid = args[1]
+                local abilitySlot = args[2]
+                local unitTag = recordingUUIDToTag[uuid]
+                if not unitTag then warn("⚠️ Ability used for untracked unit:", uuid) return end
+                table.insert(macro, { Type = "use_ability", Unit = unitTag, AbilitySlot = abilitySlot, Time = string.format("%.2f", gameRelativeTime) })
             end
         end)
     end
-    
     return originalNamecall(self, ...)
 end)
-
+ 
 mt.__namecall = generalHook
 setreadonly(mt, true)
 
@@ -947,7 +665,7 @@ setreadonly(mt, true)
 -- PLAYBACK EXECUTION
 -- ============================================
 
-local function getPlayerMoney()
+function Util.getPlayerMoney()
     return Services.Players.LocalPlayer:GetAttribute("Yen")
 end
 
@@ -1020,243 +738,169 @@ local function canAffordUpgrade(uuid)
     return money >= upgradeCost
 end
 
-local function waitForMoney(requiredAmount, actionDescription)
-    local currentMoney = getPlayerMoney()
-    
-    if not currentMoney then
-        return true
-    end
-    
-    if currentMoney >= requiredAmount then
-        return true
-    end
-    
+function Playback.waitForMoney(requiredAmount, actionDescription)
+    local currentMoney = Util.getPlayerMoney()
+    if not currentMoney then return true end
+    if currentMoney >= requiredAmount then return true end
     local lastUpdateTime = tick()
-    
     while true do
-        -- CRITICAL: Check game state while waiting for money
         local matchFinished = workspace:GetAttribute("MatchFinished")
-        
         if not isPlaybackEnabled or not gameInProgress or matchFinished then
             print("⚠️ Game ended while waiting for money - aborting wait")
-            return false -- Return false to signal we should stop
+            return false
         end
-        
         task.wait(1)
-        
-        currentMoney = getPlayerMoney()
-        if not currentMoney then
-            return true
-        end
-        
-        if currentMoney >= requiredAmount then
-            return true
-        end
-        
-        -- Update status every 3 seconds
+        currentMoney = Util.getPlayerMoney()
+        if not currentMoney then return true end
+        if currentMoney >= requiredAmount then return true end
         if tick() - lastUpdateTime >= 1 then
-            updateDetailedStatus(string.format("Waiting: ¥%d / ¥%d (%s)", currentMoney, requiredAmount, actionDescription))
+            Util.updateDetailedStatus(string.format("Waiting: ¥%d / ¥%d (%s)", currentMoney, requiredAmount, actionDescription))
             lastUpdateTime = tick()
         end
     end
 end
 
-local function executePlacementAction(action, actionIndex, totalActions)
-    local unitName = getUnitNameFromTag(action.Unit)
-    
-    -- Clean the unit name 
-    local cleanUnitName = cleanUnitName(unitName)
-    
-    updateMacroStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
-
-    local unitData = getUnitData(cleanUnitName)  -- Use cleaned name
+function Playback.executePlacement(action, actionIndex, totalActions)
+    local unitName = Util.getUnitNameFromTag(action.Unit)
+    local cleanName = Util.cleanUnitName(unitName)
+    Util.updateMacroStatus(string.format("(%d/%d) Placing %s", actionIndex, totalActions, action.Unit))
+    local unitData = UnitTracker.getUnitData(cleanName)
     local placementCost = 0
-    
     if unitData and unitData.Stats and unitData.Stats.Upgrades and #unitData.Stats.Upgrades > 0 then
         placementCost = unitData.Stats.Upgrades[1].Cost or 0
     end
-    
     if placementCost > 0 then
-        local currentMoney = getPlayerMoney()
+        local currentMoney = Util.getPlayerMoney()
         if currentMoney and currentMoney < placementCost then
-            updateDetailedStatus(string.format("Waiting for ¥%d to place %s", placementCost, action.Unit))
+            Util.updateDetailedStatus(string.format("Waiting for ¥%d to place %s", placementCost, action.Unit))
         end
-        
-        local canContinue = waitForMoney(placementCost, cleanUnitName)
+        local canContinue = Playback.waitForMoney(placementCost, cleanName)
         if not canContinue then
-            updateDetailedStatus("Game ended while waiting for money")
+            Util.updateDetailedStatus("Game ended while waiting for money")
             return false
         end
     end
-    
-    local slot = getSlotForUnit(cleanUnitName)  -- Use cleaned name
-    
+    local slot = UnitTracker.getSlotForUnit(cleanName)
     if not slot then
-        updateDetailedStatus(string.format("Error: %s not in loadout", cleanUnitName))
+        Util.updateDetailedStatus(string.format("Error: %s not in loadout", cleanName))
         return false
     end
-    
-    updateDetailedStatus(string.format("Placing %s...", action.Unit))
-    
+    Util.updateDetailedStatus(string.format("Placing %s...", action.Unit))
     local pos = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
-    
     local success = pcall(function()
         TowerService:WaitForChild("PlaceUnit"):InvokeServer(slot, cframe)
     end)
-    
     if not success then
-        updateDetailedStatus("Placement failed")
+        Util.updateDetailedStatus("Placement failed")
         return false
     end
-    
     task.wait(0.5)
-    
     local excludeUUIDs = {}
-    for _, mappedUUID in pairs(playbackUnitTagToUUID) do
-        excludeUUIDs[mappedUUID] = true
-    end
-    
+    for _, mappedUUID in pairs(playbackUnitTagToUUID) do excludeUUIDs[mappedUUID] = true end
     local uuid = nil
-    
     for attempt = 1, 10 do
-        uuid = findNewUnitInGC(cleanUnitName, excludeUUIDs)
+        uuid = UnitTracker.findNewInGC(cleanName, excludeUUIDs)
         if uuid then break end
         task.wait(0.3)
     end
-    
     if uuid then
-        local unit = getUnitByUUID(uuid)
+        local unit = UnitTracker.getByUUID(uuid)
         if not unit then
-            updateDetailedStatus("Unit not found in workspace")
+            Util.updateDetailedStatus("Unit not found in workspace")
             return false
         end
-        
         playbackUnitTagToUUID[action.Unit] = uuid
-        updateDetailedStatus(string.format("Placed %s ✓", action.Unit))
+        Util.updateDetailedStatus(string.format("Placed %s ✓", action.Unit))
         return true
     end
-    
-    updateDetailedStatus("Failed to detect placed unit")
+    Util.updateDetailedStatus("Failed to detect placed unit")
     return false
 end
 
-local function executeUnitUpgrade(action, actionIndex, totalActions)
-    updateMacroStatus(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
-    
+function Playback.executeUpgrade(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Upgrading %s", actionIndex, totalActions, action.Unit))
     local uuid = playbackUnitTagToUUID[action.Unit]
-    
     if not uuid or type(uuid) ~= "string" then
-        updateDetailedStatus(string.format("Error: Invalid UUID for %s", action.Unit))
+        Util.updateDetailedStatus(string.format("Error: Invalid UUID for %s", action.Unit))
         return false
     end
-
     local upgradeCost = 0
     local currentLevel = 1
-    local unitData = findUnitDataInGC(uuid)
-    
+    local unitData = UnitTracker.findDataInGC(uuid)
     if unitData then
         currentLevel = unitData.Upgrade or 1
         local unitName = unitData.UnitId or unitData.TowerID or action.Unit
-        
-        local towerData = getUnitData(unitName)
+        local towerData = UnitTracker.getUnitData(unitName)
         if towerData and towerData.Stats and towerData.Stats.Upgrades then
-            local nextUpgradeIndex = currentLevel + 1
-            local nextUpgrade = towerData.Stats.Upgrades[nextUpgradeIndex]
-            
+            local nextUpgrade = towerData.Stats.Upgrades[currentLevel + 1]
             if nextUpgrade and nextUpgrade.Cost then
                 upgradeCost = nextUpgrade.Cost
             end
         end
     end
-    
-    -- Show waiting status if we need money
     if upgradeCost > 0 then
-        local currentMoney = getPlayerMoney()
+        local currentMoney = Util.getPlayerMoney()
         if currentMoney and currentMoney < upgradeCost then
-            updateDetailedStatus(string.format("Waiting for ¥%d to upgrade %s", upgradeCost, action.Unit))
+            Util.updateDetailedStatus(string.format("Waiting for ¥%d to upgrade %s", upgradeCost, action.Unit))
         end
-        
-        -- CHECK IF WAIT WAS ABORTED
-        local canContinue = waitForMoney(upgradeCost, string.format("%s upgrade", action.Unit))
+        local canContinue = Playback.waitForMoney(upgradeCost, string.format("%s upgrade", action.Unit))
         if not canContinue then
-            updateDetailedStatus("Game ended while waiting for money")
+            Util.updateDetailedStatus("Game ended while waiting for money")
             return false
         end
     end
-    
-    updateDetailedStatus(string.format("Upgrading %s (Lv%d→%d)...", action.Unit, currentLevel, currentLevel + 1))
-    
+    Util.updateDetailedStatus(string.format("Upgrading %s (Lv%d→%d)...", action.Unit, currentLevel, currentLevel + 1))
     local success = pcall(function()
         TowerService:WaitForChild("UpgradeUnit"):InvokeServer(uuid)
     end)
-    
     if success then
-        updateDetailedStatus(string.format("Upgraded %s ✓", action.Unit))
+        Util.updateDetailedStatus(string.format("Upgraded %s ✓", action.Unit))
         return true
     end
-    
-    updateDetailedStatus("Upgrade failed")
+    Util.updateDetailedStatus("Upgrade failed")
     return false
 end
 
-local function executeUnitSell(action, actionIndex, totalActions)
-    updateMacroStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
-    
+function Playback.executeSell(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Selling %s", actionIndex, totalActions, action.Unit))
     local uuid = playbackUnitTagToUUID[action.Unit]
-    
     if not uuid then
-        updateDetailedStatus(string.format("Error: No UUID for %s", action.Unit))
+        Util.updateDetailedStatus(string.format("Error: No UUID for %s", action.Unit))
         return false
     end
-    
-    updateDetailedStatus(string.format("Selling %s...", action.Unit))
-    
+    Util.updateDetailedStatus(string.format("Selling %s...", action.Unit))
     local success = pcall(function()
         TowerService:WaitForChild("SellUnit"):InvokeServer(uuid)
     end)
-    
     if success then
         playbackUnitTagToUUID[action.Unit] = nil
-        updateDetailedStatus(string.format("Sold %s ✓", action.Unit))
+        Util.updateDetailedStatus(string.format("Sold %s ✓", action.Unit))
         return true
     end
-    
-    updateDetailedStatus("Sell failed")
+    Util.updateDetailedStatus("Sell failed")
     return false
 end
-
-local function executeUnitAbility(action, actionIndex, totalActions)
-    updateMacroStatus(string.format("(%d/%d) Using %s ability", actionIndex, totalActions, action.Unit))
-    
+ 
+function Playback.executeAbility(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Using %s ability", actionIndex, totalActions, action.Unit))
     local uuid = playbackUnitTagToUUID[action.Unit]
-    
     if not uuid or type(uuid) ~= "string" then
-        updateDetailedStatus(string.format("Error: Invalid UUID for %s", action.Unit))
+        Util.updateDetailedStatus(string.format("Error: Invalid UUID for %s", action.Unit))
         return false
     end
-    
-    updateDetailedStatus(string.format("Using %s ability (Slot %d)...", action.Unit, action.AbilitySlot))
-    
+    Util.updateDetailedStatus(string.format("Using %s ability (Slot %d)...", action.Unit, action.AbilitySlot))
     local success = pcall(function()
         game:GetService("ReplicatedStorage")
-            :WaitForChild("Packages")
-            :WaitForChild("_Index")
-            :WaitForChild("sleitnick_knit@1.7.0")
-            :WaitForChild("knit")
-            :WaitForChild("Services")
-            :WaitForChild("TowerService")
-            :WaitForChild("RE")
-            :WaitForChild("UseAbility")
-            :FireServer(uuid, action.AbilitySlot)
+            :WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0")
+            :WaitForChild("knit"):WaitForChild("Services"):WaitForChild("TowerService")
+            :WaitForChild("RE"):WaitForChild("UseAbility"):FireServer(uuid, action.AbilitySlot)
     end)
-    
     if success then
-        updateDetailedStatus(string.format("Used %s ability ✓", action.Unit))
+        Util.updateDetailedStatus(string.format("Used %s ability ✓", action.Unit))
         return true
     end
-    
-    updateDetailedStatus("Ability use failed")
+    Util.updateDetailedStatus("Ability use failed")
     return false
 end
 
@@ -1264,696 +908,411 @@ end
 -- CLEANUP FUNCTIONS
 -- ============================================
 
-local function clearSpawnIdMappings()
+function UnitTracker.clearSpawnIdMappings()
     playbackUnitTagToUUID = {}
     recordingUnitCounter = {}
     recordingUUIDToTag = {}
-    
-    -- Clear all change listeners
     for uuid, connection in pairs(unitChangeListeners) do
-        pcall(function()
-            connection:Disconnect()
-        end)
+        pcall(function() connection:Disconnect() end)
     end
     unitChangeListeners = {}
 end
 
-local function startRecording()
-    if isRecording then
-        return
-    end
-    
+function GameState.startRecording()
+    if isRecording then return end
     macro = {}
-    clearSpawnIdMappings()
-    
+    UnitTracker.clearSpawnIdMappings()
     isRecording = true
     recordingHasStarted = true
     gameStartTime = tick()
-    
-    startUpgradePolling()
-    
-    updateMacroStatus("Recording...")
+    UnitTracker.startUpgradePolling()
+    Util.updateMacroStatus("Recording...")
 end
 
-local function stopRecording()
+function GameState.stopRecording()
     if not isRecording then return end
-    
     isRecording = false
     recordingHasStarted = false
-    
     local actionCount = #macro
-    
     if currentMacroName and currentMacroName ~= "" then
         macroManager[currentMacroName] = macro
-        saveMacroToFile(currentMacroName, macro)
-        updateMacroStatus(string.format("Saved %d actions to %s", actionCount, currentMacroName))
+        MacroIO.save(currentMacroName, macro)
+        Util.updateMacroStatus(string.format("Saved %d actions to %s", actionCount, currentMacroName))
     else
-        updateMacroStatus(string.format("Recording stopped (%d actions)", actionCount))
+        Util.updateMacroStatus(string.format("Recording stopped (%d actions)", actionCount))
     end
-    
     return macro
 end
 
-local function savePathPriorities()
-    ensureMacroFolders()
+function MacroIO.savePathPriorities()
+    MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local fileName = string.format("LixHub/%s_PathSettings_UTD.json", playerName)
-    
     local json = game:GetService("HttpService"):JSONEncode(PathState.BlessingPriorities)
     writefile(fileName, json)
-    --print("✓ Saved path priorities")
 end
 
 -- Function to load path priorities from file
-local function loadPathPriorities()
-    ensureMacroFolders()
+function MacroIO.loadPathPriorities()
+    MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local filePath = string.format("LixHub/%s_PathSettings_UTD.json", playerName)
-    
-    if not isfile(filePath) then
-        return {}
-    end
-    
+    if not isfile(filePath) then return {} end
     local json = readfile(filePath)
     local data = game:GetService("HttpService"):JSONDecode(json)
-    
     print("✓ Loaded path priorities")
     return data or {}
 end
 
-local function getCardOptions()
+function PathSystem.getCardOptions()
     local cards = {}
-
-    --print("=== DEBUG: PathState.BlessingPriorities ===")
-    --for key, value in pairs(PathState.BlessingPriorities) do
-        --print(string.format("  %s = %d", key, value))
-    --end
-    --print("=== END DEBUG ===")
-    
     local success = pcall(function()
         local cardsFolder = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.Paths.PathSelection.Cards
-        
         local frameChildren = {}
         for _, child in ipairs(cardsFolder:GetChildren()) do
             if child:IsA("Frame") and child.Name:match("^Card") then
                 table.insert(frameChildren, child)
             end
         end
-        
         table.sort(frameChildren, function(a, b)
-            if a.LayoutOrder ~= b.LayoutOrder then
-                return a.LayoutOrder < b.LayoutOrder
-            end
+            if a.LayoutOrder ~= b.LayoutOrder then return a.LayoutOrder < b.LayoutOrder end
             return a.AbsolutePosition.X < b.AbsolutePosition.X
         end)
-        
         for cardIndex, cardFrame in ipairs(frameChildren) do
             local titleLabel = cardFrame:FindFirstChild("Title")
             local topTitleLabel = cardFrame:FindFirstChild("TopTitle")
-            
             if titleLabel and topTitleLabel then
                 local uiBlessingName = titleLabel.Text
-                
-                -- Remove ALL special characters and spaces from UI name
                 local uiCleanName = uiBlessingName:gsub("[^%w]", ""):lower()
-                
-                --print(string.format("Card %d: UI='%s' -> Clean='%s'", cardIndex, uiBlessingName, uiCleanName))
-                
-                -- Try to find a matching slider key by checking if UI name contains the slider key
                 local matchedKey = nil
                 local highestPriority = 0
-                
                 for sliderKey, priority in pairs(PathState.BlessingPriorities) do
                     local cleanSliderKey = sliderKey:lower()
-                    
-                    -- Check if the UI blessing name contains this slider key
                     if uiCleanName:find(cleanSliderKey, 1, true) then
-                        --print(string.format("  MATCH FOUND: '%s' contains '%s' (Priority: %d)", 
-                            --uiCleanName, cleanSliderKey, priority))
-                        
-                        -- Use the highest priority match if multiple keys match
                         if priority > highestPriority then
                             matchedKey = sliderKey
                             highestPriority = priority
                         end
                     end
                 end
-                
-                -- If no match found, create a new slider key from UI name
                 if not matchedKey then
                     matchedKey = uiBlessingName:gsub("[^%w]", "")
-                    --print(string.format("  NO MATCH - Creating new key: '%s'", matchedKey))
-                    
-                    -- Initialize with 0 priority
                     if not PathState.BlessingPriorities[matchedKey] then
                         PathState.BlessingPriorities[matchedKey] = 0
                     end
                     highestPriority = 0
                 end
-                
-                table.insert(cards, {
-                    index = cardIndex,
-                    blessingName = uiBlessingName,
-                    pathName = "",
-                    sliderKey = matchedKey,
-                    priority = highestPriority
-                })
-
-                --print(string.format("Card %d: %s -> %s (Priority: %d)", 
-                    --cardIndex, uiBlessingName, matchedKey, highestPriority))
+                table.insert(cards, { index = cardIndex, blessingName = uiBlessingName, pathName = "", sliderKey = matchedKey, priority = highestPriority })
             end
         end
     end)
-    
-    if not success then
-        warn("Failed to get card options")
-        return {}
-    end
-    
+    if not success then warn("Failed to get card options") return {} end
     return cards
 end
 
-local function selectBestCard()
-    if not BlessingService then
-        warn("BlessingService not initialized")
-        return false
-    end
-    
-    local cards = getCardOptions()
-    
-    if #cards == 0 then
-        warn("No cards found")
-        return false
-    end
-    
-    -- Sort by priority (highest first)
-    table.sort(cards, function(a, b)
-        return a.priority > b.priority
-    end)
-    
+function PathSystem.selectBestCard()
+    if not BlessingService then warn("BlessingService not initialized") return false end
+    local cards = PathSystem.getCardOptions()
+    if #cards == 0 then warn("No cards found") return false end
+    table.sort(cards, function(a, b) return a.priority > b.priority end)
     local bestCard = cards[1]
-    
-    -- Check if highest priority is 0 (meaning no priorities set)
-    if bestCard.priority == 0 then
-        --print("All cards have 0 priority - selecting first card by default")
-    else
-        print(string.format("selecting card: %s with priority %d", bestCard.sliderKey, bestCard.priority))
-    end
-    
-    -- Determine which remote to use based on card count
-    -- 5+ cards = Path selection (GetNewPath)
-    -- 3 or less = Blessing selection (GetNewBlessing)
     local remoteName = #cards >= 5 and "GetNewPath" or "GetNewBlessing"
     local remoteType = #cards >= 5 and "Path" or "Blessing"
-    
-    --print(string.format("Detected %d cards - using %s remote", #cards, remoteType))
-    
-    -- Fire the appropriate remote
     local success = pcall(function()
         BlessingService:WaitForChild(remoteName):FireServer(bestCard.index)
     end)
-    
     if success then
-        --print(string.format("✓ Selected card %d: %s (via %s)", bestCard.index, bestCard.blessingName, remoteName))
-        
-        Rayfield:Notify({
-            Title = "Auto " .. remoteType,
-            Content = string.format("Selected: %s", bestCard.blessingName),
-            Duration = 3
-        })
-        
+        Rayfield:Notify({ Title = "Auto " .. remoteType, Content = string.format("Selected: %s", bestCard.blessingName), Duration = 3 })
         return true
-    else
-        warn(string.format("Failed to select card via %s", remoteName))
-        return false
     end
+    warn(string.format("Failed to select card via %s", remoteName))
+    return false
 end
 
 task.spawn(function()
     while true do
         task.wait(0.5)
-        
         if State.AutoSelectPath then
-            -- Wait for BlessingService to be ready
             if not BlessingService then
-                --print("Waiting for BlessingService to initialize...")
                 local timeout = 0
-                while not BlessingService and timeout < 20 do
-                    task.wait(0.5)
-                    timeout = timeout + 1
-                end
-                
-                if not BlessingService then
-                    warn("BlessingService failed to initialize after 10 seconds")
-                    continue
-                end
+                while not BlessingService and timeout < 20 do task.wait(0.5) timeout = timeout + 1 end
+                if not BlessingService then continue end
             end
-            
             local pathsUI = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("GameUI")
-            
             if pathsUI then
                 pathsUI = pathsUI:FindFirstChild("Paths")
-                
                 if pathsUI and pathsUI.Enabled then
-                    -- Path selection is visible
-                    --print("Path selection screen detected")
-                    
-                    -- Wait a moment for cards to fully load
                     task.wait(0.5)
-                    
-                    -- Select the best card
-                    selectBestCard()
-                    
-                    -- Don't wait for screen to close - just add a small delay
-                    -- This allows follow-up blessings to be detected immediately
+                    PathSystem.selectBestCard()
                     task.wait(1)
-                    
-                    --print("Card selected - checking for follow-ups...")
                 end
             end
         end
     end
 end)
 
-local function deepCopy(tbl, seen)
+function Util.deepCopy(tbl, seen)
     if type(tbl) ~= "table" then return tbl end
     seen = seen or {}
     if seen[tbl] then return seen[tbl] end
-
     local copy = {}
     seen[tbl] = copy
-    for k, v in pairs(tbl) do
-        copy[k] = deepCopy(v, seen)
-    end
+    for k, v in pairs(tbl) do copy[k] = Util.deepCopy(v, seen) end
     return copy
 end
 
-local function isTrackedPath(path)
-        return
-            path:match("^Currency%.") or
-            path == "Battlepass.PassEXP" or
-            path == "Stats.Experience" or
-            path:match("^Relics%.[^%.]+$") or
-            path:match("^Units%.Inventory%.%[.+%]$") or
-            path:match("^Items%.CraftingItems") or
-            path:match("^Items%.UniqueItems")
-    end
+function Util.isTrackedPath(path)
+    return
+        path:match("^Currency%.") or
+        path == "Battlepass.PassEXP" or
+        path == "Stats.Experience" or
+        path:match("^Relics%.[^%.]+$") or
+        path:match("^Units%.Inventory%.%[.+%]$") or
+        path:match("^Items%.CraftingItems") or
+        path:match("^Items%.UniqueItems")
+end
 
-local function getRewards(before, after, path)
+function Webhook.getRewards(before, after, path)
     path = path or ""
     local rewards = {}
-
     for k, afterVal in pairs(after) do
         local beforeVal = before and before[k]
         local currentPath = path == "" and tostring(k) or path .. "." .. tostring(k)
-
-        if not isTrackedPath(currentPath) then
+        if not Util.isTrackedPath(currentPath) then
             if type(afterVal) == "table" and type(beforeVal) == "table" then
-                local nestedRewards = getRewards(beforeVal, afterVal, currentPath)
+                local nestedRewards = Webhook.getRewards(beforeVal, afterVal, currentPath)
                 for rewardKey, rewardVal in pairs(nestedRewards) do
                     rewards[rewardKey] = (rewards[rewardKey] or 0) + rewardVal
                 end
             end
             continue
         end
-
-        -- NEW ITEM (Relics / Units / Crafting)
         if beforeVal == nil then
-    if type(afterVal) == "table" then
-        -- Relic
-        if afterVal.ID and afterVal.Type and afterVal.Rarity then
-            -- Use ID + Type to differentiate same relics with different types
-            local relicName = afterVal.ID or "Unknown"
-            local relicType = afterVal.Type or "Unknown"
-            local rewardKey = string.format("%s (%s) (%s)", relicName, relicType, afterVal.Rarity)
-            rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
-        -- Unit Drop (has UnitId)
-        elseif afterVal.UnitId then
-            local unitName = afterVal.UnitId or "Unknown Unit"
-            local rewardKey = string.format("🎉 NEW UNIT: %s", unitName)
-            rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
-            -- Mark that we got a unit drop for ping purposes
-            rewards["__UNIT_DROP__"] = true
-        end
-    end
--- NEW CRAFTING/UNIQUE ITEM (number added where there was nil before)
-elseif type(afterVal) == "number" and beforeVal == nil then
-    local itemName = currentPath:match("%.([^%.]+)$") or currentPath
-    if currentPath:match("CraftingItems%.") then
-        local rewardKey = string.format("Crafting: %s", itemName)
-        rewards[rewardKey] = (rewards[rewardKey] or 0) + afterVal
-    elseif currentPath:match("UniqueItems%.") then
-        local rewardKey = string.format("Unique: %s", itemName)
-        rewards[rewardKey] = (rewards[rewardKey] or 0) + afterVal
-    end
-
-        -- NUMBER DELTA (currency / pass exp / experience)
+            if type(afterVal) == "table" then
+                if afterVal.ID and afterVal.Type and afterVal.Rarity then
+                    local rewardKey = string.format("%s (%s) (%s)", afterVal.ID, afterVal.Type, afterVal.Rarity)
+                    rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
+                elseif afterVal.UnitId then
+                    local rewardKey = string.format("🎉 NEW UNIT: %s", afterVal.UnitId)
+                    rewards[rewardKey] = (rewards[rewardKey] or 0) + 1
+                    rewards["__UNIT_DROP__"] = true
+                end
+            end
+        elseif type(afterVal) == "number" and beforeVal == nil then
+            local itemName = currentPath:match("%.([^%.]+)$") or currentPath
+            if currentPath:match("CraftingItems%.") then
+                rewards["Crafting: " .. itemName] = (rewards["Crafting: " .. itemName] or 0) + afterVal
+            elseif currentPath:match("UniqueItems%.") then
+                rewards["Unique: " .. itemName] = (rewards["Unique: " .. itemName] or 0) + afterVal
+            end
         elseif type(afterVal) == "number" and type(beforeVal) == "number" then
             local delta = afterVal - beforeVal
             if delta ~= 0 then
-                -- Extract the reward name (e.g., "Currency.Gems" -> "Gems")
                 local rewardName = currentPath:match("%.([^%.]+)$") or currentPath
-                
-                -- Rename specific rewards for cleaner display
-                if rewardName == "PassEXP" then
-                    rewardName = "Battlepass XP"
-                elseif rewardName == "Experience" then
-                    rewardName = "XP"
-                end
-                
+                if rewardName == "PassEXP" then rewardName = "Battlepass XP"
+                elseif rewardName == "Experience" then rewardName = "XP" end
                 rewards[rewardName] = (rewards[rewardName] or 0) + delta
             end
-
-        -- Recurse
         elseif type(afterVal) == "table" and type(beforeVal) == "table" then
-            local nestedRewards = getRewards(beforeVal, afterVal, currentPath)
+            local nestedRewards = Webhook.getRewards(beforeVal, afterVal, currentPath)
             for rewardKey, rewardVal in pairs(nestedRewards) do
                 rewards[rewardKey] = (rewards[rewardKey] or 0) + rewardVal
             end
         end
     end
-
     return rewards
 end
 
-local function sendWebhook(messageType, gameResult, gameInfo, gameDuration, waveReached)
-    if not ValidWebhook or ValidWebhook == "" then
-        return
-    end
-
+function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReached)
+    if not ValidWebhook or ValidWebhook == "" then return end
     local data
-
     if messageType == "test" then
         data = {
             username = "LixHub Bot",
             content = string.format("<@%s>", Config.DISCORD_USER_ID or ""),
+            embeds = {{ title = "LixHub Notification", description = "Test webhook sent successfully", color = 0x5865F2, footer = { text = "discord.gg/cYKnXE2Nf8" }, timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ") }}
+        }
+    elseif messageType == "game_end" then
+        local rewards = {}
+        local hasUnitDrop = false
+        if finishedRewardData and finishedRewardData.rewards then
+            local rewardData = finishedRewardData.rewards
+            for rewardKey, rewardValue in pairs(rewardData) do
+                if type(rewardValue) == "number" and rewardValue > 0 then
+                    local friendlyName = rewardKey
+                    if rewardKey == "Experience" then friendlyName = "XP"
+                    elseif rewardKey == "SpiritSouls" then friendlyName = "Spirit Souls" end
+                    rewards[friendlyName] = rewardValue
+                elseif type(rewardValue) == "table" and rewardKey == "Relics" then
+                    for relicKey, relicData in pairs(rewardValue) do
+                        local relicName = (relicKey:match("^[^:]+:(.+)$") or relicKey):gsub("^%d+Star_", "")
+                        local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
+                        if relicData.Stars then displayName = displayName .. string.format(" ⭐%d", relicData.Stars) end
+                        rewards[displayName] = relicData.Amount or 1
+                    end
+                elseif type(rewardValue) == "table" and rewardKey == "Unit" then
+                    if rewardValue.Unit and rewardValue.Rarity then
+                        hasUnitDrop = true
+                        rewards[string.format("[%s] %s", rewardValue.Rarity, rewardValue.Unit)] = 1
+                    end
+                end
+            end
+        else
+            if beforeRewardData and afterRewardData then
+                rewards = Webhook.getRewards(beforeRewardData, afterRewardData)
+                hasUnitDrop = rewards["__UNIT_DROP__"]
+                rewards["__UNIT_DROP__"] = nil
+            end
+        end
+        finishedRewardData = nil
+        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        local rewardsText = ""
+        if next(rewards) then
+            for rewardType, amount in pairs(rewards) do
+                rewardsText = rewardsText .. string.format("+%s %s\n", amount, rewardType)
+            end
+            rewardsText = rewardsText:gsub("\n$", "")
+        else
+            rewardsText = "No rewards obtained"
+        end
+        local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
+        local embedColor = gameResult and 0x57F287 or 0xED4245
+        local TitleSubText = "Unknown Stage"
+        if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
+            local resultText = gameResult and "Victory" or "Defeat"
+            TitleSubText = string.format("%s - %s (%s) - %s", gameInfo.MapName, gameInfo.Act, gameInfo.Category, resultText)
+        end
+        local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
+        local macroInfo = "None"
+        if isPlaybackEnabled and currentMacroName and currentMacroName ~= "" then macroInfo = currentMacroName end
+        data = {
+            username = "LixHub",
+            content = hasUnitDrop and string.format("<@%s>", Config.DISCORD_USER_ID or "") or nil,
             embeds = {{
-                title = "LixHub Notification",
-                description = "Test webhook sent successfully",
-                color = 0x5865F2,
-                footer = { text = "discord.gg/cYKnXE2Nf8" },
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                title = titleText, description = TitleSubText, color = embedColor,
+                fields = {
+                    { name = "Player", value = playerName, inline = true },
+                    { name = "Duration", value = gameDuration or "Unknown", inline = true },
+                    { name = "Waves Completed", value = tostring(currentWave), inline = true },
+                    { name = "Macro", value = macroInfo, inline = true },
+                    { name = "Rewards", value = rewardsText, inline = false },
+                },
+                footer = { text = "discord.gg/cYKnXE2Nf8" }, timestamp = timestamp
             }}
         }
-
-elseif messageType == "game_end" then
-    local rewards = {}
-    local hasUnitDrop = false
-    
-    -- Use hooked data if available
-    if finishedRewardData and finishedRewardData.rewards then
-        local rewardData = finishedRewardData.rewards
-        
-        --  Process ALL rewards dynamically - only show what we actually got
-        for rewardKey, rewardValue in pairs(rewardData) do
-            -- Handle numeric rewards (currency, XP, etc)
-            if type(rewardValue) == "number" then
-                if rewardValue > 0 then  --  Only show if we got more than 0
-                    local friendlyName = rewardKey
-                    if rewardKey == "Experience" then
-                        friendlyName = "XP"
-                    elseif rewardKey == "SpiritSouls" then
-                        friendlyName = "Spirit Souls"
-                    end
-                    rewards[friendlyName] = rewardValue
-                end
-                
-            -- Handle Relics table
-            elseif type(rewardValue) == "table" and rewardKey == "Relics" then
-    for relicKey, relicData in pairs(rewardValue) do
-        local relicName = relicKey:match("^[^:]+:(.+)$") or relicKey
-        
-        -- Remove star count from name if it exists (e.g., "1Star_Reaper_Accessory" -> "Reaper_Accessory")
-        relicName = relicName:gsub("^%d+Star_", "")
-        
-        local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
-        
-        if relicData.Stars then
-            displayName = displayName .. string.format(" ⭐%d", relicData.Stars)
-        end
-        
-        rewards[displayName] = relicData.Amount or 1
-    end
-                
-            --  Handle unit drops (comes as "Unit" table with Unit/Name/Rarity)
-elseif type(rewardValue) == "table" and rewardKey == "Unit" then
-    if rewardValue.Unit and rewardValue.Rarity then
-        hasUnitDrop = true
-        local unitDisplayName = string.format("[%s] %s", rewardValue.Rarity, rewardValue.Unit)
-        rewards[unitDisplayName] = 1
-    end
-end
-        end
-    else
-        -- Fallback to old method if hook failed
-        if beforeRewardData and afterRewardData then
-            rewards = getRewards(beforeRewardData, afterRewardData)
-            hasUnitDrop = rewards["__UNIT_DROP__"]
-            rewards["__UNIT_DROP__"] = nil
-        end
-    end
-    
-    -- Reset for next game
-    finishedRewardData = nil
-
-    local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
-    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    
-    -- Format rewards text - only show what we got
-    local rewardsText = ""
-    
-    if next(rewards) then
-        for rewardType, amount in pairs(rewards) do
-            rewardsText = rewardsText .. string.format("+%s %s\n", amount, rewardType)
-        end
-        rewardsText = rewardsText:gsub("\n$", "")
-    else
-        rewardsText = "No rewards obtained"
-    end
-    
-    -- Determine title and color based on game result
-    local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
-    local embedColor = gameResult and 0x57F287 or 0xED4245
-    
-    -- Build description with game info
-    local TitleSubText = "Unknown Stage"
-    if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
-        local resultText = gameResult and "Victory" or "Defeat"
-        TitleSubText = string.format("%s - %s (%s) - %s", 
-            gameInfo.MapName, gameInfo.Act, gameInfo.Category, resultText)
-    end
-    
-    local currentWave = workspace:GetAttribute("Wave") or lastWave or 0
-
-    local macroInfo = "None"
-    if isPlaybackEnabled and currentMacroName and currentMacroName ~= "" then
-        macroInfo = currentMacroName
-    end
-    
-    -- Build fields array
-    local fields = {
-        { name = "Player", value = playerName, inline = true },
-        { name = "Duration", value = gameDuration or "Unknown", inline = true },
-        { name = "Waves Completed", value = tostring(currentWave), inline = true },
-        { name = "Macro", value = macroInfo, inline = true },
-        { name = "Rewards", value = rewardsText, inline = false },
-    }
-    
-    data = {
-        username = "LixHub",
-        content = hasUnitDrop and string.format("<@%s>", Config.DISCORD_USER_ID or "") or nil,
-        embeds = {{
-            title = titleText,
-            description = TitleSubText,
-            color = embedColor,
-            fields = fields,
-            footer = { text = "discord.gg/cYKnXE2Nf8" },
-            timestamp = timestamp
-        }}
-    }
     elseif messageType == "match_restart" then
-    -- Calculate rewards up to the restart point
-    local rewards = {}
-    if beforeRewardData and RequestData then
-        local currentRewardData = deepCopy(RequestData:InvokeServer())
-        rewards = getRewards(beforeRewardData, currentRewardData)
-    end
-    
-    local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
-    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    
-    -- Build description
-    local description = "Unknown Stage"
-    if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
-        description = string.format("%s Act %s (%s) - Match restarted", 
-            gameInfo.MapName, gameInfo.Act, gameInfo.Category)
-    end
-    
-    local currentWave = waveReached or lastWave or 0
-    
-    -- Calculate time elapsed
-    local timeElapsed = "Unknown"
-    if gameInfo and gameInfo.StartTime then
-        local duration = tick() - gameInfo.StartTime
-        local minutes = math.floor(duration / 60)
-        local seconds = math.floor(duration % 60)
-        timeElapsed = string.format("%dm %ds", minutes, seconds)
-    end
-    
-    -- Format rewards text
-    local rewardsText = ""
-    if next(rewards) then
-        for rewardType, amount in pairs(rewards) do
-            local sign = amount > 0 and "+" or ""
-            rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
+        local rewards = {}
+        if beforeRewardData and RequestData then
+            local currentRewardData = Util.deepCopy(RequestData:InvokeServer())
+            rewards = Webhook.getRewards(beforeRewardData, currentRewardData)
         end
-        rewardsText = rewardsText:gsub("\n$", "") -- Remove trailing newline
-    else
-        rewardsText = "No rewards obtained"
+        local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        local description = "Unknown Stage"
+        if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
+            description = string.format("%s Act %s (%s) - Match restarted", gameInfo.MapName, gameInfo.Act, gameInfo.Category)
+        end
+        local currentWave = waveReached or lastWave or 0
+        local timeElapsed = "Unknown"
+        if gameInfo and gameInfo.StartTime then
+            local duration = tick() - gameInfo.StartTime
+            timeElapsed = string.format("%dm %ds", math.floor(duration / 60), math.floor(duration % 60))
+        end
+        local rewardsText = ""
+        if next(rewards) then
+            for rewardType, amount in pairs(rewards) do
+                local sign = amount > 0 and "+" or ""
+                rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
+            end
+            rewardsText = rewardsText:gsub("\n$", "")
+        else
+            rewardsText = "No rewards obtained"
+        end
+        data = {
+            username = "LixHub",
+            embeds = {{
+                title = "Stage Completed!", description = description, color = 0xFFA500,
+                fields = {
+                    { name = "Player", value = playerName, inline = true },
+                    { name = "Time Played", value = timeElapsed, inline = true },
+                    { name = "Wave Reached", value = tostring(currentWave), inline = true },
+                    { name = "Rewards", value = rewardsText, inline = false },
+                },
+                footer = { text = "discord.gg/cYKnXE2Nf8" }, timestamp = timestamp
+            }}
+        }
     end
-    
-    data = {
-        username = "LixHub",
-        embeds = {{
-            title = "Stage Completed!",
-            description = description,
-            color = 0xFFA500, -- Orange color
-            fields = {
-                { name = "Player", value = playerName, inline = true },
-                { name = "Time Played", value = timeElapsed, inline = true },
-                { name = "Wave Reached", value = tostring(currentWave), inline = true },
-                { name = "Rewards", value = rewardsText, inline = false },
-            },
-            footer = { text = "discord.gg/cYKnXE2Nf8" },
-            timestamp = timestamp
-        }}
-    }
-    end
-    
     local payload = Services.HttpService:JSONEncode(data)
-    
-    local requestFunc = syn and syn.request or request or http_request or 
-                      (fluxus and fluxus.request) or getgenv().request
-    
-    if not requestFunc then
-        warn("No HTTP function found! Your executor might not support HTTP requests.")
-        return
-    end
-    
+    local requestFunc = syn and syn.request or request or http_request or (fluxus and fluxus.request) or getgenv().request
+    if not requestFunc then warn("No HTTP function found!") return end
     local success, response = pcall(function()
-        return requestFunc({
-            Url = ValidWebhook,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = payload
-        })
+        return requestFunc({ Url = ValidWebhook, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload })
     end)
-    
     if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-        Rayfield:Notify({
-            Title = "Webhook Sent",
-            Content = "Successfully sent to Discord!",
-            Duration = 2
-        })
+        Rayfield:Notify({ Title = "Webhook Sent", Content = "Successfully sent to Discord!", Duration = 2 })
     else
         warn("Webhook failed:", response and response.StatusCode or "No response")
     end
 end
 
-local function getCurrentWorldKey()
+function Util.getCurrentWorldKey()
     local category = workspace:GetAttribute("Category")
-    local mapName = workspace:GetAttribute("MapName") -- UI display name
-    local mapInternal = workspace:GetAttribute("Map") -- Internal module name
-    
-    if not category or not mapName then
-        return nil
-    end
-    
-    -- Normalize category to match our key format
+    local mapName = workspace:GetAttribute("MapName")
+    local mapInternal = workspace:GetAttribute("Map")
+    if not category or not mapName then return nil end
     local categoryLower = category:lower()
-    
-    -- For Story category (which includes challenges) - use challenge_ prefix
     if categoryLower == "story" then
-        -- Regular challenge - ALWAYS use UI mapName with underscores (to match dropdown keys)
         return "challenge_" .. mapName:lower():gsub("%s+", "_")
     end
-
     if categoryLower == "featured" then
         if mapName:lower():find("frozen") or mapName == "Frozen Stronghold" then
-        return "challenge_featured"
-    end
-end
-    
-    -- For Legend stages - use internal module name if available
-    if categoryLower == "legend" then
-        if mapInternal then
-            return "legend_" .. mapInternal:lower()
-        else
-            -- Fallback: convert UI name to module name using our lookup
-            local moduleName = UINameToModuleName[mapName]
-            if moduleName then
-                return "legend_" .. moduleName:lower()
-            end
+            return "challenge_featured"
         end
     end
-    
-    -- For Virtual stages
+    if categoryLower == "legend" then
+        if mapInternal then return "legend_" .. mapInternal:lower() end
+        local moduleName = UINameToModuleName[mapName]
+        if moduleName then return "legend_" .. moduleName:lower() end
+    end
     if categoryLower:find("virtual") then
         return "virtual_" .. mapName:lower():gsub("%s+", "_")
     end
-
-        if categoryLower == "raid" then
-        if mapInternal then
-            return "raid_" .. mapInternal:lower()
-        else
-            -- Fallback: convert UI name to module name using our lookup
-            local moduleName = UINameToModuleName[mapName]
-            if moduleName then
-                return "raid_" .. moduleName:lower()
-            end
-        end
+    if categoryLower == "raid" then
+        if mapInternal then return "raid_" .. mapInternal:lower() end
+        local moduleName = UINameToModuleName[mapName]
+        if moduleName then return "raid_" .. moduleName:lower() end
     end
     return nil
 end
 
-local function notify(title, content)
-        Rayfield:Notify({
-            Title = title,
-            Content = content,
-            Duration = 3
-        })
+function Util.notify(title, content)
+    Rayfield:Notify({ Title = title, Content = content, Duration = 3 })
 end
 
-local function canPerformAction()
-        return tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown
+function Util.canPerformAction()
+    return tick() - AutoJoinState.lastActionTime >= AutoJoinState.actionCooldown
 end
 
-local function setProcessingState(action)
+function Util.setProcessingState(action)
     AutoJoinState.isProcessing = true
     AutoJoinState.currentAction = action
     AutoJoinState.lastActionTime = tick()
-
-   notify(action, "Joining...")
+    Util.notify(action, "Joining...")
 end
 
- local function clearProcessingState()
-        AutoJoinState.isProcessing = false
-        AutoJoinState.currentAction = nil
+function Util.clearProcessingState()
+    AutoJoinState.isProcessing = false
+    AutoJoinState.currentAction = nil
 end
 
-local function getModuleNameFromUI(uiName, category)
-    -- For Story/Virtual - use UINameToModuleName lookup
+function AutoJoin.getModuleNameFromUI(uiName, category)
     if category == "Story" or category == "VirtualRealm" or category == "Raid" then
         local moduleName = UINameToModuleName[uiName]
-        if moduleName then
-            return moduleName
-        else
-            warn(string.format("⚠️ No module name found for UI name: %s", uiName))
-            return uiName -- Fallback to UI name
-        end
+        if moduleName then return moduleName end
+        warn(string.format("⚠️ No module name found for UI name: %s", uiName))
+        return uiName
     end
-    
-    -- For Legend - need to look up in LegendStages folder
     if category == "LegendStage" then
         local success, moduleName = pcall(function()
             local LegendFolder = Services.ReplicatedStorage.Shared.Data.LegendStages
@@ -1961,295 +1320,105 @@ local function getModuleNameFromUI(uiName, category)
                 if stageModule:IsA("ModuleScript") then
                     local stageData = require(stageModule)
                     if stageData.Information and stageData.Information.Name == uiName then
-                        return stageModule.Name -- Return module name
+                        return stageModule.Name
                     end
                 end
             end
             return nil
         end)
-        
-        if success and moduleName then
-            return moduleName
-        else
-            warn(string.format("⚠️ No module name found for Legend stage: %s", uiName))
-            return uiName
-        end
+        if success and moduleName then return moduleName end
+        warn(string.format("⚠️ No module name found for Legend stage: %s", uiName))
+        return uiName
     end
-    
     return uiName
 end
 
-local function convertDifficultyMeter(percentage)
+function Util.convertDifficultyMeter(percentage)
     return percentage / 100
 end
 
-local function joinStoryViaAPI(mapUIName, act, difficulty, difficultyPercent)
-    if not PodController then
-        warn("PodController not initialized")
-        return false
-    end
-    
-    --  CONVERT UI NAME TO MODULE NAME
-    local mapModuleName = getModuleNameFromUI(mapUIName, "Story")
-    
-    local gameData = {
-        Category = "Story",
-        Map = mapModuleName, --  Use module name, not UI name
-        Act = tostring(act),
-        Difficulty = difficulty,
-        Modulation = convertDifficultyMeter(difficultyPercent),
-        FriendsOnly = false
-    }
-    
-    print(string.format("Joining Story: %s (Module: %s) Act %s (%s) - %d%%", 
-        mapUIName, mapModuleName, act, difficulty, difficultyPercent))
-    
-    local success = pcall(function()
-        PodController:RequestPod(gameData)
-    end)
-    
-    if success then
-        print(" Story join request sent via API")
-        return true
-    else
-        warn(" Story join failed")
-        return false
-    end
+function AutoJoin.joinStory(mapUIName, act, difficulty, difficultyPercent)
+    if not PodController then warn("PodController not initialized") return false end
+    local mapModuleName = AutoJoin.getModuleNameFromUI(mapUIName, "Story")
+    local gameData = { Category = "Story", Map = mapModuleName, Act = tostring(act), Difficulty = difficulty, Modulation = Util.convertDifficultyMeter(difficultyPercent), FriendsOnly = false }
+    local success = pcall(function() PodController:RequestPod(gameData) end)
+    return success
 end
 
-local function joinWinterViaAPI(act, difficulty, difficultyPercent)
-    if not PodController then
-        warn("PodController not initialized")
-        return false
-    end
-    
-    local gameData = {
-        Category = "LimitedTimeModes",
-        Map = "Winter",
-        Act = tostring(act),
-        Difficulty = difficulty,
-        Modulation = convertDifficultyMeter(difficultyPercent),
-        FriendsOnly = false
-    }    
-    local success = pcall(function()
-        PodController:RequestPod(gameData)
-    end)
-    
-    if success then
-        print(" Winter Event join request sent via API")
-        return true
-    else
-        warn(" Winter Event join failed")
-        return false
-    end
+function AutoJoin.joinWinter(act, difficulty, difficultyPercent)
+    if not PodController then warn("PodController not initialized") return false end
+    local gameData = { Category = "LimitedTimeModes", Map = "Winter", Act = tostring(act), Difficulty = difficulty, Modulation = Util.convertDifficultyMeter(difficultyPercent), FriendsOnly = false }
+    local success = pcall(function() PodController:RequestPod(gameData) end)
+    return success
 end
 
-local function joinLegendViaAPI(mapUIName, act, difficultyPercent)
-    if not PodController then
-        warn("PodController not initialized")
-        return false
-    end
-    
-    --  CONVERT UI NAME TO MODULE NAME
-    local mapModuleName = getModuleNameFromUI(mapUIName, "LegendStage")
-    
-    local gameData = {
-        Category = "LegendStage",
-        Map = mapModuleName, --  Use module name, not UI name
-        Act = tostring(act),
-        Difficulty = nil,
-        Modulation = convertDifficultyMeter(difficultyPercent),
-        FriendsOnly = false
-    }
-    
-    print(string.format("Joining Legend: %s (Module: %s) Act %s - %d%%", 
-        mapUIName, mapModuleName, act, difficultyPercent))
-    
-    local success = pcall(function()
-        PodController:RequestPod(gameData)
-    end)
-    
-    if success then
-        print(" Legend join request sent via API")
-        return true
-    else
-        warn(" Legend join failed")
-        return false
-    end
+function AutoJoin.joinLegend(mapUIName, act, difficultyPercent)
+    if not PodController then warn("PodController not initialized") return false end
+    local mapModuleName = AutoJoin.getModuleNameFromUI(mapUIName, "LegendStage")
+    local gameData = { Category = "LegendStage", Map = mapModuleName, Act = tostring(act), Difficulty = nil, Modulation = Util.convertDifficultyMeter(difficultyPercent), FriendsOnly = false }
+    local success = pcall(function() PodController:RequestPod(gameData) end)
+    return success
 end
 
-local function joinVirtualViaAPI(mapUIName, act, difficulty, difficultyPercent)
-    if not PodController then
-        warn("PodController not initialized")
-        return false
-    end
-    
-    --  CONVERT UI NAME TO MODULE NAME
-    local mapModuleName = getModuleNameFromUI(mapUIName, "VirtualRealm")
-    
-    local gameData = {
-        Category = "VirtualRealm",
-        Map = mapModuleName, --  Use module name, not UI name
-        Act = tostring(act),
-        Difficulty = difficulty,
-        Modulation = convertDifficultyMeter(difficultyPercent),
-        FriendsOnly = false
-    }
-    
-    print(string.format("Joining Virtual: %s (Module: %s) Act %s (%s) - %d%%", 
-        mapUIName, mapModuleName, act, difficulty, difficultyPercent))
-    
-    local success = pcall(function()
-        PodController:RequestPod(gameData)
-    end)
-    
-    if success then
-        print(" Virtual join request sent via API")
-        return true
-    else
-        warn(" Virtual join failed")
-        return false
-    end
+function AutoJoin.joinVirtual(mapUIName, act, difficulty, difficultyPercent)
+    if not PodController then warn("PodController not initialized") return false end
+    local mapModuleName = AutoJoin.getModuleNameFromUI(mapUIName, "VirtualRealm")
+    local gameData = { Category = "VirtualRealm", Map = mapModuleName, Act = tostring(act), Difficulty = difficulty, Modulation = Util.convertDifficultyMeter(difficultyPercent), FriendsOnly = false }
+    local success = pcall(function() PodController:RequestPod(gameData) end)
+    return success
 end
 
-local function joinRaidViaAPI(mapUIName, act)
-    if not PodController then
-        warn("PodController not initialized")
-        return false
-    end
-    
-    --  CONVERT UI NAME TO MODULE NAME
-    local mapModuleName = getModuleNameFromUI(mapUIName, "Raid")
-    
-    --  Handle Boss Rush act
-    local actValue = act
-    if act == "BossRush" or act == "Boss Rush" then
-        actValue = "Boss Rush"
-    else
-        actValue = tostring(act)
-    end
-    
-    local gameData = {
-        Category = "Raid",
-        Map = mapModuleName,
-        Act = actValue, --  Can be "1", "2", "3", "4", "5", or "Boss Rush"
-        Difficulty = "Nightmare",
-        Modulation = 1.0,
-        FriendsOnly = false
-    }
-
-    print(mapModuleName)
-    print(actValue)
-    
-    print(string.format("Joining Raid: %s (Module: %s) Act %s", 
-        mapUIName, mapModuleName, actValue))
-    
-    local success = pcall(function()
-        PodController:RequestPod(gameData)
-    end)
-    
-    if success then
-        print(" Raid join request sent via API")
-        return true
-    else
-        warn(" Raid join failed")
-        return false
-    end
+function AutoJoin.joinRaid(mapUIName, act)
+    if not PodController then warn("PodController not initialized") return false end
+    local mapModuleName = AutoJoin.getModuleNameFromUI(mapUIName, "Raid")
+    local actValue = (act == "BossRush" or act == "Boss Rush") and "Boss Rush" or tostring(act)
+    local gameData = { Category = "Raid", Map = mapModuleName, Act = actValue, Difficulty = "Nightmare", Modulation = 1.0, FriendsOnly = false }
+    local success = pcall(function() PodController:RequestPod(gameData) end)
+    return success
 end
 
-local function waitForChallengeError(timeout)
+function AutoJoin.waitForChallengeError(timeout)
     local startTime = tick()
-    timeout = timeout or 3 -- Default 3 second timeout
-    
+    timeout = timeout or 3
     while tick() - startTime < timeout do
         local success, errorDetected = pcall(function()
             local messageList = Services.Players.LocalPlayer.PlayerGui.LobbyUi.Messages.Middle.MessageList
             local errorFrame = messageList:FindFirstChild("Error")
-            
             if errorFrame then
                 local messageText = errorFrame:FindFirstChild("Frame")
                 if messageText then
                     messageText = messageText:FindFirstChild("MessageText")
                     if messageText then
                         local text = messageText.Text
-                        
-                        -- Check for "already beaten" message
                         if text:lower():find("already beaten") or text:lower():find("already completed") then
-                            --print("✓ Detected challenge completion error:", text)
                             return true
                         end
                     end
                 end
             end
-            
             return false
         end)
-        
-        if success and errorDetected then
-            return true
-        end
-        
+        if success and errorDetected then return true end
         task.wait(0.1)
     end
-    
     return false
 end
 
-local function joinChallengeViaAPI(challengeType, challengeNumber)
-    if not PodController or not ChallengeController then
-        warn("Controllers not initialized")
-        return false
-    end
-    
-    -- Get current challenges data
+function AutoJoin.joinChallenge(challengeType, challengeNumber)
+    if not PodController or not ChallengeController then warn("Controllers not initialized") return false end
     local challenges = ChallengeController:GetCurrentChallenges()
-    
     if not challenges or not challenges[challengeType] or not challenges[challengeType][challengeNumber] then
         warn(string.format("Challenge not found: %s #%d", challengeType, challengeNumber))
         return false
     end
-    
     local challengeData = challenges[challengeType][challengeNumber]
-    
-    --  Check if challenge is already completed in data
-    if challengeData.Completed == true then
-        print(string.format("⚠️ Challenge already completed: %s #%d (Map: %s Act %s)", 
-            challengeType, challengeNumber, challengeData.Map, challengeData.Act))
-        return "already_completed"
-    end
-    
-    local gameData = {
-        Category = "Challenge",
-        Challenge = {
-            Type = challengeType,
-            Number = challengeNumber
-        },
-        Map = challengeData.Map,
-        Act = tostring(challengeData.Act),
-        Difficulty = "Easy",
-        Modulation = 1.0,
-        FriendsOnly = false
-    }
-    
-    print(string.format("Joining Challenge: %s #%d (%s Act %s)", 
-        challengeType, challengeNumber, challengeData.Map, challengeData.Act))
-    
-    local success = pcall(function()
-        PodController:RequestPod(gameData)
-    end)
-    
+    if challengeData.Completed == true then return "already_completed" end
+    local gameData = { Category = "Challenge", Challenge = { Type = challengeType, Number = challengeNumber }, Map = challengeData.Map, Act = tostring(challengeData.Act), Difficulty = "Easy", Modulation = 1.0, FriendsOnly = false }
+    local success = pcall(function() PodController:RequestPod(gameData) end)
     if success then
-        print(" Challenge join request sent via API")
-        
-        --  Wait and check for "already beaten" error popup
         task.wait(1)
-        
-        local errorDetected = waitForChallengeError(3)
-        
+        local errorDetected = AutoJoin.waitForChallengeError(3)
         if errorDetected then
-            print("⚠️ 'Already beaten' error detected - challenge completed")
-            
-            -- Close error popup
             pcall(function()
                 local LobbyUi = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
                 if LobbyUi then
@@ -2261,387 +1430,166 @@ local function joinChallengeViaAPI(challengeType, challengeNumber)
                     end
                 end
             end)
-            
             task.wait(0.3)
-            
             return "already_completed"
         end
-        
         return true
-    else
-        warn(" Challenge join failed")
-        return false
     end
+    return false
 end
 
-local function joinFeaturedChallengeViaAPI()
-    if not PodController then
-        warn("PodController not initialized")
-        return false
-    end
-    
-    local Config = require(Services.ReplicatedStorage.Shared.Data.Config)
-    
-    local gameData = {
-        Category = "Challenge",
-        Challenge = {
-            Type = "Special",
-            Number = 1
-        },
-        Map = Config.CurrentFeaturedChallenge or "Frozen Stronghold",
-        Act = "1",
-        Difficulty = "Easy",
-        Modulation = 1.0,
-        FriendsOnly = false
-    }
-    
-    print("Joining Featured Challenge:", gameData.Map)
-    
-    local success = pcall(function()
-        PodController:RequestPod(gameData)
-    end)
-    
-    if success then
-        print("Featured Challenge join request sent via API")
-        return true
-    else
-        warn("Featured Challenge join failed")
-        return false
-    end
+function AutoJoin.joinFeaturedChallenge()
+    if not PodController then warn("PodController not initialized") return false end
+    local cfg = require(Services.ReplicatedStorage.Shared.Data.Config)
+    local gameData = { Category = "Challenge", Challenge = { Type = "Special", Number = 1 }, Map = cfg.CurrentFeaturedChallenge or "Frozen Stronghold", Act = "1", Difficulty = "Easy", Modulation = 1.0, FriendsOnly = false }
+    local success = pcall(function() PodController:RequestPod(gameData) end)
+    return success
 end
 
-local function joinOlympusJudgementViaAPI()
+function AutoJoin.joinOlympusJudgement()
     local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
     local success = pcall(function()
-        Event:FireServer(
-            buffer.fromstring(")\x11\x00Olympus Judgement\x01\x01\a\x00Special\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\t\x00Challenge\x00\x00"),
-            nil
-        )
+        Event:FireServer(buffer.fromstring(")\x11\x00Olympus Judgement\x01\x01\a\x00Special\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\t\x00Challenge\x00\x00"), nil)
     end)
-    if success then
-        print("Olympus Judgement join request sent")
-        return true
-    else
-        warn("Olympus Judgement join failed")
-        return false
-    end
+    return success
 end
 
-local function joinShinobiAllianceViaAPI()
+function AutoJoin.joinShinobiAlliance()
     local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
     local success = pcall(function()
-        Event:FireServer(
-            buffer.fromstring(")\x0F\x00ShinobiAlliance\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\x0F\x00ShinobiAlliance\x10\x00LimitedTimeModes\x00\x00"),
-            nil
-        )
+        Event:FireServer(buffer.fromstring(")\x0F\x00ShinobiAlliance\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\x0F\x00ShinobiAlliance\x10\x00LimitedTimeModes\x00\x00"), nil)
     end)
-    if success then
-        print("Shinobi Alliance join request sent")
-        return true
-    else
-        warn("Shinobi Alliance join failed")
-        return false
-    end
+    return success
 end
 
-local function joinRagnarokViaAPI()
+function AutoJoin.joinRagnarok()
     local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
     local success = pcall(function()
-        Event:FireServer(
-            buffer.fromstring(")\b\x00Ragnarok\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\b\x00Ragnarok\x10\x00LimitedTimeModes\x00\x00"),
-            nil
-        )
+        Event:FireServer(buffer.fromstring(")\b\x00Ragnarok\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\b\x00Ragnarok\x10\x00LimitedTimeModes\x00\x00"), nil)
     end)
-    if success then
-        print("Ragnarok Infinite join request sent")
-        return true
-    else
-        warn("Ragnarok Infinite join failed")
-        return false
-    end
+    return success
 end
 
-local function startGameViaAPI()
-    if not PodController then
-        warn("PodController not initialized")
-        return false
-    end
-    
-    print("Starting game via start button...")
-    
+function AutoJoin.startGameViaAPI()
+    if not PodController then warn("PodController not initialized") return false end
     local success = pcall(function()
         local startButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
-        
         for _, conn in pairs(getconnections(startButton.MouseButton1Up)) do
-            if conn.Enabled then
-                conn:Fire()
-            end
+            if conn.Enabled then conn:Fire() end
         end
     end)
-    
-    if success then
-        print(" Clicked start button")
-        return true
-    else
-        warn(" Failed to click start button")
-        return false
-    end
+    return success
 end
 
-local function waitForJoinSuccess(timeout)
+function AutoJoin.waitForJoinSuccess(timeout)
     local startTime = tick()
     timeout = timeout or 10
-    
     while tick() - startTime < timeout do
-        -- Check if PartyFrame is visible (successfully joined but not started)
         local success, partyFrameVisible = pcall(function()
             local partyFrame = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
             if partyFrame then
                 partyFrame = partyFrame:FindFirstChild("PartyFrame")
-                if partyFrame then
-                    return partyFrame.Enabled
-                end
+                if partyFrame then return partyFrame.Enabled end
             end
             return false
         end)
-        
-        if success and partyFrameVisible then
-            print("✓ Join successful - PartyFrame visible")
-            return true
-        end
-        
+        if success and partyFrameVisible then return true end
         task.wait(0.5)
     end
-    
     return false
 end
 
-local function tryStartGameWithRetry(maxRetries)
-    maxRetries = maxRetries or 3
-    
-    for attempt = 1, maxRetries do
-        print(string.format("Attempting to start game (attempt %d/%d)", attempt, maxRetries))
-        
-        startGameViaAPI()
-        
-        -- Wait to see if we get teleported or PartyFrame closes
+function AutoJoin.tryStartGameWithRetry(maxAttempts)
+    maxAttempts = maxAttempts or 3
+    for attempt = 1, maxAttempts do
+        AutoJoin.startGameViaAPI()
         local waitStart = tick()
-        while tick() - waitStart < 3 do  -- Reduced from 5 to 3 seconds
-            -- Check if we got teleported (no longer in lobby)
-            if not isInLobby() then
-                print("✓ Successfully started - teleported to game")
-                return true
-            end
-            
-            -- Check if PartyFrame closed
+        while tick() - waitStart < 3 do
+            if not Util.isInLobby() then return true end
             local success, partyFrameVisible = pcall(function()
                 local partyFrame = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
                 if partyFrame then
                     partyFrame = partyFrame:FindFirstChild("PartyFrame")
-                    if partyFrame then
-                        return partyFrame.Enabled
-                    end
+                    if partyFrame then return partyFrame.Enabled end
                 end
                 return false
             end)
-            
-            if success and not partyFrameVisible then
-                print("✓ PartyFrame closed - game starting")
-                return true
-            end
-            
-            task.wait(0.3)  -- Check more frequently
+            if success and not partyFrameVisible then return true end
+            task.wait(0.3)
         end
-        
-        -- Check if PartyFrame is still visible (need to retry)
         local success, partyFrameVisible = pcall(function()
             local partyFrame = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
             if partyFrame then
                 partyFrame = partyFrame:FindFirstChild("PartyFrame")
-                if partyFrame then
-                    return partyFrame.Enabled
-                end
+                if partyFrame then return partyFrame.Enabled end
             end
             return false
         end)
-        
-        if not success or not partyFrameVisible then
-            print("✓ Game started or PartyFrame closed")
-            return true
-        end
-        
-        print(string.format("⚠️ Start attempt %d failed - PartyFrame still visible", attempt))
-        task.wait(0.5)  -- Short delay between attempts
+        if not success or not partyFrameVisible then return true end
+        task.wait(0.5)
     end
-    
-    -- All attempts failed - click Leave button
-    warn(" Failed to start game after", maxRetries, "attempts - clicking Leave button")
-    
-    local leaveSuccess = pcall(function()
+    warn(" Failed to start game after", maxAttempts, "attempts - clicking Leave")
+    pcall(function()
         local leaveButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Leave.Hitbox
-        
         for _, conn in pairs(getconnections(leaveButton.MouseButton1Up)) do
-            if conn.Enabled then
-                conn:Fire()
-            end
+            if conn.Enabled then conn:Fire() end
         end
     end)
-    
-    if leaveSuccess then
-        print("✓ Clicked Leave button - returning to lobby")
-        task.wait(2)  -- Wait for leave to complete
-    else
-        warn(" Failed to click Leave button")
-    end
-    
+    task.wait(2)
     return false
 end
 
-local function getCurrentChallengesData()
-    if not ChallengeController then
-        warn("ChallengeController not initialized")
-        return nil
-    end
-    
-    local success, challenges = pcall(function()
-        return ChallengeController:GetCurrentChallenges()
-    end)
-    
-    if success and challenges then
-        return challenges
-    end
-    
+function AutoJoin.getCurrentChallengesData()
+    if not ChallengeController then warn("ChallengeController not initialized") return nil end
+    local success, challenges = pcall(function() return ChallengeController:GetCurrentChallenges() end)
+    if success and challenges then return challenges end
     return nil
 end
 
-local function challengeMatchesFilters(challengeData)
+function AutoJoin.challengeMatchesFilters(challengeData)
     local challengeMapModule = challengeData.Map
-    local act = challengeData.Act
     local modifiers = challengeData.Modifiers or {}
     local reward = challengeData.Reward
-    
-    --print(string.format("Checking challenge: Map='%s', Act=%d, Reward=%s, Modifiers=%s", 
-        --challengeMapModule, act, reward, table.concat(modifiers, ", ")))
-
-        --print("=== ModifierModuleToTag Contents ===")
-    for moduleName, displayTag in pairs(ModifierModuleToTag) do
-        --print(string.format("  '%s' -> '%s'", moduleName, displayTag))
-    end
-    --print("=== END DEBUG ===")
-    
-    -- STEP 1: Check if map is in ignore list (applies to ALL challenges)
     if #State.IgnoreWorlds > 0 then
         for _, ignoredMapUI in ipairs(State.IgnoreWorlds) do
             local ignoredMapModule = UINameToModuleName[ignoredMapUI]
-            
-            if ignoredMapModule and challengeMapModule == ignoredMapModule then
-                --print(string.format(" Skipping - Map '%s' (UI: '%s') is in ignore list", 
-                    --challengeMapModule, ignoredMapUI))
-                return false
-            end
+            if ignoredMapModule and challengeMapModule == ignoredMapModule then return false end
         end
     end
-    
-    -- STEP 2: Check if any modifier is in ignore list (applies to ALL challenges)
     if #State.IgnoreModifier > 0 then
         for _, modifierName in pairs(modifiers) do
-            -- modifierName here is the MODULE name (e.g., "HalfHourPlacementDecrease")
-            -- We need to check against what the user selected (ChallengeTag like "Unit Place Amount Decrease")
-            
-            -- Convert module name to display tag for comparison
-            --local modifierDisplayTag = ModifierModuleToTag[modifierName]
-            
-            -- If we don't have a mapping yet, skip this check (might still be loading)
-            --if not modifierDisplayTag then
-                --print(string.format("⚠️ No mapping found for modifier module: %s", modifierName))
-                --continue
-            --end
-            
-            --print(string.format("Checking modifier: Module='%s'", modifierName))
-            
             for _, ignoredModifier in ipairs(State.IgnoreModifier) do
-                -- ignoredModifier is the display name (ChallengeTag) from dropdown
-                if modifierName == ignoredModifier then
-                    --print(string.format(" Skipping - Modifier '%s' is in ignore list", modifierName))
-                    return false
-                end
+                if modifierName == ignoredModifier then return false end
             end
         end
     end
-    
-    -- STEP 3: Check reward (if we have reward filters active)
     if #State.SelectedChallengeRewards > 0 then
-        
-        -- For non-Daily challenges, check if the specific reward matches
-        local rewardMatches = false
-        
-        -- Map reward values to UI-friendly names
-        local rewardMapping = {
-            ["Fragments"] = "Fragments",
-            ["Gems"] = "Gems",
-            ["Stats"] = "Stat Rerolls",
-            ["Rerolls"] = "Trait Rerolls",
-        }
-        
+        local rewardMapping = { ["Fragments"] = "Fragments", ["Gems"] = "Gems", ["Stats"] = "Stat Rerolls", ["Rerolls"] = "Trait Rerolls" }
         local friendlyReward = rewardMapping[reward] or reward
-        
+        local rewardMatches = false
         for _, selectedReward in ipairs(State.SelectedChallengeRewards) do
-            if friendlyReward == selectedReward then
-                rewardMatches = true
-                break
-            end
+            if friendlyReward == selectedReward then rewardMatches = true break end
         end
-        
-        if not rewardMatches then
-            --print(string.format(" Skipping - Reward '%s' not in selected rewards", friendlyReward))
-            return false
-        end
+        if not rewardMatches then return false end
     else
-        -- NO REWARDS SELECTED - This means user doesn't want to filter by rewards at all
-        -- So we should REJECT challenges unless they explicitly want to run any challenge
-        -- For now, let's reject if no rewards are selected
-        --print(" Skipping - No rewards selected (filter active but empty)")
         return false
     end
-    
-    --print("✓ Challenge passed all filters!")
     return true
 end
 
-local function findAllMatchingChallenges(challengesData, challengeType)
+function AutoJoin.findAllMatchingChallenges(challengesData)
     local matchingChallenges = {}
-    
     for challengeIndex, challengeData in pairs(challengesData) do
-        -- Skip non-numeric indices
-        if type(challengeIndex) ~= "number" then
-            continue
-        end
-        
-        -- Check if it matches our filters
-        if challengeMatchesFilters(challengeData) then
-            -- Score this challenge (higher = better)
-            local score = 0
-            
-            -- Prefer higher acts (more rewards)
-            score = score + (challengeData.Act or 0) * 10
-            
-            table.insert(matchingChallenges, {
-                index = challengeIndex,
-                data = challengeData,
-                score = score
-            })
+        if type(challengeIndex) ~= "number" then continue end
+        if AutoJoin.challengeMatchesFilters(challengeData) then
+            table.insert(matchingChallenges, { index = challengeIndex, data = challengeData, score = (challengeData.Act or 0) * 10 })
         end
     end
-    
-    -- Sort by score (highest first)
-    table.sort(matchingChallenges, function(a, b)
-        return a.score > b.score
-    end)
-    
+    table.sort(matchingChallenges, function(a, b) return a.score > b.score end)
     return matchingChallenges
 end
 
-local function isGameDataLoaded()
+function Util.isGameDataLoaded()
     local success = pcall(function()
         return Services.ReplicatedStorage:FindFirstChild("Shared") and
                Services.ReplicatedStorage.Shared:FindFirstChild("Data")
@@ -2649,275 +1597,142 @@ local function isGameDataLoaded()
     return success
 end
 
-local function checkAndExecuteHighestPriority()
-    if not isInLobby() then return end
+function AutoJoin.checkAndExecuteHighestPriority()
+    if not Util.isInLobby() then return end
     if AutoJoinState.isProcessing then return end
-    if not canPerformAction() then return end
+    if not Util.canPerformAction() then return end
     if not ChallengeController or not PodController then return end
-    if not isGameDataLoaded() then return end
-    
-    -- Check if lobby creation UI is already open
+    if not Util.isGameDataLoaded() then return end
     if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi") then
         local lobbyUi = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi")
-        if (lobbyUi:FindFirstChild("PartyFrame") and lobbyUi:FindFirstChild("PartyFrame").Enabled) then
-            return
-        end
+        if (lobbyUi:FindFirstChild("PartyFrame") and lobbyUi:FindFirstChild("PartyFrame").Enabled) then return end
     end
-
-    -- Priority 1: Regular Challenge Auto Join
+ 
     if State.AutoJoinChallenge then
         local regularChallengeOnCooldown = false
         local timeSinceLastFail = tick() - (State.LastFailedChallengeAttempt or 0)
-        
         if State.LastFailedChallengeAttempt > 0 and timeSinceLastFail < State.ChallengeJoinCooldown then
             regularChallengeOnCooldown = true
         end
-        
         if not regularChallengeOnCooldown then
-            setProcessingState("Challenge Auto Join")
-            
-            local challenges = getCurrentChallengesData()
-            
+            Util.setProcessingState("Challenge Auto Join")
+            local challenges = AutoJoin.getCurrentChallengesData()
             if challenges and challenges["HalfHour"] then
-                local matchingChallenges = findAllMatchingChallenges(challenges["HalfHour"], "HalfHour")
-                
+                local matchingChallenges = AutoJoin.findAllMatchingChallenges(challenges["HalfHour"])
                 if #matchingChallenges > 0 then
-                    print(string.format("Found %d matching challenges", #matchingChallenges))
-                    
                     for attemptNum, challenge in ipairs(matchingChallenges) do
-                        print(string.format("Attempting challenge %d/%d: Index %d, Map=%s, Act=%d, Reward=%s", 
-                            attemptNum, #matchingChallenges, challenge.index, 
-                            challenge.data.Map, challenge.data.Act, challenge.data.Reward))
-                        
-                        local success = joinChallengeViaAPI("HalfHour", challenge.index)
-                        
+                        local success = AutoJoin.joinChallenge("HalfHour", challenge.index)
                         if success == true then
-                            print(" Successfully joined challenge via API!")
                             State.LastFailedChallengeAttempt = 0
-                            
-                            if waitForJoinSuccess(10) then
-                                if tryStartGameWithRetry(3) then
-                                    task.wait(3)
-                                    clearProcessingState()
-                                    return
-                                end
+                            if AutoJoin.waitForJoinSuccess(10) then
+                                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
                             end
-                        elseif success == "already_completed" then
-                            print("⚠️ Challenge already completed - trying next one...")
-                            continue
-                        else
-                            warn(" Failed to join challenge - trying next one...")
-                            continue
-                        end
+                        elseif success == "already_completed" then continue
+                        else continue end
                     end
-                    
-                    print("⚠️ All matching Half Hourly challenges completed or failed")
                     State.LastFailedChallengeAttempt = tick()
                 else
-                    print("⚠️ No Half Hourly challenges match filters")
                     State.LastFailedChallengeAttempt = tick()
                 end
             else
-                print("⚠️ No Half Hourly challenges available")
                 State.LastFailedChallengeAttempt = tick()
             end
-            
-            clearProcessingState()
+            Util.clearProcessingState()
         end
     end
-    
-    -- Priority 2: Featured Challenge Auto Join
+ 
     if State.AutoJoinFeaturedChallenge then
-        setProcessingState("Featured Challenge Auto Join")
-        
-        local success = joinFeaturedChallengeViaAPI()
-        
+        Util.setProcessingState("Featured Challenge Auto Join")
+        local success = AutoJoin.joinFeaturedChallenge()
         if success then
-            print(" Successfully joined Featured Challenge via API!")
-            
-            if waitForJoinSuccess(10) then
-                if tryStartGameWithRetry(3) then
-                    task.wait(3)
-                    clearProcessingState()
-                    return
-                end
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
             end
         end
-        
-        clearProcessingState()
+        Util.clearProcessingState()
     end
-
+ 
     if State.AutoJoinOlympusJudgement then
-    setProcessingState("Olympus Judgement Auto Join")
-    local success = joinOlympusJudgementViaAPI()
-    if success then
-        if waitForJoinSuccess(10) then
-            if tryStartGameWithRetry(3) then
-                task.wait(3)
-                clearProcessingState()
-                return
-            end
-        end
-    end
-    clearProcessingState()
-end
-
-if State.AutoJoinShinobiAlliance then
-    setProcessingState("Shinobi Alliance Auto Join")
-    local success = joinShinobiAllianceViaAPI()
-    if success then
-        if waitForJoinSuccess(10) then
-            if tryStartGameWithRetry(3) then
-                task.wait(3)
-                clearProcessingState()
-                return
-            end
-        end
-    end
-    clearProcessingState()
-end
-
-if State.AutoJoinRagnarok then
-    setProcessingState("Ragnarok Infinite Auto Join")
-    local success = joinRagnarokViaAPI()
-    if success then
-        if waitForJoinSuccess(10) then
-            if tryStartGameWithRetry(3) then
-                task.wait(3)
-                clearProcessingState()
-                return
-            end
-        end
-    end
-    clearProcessingState()
-end
-
-    -- Priority 3: Story Auto Join
-    if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and 
-       State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
-        setProcessingState("Story Auto Join")
-        
-        local success = joinStoryViaAPI(
-            State.StoryStageSelected,
-            State.StoryActSelected,
-            State.StoryDifficultySelected,
-            State.StoryDifficultyMeterSelected
-        )
-        
+        Util.setProcessingState("Olympus Judgement Auto Join")
+        local success = AutoJoin.joinOlympusJudgement()
         if success then
-            print(" Successfully joined Story via API!")
-            
-            if waitForJoinSuccess(10) then
-                if tryStartGameWithRetry(3) then
-                    task.wait(3)
-                    clearProcessingState()
-                    return
-                end
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
             end
-        else
-            clearProcessingState()
         end
+        Util.clearProcessingState()
     end
-
-    -- Priority 4: Legend Stage Auto Join
-    if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and 
-       State.LegendStageDifficultyMeterSelected then
-        setProcessingState("Legend Stage Auto Join")
-        
-        local success = joinLegendViaAPI(
-            State.LegendStageSelected,
-            tonumber(State.LegendStageActSelected),
-            State.LegendStageDifficultyMeterSelected
-        )
-        
+ 
+    if State.AutoJoinShinobiAlliance then
+        Util.setProcessingState("Shinobi Alliance Auto Join")
+        local success = AutoJoin.joinShinobiAlliance()
         if success then
-            print(" Successfully joined Legend Stage via API!")
-            
-            if waitForJoinSuccess(10) then
-                if tryStartGameWithRetry(3) then
-                    task.wait(3)
-                    clearProcessingState()
-                    return
-                end
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
             end
-        else
-            clearProcessingState()
         end
+        Util.clearProcessingState()
     end
-
-    -- Priority 5: Virtual Stage Auto Join
-    if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and 
-       State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
-        setProcessingState("Virtual Stage Auto Join")
-        
-        local success = joinVirtualViaAPI(
-            State.VirtualStageSelected,
-            tonumber(State.VirtualStageActSelected),
-            State.VirtualStageDifficultySelected,
-            State.VirtualStageDifficultyMeterSelected
-        )
-        
+ 
+    if State.AutoJoinRagnarok then
+        Util.setProcessingState("Ragnarok Infinite Auto Join")
+        local success = AutoJoin.joinRagnarok()
         if success then
-            print(" Successfully joined Virtual Stage via API!")
-            
-            if waitForJoinSuccess(10) then
-                if tryStartGameWithRetry(3) then
-                    task.wait(3)
-                    clearProcessingState()
-                    return
-                end
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
             end
-        else
-            clearProcessingState()
         end
+        Util.clearProcessingState()
     end
-
-    -- Priority 6: Raid Auto Join
+ 
+    if State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected and State.StoryDifficultyMeterSelected then
+        Util.setProcessingState("Story Auto Join")
+        local success = AutoJoin.joinStory(State.StoryStageSelected, State.StoryActSelected, State.StoryDifficultySelected, State.StoryDifficultyMeterSelected)
+        if success then
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+            end
+        else Util.clearProcessingState() end
+    end
+ 
+    if State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendStageActSelected and State.LegendStageDifficultyMeterSelected then
+        Util.setProcessingState("Legend Stage Auto Join")
+        local success = AutoJoin.joinLegend(State.LegendStageSelected, tonumber(State.LegendStageActSelected), State.LegendStageDifficultyMeterSelected)
+        if success then
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+            end
+        else Util.clearProcessingState() end
+    end
+ 
+    if State.AutoJoinVirtualStage and State.VirtualStageSelected and State.VirtualStageActSelected and State.VirtualStageDifficultySelected and State.VirtualStageDifficultyMeterSelected then
+        Util.setProcessingState("Virtual Stage Auto Join")
+        local success = AutoJoin.joinVirtual(State.VirtualStageSelected, tonumber(State.VirtualStageActSelected), State.VirtualStageDifficultySelected, State.VirtualStageDifficultyMeterSelected)
+        if success then
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+            end
+        else Util.clearProcessingState() end
+    end
+ 
     if State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected then
-        setProcessingState("Raid Stage Auto Join")
-        
-        local success = joinRaidViaAPI(
-            State.RaidStageSelected,
-            State.RaidActSelected
-        )
-        
+        Util.setProcessingState("Raid Stage Auto Join")
+        local success = AutoJoin.joinRaid(State.RaidStageSelected, State.RaidActSelected)
         if success then
-            print(" Successfully joined Raid via API!")
-            
-            if waitForJoinSuccess(10) then
-                if tryStartGameWithRetry(3) then
-                    task.wait(3)
-                    clearProcessingState()
-                    return
-                end
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
             end
-        else
-            clearProcessingState()
-        end
+        else Util.clearProcessingState() end
     end
-        -- Priority 7: Winter Auto Join
+ 
     if State.AutoJoinWinterEvent and State.WinterActSelected and State.WinterStageDifficultySelected and State.WinterStageDifficultyMeterSelected then
-        setProcessingState("Winter Event Auto Join")
-        
-         local success = joinWinterViaAPI(
-            State.WinterActSelected,
-            State.WinterStageDifficultySelected,
-            State.WinterStageDifficultyMeterSelected
-        )
-        
+        Util.setProcessingState("Winter Event Auto Join")
+        local success = AutoJoin.joinWinter(State.WinterActSelected, State.WinterStageDifficultySelected, State.WinterStageDifficultyMeterSelected)
         if success then
-            print(" Successfully joined Winter Event via API!")
-            
-            if waitForJoinSuccess(10) then
-                if tryStartGameWithRetry(3) then
-                    task.wait(3)
-                    clearProcessingState()
-                    return
-                end
+            if AutoJoin.waitForJoinSuccess(10) then
+                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
             end
-        else
-            clearProcessingState()
-        end
+        else Util.clearProcessingState() end
     end
 end
 
@@ -2925,121 +1740,72 @@ end
 
 AutoPathTab:CreateLabel("Higher number = higher priority")
 
-local AutoPathToggle = AutoPathTab:CreateToggle({
-    Name = "Auto Select Path",
-    CurrentValue = false,
-    Flag = "AutoSelectPath",
+AutoPathTab:CreateToggle({
+    Name = "Auto Select Path", CurrentValue = false, Flag = "AutoSelectPath",
     Callback = function(Value)
         State.AutoSelectPath = Value
         PathState.AutoSelectPath = Value
     end,
 })
-
+ 
 AutoPathTab:CreateButton({
     Name = "Reset to default",
     Callback = function()
         local totalSliders = #pathSliders
         local currentPriority = totalSliders
-        
         for _, slider in ipairs(pathSliders) do
             slider:Set(currentPriority)
             currentPriority = currentPriority - 1
         end
-        savePathPriorities()
+        MacroIO.savePathPriorities()
     end,
 })
-
-Label = AutoPathTab:CreateLabel("tip: use the search icon")
-
+ 
+AutoPathTab:CreateLabel("tip: use the search icon")
 AutoPathTab:CreateDivider()
 
-local function loadPathSliders()
+function PathSystem.loadSliders()
     local PathsFolder = game:GetService("ReplicatedStorage").Shared.Data.Paths
-    
-    -- Check if config file exists
     local playerName = game:GetService("Players").LocalPlayer.Name
     local configPath = string.format("LixHub/%s_PathSettings_UTD.json", playerName)
     local configExists = isfile(configPath)
-    
-    -- Load saved priorities (empty table if file doesn't exist)
-    local savedPriorities = configExists and loadPathPriorities() or {}
-
-    for key, value in pairs(savedPriorities) do
-        PathState.BlessingPriorities[key] = value
-    end
-    
-    -- Store paths and their blessings
+    local savedPriorities = configExists and MacroIO.loadPathPriorities() or {}
+    for key, value in pairs(savedPriorities) do PathState.BlessingPriorities[key] = value end
     local pathsData = {}
-    
     for _, pathModule in ipairs(PathsFolder:GetChildren()) do
         if pathModule:IsA("ModuleScript") then
-            local success, pathData = pcall(function()
-                return require(pathModule)
-            end)
-            
+            local success, pathData = pcall(function() return require(pathModule) end)
             if success and pathData.Blessings then
                 local pathName = pathModule.Name
-                pathsData[pathName] = {
-                    blessings = {},
-                    resonanceName = nil
-                }
-                
-                -- Get Resonance name (this is "Shared Bonds", "Future Wealth", etc.)
+                pathsData[pathName] = { blessings = {}, resonanceName = nil }
                 if pathData.Resonance and pathData.Resonance.Name then
                     pathsData[pathName].resonanceName = pathData.Resonance.Name
-                    --(string.format("Found Resonance: %s -> '%s'", pathName, pathData.Resonance.Name))
                 end
-                
-                -- Collect all blessings from all rarities
                 for rarity, blessings in pairs(pathData.Blessings) do
                     for blessingName, blessingData in pairs(blessings) do
-                        table.insert(pathsData[pathName].blessings, {
-                            name = blessingName,
-                            rarity = rarity
-                        })
+                        table.insert(pathsData[pathName].blessings, { name = blessingName, rarity = rarity })
                     end
                 end
-                
-                -- Sort blessings alphabetically
-                table.sort(pathsData[pathName].blessings, function(a, b)
-                    return a.name < b.name
-                end)
+                table.sort(pathsData[pathName].blessings, function(a, b) return a.name < b.name end)
             end
         end
     end
-    
-    -- Sort paths alphabetically
     local sortedPaths = {}
-    for pathName in pairs(pathsData) do
-        table.insert(sortedPaths, pathName)
-    end
+    for pathName in pairs(pathsData) do table.insert(sortedPaths, pathName) end
     table.sort(sortedPaths)
-    
-    -- Only calculate incremental priorities if config doesn't exist
     local currentPriority = nil
     if not configExists then
-        -- Count total: resonance names + blessings
         local totalItems = 0
         for _, pathInfo in pairs(pathsData) do
-            if pathInfo.resonanceName then
-                totalItems = totalItems + 1 -- For resonance name
-            end
+            if pathInfo.resonanceName then totalItems = totalItems + 1 end
             totalItems = totalItems + #pathInfo.blessings
         end
         currentPriority = totalItems
-        print("generating incremental values")
-    else
-        print("Loading priorities from config file")
     end
-    
-    -- Create sections and sliders for each path
     for _, pathName in ipairs(sortedPaths) do
         local pathInfo = pathsData[pathName]
-        
-        -- CREATE RESONANCE SLIDER (e.g., "Shared Bonds")
         if pathInfo.resonanceName then
             local resonanceKey = pathInfo.resonanceName:gsub("[^%w]", "")
-            
             local sliderValue
             if configExists then
                 sliderValue = savedPriorities[resonanceKey] or 0
@@ -3048,33 +1814,20 @@ local function loadPathSliders()
                 savedPriorities[resonanceKey] = sliderValue
                 currentPriority = currentPriority - 1
             end
-
             PathState.BlessingPriorities[resonanceKey] = sliderValue
-            local displayName = string.format("[%s] %s", pathName, pathInfo.resonanceName)
-            
             local slider = AutoPathTab:CreateSlider({
-                Name = displayName,
-                Range = {0, 100},
-                Increment = 1,
-                CurrentValue = sliderValue,
+                Name = string.format("[%s] %s", pathName, pathInfo.resonanceName),
+                Range = {0, 100}, Increment = 1, CurrentValue = sliderValue,
                 Flag = "PathPriority_Resonance_" .. resonanceKey,
                 Callback = function(Value)
                     PathState.BlessingPriorities[resonanceKey] = Value
-                    savePathPriorities()
+                    MacroIO.savePathPriorities()
                 end,
             })
-            
             table.insert(pathSliders, slider)
         end
-        
-        -- CREATE BLESSING SLIDERS
-        local blessings = pathInfo.blessings
-        
-        -- Create slider for each blessing
-        for _, blessing in ipairs(blessings) do
-            --print(string.format("Module blessing name: '%s'", blessing.name))
+        for _, blessing in ipairs(pathInfo.blessings) do
             local sliderKey = blessing.name:gsub("[^%w]", "")
-            
             local sliderValue
             if configExists then
                 sliderValue = savedPriorities[sliderKey] or 0
@@ -3083,42 +1836,26 @@ local function loadPathSliders()
                 savedPriorities[sliderKey] = sliderValue
                 currentPriority = currentPriority - 1
             end
-
             PathState.BlessingPriorities[sliderKey] = sliderValue
-
-            local displayName = string.format("[%s] %s", pathName, blessing.name)
-            
             local slider = AutoPathTab:CreateSlider({
-                Name = displayName,
-                Range = {0, 100},
-                Increment = 1,
-                CurrentValue = sliderValue,
+                Name = string.format("[%s] %s", pathName, blessing.name),
+                Range = {0, 100}, Increment = 1, CurrentValue = sliderValue,
                 Flag = "PathPriority_" .. pathName .. "_" .. blessing.name:gsub("%s", ""),
                 Callback = function(Value)
                     PathState.BlessingPriorities[sliderKey] = Value
-                    savePathPriorities()
+                    MacroIO.savePathPriorities()
                 end,
             })
-            
             table.insert(pathSliders, slider)
         end
-        
-        -- Add divider between paths
         AutoPathTab:CreateDivider()
     end
-    
-    -- Save the incremental defaults if this was first run
-    if not configExists then
-        savePathPriorities()
-    end
-    
-    --print("Loaded path sliders successfully")
+    if not configExists then MacroIO.savePathPriorities() end
 end
 
 task.spawn(function()
     task.wait(2)
-    
-    local success, err = pcall(loadPathSliders)
+    local success, err = pcall(PathSystem.loadSliders)
     if not success then
         warn("Failed to load path sliders:", err)
         AutoPathTab:CreateLabel("⚠️ Failed to load paths")
@@ -3127,279 +1864,149 @@ end)
 
 JoinerTab:CreateSection("Story Joiner")
 
-     AutoJoinStoryToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Story",
-        CurrentValue = false,
-        Flag = "AutoJoinStory",
-        Callback = function(Value)
-            State.AutoJoinStory = Value
-        end,
-    })
-
+AutoJoinStoryToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Story", CurrentValue = false, Flag = "AutoJoinStory",
+    Callback = function(Value) State.AutoJoinStory = Value end,
+})
+ 
 local StoryStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Story Stage",
-    Options = {},
-    CurrentOption = {},
-    Flag = "StoryStageSelector",
-    Callback = function(Option)
-        State.StoryStageSelected = Option[1]
-    end,
+    Name = "Select Story Stage", Options = {}, CurrentOption = {}, Flag = "StoryStageSelector",
+    Callback = function(Option) State.StoryStageSelected = Option[1] end,
 })
-
-     ChapterDropdown869 = JoinerTab:CreateDropdown({
-        Name = "Select Story Act",
-        Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "StoryActSelector",
-        Callback = function(Option)
-            local selectedOption = type(Option) == "table" and Option[1] or Option
-            if selectedOption == "Infinite" then
-                State.StoryActSelected = "Infinite"
-            else
-                local num = selectedOption:match("%d+")
-                if num then
-                    State.StoryActSelected = num
-                end
-            end
-        end,
-    })
-
-     ChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Story Difficulty",
-        Options = {"Easy","Hard","Nightmare"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "StoryDifficultySelector",
-        Callback = function(Option)
-            if Option[1] == "Easy" then
-                State.StoryDifficultySelected = "Easy"
-            elseif Option[1] == "Hard" then
-                State.StoryDifficultySelected = "Hard"
-            elseif Option[1] == "Nightmare" then
-                State.StoryDifficultySelected = "Nightmare"
-            end
-        end,
-    })
-
-    StorySlider = JoinerTab:CreateSlider({
-   Name = "Select Difficulty Meter",
-   Range = {75, 1000},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 100,
-   Flag = "StoryDifficultyMeterSelector",
-   Callback = function(Value)
-    State.StoryDifficultyMeterSelected = Value
-   end,
-})
-
-JoinerTab:CreateSection("Legend Stage Joiner")
-
-    AutoJoinLegendToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Legend Stage",
-        CurrentValue = false,
-        Flag = "AutoJoinLegendStage",
-        Callback = function(Value)
-            State.AutoJoinLegendStage = Value
-        end,
-    })
-
-local LegendStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Legend Stage",
-    Options = {},
-    CurrentOption = {},
-    Flag = "LegendStageSelector",
-    Callback = function(Option)
-        State.LegendStageSelected = Option[1]
-    end,
-})
-
-    LegendChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Legend Stage Act",
-        Options = {"Act 1", "Act 2", "Act 3"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "LegendStageActSelector",
-        Callback = function(Option)
-            local selectedOption = type(Option) == "table" and Option[1] or Option
-            
-            local num = selectedOption:match("%d+")
-            if num then
-                State.LegendStageActSelected = num
-            end
-        end,
-    })
-
-     LegendSlider = JoinerTab:CreateSlider({
-   Name = "Select Difficulty Meter",
-   Range = {75, 1000},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 100,
-   Flag = "LegendStageDifficultyMeterSelector",
-   Callback = function(Value)
-    State.LegendStageDifficultyMeterSelected = Value
-   end,
-})
-
-JoinerTab:CreateSection("Virtual Stage Joiner")
-
-    AutoJoinVirtualToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Virtual Stage",
-        CurrentValue = false,
-        Flag = "AutoJoinVirtualStage",
-        Callback = function(Value)
-            State.AutoJoinVirtualStage = Value
-        end,
-    })
-
-local VirtualStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Virtual Stage",
-    Options = {},
-    CurrentOption = {},
-    Flag = "VirtualStageSelector",
-    Callback = function(Options)
-        State.VirtualStageSelected = Options[1]
-    end,
-})
-
-    VirtualChapterDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Virtual Stage Act",
-        Options = {"Act 1", "Act 2", "Act 3"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "VirtualStageActSelector",
-        Callback = function(Option)
-            local selectedOption = type(Option) == "table" and Option[1] or Option
-            
-            local num = selectedOption:match("%d+")
-            if num then
-                State.VirtualStageActSelected = num
-            end
-        end,
-    })
-
-    VirtualDifficultyDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Virtual Difficulty",
-        Options = {"Easy","Hard","Nightmare"},
-        CurrentOption = {},
-        MultipleOptions = false,
-        Flag = "VirtualStageDifficultySelector",
-        Callback = function(Option)
-            if Option[1] == "Easy" then
-                State.VirtualStageDifficultySelected = "Easy"
-            elseif Option[1] == "Hard" then
-                State.VirtualStageDifficultySelected = "Hard"
-            elseif Option[1] == "Nightmare" then
-                State.VirtualStageDifficultySelected = "Nightmare"
-            end
-        end,
-    })
-
-     VirtualSlider = JoinerTab:CreateSlider({
-   Name = "Select Difficulty Meter",
-   Range = {75, 1000},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 100,
-   Flag = "VirtualStageDifficultyMeterSelector",
-   Callback = function(Value)
-    State.VirtualStageDifficultyMeterSelected = Value
-   end,
-})
-
-JoinerTab:CreateSection("Raid Joiner")
-
-AutoJoinRaidToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Raid",
-    CurrentValue = false,
-    Flag = "AutoJoinRaid",
-    Callback = function(Value)
-        State.AutoJoinRaid = Value
-    end,
-})
-
-local RaidStageDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Stage",
-    Options = {},
-    CurrentOption = {},
-    Flag = "RaidStageSelector",
-    Callback = function(Option)
-        State.RaidStageSelected = Option[1]
-    end,
-})
-
-RaidChapterDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Raid Act",
-    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Boss Rush"},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "RaidStageActSelector",
+ 
+ChapterDropdown869 = JoinerTab:CreateDropdown({
+    Name = "Select Story Act", Options = {"Act 1","Act 2","Act 3","Act 4","Act 5","Act 6","Infinite"},
+    CurrentOption = {}, MultipleOptions = false, Flag = "StoryActSelector",
     Callback = function(Option)
         local selectedOption = type(Option) == "table" and Option[1] or Option
-        
-        if selectedOption == "Boss Rush" then
-            State.RaidActSelected = "BossRush"
-        else
-            local num = selectedOption:match("%d+")
-            if num then
-                State.RaidActSelected = num
-            end
-        end
+        if selectedOption == "Infinite" then State.StoryActSelected = "Infinite"
+        else local num = selectedOption:match("%d+") if num then State.StoryActSelected = num end end
     end,
 })
-
+ 
+ChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Story Difficulty", Options = {"Easy","Hard","Nightmare"},
+    CurrentOption = {}, MultipleOptions = false, Flag = "StoryDifficultySelector",
+    Callback = function(Option)
+        State.StoryDifficultySelected = Option[1]
+    end,
+})
+ 
+StorySlider = JoinerTab:CreateSlider({
+    Name = "Select Difficulty Meter", Range = {75, 1000}, Increment = 1,
+    Suffix = "", CurrentValue = 100, Flag = "StoryDifficultyMeterSelector",
+    Callback = function(Value) State.StoryDifficultyMeterSelected = Value end,
+})
+ 
+JoinerTab:CreateSection("Legend Stage Joiner")
+ 
+AutoJoinLegendToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Legend Stage", CurrentValue = false, Flag = "AutoJoinLegendStage",
+    Callback = function(Value) State.AutoJoinLegendStage = Value end,
+})
+ 
+local LegendStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Legend Stage", Options = {}, CurrentOption = {}, Flag = "LegendStageSelector",
+    Callback = function(Option) State.LegendStageSelected = Option[1] end,
+})
+ 
+LegendChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Legend Stage Act", Options = {"Act 1","Act 2","Act 3"},
+    CurrentOption = {}, MultipleOptions = false, Flag = "LegendStageActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        local num = selectedOption:match("%d+") if num then State.LegendStageActSelected = num end
+    end,
+})
+ 
+LegendSlider = JoinerTab:CreateSlider({
+    Name = "Select Difficulty Meter", Range = {75, 1000}, Increment = 1,
+    Suffix = "", CurrentValue = 100, Flag = "LegendStageDifficultyMeterSelector",
+    Callback = function(Value) State.LegendStageDifficultyMeterSelected = Value end,
+})
+ 
+JoinerTab:CreateSection("Virtual Stage Joiner")
+ 
+AutoJoinVirtualToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Virtual Stage", CurrentValue = false, Flag = "AutoJoinVirtualStage",
+    Callback = function(Value) State.AutoJoinVirtualStage = Value end,
+})
+ 
+local VirtualStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Virtual Stage", Options = {}, CurrentOption = {}, Flag = "VirtualStageSelector",
+    Callback = function(Options) State.VirtualStageSelected = Options[1] end,
+})
+ 
+VirtualChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Virtual Stage Act", Options = {"Act 1","Act 2","Act 3"},
+    CurrentOption = {}, MultipleOptions = false, Flag = "VirtualStageActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        local num = selectedOption:match("%d+") if num then State.VirtualStageActSelected = num end
+    end,
+})
+ 
+VirtualDifficultyDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Virtual Difficulty", Options = {"Easy","Hard","Nightmare"},
+    CurrentOption = {}, MultipleOptions = false, Flag = "VirtualStageDifficultySelector",
+    Callback = function(Option) State.VirtualStageDifficultySelected = Option[1] end,
+})
+ 
+VirtualSlider = JoinerTab:CreateSlider({
+    Name = "Select Difficulty Meter", Range = {75, 1000}, Increment = 1,
+    Suffix = "", CurrentValue = 100, Flag = "VirtualStageDifficultyMeterSelector",
+    Callback = function(Value) State.VirtualStageDifficultyMeterSelected = Value end,
+})
+ 
+JoinerTab:CreateSection("Raid Joiner")
+ 
+AutoJoinRaidToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Raid", CurrentValue = false, Flag = "AutoJoinRaid",
+    Callback = function(Value) State.AutoJoinRaid = Value end,
+})
+ 
+local RaidStageDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Stage", Options = {}, CurrentOption = {}, Flag = "RaidStageSelector",
+    Callback = function(Option) State.RaidStageSelected = Option[1] end,
+})
+ 
+RaidChapterDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Raid Act", Options = {"Act 1","Act 2","Act 3","Act 4","Act 5","Boss Rush"},
+    CurrentOption = {}, MultipleOptions = false, Flag = "RaidStageActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        if selectedOption == "Boss Rush" then State.RaidActSelected = "BossRush"
+        else local num = selectedOption:match("%d+") if num then State.RaidActSelected = num end end
+    end,
+})
+ 
 JoinerTab:CreateSection("Challenge Joiner")
-
-        AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Featured Challenge (The Hunt)",
-        CurrentValue = false,
-        Flag = "AutoJoinFeaturedChallenge",
-        Callback = function(Value)
-            State.AutoJoinFeaturedChallenge = Value
-        end,
-    })
-
-    AutoJoinOlympusToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Featured Challenge (Olympus Judgement)",
-    CurrentValue = false,
-    Flag = "AutoJoinOlympusJudgement",
-    Callback = function(Value)
-        State.AutoJoinOlympusJudgement = Value
-    end,
+ 
+AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Featured Challenge (The Hunt)", CurrentValue = false, Flag = "AutoJoinFeaturedChallenge",
+    Callback = function(Value) State.AutoJoinFeaturedChallenge = Value end,
 })
-
-        AutoJoinChallengeToggle = JoinerTab:CreateToggle({
-        Name = "Auto Join Challenge",
-        CurrentValue = false,
-        Flag = "AutoJoinChallenge",
-        Callback = function(Value)
-            State.AutoJoinChallenge = Value
-        end,
-    })
-
-    local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
-        Name = "Ignore Worlds",
-        Options = {},
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "IgnoreWorldsSelector",
-        Info = "Skip challenges based on these worlds",
-        Callback = function(Options)
-            State.IgnoreWorlds = Options or {}
-        end,
-    })
-
-   local IgnoreModifierDropdown = JoinerTab:CreateDropdown({
-    Name = "Ignore Modifier",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "IgnoreModifierSelector",
-    Info = "Skip challenges based on these modifiers",
+ 
+AutoJoinOlympusToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Featured Challenge (Olympus Judgement)", CurrentValue = false, Flag = "AutoJoinOlympusJudgement",
+    Callback = function(Value) State.AutoJoinOlympusJudgement = Value end,
+})
+ 
+AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Challenge", CurrentValue = false, Flag = "AutoJoinChallenge",
+    Callback = function(Value) State.AutoJoinChallenge = Value end,
+})
+ 
+local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
+    Name = "Ignore Worlds", Options = {}, CurrentOption = {}, MultipleOptions = true,
+    Flag = "IgnoreWorldsSelector", Info = "Skip challenges based on these worlds",
+    Callback = function(Options) State.IgnoreWorlds = Options or {} end,
+})
+ 
+local IgnoreModifierDropdown = JoinerTab:CreateDropdown({
+    Name = "Ignore Modifier", Options = {}, CurrentOption = {}, MultipleOptions = true,
+    Flag = "IgnoreModifierSelector", Info = "Skip challenges based on these modifiers",
     Callback = function(Options)
-        -- Convert display names to module names
         local moduleNames = {}
         for _, displayName in ipairs(Options or {}) do
             for _, modifier in ipairs(ModifierMapping) do
@@ -3412,46 +2019,30 @@ JoinerTab:CreateSection("Challenge Joiner")
         State.IgnoreModifier = moduleNames
     end,
 })
-
-        SelectChallengeRewardsDropdown = JoinerTab:CreateDropdown({
-        Name = "Select Challenge Rewards",
-        Options = {"Fragments","Gems","Stat Rerolls","Trait Rerolls"},
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "SelectedChallengeRewards",
-        Info = "Only join challenges that contain one or more of these rewards",
-        Callback = function(Options)
-            State.SelectedChallengeRewards = Options or {}
-        end,
-    })
-
-    ReturnToLobbyToggle = JoinerTab:CreateToggle({
-        Name = "Return to Lobby on New Challenge",
-        CurrentValue = false,
-        Flag = "ReturnToLobbyOnNewChallenge",
-        Info = "Return to lobby when new challenge appears instead of using retry/next",
-        TextScaled = true,
-        Callback = function(Value)
-            State.ReturnToLobbyOnNewChallenge = Value
-        end,
-    })
-
-    AutoJoinShinobiToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Shinobi Alliance",
-    CurrentValue = false,
-    Flag = "AutoJoinShinobiAlliance",
-    Callback = function(Value)
-        State.AutoJoinShinobiAlliance = Value
-    end,
+ 
+SelectChallengeRewardsDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Challenge Rewards", Options = {"Fragments","Gems","Stat Rerolls","Trait Rerolls"},
+    CurrentOption = {}, MultipleOptions = true, Flag = "SelectedChallengeRewards",
+    Info = "Only join challenges that contain one or more of these rewards",
+    Callback = function(Options) State.SelectedChallengeRewards = Options or {} end,
 })
-
+ 
+ReturnToLobbyToggle = JoinerTab:CreateToggle({
+    Name = "Return to Lobby on New Challenge", CurrentValue = false, Flag = "ReturnToLobbyOnNewChallenge",
+    Info = "Return to lobby when new challenge appears instead of using retry/next",
+    Callback = function(Value) State.ReturnToLobbyOnNewChallenge = Value end,
+})
+ 
+JoinerTab:CreateSection("Event Joiner")
+ 
+AutoJoinShinobiToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Shinobi Alliance", CurrentValue = false, Flag = "AutoJoinShinobiAlliance",
+    Callback = function(Value) State.AutoJoinShinobiAlliance = Value end,
+})
+ 
 AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
-    Name = "Auto Join Ragnarok Infinite",
-    CurrentValue = false,
-    Flag = "AutoJoinRagnarok",
-    Callback = function(Value)
-        State.AutoJoinRagnarok = Value
-    end,
+    Name = "Auto Join Ragnarok Infinite", CurrentValue = false, Flag = "AutoJoinRagnarok",
+    Callback = function(Value) State.AutoJoinRagnarok = Value end,
 })
 
 --[[task.spawn(function()
@@ -3515,444 +2106,201 @@ AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
     end
 end)--]]
 
-local function buildMapLookup()
-    print("Building map name lookup...")
-    
+function Loader.buildMapLookup()
     local success, result = pcall(function()
         local WavesFolder = Services.ReplicatedStorage.Shared.Data.Waves
-        
-        if not WavesFolder then
-            warn("Waves folder not found")
-            return false
-        end
-        
+        if not WavesFolder then warn("Waves folder not found") return false end
         local count = 0
-        
-        -- For each module in Waves folder
         for _, stageModule in ipairs(WavesFolder:GetChildren()) do
             if stageModule:IsA("ModuleScript") then
-                local stageSuccess, stageData = pcall(function()
-                    return require(stageModule)
-                end)
-                
+                local stageSuccess, stageData = pcall(function() return require(stageModule) end)
                 if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
-                    -- UI Name -> Module Name
-                    -- Example: "Ninja Village" -> "FinalValley"
-                    local uiName = stageData.Information.Name
-                    local moduleName = stageModule.Name
-                    
-                    UINameToModuleName[uiName] = moduleName
-                    
+                    UINameToModuleName[stageData.Information.Name] = stageModule.Name
                     count = count + 1
-                    print(string.format("  '%s' -> '%s'", uiName, moduleName))
                 end
             end
         end
-        
-        print(string.format("✓ Built lookup with %d entries", count))
         return true
     end)
-    
     return success and result
 end
 
-local function loadAllStoryStagesWithRetry()
+function Loader.storyStages()
     loadingRetries.story = loadingRetries.story + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.story <= maxRetries then
-            print(string.format("Story stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.story, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadAllStoryStagesWithRetry)
-        else
-            warn("Failed to load story stages after", maxRetries, "attempts - giving up")
-            if StoryStageDropdown then
-                StoryStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+    if not Util.isGameDataLoaded() then
+        if loadingRetries.story <= maxRetries then task.wait(retryDelay) task.spawn(Loader.storyStages) end
         return
     end
-    
     local success, result = pcall(function()
         local WavesFolder = Services.ReplicatedStorage.Shared.Data.Waves
-        
-        if not WavesFolder then
-            error("Waves folder not found")
-        end
-
+        if not WavesFolder then error("Waves folder not found") end
         local displayNames = {}
-        
-        -- Get all module scripts (stages)
         for _, stageModule in ipairs(WavesFolder:GetChildren()) do
             if stageModule:IsA("ModuleScript") then
-                local stageSuccess, stageData = pcall(function()
-                    return require(stageModule)
-                end)
-                
+                local stageSuccess, stageData = pcall(function() return require(stageModule) end)
                 if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
                     table.insert(displayNames, stageData.Information.Name)
                 end
             end
         end
-        
-        if #displayNames == 0 then
-            error("No story stages found")
-        end
-        
-        -- Sort alphabetically
+        if #displayNames == 0 then error("No story stages found") end
         table.sort(displayNames)
-        
         return displayNames
     end)
-    
     if success and result and #result > 0 then
-        if StoryStageDropdown then
-            StoryStageDropdown:Refresh(result)
-        end
-        if IgnoreWorldsDropdown then 
-            IgnoreWorldsDropdown:Refresh(result)
-        end
-        print(string.format("Successfully loaded %d story stages (attempt %d)", #result, loadingRetries.story))
-        print(string.format("Successfully loaded %d ignore world stages (attempt %d)", #result, loadingRetries.story))
+        if StoryStageDropdown then StoryStageDropdown:Refresh(result) end
+        if IgnoreWorldsDropdown then IgnoreWorldsDropdown:Refresh(result) end
     else
-        if loadingRetries.story <= maxRetries then
-            print(string.format("Story stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.story, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadAllStoryStagesWithRetry)
-        else
-            warn("Failed to load story stages after", maxRetries, "attempts:", result)
-            if StoryStageDropdown then
-                StoryStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+        if loadingRetries.story <= maxRetries then task.wait(retryDelay) task.spawn(Loader.storyStages) end
     end
 end
 
 -- LEGEND STAGES LOADER
-local function loadAllLegendStagesWithRetry()
+function Loader.legendStages()
     loadingRetries.legend = loadingRetries.legend + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.legend, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadAllLegendStagesWithRetry)
-        else
-            warn("Failed to load legend stages after", maxRetries, "attempts - giving up")
-            if LegendStageDropdown then
-                LegendStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+    if not Util.isGameDataLoaded() then
+        if loadingRetries.legend <= maxRetries then task.wait(retryDelay) task.spawn(Loader.legendStages) end
         return
     end
-    
     local success, result = pcall(function()
         local LegendFolder = Services.ReplicatedStorage.Shared.Data.LegendStages
-        
-        if not LegendFolder then
-            error("LegendStages folder not found")
-        end
-
+        if not LegendFolder then error("LegendStages folder not found") end
         local displayNames = {}
-        
-        -- Get all module scripts (stages)
         for _, stageModule in ipairs(LegendFolder:GetChildren()) do
             if stageModule:IsA("ModuleScript") then
-                local stageSuccess, stageData = pcall(function()
-                    return require(stageModule)
-                end)
-                
+                local stageSuccess, stageData = pcall(function() return require(stageModule) end)
                 if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
                     table.insert(displayNames, stageData.Information.Name)
                 end
             end
         end
-        
-        if #displayNames == 0 then
-            error("No legend stages found")
-        end
-        
-        -- Sort alphabetically
+        if #displayNames == 0 then error("No legend stages found") end
         table.sort(displayNames)
-        
         return displayNames
     end)
-    
     if success and result and #result > 0 then
-        if LegendStageDropdown then
-            LegendStageDropdown:Refresh(result)
-        end
-        print(string.format("Successfully loaded %d legend stages (attempt %d)", #result, loadingRetries.legend))
+        if LegendStageDropdown then LegendStageDropdown:Refresh(result) end
     else
-        if loadingRetries.legend <= maxRetries then
-            print(string.format("Legend stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.legend, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadAllLegendStagesWithRetry)
-        else
-            warn("Failed to load legend stages after", maxRetries, "attempts:", result)
-            if LegendStageDropdown then
-                LegendStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+        if loadingRetries.legend <= maxRetries then task.wait(retryDelay) task.spawn(Loader.legendStages) end
     end
 end
 
 -- VIRTUAL STAGES LOADER
-local function loadAllVirtualStagesWithRetry()
+function Loader.virtualStages()
     loadingRetries.portal = loadingRetries.portal + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.portal <= maxRetries then
-            print(string.format("Virtual stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.portal, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadAllVirtualStagesWithRetry)
-        else
-            warn("Failed to load virtual stages after", maxRetries, "attempts - giving up")
-            if VirtualStageDropdown then
-                VirtualStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+    if not Util.isGameDataLoaded() then
+        if loadingRetries.portal <= maxRetries then task.wait(retryDelay) task.spawn(Loader.virtualStages) end
         return
     end
-    
     local success, result = pcall(function()
         local VirtualFolder = Services.ReplicatedStorage.Shared.Data.VirtualRealm
-        
-        if not VirtualFolder then
-            error("VirtualRealm folder not found")
-        end
-
+        if not VirtualFolder then error("VirtualRealm folder not found") end
         local displayNames = {}
-        
-        -- Get all module scripts (stages)
         for _, stageModule in ipairs(VirtualFolder:GetChildren()) do
             if stageModule:IsA("ModuleScript") then
-                local stageSuccess, stageData = pcall(function()
-                    return require(stageModule)
-                end)
-                
+                local stageSuccess, stageData = pcall(function() return require(stageModule) end)
                 if stageSuccess and stageData and stageData.Information and stageData.Information.Name then
                     table.insert(displayNames, stageData.Information.Name)
                 end
             end
         end
-        
-        if #displayNames == 0 then
-            error("No virtual stages found")
-        end
-        
-        -- Sort alphabetically
+        if #displayNames == 0 then error("No virtual stages found") end
         table.sort(displayNames)
-        
         return displayNames
     end)
-    
     if success and result and #result > 0 then
-        if VirtualStageDropdown then
-            VirtualStageDropdown:Refresh(result)
-        end
-        print(string.format("Successfully loaded %d virtual stages (attempt %d)", #result, loadingRetries.portal))
+        if VirtualStageDropdown then VirtualStageDropdown:Refresh(result) end
     else
-        if loadingRetries.portal <= maxRetries then
-            print(string.format("Virtual stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.portal, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadAllVirtualStagesWithRetry)
-        else
-            warn("Failed to load virtual stages after", maxRetries, "attempts:", result)
-            if VirtualStageDropdown then
-                VirtualStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+        if loadingRetries.portal <= maxRetries then task.wait(retryDelay) task.spawn(Loader.virtualStages) end
     end
 end
 
-local function loadAllChallengeModifiersWithRetry()
+function Loader.challengeModifiers()
     loadingRetries.modifiers = (loadingRetries.modifiers or 0) + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.modifiers <= maxRetries then
-            print(string.format("Challenge modifiers loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.modifiers, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadAllChallengeModifiersWithRetry)
-        else
-            warn("Failed to load challenge modifiers after", maxRetries, "attempts - giving up")
-            if IgnoreModifierDropdown then
-                IgnoreModifierDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+    if not Util.isGameDataLoaded() then
+        if loadingRetries.modifiers <= maxRetries then task.wait(retryDelay) task.spawn(Loader.challengeModifiers) end
         return
     end
-    
     local success, result = pcall(function()
         local ChallengesFolder = Services.ReplicatedStorage.Shared.Data.Challenges
-        
-        if not ChallengesFolder then
-            error("Challenges folder not found")
-        end
-
+        if not ChallengesFolder then error("Challenges folder not found") end
         local challengeModifiers = {}
         local seenTags = {}
-        
-        -- Get all module scripts that contain "HalfHour" in name (Half Hourly challenges only)
         for _, challengeModule in ipairs(ChallengesFolder:GetChildren()) do
             if challengeModule:IsA("ModuleScript") and string.find(challengeModule.Name, "HalfHour") then
-                local challengeSuccess, challengeData = pcall(function()
-                    return require(challengeModule)
-                end)
-                
+                local challengeSuccess, challengeData = pcall(function() return require(challengeModule) end)
                 if challengeSuccess and challengeData and challengeData.ChallengeTag then
-                    -- Only add if we haven't seen this tag before
                     if not seenTags[challengeData.ChallengeTag] then
-                        table.insert(challengeModifiers, {
-                            DisplayName = challengeData.ChallengeTag,
-                            ModuleName = challengeModule.Name
-                        })
+                        table.insert(challengeModifiers, { DisplayName = challengeData.ChallengeTag, ModuleName = challengeModule.Name })
                         seenTags[challengeData.ChallengeTag] = true
                     end
                 end
             end
         end
-        
-        if #challengeModifiers == 0 then
-            error("No challenge modifiers found")
-        end
-        
-        -- Sort alphabetically by display name
-        table.sort(challengeModifiers, function(a, b)
-            return a.DisplayName < b.DisplayName
-        end)
-        
+        if #challengeModifiers == 0 then error("No challenge modifiers found") end
+        table.sort(challengeModifiers, function(a, b) return a.DisplayName < b.DisplayName end)
         return challengeModifiers
     end)
-    
     if success and result and #result > 0 then
         if IgnoreModifierDropdown then
-            -- Store the mapping at script level
             ModifierMapping = result
-
-            -- Build reverse lookup table
             ModifierModuleToTag = {}
-            for _, modifier in ipairs(result) do
-                ModifierModuleToTag[modifier.ModuleName] = modifier.DisplayName
-            end
-            
-            -- Extract just the display names for the dropdown
+            for _, modifier in ipairs(result) do ModifierModuleToTag[modifier.ModuleName] = modifier.DisplayName end
             local displayNames = {}
-            for _, modifier in ipairs(result) do
-                table.insert(displayNames, modifier.DisplayName)
-            end
+            for _, modifier in ipairs(result) do table.insert(displayNames, modifier.DisplayName) end
             IgnoreModifierDropdown:Refresh(displayNames)
         end
-        print(string.format("Successfully loaded %d challenge modifiers (attempt %d)", #result, loadingRetries.modifiers))
     else
-        if loadingRetries.modifiers <= maxRetries then
-            print(string.format("Challenge modifiers loading failed (attempt %d/%d): %s - retrying...", loadingRetries.modifiers, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadAllChallengeModifiersWithRetry)
-        else
-            warn("Failed to load challenge modifiers after", maxRetries, "attempts:", result)
-            if IgnoreModifierDropdown then
-                IgnoreModifierDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+        if loadingRetries.modifiers <= maxRetries then task.wait(retryDelay) task.spawn(Loader.challengeModifiers) end
     end
 end
 
-local function loadAllRaidStagesWithRetry()
+function Loader.raidStages()
     loadingRetries.raid = loadingRetries.raid + 1
-    
-    if not isGameDataLoaded() then
-        if loadingRetries.raid <= maxRetries then
-            print(string.format("Raid stages loading failed (attempt %d/%d) - game data not ready, retrying...", loadingRetries.raid, maxRetries))
-            task.wait(retryDelay)
-            task.spawn(loadAllRaidStagesWithRetry)
-        else
-            warn("Failed to load raid stages after", maxRetries, "attempts - giving up")
-            if RaidStageDropdown then
-                RaidStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+    if not Util.isGameDataLoaded() then
+        if loadingRetries.raid <= maxRetries then task.wait(retryDelay) task.spawn(Loader.raidStages) end
         return
     end
-    
     local success, result = pcall(function()
         local RaidFolder = Services.ReplicatedStorage.Shared.Data.Raids
-        
-        if not RaidFolder then
-            error("Raids folder not found")
-        end
-
+        if not RaidFolder then error("Raids folder not found") end
         local displayNames = {}
-        
-        -- Get all module scripts (raids)
         for _, raidModule in ipairs(RaidFolder:GetChildren()) do
             if raidModule:IsA("ModuleScript") then
-                local raidSuccess, raidData = pcall(function()
-                    return require(raidModule)
-                end)
-                
+                local raidSuccess, raidData = pcall(function() return require(raidModule) end)
                 if raidSuccess and raidData and raidData.Information and raidData.Information.Name then
-                    -- Store both UI name and module name
-                    local uiName = raidData.Information.Name
-                    local moduleName = raidModule.Name
-                    
-                    UINameToModuleName[uiName] = moduleName
-                    table.insert(displayNames, uiName)
+                    UINameToModuleName[raidData.Information.Name] = raidModule.Name
+                    table.insert(displayNames, raidData.Information.Name)
                 end
             end
         end
-        
-        if #displayNames == 0 then
-            error("No raid stages found")
-        end
-        
-        -- Sort alphabetically
+        if #displayNames == 0 then error("No raid stages found") end
         table.sort(displayNames)
-        
         return displayNames
     end)
-    
     if success and result and #result > 0 then
-        if RaidStageDropdown then
-            RaidStageDropdown:Refresh(result)
-        end
-        print(string.format("Successfully loaded %d raid stages (attempt %d)", #result, loadingRetries.raid))
+        if RaidStageDropdown then RaidStageDropdown:Refresh(result) end
     else
-        if loadingRetries.raid <= maxRetries then
-            print(string.format("Raid stages loading failed (attempt %d/%d): %s - retrying...", loadingRetries.raid, maxRetries, tostring(result)))
-            task.wait(retryDelay)
-            task.spawn(loadAllRaidStagesWithRetry)
-        else
-            warn("Failed to load raid stages after", maxRetries, "attempts:", result)
-            if RaidStageDropdown then
-                RaidStageDropdown:Refresh({"Failed to load - check console"})
-            end
-        end
+        if loadingRetries.raid <= maxRetries then task.wait(retryDelay) task.spawn(Loader.raidStages) end
     end
 end
 
-local function saveWorldMappings()
-    ensureMacroFolders()
+function MacroIO.saveWorldMappings()
+    MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local fileName = string.format("LixHub/%s_WorldMappings_UTD.json", playerName)
-    
     local json = game:GetService("HttpService"):JSONEncode(worldMacroMappings)
     writefile(fileName, json)
     print("✓ Saved world macro mappings")
 end
 
-local function loadWorldMappings()
-    ensureMacroFolders()
+function MacroIO.loadWorldMappings()
+    MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
     local filePath = string.format("LixHub/%s_WorldMappings_UTD.json", playerName)
-    
-    if not isfile(filePath) then
-        return {}
-    end
-    
+    if not isfile(filePath) then return {} end
     local json = readfile(filePath)
     local data = game:GetService("HttpService"):JSONDecode(json)
-    
     print("✓ Loaded world macro mappings")
     return data or {}
 end
@@ -3972,44 +2320,30 @@ local function refreshAllWorldDropdowns()
 end
 
 local function createAutoSelectDropdowns()
-    print("Creating auto-select dropdowns...")
-    
     local initialMacroOptions = {"None"}
-    for macroName in pairs(macroManager) do
-        table.insert(initialMacroOptions, macroName)
-    end
+    for macroName in pairs(macroManager) do table.insert(initialMacroOptions, macroName) end
     table.sort(initialMacroOptions)
-        
     task.wait(1)
-    
-    -- Story Stages
+ 
     Tab:CreateSection("Story Stage Macros")
-    
     if StoryStageDropdown and StoryStageDropdown.Options then
         for _, stageName in ipairs(StoryStageDropdown.Options) do
             local worldKey = "story_" .. stageName:lower():gsub("%s+", "_")
             local currentMapping = worldMacroMappings[worldKey] or "None"
-            
             local dropdown = Tab:CreateDropdown({
-                Name = stageName,
-                Options = initialMacroOptions,
-                CurrentOption = {currentMapping},
-                MultipleOptions = false,
-                Flag = "WorldMacro_" .. worldKey,
+                Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                    saveWorldMappings()
+                    MacroIO.saveWorldMappings()
                 end,
             })
-            
             worldDropdowns[worldKey] = dropdown
         end
     end
-
-    -- Legend Stages
+ 
     Tab:CreateSection("Legend Stage Macros")
-    
     if LegendStageDropdown and LegendStageDropdown.Options then
         for _, stageName in ipairs(LegendStageDropdown.Options) do
             local success, legendModuleName = pcall(function()
@@ -4017,64 +2351,47 @@ local function createAutoSelectDropdowns()
                 for _, stageModule in ipairs(LegendFolder:GetChildren()) do
                     if stageModule:IsA("ModuleScript") then
                         local stageData = require(stageModule)
-                        if stageData.Information and stageData.Information.Name == stageName then
-                            return stageModule.Name
-                        end
+                        if stageData.Information and stageData.Information.Name == stageName then return stageModule.Name end
                     end
                 end
                 return nil
             end)
-            
             if success and legendModuleName then
                 local worldKey = "legend_" .. legendModuleName:lower()
                 local currentMapping = worldMacroMappings[worldKey] or "None"
-                
                 local dropdown = Tab:CreateDropdown({
-                    Name = stageName,
-                    Options = initialMacroOptions,
-                    CurrentOption = {currentMapping},
-                    MultipleOptions = false,
-                    Flag = "WorldMacro_" .. worldKey,
+                    Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                    MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
                     Callback = function(Option)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                        saveWorldMappings()
+                        MacroIO.saveWorldMappings()
                     end,
                 })
-                
                 worldDropdowns[worldKey] = dropdown
             end
         end
     end
-    
-    -- Virtual Stages
+ 
     Tab:CreateSection("Virtual Stage Macros")
-    
     if VirtualStageDropdown and VirtualStageDropdown.Options then
         for _, stageName in ipairs(VirtualStageDropdown.Options) do
             local worldKey = "virtual_" .. stageName:lower():gsub("%s+", "_")
             local currentMapping = worldMacroMappings[worldKey] or "None"
-            
             local dropdown = Tab:CreateDropdown({
-                Name = stageName,
-                Options = initialMacroOptions,
-                CurrentOption = {currentMapping},
-                MultipleOptions = false,
-                Flag = "WorldMacro_" .. worldKey,
+                Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                    saveWorldMappings()
+                    MacroIO.saveWorldMappings()
                 end,
             })
-            
             worldDropdowns[worldKey] = dropdown
         end
     end
-
-    -- Raid Stages
+ 
     Tab:CreateSection("Raid Stage Macros")
-
     if RaidStageDropdown and RaidStageDropdown.Options then
         for _, stageName in ipairs(RaidStageDropdown.Options) do
             local success, raidModuleName = pcall(function()
@@ -4082,112 +2399,77 @@ local function createAutoSelectDropdowns()
                 for _, stageModule in ipairs(RaidFolder:GetChildren()) do
                     if stageModule:IsA("ModuleScript") then
                         local stageData = require(stageModule)
-                        if stageData.Information and stageData.Information.Name == stageName then
-                            return stageModule.Name
-                        end
+                        if stageData.Information and stageData.Information.Name == stageName then return stageModule.Name end
                     end
                 end
                 return nil
             end)
-            
             if success and raidModuleName then
                 local worldKey = "raid_" .. raidModuleName:lower()
                 local currentMapping = worldMacroMappings[worldKey] or "None"
-                
                 local dropdown = Tab:CreateDropdown({
-                    Name = stageName,
-                    Options = initialMacroOptions,
-                    CurrentOption = {currentMapping},
-                    MultipleOptions = false,
-                    Flag = "WorldMacro_" .. worldKey,
+                    Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                    MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
                     Callback = function(Option)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                        saveWorldMappings()
+                        MacroIO.saveWorldMappings()
                     end,
                 })
-                
                 worldDropdowns[worldKey] = dropdown
             end
         end
     end
-
-    -- Regular Challenges
+ 
     Tab:CreateSection("Challenge Macros")
-    
     if StoryStageDropdown and StoryStageDropdown.Options then
         for _, stageName in ipairs(StoryStageDropdown.Options) do
             local worldKey = "challenge_" .. stageName:lower():gsub("%s+", "_")
             local currentMapping = worldMacroMappings[worldKey] or "None"
-            
             local dropdown = Tab:CreateDropdown({
-                Name = stageName,
-                Options = initialMacroOptions,
-                CurrentOption = {currentMapping},
-                MultipleOptions = false,
-                Flag = "WorldMacro_" .. worldKey,
+                Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
                 Callback = function(Option)
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                    saveWorldMappings()
+                    MacroIO.saveWorldMappings()
                 end,
             })
-            
             worldDropdowns[worldKey] = dropdown
         end
     end
-    
-    -- Featured Challenge
+ 
     Tab:CreateSection("Featured Challenge Macro")
-    
     do
         local worldKey = "challenge_featured"
         local currentMapping = worldMacroMappings[worldKey] or "None"
-        
         local dropdown = Tab:CreateDropdown({
-            Name = "Frozen Stronghold",
-            Options = initialMacroOptions,
-            CurrentOption = {currentMapping},
-            MultipleOptions = false,
-            Flag = "WorldMacro_" .. worldKey,
+            Name = "Frozen Stronghold", Options = initialMacroOptions, CurrentOption = {currentMapping},
+            MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
             Callback = function(Option)
                 local selectedMacro = type(Option) == "table" and Option[1] or Option
                 worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                saveWorldMappings()
+                MacroIO.saveWorldMappings()
             end,
         })
-        
         worldDropdowns[worldKey] = dropdown
     end
-
-    print("✓ Created auto-select dropdowns")
 end
 
 GameSection = GameTab:CreateSection("👥 Player 👥")
 
-   Slider = GameTab:CreateSlider({
-   Name = "Max Camera Zoom Distance",
-   Range = {5, 100},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 35,
-   Flag = "CameraZoomDistanceSelector",
-   Callback = function(Value)
-        Services.Players.LocalPlayer.CameraMaxZoomDistance = Value
-   end,
+Slider = GameTab:CreateSlider({
+    Name = "Max Camera Zoom Distance", Range = {5, 100}, Increment = 1,
+    Suffix = "", CurrentValue = 35, Flag = "CameraZoomDistanceSelector",
+    Callback = function(Value) Services.Players.LocalPlayer.CameraMaxZoomDistance = Value end,
 })
-
-     Toggle = GameTab:CreateToggle({
-    Name = "Anti AFK (No kick message)",
-    CurrentValue = false,
-    Flag = "AntiAfkKickToggle",
+ 
+Toggle = GameTab:CreateToggle({
+    Name = "Anti AFK (No kick message)", CurrentValue = false, Flag = "AntiAfkKickToggle",
     Info = "Prevents roblox kick message.",
-    TextScaled = false,
-    Callback = function(Value)
-        State.AntiAfkKickEnabled = Value
-    end,
+    Callback = function(Value) State.AntiAfkKickEnabled = Value end,
 })
-
+ 
 task.spawn(function()
     Services.Players.LocalPlayer.Idled:Connect(function()
         if State.AntiAfkKickEnabled then
@@ -4197,7 +2479,7 @@ task.spawn(function()
         end
     end)
 end)
-
+ 
 local function enableLowPerformanceMode()
     if State.enableLowPerformanceMode then
         Services.Lighting.Brightness = 1
@@ -4206,99 +2488,58 @@ local function enableLowPerformanceMode()
         Services.Lighting.ShadowSoftness = 0
         Services.Lighting.EnvironmentDiffuseScale = 0
         Services.Lighting.EnvironmentSpecularScale = 0
-
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-                obj.Enabled = false
-            end
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then obj.Enabled = false end
         end
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("Decal") or obj:IsA("Texture") then
-                if obj.Transparency < 1 then
-                    obj.Transparency = 1
-                end
-            end
+            if obj:IsA("Decal") or obj:IsA("Texture") then if obj.Transparency < 1 then obj.Transparency = 1 end end
         end
-        
         for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
-            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
-                gui.Enabled = false
-            end
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then gui.Enabled = false end
         end
-        
         for _, obj in pairs(Services.Lighting:GetChildren()) do
-            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or
-            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
-                obj.Enabled = false
-            end
+            if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then obj.Enabled = false end
         end
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("LowGraphics",true)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("DamageNumbers",false)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("VFX",false)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnableAnimations",false)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnemyInfo",false)
+        local RE = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting")
+        RE:FireServer("LowGraphics",true) RE:FireServer("DamageNumbers",false) RE:FireServer("VFX",false) RE:FireServer("EnableAnimations",false) RE:FireServer("EnemyInfo",false)
     else
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("LowGraphics",false)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("DamageNumbers",true)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("VFX",true)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnableAnimations",true)
-game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("EnemyInfo",true)
-
+        local RE = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting")
+        RE:FireServer("LowGraphics",false) RE:FireServer("DamageNumbers",true) RE:FireServer("VFX",true) RE:FireServer("EnableAnimations",true) RE:FireServer("EnemyInfo",true)
         Services.Lighting.Brightness = 1.51
         Services.Lighting.GlobalShadows = true
         Services.Lighting.Technology = Enum.Technology.Future
         Services.Lighting.ShadowSoftness = 0
         Services.Lighting.EnvironmentDiffuseScale = 1
         Services.Lighting.EnvironmentSpecularScale = 1
-
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-                obj.Enabled = true
-            end
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then obj.Enabled = true end
         end
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("Decal") or obj:IsA("Texture") then
-                    obj.Transparency = 0
-            end
+            if obj:IsA("Decal") or obj:IsA("Texture") then obj.Transparency = 0 end
         end
-        
         for _, gui in pairs(Services.Players.LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
-            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then
-                gui.Enabled = true
-            end
+            if gui:IsA("UIGradient") or gui:IsA("UIStroke") or gui:IsA("DropShadowEffect") then gui.Enabled = true end
         end
-        
         for _, obj in pairs(Services.Lighting:GetChildren()) do
-            if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or
-            obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
-                obj.Enabled = true
-            end
+            if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then obj.Enabled = true end
         end
     end
 end
-
+ 
 Toggle = GameTab:CreateToggle({
-    Name = "Low Performance Mode",
-    CurrentValue = false,
-    Flag = "enableLowPerformanceMode",
-    Callback = function(Value)
-        State.enableLowPerformanceMode = Value
-        enableLowPerformanceMode()
-    end,
+    Name = "Low Performance Mode", CurrentValue = false, Flag = "enableLowPerformanceMode",
+    Callback = function(Value) State.enableLowPerformanceMode = Value enableLowPerformanceMode() end,
 })
-
+ 
 local function enableBlackScreen()
     local existingGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("BlackScreenGui")
-    
     if State.enableBlackScreen then
         if existingGui then return end
-        
         local screenGui = Instance.new("ScreenGui")
         screenGui.Name = "BlackScreenGui"
         screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
         screenGui.IgnoreGuiInset = true
         screenGui.DisplayOrder = math.huge
-
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 1, 36)
         frame.Position = UDim2.new(0, 0, 0, -36)
@@ -4306,87 +2547,58 @@ local function enableBlackScreen()
         frame.BorderSizePixel = 0
         frame.Parent = screenGui
         frame.ZIndex = 999999
-
         local toggleButtonFrame = Instance.new("Frame")
-        toggleButtonFrame.Size = UDim2.new(0, 170,0, 44)
+        toggleButtonFrame.Size = UDim2.new(0, 170, 0, 44)
         toggleButtonFrame.Position = UDim2.new(0.5, -60, 1, -60)
         toggleButtonFrame.BackgroundColor3 = Color3.fromRGB(57, 57, 57)
         toggleButtonFrame.BackgroundTransparency = 0.5
         toggleButtonFrame.Parent = screenGui
         toggleButtonFrame.ZIndex = 1000000
-
-        local toggleButtonFrameUICorner =  Instance.new("UICorner")
-        toggleButtonFrameUICorner.CornerRadius = UDim.new(1,0)
-        toggleButtonFrameUICorner.Parent = toggleButtonFrame
-
-        local toggleButtonFrameTitle = Instance.new("TextLabel")
-        toggleButtonFrameTitle.ZIndex = math.huge
-        toggleButtonFrameTitle.AnchorPoint = Vector2.new(0.5,0.5)
-        toggleButtonFrameTitle.BackgroundTransparency = 1
-        toggleButtonFrameTitle.Position = UDim2.new(0.5,0,0.5,0)
-        toggleButtonFrameTitle.Size = UDim2.new(1,0,1,0)
-        toggleButtonFrameTitle.Text = "Toggle Screen"
-        toggleButtonFrameTitle.TextSize = 15
-        toggleButtonFrameTitle.TextColor3 = Color3.fromRGB(255,255,255)
-        toggleButtonFrameTitle.Parent = toggleButtonFrame
-
-        local toggleButtonFrameTitleStroke = Instance.new("UIStroke")
-        toggleButtonFrameTitleStroke.Parent = toggleButtonFrameTitle
-
-        local toggleButtonFrameButton = Instance.new("TextButton")
-        toggleButtonFrameButton.AnchorPoint = Vector2.new(0.5,0.5)
-        toggleButtonFrameButton.BackgroundTransparency = 1
-        toggleButtonFrameButton.Size = UDim2.new(1,0,1,0)
-        toggleButtonFrameButton.Position = UDim2.new(0.5,0,0.5,0)
-        toggleButtonFrameButton.Text = ""
-        toggleButtonFrameButton.ZIndex = math.huge
-        toggleButtonFrameButton.Parent = toggleButtonFrame
-
-        toggleButtonFrameButton.MouseButton1Click:Connect(function()
-            frame.Visible = not frame.Visible
-        end)
+        local uiCorner = Instance.new("UICorner")
+        uiCorner.CornerRadius = UDim.new(1,0)
+        uiCorner.Parent = toggleButtonFrame
+        local title = Instance.new("TextLabel")
+        title.ZIndex = math.huge title.AnchorPoint = Vector2.new(0.5,0.5)
+        title.BackgroundTransparency = 1 title.Position = UDim2.new(0.5,0,0.5,0)
+        title.Size = UDim2.new(1,0,1,0) title.Text = "Toggle Screen"
+        title.TextSize = 15 title.TextColor3 = Color3.fromRGB(255,255,255)
+        title.Parent = toggleButtonFrame
+        local stroke = Instance.new("UIStroke") stroke.Parent = title
+        local btn = Instance.new("TextButton")
+        btn.AnchorPoint = Vector2.new(0.5,0.5) btn.BackgroundTransparency = 1
+        btn.Size = UDim2.new(1,0,1,0) btn.Position = UDim2.new(0.5,0,0.5,0)
+        btn.Text = "" btn.ZIndex = math.huge btn.Parent = toggleButtonFrame
+        btn.MouseButton1Click:Connect(function() frame.Visible = not frame.Visible end)
     else
-        if existingGui then
-            existingGui:Destroy()
-        end
+        if existingGui then existingGui:Destroy() end
     end
 end
+ 
+Toggle = GameTab:CreateToggle({
+    Name = "Black Screen", CurrentValue = false, Flag = "enableBlackScreen",
+    Callback = function(Value) State.enableBlackScreen = Value enableBlackScreen() end,
+})
 
- Toggle = GameTab:CreateToggle({
-    Name = "Black Screen",
-    CurrentValue = false,
-    Flag = "enableBlackScreen",
-    Callback = function(Value)
-        State.enableBlackScreen = Value
-        enableBlackScreen()
+Button = LobbyTab:CreateButton({
+    Name = "Return to lobby",
+    Callback = function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
     end,
 })
 
- Button = LobbyTab:CreateButton({
-   Name = "Return to lobby",
-   Callback = function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
-   end,
-})
-
- Toggle = LobbyTab:CreateToggle({
-    Name = "Auto Execute Script",
-    CurrentValue = false,
-    Flag = "enableAutoExecute",
+Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Execute Script", CurrentValue = false, Flag = "enableAutoExecute",
     Info = "This auto executes and persists through teleports until you disable it or leave the game.",
-    TextScaled = false,
     Callback = function(Value)
         State.enableAutoExecute = Value
-        if State.enableAutoExecute then
-            if queue_on_teleport then
+        if queue_on_teleport then
+            if State.enableAutoExecute then
                 queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
             else
-                warn("queue_on_teleport not supported by this executor")
+                queue_on_teleport("")
             end
         else
-            if queue_on_teleport then
-                queue_on_teleport("") -- Empty string clears queue in most executors
-            end
+            warn("queue_on_teleport not supported by this executor")
         end
     end,
 })
@@ -4399,55 +2611,36 @@ local function updateFPSLimit()
     end
 end
 
- Toggle = GameTab:CreateToggle({
-    Name = "Limit FPS",
-    CurrentValue = false,
-    Flag = "enableLimitFPS",
-    Callback = function(Value)
-        State.enableLimitFPS = Value
-        updateFPSLimit()
-    end,
+Toggle = GameTab:CreateToggle({
+    Name = "Limit FPS", CurrentValue = false, Flag = "enableLimitFPS",
+    Callback = function(Value) State.enableLimitFPS = Value updateFPSLimit() end,
+})
+ 
+Slider = GameTab:CreateSlider({
+    Name = "Limit FPS To", Range = {0, 240}, Increment = 1, Suffix = " FPS",
+    CurrentValue = 60, Flag = "FPSSelector",
+    Callback = function(Value) State.SelectedFPS = Value updateFPSLimit() end,
 })
 
- Slider = GameTab:CreateSlider({
-   Name = "Limit FPS To",
-   Range = {0, 240},
-   Increment = 1,
-   Suffix = " FPS",
-   CurrentValue = 60,
-   Flag = "FPSSelector",
-   Callback = function(Value)
-        State.SelectedFPS = Value
-        updateFPSLimit()
-   end,
-})
-
-local Toggle = GameTab:CreateToggle({
-    Name = "Streamer Mode (hide name/level/title)",
-    CurrentValue = false,
-    Flag = "StreamerMode",
-    Callback = function(Value)
-        State.streamerModeEnabled = Value
-    end,
+ GameTab:CreateToggle({
+    Name = "Streamer Mode (hide name/level/title)", CurrentValue = false, Flag = "StreamerMode",
+    Callback = function(Value) State.streamerModeEnabled = Value end,
 })
 
 local function StreamerMode()
     local head = Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not head then return end
-
     local billboard = head:WaitForChild("BillboardGui")
-    if not billboard then print("no billboard") return end
+    if not billboard then return end
     local originalNumbers
     local streamerLabel
-
-    if not isInLobby() then
-         originalNumbers = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("GameUI"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("Level")
-         streamerLabel = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("GameUI"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")
+    if not Util.isInLobby() then
+        originalNumbers = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("GameUI"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("Level")
+        streamerLabel = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("GameUI"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")
     else
         originalNumbers = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("Level")
-        streamerLabel = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")  -- ADDED streamerLabel =
+        streamerLabel = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("LobbyUi"):FindFirstChild("HUD"):FindFirstChild("Bottom"):FindFirstChild("Hotbar"):FindFirstChild("LevelBar"):FindFirstChild("streamerlabel")
     end
-    
     if not streamerLabel then
         streamerLabel = originalNumbers:Clone()
         streamerLabel.Name = "streamerlabel"
@@ -4455,20 +2648,13 @@ local function StreamerMode()
         streamerLabel.Visible = false
         streamerLabel.Parent = originalNumbers.Parent
     end
-
-    --  Extract player's level from the UI text
     local playerLevel = "1"
     pcall(function()
-        local levelText = originalNumbers.Text -- e.g., "Level 14 [59.32K/368.91K]"
+        local levelText = originalNumbers.Text
         local levelMatch = levelText:match("Level (%d+)")
-        if levelMatch then
-            playerLevel = levelMatch
-        end
+        if levelMatch then playerLevel = levelMatch end
     end)
-
-    --  Get player's actual title
     local playerTitle = ""
-
     if State.streamerModeEnabled then
         billboard:FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
         billboard:FindFirstChild("PlayerName"):FindFirstChild("PlayerName").Text = "🔥 PROTECTED BY LIXHUB 🔥"
@@ -4476,7 +2662,6 @@ local function StreamerMode()
         billboard:FindFirstChild("LevelAmount").Text = "Lv. 999"
         billboard:FindFirstChild("Title"):FindFirstChild("Title").Text = "LIXHUB USER"
         billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = "Lv. 999"
-
         originalNumbers.Visible = false
         streamerLabel.Visible = true
     else
@@ -4486,514 +2671,262 @@ local function StreamerMode()
         billboard:FindFirstChild("LevelAmount").Text = "Lv. " .. playerLevel
         billboard:FindFirstChild("Title"):FindFirstChild("Title").Text = playerTitle
         billboard:FindFirstChild("LevelAmount"):FindFirstChild("TextLabel").Text = "Lv. " .. playerLevel
-
         originalNumbers.Visible = true
         streamerLabel.Visible = false
     end
 end
 
-    task.spawn(function()
-        while true do
-            task.wait(0.1)
-            StreamerMode()
-        end
-    end)
+task.spawn(function() while true do task.wait(0.1) StreamerMode() end end)
 
-if State.enableLowPerformanceMode then
-    enableLowPerformanceMode()
-end
+if State.enableLowPerformanceMode then enableLowPerformanceMode() end
 
 GameSection = GameTab:CreateSection("🎮 Game 🎮")
 
- AutoStartToggle = GameTab:CreateToggle({
-    Name = "Auto Start Game",
-    CurrentValue = false,
-    Flag = "AutoStartGame",
-    Callback = function(Value)
-        State.AutoStartGame = Value
-    end,
+AutoStartToggle = GameTab:CreateToggle({
+    Name = "Auto Start Game", CurrentValue = false, Flag = "AutoStartGame",
+    Callback = function(Value) State.AutoStartGame = Value end,
 })
-
- AutoRetryToggle = GameTab:CreateToggle({
-    Name = "Auto Retry",
-    CurrentValue = false,
-    Flag = "AutoRetry",
-    Callback = function(Value)
-        State.AutoRetry = Value
-    end,
+AutoRetryToggle = GameTab:CreateToggle({
+    Name = "Auto Retry", CurrentValue = false, Flag = "AutoRetry",
+    Callback = function(Value) State.AutoRetry = Value end,
 })
-
- AutoNextToggle = GameTab:CreateToggle({
-    Name = "Auto Next",
-    CurrentValue = false,
-    Flag = "AutoNext",
-    Callback = function(Value)
-        State.AutoNext = Value
-    end,
+AutoNextToggle = GameTab:CreateToggle({
+    Name = "Auto Next", CurrentValue = false, Flag = "AutoNext",
+    Callback = function(Value) State.AutoNext = Value end,
 })
-
- AutoLobbyToggle = GameTab:CreateToggle({
-    Name = "Auto Lobby",
-    CurrentValue = false,
-    Flag = "AutoLobby",
-    Callback = function(Value)
-        State.AutoLobby = Value
-    end,
+AutoLobbyToggle = GameTab:CreateToggle({
+    Name = "Auto Lobby", CurrentValue = false, Flag = "AutoLobby",
+    Callback = function(Value) State.AutoLobby = Value end,
 })
-
+ 
 local function enableModdedPlacement()
     if moddedPlacementEnabled then return end
-    if isInLobby() then return end
-    
+    if Util.isInLobby() then return end
     local success = pcall(function()
         local TowerController = require(game:GetService("ReplicatedStorage").Client.Controllers.TowerController)
-        
-        local functionsToHook = {
-            "StartPlace",
-            "EndPlace", 
-            "CanPlace",
-            "ValidatePlacement",
-            "CheckPlacement",
-            "IsValidPlacement"
-        }
-        
+        local functionsToHook = {"StartPlace","EndPlace","CanPlace","ValidatePlacement","CheckPlacement","IsValidPlacement"}
         for _, funcName in ipairs(functionsToHook) do
             if TowerController[funcName] and type(TowerController[funcName]) == "function" then
                 local original = TowerController[funcName]
-                
                 TowerController[funcName] = function(...)
                     local results = {original(...)}
-                    
-                    if results[1] == false or results[1] == nil then
-                        return true
-                    end
-                    
+                    if results[1] == false or results[1] == nil then return true end
                     return unpack(results)
                 end
             end
         end
-        
         moddedPlacementEnabled = true
     end)
-    
     return success
 end
-
+ 
 local function disableModdedPlacement()
     moddedPlacementEnabled = false
-    
-    Rayfield:Notify({
-        Title = "Success",
-        Content = "Rejoin to disable",
-        Duration = 4
-    })
+    Rayfield:Notify({ Title = "Success", Content = "Rejoin to disable", Duration = 4 })
 end
-
+ 
 Toggle = GameTab:CreateToggle({
-    Name = "Place Anywhere",
-    CurrentValue = false,
-    Flag = "PlaceAnywhere",
+    Name = "Place Anywhere", CurrentValue = false, Flag = "PlaceAnywhere",
     Info = "Place units anywhere",
     Callback = function(Value)
         if Value then
             local success = enableModdedPlacement()
-            if success then
-                Rayfield:Notify({
-                    Title = "Success",
-                    Content = "Enabled! Place anywhere",
-                    Duration = 3
-                })
-            else
-                Rayfield:Notify({
-                    Title = "Error",
-                    Content = "Failed to enable",
-                    Duration = 3
-                })
-            end
-        else
-            disableModdedPlacement()
-        end
+            if success then Rayfield:Notify({ Title = "Success", Content = "Enabled! Place anywhere", Duration = 3 })
+            else Rayfield:Notify({ Title = "Error", Content = "Failed to enable", Duration = 3 }) end
+        else disableModdedPlacement() end
     end,
 })
-
-        AutoGameSpeedToggle = GameTab:CreateToggle({
-        Name = "Auto Game Speed",
-        CurrentValue = false,
-        Flag = "AutoGameSpeed",
-        Callback = function(Value)
-            State.AutoGameSpeed = Value
-        end,
-    })
-
-    local Dropdown = GameTab:CreateDropdown({
-   Name = "Select Game Speed",
-   Options = {"1","1.5"},
-   CurrentOption = {},
-   MultipleOptions = false,
-   Flag = "SelectGameSpeed",
-   Callback = function(Options)
+ 
+AutoGameSpeedToggle = GameTab:CreateToggle({
+    Name = "Auto Game Speed", CurrentValue = false, Flag = "AutoGameSpeed",
+    Callback = function(Value) State.AutoGameSpeed = Value end,
+})
+ 
+local Dropdown = GameTab:CreateDropdown({
+    Name = "Select Game Speed", Options = {"1","1.5"}, CurrentOption = {}, MultipleOptions = false, Flag = "SelectGameSpeed",
+    Callback = function(Options)
         local selected = type(Options) == "table" and Options[1] or Options
         State.SelectedGameSpeed = tonumber(selected)
-   end,
+    end,
 })
-
+ 
 task.spawn(function()
     while true do
         task.wait(1)
-        
         if State.AutoGameSpeed and State.SelectedGameSpeed then
             local currentSpeed = Services.Workspace:GetAttribute("Speed")
-            
             if currentSpeed and currentSpeed ~= State.SelectedGameSpeed then
-                    game:GetService("ReplicatedStorage")
-                        :WaitForChild("Packages")
-                        :WaitForChild("_Index")
-                        :WaitForChild("sleitnick_knit@1.7.0")
-                        :WaitForChild("knit")
-                        :WaitForChild("Services")
-                        :WaitForChild("WaveService")
-                        :WaitForChild("RE")
-                        :WaitForChild("SetSpeed")
-                        :FireServer(State.SelectedGameSpeed)
+                game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("SetSpeed"):FireServer(State.SelectedGameSpeed)
             end
         end
     end
 end)
-
- Toggle = GameTab:CreateToggle({
-    Name = "Auto Skip Waves",
-    CurrentValue = false,
-    Flag = "AutoSkipWaves",
-    Callback = function(Value)
-        State.AutoSkipWaves = Value
-    end,
-    })
-
-    Slider = GameTab:CreateSlider({
-    Name = "Auto Skip Until Wave",
-    Range = {0, 300},
-    Increment = 1,
-    Suffix = "wave",
-    CurrentValue = 0,
-    Flag = "Slider1",
-    Info = "0 = disable",
+ 
+Toggle = GameTab:CreateToggle({
+    Name = "Auto Skip Waves", CurrentValue = false, Flag = "AutoSkipWaves",
+    Callback = function(Value) State.AutoSkipWaves = Value end,
+})
+ 
+Slider = GameTab:CreateSlider({
+    Name = "Auto Skip Until Wave", Range = {0, 300}, Increment = 1, Suffix = "wave",
+    CurrentValue = 0, Flag = "Slider1", Info = "0 = disable",
     Callback = function(Value)
         State.AutoSkipUntilWave = Value
         game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("AutoSkip",Value)
     end,
-    })
-
+})
+ 
 task.spawn(function()
     local lastAutoSkipState = nil
-    
     while true do
         task.wait(1)
-        
         if State.AutoSkipWaves then
             local waveNum = Services.Workspace:GetAttribute("Wave") or 0
             local skipLimit = State.AutoSkipUntilWave
-            
-            local shouldAutoSkip = false
-            
-            if skipLimit == 0 then
-                -- 0 = always skip
-                shouldAutoSkip = true
-            elseif waveNum > 0 and waveNum <= skipLimit then
-                -- Skip until we reach the target wave
-                shouldAutoSkip = true
-            end
-            
-            -- Only send remote if state changed
+            local shouldAutoSkip = (skipLimit == 0) or (waveNum > 0 and waveNum <= skipLimit)
             if shouldAutoSkip ~= lastAutoSkipState then
                 pcall(function()
-                    game:GetService("ReplicatedStorage")
-                        :WaitForChild("Packages")
-                        :WaitForChild("_Index")
-                        :WaitForChild("sleitnick_knit@1.7.0")
-                        :WaitForChild("knit")
-                        :WaitForChild("Services")
-                        :WaitForChild("DataService")
-                        :WaitForChild("RE")
-                        :WaitForChild("SetSetting")
-                        :FireServer("AutoSkip", shouldAutoSkip)
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("AutoSkip", shouldAutoSkip)
                 end)
-                
                 lastAutoSkipState = shouldAutoSkip
-                --print(string.format("Auto Skip: %s (Wave %d / Target %d)", shouldAutoSkip and "ON" or "OFF", waveNum, skipLimit))
             end
         else
             lastAutoSkipState = nil
         end
     end
 end)
-
- Toggle = GameTab:CreateToggle({
-    Name = "Auto Restart Match",
-    CurrentValue = false,
-    Flag = "AutoRestartMatch",
-    Callback = function(Value)
-        State.AutoRestartMatch = Value
-    end,
-    })
-
-    Slider = GameTab:CreateSlider({
-    Name = "Restart Match on Wave",
-    Range = {0, 300},
-    Increment = 1,
-    Suffix = "wave",
-    CurrentValue = 0,
-    Flag = "AutoRestartMatchWave",
-    Info = "0 = disable",
-    Callback = function(Value)
-        State.AutoRestartMatchWave = Value
-    end,
-    })
-
-    task.spawn(function()
+ 
+Toggle = GameTab:CreateToggle({
+    Name = "Auto Restart Match", CurrentValue = false, Flag = "AutoRestartMatch",
+    Callback = function(Value) State.AutoRestartMatch = Value end,
+})
+Slider = GameTab:CreateSlider({
+    Name = "Restart Match on Wave", Range = {0, 300}, Increment = 1, Suffix = "wave",
+    CurrentValue = 0, Flag = "AutoRestartMatchWave", Info = "0 = disable",
+    Callback = function(Value) State.AutoRestartMatchWave = Value end,
+})
+ 
+task.spawn(function()
     local hasRestarted = false
-    
     while true do
         task.wait(1)
-        
         if State.AutoRestartMatch and State.AutoRestartMatchWave > 0 then
             local currentWave = Services.Workspace:GetAttribute("Wave") or 0
             local matchFinished = Services.Workspace:GetAttribute("MatchFinished")
-            
             if currentWave >= State.AutoRestartMatchWave and not matchFinished and not hasRestarted then
                 local success = pcall(function()
-                    game:GetService("ReplicatedStorage")
-                        :WaitForChild("Packages")
-                        :WaitForChild("_Index")
-                        :WaitForChild("sleitnick_knit@1.7.0")
-                        :WaitForChild("knit")
-                        :WaitForChild("Services")
-                        :WaitForChild("WaveService")
-                        :WaitForChild("RE")
-                        :WaitForChild("MidMatchVote")
-                        :FireServer()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("MidMatchVote"):FireServer()
                 end)
-                
                 if success then
                     hasRestarted = true
-                    --print(string.format(" Auto Restart: Restarted match at wave %d", currentWave))
-                    
-                    Rayfield:Notify({
-                        Title = "Auto Restart",
-                        Content = string.format("Restarted at wave %d", currentWave),
-                        Duration = 3
-                    })
-                else
-                    --warn("⚠️ Failed to restart match")
+                    Rayfield:Notify({ Title = "Auto Restart", Content = string.format("Restarted at wave %d", currentWave), Duration = 3 })
                 end
             end
-            if currentWave == 1 then
-                hasRestarted = false
-            end
+            if currentWave == 1 then hasRestarted = false end
         end
     end
 end)
-
- Toggle = GameTab:CreateToggle({
-    Name = "Auto Sell All Units",
-    CurrentValue = false,
-    Flag = "AutoSellAllUnits",
-    Callback = function(Value)
-        State.AutoSellAllUnits = Value
-    end,
-    })
-
-    Slider = GameTab:CreateSlider({
-    Name = "Sell All Units on Wave",
-    Range = {0, 300},
-    Increment = 1,
-    Suffix = "wave",
-    CurrentValue = 0,
-    Flag = "AutoSellAllUnitsWave",
-    Info = "0 = disable",
-    Callback = function(Value)
-        State.AutoSellAllUnitsWave = Value
-    end,
-    })
-
-    task.spawn(function()
+ 
+Toggle = GameTab:CreateToggle({
+    Name = "Auto Sell All Units", CurrentValue = false, Flag = "AutoSellAllUnits",
+    Callback = function(Value) State.AutoSellAllUnits = Value end,
+})
+Slider = GameTab:CreateSlider({
+    Name = "Sell All Units on Wave", Range = {0, 300}, Increment = 1, Suffix = "wave",
+    CurrentValue = 0, Flag = "AutoSellAllUnitsWave", Info = "0 = disable",
+    Callback = function(Value) State.AutoSellAllUnitsWave = Value end,
+})
+ 
+task.spawn(function()
     local hasSold = false
-    
     while true do
         task.wait(1)
-        
         if State.AutoSellAllUnits and State.AutoSellAllUnitsWave > 0 then
             local currentWave = Services.Workspace:GetAttribute("Wave") or 0
             local matchFinished = Services.Workspace:GetAttribute("MatchFinished")
-            
-            -- Trigger sell when we reach the target wave
             if currentWave >= State.AutoSellAllUnitsWave and not matchFinished and not hasSold then
                 local success = pcall(function()
                     local button = Services.Players.LocalPlayer.PlayerGui.GameUI.HUD.RightFrame.Manager.Actions.SellAllButton.TextButton
-                    
-                    -- Fire all MouseButton1Down connections
                     for _, conn in pairs(getconnections(button.MouseButton1Down)) do
-                        if conn.Enabled then
-                            conn:Fire()
-                        end
+                        if conn.Enabled then conn:Fire() end
                     end
                 end)
-                
                 if success then
                     hasSold = true
-                    --print(string.format("Auto Sell: Sold all units at wave %d", currentWave))
-                    
-                    Rayfield:Notify({
-                        Title = "Auto Sell",
-                        Content = string.format("Sold all units at wave %d", currentWave),
-                        Duration = 3
-                    })
-                else
-                    warn("⚠️ Failed to sell all units")
+                    Rayfield:Notify({ Title = "Auto Sell", Content = string.format("Sold all units at wave %d", currentWave), Duration = 3 })
                 end
             end
-            
-            -- Reset the flag when wave goes back to 1 (new game)
-            if currentWave == 1 then
-                hasSold = false
-            end
+            if currentWave == 1 then hasSold = false end
         end
     end
 end)
 
 local MacroDropdown = Tab:CreateDropdown({
-    Name = "Select Macro",
-    Options = {},
-    CurrentOption = {},
-    Flag = "MacroDropdown",
+    Name = "Select Macro", Options = {}, CurrentOption = {}, Flag = "MacroDropdown",
     Callback = function(selected)
         local name = type(selected) == "table" and selected[1] or selected
         currentMacroName = name
-        
         if name and macroManager[name] then
             macro = macroManager[name]
-            print(string.format("✓ Selected macro: %s (%d actions)", name, #macro))
-            updateMacroStatus(string.format("Selected: %s", name))
+            Util.updateMacroStatus(string.format("Selected: %s", name))
         end
     end,
 })
 
-local function checkAndSwitchMacroForCurrentWorld()
-    -- Only switch if playback is enabled
-    if not isPlaybackEnabled then
-        return false
-    end
-    
-    -- Try to get world info from workspace attributes
+function Playback.checkAndSwitchMacroForCurrentWorld()
+    if not isPlaybackEnabled then return false end
     local category = workspace:GetAttribute("Category")
     local mapName = workspace:GetAttribute("MapName")
-    
-    if not category or not mapName then
-        print("⚠️ Could not determine current world - no auto-switch")
-        return false
-    end
-    
-    local worldKey = getCurrentWorldKey()
-    
-    if not worldKey then
-        print("⚠️ Could not generate worldKey - no auto-switch")
-        return false
-    end
-    
-    -- Check if we have a macro mapped for this world
+    if not category or not mapName then return false end
+    local worldKey = Util.getCurrentWorldKey()
+    if not worldKey then return false end
     if worldMacroMappings[worldKey] then
         local macroToLoad = worldMacroMappings[worldKey]
-        
-        -- Only switch if it's different from current
         if currentMacroName ~= macroToLoad then
-            print(string.format("🔄 Pre-game macro switch: %s -> %s (worldKey: %s)", 
-                currentMacroName or "None", macroToLoad, worldKey))
-            
             currentMacroName = macroToLoad
-            
-            -- Update the dropdown to reflect the change
             MacroDropdown:Set(macroToLoad)
-            
-            Rayfield:Notify({
-                Title = "Macro Auto-Selected",
-                Content = string.format("%s for %s", macroToLoad, mapName),
-                Duration = 3
-            })
-            
-            return true
-        else
-            print(string.format("ℹ️ Correct macro already selected: %s", currentMacroName))
+            Rayfield:Notify({ Title = "Macro Auto-Selected", Content = string.format("%s for %s", macroToLoad, mapName), Duration = 3 })
             return true
         end
+        return true
     else
-        warn(string.format("⚠️ No macro mapped for %s - using manual selection: %s", 
-            worldKey, currentMacroName or "None"))
-        
-        -- Optionally warn the user
         if currentMacroName == "" or not currentMacroName then
-            Rayfield:Notify({
-                Title = "No Macro Selected",
-                Content = string.format("No macro mapped for %s", mapName),
-                Duration = 4
-            })
+            Rayfield:Notify({ Title = "No Macro Selected", Content = string.format("No macro mapped for %s", mapName), Duration = 4 })
         end
-        
         return false
     end
 end
 
 local MacroInput = Tab:CreateInput({
-    Name = "Create New Macro",
-    PlaceholderText = "Enter macro name...",
-    RemoveTextAfterFocusLost = true,
+    Name = "Create New Macro", PlaceholderText = "Enter macro name...", RemoveTextAfterFocusLost = true,
     Callback = function(text)
-        -- Clean the name
         local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        
         if cleanedName == "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Macro name cannot be empty",
-                Duration = 3
-            })
+            Rayfield:Notify({ Title = "Error", Content = "Macro name cannot be empty", Duration = 3 })
             return
         end
-        
         if macroManager[cleanedName] then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Macro already exists: " .. cleanedName,
-                Duration = 3
-            })
+            Rayfield:Notify({ Title = "Error", Content = "Macro already exists: " .. cleanedName, Duration = 3 })
             return
         end
-        
-        -- Create empty macro
         macroManager[cleanedName] = {}
-        saveMacroToFile(cleanedName, {})
-        
-        -- Refresh dropdown and select new macro
-        MacroDropdown:Refresh(getMacroList(), cleanedName)
-        
-        Rayfield:Notify({
-            Title = "Success",
-            Content = "Created macro: " .. cleanedName,
-            Duration = 3
-        })
+        MacroIO.save(cleanedName, {})
+        MacroDropdown:Refresh(MacroIO.getList(), cleanedName)
+        Rayfield:Notify({ Title = "Success", Content = "Created macro: " .. cleanedName, Duration = 3 })
     end,
 })
 
 Tab:CreateButton({
     Name = "Refresh Macro List",
     Callback = function()
-        loadAllMacros()
-        MacroDropdown:Refresh(getMacroList())
-        refreshAllWorldDropdowns()
-        
-        Rayfield:Notify({
-            Title = "Refreshed",
-            Content = "Macro list updated",
-            Duration = 2
-        })
+        MacroIO.loadAll()
+        MacroDropdown:Refresh(MacroIO.getList())
+        -- Refresh world dropdowns
+        local macroList = {"None"}
+        for name in pairs(macroManager) do table.insert(macroList, name) end
+        table.sort(macroList)
+        for worldKey, dropdown in pairs(worldDropdowns) do dropdown:Refresh(macroList) end
+        Rayfield:Notify({ Title = "Refreshed", Content = "Macro list updated", Duration = 2 })
     end,
 })
 
@@ -5001,500 +2934,265 @@ Tab:CreateButton({
     Name = "Delete Selected Macro",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "No macro selected",
-                Duration = 3
-            })
+            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 })
             return
         end
-        
-        deleteMacroFile(currentMacroName)
-        
-        Rayfield:Notify({
-            Title = "Deleted",
-            Content = currentMacroName,
-            Duration = 3
-        })
-        
+        MacroIO.delete(currentMacroName)
+        Rayfield:Notify({ Title = "Deleted", Content = currentMacroName, Duration = 3 })
         currentMacroName = ""
         macro = {}
-        
-        MacroDropdown:Refresh(getMacroList())
-        updateMacroStatus("Ready")
+        MacroDropdown:Refresh(MacroIO.getList())
+        Util.updateMacroStatus("Ready")
     end,
 })
 
-local function restartMatch()
+function GameState.restartMatch()
     local success, result = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("MidMatchVote"):FireServer()
-        
-        --print("Restart button pressed")
         return true
     end)
-    
-    if not success then
-        warn("⚠️ Failed to press restart button:", result)
-        return false
-    end
+    if not success then warn("⚠️ Failed to press restart button:", result) return false end
     return result
 end
 
 local RecordToggle = Tab:CreateToggle({
-   Name = "Record Macro",
-   CurrentValue = false,
-   Flag = "RecordToggle",
-   Callback = function(Value)
+    Name = "Record Macro", CurrentValue = false, Flag = "RecordToggle",
+    Callback = function(Value)
         if Value then
-            -- Check if macro is selected
             if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({
-                    Title = "Recording Error",
-                    Content = "Please select a macro first!",
-                    Duration = 3
-                })
+                Rayfield:Notify({ Title = "Recording Error", Content = "Please select a macro first!", Duration = 3 })
                 RecordToggle:Set(false)
                 return
             end
-            
             local currentWave = workspace:GetAttribute("Wave") or 0
             local matchFinished = workspace:GetAttribute("MatchFinished")
-            
-            print(string.format("Recording enabled - Current wave: %d", currentWave))
-            
-            -- If we're mid-game, try to restart it
             if currentWave >= 1 and not matchFinished then
-                print("Mid-game detected - attempting restart...")
-                
                 isRecording = true
                 recordingHasStarted = false
-                
-                Rayfield:Notify({
-                    Title = "Mid-Game Detected",
-                    Content = "Attempting to restart game...",
-                    Duration = 3
-                })
-                
-                -- Try restarting with timeout
+                Rayfield:Notify({ Title = "Mid-Game Detected", Content = "Attempting to restart game...", Duration = 3 })
                 local restartSuccess = false
                 for attempt = 1, 3 do
-                    print(string.format("Restart attempt %d/3", attempt))
-    
-                    restartMatch()
-                -- Wait to see if wave goes back to 0 (reduced timeout)
-                local waitStart = tick()
-                while tick() - waitStart < 2 do  -- Reduced from 5 to 2 seconds
-                    local wave = workspace:GetAttribute("Wave") or 0
-                    if wave == 0 then
-                    restartSuccess = true
-                        print("✓ Restart successful")
-                        break
+                    GameState.restartMatch()
+                    local waitStart = tick()
+                    while tick() - waitStart < 2 do
+                        local wave = workspace:GetAttribute("Wave") or 0
+                        if wave == 0 then restartSuccess = true break end
+                        task.wait(0.2)
                     end
-                    task.wait(0.2)  -- Check more frequently
+                    if restartSuccess then break end
+                    if attempt < 3 then task.wait(0.3) end
                 end
-    
-                if restartSuccess then
-                    break
-                end
-                if attempt < 3 then
-        print(string.format("⚠️ Restart attempt %d failed - retrying...", attempt))
-        task.wait(0.3)  -- Shorter delay between attempts (was 1 second)
-    end
-end
                 if not restartSuccess then
-                    Rayfield:Notify({
-                        Title = "Restart Failed",
-                        Content = "You must be host to restart. Recording from current wave...",
-                        Duration = 5
-                    })
-                    print("⚠️ Failed to restart after 3 attempts - starting recording immediately")
-                    
-                    -- Start recording immediately from current wave
+                    Rayfield:Notify({ Title = "Restart Failed", Content = "Recording from current wave...", Duration = 5 })
                     recordingHasStarted = true
                     gameStartTime = tick()
                     recordingUnitCounter = {}
                     recordingUUIDToTag = {}
                     macro = {}
-                    startUpgradePolling()
-                    
-                    updateMacroStatus("Recording from Wave " .. currentWave)
-                    updateDetailedStatus("Recording in progress (no restart)")
+                    UnitTracker.startUpgradePolling()
+                    Util.updateMacroStatus("Recording from Wave " .. currentWave)
                 else
-                    updateMacroStatus("Recording enabled - Restarting game...")
-                    updateDetailedStatus("Waiting for restart to complete...")
+                    Util.updateMacroStatus("Recording enabled - Restarting game...")
                 end
-                
-            -- If game is over, just wait for next game
             elseif matchFinished then
                 isRecording = true
                 recordingHasStarted = false
-                
-                updateMacroStatus("Recording enabled - Waiting for game to start...")
-                updateDetailedStatus("Waiting for wave 1...")
-                
-                Rayfield:Notify({
-                    Title = "Recording Ready",
-                    Content = "Recording will start when game begins (Wave 1)",
-                    Duration = 3
-                })
-                
-                print("Recording enabled - waiting for next game")
-                
-            -- We're in lobby (wave 0) - wait for wave 1
+                Util.updateMacroStatus("Recording enabled - Waiting for game to start...")
+                Rayfield:Notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
             else
                 isRecording = true
                 recordingHasStarted = false
-                
-                updateMacroStatus("Recording enabled - Waiting for game to start...")
-                updateDetailedStatus("Waiting for wave 1...")
-                
-                Rayfield:Notify({
-                    Title = "Recording Ready",
-                    Content = "Recording will start when game begins (Wave 1)",
-                    Duration = 3
-                })
-                
-                print("Recording enabled - waiting for game to start")
+                Util.updateMacroStatus("Recording enabled - Waiting for game to start...")
+                Rayfield:Notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
             end
         else
-            -- Stop recording
             if recordingHasStarted then
                 local actionCount = #macro
-                stopRecording()
-                
-                Rayfield:Notify({
-                    Title = "Recording Stopped",
-                    Content = string.format("Saved %d actions", actionCount),
-                    Duration = 3
-                })
+                GameState.stopRecording()
+                Rayfield:Notify({ Title = "Recording Stopped", Content = string.format("Saved %d actions", actionCount), Duration = 3 })
             else
                 isRecording = false
-                updateMacroStatus("Ready")
-                updateDetailedStatus("Recording cancelled")
+                Util.updateMacroStatus("Ready")
             end
-            
             isRecording = false
             recordingHasStarted = false
-            stopUpgradePolling()
-            
-            updateMacroStatus("Ready")
-            updateDetailedStatus("Ready")
+            UnitTracker.stopUpgradePolling()
+            Util.updateMacroStatus("Ready")
+            Util.updateDetailedStatus("Ready")
         end
-   end,
+    end,
 })
 
-local function playMacro()
+function Playback.playMacro()
     if not macro or #macro == 0 then
-        updateDetailedStatus("No macro to play")
+        Util.updateDetailedStatus("No macro to play")
         return
     end
-    
-    updateDetailedStatus("Starting playback...")
-    
-    clearSpawnIdMappings()
-    
+    Util.updateDetailedStatus("Starting playback...")
+    UnitTracker.clearSpawnIdMappings()
     local totalActions = #macro
     local startTime = tick()
-    
     for i, action in ipairs(macro) do
-        -- CRITICAL: Check game state BEFORE every action
         local matchFinished = workspace:GetAttribute("MatchFinished")
-        
         if not isPlaybackEnabled or not gameInProgress or matchFinished then
-            print(string.format("⚠️ Stopping playback at action %d/%d (playback: %s, gameInProgress: %s, matchFinished: %s)", 
-                i, totalActions, tostring(isPlaybackEnabled), tostring(gameInProgress), tostring(matchFinished)))
-            updateDetailedStatus("Game ended - stopped playback")
-            clearSpawnIdMappings()
+            Util.updateDetailedStatus("Game ended - stopped playback")
+            UnitTracker.clearSpawnIdMappings()
             return
         end
-        
-        -- IGNORE TIMING MODE: Skip all time-based waits
         if not ignoreTiming then
             local actionTime = tonumber(action.Time)
             local currentElapsedTime = tick() - startTime
             local waitTime = actionTime - currentElapsedTime
-            
-            -- Show waiting countdown if we have time to wait
             if waitTime > 1 then
                 local waitStart = tick()
                 while (tick() - waitStart) < waitTime do
-                    -- Check game state during wait
                     matchFinished = workspace:GetAttribute("MatchFinished")
-                    
                     if not isPlaybackEnabled or not gameInProgress or matchFinished then
-                        print("⚠️ Game ended while waiting - stopping playback")
-                        updateDetailedStatus("Game ended - stopped playback")
-                        clearSpawnIdMappings()
+                        Util.updateDetailedStatus("Game ended - stopped playback")
+                        UnitTracker.clearSpawnIdMappings()
                         return
                     end
-                    
                     local remaining = waitTime - (tick() - waitStart)
                     if remaining > 1 then
-                        updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for %s", 
-                            i, totalActions, remaining, action.Unit or "next action"))
+                        Util.updateDetailedStatus(string.format("(%d/%d) Waiting %.1fs for %s", i, totalActions, remaining, action.Unit or "next action"))
                     end
-                    
                     task.wait(0.5)
                 end
             elseif waitTime > 0 then
                 task.wait(waitTime)
             end
         else
-            -- In speed mode, just show we're ready for next action
             if i > 1 then
-                updateDetailedStatus(string.format("(%d/%d) Ready for next action", i, totalActions))
+                Util.updateDetailedStatus(string.format("(%d/%d) Ready for next action", i, totalActions))
                 task.wait(0.1)
             end
         end
-        
-        -- Final check before executing action
         matchFinished = workspace:GetAttribute("MatchFinished")
         if not isPlaybackEnabled or not gameInProgress or matchFinished then
-            print("⚠️ Game ended before action execution - stopping playback")
-            updateDetailedStatus("Game ended - stopped playback")
-            clearSpawnIdMappings()
+            Util.updateDetailedStatus("Game ended - stopped playback")
+            UnitTracker.clearSpawnIdMappings()
             return
         end
-        
-        -- Execute the action
-        local success = false
-        
         if action.Type == "spawn_unit" then
-            success = executePlacementAction(action, i, totalActions)
-            
+            Playback.executePlacement(action, i, totalActions)
         elseif action.Type == "upgrade_unit" then
-            success = executeUnitUpgrade(action, i, totalActions)
-            
+            Playback.executeUpgrade(action, i, totalActions)
         elseif action.Type == "sell_unit" then
-            success = executeUnitSell(action, i, totalActions)
+            Playback.executeSell(action, i, totalActions)
         elseif action.Type == "use_ability" then
-    -- If ignore timing is ON, schedule ability in background
-    if ignoreTiming then
-        -- Get the action time for scheduling
-        local abilityTime = tonumber(action.Time)
-        local currentElapsedTime = tick() - startTime
-        local delayTime = math.max(0, abilityTime - currentElapsedTime)
-        
-        -- Schedule ability in background thread
-        task.spawn(function()
-            task.wait(delayTime)
-            
-            -- Check if game is still active before firing
-            local matchFinished = workspace:GetAttribute("MatchFinished")
-            if isPlaybackEnabled and gameInProgress and not matchFinished then
-                executeUnitAbility(action, i, totalActions)
+            if ignoreTiming then
+                local abilityTime = tonumber(action.Time)
+                local delayTime = math.max(0, abilityTime - (tick() - startTime))
+                task.spawn(function()
+                    task.wait(delayTime)
+                    local mf = workspace:GetAttribute("MatchFinished")
+                    if isPlaybackEnabled and gameInProgress and not mf then
+                        Playback.executeAbility(action, i, totalActions)
+                    end
+                end)
+                Util.updateDetailedStatus(string.format("(%d/%d) Scheduled ability for %s", i, totalActions, action.Unit))
+            else
+                Playback.executeAbility(action, i, totalActions)
             end
-        end)
-        
-        -- Don't block the macro - mark as success immediately
-        success = true
-        updateDetailedStatus(string.format("(%d/%d) Scheduled ability for %s", i, totalActions, action.Unit))
-    else
-        -- Normal mode - execute ability now
-        success = executeUnitAbility(action, i, totalActions)
+        end
+        task.wait(0.1)
     end
-end
-    task.wait(0.1)
-end
-    
-    updateMacroStatus("Playback Complete")
-    updateDetailedStatus(string.format("Completed %d/%d actions ✓", totalActions, totalActions))
+    Util.updateMacroStatus("Playback Complete")
+    Util.updateDetailedStatus(string.format("Completed %d/%d actions ✓", totalActions, totalActions))
 end
 
-local function autoPlaybackLoop()
-    if playbackLoopRunning then
-        return
-    end
-    
+function Playback.autoPlaybackLoop()
+    if playbackLoopRunning then return end
     playbackLoopRunning = true
-    
     while isPlaybackEnabled do
         while not gameInProgress and isPlaybackEnabled do
-            updateMacroStatus("Waiting for game to start...")
-            updateDetailedStatus("Waiting for wave 1...")
+            Util.updateMacroStatus("Waiting for game to start...")
+            Util.updateDetailedStatus("Waiting for wave 1...")
             task.wait(0.5)
         end
-        
         if not isPlaybackEnabled then break end
-        
-        if not gameInProgress then
-            task.wait(0.5)
-            continue
-        end
-
-        local worldKey = getCurrentWorldKey()
-
+        if not gameInProgress then task.wait(0.5) continue end
+        local worldKey = Util.getCurrentWorldKey()
         if worldKey and worldMacroMappings[worldKey] then
             local macroToLoad = worldMacroMappings[worldKey]
-            
             if currentMacroName ~= macroToLoad then
-                print(string.format("🔄 Auto-switching macro: %s -> %s (worldKey: %s)", 
-                    currentMacroName or "None", macroToLoad, worldKey))
-                
                 currentMacroName = macroToLoad
-                
-                Rayfield:Notify({
-                    Title = "Auto-Switched Macro",
-                    Content = string.format("%s for %s", macroToLoad, worldKey),
-                    Duration = 3
-                })
-                
-                -- Update the main macro dropdown selection
+                Rayfield:Notify({ Title = "Auto-Switched Macro", Content = string.format("%s for %s", macroToLoad, worldKey), Duration = 3 })
                 MacroDropdown:Set(macroToLoad)
-            else
-                print(string.format("ℹ️ Using mapped macro: %s (worldKey: %s)", currentMacroName, worldKey))
-            end
-        else
-            if worldKey then
-                print(string.format("⚠️ No macro mapped for worldKey: %s - using manual selection: %s", 
-                    worldKey, currentMacroName or "None"))
-            else
-                print("⚠️ Could not determine worldKey - using manual selection")
             end
         end
-        
         if not currentMacroName or currentMacroName == "" then
-            updateMacroStatus("Error: No macro selected")
-            updateDetailedStatus("Select a macro to continue")
+            Util.updateMacroStatus("Error: No macro selected")
+            Util.updateDetailedStatus("Select a macro to continue")
             break
         end
-        
-        local loadedMacro = loadMacroFromFile(currentMacroName)
+        local loadedMacro = MacroIO.load(currentMacroName)
         if not loadedMacro or #loadedMacro == 0 then
-            updateMacroStatus("Error: Failed to load macro")
-            updateDetailedStatus("Could not load: " .. tostring(currentMacroName))
+            Util.updateMacroStatus("Error: Failed to load macro")
+            Util.updateDetailedStatus("Could not load: " .. tostring(currentMacroName))
             break
         end
-        
         macro = loadedMacro
-        clearSpawnIdMappings()
-        
-        updateMacroStatus(string.format("Executing: %s (%d actions)", currentMacroName, #macro))
-        updateDetailedStatus("Starting playback...")
-        
-        Rayfield:Notify({
-            Title = "Playback Started",
-            Content = currentMacroName .. " (" .. #macro .. " actions)",
-            Duration = 3
-        })
-        
-        -- Store the thread reference
+        UnitTracker.clearSpawnIdMappings()
+        Util.updateMacroStatus(string.format("Executing: %s (%d actions)", currentMacroName, #macro))
+        Util.updateDetailedStatus("Starting playback...")
+        Rayfield:Notify({ Title = "Playback Started", Content = currentMacroName .. " (" .. #macro .. " actions)", Duration = 3 })
         currentPlaybackThread = coroutine.running()
-        playMacro()
+        Playback.playMacro()
         currentPlaybackThread = nil
-        
-        -- Wait for game to end before looping
-        while gameInProgress and isPlaybackEnabled do
-            task.wait(0.5)
-        end
-        
+        while gameInProgress and isPlaybackEnabled do task.wait(0.5) end
         if not isPlaybackEnabled then break end
-        
-        clearSpawnIdMappings()
-        updateMacroStatus("Game ended - waiting for next...")
-        updateDetailedStatus("Ready for next game")
-        
+        UnitTracker.clearSpawnIdMappings()
+        Util.updateMacroStatus("Game ended - waiting for next...")
+        Util.updateDetailedStatus("Ready for next game")
         task.wait(2)
     end
-    
-    updateMacroStatus("Playback Stopped")
-    updateDetailedStatus("Ready")
+    Util.updateMacroStatus("Playback Stopped")
+    Util.updateDetailedStatus("Ready")
     playbackLoopRunning = false
 end
 
 local PlaybackToggle = Tab:CreateToggle({
-   Name = "Playback Macro",
-   CurrentValue = false,
-   Flag = "PlaybackToggle",
-   Callback = function(Value)
+    Name = "Playback Macro", CurrentValue = false, Flag = "PlaybackToggle",
+    Callback = function(Value)
         if Value then
-            -- Small delay for config loading
             task.wait(0.1)
-            
-            -- Check if macro is selected
             if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({
-                    Title = "Playback Error",
-                    Content = "Please select a macro first!",
-                    Duration = 3
-                })
+                Rayfield:Notify({ Title = "Playback Error", Content = "Please select a macro first!", Duration = 3 })
                 return
             end
-            
-            -- Load the macro
-            local loadedMacro = macroManager[currentMacroName] or loadMacroFromFile(currentMacroName)
-            
+            local loadedMacro = macroManager[currentMacroName] or MacroIO.load(currentMacroName)
             if not loadedMacro or #loadedMacro == 0 then
-                Rayfield:Notify({
-                    Title = "Playback Error",
-                    Content = "Macro is empty or doesn't exist",
-                    Duration = 3
-                })
+                Rayfield:Notify({ Title = "Playback Error", Content = "Macro is empty or doesn't exist", Duration = 3 })
                 return
             end
-            
-            if playbackLoopRunning then
-                print("⚠️ Playback loop already running")
-                return
-            end
-            
+            if playbackLoopRunning then return end
             macro = loadedMacro
             local currentWave = workspace:GetAttribute("Wave") or 0
             if currentWave >= 1 and not workspace:GetAttribute("MatchFinished") then
-                Rayfield:Notify({
-                    Title = "Mid-Game Detected",
-                    Content = "Restarting game for accurate playback...",
-                    Duration = 4
-                })
-                restartMatch()
+                Rayfield:Notify({ Title = "Mid-Game Detected", Content = "Restarting game for accurate playback...", Duration = 4 })
+                GameState.restartMatch()
                 gameInProgress = false
                 gameStartTime = 0
             end
-
             isPlaybackEnabled = true
-            
-            updateMacroStatus("Playback Enabled - Waiting for game...")
-            Rayfield:Notify({
-                Title = "Playback Enabled",
-                Content = "Macro will playback: " .. currentMacroName,
-                Duration = 4
-            })
-            
-            -- Start the playback loop
-            task.spawn(autoPlaybackLoop)
+            Util.updateMacroStatus("Playback Enabled - Waiting for game...")
+            Rayfield:Notify({ Title = "Playback Enabled", Content = "Macro will playback: " .. currentMacroName, Duration = 4 })
+            task.spawn(Playback.autoPlaybackLoop)
         else
-            -- Stop playback
             isPlaybackEnabled = false
-            
-            -- Wait for loop to stop
             local timeout = 0
-            while playbackLoopRunning and timeout < 20 do
-                task.wait(0.1)
-                timeout = timeout + 1
-            end
-            
-            if playbackLoopRunning then
-                warn("⚠️ Force stopping playback loop")
-                playbackLoopRunning = false
-            end
-            
-            updateMacroStatus("Playback Disabled")
-            Rayfield:Notify({
-                Title = "Playback Disabled",
-                Content = "Stopped playback loop",
-                Duration = 3
-            })
+            while playbackLoopRunning and timeout < 20 do task.wait(0.1) timeout = timeout + 1 end
+            if playbackLoopRunning then playbackLoopRunning = false end
+            Util.updateMacroStatus("Playback Disabled")
+            Rayfield:Notify({ Title = "Playback Disabled", Content = "Stopped playback loop", Duration = 3 })
         end
-   end,
+    end,
 })
 
 Tab:CreateToggle({
-   Name = "Ignore Timing",
-   CurrentValue = false,
-   Flag = "IgnoreTimingToggle",
-   Callback = function(Value)
-        ignoreTiming = Value
-   end,
+    Name = "Ignore Timing", CurrentValue = false, Flag = "IgnoreTimingToggle",
+    Callback = function(Value) ignoreTiming = Value end,
 })
 
 Div = Tab:CreateDivider()
@@ -5503,40 +3201,19 @@ Button1 = Tab:CreateButton({
     Name = "Export Macro (Copy JSON)",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "No macro selected",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
         end
-        
         local macroData = macroManager[currentMacroName]
         if not macroData or #macroData == 0 then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Macro is empty",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
         end
-        
         local json = game:GetService("HttpService"):JSONEncode(macroData)
-        
         if setclipboard then
             setclipboard(json)
-            Rayfield:Notify({
-                Title = "Exported",
-                Content = string.format("Copied %s (%d actions)", currentMacroName, #macroData),
-                Duration = 3
-            })
+            Rayfield:Notify({ Title = "Exported", Content = string.format("Copied %s (%d actions)", currentMacroName, #macroData), Duration = 3 })
         else
             print(json)
-            Rayfield:Notify({
-                Title = "Exported",
-                Content = "JSON printed to console",
-                Duration = 3
-            })
+            Rayfield:Notify({ Title = "Exported", Content = "JSON printed to console", Duration = 3 })
         end
     end,
 })
@@ -5545,163 +3222,57 @@ Button = Tab:CreateButton({
     Name = "Export Macro via Webhook",
     Callback = function()
         if not ValidWebhook or ValidWebhook == "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "No webhook URL set!",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "Error", Content = "No webhook URL set!", Duration = 3 }) return
         end
-        
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "No macro selected",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
         end
-        
         local macroData = macroManager[currentMacroName]
         if not macroData or #macroData == 0 then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Macro is empty",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
         end
-        
-        -- Get list of units used in macro (just names, no counts)
         local unitNames = {}
         local seenUnits = {}
-        
         for _, action in ipairs(macroData) do
             if action.Type == "spawn_unit" and action.Unit then
                 local unitName = action.Unit:match("^(.+) #%d+$") or action.Unit
-                if not seenUnits[unitName] then
-                    table.insert(unitNames, unitName)
-                    seenUnits[unitName] = true
-                end
+                if not seenUnits[unitName] then table.insert(unitNames, unitName) seenUnits[unitName] = true end
             end
         end
-        
         table.sort(unitNames)
         local unitsText = #unitNames > 0 and table.concat(unitNames, ", ") or "No units"
-        
-        -- Encode macro as JSON (same format as clipboard export)
         local jsonContent = Services.HttpService:JSONEncode(macroData)
-        
-        -- Create multipart form data for file upload
         local boundary = "----WebKitFormBoundary" .. tostring(os.time())
         local fileName = currentMacroName .. ".json"
-        
         local body = string.format(
-            "--%s\r\n" ..
-            "Content-Disposition: form-data; name=\"payload_json\"\r\n" ..
-            "Content-Type: application/json\r\n\r\n" ..
-            "%s\r\n" ..
-            "--%s\r\n" ..
-            "Content-Disposition: form-data; name=\"files[0]\"; filename=\"%s\"\r\n" ..
-            "Content-Type: application/json\r\n\r\n" ..
-            "%s\r\n" ..
-            "--%s--\r\n",
-            boundary,
-            Services.HttpService:JSONEncode({
-                username = "LixHub",
-                content = "Units: " .. unitsText
-            }),
-            boundary,
-            fileName,
-            jsonContent,
-            boundary
+            "--%s\r\nContent-Disposition: form-data; name=\"payload_json\"\r\nContent-Type: application/json\r\n\r\n%s\r\n--%s\r\nContent-Disposition: form-data; name=\"files[0]\"; filename=\"%s\"\r\nContent-Type: application/json\r\n\r\n%s\r\n--%s--\r\n",
+            boundary, Services.HttpService:JSONEncode({ username = "LixHub", content = "Units: " .. unitsText }), boundary, fileName, jsonContent, boundary
         )
-        
-        local requestFunc = syn and syn.request or request or http_request or 
-                          (fluxus and fluxus.request) or getgenv().request
-        
-        if not requestFunc then
-            warn("No HTTP function found!")
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Executor doesn't support HTTP requests",
-                Duration = 3
-            })
-            return
-        end
-        
+        local requestFunc = syn and syn.request or request or http_request or (fluxus and fluxus.request) or getgenv().request
+        if not requestFunc then Rayfield:Notify({ Title = "Error", Content = "Executor doesn't support HTTP requests", Duration = 3 }) return end
         local success, response = pcall(function()
-            return requestFunc({
-                Url = ValidWebhook,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "multipart/form-data; boundary=" .. boundary
-                },
-                Body = body
-            })
+            return requestFunc({ Url = ValidWebhook, Method = "POST", Headers = { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary }, Body = body })
         end)
-        
         if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-            Rayfield:Notify({
-                Title = "Macro Sent ✓",
-                Content = string.format("Sent %s.json", currentMacroName),
-                Duration = 3
-            })
+            Rayfield:Notify({ Title = "Macro Sent ✓", Content = string.format("Sent %s.json", currentMacroName), Duration = 3 })
         else
-            warn("Webhook failed:", response and response.StatusCode or "No response")
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Failed to send webhook",
-                Duration = 3
-            })
+            Rayfield:Notify({ Title = "Error", Content = "Failed to send webhook", Duration = 3 })
         end
     end,
 })
 
 local ImportInput = Tab:CreateInput({
-    Name = "Import Macro (Paste JSON)",
-    PlaceholderText = "Paste JSON here...",
-    RemoveTextAfterFocusLost = true,
+    Name = "Import Macro (Paste JSON)", PlaceholderText = "Paste JSON here...", RemoveTextAfterFocusLost = true,
     Callback = function(text)
-        if not text or text:match("^%s*$") then
-            return
-        end
-        
-        local success, importData = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(text)
-        end)
-        
-        if not success then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "Invalid JSON format",
-                Duration = 3
-            })
-            return
-        end
-        
-        if type(importData) ~= "table" or #importData == 0 then
-            Rayfield:Notify({
-                Title = "Import Error",
-                Content = "No actions found in JSON",
-                Duration = 3
-            })
-            return
-        end
-        
-        -- Create name for imported macro
+        if not text or text:match("^%s*$") then return end
+        local success, importData = pcall(function() return game:GetService("HttpService"):JSONDecode(text) end)
+        if not success then Rayfield:Notify({ Title = "Import Error", Content = "Invalid JSON format", Duration = 3 }) return end
+        if type(importData) ~= "table" or #importData == 0 then Rayfield:Notify({ Title = "Import Error", Content = "No actions found in JSON", Duration = 3 }) return end
         local macroName = "Imported_" .. os.time()
-        
         macroManager[macroName] = importData
-        saveMacroToFile(macroName, importData)
-        
-        MacroDropdown:Refresh(getMacroList(), macroName)
-        
-        Rayfield:Notify({
-            Title = "Import Success",
-            Content = string.format("%s (%d actions)", macroName, #importData),
-            Duration = 4
-        })
+        MacroIO.save(macroName, importData)
+        MacroDropdown:Refresh(MacroIO.getList(), macroName)
+        Rayfield:Notify({ Title = "Import Success", Content = string.format("%s (%d actions)", macroName, #importData), Duration = 4 })
     end,
 })
 
@@ -5709,336 +3280,158 @@ Tab:CreateButton({
     Name = "Check Macro Units",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "No macro selected",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
         end
-        
         local macroData = macroManager[currentMacroName]
         if not macroData or #macroData == 0 then
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Macro is empty",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
         end
-        
-        -- Count units
         local unitCounts = {}
-        
         for _, action in ipairs(macroData) do
             if action.Type == "spawn_unit" and action.Unit then
                 local unitName = action.Unit:match("^(.+) #%d+$") or action.Unit
                 unitCounts[unitName] = (unitCounts[unitName] or 0) + 1
             end
         end
-        
         if next(unitCounts) == nil then
-            Rayfield:Notify({
-                Title = "No Units",
-                Content = "No placements found in macro",
-                Duration = 3
-            })
-            return
+            Rayfield:Notify({ Title = "No Units", Content = "No placements found in macro", Duration = 3 }) return
         end
-        
-        -- Build display text
         local unitList = {}
-        for unitName in pairs(unitCounts) do
-            table.insert(unitList, string.format("%s", unitName))
-        end
+        for unitName in pairs(unitCounts) do table.insert(unitList, string.format("%s", unitName)) end
         table.sort(unitList)
-        
-        local displayText = table.concat(unitList, ", ")
-        
-        print(string.format("Macro: %s", currentMacroName))
-        print(string.format("Total actions: %d", #macroData))
-        for _, line in ipairs(unitList) do
-            print("  " .. line)
-        end
-        
-        Rayfield:Notify({
-            Title = "Macro Units",
-            Content = displayText,
-            Duration = 5
-        })
+        for _, line in ipairs(unitList) do print("  " .. line) end
+        Rayfield:Notify({ Title = "Macro Units", Content = table.concat(unitList, ", "), Duration = 5 })
     end,
 })
 
 Div2 = Tab:CreateDivider()
 
 WebhookInput = WebhookTab:CreateInput({
-        Name = "Input Webhook",
-        CurrentValue = "",
-        PlaceholderText = "Input Webhook...",
-        RemoveTextAfterFocusLost = false,
-        Flag = "WebhookInput",
-        Callback = function(Text)
-            local trimmed = Text:match("^%s*(.-)%s*$")
+    Name = "Input Webhook", CurrentValue = "", PlaceholderText = "Input Webhook...",
+    RemoveTextAfterFocusLost = false, Flag = "WebhookInput",
+    Callback = function(Text)
+        local trimmed = Text:match("^%s*(.-)%s*$")
+        if trimmed == "" then ValidWebhook = nil return end
+        ValidWebhook = trimmed:match("^https://") and trimmed or nil
+    end,
+})
 
-            if trimmed == "" then
-                ValidWebhook = nil
-                return
-            end
+UserIDInput = WebhookTab:CreateInput({
+    Name = "Input Discord ID (mention rares)", CurrentValue = "", PlaceholderText = "Input Discord ID...",
+    RemoveTextAfterFocusLost = false, Flag = "WebhookInputUserID",
+    Callback = function(Text) Config.DISCORD_USER_ID = tostring(Text):match("^%s*(.-)%s*$") end,
+})
 
-            local valid = trimmed:match("^https://")
-
-            if valid then
-                ValidWebhook = trimmed
-            else
-                ValidWebhook = nil
-            end
-        end,
-    })
-
-    UserIDInput = WebhookTab:CreateInput({
-        Name = "Input Discord ID (mention rares)",
-        CurrentValue = "",
-        PlaceholderText = "Input Discord ID...",
-        RemoveTextAfterFocusLost = false,
-        Flag = "WebhookInputUserID",
-        Callback = function(Text)
-            Config.DISCORD_USER_ID = tostring(Text):match("^%s*(.-)%s*$")
-        end,
-    })
-
-    WebhookToggle = WebhookTab:CreateToggle({
-        Name = "Send On Stage Finished",
-        CurrentValue = false,
-        Flag = "SendWebhookOnStageFinished",
-        Callback = function(Value)
-            State.SendStageCompletedWebhook = Value
-        end,
-    })
-
-    WebhookToggle = WebhookTab:CreateToggle({
-        Name = "Send On Match Restarted",
-        CurrentValue = false,
-        Flag = "SendWebhookOnMatchRestarted",
-        Callback = function(Value)
-            State.SendMatchRestartedWebhook = Value
-        end,
-    })
-
-     TestWebhookButton = WebhookTab:CreateButton({
-        Name = "Test webhook",
-        Callback = function()
-            if ValidWebhook then
-                sendWebhook("test")
-            else
-                notify(nil,"Error: No webhook URL set!")
-            end
-        end,
-    })
+WebhookToggle = WebhookTab:CreateToggle({
+    Name = "Send On Stage Finished", CurrentValue = false, Flag = "SendWebhookOnStageFinished",
+    Callback = function(Value) State.SendStageCompletedWebhook = Value end,
+})
+ 
+WebhookToggle = WebhookTab:CreateToggle({
+    Name = "Send On Match Restarted", CurrentValue = false, Flag = "SendWebhookOnMatchRestarted",
+    Callback = function(Value) State.SendMatchRestartedWebhook = Value end,
+})
+ 
+TestWebhookButton = WebhookTab:CreateButton({
+    Name = "Test webhook",
+    Callback = function()
+        if ValidWebhook then Webhook.send("test")
+        else Util.notify(nil, "Error: No webhook URL set!") end
+    end,
+})
 
 workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
-    
-    --print(string.format("Wave changed: %d (lastWave: %d, gameInProgress: %s)", wave, lastWave, tostring(gameInProgress)))
-    
-    -- Detect restart (wave goes back to 0 or lower)
     if wave < lastWave then
-        --print("Wave reset detected")
-
-         if State.SendMatchRestartedWebhook and not hasRecentlyRestarted then
-            sendWebhook("match_restart", nil, currentGameInfo, lastWave)
+        if State.SendMatchRestartedWebhook and not hasRecentlyRestarted then
+            Webhook.send("match_restart", nil, currentGameInfo, lastWave)
         end
-
         hasRecentlyRestarted = true
-
-        if gameInProgress then
-            print("Resetting game state due to restart")
-            gameInProgress = false
-            gameStartTime = 0
-        end
-        
-        -- Handle recording restart
+        if gameInProgress then gameInProgress = false gameStartTime = 0 end
         if isRecording and recordingHasStarted then
-    local actionCount = #macro
-    stopRecording()
-    
-    Rayfield:Notify({
-        Title = "Recording Stopped",
-        Content = string.format("Game restarted - saved %d actions", actionCount),
-        Duration = 3
-    })
-    
-    print("Recording stopped and saved due to restart")
-end
-
+            local actionCount = #macro
+            GameState.stopRecording()
+            Rayfield:Notify({ Title = "Recording Stopped", Content = string.format("Game restarted - saved %d actions", actionCount), Duration = 3 })
+        end
         if isRecording then
-    recordingHasStarted = false
-    macro = {}
-    clearSpawnIdMappings()
-    
-    updateMacroStatus("Recording enabled - Waiting for wave 1...")
-    updateDetailedStatus("Waiting for wave 1 to restart recording...")
-end
-        
-        -- Handle playback restart
+            recordingHasStarted = false
+            macro = {}
+            UnitTracker.clearSpawnIdMappings()
+            Util.updateMacroStatus("Recording enabled - Waiting for wave 1...")
+        end
         if isPlaybackEnabled and playbackLoopRunning then
             gameInProgress = false
             gameStartTime = 0
-            clearSpawnIdMappings()
-            updateMacroStatus("Game restarted - waiting for wave 1...")
-            updateDetailedStatus("Waiting for wave 1...")
-            print("Playback stopped due to restart - waiting for next game")
+            UnitTracker.clearSpawnIdMappings()
+            Util.updateMacroStatus("Game restarted - waiting for wave 1...")
         end
-        
         lastWave = 0
-
-        task.spawn(function()
-            task.wait(2)
-            hasRecentlyRestarted = false
-        end)
+        task.spawn(function() task.wait(2) hasRecentlyRestarted = false end)
         return
     end
-    
     lastWave = wave
-    
-    -- Game just started (wave 1+)
     if wave >= 1 and not gameInProgress then
-    gameInProgress = true
-    gameStartTime = tick()
-
-    currentGameInfo = {
-        MapName = workspace:GetAttribute("MapName") or "Unknown",
-        Act = workspace:GetAttribute("ActName") or "Unknown",
-        Category = workspace:GetAttribute("DifficultyName") or "Unknown",
-        StartTime = tick()
-    }
-    
-    -- Wait for RequestData to initialize before capturing rewards
-    task.spawn(function()
-        local timeout = 0
-        while not RequestData and timeout < 20 do
-            task.wait(0.5)
-            timeout = timeout + 1
-        end
-        
-        if RequestData then
-            beforeRewardData = deepCopy(RequestData:InvokeServer())
-            --print(" Took BEFORE reward snapshot")
-        else
-            warn("⚠️ RequestData not initialized - rewards won't be tracked")
-        end
-    end)
-        
-        print(string.format("✓ GAME STARTED (Wave %d) - %s Act %s (%s)", 
-        wave, currentGameInfo.MapName, currentGameInfo.Act, currentGameInfo.Category))
-        
-        -- Auto-start recording if enabled
+        gameInProgress = true
+        gameStartTime = tick()
+        currentGameInfo = {
+            MapName = workspace:GetAttribute("MapName") or "Unknown",
+            Act = workspace:GetAttribute("ActName") or "Unknown",
+            Category = workspace:GetAttribute("DifficultyName") or "Unknown",
+            StartTime = tick()
+        }
+        task.spawn(function()
+            local timeout = 0
+            while not RequestData and timeout < 20 do task.wait(0.5) timeout = timeout + 1 end
+            if RequestData then
+                beforeRewardData = Util.deepCopy(RequestData:InvokeServer())
+            end
+        end)
         if isRecording and not recordingHasStarted then
-            print("Starting recording now")
             recordingHasStarted = true
             gameStartTime = tick()
-            
-            -- Reset tracking
             recordingUnitCounter = {}
             recordingUUIDToTag = {}
             macro = {}
-            
-            startUpgradePolling()
-            
-            updateMacroStatus("Recording...")
-            updateDetailedStatus("Recording in progress - " .. currentMacroName)
-            
-            print("Recording started - " .. currentMacroName)
-            
-            Rayfield:Notify({
-                Title = "Recording Started",
-                Content = string.format("Wave %d detected - recording: %s", wave, currentMacroName),
-                Duration = 3
-            })
-        end
-        
-        -- Auto-start playback if enabled
-        if isPlaybackEnabled and not playbackLoopRunning then
-            print("Starting macro playback...")
-            updateMacroStatus("Starting playback...")
-            updateDetailedStatus("Starting playback...")
+            UnitTracker.startUpgradePolling()
+            Util.updateMacroStatus("Recording...")
+            Util.updateDetailedStatus("Recording in progress - " .. currentMacroName)
+            Rayfield:Notify({ Title = "Recording Started", Content = string.format("Wave %d detected - recording: %s", wave, currentMacroName), Duration = 3 })
         end
     end
 end)
 
 workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
     local matchFinished = workspace:GetAttribute("MatchFinished")
-    
     if matchFinished and gameInProgress then
-        print("Game ended")
-
-        afterRewardData = deepCopy(RequestData:InvokeServer())
-        --print(" Took AFTER reward snapshot")
-
+        afterRewardData = Util.deepCopy(RequestData:InvokeServer())
         if State.SendStageCompletedWebhook then
-        -- Determine victory or loss based on health
-        local currentHealth = workspace:GetAttribute("Health") or 0
-        local gameResult = currentHealth > 0
-        
-        -- Calculate game duration
-        local gameDuration = "Unknown"
-        if currentGameInfo.StartTime then
-            local duration = tick() - currentGameInfo.StartTime
-            local minutes = math.floor(duration / 60)
-            local seconds = math.floor(duration % 60)
-            gameDuration = string.format("%dm %ds", minutes, seconds)
+            local currentHealth = workspace:GetAttribute("Health") or 0
+            local gameResult = currentHealth > 0
+            local gameDuration = "Unknown"
+            if currentGameInfo.StartTime then
+                local duration = tick() - currentGameInfo.StartTime
+                gameDuration = string.format("%dm %ds", math.floor(duration / 60), math.floor(duration % 60))
+            end
+            Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
-        
-        sendWebhook("game_end", gameResult, currentGameInfo, gameDuration)
-    end
-        
         gameInProgress = false
         gameStartTime = 0
         lastWave = 0
-
-        if isPlaybackEnabled then
-            -- This will break the playMacro() loop immediately
-            local wasPlaying = playbackLoopRunning
-            
-            -- Clear all playback state
-            clearSpawnIdMappings()
-            
-            if wasPlaying then
-                print("Game ended mid-playback - resetting for next game")
-            end
-        end
-        
-        -- Auto-stop recording
+        if isPlaybackEnabled then UnitTracker.clearSpawnIdMappings() end
         if isRecording and recordingHasStarted then
             local actionCount = #macro
-            stopRecording()
-            
-            Rayfield:Notify({
-                Title = "Recording Auto-Stopped",
-                Content = string.format("Saved %d actions to %s", actionCount, currentMacroName),
-                Duration = 4
-            })
-
+            GameState.stopRecording()
+            Rayfield:Notify({ Title = "Recording Auto-Stopped", Content = string.format("Saved %d actions to %s", actionCount, currentMacroName), Duration = 4 })
             RecordToggle:Set(false)
-            print(string.format("Recording stopped - saved %d actions", actionCount))
-            
-            -- Reset for next recording
             recordingHasStarted = false
-            updateMacroStatus("Recording enabled - Waiting for game to start...")
-            updateDetailedStatus("Waiting for next game...")
         end
-        
-        -- Playback will automatically loop via autoPlaybackLoop
         if isPlaybackEnabled then
-            clearSpawnIdMappings()
-            updateMacroStatus("Game ended - waiting for next game...")
-            updateDetailedStatus("Waiting for next game start")
-            print("Game ended - ready for next playback loop")
+            UnitTracker.clearSpawnIdMappings()
+            Util.updateMacroStatus("Game ended - waiting for next game...")
         end
-        
-        -- If neither recording nor playback, just update status
         if not isRecording and not isPlaybackEnabled then
-            updateMacroStatus("Ready")
-            updateDetailedStatus("Ready")
+            Util.updateMacroStatus("Ready")
+            Util.updateDetailedStatus("Ready")
         end
     end
 end)
@@ -6046,51 +3439,20 @@ end)
 task.spawn(function()
     while true do
         task.wait(0.5)
-        
-        -- Only run if we're in lobby and auto-start is enabled
         if State.AutoStartGame then
-            -- Check if we're NOT in a game (Wave should be 0 or nil)
             local currentWave = workspace:GetAttribute("Wave") or 0
-            local matchFinished = workspace:GetAttribute("MatchFinished")
-            
             if currentWave == 0 then
-                print("Auto Start Game enabled - Voting to start...")
-
-                --  NEW: Check and switch macro BEFORE starting
-                if isPlaybackEnabled then
-                    checkAndSwitchMacroForCurrentWorld()
-                    task.wait(0.5) -- Small delay to let user see the notification
-                end
-
+                if isPlaybackEnabled then Playback.checkAndSwitchMacroForCurrentWorld() task.wait(0.5) end
                 task.wait(2)
-                
                 local success = pcall(function()
-                    game:GetService("ReplicatedStorage")
-                        :WaitForChild("Packages")
-                        :WaitForChild("_Index")
-                        :WaitForChild("sleitnick_knit@1.7.0")
-                        :WaitForChild("knit")
-                        :WaitForChild("Services")
-                        :WaitForChild("WaveService")
-                        :WaitForChild("RF")
-                        :WaitForChild("Vote")
-                        :InvokeServer(true)
-
-                        local skipButton = Services.Players.LocalPlayer.PlayerGui.GameUI.HUD.Vote.Button.TextButton
-                        for _, startConn in pairs(getconnections(skipButton.MouseButton1Up)) do
-                            if startConn.Enabled then startConn:Fire() end
-                        end
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RF"):WaitForChild("Vote"):InvokeServer(true)
+                    local skipButton = Services.Players.LocalPlayer.PlayerGui.GameUI.HUD.Vote.Button.TextButton
+                    for _, startConn in pairs(getconnections(skipButton.MouseButton1Up)) do
+                        if startConn.Enabled then startConn:Fire() end
+                    end
                 end)
-                
                 if success then
-                    Rayfield:Notify({
-                        Title = "Auto Start",
-                        Content = "Voting to start game...",
-                        Duration = 2
-                    })
-                    print("Voted to start game")
-                    
-                    -- Wait a bit before trying again (avoid spam)
+                    Rayfield:Notify({ Title = "Auto Start", Content = "Voting to start game...", Duration = 2 })
                     task.wait(5)
                 end
             end
@@ -6099,64 +3461,36 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-        while true do
+    while true do
         task.wait(0.5)
-        checkAndExecuteHighestPriority()
+        AutoJoin.checkAndExecuteHighestPriority()
     end
 end)
 
 task.spawn(function()
     local timeout = 0
-    while not isGameDataLoaded() and timeout < 20 do
-        task.wait(0.5)
-        timeout = timeout + 1
-    end
-    
-    if isGameDataLoaded() then
-        buildMapLookup()
-    else
-        warn("Game data not loaded - map filtering may not work")
-    end
+    while not Util.isGameDataLoaded() and timeout < 20 do task.wait(0.5) timeout = timeout + 1 end
+    if Util.isGameDataLoaded() then Loader.buildMapLookup() end
 end)
 
 task.spawn(function()
     local lastCheckMinute = -1
-    
     while true do
-        task.wait(5) -- Check every 5 seconds
-        
+        task.wait(5)
         if State.ReturnToLobbyOnNewChallenge then
             local currentTime = os.date("*t")
             local currentMinute = currentTime.min
-            
-            -- Check if we just hit XX:00 or XX:30
             if (currentMinute == 0 or currentMinute == 30) and currentMinute ~= lastCheckMinute then
                 lastCheckMinute = currentMinute
-                
-                if Services.Workspace:GetAttribute("MatchFinished") then        
-            game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+                if Services.Workspace:GetAttribute("MatchFinished") then
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
                 end
-
-                --print(string.format("🔔 New challenges spawned at %02d:%02d", currentTime.hour, currentMinute))
-                
-                -- Set the flag
                 State.NewChallengesAvailable = true
-                
-                Rayfield:Notify({
-                    Title = "New Challenges Available",
-                    Content = "Will return to lobby when game ends",
-                    Duration = 4
-                })
+                Rayfield:Notify({ Title = "New Challenges Available", Content = "Will return to lobby when game ends", Duration = 4 })
             end
-            
-            -- Reset lastCheckMinute after minute 1 or 31
-            if currentMinute > 1 and currentMinute < 30 then
-                lastCheckMinute = -1
-            elseif currentMinute > 31 then
-                lastCheckMinute = -1
-            end
+            if currentMinute > 1 and currentMinute < 30 then lastCheckMinute = -1
+            elseif currentMinute > 31 then lastCheckMinute = -1 end
         else
-            -- Reset when feature is disabled
             lastCheckMinute = -1
             State.NewChallengesAvailable = false
         end
@@ -6165,219 +3499,79 @@ end)
 
 task.spawn(function()
     while true do
-        -- Wait for MatchFinished to become true
-        while not workspace:GetAttribute("MatchFinished") do
-            task.wait(0.5)
-        end
-        
-        print("Match finished detected")
+        while not workspace:GetAttribute("MatchFinished") do task.wait(0.5) end
         task.wait(1)
-
-        -- Priority 1: New challenges available
         if State.NewChallengesAvailable and State.ReturnToLobbyOnNewChallenge then
-            print("New challenges available - Returning to Lobby...")
-            
             local success = pcall(function()
-                game:GetService("ReplicatedStorage")
-                    :WaitForChild("Packages", 5)
-                    :WaitForChild("_Index", 5)
-                    :WaitForChild("sleitnick_knit@1.7.0", 5)
-                    :WaitForChild("knit", 5)
-                    :WaitForChild("Services", 5)
-                    :WaitForChild("WaveService", 5)
-                    :WaitForChild("RE", 5)
-                    :WaitForChild("ToLobby", 5)
-                    :FireServer()
+                game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
             end)
-            
             if success then
-                Rayfield:Notify({
-                    Title = "Returned to Lobby",
-                    Content = "Ready to join new challenges",
-                    Duration = 3
-                })
-                print("✓ Returned to lobby for new challenges")
+                Rayfield:Notify({ Title = "Returned to Lobby", Content = "Ready to join new challenges", Duration = 3 })
                 State.NewChallengesAvailable = false
-            else
-                warn("⚠️ Failed to return to lobby - remote not found")
             end
-        
         else
-            -- Build list of enabled actions
             local actions = {}
             if State.AutoRetry then table.insert(actions, "retry") end
             if State.AutoNext then table.insert(actions, "next") end
             if State.AutoLobby then table.insert(actions, "lobby") end
-            
-            if #actions == 0 then
-                print("No auto actions enabled")
-            else
-                -- Try each action until one works
+            if #actions > 0 then
                 local actionWorked = false
-                
                 for _, action in ipairs(actions) do
                     if actionWorked then break end
-                    
-                    -- Keep trying this action until timeout or success
                     local maxAttempts = 3
-                    
                     for attempt = 1, maxAttempts do
                         local success = false
                         local remoteExists = false
-                        
                         if action == "retry" then
-                            print(string.format("Trying Auto Retry (attempt %d/%d)...", attempt, maxAttempts))
-                            
-                            -- Check if remote exists first
                             success, remoteExists = pcall(function()
-                                local service = game:GetService("ReplicatedStorage")
-                                    :WaitForChild("Packages", 5)
-                                    :WaitForChild("_Index", 5)
-                                    :WaitForChild("sleitnick_knit@1.7.0", 5)
-                                    :WaitForChild("knit", 5)
-                                    :WaitForChild("Services", 5)
-                                    :WaitForChild("WaveService", 5)
-                                    :WaitForChild("RE", 5)
-                                
+                                local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
                                 local remote = service:FindFirstChild("VoteReplay")
-                                if remote then
-                                    remote:FireServer()
-                                    return true
-                                else
-                                    return false
-                                end
+                                if remote then remote:FireServer() return true else return false end
                             end)
-                            
-                            if success and remoteExists then
-                                Rayfield:Notify({
-                                    Title = "Auto Retry",
-                                    Content = string.format("Voting for Replay (attempt %d)...", attempt),
-                                    Duration = 2
-                                })
-                                print(string.format("✓ Voted for Replay (attempt %d)", attempt))
-                            elseif not remoteExists then
-                                warn("⚠️ VoteReplay remote not found - skipping retry")
-                                break -- Skip to next action
-                            end
-                            
+                            if success and remoteExists then Rayfield:Notify({ Title = "Auto Retry", Content = string.format("Voting for Replay (attempt %d)...", attempt), Duration = 2 })
+                            elseif not remoteExists then break end
                         elseif action == "next" then
-                            print(string.format("Trying Auto Next (attempt %d/%d)...", attempt, maxAttempts))
-                            
-                            -- Check if remote exists first
                             success, remoteExists = pcall(function()
-                                local service = game:GetService("ReplicatedStorage")
-                                    :WaitForChild("Packages", 5)
-                                    :WaitForChild("_Index", 5)
-                                    :WaitForChild("sleitnick_knit@1.7.0", 5)
-                                    :WaitForChild("knit", 5)
-                                    :WaitForChild("Services", 5)
-                                    :WaitForChild("WaveService", 5)
-                                    :WaitForChild("RE", 5)
-                                
+                                local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
                                 local remote = service:FindFirstChild("VoteNext")
-                                if remote then
-                                    remote:FireServer()
-                                    return true
-                                else
-                                    return false
-                                end
+                                if remote then remote:FireServer() return true else return false end
                             end)
-                            
-                            if success and remoteExists then
-                                Rayfield:Notify({
-                                    Title = "Auto Next",
-                                    Content = string.format("Voting for Next Stage (attempt %d)...", attempt),
-                                    Duration = 2
-                                })
-                                print(string.format("✓ Voted for Next (attempt %d)", attempt))
-                            elseif not remoteExists then
-                                warn("⚠️ VoteNext remote not found - skipping next")
-                                break -- Skip to next action
-                            end
-                            
+                            if success and remoteExists then Rayfield:Notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
+                            elseif not remoteExists then break end
                         elseif action == "lobby" then
-                            print(string.format("Trying Auto Lobby (attempt %d/%d)...", attempt, maxAttempts))
-                            
                             success = pcall(function()
-                                game:GetService("ReplicatedStorage")
-                                    :WaitForChild("Packages", 5)
-                                    :WaitForChild("_Index", 5)
-                                    :WaitForChild("sleitnick_knit@1.7.0", 5)
-                                    :WaitForChild("knit", 5)
-                                    :WaitForChild("Services", 5)
-                                    :WaitForChild("WaveService", 5)
-                                    :WaitForChild("RE", 5)
-                                    :WaitForChild("ToLobby", 5)
-                                    :FireServer()
+                                game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
                             end)
-                            
-                            if success then
-                                Rayfield:Notify({
-                                    Title = "Auto Lobby",
-                                    Content = "Returning to Lobby...",
-                                    Duration = 2
-                                })
-                                print("✓ Returned to Lobby")
-                                actionWorked = true
-                                break
-                            else
-                                warn("⚠️ ToLobby remote not found")
-                                break -- Skip to next action
-                            end
+                            if success then Rayfield:Notify({ Title = "Auto Lobby", Content = "Returning to Lobby...", Duration = 2 }) actionWorked = true break
+                            else break end
                         end
-                        
-                        -- Only check for success if remote existed
                         if remoteExists or action == "lobby" then
-                            -- Wait up to 10 seconds to see if MatchFinished becomes false
                             local waitStart = tick()
                             while tick() - waitStart < 10 do
-                                if not workspace:GetAttribute("MatchFinished") then
-                                    print(string.format("✓ %s worked - game restarted", action))
-                                    actionWorked = true
-                                    break
-                                end
+                                if not workspace:GetAttribute("MatchFinished") then actionWorked = true break end
                                 task.wait(0.5)
                             end
-                            
-                            if actionWorked then
-                                break
-                            end
-                            
-                            if attempt < maxAttempts then
-                                print(string.format("⚠️ %s attempt %d didn't work - retrying...", action, attempt))
-                                task.wait(1)
-                            end
+                            if actionWorked then break end
+                            if attempt < maxAttempts then task.wait(1) end
                         end
                     end
-                    
-                    if not actionWorked then
-                        print(string.format("⚠️ %s failed or not available - trying next action", action))
-                    end
-                end
-                
-                if not actionWorked then
-                    warn("⚠️ All enabled actions failed or not available")
                 end
             end
         end
-        
-        -- Wait for MatchFinished to become false before checking again
-        while workspace:GetAttribute("MatchFinished") do
-            task.wait(0.5)
-        end
+        while workspace:GetAttribute("MatchFinished") do task.wait(0.5) end
     end
 end)
 
-ensureMacroFolders()
-loadAllMacros()
-worldMacroMappings = loadWorldMappings()
-MacroDropdown:Refresh(getMacroList())
+MacroIO.ensureFolders()
+MacroIO.loadAll()
+worldMacroMappings = MacroIO.loadWorldMappings()
+MacroDropdown:Refresh(MacroIO.getList())
 
-task.spawn(loadAllStoryStagesWithRetry)
-task.spawn(loadAllLegendStagesWithRetry)
-task.spawn(loadAllVirtualStagesWithRetry)
-task.spawn(loadAllChallengeModifiersWithRetry)
-task.spawn(loadAllRaidStagesWithRetry)
+task.spawn(Loader.storyStages)
+task.spawn(Loader.legendStages)
+task.spawn(Loader.virtualStages)
+task.spawn(Loader.challengeModifiers)
+task.spawn(Loader.raidStages)
 
 task.spawn(function()
     task.wait(2)
@@ -6388,25 +3582,16 @@ Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
 
 task.spawn(function()
-        task.wait(2)
-        
-        -- Restore saved macro selection
-        local savedMacroName = Rayfield.Flags["MacroDropdown"]
-        if type(savedMacroName) == "table" then
-            savedMacroName = savedMacroName[1]
+    task.wait(2)
+    local savedMacroName = Rayfield.Flags["MacroDropdown"]
+    if type(savedMacroName) == "table" then savedMacroName = savedMacroName[1] end
+    if savedMacroName and savedMacroName ~= "" and type(savedMacroName) == "string" then
+        currentMacroName = savedMacroName
+        local loadedMacro = MacroIO.load(currentMacroName)
+        if loadedMacro then
+            macro = loadedMacro
+            macroManager[currentMacroName] = loadedMacro
         end
-        
-        if savedMacroName and savedMacroName ~= "" and type(savedMacroName) == "string" then
-            currentMacroName = savedMacroName
-            local loadedMacro = loadMacroFromFile(currentMacroName)
-            if loadedMacro then
-                macro = loadedMacro
-                macroManager[currentMacroName] = loadedMacro
-                --print("Successfully loaded saved macro:", currentMacroName, "with", #macro, "actions")
-            else
-                --print("Could not load saved macro:", savedMacroName)
-            end
-        end
-        
-        MacroDropdown:Refresh(getMacroList())
-    end)
+    end
+    MacroDropdown:Refresh(MacroIO.getList())
+end)
