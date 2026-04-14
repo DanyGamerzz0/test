@@ -8,14 +8,15 @@ if game.PlaceId ~= 133410800847665 and game.PlaceId ~= 106402284955512 and game.
     return
 end
 
-local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.48"
+local script_version = "V0.06"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
    Icon = 0,
    LoadingTitle = "Loading for Universal Tower Defense",
+   ScriptID = "sid_a20vo45rkxte",   
    LoadingSubtitle = script_version,
    ShowText = "LixHub",
    Theme = {
@@ -77,7 +78,7 @@ local Window = Rayfield:CreateWindow({
       RememberJoins = true
    },
 
-   KeySystem = true,
+   KeySystem = false,
    KeySettings = {
       Title = "LixHub - Universal Tower Defense - Free",
       Subtitle = "LixHub - Key System",
@@ -141,43 +142,6 @@ local Services = {
     RunService = game:GetService("RunService"),
 }
 
-local function incrementExecutionCounter()
-    local requestFunc = syn and syn.request or 
-                    request or 
-                    http_request or 
-                    (fluxus and fluxus.request) or 
-                    getgenv().request
-    
-    if not requestFunc then
-        --print("No HTTP function available for execution counter")
-        return
-    end
-    
-    -- Send in background, don't block script execution
-    task.spawn(function()
-        local success, response = pcall(function()
-            return requestFunc({
-                Url = "https://discord-counter.bloxbanter.workers.dev/increment", -- Replace with your actual worker URL
-                Method = "POST",
-                Headers = { 
-                    ["Content-Type"] = "application/json"
-                }
-            })
-        end)
-        
-        if success and response then
-            if response.StatusCode == 200 then
-                local data = game:GetService("HttpService"):JSONDecode(response.Body)
-                --print("✓ Execution counted! Total:", data.count)
-            else
-                --print("✗ Counter failed with status", response.StatusCode)
-            end
-        else
-            --print("✗ Counter request failed")
-        end
-    end)
-end
-
 task.spawn(function()
     task.wait(2)
     
@@ -185,7 +149,7 @@ task.spawn(function()
         local SendFinished = Services.ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.WaveService.RE.SendFinished
         
         SendFinished.OnClientEvent:Connect(function(result, rewards, gameInfo, ...)
-            print("📦 SendFinished hook triggered!")
+            print("SendFinished hook triggered!")
             print("Result:", result)
             
             finishedRewardData = {
@@ -195,7 +159,7 @@ task.spawn(function()
             }
         end)
         
-        print("✅ Hooked SendFinished remote for reward tracking")
+        print("Hooked SendFinished remote for reward tracking")
     end)
 end)
 
@@ -6399,99 +6363,7 @@ task.spawn(function()
 end)
 
 Rayfield:LoadConfiguration()
-incrementExecutionCounter()
 Rayfield:SetVisibility(false)
-
-Rayfield:TopNotify({
-        Title = "UI is hidden",
-        Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
-        Image = "eye-off", -- Lucide icon name
-        IconColor = Color3.fromRGB(100, 150, 255),
-        Duration = 5
-    })
-
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "RayfieldToggle"
-    screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
-    screenGui.ResetOnSpawn = false
-
-    -- Create the circular image button
-    local toggleButton = Instance.new("ImageButton")
-    toggleButton.Name = "ToggleButton"
-    toggleButton.Parent = screenGui
-    toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    toggleButton.BorderSizePixel = 0
-    toggleButton.Position = UDim2.new(0, 50, 0, 50)
-    toggleButton.Size = UDim2.new(0, 50, 0, 50)
-    toggleButton.Image = "rbxassetid://139436994731049" -- Put your logo image ID here like "rbxassetid://123456789"
-    toggleButton.ScaleType = Enum.ScaleType.Fit
-
-    -- Make it circular
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = toggleButton
-
-    -- Rayfield visibility state
-    local rayfieldVisible = true
-
-    -- Toggle function
-    local function toggleRayfield()
-        rayfieldVisible = not rayfieldVisible
-        
-        if Rayfield then
-            Rayfield:SetVisibility(rayfieldVisible)
-        end
-    end
-
-    -- Dragging variables
-    local dragging = false
-    local dragStart = nil
-    local startPos = nil
-
-    -- Mouse input handling
-    toggleButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = toggleButton.Position
-            
-            local connection
-            connection = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    connection:Disconnect()
-                end
-            end)
-        end
-    end)
-
-    toggleButton.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-
-    -- Click to toggle
-    local clickStartPos = nil
-    toggleButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            clickStartPos = input.Position
-        end
-    end)
-
-    toggleButton.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if clickStartPos then
-                local deltaMove = input.Position - clickStartPos
-                local moveDistance = math.sqrt(deltaMove.X^2 + deltaMove.Y^2)
-                
-                if moveDistance < 10 then
-                    toggleRayfield()
-                end
-            end
-        end
-    end)
 
 task.spawn(function()
         task.wait(2)
