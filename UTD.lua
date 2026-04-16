@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -286,6 +286,9 @@ local BlessingService = nil
 local RequestData = nil
 local ChallengeController = nil
 local PodController = nil
+local DataController = nil
+local PlacedTowerController = nil
+local Knit = require(Services.ReplicatedStorage.Packages.knit)
 
 task.spawn(function()
     task.wait(2)
@@ -298,14 +301,12 @@ end)
 
 task.spawn(function()
     task.wait(2)
-    local Knit = require(Services.ReplicatedStorage.Packages.knit)
     ChallengeController = Knit.GetController("ChallengeController")
 end)
 
 task.spawn(function()
     task.wait(2)
     pcall(function()
-        local Knit = require(Services.ReplicatedStorage.Packages.knit)
         PodController = Knit.GetController("PodController")
     end)
 end)
@@ -313,10 +314,18 @@ end)
 task.spawn(function()
     task.wait(2)
     pcall(function()
-        local Knit = require(Services.ReplicatedStorage.Packages.knit)
         DataController = Knit.GetController("DataController")
     end)
 end)
+
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        PlacedTowerController = Knit.GetController("PlacedTowerController")
+    end)
+end)
+
+
 
 -- ============================================
 -- LOADOUT MANAGEMENT
@@ -448,7 +457,6 @@ function UnitTracker.findNewInGC(unitName, excludeUUIDs)
     local cleanedUnitName = Util.cleanUnitName(unitName)
     local candidates = {}
 
-    local PlacedTowerController = Knit.GetController("PlacedTowerController")
     local unitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
     if not unitsFolder then
         warn("Units folder not found")
@@ -495,7 +503,6 @@ local unitChangeListeners = {}
 
 function UnitTracker.findDataInGC(uuid)
     local success, result = pcall(function()
-        local PlacedTowerController = Knit.GetController("PlacedTowerController")
         local unitClass = PlacedTowerController:GetUnitClass(uuid)
         local unitData = PlacedTowerController:GetUnitData(uuid)
         if not unitClass or not unitData then return nil end
