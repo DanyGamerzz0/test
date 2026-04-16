@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -310,6 +310,14 @@ task.spawn(function()
     end)
 end)
 
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        local Knit = require(Services.ReplicatedStorage.Packages.knit)
+        DataController = Knit.GetController("DataController")
+    end)
+end)
+
 -- ============================================
 -- LOADOUT MANAGEMENT
 -- ============================================
@@ -383,48 +391,18 @@ end
 function UnitTracker.getPlayerLoadout()
     local loadout = {}
     local success = pcall(function()
-        local hotbar = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.HUD.Bottom.Hotbar.Units
-        if not hotbar then return end
-        local containers = {}
-        for _, child in pairs(hotbar:GetChildren()) do
-            if child.Name == "ContainerBig" and child:IsA("Frame") then
-                table.insert(containers, child)
-            end
-        end
-        table.sort(containers, function(a, b)
-            return a.AbsolutePosition.X < b.AbsolutePosition.X
-        end)
-        for slot, container in ipairs(containers) do
-            local unitPath = container:FindFirstChild("Unit")
-            if unitPath then
-                unitPath = unitPath:FindFirstChild("UnitInfomation")
-                if unitPath then
-                    unitPath = unitPath:FindFirstChild("Unit")
-                    if unitPath then
-                        local unitModel = nil
-                        for _, child in pairs(unitPath:GetChildren()) do
-                            if child:IsA("Model") and child.Name ~= "WorldModel" then
-                                unitModel = child
-                                break
-                            end
-                        end
-                        if not unitModel then
-                            for _, descendant in pairs(unitPath:GetDescendants()) do
-                                if descendant:IsA("Model") and descendant.Name ~= "WorldModel" then
-                                    unitModel = descendant
-                                    break
-                                end
-                            end
-                        end
-                        if unitModel then
-                            loadout[slot] = Util.cleanUnitName(unitModel.Name)
-                        end
-                    end
+        local EquippedUnits = game:GetService("HttpService"):JSONDecode(game:GetService("Players").LocalPlayer:WaitForChild("Equipped").Value)
+
+        for slot, unitGUID in pairs(EquippedUnits) do
+            if unitGUID and unitGUID ~= "" then
+                local inventoryData = DataController:GetUnitData(unitGUID)
+                if inventoryData and inventoryData.UnitId then
+                    loadout[slot] = Util.cleanUnitName(inventoryData.UnitId)
                 end
             end
         end
     end)
-    if not success then warn(" Failed to get player loadout") end
+    if not success then warn("Failed to get player loadout") end
     return loadout
 end
 
@@ -469,41 +447,46 @@ function UnitTracker.findNewInGC(unitName, excludeUUIDs)
     excludeUUIDs = excludeUUIDs or {}
     local cleanedUnitName = Util.cleanUnitName(unitName)
     local candidates = {}
-    for _, obj in pairs(getgc(true)) do
-        if type(obj) == "table" then
-            local guid = rawget(obj, "GUID")
-            if guid and type(guid) == "string" and string.find(guid, "-") then
-                if excludeUUIDs[guid] then continue end
-                local objUnitId = rawget(obj, "UnitId") or rawget(obj, "TowerID")
-                local objName = rawget(obj, "Name")
-                local cleanObjUnitId = objUnitId and Util.cleanUnitName(objUnitId) or nil
-                local cleanObjName = objName and Util.cleanUnitName(objName) or nil
-                if cleanObjUnitId == cleanedUnitName or cleanObjName == cleanedUnitName then
-                    local hasUpgrade = rawget(obj, "Upgrade") ~= nil
-                    local hasModel = rawget(obj, "Model") ~= nil
-                    if hasUpgrade and hasModel then
-                        local model = rawget(obj, "Model")
-                        local modelExists = false
-                        pcall(function()
-                            if model and model.Parent then modelExists = true end
-                        end)
-                        if modelExists then
-                            table.insert(candidates, { uuid = guid, unitName = objUnitId or objName, data = obj })
-                        end
-                    end
-                end
-            end
-        end
-    end
-    if #candidates == 0 then
-        warn(string.format(" No new units found for: %s", unitName))
+
+    local PlacedTowerController = Knit.GetController("PlacedTowerController")
+    local unitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
+    if not unitsFolder then
+        warn("Units folder not found")
         return nil, nil
     end
+
+    for _, unit in pairs(unitsFolder:GetChildren()) do
+        local uuid = unit.Name
+        if excludeUUIDs[uuid] then continue end
+
+        local unitClass = PlacedTowerController:GetUnitClass(uuid)
+        if not unitClass then continue end
+
+        local unitData = PlacedTowerController:GetUnitData(uuid)
+        if not unitData then continue end
+
+        local unitId = unitData.UnitId or unitData.TowerID or ""
+        local cleanUnitId = Util.cleanUnitName(unitId)
+
+        if cleanUnitId == cleanedUnitName then
+            table.insert(candidates, {
+                uuid = uuid,
+                unitName = unitId,
+                upgrade = unitClass.Upgrade or 1
+            })
+        end
+    end
+
+    if #candidates == 0 then
+        warn(string.format("No new units found for: %s", unitName))
+        return nil, nil
+    end
+
+    -- Pick lowest upgrade level (most recently placed)
     table.sort(candidates, function(a, b)
-        local aLevel = rawget(a.data, "Upgrade") or 1
-        local bLevel = rawget(b.data, "Upgrade") or 1
-        return aLevel < bLevel
+        return a.upgrade < b.upgrade
     end)
+
     local best = candidates[1]
     return best.uuid, best.unitName
 end
@@ -511,25 +494,23 @@ end
 local unitChangeListeners = {}
 
 function UnitTracker.findDataInGC(uuid)
-    for _, obj in pairs(getgc(true)) do
-        if type(obj) == "table" then
-            local guid = rawget(obj, "GUID")
-            if guid == uuid then
-                local hasUpgrade = rawget(obj, "Upgrade") ~= nil
-                local hasUnitId = rawget(obj, "UnitId") ~= nil or rawget(obj, "TowerID") ~= nil
-                if hasUpgrade or hasUnitId then return obj end
-            end
-            local model = rawget(obj, "Model")
-            if model and type(model) == "userdata" then
-                pcall(function()
-                    if model.Name == uuid and rawget(obj, "Upgrade") ~= nil then
-                        return obj
-                    end
-                end)
-            end
-        end
-    end
-    warn(" Could not find unit data in GC")
+    local success, result = pcall(function()
+        local PlacedTowerController = Knit.GetController("PlacedTowerController")
+        local unitClass = PlacedTowerController:GetUnitClass(uuid)
+        local unitData = PlacedTowerController:GetUnitData(uuid)
+        if not unitClass or not unitData then return nil end
+
+        -- Return a table matching the shape the rest of the code expects
+        return {
+            GUID = uuid,
+            UnitId = unitData.UnitId or unitData.TowerID,
+            Upgrade = unitClass.Upgrade or 1,
+            Model = unitClass.Model
+        }
+    end)
+
+    if success and result then return result end
+    warn("Could not find unit data for UUID: " .. tostring(uuid))
     return nil
 end
 
