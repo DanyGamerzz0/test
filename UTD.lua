@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -470,17 +470,16 @@ function UnitTracker.findNewInGC(unitName, excludeUUIDs)
         local unitClass = PlacedTowerController:GetUnitClass(uuid)
         if not unitClass then continue end
 
-        local unitData = PlacedTowerController:GetUnitData(uuid)
-        if not unitData then continue end
+        local towerId = rawget(unitClass, "TowerID") or rawget(unitClass, "UnitId") or ""
+        local unitDisplayName = rawget(unitClass, "Name") or ""
+        local cleanTowerId = Util.cleanUnitName(towerId)
+        local cleanDisplayName = Util.cleanUnitName(unitDisplayName)
 
-        local unitId = unitData.UnitId or unitData.TowerID or ""
-        local cleanUnitId = Util.cleanUnitName(unitId)
-
-        if cleanUnitId == cleanedUnitName then
+        if cleanTowerId == cleanedUnitName or cleanDisplayName:lower() == cleanedUnitName:lower() then
             table.insert(candidates, {
                 uuid = uuid,
-                unitName = unitId,
-                upgrade = unitClass.Upgrade or 1
+                unitName = towerId,
+                upgrade = rawget(unitClass, "Upgrade") or 1
             })
         end
     end
@@ -490,13 +489,11 @@ function UnitTracker.findNewInGC(unitName, excludeUUIDs)
         return nil, nil
     end
 
-    -- Pick lowest upgrade level (most recently placed)
     table.sort(candidates, function(a, b)
         return a.upgrade < b.upgrade
     end)
 
-    local best = candidates[1]
-    return best.uuid, best.unitName
+    return candidates[1].uuid, candidates[1].unitName
 end
 
 local unitChangeListeners = {}
@@ -504,15 +501,13 @@ local unitChangeListeners = {}
 function UnitTracker.findDataInGC(uuid)
     local success, result = pcall(function()
         local unitClass = PlacedTowerController:GetUnitClass(uuid)
-        local unitData = PlacedTowerController:GetUnitData(uuid)
-        if not unitClass or not unitData then return nil end
+        if not unitClass then return nil end
 
-        -- Return a table matching the shape the rest of the code expects
         return {
-            GUID = uuid,
-            UnitId = unitData.UnitId or unitData.TowerID,
-            Upgrade = unitClass.Upgrade or 1,
-            Model = unitClass.Model
+            GUID    = rawget(unitClass, "GUID"),
+            UnitId  = rawget(unitClass, "TowerID") or rawget(unitClass, "UnitId"),
+            Upgrade = rawget(unitClass, "Upgrade") or 1,
+            Model   = rawget(unitClass, "Model")
         }
     end)
 
