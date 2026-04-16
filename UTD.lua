@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -576,7 +576,7 @@ local playbackUnitTagToUUID = {} -- Maps "UnitName #N" -> UUID (for playback)
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local originalNamecall = mt.__namecall
- 
+
 local generalHook = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
@@ -585,50 +585,70 @@ local generalHook = newcclosure(function(self, ...)
             local timestamp = tick()
             local gameRelativeTime = timestamp - gameStartTime
             if method == "InvokeServer" and self.Name == "PlaceUnit" then
-                local slot = args[1]
-                local cframe = args[2]
-                local loadout = UnitTracker.getPlayerLoadout()
-                local unitName = loadout[slot]
-                if not unitName then warn(" Could not determine unit name for slot", slot) return end
-                task.wait(0.5)
-                local excludeUUIDs = {}
-                for uuid, _ in pairs(recordingUUIDToTag) do excludeUUIDs[uuid] = true end
-                local uuid, detectedName = nil, nil
-                for attempt = 1, 10 do
-                    uuid, detectedName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
-                    if uuid then break end
-                    task.wait(0.3)
-                end
-                if uuid then
-                    local cleanName = Util.cleanUnitName(unitName)
-                    local unit = UnitTracker.getByUUID(uuid)
-                    if not unit then warn(string.format("⚠️ UUID %s found in GC but not in workspace!", uuid)) return end
-                    recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
-                    local unitNumber = recordingUnitCounter[cleanName]
-                    local unitTag = string.format("%s #%d", cleanName, unitNumber)
-                    recordingUUIDToTag[uuid] = unitTag
-                    table.insert(macro, {
-                        Type = "spawn_unit", Unit = unitTag,
-                        Time = string.format("%.2f", gameRelativeTime),
-                        Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
-                    })
-                    UnitTracker.startTracking(uuid, unitTag, unitName)
-                    print(string.format("✓ Recorded: %s (UUID=%s)", unitTag, uuid))
+                local result, message = originalNamecall(self, table.unpack(args))
+                if result == true then
+                    local slot = args[1]
+                    local cframe = args[2]
+                    local loadout = UnitTracker.getPlayerLoadout()
+                    local unitName = loadout[slot]
+                    if not unitName then warn(" Could not determine unit name for slot", slot) return end
+                    task.wait(0.5)
+                    local excludeUUIDs = {}
+                    for uuid, _ in pairs(recordingUUIDToTag) do excludeUUIDs[uuid] = true end
+                    local uuid, detectedName = nil, nil
+                    for attempt = 1, 10 do
+                        uuid, detectedName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
+                        if uuid then break end
+                        task.wait(0.3)
+                    end
+                    if uuid then
+                        local cleanName = Util.cleanUnitName(unitName)
+                        local unit = UnitTracker.getByUUID(uuid)
+                        if not unit then warn(string.format("⚠️ UUID %s found in GC but not in workspace!", uuid)) return end
+                        recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
+                        local unitNumber = recordingUnitCounter[cleanName]
+                        local unitTag = string.format("%s #%d", cleanName, unitNumber)
+                        recordingUUIDToTag[uuid] = unitTag
+                        table.insert(macro, {
+                            Type = "spawn_unit", Unit = unitTag,
+                            Time = string.format("%.2f", gameRelativeTime),
+                            Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
+                        })
+                        UnitTracker.startTracking(uuid, unitTag, unitName)
+                        print(string.format("✓ Recorded: %s (UUID=%s)", unitTag, uuid))
+                    else
+                        warn(" Failed to find placed unit in GC!")
+                    end
                 else
-                    warn(" Failed to find placed unit in GC!")
+                    warn(string.format("⚠️ Skipped placement: %s", tostring(message)))
                 end
             elseif method == "InvokeServer" and self.Name == "UpgradeUnit" then
                 local uuid = args[1]
                 local unitTag = recordingUUIDToTag[uuid]
                 if not unitTag then warn("⚠️ Upgrade detected for untracked unit:", uuid) return end
-                table.insert(macro, { Type = "upgrade_unit", Unit = unitTag, Time = string.format("%.2f", gameRelativeTime) })
+                local result, message = originalNamecall(self, table.unpack(args))
+                if result == true then
+                    table.insert(macro, {
+                        Type = "upgrade_unit",
+                        Unit = unitTag,
+                        Time = string.format("%.2f", gameRelativeTime)
+                    })
+                    print(string.format("✓ Recorded upgrade: %s (%s)", unitTag, message))
+                else
+                    warn(string.format("⚠️ Skipped upgrade for %s: %s", unitTag, tostring(message)))
+                end
             elseif method == "InvokeServer" and self.Name == "SellUnit" then
                 local uuid = args[1]
                 local unitTag = recordingUUIDToTag[uuid]
-                if not unitTag then warn("⚠️ Sell detected for untracked unit:", uuid) return end
-                table.insert(macro, { Type = "sell_unit", Unit = unitTag, Time = string.format("%.2f", gameRelativeTime) })
-                UnitTracker.stopTracking(uuid)
-                recordingUUIDToTag[uuid] = nil
+                if not unitTag then return end
+                local result, message = originalNamecall(self, table.unpack(args))
+                if result == true then
+                    table.insert(macro, { Type = "sell_unit", Unit = unitTag, Time = string.format("%.2f", gameRelativeTime) })
+                    UnitTracker.stopTracking(uuid)
+                    recordingUUIDToTag[uuid] = nil
+                else
+                    warn(string.format("⚠️ Skipped sell for %s: %s", unitTag, tostring(message)))
+                end
             elseif method == "FireServer" and self.Name == "UseAbility" then
                 local uuid = args[1]
                 local abilitySlot = args[2]
@@ -638,9 +658,9 @@ local generalHook = newcclosure(function(self, ...)
             end
         end)
     end
-    return originalNamecall(self, ...)
+    return originalNamecall(self, table.unpack(args))
 end)
- 
+
 mt.__namecall = generalHook
 setreadonly(mt, true)
 
