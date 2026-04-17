@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.22"
+local script_version = "V0.23"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3274,6 +3274,8 @@ GameTab:CreateToggle({
     end,
 })
 
+local hasTeleported = false
+
 task.spawn(function()
     while true do
         task.wait(1)
@@ -3283,7 +3285,14 @@ task.spawn(function()
         if not runtime then continue end
 
         local greenZone = runtime:FindFirstChild("GreenZone")
-        if not greenZone then continue end
+
+        -- Reset when zone disappears
+        if not greenZone then
+            hasTeleported = false
+            continue
+        end
+
+        if hasTeleported then continue end
 
         local character = Services.Players.LocalPlayer.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
@@ -3294,6 +3303,8 @@ task.spawn(function()
         if not zonePart then continue end
 
         hrp.CFrame = zonePart.CFrame + Vector3.new(0, 3, 0)
+
+        hasTeleported = true
     end
 end)
 
