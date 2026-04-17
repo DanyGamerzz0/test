@@ -3331,7 +3331,7 @@ task.spawn(function()
                 or handPart:FindFirstChildWhichIsA("BasePart")
             if not targetPart then continue end
 
-            hrp.CFrame = targetPart.CFrame + Vector3.new(0, 7, 0)
+            hrp.CFrame = targetPart.CFrame + Vector3.new(0, 20, 0)
             task.wait(0.3)
 
             -- Re-check prompt still valid after teleport
