@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.16"
+local script_version = "V0.17"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -94,6 +94,7 @@ local Window = Rayfield:CreateWindow({
 local LobbyTab = Window:CreateTab("Lobby", "tv")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local AutoPathTab = Window:CreateTab("Auto Path", "target")
+local RagnarokTab = Window:CreateTab("Cards", "target")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local Tab = Window:CreateTab("Macro", "tv")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
@@ -155,6 +156,25 @@ local PathSystem = {}
 local Loader = {}
 -- Groups game/match state helpers
 local GameState = {}
+
+local RagnarokState = {
+    AutoPickEnabled = false,
+    CardPriorities = {
+        ["Quickened Hands"]   = 5,
+        ["Spoils of War"]     = 4,
+        ["Silence the Gods"]  = 3,
+        ["Extended Reach"]    = 2,
+        ["Exposed Weakness"]  = 1,
+    }
+}
+
+local cardNames = {
+    "Quickened Hands",
+    "Spoils of War",
+    "Silence the Gods",
+    "Extended Reach",
+    "Exposed Weakness",
+}
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -1783,8 +1803,6 @@ AutoPathTab:CreateButton({
         MacroIO.savePathPriorities()
     end,
 })
- 
-AutoPathTab:CreateLabel("tip: use the search icon")
 AutoPathTab:CreateDivider()
 
 function PathSystem.loadSliders()
@@ -1883,6 +1901,100 @@ task.spawn(function()
         warn("Failed to load path sliders:", err)
         AutoPathTab:CreateLabel("⚠️ Failed to load paths")
     end
+end)
+
+RagnarokTab:CreateToggle({
+    Name = "Auto Pick Ragnarok Cards",
+    CurrentValue = false,
+    Flag = "AutoPickRagnarokCards",
+    Callback = function(Value)
+        RagnarokState.AutoPickEnabled = Value
+    end,
+})
+
+RagnarokTab:CreateLabel("Higher number = higher priority")
+RagnarokTab:CreateDivider()
+
+RagnarokTab:CreateSlider({
+    Name = "Quickened Hands",
+    Range = {1, 5}, Increment = 1,
+    CurrentValue = RagnarokState.CardPriorities["Quickened Hands"],
+    Flag = "RagnarokCard_QuickenedHands",
+    Callback = function(Value) RagnarokState.CardPriorities["Quickened Hands"] = Value end,
+})
+RagnarokTab:CreateSlider({
+    Name = "Spoils of War",
+    Range = {1, 5}, Increment = 1,
+    CurrentValue = RagnarokState.CardPriorities["Spoils of War"],
+    Flag = "RagnarokCard_SpoilsOfWar",
+    Callback = function(Value) RagnarokState.CardPriorities["Spoils of War"] = Value end,
+})
+RagnarokTab:CreateSlider({
+    Name = "Silence the Gods",
+    Range = {1, 5}, Increment = 1,
+    CurrentValue = RagnarokState.CardPriorities["Silence the Gods"],
+    Flag = "RagnarokCard_SilenceTheGods",
+    Callback = function(Value) RagnarokState.CardPriorities["Silence the Gods"] = Value end,
+})
+RagnarokTab:CreateSlider({
+    Name = "Extended Reach",
+    Range = {1, 5}, Increment = 1,
+    CurrentValue = RagnarokState.CardPriorities["Extended Reach"],
+    Flag = "RagnarokCard_ExtendedReach",
+    Callback = function(Value) RagnarokState.CardPriorities["Extended Reach"] = Value end,
+})
+RagnarokTab:CreateSlider({
+    Name = "Exposed Weakness",
+    Range = {1, 5}, Increment = 1,
+    CurrentValue = RagnarokState.CardPriorities["Exposed Weakness"],
+    Flag = "RagnarokCard_ExposedWeakness",
+    Callback = function(Value) RagnarokState.CardPriorities["Exposed Weakness"] = Value end,
+})
+
+task.spawn(function()
+    task.wait(2)
+    local success, CardChoiceRE = pcall(function()
+        return game:GetService("ReplicatedStorage")
+            .Packages._Index["sleitnick_knit@1.7.0"]
+            .knit.Services.CardChoiceService.RE
+    end)
+    if not success or not CardChoiceRE then
+        warn("Failed to find CardChoiceService RE")
+        return
+    end
+
+    CardChoiceRE.GetNewCards.OnClientEvent:Connect(function(channel, cards, config)
+        if channel ~= "RagnarokCard" then return end
+        if not RagnarokState.AutoPickEnabled then return end
+
+        local bestIndex = 1
+        local bestPriority = -1
+
+        for i, card in ipairs(cards) do
+            local priority = RagnarokState.CardPriorities[card.name] or 0
+            if priority > bestPriority then
+                bestPriority = priority
+                bestIndex = i
+            end
+        end
+
+        task.wait(0.5)
+
+        if workspace:GetAttribute(config.votedAttribute) then return end
+
+        local voteSuccess = pcall(function()
+            CardChoiceRE.VoteCard:FireServer(channel, bestIndex)
+        end)
+
+        if voteSuccess then
+            local chosenCard = cards[bestIndex]
+            Rayfield:Notify({
+                Title = "Ragnarok Card Picked",
+                Content = "Selected: " .. (chosenCard and chosenCard.name or "Unknown"),
+                Duration = 4,
+            })
+        end
+    end)
 end)
 
 JoinerTab:CreateSection("Story Joiner")
