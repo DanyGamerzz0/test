@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.15"
+local script_version = "V0.16"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -301,7 +301,7 @@ end)
 
 task.spawn(function()
     task.wait(2)
-    ChallengeController = Knit.GetController("ChallengeController")
+    ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController)
 end)
 
 task.spawn(function()
