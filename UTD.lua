@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -191,6 +191,7 @@ local Services = {
     RunService = game:GetService("RunService"),
     TweenService = game:GetService("TweenService"),
     UserInputService = game:GetService("UserInputService"),
+    CoreGui = game:GetService("CoreGui"),
 }
 
 task.spawn(function()
@@ -4123,11 +4124,11 @@ task.spawn(function()
 		screenGui.Parent = gethui()
 	elseif syn and syn.protect_gui then
 		syn.protect_gui(screenGui)
-		screenGui.Parent = CoreGui
-	elseif CoreGui:FindFirstChild("RobloxGui") then
-		screenGui.Parent = CoreGui:FindFirstChild("RobloxGui")
+		screenGui.Parent = Services.CoreGui
+	elseif Services.CoreGui:FindFirstChild("RobloxGui") then
+		screenGui.Parent = Services.CoreGui:FindFirstChild("RobloxGui")
 	else
-		screenGui.Parent = CoreGui
+		screenGui.Parent = Services.CoreGui
 	end
 
 	local toggleButton = Instance.new("ImageButton")
@@ -4208,15 +4209,11 @@ task.spawn(function()
 					(toggleButton.Position.X.Offset - clickStartPos.X.Offset)^2 +
 					(toggleButton.Position.Y.Offset - clickStartPos.Y.Offset)^2
 				) < 5 then
-				if not Debounce then
-					if Hidden then
-						Hidden = false
-						Unhide()
+					if Rayfield:IsVisible() then
+						Rayfield:SetVisibility(false)
 					else
-						Hidden = true
-						Hide(false)
+						Rayfield:SetVisibility(true)
 					end
-				end
 			end
 		end
 		clickStartPos = nil
