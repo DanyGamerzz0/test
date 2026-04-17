@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.17"
+local script_version = "V0.18"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -133,6 +133,9 @@ local ModifierModuleToTag = {}
 local ModifierMapping = {}
 local worldMacroMappings = {}
 local worldDropdowns = {}
+local pendingValkPlacement = nil
+local pendingValkGUID = nil  -- for playback
+local pendingValkCardList = nil
 
 -- ============================================
 -- NAMESPACE TABLES
@@ -694,6 +697,38 @@ local generalHook = newcclosure(function(self, ...)
                     AbilitySlot = abilitySlot,
                     Time = string.format("%.2f", gameRelativeTime)
                 })
+                elseif method == "InvokeServer" and self.Name == "CommitSpecialPlacement" then
+                local result = results[1]
+                local placementKey = args[1]  -- the GUID key
+                local cframe = args[2]
+                if result == true then
+                    -- Find the pending valk name we stored when BeginSpecialPlacement fired
+                    local valkName = pendingValkPlacement and pendingValkPlacement.valkName
+                    if valkName then
+                        table.insert(macro, {
+                            Type = "place_valkyrie",
+                            ValkName = valkName,
+                            Time = string.format("%.2f", gameRelativeTime),
+                            Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
+                        })
+                        print(string.format("Recorded Valkyrie placement: %s", valkName))
+                        pendingValkPlacement = nil
+                    end
+                end
+                elseif method == "FireServer" and self.Name == "VoteCard" then
+            local channel = args[1]
+            local cardIndex = args[2]
+            if channel == "RagnarokValkyrie" and isRecording and recordingHasStarted then
+                local valkName = pendingValkCardList and pendingValkCardList[cardIndex] and pendingValkCardList[cardIndex].id
+                if valkName then
+                    table.insert(macro, {
+                        Type = "pick_valkyrie",
+                        ValkName = valkName,
+                        Time = string.format("%.2f", gameRelativeTime),
+                    })
+                    print(string.format("Recorded Valkyrie pick: %s", valkName))
+                end
+            end
             end
         end)
     end
@@ -703,6 +738,31 @@ end)
 
 mt.__namecall = generalHook
 setreadonly(mt, true)
+
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        local TowerServiceRE = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.TowerService.RE
+        local CardChoiceServiceRE = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.CardChoiceService.RE
+
+        -- Captures the GUID + valk name when placement begins
+        TowerServiceRE.BeginSpecialPlacement.OnClientEvent:Connect(function(guid, valkId, options)
+            if options and options.placementPurpose == "RagnarokValkyrie" then
+                -- For recording: store pending placement info
+                pendingValkPlacement = { guid = guid, valkName = valkId }
+                -- For playback: store the live GUID so playback can use it
+                pendingValkGUID = guid
+                print(string.format("BeginSpecialPlacement: %s (GUID: %s)", valkId, guid))
+            end
+        end)
+
+        TowerServiceRE.EndSpecialPlacement.OnClientEvent:Connect(function(guid, status)
+            if status == "Placed" then
+                pendingValkGUID = nil
+            end
+        end)
+    end)
+end)
 
 -- ============================================
 -- PLAYBACK EXECUTION
@@ -944,6 +1004,90 @@ function Playback.executeAbility(action, actionIndex, totalActions)
         return true
     end
     Util.updateDetailedStatus("Ability use failed")
+    return false
+end
+
+function Playback.executePickValkyrie(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Picking Valkyrie: %s", actionIndex, totalActions, action.ValkName))
+    
+    -- Wait for the card event and match by name
+    local CardChoiceServiceRE = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.CardChoiceService.RE
+    
+    -- Poll for up to 15s for the card selection to appear
+    local cardIndex = nil
+    local deadline = tick() + 15
+    local connection
+    connection = CardChoiceServiceRE.GetNewCards.OnClientEvent:Connect(function(channel, cards, config)
+        if channel ~= "RagnarokValkyrie" then return end
+        for i, card in ipairs(cards) do
+            if card.id == action.ValkName or card.name == action.ValkName then
+                cardIndex = i
+                break
+            end
+        end
+    end)
+    
+    while not cardIndex and tick() < deadline do
+        task.wait(0.5)
+        if not isPlaybackEnabled or not gameInProgress then
+            connection:Disconnect()
+            return false
+        end
+    end
+    connection:Disconnect()
+    
+    if not cardIndex then
+        Util.updateDetailedStatus(string.format("Valkyrie card not found: %s", action.ValkName))
+        return false
+    end
+    
+    task.wait(0.5)
+    local success = pcall(function()
+        CardChoiceServiceRE.VoteCard:FireServer("RagnarokValkyrie", cardIndex)
+    end)
+    
+    if success then
+        Util.updateDetailedStatus(string.format("Picked Valkyrie: %s ✓", action.ValkName))
+        Rayfield:Notify({ Title = "Valkyrie Picked", Content = action.ValkName, Duration = 3 })
+        return true
+    end
+    Util.updateDetailedStatus("Valkyrie pick failed")
+    return false
+end
+
+function Playback.executePlaceValkyrie(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Placing Valkyrie: %s", actionIndex, totalActions, action.ValkName))
+    
+    local TowerServiceRF = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.TowerService.RF
+    
+    -- Wait for BeginSpecialPlacement to give us the live GUID
+    local guid = nil
+    local deadline = tick() + 15
+    while not pendingValkGUID and tick() < deadline do
+        task.wait(0.5)
+        if not isPlaybackEnabled or not gameInProgress then return false end
+    end
+    guid = pendingValkGUID
+    
+    if not guid then
+        Util.updateDetailedStatus("No GUID received for Valkyrie placement")
+        return false
+    end
+    
+    local pos = action.Position
+    local cframe = CFrame.new(pos[1], pos[2], pos[3])
+    
+    local success = pcall(function()
+        TowerServiceRF.CommitSpecialPlacement:InvokeServer(guid, cframe)
+    end)
+    
+    if success then
+        pendingValkGUID = nil
+        Util.updateDetailedStatus(string.format("Placed Valkyrie: %s ✓", action.ValkName))
+        Rayfield:Notify({ Title = "Valkyrie Placed", Content = action.ValkName, Duration = 3 })
+        return true
+    end
+    Util.updateDetailedStatus("Valkyrie placement failed")
     return false
 end
 
@@ -1995,6 +2139,16 @@ task.spawn(function()
             })
         end
     end)
+    CardChoiceRE.GetNewCards.OnClientEvent:Connect(function(channel, cards, config)
+    if channel ~= "RagnarokValkyrie" then return end
+
+    -- RECORDING: Save which valk was picked by listening for VoteCard
+    -- We'll store the card list so we can match by index later
+    if isRecording and recordingHasStarted then
+        -- Store cards so we can record the pick when VoteCard fires
+        pendingValkCardList = cards
+    end
+end)
 end)
 
 JoinerTab:CreateSection("Story Joiner")
@@ -3229,6 +3383,10 @@ function Playback.playMacro()
             else
                 Playback.executeAbility(action, i, totalActions)
             end
+        elseif action.Type == "pick_valkyrie" then
+            Playback.executePickValkyrie(action, i, totalActions)
+        elseif action.Type == "place_valkyrie" then
+            Playback.executePlaceValkyrie(action, i, totalActions)
         end
         task.wait(0.1)
     end
