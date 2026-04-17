@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.18"
+local script_version = "V0.19"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -612,44 +612,68 @@ local generalHook = newcclosure(function(self, ...)
             local gameRelativeTime = timestamp - gameStartTime
 
             if method == "InvokeServer" and self.Name == "PlaceUnit" then
-                local result = results[1]
-                local message = results[2]
-                if result == true then
-                    local slot = args[1]
-                    local cframe = args[2]
-                    local loadout = UnitTracker.getPlayerLoadout()
-                    local unitName = loadout[slot]
-                    if not unitName then warn("Could not determine unit name for slot", slot) return end
-                    task.wait(0.5)
-                    local excludeUUIDs = {}
-                    for uuid, _ in pairs(recordingUUIDToTag) do excludeUUIDs[uuid] = true end
-                    local uuid, detectedName = nil, nil
-                    for attempt = 1, 10 do
-                        uuid, detectedName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
-                        if uuid then break end
-                        task.wait(0.3)
+            local result = results[1]
+            local message = results[2]
+            if result == true then
+                local slot = args[1]
+                local cframe = args[2]
+
+                -- Try secondary slot units first (Ragnarok overrides normal loadout)
+                local unitName = nil
+                local success, secondaryUnits = pcall(function()
+                    return TowerService:WaitForChild("GetSecondarySlotUnits"):InvokeServer()
+                end)
+                if success and secondaryUnits and type(secondaryUnits) == "table" and #secondaryUnits > 0 then
+                    local slotData = secondaryUnits[slot]
+                    if slotData and slotData.unitId then
+                        unitName = Util.cleanUnitName(slotData.unitId)
                     end
-                    if uuid then
-                        local cleanName = Util.cleanUnitName(unitName)
-                        local unit = UnitTracker.getByUUID(uuid)
-                        if not unit then warn(string.format("UUID %s found in GC but not in workspace!", uuid)) return end
-                        recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
-                        local unitNumber = recordingUnitCounter[cleanName]
-                        local unitTag = string.format("%s #%d", cleanName, unitNumber)
-                        recordingUUIDToTag[uuid] = unitTag
-                        table.insert(macro, {
-                            Type = "spawn_unit", Unit = unitTag,
-                            Time = string.format("%.2f", gameRelativeTime),
-                            Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
-                        })
-                        UnitTracker.startTracking(uuid, unitTag, unitName)
-                        print(string.format("Recorded: %s (UUID=%s)", unitTag, uuid))
-                    else
-                        warn("Failed to find placed unit in GC!")
-                    end
-                else
-                    warn(string.format("Skipped placement: %s", tostring(message)))
                 end
+
+                -- Fall back to normal loadout if secondary slots empty or slot not found
+                if not unitName then
+                    local loadout = UnitTracker.getPlayerLoadout()
+                    unitName = loadout[slot]
+                end
+
+                if not unitName then
+                    warn("Could not determine unit name for slot", slot)
+                    return
+                end
+
+                task.wait(0.5)
+                local excludeUUIDs = {}
+                for uuid, _ in pairs(recordingUUIDToTag) do excludeUUIDs[uuid] = true end
+                local uuid, detectedName = nil, nil
+                for attempt = 1, 10 do
+                    uuid, detectedName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
+                    if uuid then break end
+                    task.wait(0.3)
+                end
+                if uuid then
+                    local cleanName = Util.cleanUnitName(unitName)
+                    local unit = UnitTracker.getByUUID(uuid)
+                    if not unit then
+                        warn(string.format("UUID %s found in GC but not in workspace!", uuid))
+                        return
+                    end
+                    recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
+                    local unitNumber = recordingUnitCounter[cleanName]
+                    local unitTag = string.format("%s #%d", cleanName, unitNumber)
+                    recordingUUIDToTag[uuid] = unitTag
+                    table.insert(macro, {
+                        Type = "spawn_unit", Unit = unitTag,
+                        Time = string.format("%.2f", gameRelativeTime),
+                        Position = {cframe.Position.X, cframe.Position.Y, cframe.Position.Z}
+                    })
+                    UnitTracker.startTracking(uuid, unitTag, unitName)
+                    print(string.format("Recorded: %s (UUID=%s)", unitTag, uuid))
+                else
+                    warn("Failed to find placed unit in GC!")
+                end
+            else
+                warn(string.format("Skipped placement: %s", tostring(message)))
+            end
 
             elseif method == "InvokeServer" and self.Name == "UpgradeUnit" then
                 local result = results[1]
@@ -883,11 +907,29 @@ function Playback.executePlacement(action, actionIndex, totalActions)
             return false
         end
     end
-    local slot = UnitTracker.getSlotForUnit(cleanName)
-    if not slot then
-        Util.updateDetailedStatus(string.format("Error: %s not in loadout", cleanName))
-        return false
+    local slot = nil
+    local success, secondaryUnits = pcall(function()
+    return TowerService:WaitForChild("GetSecondarySlotUnits"):InvokeServer()
+end)
+if success and secondaryUnits and type(secondaryUnits) == "table" and #secondaryUnits > 0 then
+    for i, slotData in ipairs(secondaryUnits) do
+        if slotData and slotData.unitId then
+            local cleanSlotUnit = Util.cleanUnitName(slotData.unitId)
+            if cleanSlotUnit == cleanName then
+                slot = i
+                break
+            end
+        end
     end
+end
+if not slot then
+    slot = UnitTracker.getSlotForUnit(cleanName)
+end
+
+if not slot then
+    Util.updateDetailedStatus(string.format("Error: %s not in loadout", cleanName))
+    return false
+end
     Util.updateDetailedStatus(string.format("Placing %s...", action.Unit))
     local pos = action.Position
     local cframe = CFrame.new(pos[1], pos[2], pos[3])
