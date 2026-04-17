@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.19"
+local script_version = "V0.2"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -136,6 +136,7 @@ local worldDropdowns = {}
 local pendingValkPlacement = nil
 local pendingValkGUID = nil  -- for playback
 local pendingValkCardList = nil
+local currentShopOffers = {}
 
 -- ============================================
 -- NAMESPACE TABLES
@@ -275,6 +276,9 @@ local State = {
     WinterActSelected = false,
     WinterStageDifficultySelected = false,
     WinterStageDifficultyMeterSelected = 100,
+
+    ShinobiAutoGaaraZone = false,
+    ShinobiAutoOpenCoffin = false
 }
 
         local loadingRetries = {
@@ -753,6 +757,19 @@ local generalHook = newcclosure(function(self, ...)
                     print(string.format("Recorded Valkyrie pick: %s", valkName))
                 end
             end
+            elseif method == "InvokeServer" and self.Name == "Purchase" then
+                local result = results[1]
+                local shopId = args[1]      -- "Ragnarok"
+                local itemId = args[2]      -- "RShop_ValkCard_Reginleif_RangeAura"
+                if result then
+                    table.insert(macro, {
+                        Type = "shop_purchase",
+                        ShopId = shopId,
+                        ItemId = itemId,
+                        Time = string.format("%.2f", gameRelativeTime),
+                    })
+                    print(string.format("Recorded shop purchase: %s / %s", shopId, itemId))
+                end
             end
         end)
     end
@@ -783,6 +800,21 @@ task.spawn(function()
         TowerServiceRE.EndSpecialPlacement.OnClientEvent:Connect(function(guid, status)
             if status == "Placed" then
                 pendingValkGUID = nil
+            end
+        end)
+    end)
+end)
+
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        local MatchShopRE = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.MatchShopService.RE
+        MatchShopRE.ShopStateChanged.OnClientEvent:Connect(function(shopId, shopState)
+            if not shopState or not shopState.offers then return end
+            for _, offer in ipairs(shopState.offers) do
+                if offer.type == "ValkCard" and offer.id then
+                    currentShopOffers[offer.id] = { cost = offer.cost, meta = offer.meta }
+                end
             end
         end)
     end)
@@ -1130,6 +1162,34 @@ function Playback.executePlaceValkyrie(action, actionIndex, totalActions)
         return true
     end
     Util.updateDetailedStatus("Valkyrie placement failed")
+    return false
+end
+
+function Playback.executeShopPurchase(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Purchasing: %s", actionIndex, totalActions, action.ItemId))
+    
+    local offerData = currentShopOffers[action.ItemId]
+    if offerData and offerData.cost and offerData.cost > 0 then
+        local currentMoney = Util.getPlayerMoney()
+        if currentMoney and currentMoney < offerData.cost then
+            Util.updateDetailedStatus(string.format("Waiting for ¥%d to purchase %s", offerData.cost, action.ItemId))
+        end
+        local canContinue = Playback.waitForMoney(offerData.cost, action.ItemId)
+        if not canContinue then
+            Util.updateDetailedStatus("Game ended while waiting for money")
+            return false
+        end
+    end
+
+    local success = pcall(function()
+        local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.MatchShopService.RF.Purchase
+        Event:InvokeServer(action.ShopId, action.ItemId)
+    end)
+    if success then
+        Util.updateDetailedStatus(string.format("Purchased %s ✓", action.ItemId))
+        return true
+    end
+    Util.updateDetailedStatus("Purchase failed")
     return false
 end
 
@@ -3192,6 +3252,139 @@ task.spawn(function()
     end
 end)
 
+GameTab:CreateToggle({
+    Name = "Auto Gaara Zone (Shinobi Alliance)",
+    CurrentValue = false,
+    Flag = "AutoGaaraZone",
+    Callback = function(Value)
+        State_ShinobiAutoGaaraZone = Value
+    end,
+})
+
+-- Auto Open Coffin
+GameTab:CreateToggle({
+    Name = "Auto Open Coffin (Shinobi Alliance)",
+    CurrentValue = false,
+    Flag = "AutoOpenCoffin",
+    Callback = function(Value)
+        State_ShinobiAutoOpenCoffin = Value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not State_ShinobiAutoGaaraZone then continue end
+
+        local runtime = workspace:FindFirstChild("ShinobiAllianceRuntime")
+        if not runtime then continue end
+
+        local greenZone = runtime:FindFirstChild("GreenZone")
+        if not greenZone then continue end
+
+        local character = Services.Players.LocalPlayer.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+
+        local zonePart = greenZone:IsA("BasePart") and greenZone
+            or greenZone:FindFirstChildWhichIsA("BasePart")
+        if not zonePart then continue end
+
+        hrp.CFrame = zonePart.CFrame + Vector3.new(0, 3, 0)
+    end
+end)
+
+-- Coffin loop
+task.spawn(function()
+    local lastTriedCoffin = nil
+    local lastAttemptTime = 0
+
+    while true do
+        task.wait(1)
+        if not State_ShinobiAutoOpenCoffin then
+            lastTriedCoffin = nil
+            continue
+        end
+
+        local runtime = workspace:FindFirstChild("ShinobiAllianceRuntime")
+        if not runtime then continue end
+
+        -- Find any coffin anchor
+        local coffinAnchor = nil
+        for _, child in ipairs(runtime:GetChildren()) do
+            if child.Name:find("CoffinAnchor") then
+                coffinAnchor = child
+                break
+            end
+        end
+        if not coffinAnchor then
+            lastTriedCoffin = nil
+            continue
+        end
+
+        -- Cooldown so we don't spam the same coffin
+        if coffinAnchor == lastTriedCoffin and tick() - lastAttemptTime < 3 then
+            continue
+        end
+
+        -- Find ProximityPrompt inside CoffinAttachment
+        local prompt = nil
+        local attachment = coffinAnchor:FindFirstChildWhichIsA("Attachment")
+        if attachment then
+            prompt = attachment:FindFirstChildOfClass("ProximityPrompt")
+        end
+        if not prompt then continue end
+
+        -- Extract price from ObjectText e.g. "White Coffin (5000 Yen)"
+        local objectText = prompt.ObjectText or ""
+        local priceStr = objectText:match("%((%d+)%s*[Yy]en%)")
+        local price = priceStr and tonumber(priceStr) or 0
+
+        -- Teleport to coffin
+        local character = Services.Players.LocalPlayer.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+
+        local anchorPart = coffinAnchor:IsA("BasePart") and coffinAnchor
+            or coffinAnchor:FindFirstChildWhichIsA("BasePart")
+        if not anchorPart then continue end
+
+        hrp.CFrame = anchorPart.CFrame + Vector3.new(0, 3, 0)
+        task.wait(0.3)
+
+        -- Wait for enough money then fire
+        if price > 0 then
+            local money = Util.getPlayerMoney()
+            if money and money < price then
+                Util.updateDetailedStatus(string.format("Waiting ¥%d for coffin (%s)", price, coffinAnchor.Name))
+                local canContinue = Playback.waitForMoney(price, coffinAnchor.Name)
+                if not canContinue then continue end
+            end
+        end
+
+        -- Re-check prompt still exists after waiting
+        if not prompt or not prompt.Parent then
+            lastTriedCoffin = nil
+            continue
+        end
+
+        -- Fire the proximity prompt
+        local fireSuccess = pcall(function()
+            fireproximityprompt(prompt)
+        end)
+
+        if fireSuccess then
+            Rayfield:Notify({
+                Title = "Coffin Opened",
+                Content = string.format("%s (¥%d)", coffinAnchor.Name, price),
+                Duration = 3,
+            })
+            lastTriedCoffin = coffinAnchor
+            lastAttemptTime = tick()
+        end
+    end
+end)
+
 local MacroDropdown = Tab:CreateDropdown({
     Name = "Select Macro", Options = {}, CurrentOption = {}, Flag = "MacroDropdown",
     Callback = function(selected)
@@ -3429,6 +3622,8 @@ function Playback.playMacro()
             Playback.executePickValkyrie(action, i, totalActions)
         elseif action.Type == "place_valkyrie" then
             Playback.executePlaceValkyrie(action, i, totalActions)
+        elseif action.Type == "shop_purchase" then
+            Playback.executeShopPurchase(action, i, totalActions)
         end
         task.wait(0.1)
     end
