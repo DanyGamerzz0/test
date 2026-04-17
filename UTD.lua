@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -65,8 +65,8 @@ local Window = Rayfield:CreateWindow({
 
    ToggleUIKeybind = "K",
 
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
+   DisableRayfieldPrompts = true,
+   DisableBuildWarnings = true,
 
    ConfigurationSaving = {
       Enabled = true,
@@ -189,6 +189,8 @@ local Services = {
     Workspace = game:GetService("Workspace"),
     VIRTUAL_USER = game:GetService("VirtualUser"),
     RunService = game:GetService("RunService"),
+    TweenService = game:GetService("TweenService"),
+    UserInputService = game:GetService("UserInputService"),
 }
 
 task.spawn(function()
@@ -4110,6 +4112,134 @@ end)
 
 Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
+
+task.spawn(function()
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "RayfieldToggle"
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	if gethui then
+		screenGui.Parent = gethui()
+	elseif syn and syn.protect_gui then
+		syn.protect_gui(screenGui)
+		screenGui.Parent = CoreGui
+	elseif CoreGui:FindFirstChild("RobloxGui") then
+		screenGui.Parent = CoreGui:FindFirstChild("RobloxGui")
+	else
+		screenGui.Parent = CoreGui
+	end
+
+	local toggleButton = Instance.new("ImageButton")
+	toggleButton.Name = "ToggleButton"
+	toggleButton.Parent = screenGui
+	toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	toggleButton.BorderSizePixel = 0
+	toggleButton.Position = UDim2.new(0, 50, 0, 50)
+	toggleButton.Size = UDim2.new(0, 50, 0, 50)
+	toggleButton.Image = "rbxassetid://139436994731049"
+	toggleButton.ScaleType = Enum.ScaleType.Fit
+	toggleButton.ImageTransparency = 0
+	toggleButton.BackgroundTransparency = 0
+	toggleButton.ZIndex = 10000
+
+	-- ✂ No `corner` local — parent via second arg, set CornerRadius in one line
+	Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(1, 0)
+
+	local shadow = Instance.new("ImageLabel", toggleButton) -- ✂ No separate .Parent line
+	shadow.Name = "Shadow"
+	shadow.BackgroundTransparency = 1
+	shadow.Position = UDim2.new(0, -15, 0, -15)
+	shadow.Size = UDim2.new(1, 30, 1, 30)
+	shadow.ZIndex = toggleButton.ZIndex - 1
+	shadow.Image = "rbxassetid://6014261993"
+	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	shadow.ImageTransparency = 0.5
+	shadow.ScaleType = Enum.ScaleType.Slice
+	shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+
+	local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+
+	toggleButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = toggleButton.Position
+
+			-- ✂ No `connection` local — disconnect inside Changed directly
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	toggleButton.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	-- ✂ `update()` function eliminated — logic inlined here directly
+	Services.UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			toggleButton.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + (input.Position.X - dragStart.X),
+				startPos.Y.Scale,
+				startPos.Y.Offset + (input.Position.Y - dragStart.Y)
+			)
+		end
+	end)
+
+	local clickStartPos, clickStartTime = nil, 0
+
+	toggleButton.MouseButton1Down:Connect(function()
+		clickStartPos = toggleButton.Position
+		clickStartTime = tick()
+	end)
+
+	toggleButton.MouseButton1Up:Connect(function()
+		if clickStartPos then
+			-- ✂ No `timeDelta`/`positionDelta`/`moveDistance` locals — all inlined
+			if (tick() - clickStartTime) < 0.2 and
+				math.sqrt(
+					(toggleButton.Position.X.Offset - clickStartPos.X.Offset)^2 +
+					(toggleButton.Position.Y.Offset - clickStartPos.Y.Offset)^2
+				) < 5 then
+				if not Debounce then
+					if Hidden then
+						Hidden = false
+						Unhide()
+					else
+						Hidden = true
+						Hide(false)
+					end
+				end
+			end
+		end
+		clickStartPos = nil
+	end)
+
+	toggleButton.MouseEnter:Connect(function()
+		Services.TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+			Size = UDim2.new(0, 55, 0, 55),
+			BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+		}):Play()
+	end)
+
+	toggleButton.MouseLeave:Connect(function()
+		Services.TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+			Size = UDim2.new(0, 50, 0, 50),
+			BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+		}):Play()
+	end)
+
+	Rayfield.Destroying:Connect(function()
+		screenGui:Destroy()
+	end)
+end)
 
 task.spawn(function()
     task.wait(2)
