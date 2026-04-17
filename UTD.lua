@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.23"
+local script_version = "V0.6"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -281,7 +281,8 @@ local State = {
     WinterStageDifficultyMeterSelected = 100,
 
     ShinobiAutoGaaraZone = false,
-    ShinobiAutoOpenCoffin = false
+    ShinobiAutoOpenCoffin = false,
+    AutoKuramaHands = false,
 }
 
         local loadingRetries = {
@@ -3274,6 +3275,81 @@ GameTab:CreateToggle({
     end,
 })
 
+GameTab:CreateToggle({
+    Name = "Auto Kurama Hands",
+    CurrentValue = false,
+    Flag = "AutoKuramaHands",
+    Callback = function(Value)
+        State.AutoKuramaHands = Value
+    end,
+})
+
+task.spawn(function()
+    local handLocations = {"1", "2", "3"}
+    local lastFiredPrompt = nil
+    local lastFiredTime = 0
+    local cooldown = 3
+
+    while true do
+        task.wait(0.5)
+        if not State.AutoKuramaHands then continue end
+
+        local mapFolder = workspace:FindFirstChild("Map")
+        if not mapFolder then continue end
+
+        local handsFolder = mapFolder:FindFirstChild("Hands")
+        if not handsFolder then continue end
+
+        local locationsFolder = handsFolder:FindFirstChild("Locations")
+        if not locationsFolder then continue end
+
+        for _, locationIndex in ipairs(handLocations) do
+            local locationPart = locationsFolder:FindFirstChild(locationIndex)
+            if not locationPart then continue end
+
+            -- Find ProximityPrompt inside the location
+            local prompt = nil
+            for _, child in ipairs(locationPart:GetDescendants()) do
+                if child:IsA("ProximityPrompt") then
+                    prompt = child
+                    break
+                end
+            end
+
+            if not prompt then continue end
+            if prompt == lastFiredPrompt and tick() - lastFiredTime < cooldown then continue end
+
+            -- Teleport to the corresponding Hand part
+            local handPart = handsFolder:FindFirstChild("Hand" .. locationIndex)
+            if not handPart then continue end
+
+            local character = Services.Players.LocalPlayer.Character
+            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+            if not hrp then continue end
+
+            local targetPart = handPart:IsA("BasePart") and handPart
+                or handPart:FindFirstChildWhichIsA("BasePart")
+            if not targetPart then continue end
+
+            hrp.CFrame = targetPart.CFrame + Vector3.new(0, 7, 0)
+            task.wait(0.3)
+
+            -- Re-check prompt still valid after teleport
+            if not prompt or not prompt.Parent then continue end
+
+            local success = pcall(function()
+                fireproximityprompt(prompt)
+            end)
+
+            if success then
+                lastFiredPrompt = prompt
+                lastFiredTime = tick()
+                break -- Only fire one per cycle
+            end
+        end
+    end
+end)
+
 local hasTeleported = false
 
 task.spawn(function()
@@ -3302,7 +3378,7 @@ task.spawn(function()
             or greenZone:FindFirstChildWhichIsA("BasePart")
         if not zonePart then continue end
 
-        hrp.CFrame = zonePart.CFrame + Vector3.new(0, 3, 0)
+        hrp.CFrame = zonePart.CFrame + Vector3.new(0, 5, 0)
 
         hasTeleported = true
     end
@@ -4077,7 +4153,7 @@ task.spawn(function()
                         elseif action == "next" then
                             success, remoteExists = pcall(function()
                                 local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
-                                local remote = service:FindFirstChild("VoteNext")
+                                local remote = service:FindFirstChild("NextMap")
                                 if remote then remote:FireServer() return true else return false end
                             end)
                             if success and remoteExists then Rayfield:Notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
