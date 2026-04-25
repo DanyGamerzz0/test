@@ -14,7 +14,7 @@ end
 -- ============================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local SCRIPT_VERSION = "V0.24"
+local SCRIPT_VERSION = "V0.25"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -541,17 +541,16 @@ function Macro.onPlace(displayName, cframe, uuid)
         debugPrint("Looking for cost of ", displayName)
         for slot = 1, 6 do
             local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
-            debugPrint("yes1")
             if pkg and pkg.Unit and pkg.Unit.Value == displayName then
-                debugPrint("yes2")
                 local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot
-                             :FindFirstChild("unit" .. slot)
-                             debugPrint("yes3")
-                local yen   = frame and frame:FindFirstChild(displayName, true)
-                             and frame[displayName]:FindFirstChild("yen")
-                             debugPrint("yes4")
-                cost = yen and tonumber(yen.Text:match("%d+"))
-                debugPrint("yes5 ", cost)
+                            :FindFirstChild("unit" .. slot)
+                if frame then
+                    -- yen is on the unit frame clone directly, not nested under displayName
+                    local unitFrame = frame:FindFirstChild(displayName)
+                    local yen = unitFrame and unitFrame:FindFirstChild("yen")
+                    cost = yen and tonumber(yen.Text:match("%d+"))
+                    debugPrint("[Cost] Found yen label:", yen, "cost:", cost)
+                end
                 break
             end
         end
