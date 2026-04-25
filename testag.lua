@@ -14,7 +14,7 @@ end
 -- ============================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local SCRIPT_VERSION = "V0.23"
+local SCRIPT_VERSION = "V0.24"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -538,19 +538,20 @@ function Macro.onPlace(displayName, cframe, uuid)
         local tag = displayName .. " #" .. Macro.placementCounter[displayName]
         Macro.serverToTag[serverName] = tag
         local cost = nil
+        debugPrint("Looking for cost of ", displayName)
         for slot = 1, 6 do
             local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
-            debugPrint("yes")
+            debugPrint("yes1")
             if pkg and pkg.Unit and pkg.Unit.Value == displayName then
-                debugPrint("yes")
+                debugPrint("yes2")
                 local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot
                              :FindFirstChild("unit" .. slot)
-                             debugPrint("yes")
+                             debugPrint("yes3")
                 local yen   = frame and frame:FindFirstChild(displayName, true)
                              and frame[displayName]:FindFirstChild("yen")
-                             debugPrint("yes")
+                             debugPrint("yes4")
                 cost = yen and tonumber(yen.Text:match("%d+"))
-                debugPrint("yes ", cost)
+                debugPrint("yes5 ", cost)
                 break
             end
         end
