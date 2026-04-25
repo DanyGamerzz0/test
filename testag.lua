@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.17"
+local SCRIPT_VERSION = "V0.19"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -176,6 +176,7 @@ local State = {
     RestartUntilPath = false,
     RestartTargetPath = nil,
 
+    AutoPickCardSJW = false,
     CardPriorities = {},
 }
 
@@ -432,6 +433,7 @@ local Macro = {
     abilityQueue = {},
     statusLabel  = nil,
     detailLabel  = nil,
+    Macro.modifierMapping = {}
 }
 
 function Macro.setStatus(msg)
@@ -597,6 +599,21 @@ function Macro.onAbility(clientName, abilityName)
     debugPrint("[Macro] Recorded ability:", tag, abilityName)
 end
 
+function Macro.onModifierPurchase(modifierName, result)
+    if not Macro.isRecording or not Macro.hasStarted then return end
+    if result == "failed1" then
+        debugPrint("[Macro] ModifierShop failed for:", modifierName, "— not recording")
+        return
+    end
+    local t = tick() - State.gameStartTime
+    table.insert(Macro.actions, {
+        Type         = "modifier",
+        ModifierName = modifierName,
+        Time         = string.format("%.2f", t),
+    })
+    debugPrint("[Macro] Recorded modifier purchase:", modifierName, "t=" .. t)
+end
+
 function Macro.onSkipWave()
     if not Macro.isRecording or not Macro.hasStarted then return end
     local t = tick() - State.gameStartTime
@@ -705,6 +722,44 @@ function Macro.execSkip()
     end)
 end
 
+local MODIFIER_COSTS = {
+    ["Unlock farm units"] = 25000,
+    ["Unlock buff units"] = 25000,
+    ["Summon Kamish"]     = 100000,
+}
+
+function Macro.execModifier(action, idx, total)
+    local modifierName = action.ModifierName
+    if not modifierName then return false end
+
+    local cost = MODIFIER_COSTS[modifierName]
+    if cost then
+        if not Macro.waitForMoney(cost, "modifier: " .. modifierName) then return false end
+    end
+
+    Macro.setDetail("Purchasing modifier: " .. modifierName .. " (" .. idx .. "/" .. total .. ")")
+
+    local ok, result = pcall(function()
+        return RS:WaitForChild("ModifierShop"):InvokeServer(modifierName)
+    end)
+
+    if not ok then
+        warn("[Macro.execModifier] Remote error for:", modifierName)
+        return false
+    end
+
+    if result == "failed1" then
+        warn("[Macro.execModifier] Purchase failed:", modifierName)
+        Macro.setDetail("❌ Modifier failed: " .. modifierName)
+        return false
+    end
+
+    debugPrint("[Macro.execModifier] Purchased:", modifierName)
+    Macro.setDetail("✓ Purchased " .. modifierName)
+    task.wait(0.3)
+    return true
+end
+
 function Macro.scheduleTimedAction(action, targetTime)
     table.insert(Macro.abilityQueue, { action = action, targetTime = targetTime })
 end
@@ -772,6 +827,7 @@ function Macro.playOnce()
         if     action.Type == "spawn"   then Macro.execSpawn  (action, i, total)
         elseif action.Type == "upgrade" then Macro.execUpgrade(action, i, total)
         elseif action.Type == "sell"    then Macro.execSell   (action, i, total)
+        elseif action.Type == "modifier" then Macro.execModifier(action, i, total)
         end
         task.wait(0.1)
     end
@@ -1602,6 +1658,8 @@ do
                 if result then Macro.onAbility(args[2], args[3]) end
             elseif method == "FireServer" and self.Name == "Vote" and args[1] == "Vote2" then
                 Macro.onSkipWave()
+            elseif method == "InvokeServer" and self.Name == "ModifierShop" and args[1] then
+                Macro.onModifierPurchase(args[1], result)
             end
         end
 
@@ -2234,7 +2292,7 @@ Tabs.Cards:CreateToggle({
     Name     = "Auto Pick Card",
     Flag     = "AutoPickCard",
     Info     = "Automatically picks the highest priority card when offered",
-    Callback = function(v) State.AutoPickCard = v end,
+    Callback = function(v) State.AutoPickCardSJW = v end,
 })
 
 Tabs.Cards:CreateDivider()
@@ -2293,7 +2351,7 @@ else
                 Tabs.Cards:CreateLabel("No cards found — join a game first")
             else
                 CardVoteEvent.OnClientEvent:Connect(function(offeredCards)
-                    if not State.AutoPickCard then return end
+                    if not State.AutoPickCardSJW then return end
                     task.wait(math.random(10, 30) / 10)
                     local choice = pickBestCard(offeredCards)
                     if choice then
