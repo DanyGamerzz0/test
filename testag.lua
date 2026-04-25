@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.14"
+local SCRIPT_VERSION = "V0.15"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -2293,7 +2293,6 @@ end)
 -- ============================================================
 -- CARDS TAB UI
 -- ============================================================
-local CardsTab = Window:CreateTab("Cards", "credit-card")
 
 Tabs.Cards:CreateToggle({
     Name     = "Auto Pick Card",
@@ -2304,17 +2303,16 @@ Tabs.Cards:CreateToggle({
 
 Tabs.Cards:CreateDivider()
 
-for _, cardName in ipairs(CARD_NAMES) do
+for i, cardName in ipairs(CARD_NAMES) do
     local flag = "CardPriority_" .. cardName:gsub("[^%w]", "_")
     Tabs.Cards:CreateSlider({
         Name         = cardName,
-        Range        = {0, 10},
+        Range        = {0, 50},
         Increment    = 1,
-        CurrentValue = State.CardPriorities[cardName] or 5,
+        CurrentValue = State.CardPriorities[cardName] or i,
         Flag         = flag,
         Callback     = function(v)
             State.CardPriorities[cardName] = v
-            debugPrint("[AutoPickCard] Priority set:", cardName, "=", v)
         end,
     })
 end
