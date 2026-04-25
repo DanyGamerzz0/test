@@ -14,7 +14,7 @@ end
 -- ============================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local SCRIPT_VERSION = "V0.26"
+local SCRIPT_VERSION = "V0.13"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -97,7 +97,7 @@ local RS  = Svc.ReplicatedStorage
 -- ============================================================
 -- CENTRALISED STATE  (one table, never scattered)
 -- ============================================================
-local DEBUG = true  -- Set to true when testing to see all debug prints
+local DEBUG = false  -- Set to true when testing to see all debug prints
 
 local State = {
     -- system
