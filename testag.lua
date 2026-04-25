@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.14"
+local SCRIPT_VERSION = "V0.13"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -2121,6 +2121,7 @@ local Tabs = {
     Lobby   = Window:CreateTab("Lobby",    "tv"),
     Shop    = Window:CreateTab("Shop",     "shopping-cart"),
     Joiner  = Window:CreateTab("Joiner",   "plug-zap"),
+    Cards = Window:CreateTab("Cards", "credit-card"),
     Game    = Window:CreateTab("Game",     "gamepad-2"),
     Macro   = Window:CreateTab("Macro",    "tv"),
     Auto    = Window:CreateTab("Auto",     "gamepad-2"),
@@ -2222,6 +2223,99 @@ Tabs.Joiner:CreateDropdown({ Name="Tower Stage", Options={"Cursed Place","The Lo
 
 Tabs.Joiner:CreateSection("Gate")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Gate", Flag="AutoJoinGate", Callback=function(v) State.AutoJoinGate=v end })
+
+-- ============================================================
+-- CARD TAB
+-- ============================================================
+
+local cardsModule = RS:FindFirstChild("PlayMode")
+    and RS.PlayMode:FindFirstChild("client")
+    and RS.PlayMode.client:FindFirstChild("cards_info")
+
+if not cardsModule then
+    warn("[AutoPickCard] cards_info module not found — Cards tab disabled")
+    return
+end
+
+local ok, cardsData = pcall(require, cardsModule)
+if not ok or not cardsData or not cardsData.cards then
+    warn("[AutoPickCard] Failed to require cards_info:", tostring(cardsData))
+    return
+end
+
+local CARD_NAMES = {}
+for cardName in pairs(cardsData.cards) do
+    CARD_NAMES[#CARD_NAMES + 1] = cardName
+end
+table.sort(CARD_NAMES)
+debugPrint("[AutoPickCard] Loaded", #CARD_NAMES, "cards from module")
+
+State.CardPriorities = State.CardPriorities or {}
+for _, name in ipairs(CARD_NAMES) do
+    if not State.CardPriorities[name] then
+        State.CardPriorities[name] = 5
+    end
+end
+
+local function pickBestCard(offeredCards)
+    local bestCard, bestPriority = nil, -1
+    for _, cardName in ipairs(offeredCards) do
+        local priority = State.CardPriorities[cardName] or 0
+        debugPrint("[AutoPickCard] Offered:", cardName, "priority:", priority)
+        if priority > bestPriority then
+            bestPriority = priority
+            bestCard = cardName
+        end
+    end
+    return bestCard
+end
+
+local CardVoteEvent = RS.PlayMode.Events:WaitForChild("CardVote", 10)
+if not CardVoteEvent then
+    warn("[AutoPickCard] CardVote event not found — listener not registered")
+    return
+end
+
+CardVoteEvent.OnClientEvent:Connect(function(offeredCards, votingValue, timeLeft)
+    if not State.AutoPickCard then return end
+    task.wait(math.random(10, 30) / 10)
+    local choice = pickBestCard(offeredCards)
+    if choice then
+        debugPrint("[AutoPickCard] Picking:", choice, "(priority:", State.CardPriorities[choice] or 0, ")")
+        CardVoteEvent:FireServer(choice)
+    else
+        debugPrint("[AutoPickCard] No card matched")
+    end
+end)
+
+-- ============================================================
+-- CARDS TAB UI
+-- ============================================================
+local CardsTab = Window:CreateTab("Cards", "credit-card")
+
+Tabs.Cards:CreateToggle({
+    Name     = "Auto Pick Card",
+    Flag     = "AutoPickCard",
+    Info     = "Automatically picks the highest priority card when offered",
+    Callback = function(v) State.AutoPickCard = v end,
+})
+
+Tabs.Cards:CreateDivider()
+
+for _, cardName in ipairs(CARD_NAMES) do
+    local flag = "CardPriority_" .. cardName:gsub("[^%w]", "_")
+    Tabs.Cards:CreateSlider({
+        Name         = cardName,
+        Range        = {0, 10},
+        Increment    = 1,
+        CurrentValue = State.CardPriorities[cardName] or 5,
+        Flag         = flag,
+        Callback     = function(v)
+            State.CardPriorities[cardName] = v
+            debugPrint("[AutoPickCard] Priority set:", cardName, "=", v)
+        end,
+    })
+end
 
 -- ============================================================
 -- GAME TAB
@@ -2592,14 +2686,7 @@ Tabs.Macro:CreateSection("Seven Sins Town Path Macros")
 Tabs.Macro:CreateToggle({
     Name = "Enable Play Macro On Selected Path",
     Flag = "AutoPathEnabled",
-    Info = "Automatically play the macro assigned to the chosen path",
-    Callback = function(v) State.AutoPathEnabled = v end,
-})
-
-Tabs.Macro:CreateToggle({
-    Name = "Enable Path-Based Macro",
-    Flag = "AutoPathEnabled",
-    Info = "Automatically play the macro assigned to the chosen path",
+    Info = "Automatically play the macro assigned to the path",
     Callback = function(v) State.AutoPathEnabled = v end,
 })
 
@@ -2637,7 +2724,7 @@ Tabs.Macro:CreateSection("Restart Until Path")
 Tabs.Macro:CreateToggle({
     Name = "Restart Until Target Path",
     Flag = "RestartUntilPath",
-    Info = "Restart the match until the desired path is chosen",
+    Info = "Restart the match until the selected path is chosen",
     Callback = function(v) State.RestartUntilPath = v end,
 })
 
