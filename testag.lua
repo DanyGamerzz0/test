@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.2"
+local SCRIPT_VERSION = "V0.21"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -178,6 +178,9 @@ local State = {
 
     AutoPickCardSJW = false,
     CardPriorities = {},
+
+    AutoRestartOnWave        = false,
+    AutoRestartWave          = 1,
 }
 
 -- ============================================================
@@ -2055,6 +2058,11 @@ do
     local gs = Svc.Workspace:FindFirstChild("GameSettings")
     if gs and gs:FindFirstChild("Wave") then
         gs.Wave.Changed:Connect(function(w)
+            if State.AutoRestartOnWave and w == State.AutoRestartWave then
+            pcall(function()
+                RS.Remotes.Misc.Action:FireServer("Restart")
+            end)
+        end
             if State.AutoSellEnabled and w == State.AutoSellWave and w ~= lastSellWave then
                 lastSellWave = w task.spawn(sellAll)
             end
@@ -2453,6 +2461,20 @@ Tabs.Game:CreateToggle({ Name="Auto Vote Next",   Flag="AutoVoteNext",   Callbac
 Tabs.Game:CreateToggle({ Name="Auto Vote Lobby",  Flag="AutoVoteLobby",  Callback=function(v) State.AutoVoteLobby=v  end })
 Tabs.Game:CreateToggle({ Name="Auto Skip Waves",  Flag="AutoSkipWaves",  Callback=function(v) State.AutoSkipWaves=v  end })
 Tabs.Game:CreateSlider({ Name="Skip Until Wave",  Range={0,200}, Increment=1, CurrentValue=0, Suffix=" wave", Flag="AutoSkipUntilWave", Callback=function(v) State.AutoSkipUntilWave=v end })
+Tabs.Game:CreateToggle({
+    Name     = "Auto Restart on Wave",
+    Flag     = "AutoRestartOnWave",
+    Callback = function(v) State.AutoRestartOnWave = v end,
+})
+Tabs.Game:CreateSlider({
+    Name         = "Restart on Wave",
+    Range        = {1, 500},
+    Increment    = 1,
+    CurrentValue = 1,
+    Suffix       = " wave",
+    Flag         = "AutoRestartWave",
+    Callback     = function(v) State.AutoRestartWave = v end,
+})
 Tabs.Game:CreateToggle({ Name="Delete Enemies",   Flag="DeleteEnemies",  Callback=function(v)
     State.DeleteEnemies = v
     if v then
