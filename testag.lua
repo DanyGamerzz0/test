@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.15"
+local SCRIPT_VERSION = "V0.16"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -2230,7 +2230,13 @@ Tabs.Joiner:CreateToggle({ Name="Auto Join Gate", Flag="AutoJoinGate", Callback=
 -- CARD TAB
 -- ============================================================
 
-local cardsModule = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("CardVote"):WaitForChild("client"):WaitForChild("cards_info")
+local cardsModule
+
+if Util.isInLobby() then
+    cardsModule = nil
+else
+    cardsModule = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui", 10):WaitForChild("CardVote", 10):WaitForChild("client", 10):WaitForChild("cards_info", 10)
+end
 
 if not cardsModule then
     warn("[AutoPickCard] cards_info module not found")
