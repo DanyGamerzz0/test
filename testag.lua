@@ -14,7 +14,7 @@ end
 -- ============================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local SCRIPT_VERSION = "V0.22"
+local SCRIPT_VERSION = "V0.23"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -540,12 +540,17 @@ function Macro.onPlace(displayName, cframe, uuid)
         local cost = nil
         for slot = 1, 6 do
             local pkg = LP.UnitPackage and LP.UnitPackage:FindFirstChild(tostring(slot))
+            debugPrint("yes")
             if pkg and pkg.Unit and pkg.Unit.Value == displayName then
+                debugPrint("yes")
                 local frame = LP.PlayerGui.Main.UnitBar.UnitsFrame.UnitsSlot
                              :FindFirstChild("unit" .. slot)
+                             debugPrint("yes")
                 local yen   = frame and frame:FindFirstChild(displayName, true)
                              and frame[displayName]:FindFirstChild("yen")
+                             debugPrint("yes")
                 cost = yen and tonumber(yen.Text:match("%d+"))
+                debugPrint("yes ", cost)
                 break
             end
         end
@@ -2357,7 +2362,7 @@ Tabs.Joiner:CreateToggle({ Name="Auto Join Gate", Flag="AutoJoinGate", Callback=
 
 Tabs.Cards:CreateToggle({
     Name     = "Auto Pick Card",
-    Flag     = "AutoPickCard",
+    Flag     = "AutoPickCardSJW",
     Info     = "Automatically picks the highest priority card when offered",
     Callback = function(v) State.AutoPickCardSJW = v end,
 })
