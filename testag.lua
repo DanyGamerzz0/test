@@ -12,16 +12,17 @@ end
 -- ============================================================
 -- CORE SETUP
 -- ============================================================
-local Rayfield = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
-))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local SCRIPT_VERSION = "V0.21"
+local SCRIPT_VERSION = "V0.22"
+getgenv().RAYFIELD_SECURE = true
+getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
     Icon             = 0,
     LoadingTitle     = "Loading for Anime Guardians",
+    ScriptID = "sid_szyjqpi1odob",
     LoadingSubtitle  = SCRIPT_VERSION,
     ShowText         = "LixHub",
     Theme = {
@@ -62,7 +63,7 @@ local Window = Rayfield:CreateWindow({
     DisableBuildWarnings  = true,
     ConfigurationSaving   = { Enabled = true, FolderName = "LixHub", FileName = game:GetService("Players").LocalPlayer.Name .. "_AnimeGuardians" },
     Discord               = { Enabled = true, Invite = "cYKnXE2Nf8", RememberJoins = true },
-    KeySystem             = true,
+    KeySystem             = false,
     KeySettings = {
         Title          = "LixHub - Anime Guardians - Free",
         Subtitle       = "LixHub - Key System",
@@ -86,6 +87,9 @@ local Svc = {
     HttpService      = game:GetService("HttpService"),
     VirtualUser      = game:GetService("VirtualUser"),
     Lighting         = game:GetService("Lighting"),
+    CoreGui = game:GetService("CoreGui"),
+    UserInputService = game:GetService("UserInputService"),
+    TweenService = game:GetService("TweenService"),
 }
 local LP  = Svc.Players.LocalPlayer
 local RS  = Svc.ReplicatedStorage
@@ -3088,6 +3092,130 @@ Rayfield:LoadConfiguration()
 Rayfield:SetVisibility(false)
 
 task.spawn(function()
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "RayfieldToggle"
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	if gethui then
+		screenGui.Parent = gethui()
+	elseif syn and syn.protect_gui then
+		syn.protect_gui(screenGui)
+		screenGui.Parent = Svc.CoreGui
+	elseif Svc.CoreGui:FindFirstChild("RobloxGui") then
+		screenGui.Parent = Svc.CoreGui:FindFirstChild("RobloxGui")
+	else
+		screenGui.Parent = Svc.CoreGui
+	end
+
+	local toggleButton = Instance.new("ImageButton")
+	toggleButton.Name = "ToggleButton"
+	toggleButton.Parent = screenGui
+	toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	toggleButton.BorderSizePixel = 0
+	toggleButton.Position = UDim2.new(0, 50, 0, 50)
+	toggleButton.Size = UDim2.new(0, 50, 0, 50)
+	toggleButton.Image = "rbxassetid://139436994731049"
+	toggleButton.ScaleType = Enum.ScaleType.Fit
+	toggleButton.ImageTransparency = 0
+	toggleButton.BackgroundTransparency = 0
+	toggleButton.ZIndex = 10000
+
+	-- ✂ No `corner` local — parent via second arg, set CornerRadius in one line
+	Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(1, 0)
+
+	local shadow = Instance.new("ImageLabel", toggleButton) -- ✂ No separate .Parent line
+	shadow.Name = "Shadow"
+	shadow.BackgroundTransparency = 1
+	shadow.Position = UDim2.new(0, -15, 0, -15)
+	shadow.Size = UDim2.new(1, 30, 1, 30)
+	shadow.ZIndex = toggleButton.ZIndex - 1
+	shadow.Image = "rbxassetid://6014261993"
+	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	shadow.ImageTransparency = 0.5
+	shadow.ScaleType = Enum.ScaleType.Slice
+	shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+
+	local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+
+	toggleButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = toggleButton.Position
+
+			-- ✂ No `connection` local — disconnect inside Changed directly
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	toggleButton.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	-- ✂ `update()` function eliminated — logic inlined here directly
+	Svc.UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			toggleButton.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + (input.Position.X - dragStart.X),
+				startPos.Y.Scale,
+				startPos.Y.Offset + (input.Position.Y - dragStart.Y)
+			)
+		end
+	end)
+
+	local clickStartPos, clickStartTime = nil, 0
+
+	toggleButton.MouseButton1Down:Connect(function()
+		clickStartPos = toggleButton.Position
+		clickStartTime = tick()
+	end)
+
+	toggleButton.MouseButton1Up:Connect(function()
+		if clickStartPos then
+			-- ✂ No `timeDelta`/`positionDelta`/`moveDistance` locals — all inlined
+			if (tick() - clickStartTime) < 0.2 and
+				math.sqrt(
+					(toggleButton.Position.X.Offset - clickStartPos.X.Offset)^2 +
+					(toggleButton.Position.Y.Offset - clickStartPos.Y.Offset)^2
+				) < 5 then
+					if Rayfield:IsVisible() then
+						Rayfield:SetVisibility(false)
+					else
+						Rayfield:SetVisibility(true)
+					end
+			end
+		end
+		clickStartPos = nil
+	end)
+
+	toggleButton.MouseEnter:Connect(function()
+		Svc.TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+			Size = UDim2.new(0, 55, 0, 55),
+			BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+		}):Play()
+	end)
+
+	toggleButton.MouseLeave:Connect(function()
+		Svc.TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+			Size = UDim2.new(0, 50, 0, 50),
+			BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+		}):Play()
+	end)
+
+	Rayfield.Destroying:Connect(function()
+		screenGui:Destroy()
+	end)
+end)
+
+task.spawn(function()
     task.wait(1.5)
 
     -- Restore ability dropdowns
@@ -3139,11 +3267,3 @@ if not Util.isInLobby() then
         onGameStart()
     end
 end
-
-Rayfield:TopNotify({
-    Title = "UI is hidden",
-    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
-    Image = "eye-off",
-    IconColor = Color3.fromRGB(100, 150, 255),
-    Duration = 5
-})
