@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.16"
+local SCRIPT_VERSION = "V0.17"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -2227,77 +2227,7 @@ Tabs.Joiner:CreateSection("Gate")
 Tabs.Joiner:CreateToggle({ Name="Auto Join Gate", Flag="AutoJoinGate", Callback=function(v) State.AutoJoinGate=v end })
 
 -- ============================================================
--- CARD TAB
--- ============================================================
-
-local cardsModule
-
-if Util.isInLobby() then
-    cardsModule = nil
-else
-    cardsModule = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui", 10):WaitForChild("CardVote", 10):WaitForChild("client", 10):WaitForChild("cards_info", 10)
-end
-
-if not cardsModule then
-    warn("[AutoPickCard] cards_info module not found")
-    Tabs.Cards:CreateLabel("No cards found — join a game first")
-    return
-end
-
-local ok, cardsData = pcall(require, cardsModule)
-if not ok or not cardsData or not cardsData.cards then
-    warn("[AutoPickCard] Failed to require cards_info:", tostring(cardsData))
-    Tabs.Cards:CreateLabel("No cards found — join a game first")
-    return
-end
-
-local CARD_NAMES = {}
-for cardName in pairs(cardsData.cards) do
-    CARD_NAMES[#CARD_NAMES + 1] = cardName
-end
-table.sort(CARD_NAMES)
-debugPrint("[AutoPickCard] Loaded", #CARD_NAMES, "cards from module")
-
-State.CardPriorities = State.CardPriorities or {}
-for _, name in ipairs(CARD_NAMES) do
-    if not State.CardPriorities[name] then
-        State.CardPriorities[name] = 5
-    end
-end
-
-local function pickBestCard(offeredCards)
-    local bestCard, bestPriority = nil, -1
-    for _, cardName in ipairs(offeredCards) do
-        local priority = State.CardPriorities[cardName] or 0
-        debugPrint("[AutoPickCard] Offered:", cardName, "priority:", priority)
-        if priority > bestPriority then
-            bestPriority = priority
-            bestCard = cardName
-        end
-    end
-    return bestCard
-end
-
-local CardVoteEvent = RS.PlayMode.Events:WaitForChild("CardVote", 10)
-if not CardVoteEvent then
-    warn("[AutoPickCard] CardVote event not found — listener not registered")
-    return
-end
-
-CardVoteEvent.OnClientEvent:Connect(function(offeredCards, votingValue, timeLeft)
-    if not State.AutoPickCard then return end
-    task.wait(math.random(10, 30) / 10)
-    local choice = pickBestCard(offeredCards)
-    if choice then
-        debugPrint("[AutoPickCard] Picking:", choice, "(priority:", State.CardPriorities[choice] or 0, ")")
-        CardVoteEvent:FireServer(choice)
-    else
-        debugPrint("[AutoPickCard] No card matched")
-    end
-end)
-
--- ============================================================
--- CARDS TAB UI
+-- CARDS TAB
 -- ============================================================
 
 Tabs.Cards:CreateToggle({
@@ -2309,18 +2239,87 @@ Tabs.Cards:CreateToggle({
 
 Tabs.Cards:CreateDivider()
 
-for i, cardName in ipairs(CARD_NAMES) do
-    local flag = "CardPriority_" .. cardName:gsub("[^%w]", "_")
-    Tabs.Cards:CreateSlider({
-        Name         = cardName,
-        Range        = {0, 50},
-        Increment    = 1,
-        CurrentValue = State.CardPriorities[cardName] or i,
-        Flag         = flag,
-        Callback     = function(v)
-            State.CardPriorities[cardName] = v
-        end,
-    })
+if Util.isInLobby() then
+    Tabs.Cards:CreateLabel("No cards found — join a game first")
+else
+    local ok, result = pcall(function()
+        return LP:WaitForChild("PlayerGui", 10)
+            :WaitForChild("CardVote", 10)
+            :WaitForChild("client", 10)
+            :WaitForChild("cards_info", 10)
+    end)
+
+    local cardsModule = ok and result or nil
+
+    if not cardsModule then
+        warn("[AutoPickCard] cards_info module not found")
+        Tabs.Cards:CreateLabel("No cards found — join a game first")
+    else
+        local ok2, cardsData = pcall(require, cardsModule)
+        if not ok2 or not cardsData or not cardsData.cards then
+            warn("[AutoPickCard] Failed to require cards_info:", tostring(cardsData))
+            Tabs.Cards:CreateLabel("No cards found — join a game first")
+        else
+            local CARD_NAMES = {}
+            for cardName in pairs(cardsData.cards) do
+                CARD_NAMES[#CARD_NAMES + 1] = cardName
+            end
+            table.sort(CARD_NAMES)
+            debugPrint("[AutoPickCard] Loaded", #CARD_NAMES, "cards from module")
+
+            State.CardPriorities = State.CardPriorities or {}
+            for _, name in ipairs(CARD_NAMES) do
+                if not State.CardPriorities[name] then
+                    State.CardPriorities[name] = 5
+                end
+            end
+
+            local function pickBestCard(offeredCards)
+                local bestCard, bestPriority = nil, -1
+                for _, cardName in ipairs(offeredCards) do
+                    local priority = State.CardPriorities[cardName] or 0
+                    debugPrint("[AutoPickCard] Offered:", cardName, "priority:", priority)
+                    if priority > bestPriority then
+                        bestPriority = priority
+                        bestCard = cardName
+                    end
+                end
+                return bestCard
+            end
+
+            local CardVoteEvent = RS.PlayMode.Events:WaitForChild("CardVote", 10)
+            if not CardVoteEvent then
+                warn("[AutoPickCard] CardVote event not found")
+                Tabs.Cards:CreateLabel("No cards found — join a game first")
+            else
+                CardVoteEvent.OnClientEvent:Connect(function(offeredCards)
+                    if not State.AutoPickCard then return end
+                    task.wait(math.random(10, 30) / 10)
+                    local choice = pickBestCard(offeredCards)
+                    if choice then
+                        debugPrint("[AutoPickCard] Picking:", choice, "(priority:", State.CardPriorities[choice] or 0, ")")
+                        CardVoteEvent:FireServer(choice)
+                    else
+                        debugPrint("[AutoPickCard] No card matched")
+                    end
+                end)
+
+                for i, cardName in ipairs(CARD_NAMES) do
+                    local flag = "CardPriority_" .. cardName:gsub("[^%w]", "_")
+                    Tabs.Cards:CreateSlider({
+                        Name         = cardName,
+                        Range        = {0, 50},
+                        Increment    = 1,
+                        CurrentValue = State.CardPriorities[cardName] or i,
+                        Flag         = flag,
+                        Callback     = function(v)
+                            State.CardPriorities[cardName] = v
+                        end,
+                    })
+                end
+            end
+        end
+    end
 end
 
 -- ============================================================
