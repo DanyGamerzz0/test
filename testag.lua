@@ -433,7 +433,7 @@ local Macro = {
     abilityQueue = {},
     statusLabel  = nil,
     detailLabel  = nil,
-    Macro.modifierMapping = {}
+    modifierMapping = {}
 }
 
 function Macro.setStatus(msg)
