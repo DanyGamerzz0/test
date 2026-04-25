@@ -16,7 +16,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua"
 ))()
 
-local SCRIPT_VERSION = "V0.19"
+local SCRIPT_VERSION = "V0.2"
 
 local Window = Rayfield:CreateWindow({
     Name             = "LixHub - Anime Guardians",
@@ -614,6 +614,17 @@ function Macro.onModifierPurchase(modifierName, result)
     debugPrint("[Macro] Recorded modifier purchase:", modifierName, "t=" .. t)
 end
 
+function Macro.onPersonalUpgrade(upgradeName)
+    if not Macro.isRecording or not Macro.hasStarted then return end
+    local t = tick() - State.gameStartTime
+    table.insert(Macro.actions, {
+        Type        = "personal_upgrade",
+        UpgradeName = upgradeName,
+        Time        = string.format("%.2f", t),
+    })
+    debugPrint("[Macro] Recorded personal upgrade:", upgradeName, "t=" .. t)
+end
+
 function Macro.onSkipWave()
     if not Macro.isRecording or not Macro.hasStarted then return end
     local t = tick() - State.gameStartTime
@@ -760,6 +771,47 @@ function Macro.execModifier(action, idx, total)
     return true
 end
 
+function Macro.execPersonalUpgrade(action, idx, total)
+    local upgradeName = action.UpgradeName
+    if not upgradeName then return false end
+
+    -- Get cost from workspace upgrade folder
+    local upgradeFolder = Svc.Workspace:FindFirstChild("personal_upgrades")
+    local upgradeEntry  = upgradeFolder and upgradeFolder:FindFirstChild(upgradeName)
+
+    if upgradeEntry then
+        local priceVal      = upgradeEntry:FindFirstChild("price")
+        local stepMulVal    = upgradeEntry:FindFirstChild("price_step_multiplier")
+        local playersFolder = upgradeEntry:FindFirstChild("players")
+        local playerEntry   = playersFolder and playersFolder:FindFirstChild(LP.Name)
+        local upgradeIndex  = playerEntry and playerEntry:FindFirstChild("upgrade_index")
+        local currentIndex  = upgradeIndex and upgradeIndex.Value or 0
+
+        if priceVal and stepMulVal then
+            local cost = math.floor(priceVal.Value * stepMulVal.Value ^ currentIndex)
+            if not Macro.waitForMoney(cost, "personal upgrade: " .. upgradeName) then return false end
+        end
+
+        -- Check if already maxed
+        local maxUpgrade = upgradeEntry:FindFirstChild("max_upgrade")
+        if maxUpgrade and currentIndex >= maxUpgrade.Value then
+            debugPrint("[Macro.execPersonalUpgrade] Already maxed:", upgradeName)
+            return true
+        end
+    end
+
+    Macro.setDetail("Personal upgrade: " .. upgradeName .. " (" .. idx .. "/" .. total .. ")")
+
+    pcall(function()
+        RS.PlayMode.Events.personal_upgrade:FireServer(upgradeName)
+    end)
+
+    task.wait(0.3)
+    Macro.setDetail("✓ Personal upgrade: " .. upgradeName)
+    debugPrint("[Macro.execPersonalUpgrade] Fired:", upgradeName)
+    return true
+end
+
 function Macro.scheduleTimedAction(action, targetTime)
     table.insert(Macro.abilityQueue, { action = action, targetTime = targetTime })
 end
@@ -828,6 +880,7 @@ function Macro.playOnce()
         elseif action.Type == "upgrade" then Macro.execUpgrade(action, i, total)
         elseif action.Type == "sell"    then Macro.execSell   (action, i, total)
         elseif action.Type == "modifier" then Macro.execModifier(action, i, total)
+        elseif action.Type == "personal_upgrade" then Macro.execPersonalUpgrade(action, i, total)
         end
         task.wait(0.1)
     end
@@ -1660,6 +1713,8 @@ do
                 Macro.onSkipWave()
             elseif method == "InvokeServer" and self.Name == "ModifierShop" and args[1] then
                 Macro.onModifierPurchase(args[1], result)
+            elseif method == "FireServer" and self.Name == "personal_upgrade" and args[1] then
+                Macro.onPersonalUpgrade(args[1])
             end
         end
 
