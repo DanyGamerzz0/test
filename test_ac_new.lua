@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.31"
+local script_version = "V0.32"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3950,14 +3950,9 @@ end
 
 task.spawn(AutoJoin.setupCardSelectionMonitoring)
 
-    -- ══════════════════════════════════════════════
-    -- TAB: AUTO DUNGEON
-    -- ══════════════════════════════════════════════
-    local DungeonTab = Window:CreateTab("Expedition", "swords")
+    AutoJoinTab:CreateSection("Auto Join Expedition")
 
-    DungeonTab:CreateSection("Expedition")
-
-    DungeonTab:CreateDropdown({
+    AutoJoinTab:CreateDropdown({
         Name            = "Expedition Mode",
         Options         = { "Roguelike", "Normal" },
         CurrentOption   = { "Roguelike" },
@@ -3969,7 +3964,7 @@ task.spawn(AutoJoin.setupCardSelectionMonitoring)
         end,
     })
 
-    DungeonTab:CreateToggle({
+    AutoJoinTab:CreateToggle({
         Name         = "Auto Expedition",
         CurrentValue = false,
         Flag         = "AutoDungeonToggle",
@@ -3986,7 +3981,7 @@ task.spawn(AutoJoin.setupCardSelectionMonitoring)
         end,
     })
 
-    DungeonTab:CreateToggle({
+    AutoJoinTab:CreateToggle({
         Name         = "Auto Next Expedition",
         CurrentValue = false,
         Flag         = "AutoNextExpedition",
@@ -3995,7 +3990,7 @@ task.spawn(AutoJoin.setupCardSelectionMonitoring)
         end,
     })
 
-    DungeonTab:CreateToggle({
+    AutoJoinTab:CreateToggle({
         Name         = "Auto Reset Expedition on Completion",
         CurrentValue = false,
         Flag         = "AutoResetExpeditionOnCompletion",
@@ -4006,7 +4001,7 @@ task.spawn(AutoJoin.setupCardSelectionMonitoring)
         end,
     })
 
-    DungeonTab:CreateSlider({
+    AutoJoinTab:CreateSlider({
         Name         = "Reset After X Rooms",
         Range        = { 0, 50 },
         Increment    = 1,
