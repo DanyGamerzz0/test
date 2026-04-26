@@ -1,6 +1,6 @@
-local DEBUG = false
+local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.21"
+local script_version = "V0.22"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -127,6 +127,14 @@ local Webhook = {
     gameResult       = "Unknown",
     newUnitsThisGame = {},
     itemNameCache    = {},
+}
+
+local loadingRetries = {
+    story = 0,
+    legend = 0,
+    raid = 0,
+    ignoreWorlds = 0,
+    portal = 0
 }
 
 -- ============================================================
@@ -2655,6 +2663,99 @@ function Macro.play()
     return true
 end
 
+function AutoJoin.isGameDataLoaded()
+    local d = Services.ReplicatedStorage:FindFirstChild("Framework") and Services.ReplicatedStorage.Framework:FindFirstChild("Data")
+    return d and d:FindFirstChild("WorldLevelOrder") and d:FindFirstChild("Worlds")
+end
+
+function AutoJoin.getBackendWorldKeyFromDisplayName(selectedDisplayName)
+    local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+    local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+
+    if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.WORLD_ORDER then return nil end
+
+    for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
+        for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+            if worldModule:IsA("ModuleScript") then
+                local ok, worldData = pcall(require, worldModule)
+                if ok and worldData and worldData[orderedWorldKey] then
+                    local worldInfo = worldData[orderedWorldKey]
+                    if type(worldInfo) == "table" and worldInfo.name == selectedDisplayName then
+                        return orderedWorldKey
+                    end
+                    break
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+function AutoJoin.loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
+    local retryKey = stageType:lower()
+    loadingRetries[retryKey] = (loadingRetries[retryKey] or 0) + 1
+
+    local function retry(reason)
+        if loadingRetries[retryKey] <= 10 then
+            print(string.format("%s stages loading failed (attempt %d/%d)%s - retrying...",
+                stageType, loadingRetries[retryKey], 10, reason and (": " .. reason) or " - game data not ready"))
+            task.wait(2)
+            task.spawn(AutoJoin.loadStagesWithRetry, stageType, dropdown, getBackendKeyFunc)
+        else
+            warn(string.format("Failed to load %s stages after %d attempts%s",
+                stageType, 10, reason and (": " .. reason) or " - giving up"))
+            dropdown:Refresh({"Failed to load - check console"})
+        end
+    end
+
+    if not AutoJoin.isGameDataLoaded() then return retry() end
+
+    local worldOrderKeys = {Story = "WORLD_ORDER", Legend = "LEGEND_WORLD_ORDER", Raid = "RAID_WORLD_ORDER"}
+    local validChecks = {
+        Story  = function(w) return w.name end,
+        Legend = function(w) return w.name and w.legend_stage end,
+        Raid   = function(w) return w.name and w.raid_world end,
+    }
+
+    local ok, result = pcall(function()
+        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        local worldOrder = WorldLevelOrder[worldOrderKeys[stageType] or error("Unknown stage type: " .. stageType)]
+
+        if not worldOrder then error(stageType:upper() .. "_WORLD_ORDER not found") end
+
+        local displayNames, addedWorlds = {}, {}
+
+        for _, orderedWorldKey in ipairs(worldOrder) do
+            for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+                if worldModule:IsA("ModuleScript") then
+                    local mok, worldData = pcall(require, worldModule)
+                    if mok and worldData and worldData[orderedWorldKey] then
+                        local worldInfo = worldData[orderedWorldKey]
+                        if type(worldInfo) == "table" and validChecks[stageType](worldInfo) and not addedWorlds[orderedWorldKey] then
+                            table.insert(displayNames, worldInfo.name)
+                            addedWorlds[orderedWorldKey] = true
+                            print(string.format("Loaded %s stage: %s -> backend key: %s", stageType, worldInfo.name, orderedWorldKey))
+                        end
+                        break
+                    end
+                end
+            end
+        end
+
+        if #displayNames == 0 then error("No " .. stageType .. " stages found") end
+        return displayNames
+    end)
+
+    if ok and result and #result > 0 then
+        dropdown:Refresh(result)
+        print(string.format("Successfully loaded %d %s stages (attempt %d)", #result, stageType, loadingRetries[retryKey]))
+    else
+        retry(tostring(result))
+    end
+end
+
 -- ============================================================
 -- MAIN INITIALIZATION
 -- ============================================================
@@ -2743,7 +2844,69 @@ local function initialize()
 -- ══════════════════════════════════════════════
     -- TAB: AUTO JOIN
     -- ══════════════════════════════════════════════
+
     local AutoJoinTab = Window:CreateTab("Auto Join", "log-in")
+
+AutoJoinTab:CreateSection("Story Joiner")
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Join Story",
+    CurrentValue = false,
+    Flag = "AutoJoinStory",
+    Callback = function(Value)
+        State.AutoJoinStory = Value
+    end,
+})
+
+local StoryStageDropdown = AutoJoinTab:CreateDropdown({
+    Name = "Select Story Stage",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StageStorySelector",
+    Callback = function(Option)
+        if not AutoJoin.isGameDataLoaded() then
+            warn("Game data not loaded yet, ignoring story stage selection")
+            return
+        end
+
+        local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, type(Option) == "table" and Option[1] or type(Option) == "string" and Option or nil)
+        if ok and key then
+            State.StoryStageSelected = key
+            print("Selected story stage:", type(Option) == "table" and Option[1] or Option, "-> Stored backend key:", key)
+        else
+            warn("Failed to get backend world key for story stage:", type(Option) == "table" and Option[1] or Option)
+            if not ok then warn("Error:", key) end
+        end
+    end,
+})
+
+ChapterDropdown869 = AutoJoinTab:CreateDropdown({
+    Name = "Select Story Act",
+    Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryActSelector",
+    Callback = function(Option)
+        if (type(Option) == "table" and Option[1] or Option) == "Infinite" then
+            State.StoryActSelected = "infinite"
+        else
+            State.StoryActSelected = tonumber((type(Option) == "table" and Option[1] or Option):match("%d+"))
+        end
+        print("Selected story act:", State.StoryActSelected)
+    end,
+})
+
+ChapterDropdown = AutoJoinTab:CreateDropdown({
+    Name = "Select Story Difficulty",
+    Options = {"Normal", "Hard"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "StoryDifficultySelector",
+    Callback = function(Option)
+        State.StoryDifficultySelected = (type(Option) == "table" and Option[1] or Option)
+    end,
+})
 
     AutoJoinTab:CreateSection("Contract Joiner")
 
@@ -4090,6 +4253,7 @@ end)
     setupRemoteConnections()
     if not Util.isInLobby() then monitorWaves() end
     _G.Rayfield:LoadConfiguration()
+    task.spawn(function() loadStagesWithRetry("Story", StoryStageDropdown, getBackendWorldKeyFromDisplayName) end)
 end
 
 initialize()
