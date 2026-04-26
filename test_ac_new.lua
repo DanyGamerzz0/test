@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.29"
+local script_version = "V0.3"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -79,6 +79,9 @@ local State = {
     SelectedBossRush                = "Chainsaw Boss Rush",
     AutoJoinBossRushSelectionMode   = false, -- false = traits, true = traitless
 
+    -- Frog Hunt
+    AutoJoinFrogHunt = false,
+
     -- Retry config
     AutoRetryAttempts               = 3,
     AutoRetryDelay                  = 2,
@@ -131,19 +134,20 @@ local State = {
     RaidActSelected                 = nil,
     AutoMatchmakeRaidStage          = false,
 
-    -- Samurai Hunt
-    AutoJoinSamuraiHunt             = false,
-    AutoMatchmakeSamuraiHunt        = false,
-
     -- Infinity Castle
     AutoJoinInfinityCastle          = false,
     AutoJoinInfinityCastleSelectionMode = false,
+    AutoNextInfinityCastle = false,
 
     -- Contracts
     AutoJoinContracts               = false,
     SelectedContractType            = {},
     IgnoreContractModifiers         = {},
     AutoNextContract                = false,
+
+    -- Cards
+    CardPriority = {["Enemy Shield"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Health"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Enemy Speed"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Damage"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Cooldown"] = {tier1 = 0, tier2 = 0, tier3 = 0},["Range"] = {tier1 = 0, tier2 = 0, tier3 = 0}},
+    AutoSelectCard = false,
 }
 
 local Webhook = {
@@ -2943,25 +2947,19 @@ local function checkAndExecuteHighestPriority()
         return
     end
 
-    -- SAMURAI HUNT
-    if State.AutoJoinSamuraiHunt then
-        AutoJoin.setProcessingState("Samurai Hunt Auto Join")
-        local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
-        if State.AutoMatchmakeSamuraiHunt then
-            ep:WaitForChild("request_matchmaking"):InvokeServer("_CHRISTMAS")
-        else
-            ep:WaitForChild("request_join_lobby"):InvokeServer("_CHRISTMAS")
-            ep:WaitForChild("request_start_game"):InvokeServer("_CHRISTMAS")
-        end
-        task.delay(5, AutoJoin.clearProcessingState)
-        return
-    end
-
     -- INFINITY CASTLE
     if State.AutoJoinInfinityCastle then
         AutoJoin.setProcessingState("Infinity Castle Auto Join")
         local roomNumber = tonumber(Services.Players.LocalPlayer.PlayerGui.InfinityCastle.Main.Frame.core.Room.Text:match("%d+"))
         Services.ReplicatedStorage.endpoints.client_to_server.request_start_infinite_tower:InvokeServer(roomNumber, "Normal", State.AutoJoinInfinityCastleSelectionMode)
+        task.delay(5, AutoJoin.clearProcessingState)
+        return
+    end
+
+        if State.AutoJoinFrogHunt then
+        AutoJoin.setProcessingState("Frog Hunt Auto Join")
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_join_lobby"):InvokeServer("_CHRISTMAS")
+        game:GetService("ReplicatedStorage"):WaitForChild("endpoints"):WaitForChild("client_to_server"):WaitForChild("request_start_game"):InvokeServer("_CHRISTMAS")
         task.delay(5, AutoJoin.clearProcessingState)
         return
     end
@@ -3468,6 +3466,79 @@ AutoJoinTab:CreateDropdown({
     end,
 })
 
+AutoJoinTab:CreateSection("Infinity Castle Joiner")
+
+   AutoJoinTab:CreateToggle({
+   Name = "Auto Join Infinity Castle",
+   CurrentValue = false,
+   Flag = "AutoJoinInfinityCastle",
+   Callback = function(Value)
+        State.AutoJoinInfinityCastle = Value
+   end,
+})
+
+   AutoJoinTab:CreateToggle({
+   Name = "Traits Disabled Mode",
+   CurrentValue = false,
+   Flag = "AutoJoinInfinityCastleSelectionMode",
+   Callback = function(Value)
+        State.AutoJoinInfinityCastleSelectionMode = Value
+   end,
+})
+
+    AutoJoinTab:CreateToggle({
+    Name = "Auto Next Infinity Castle",
+    CurrentValue = false,
+    Flag = "AutoNextInfinityCastle",
+    Info = "Automatically clicks 'Next' button after completing Infinity Castle stage",
+    Callback = function(Value)
+        State.AutoNextInfinityCastle = Value
+    end,
+})  
+
+AutoJoinTab:CreateSection("Boss Rush Joiner")
+
+AutoJoinTab:CreateToggle({
+   Name = "Auto Join Boss Rush",
+   CurrentValue = false,
+   Flag = "AutoJoinBossRush",
+   Callback = function(Value)
+        State.AutoJoinBossRush = Value
+   end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name = "Select Boss Rush",
+    Options = {"Chainsaw Boss Rush", "Aizen Boss Rush"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "BossRushSelectorDropdown",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+        State.SelectedBossRush = selectedOption
+    end,
+})
+
+AutoJoinTab:CreateToggle({
+   Name = "Traits Disabled Mode",
+   CurrentValue = false,
+   Flag = "AutoJoinBossRushSelectionMode",
+   Callback = function(Value)
+        State.AutoJoinBossRushSelectionMode = Value
+   end,
+})
+
+    AutoJoinTab:CreateSection("Event Joiner")
+
+    AutoJoinTab:CreateToggle({
+        Name         = "Auto Join Frog Hunt",
+        CurrentValue = false,
+        Flag         = "AutoJoinFrogHunt",
+        Callback     = function(Value)
+            State.AutoJoinFrogHunt = Value
+        end,
+    })
+
     AutoJoinTab:CreateSection("Contract Joiner")
 
     AutoJoinTab:CreateToggle({
@@ -3531,6 +3602,353 @@ AutoJoinTab:CreateDropdown({
             State.AutoNextContract = Value
         end,
     })
+
+    local CardPriorityTab = Window:CreateTab("Auto Pick Card", "card")
+
+    CardPriorityTab:CreateToggle({
+    Name = "Auto Select Card",
+    CurrentValue = false,
+    Flag = "AutoSelectCard",
+    Info = "Automatically select cards based on your priority settings below. Avoid setting multiple sliders to the same value",
+    Callback = function(Value)
+        State.AutoSelectCard = Value
+    end,
+})
+
+-- Enemy Shield Section (instead of Collapsible)
+CardPriorityTab:CreateSection("Enemy Shield Priority")
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Shield Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyShieldT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Shield"].tier1 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Shield Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyShieldT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Shield"].tier2 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Shield Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyShieldT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Shield"].tier3 = Value
+    end,
+})
+
+CardPriorityTab:CreateSection("Enemy Health Priority")
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Health Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyHealthT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Health"].tier1 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Health Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyHealthT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Health"].tier2 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Health Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemyHealthT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Health"].tier3 = Value
+    end,
+})
+
+-- Enemy Speed Section
+CardPriorityTab:CreateSection("Enemy Speed Priority")
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Speed Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemySpeedT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Speed"].tier1 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Speed Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemySpeedT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Speed"].tier2 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Enemy Speed Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "EnemySpeedT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Enemy Speed"].tier3 = Value
+    end,
+})
+
+-- Damage Section
+CardPriorityTab:CreateSection("Damage Priority")
+
+CardPriorityTab:CreateSlider({
+    Name = "Damage Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "DamageT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Damage"].tier1 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Damage Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "DamageT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Damage"].tier2 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Damage Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "DamageT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Damage"].tier3 = Value
+    end,
+})
+
+-- Cooldown Section
+CardPriorityTab:CreateSection("Cooldown Priority")
+
+CardPriorityTab:CreateSlider({
+    Name = "Cooldown Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "CooldownT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Cooldown"].tier1 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Cooldown Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "CooldownT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Cooldown"].tier2 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Cooldown Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "CooldownT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Cooldown"].tier3 = Value
+    end,
+})
+
+-- Range Section
+CardPriorityTab:CreateSection("Range Priority")
+
+CardPriorityTab:CreateSlider({
+    Name = "Range Tier 1",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "RangeT1Priority",
+    Callback = function(Value)
+        State.CardPriority["Range"].tier1 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Range Tier 2",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "RangeT2Priority",
+    Callback = function(Value)
+        State.CardPriority["Range"].tier2 = Value
+    end,
+})
+
+CardPriorityTab:CreateSlider({
+    Name = "Range Tier 3",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 0,
+    Flag = "RangeT3Priority",
+    Callback = function(Value)
+        State.CardPriority["Range"].tier3 = Value
+    end,
+})
+
+function AutoJoin.fireConnections(button)
+    for _, event in ipairs({"MouseButton1Click", "Activated", "MouseButton1Down"}) do
+        for _, c in pairs(getconnections(button[event])) do c:Fire() end
+    end
+    task.wait(0.05)
+    for _, c in pairs(getconnections(button.MouseButton1Up)) do c:Fire() end
+end
+
+function AutoJoin.getCardButtons()
+    local promptGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt")
+    if not promptGui then return nil end
+    local ok, buttons = pcall(function() return promptGui:GetChildren()[2]:GetChildren()[4]:GetChildren() end)
+    if not ok or not buttons then return nil end
+    local cardButtons = {}
+    for _, child in ipairs(buttons) do
+        if child:IsA("GuiButton") or child:IsA("TextButton") or child:IsA("ImageButton") then
+            table.insert(cardButtons, child)
+        end
+    end
+    return cardButtons
+end
+
+function AutoJoin.calculateCardScore(card)
+    if not card.Effects then return 0 end
+    local typePatterns = {"Enemy Shield", "Enemy Health", "Enemy Speed", "Damage", "Cooldown", "Range"}
+    local tierPatterns = {"Tier 1", "Tier 2", "Tier 3"}
+    local tierKeys = {"tier1", "tier2", "tier3"}
+    local totalScore = 0
+    for _, effect in ipairs(card.Effects) do
+        local effectName = effect.Name or ""
+        for _, cardType in ipairs(typePatterns) do
+            if effectName:find(cardType) and State.CardPriority[cardType] then
+                for i, tierPattern in ipairs(tierPatterns) do
+                    if effectName:find(tierPattern) then
+                        totalScore += State.CardPriority[cardType][tierKeys[i]] or 0
+                        break
+                    end
+                end
+                break
+            end
+        end
+    end
+    return totalScore
+end
+
+function AutoJoin.selectBestCard(cardData)
+    local bestIndex, bestScore = 1, AutoJoin.calculateCardScore(cardData[1])
+    for i = 2, #cardData do
+        local score = AutoJoin.calculateCardScore(cardData[i])
+        if score > bestScore then bestScore, bestIndex = score, i end
+    end
+    return bestIndex, bestScore
+end
+
+function AutoJoin.autoSelectCard(cardData)
+    if not cardData or #cardData == 0 then return false end
+    local bestIndex, score = AutoJoin.selectBestCard(cardData)
+    local buttons = AutoJoin.getCardButtons()
+    if not buttons or not buttons[bestIndex] then return false end
+
+    local ok = pcall(AutoJoin.fireConnections, buttons[bestIndex])
+    if not ok then return false end
+
+    local selectedCard = cardData[bestIndex]
+    local effectsText = ""
+    if selectedCard.Effects then
+        for i, effect in ipairs(selectedCard.Effects) do
+            effectsText = effect.Description .. (i < #selectedCard.Effects and ", " or "")
+        end
+    end
+
+    notify("Card Selected", string.format("%s (Score: %d)\n%s", selectedCard.CardName, score, effectsText:sub(1, 80)))
+
+    local promptGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt")
+    if promptGui then
+        local ok2, confirmButton = pcall(function() return promptGui:GetChildren()[2]:GetChildren()[5].Template end)
+        if ok2 and confirmButton then
+            AutoJoin.fireConnections(confirmButton)
+            print("Successfully clicked confirm button after card selection")
+        end
+    end
+
+    return true
+end
+
+function AutoJoin.setupCardSelectionMonitoring()
+    Services.ReplicatedStorage:WaitForChild("endpoints")
+        :WaitForChild("server_to_client")
+        :WaitForChild("Cards").OnClientEvent:Connect(function(action, cardData)
+        if action == "StartSelection" and State.AutoSelectCard then
+            task.spawn(function()
+                task.wait(0.1)
+                if Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt") then
+                    AutoJoin.autoSelectCard(cardData)
+                end
+            end)
+        end
+    end)
+end
+
+task.spawn(AutoJoin.setupCardSelectionMonitoring)
 
     -- ══════════════════════════════════════════════
     -- TAB: AUTO DUNGEON
