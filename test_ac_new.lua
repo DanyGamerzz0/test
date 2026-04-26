@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.26"
+local script_version = "V0.27"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -4564,6 +4564,8 @@ end)
     if not Util.isInLobby() then monitorWaves() end
     _G.Rayfield:LoadConfiguration()
     task.spawn(function() AutoJoin.loadStagesWithRetry("Story", StoryStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
+    task.spawn(function() AutoJoin.loadStagesWithRetry("Legend", LegendStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
+    task.spawn(function() AutoJoin.loadStagesWithRetry("Raid", RaidStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
 end
 
 initialize()
