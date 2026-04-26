@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.23"
+local script_version = "V0.24"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -829,94 +829,6 @@ function AutoJoin.joinStage()
     AutoJoin.clearProcessingState()
     return success and "success" or "failed"
 end
-
--- ── Challenge helpers ────────────────────────────────────────
-
-function AutoJoin.getChallengeData()
-    local result = nil
-    pcall(function()
-        result = Services.ReplicatedStorage
-            :WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-            :WaitForChild("get_challenge_data")
-            :InvokeServer()
-    end)
-    return result
-end
-
-function AutoJoin.getDailyChallengeData()
-    local result = nil
-    pcall(function()
-        result = Services.ReplicatedStorage
-            :WaitForChild("endpoints")
-            :WaitForChild("client_to_server")
-            :WaitForChild("get_daily_challenge_data")
-            :InvokeServer()
-    end)
-    return result
-end
-
-function AutoJoin.checkChallengeRewards(challengeData)
-    if not challengeData or not challengeData.rewards then return true end
-    if not State.ChallengeRewardFilters or #State.ChallengeRewardFilters == 0 then return true end
-    for _, reward in ipairs(challengeData.rewards) do
-        local rewardId = type(reward) == "table" and (reward.id or reward.type) or tostring(reward)
-        for _, filter in ipairs(State.ChallengeRewardFilters) do
-            if rewardId:lower():find(filter:lower()) then return true end
-        end
-    end
-    return false
-end
-
-function AutoJoin.checkIgnoreWorlds(challengeData)
-    if not challengeData or not State.IgnoreChallengeWorlds or #State.IgnoreChallengeWorlds == 0 then return false end
-    local worldId = challengeData.world_id or challengeData.worldId or ""
-    for _, ignored in ipairs(State.IgnoreChallengeWorlds) do
-        if worldId:lower():find(ignored:lower()) then return true end
-    end
-    return false
-end
-
-function AutoJoin.joinChallenge()
-    if not AutoJoin.canPerformAction() then return "cooldown" end
-    local data = AutoJoin.getChallengeData()
-    if not data then return "no_data" end
-    if AutoJoin.checkIgnoreWorlds(data) then return "skipped" end
-    if not AutoJoin.checkChallengeRewards(data) then return "skipped" end
-
-    AutoJoin.setProcessingState("Challenge")
-    local endpoints = Services.ReplicatedStorage
-        :WaitForChild("endpoints")
-        :WaitForChild("client_to_server")
-    local success = pcall(function()
-        endpoints:WaitForChild("request_join_lobby"):InvokeServer("ChallengePod1")
-        task.wait(0.5)
-        endpoints:WaitForChild("request_start_game"):InvokeServer("ChallengePod1")
-    end)
-    task.wait(1)
-    AutoJoin.clearProcessingState()
-    return success and "success" or "failed"
-end
-
-function AutoJoin.joinDailyChallenge()
-    if not AutoJoin.canPerformAction() then return "cooldown" end
-    local data = AutoJoin.getDailyChallengeData()
-    if not data then return "no_data" end
-
-    AutoJoin.setProcessingState("Daily Challenge")
-    local endpoints = Services.ReplicatedStorage
-        :WaitForChild("endpoints")
-        :WaitForChild("client_to_server")
-    local success = pcall(function()
-        endpoints:WaitForChild("request_join_lobby"):InvokeServer("DailyChallengePod1")
-        task.wait(0.5)
-        endpoints:WaitForChild("request_start_game"):InvokeServer("DailyChallengePod1")
-    end)
-    task.wait(1)
-    AutoJoin.clearProcessingState()
-    return success and "success" or "failed"
-end
-
 -- ── Portal helpers ───────────────────────────────────────────
 
 function AutoJoin.getOwnedPortals()
@@ -1021,71 +933,6 @@ function AutoJoin.joinInfinityCastle()
     task.wait(1)
     AutoJoin.clearProcessingState()
     return success and "success" or "failed"
-end
-
--- ── Priority loop ────────────────────────────────────────────
-
-function AutoJoin.checkAndExecuteHighestPriority()
-    if not Util.isInLobby()        then return end
-    if GameTracking.gameInProgress  then return end
-    if not AutoJoin.canPerformAction() then return end
-
-    -- Auto Next Expedition re-trigger
-    if State.AutoJoinExpedition and not Dungeon.isRunning then
-        Dungeon.run()
-        return
-    end
-
-    -- 1. Daily Challenge
-    if State.AutoJoinDailyChallenge then
-        local result = AutoJoin.joinDailyChallenge()
-        if result == "success" then return end
-    end
-
-    -- 2. Normal Challenge
-    if State.AutoJoinChallenge then
-        local result = AutoJoin.joinChallenge()
-        if result == "success" then return end
-    end
-
-    -- 3. Portal
-    if State.SelectedPortalId then
-        local result = AutoJoin.joinPortal(State.SelectedPortalId)
-        if result == "success" then return end
-    end
-
-    -- 4. Boss Rush
-    if State.AutoJoinBossRush then
-        local result = AutoJoin.joinBossRush()
-        if result == "success" then return end
-    end
-
-    -- 5. Samurai Hunt
-    if State.AutoJoinSamuraiHunt then
-        local result = AutoJoin.joinSamuraiHunt()
-        if result == "success" then return end
-    end
-
-    -- 6. Infinity Castle
-    if State.AutoJoinInfinitycastle then
-        local result = AutoJoin.joinInfinityCastle()
-        if result == "success" then return end
-    end
-
-    -- 7. Story / Legend / Raid
-    if State.AutoJoinEnabled and State.SelectedWorld ~= "" and State.SelectedStage ~= "" then
-        AutoJoin.joinStage()
-    end
-end
-
--- Loop (starts when initialize() is called)
-function AutoJoin.startLoop()
-    task.spawn(function()
-        while true do
-            task.wait(3)
-            pcall(AutoJoin.checkAndExecuteHighestPriority)
-        end
-    end)
 end
 
 -- ============================================================
@@ -2756,6 +2603,385 @@ function AutoJoin.loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
     end
 end
 
+function AutoJoin.getWorldNameFromLevelId(levelId)
+    if not levelId then return nil end
+
+    local ok, worldName = pcall(function()
+        local LevelsFolder = Services.ReplicatedStorage.Framework.Data.Levels
+        if not LevelsFolder then return nil end
+
+        for _, levelModule in ipairs(LevelsFolder:GetDescendants()) do
+            if levelModule:IsA("ModuleScript") then
+                local mok, levelData = pcall(require, levelModule)
+                if mok and type(levelData) == "table" then
+                    for _, levelInfo in pairs(levelData) do
+                        if type(levelInfo) == "table" and levelInfo.id == levelId then
+                            if levelInfo.world then
+                                for _, worldModule in ipairs(Services.ReplicatedStorage.Framework.Data.Worlds:GetChildren()) do
+                                    if worldModule:IsA("ModuleScript") then
+                                        local wok, worldData = pcall(require, worldModule)
+                                        if wok and worldData and worldData[levelInfo.world] and worldData[levelInfo.world].name then
+                                            print(string.format("Found world for level %s: %s (display: %s)", levelId, levelInfo.world, worldData[levelInfo.world].name))
+                                            return worldData[levelInfo.world].name
+                                        end
+                                    end
+                                end
+                                print(string.format("Found world key for level %s: %s (no display name)", levelId, levelInfo.world))
+                                return levelInfo.world
+                            end
+                            local worldFromId = levelId:match("^([^_]+)")
+                            if worldFromId then
+                                print(string.format("Extracted world from level ID %s: %s", levelId, worldFromId))
+                                return worldFromId
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    if ok and worldName then return worldName end
+    warn("Could not determine world name for level ID:", levelId)
+end
+
+function AutoJoin.fetchChallengeData(endpointName, label)
+    local ok, data = pcall(function()
+        return Services.ReplicatedStorage:WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild(endpointName):InvokeServer()
+    end)
+    if ok and data then
+        print(label .. " data retrieved:", data.current_challenge, "Level:", data.current_level_id, data.current_uuid and ("UUID: " .. data.current_uuid) or "")
+        return data
+    end
+    print("Failed to get " .. label .. " data or none available")
+end
+
+function AutoJoin.getDailyChallengeData() return AutoJoin.fetchChallengeData("get_daily_challenge", "Daily challenge") end
+function AutoJoin.getChallengeData()      return AutoJoin.fetchChallengeData("get_normal_challenge", "Challenge") end
+
+function AutoJoin.checkIgnoreWorlds(challengeData, isDaily)
+    if not challengeData or #State.IgnoreWorlds == 0 then return false end
+
+    local levelId = challengeData.current_level_id or ""
+    local worldName = AutoJoin.getWorldNameFromLevelId(levelId)
+
+    if not worldName then
+        print("Could not determine world name for level ID:", levelId)
+        return false
+    end
+
+    print((isDaily and "Daily c" or "C") .. "hallenge is from world:", worldName, "(Level ID:", levelId .. ")")
+
+    local worldLower = string.lower(worldName)
+    for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
+        if worldLower == string.lower(ignoredWorld) then
+            print("Ignoring " .. (isDaily and "daily " or "") .. "challenge based on world filter:", ignoredWorld)
+            return true
+        end
+    end
+
+    return false
+end
+
+local rewardMappingsCache = {}
+
+function AutoJoin.getItemIdFromDisplayName(displayName)
+    local ok, itemId = pcall(function()
+        for _, itemData in pairs(require(Services.ReplicatedStorage.Framework.Data.Items.Items_Release)) do
+            if type(itemData) == "table" and itemData.name == displayName then
+                return itemData.id
+            end
+        end
+    end)
+    return ok and itemId or nil
+end
+
+function AutoJoin.buildRewardMappingsCache()
+    if next(rewardMappingsCache) then return end
+
+    rewardMappingsCache = {
+        ["gems"] = {"gems"}, ["xp"] = {"exp"}, ["gold"] = {"gold"},
+        ["trait crystals"] = {"traitcrystal"}, ["evolution crystals"] = {"evolutioncrystal"},
+        ["summon tickets"] = {"summonticket"}, ["legendary summon tickets"] = {"legendaryticket"},
+        ["rerolls"] = {"star_remnant"}, ["perfect stat cube"] = {"reroll_stat_specific"},
+        ["stat cube"] = {"reroll_stat_all"}, ["capsules"] = {"capsule"},
+        ["units"] = {"unit"}, ["crates"] = {"crate"}, ["boosters"] = {"booster"}
+    }
+
+    for _, stoneName in ipairs({"Air Stone","Earth Stone","Fire Stone","Fear Stone","Water Stone","Divine Stone"}) do
+        local itemId = AutoJoin.getItemIdFromDisplayName(stoneName)
+        if itemId then
+            rewardMappingsCache[string.lower(stoneName)] = {itemId}
+            print("Mapped stone:", stoneName, "->", itemId)
+        else
+            warn("Could not find item ID for stone:", stoneName)
+        end
+    end
+end
+
+function AutoJoin.checkChallengeRewards(challengeData)
+    if not challengeData or not challengeData._show_rewards or #State.ChallengeRewardsFilter == 0 then return true end
+
+    AutoJoin.buildRewardMappingsCache()
+
+    for _, rewardData in pairs(challengeData._show_rewards) do
+        if rewardData.type == "item" and rewardData.params then
+            local itemIdLower = string.lower(rewardData.params.item_id)
+            for _, desiredReward in ipairs(State.ChallengeRewardsFilter) do
+                local desiredLower = string.lower(desiredReward)
+                if itemIdLower == desiredLower or string.find(itemIdLower, desiredLower) or string.find(desiredLower, itemIdLower) then
+                    print("Found direct matching reward:", rewardData.params.item_id, "matches filter:", desiredReward)
+                    return true
+                end
+                local mappedRewards = rewardMappingsCache[desiredLower]
+                if mappedRewards then
+                    for _, mappedReward in ipairs(mappedRewards) do
+                        local mappedLower = string.lower(mappedReward)
+                        if itemIdLower == mappedLower or string.find(itemIdLower, mappedLower) then
+                            print("Found mapped reward:", rewardData.params.item_id, "matches mapped filter:", mappedReward, "for:", desiredReward)
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    print("No matching rewards found in challenge")
+    return false
+end
+
+function AutoJoin.joinChallenge(isDaily)
+    local pod = isDaily and "ChallengePod4" or "ChallengePod1"
+    local label = isDaily and "Daily Challenge" or "Challenge Joiner"
+    local data = isDaily and AutoJoin.getDailyChallengeData() or AutoJoin.getChallengeData()
+
+    if not data then
+        print("No " .. (isDaily and "daily " or "") .. "challenge data available")
+        return isDaily and "no_data" or false
+    end
+
+    if (isDaily and AutoJoin.checkIgnoreWorlds(data, true) or AutoJoin.checkIgnoreWorlds(data, false)) or not AutoJoin.checkChallengeRewards(data) then
+        print("Skipping " .. (isDaily and "daily " or "") .. "challenge due to filters")
+        if not isDaily then State.challengeJoinAttempts = 0 end
+        return isDaily and "skipped" or false
+    end
+
+    print((isDaily and "Daily c" or "C") .. "hallenge passed all filters, attempting to join...", data.current_challenge, data.current_level_id)
+
+    local ok = pcall(function()
+        local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+        ep:WaitForChild("request_join_lobby"):InvokeServer(pod)
+        task.wait(0.5)
+        ep:WaitForChild("request_start_game"):InvokeServer(pod)
+    end)
+
+    AutoJoin.notify(label, (ok and "Joining" or "Failed to join") .. " challenge: " .. (ok and (data.current_challenge or "Unknown") or ""))
+    if not isDaily then State.challengeJoinAttempts = ok and 0 or State.challengeJoinAttempts end
+    return isDaily and (ok and "success" or "failed") or ok
+end
+
+function AutoJoin.getExactLevelId(stageType, worldKey, actNumber)
+    local cleanWorldKey = stageType == "Raid" and worldKey:gsub("_Raid$", "") or worldKey
+    print(string.format("getExactLevelId - type: %s, worldKey: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
+
+    local ok, exactLevelId = pcall(function()
+        for _, worldModule in ipairs(Services.ReplicatedStorage.Framework.Data.Worlds:GetChildren()) do
+            if worldModule:IsA("ModuleScript") then
+                local mok, worldData = pcall(require, worldModule)
+                if mok and worldData and worldData[cleanWorldKey] then
+                    local worldInfo = worldData[cleanWorldKey]
+
+                    if stageType == "Story" and worldInfo.levels then
+                        if actNumber == "infinite" and worldInfo.infinite and worldInfo.infinite.id then
+                            return worldInfo.infinite.id
+                        end
+                        for levelKey, levelData in pairs(worldInfo.levels) do
+                            local actMatch = levelKey:match("_?(%d+)$")
+                            if actMatch and tonumber(actMatch) == actNumber and type(levelData) == "table" and levelData.id then
+                                return levelData.id
+                            end
+                        end
+                    elseif stageType == "Legend" and worldInfo.legend_stage and worldInfo.levels then
+                        local levelData = worldInfo.levels[tostring(actNumber)]
+                        if levelData and levelData.id then return levelData.id end
+                    elseif stageType == "Raid" and worldInfo.raid_world and worldInfo.levels then
+                        local levelData = worldInfo.levels[tostring(actNumber)]
+                        if levelData and levelData.id then return levelData.id end
+                    end
+                end
+            end
+        end
+    end)
+
+    if ok and exactLevelId then return exactLevelId end
+    warn(string.format("Could not find exact %s level ID for world: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
+end
+
+local function checkAndExecuteHighestPriority()
+    if not Util.isInLobby() or AutoJoinState.isProcessing or not AutoJoin.canPerformAction() then return end
+
+    -- DAILY CHALLENGE
+    if State.AutoJoinDailyChallenge then
+        local dailyData = AutoJoin.getDailyChallengeData()
+        if dailyData then
+            AutoJoin.setProcessingState("Daily Challenge Auto Join")
+            local joinStatus = AutoJoin.joinChallenge(true)
+
+            if joinStatus == "success" then
+                print("Successfully initiated daily challenge join!")
+                State.dailyChallengeJoinAttempts = 0
+                task.delay(5, AutoJoin.clearProcessingState)
+                return
+            elseif joinStatus == "failed" then
+                State.dailyChallengeJoinAttempts += 1
+                print(string.format("Daily challenge join failed! Attempt %d/%d", State.dailyChallengeJoinAttempts, State.maxDailyChallengeAttempts))
+                if State.dailyChallengeJoinAttempts >= State.maxDailyChallengeAttempts then
+                    AutoJoin.notify("Daily Challenge", string.format("Failed %d times - trying other options", State.maxDailyChallengeAttempts))
+                    State.dailyChallengeJoinAttempts = 0
+                    AutoJoin.clearProcessingState()
+                else
+                    task.delay(5, AutoJoin.clearProcessingState)
+                    return
+                end
+            else -- "skipped" or "no_data"
+                State.dailyChallengeJoinAttempts = 0
+                AutoJoin.clearProcessingState()
+            end
+        else
+            AutoJoinState.clearProcessingState()
+        end
+    end
+
+    -- CHALLENGE
+    if State.AutoJoinChallenge and AutoJoin.getChallengeData() then
+        AutoJoin.setProcessingState("Challenge Auto Join")
+        local joinSuccess = AutoJoin.joinChallenge(false)
+
+        if joinSuccess then
+            print("Successfully initiated challenge join!")
+            State.challengeJoinAttempts = 0
+        else
+            State.challengeJoinAttempts += 1
+            print(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
+            if State.challengeJoinAttempts >= State.maxChallengeAttempts then
+                AutoJoin.notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
+                State.challengeJoinAttempts = 0
+            else
+                task.delay(5, AutoJoin.clearProcessingState)
+                return
+            end
+        end
+
+        task.delay(5, AutoJoin.clearProcessingState)
+        return
+    end
+
+    -- PORTAL
+    if State.AutoJoinPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
+        AutoJoin.setProcessingState("Portal Auto Join")
+        print(AutoJoin.joinPortal(State.SelectedPortal) and "Successfully initiated portal join!" or "Portal join failed!")
+        task.delay(5, AutoJoin.clearProcessingState)
+        return
+    end
+
+    -- BOSS RUSH
+    if State.AutoJoinBossRush then
+        AutoJoin.setProcessingState("Boss Rush Auto Join")
+        local bossRushIds = {
+            ["Chainsaw Boss Rush"] = {[true] = "_CSM_BOSSRUSH_TRAITLESS", [false] = "_CSM_BOSSRUSH_TRAITS"},
+            ["Aizen Boss Rush"]    = {[true] = "_BL_BOSSRUSH_TRAITLESS",  [false] = "_BL_BOSSRUSH_TRAITS"},
+        }
+        local lobbyId = bossRushIds[State.SelectedBossRush or "Chainsaw Boss Rush"][State.AutoJoinBossRushSelectionMode == true]
+        print("Joining Boss Rush:", State.SelectedBossRush, "| Lobby ID:", lobbyId, "| Traitless Mode:", State.AutoJoinBossRushSelectionMode)
+        local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+        ep:WaitForChild("request_join_lobby"):InvokeServer(lobbyId)
+        task.wait(0.5)
+        ep:WaitForChild("request_start_game"):InvokeServer(lobbyId)
+        task.delay(5, AutoJoin.clearProcessingState)
+        return
+    end
+
+    -- SAMURAI HUNT
+    if State.AutoJoinSamuraiHunt then
+        AutoJoin.setProcessingState("Samurai Hunt Auto Join")
+        local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+        if State.AutoMatchmakeSamuraiHunt then
+            ep:WaitForChild("request_matchmaking"):InvokeServer("_CHRISTMAS")
+        else
+            ep:WaitForChild("request_join_lobby"):InvokeServer("_CHRISTMAS")
+            ep:WaitForChild("request_start_game"):InvokeServer("_CHRISTMAS")
+        end
+        task.delay(5, AutoJoin.clearProcessingState)
+        return
+    end
+
+    -- INFINITY CASTLE
+    if State.AutoJoinInfinityCastle then
+        AutoJoin.setProcessingState("Infinity Castle Auto Join")
+        local roomNumber = tonumber(Services.Players.LocalPlayer.PlayerGui.InfinityCastle.Main.Frame.core.Room.Text:match("%d+"))
+        Services.ReplicatedStorage.endpoints.client_to_server.request_start_infinite_tower:InvokeServer(roomNumber, "Normal", State.AutoJoinInfinityCastleSelectionMode)
+        task.delay(5, AutoJoin.clearProcessingState)
+        return
+    end
+
+    -- STORY / LEGEND / RAID
+    local stageConfigs = {
+        {
+            enabled = State.AutoJoinStory and State.StoryStageSelected and State.StoryActSelected and State.StoryDifficultySelected,
+            label = "Story Auto Join",
+            getLevelId = function() return AutoJoin.getExactLevelId("Story", State.StoryStageSelected, State.StoryActSelected) end,
+            matchmake = State.AutoMatchmakeStoryStage,
+            matchArgs = function(id) return id, {Difficulty = State.StoryDifficultySelected} end,
+            lobbyKey = "P1",
+            difficulty = State.StoryDifficultySelected,
+        },
+        {
+            enabled = State.AutoJoinLegendStage and State.LegendStageSelected and State.LegendActSelected,
+            label = "Legend Stage Auto Join",
+            getLevelId = function() return AutoJoin.getExactLevelId("Legend", State.LegendStageSelected, State.LegendActSelected) end,
+            matchmake = State.AutoMatchmakeLegendStage,
+            matchArgs = function(id) return id, {Difficulty = "Normal"} end,
+            lobbyKey = "P1",
+            difficulty = "Hard",
+        },
+        {
+            enabled = State.AutoJoinRaid and State.RaidStageSelected and State.RaidActSelected,
+            label = "Raid Auto Join",
+            getLevelId = function() return AutoJoin.getExactLevelId("Raid", State.RaidStageSelected, State.RaidActSelected) end,
+            matchmake = State.AutoMatchmakeRaidStage,
+            matchArgs = function(id) return id, {Difficulty = "Normal"} end,
+            lobbyKey = "R1",
+            difficulty = "Hard",vvv
+        },
+    }
+
+    for _, cfg in ipairs(stageConfigs) do
+        if cfg.enabled then
+            AutoJoin.setProcessingState(cfg.label)
+            local exactLevelId = cfg.getLevelId()
+            if not exactLevelId then
+                warn("Failed to get exact level ID for:", cfg.label)
+                AutoJoin.clearProcessingState()
+                return
+            end
+            print(cfg.label, "using EXACT level ID:", exactLevelId)
+            local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
+            if cfg.matchmake then
+                ep:WaitForChild("request_matchmaking"):InvokeServer(cfg.matchArgs(exactLevelId))
+            else
+                ep:WaitForChild("request_join_lobby"):InvokeServer(cfg.lobbyKey)
+                ep:WaitForChild("request_lock_level"):InvokeServer(cfg.lobbyKey, exactLevelId, false, cfg.difficulty)
+                ep:WaitForChild("request_start_game"):InvokeServer(cfg.lobbyKey)
+            end
+            task.delay(5, AutoJoin.clearProcessingState)
+            return
+        end
+    end
+end
+
 -- ============================================================
 -- MAIN INITIALIZATION
 -- ============================================================
@@ -4243,6 +4469,12 @@ end)
                     joinGate(gate)
                 end
             end)
+        end
+    end)
+        task.spawn(function()
+        while true do
+            task.wait(0.5)
+            checkAndExecuteHighestPriority()
         end
     end)
     -- ── FINALIZE ──────────────────────────────────
