@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.27"
+local script_version = "V0.28"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -2545,6 +2545,8 @@ function AutoJoin.getBackendWorldKeyFromDisplayName(selectedDisplayName, stageTy
     end
 end
 
+
+
 function AutoJoin.loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
     local retryKey = stageType:lower()
     loadingRetries[retryKey] = (loadingRetries[retryKey] or 0) + 1
@@ -3210,6 +3212,229 @@ AutoJoinTab:CreateDropdown({
 AutoJoinTab:CreateToggle({
     Name = "Auto Matchmake Raid Stage", CurrentValue = false, Flag = "AutoMatchmakeRaidStage",
     Callback = function(Value) State.AutoMatchmakeRaidStage = Value end,
+})
+
+AutoJoinTab:CreateSection("Challenge Joiner")
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Join Challenge", CurrentValue = false, Flag = "AutoJoinChallenge",
+    Callback = function(Value) State.AutoJoinChallenge = Value end,
+})
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Join Daily Challenge", CurrentValue = false, Flag = "AutoMatchmakeDailyChallenge",
+    Callback = function(Value) State.AutoJoinDailyChallenge = Value end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name = "Select Challenge Rewards",
+    Options = {"Air Stone","Earth Stone","Fire Stone","Fear Stone","Water Stone","Divine Stone","Rerolls","Perfect Stat Cube","Stat Cube"},
+    CurrentOption = {}, MultipleOptions = true, Flag = "ChallengeRewardsSelector",
+    Info = "Only join challenges that contain one or more of these rewards",
+    Callback = function(Options)
+        State.ChallengeRewardsFilter = Options or {}
+        print("Challenge rewards filter updated:", table.concat(State.ChallengeRewardsFilter, ", "))
+    end,
+})
+
+local IgnoreWorldsDropdown = AutoJoinTab:CreateDropdown({
+    Name = "Ignore Worlds", Options = {}, CurrentOption = {}, MultipleOptions = true, Flag = "IgnoreWorldsSelector",
+    Info = "Skip challenges based on these worlds",
+    Callback = function(Options)
+        State.IgnoreWorlds = Options or {}
+        print("Ignore worlds updated:", table.concat(State.IgnoreWorlds, ", "))
+    end,
+})
+
+function AutoJoin.loadIgnoreWorldsWithRetry()
+    loadingRetries.ignoreWorlds += 1
+
+    local function retry(reason)
+        if loadingRetries.ignoreWorlds <= 20 then
+            print(string.format("Ignore worlds loading failed (attempt %d/%d)%s - retrying...",
+                loadingRetries.ignoreWorlds, 20, reason and (": " .. reason) or " - game data not ready"))
+            task.wait(2)
+            task.spawn(AutoJoin.loadIgnoreWorldsWithRetry)
+        else
+            warn("Failed to load ignore worlds after", 20, "attempts", reason or "- giving up")
+        end
+    end
+
+    if not AutoJoin.isGameDataLoaded() then return retry() end
+
+    local ok, result = pcall(function()
+        local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
+        if not WorldLevelOrder then error("WorldLevelOrder not found") end
+
+        local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+        local allWorlds, seen = {}, {}
+
+        local function collectWorlds(orderKey, extraCheck)
+            if not WorldLevelOrder[orderKey] then return end
+            for _, worldKey in ipairs(WorldLevelOrder[orderKey]) do
+                for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+                    if worldModule:IsA("ModuleScript") then
+                        local mok, worldData = pcall(require, worldModule)
+                        if mok and worldData and worldData[worldKey] then
+                            local w = worldData[worldKey]
+                            if type(w) == "table" and w.name and (not extraCheck or extraCheck(w)) then
+                                local name = w.name .. (extraCheck and " (Legend)" or "")
+                                if not seen[name] then
+                                    table.insert(allWorlds, name)
+                                    seen[name] = true
+                                end
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        collectWorlds("WORLD_ORDER")
+        collectWorlds("LEGEND_WORLD_ORDER", function(w) return w.legend_stage end)
+        table.sort(allWorlds)
+
+        if #allWorlds == 0 then error("No worlds found for ignore list") end
+        return allWorlds
+    end)
+
+    if ok and result and #result > 0 then
+        IgnoreWorldsDropdown:Refresh(result)
+        print(string.format("Successfully loaded %d worlds for ignore list (attempt %d)", #result, loadingRetries.ignoreWorlds))
+    else
+        retry(tostring(result))
+    end
+end
+
+AutoJoinTab:CreateToggle({
+    Name = "Return to Lobby on New Challenge", CurrentValue = false, Flag = "ReturnToLobbyOnNewChallenge",
+    Info = "Return to lobby when new challenge appears instead of using retry/next",
+    Callback = function(Value) State.ReturnToLobbyOnNewChallenge = Value end,
+})
+
+AutoJoinTab:CreateSection("Portal Joiner")
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Join Portal", CurrentValue = false, Flag = "AutoJoinPortal",
+    Callback = function(Value) State.AutoJoinPortal = Value end,
+})
+
+function AutoJoin.getOwnedPortalsFromInventory()
+    local portalNameToIdMap = {["portal_christmas"] = "ChristmasLevel"}
+    local ownedPortals = {}
+
+    local itemFrames = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+    for _, child in ipairs({"grid","List","Outer","ItemFrames"}) do
+        itemFrames = itemFrames and itemFrames:FindFirstChild(child)
+    end
+
+    if not itemFrames then print("ItemFrames not found") return ownedPortals end
+
+    for _, child in ipairs(itemFrames:GetChildren()) do
+        if child.Name and child.Name:lower():find("portal") then
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
+            if uuidValue and uuidValue:IsA("StringValue") then
+                local actualId = portalNameToIdMap[child.Name] or child.Name
+                ownedPortals[actualId] = uuidValue.Value
+                print("Found owned portal:", child.Name, "| Mapped to ID:", actualId, "| UUID:", uuidValue.Value)
+            end
+        end
+    end
+
+    return ownedPortals
+end
+
+function AutoJoin.getAllPortalDataFromModules()
+    local portalData = {}
+    local testingFolder = Services.ReplicatedStorage.Framework.Data.Levels.Testing
+    if not testingFolder then return portalData end
+
+    for _, moduleScript in ipairs(testingFolder:GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local ok, moduleData = pcall(require, moduleScript)
+            if ok and type(moduleData) == "table" then
+                for _, levelInfo in pairs(moduleData) do
+                    if type(levelInfo) == "table" and levelInfo._portal_only_level and levelInfo.id and levelInfo.name then
+                        portalData[levelInfo.id] = {name = levelInfo.name, id = levelInfo.id, moduleName = moduleScript.Name}
+                        print("Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Module:", moduleScript.Name)
+                    end
+                end
+            end
+        end
+    end
+
+    return portalData
+end
+
+function AutoJoin.buildPortalDropdownOptions()
+    local portalModuleData = AutoJoin.getAllPortalDataFromModules()
+    local options = {}
+    for portalId in pairs(AutoJoin.getOwnedPortalsFromInventory()) do
+        if portalModuleData[portalId] then
+            table.insert(options, portalModuleData[portalId].name)
+            print("Added to dropdown:", portalModuleData[portalId].name, "(Owned)")
+        end
+    end
+    table.sort(options)
+    return options
+end
+
+local SelectPortalDropdown = AutoJoinTab:CreateDropdown({
+    Name = "Select Portal to join", Options = {}, CurrentOption = {}, MultipleOptions = false, Flag = "SelectPortalDropdown",
+    Callback = function(Option)
+        if not AutoJoin.isGameDataLoaded() then warn("Game data not loaded yet, ignoring portal selection") return end
+        local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
+        if not displayName then warn("Invalid option type in SelectPortalDropdown:", type(Option)) return end
+        for portalId, moduleInfo in pairs(AutoJoin.getAllPortalDataFromModules()) do
+            if moduleInfo.name == displayName then
+                State.SelectedPortal = portalId
+                print("Selected portal:", displayName, "| ID:", portalId)
+                return
+            end
+        end
+        warn("Could not find portal ID for:", displayName)
+    end,
+})
+
+function AutoJoin.loadPortals()
+    local options = AutoJoin.buildPortalDropdownOptions()
+    SelectPortalDropdown:Refresh(#options > 0 and options or {"No portals found"})
+    print(#options > 0 and string.format("Successfully loaded %d portals", #options) or "No owned portals found")
+end
+
+AutoJoinTab:CreateButton({
+    Name = "Refresh Portal List",
+    Callback = function()
+        local options = AutoJoin.buildPortalDropdownOptions()
+        SelectPortalDropdown:Refresh(#options > 0 and options or {"No portals found"})
+        notify("Portal Refresh", #options > 0 and string.format("Found %d owned portals", #options) or "No portals found in inventory")
+    end,
+})
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Next Portal", CurrentValue = false, Flag = "AutoNextPortal",
+    Callback = function(Value) State.AutoNextPortal = Value end,
+})
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Select Portal Reward", CurrentValue = false, Flag = "AutoSelectPortalReward",
+    Info = "Automatically picks a portal reward after completing a portal",
+    Callback = function(Value) State.AutoSelectPortalReward = Value end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name = "Select Reward Tiers",
+    Options = {"Tier 1","Tier 2","Tier 3","Tier 4","Tier 5","Tier 6","Tier 7","Tier 8","Tier 9","Tier 10","Tier 11"},
+    CurrentOption = {}, MultipleOptions = true, Flag = "PortalRewardTierFilter",
+    Info = "Only pick portals with these tiers.",
+    Callback = function(Options)
+        State.PortalRewardTierFilter = {}
+        for _, option in ipairs(Options) do
+            local tierNum = tonumber(option:match("%d+"))
+            if tierNum then table.insert(State.PortalRewardTierFilter, tierNum) end
+        end
+    end,
 })
 
     AutoJoinTab:CreateSection("Contract Joiner")
@@ -4566,6 +4791,8 @@ end)
     task.spawn(function() AutoJoin.loadStagesWithRetry("Story", StoryStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
     task.spawn(function() AutoJoin.loadStagesWithRetry("Legend", LegendStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
     task.spawn(function() AutoJoin.loadStagesWithRetry("Raid", RaidStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
+    task.spawn(function() AutoJoin.loadIgnoreWorldsWithRetry() end)
+    task.spawn(function() AutoJoin.loadPortals() end)
 end
 
 initialize()
