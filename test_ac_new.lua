@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.28"
+local script_version = "V0.29"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -32,87 +32,118 @@ local Services = {
 -- ============================================================
 local State = {
     -- Player / visual
-    AntiAfkKickEnabled       = false,
-    EnableLowPerfMode        = false,
-    EnableBlackScreen        = false,
-    EnableLimitFPS           = false,
-    SelectedFPS              = 60,
-    StreamerModeEnabled      = false,
-    DeleteEntities           = false,
-    childAddedConnection     = nil,
-    enableAutoExecute = false,
+    AntiAfkKickEnabled              = false,
+    EnableLowPerfMode               = false,
+    EnableBlackScreen               = false,
+    EnableLimitFPS                  = false,
+    SelectedFPS                     = 60,
+    StreamerModeEnabled             = false,
+    DeleteEntities                  = false,
+    childAddedConnection            = nil,
+    enableAutoExecute               = false,
 
     -- Game flow votes
-    AutoVoteStart            = false,
-    AutoVoteRetry            = false,
-    AutoVoteNext             = false,
-    AutoVoteLobby            = false,
+    AutoVoteStart                   = false,
+    AutoVoteRetry                   = false,
+    AutoVoteNext                    = false,
+    AutoVoteLobby                   = false,
 
     -- Wave skip
-    AutoSkipWaves            = false,
-    AutoSkipUntilWave        = 0,
+    AutoSkipWaves                   = false,
+    AutoSkipUntilWave               = 0,
 
     -- Auto Sell
-    AutoSellEnabled          = false,
-    AutoSellWave             = 10,
-    AutoSellFarmEnabled      = false,
-    AutoSellFarmWave         = 15,
+    AutoSellEnabled                 = false,
+    AutoSellWave                    = 10,
+    AutoSellFarmEnabled             = false,
+    AutoSellFarmWave                = 15,
 
     -- Failsafes
-    ReturnToLobbyAfterGames  = 0,
-    ReturnToLobbyFailsafe    = false,
-    ReturnToLobbyIfNeverEnds = false,
-    failsafeActive           = false,
+    ReturnToLobbyAfterGames         = 0,
+    ReturnToLobbyFailsafe           = false,
+    ReturnToLobbyIfNeverEnds        = false,
+    ReturnToLobbyOnNewChallenge     = false,
+    failsafeActive                  = false,
 
     -- Session counters
-    TotalGamesPlayed         = 0,
-    TotalWins                = 0,
-    TotalLosses              = 0,
+    TotalGamesPlayed                = 0,
+    TotalWins                       = 0,
+    TotalLosses                     = 0,
 
     -- Auto equip
-    AutoEquipMacroUnits      = false,
+    AutoEquipMacroUnits             = false,
 
     -- Boss Rush
-    AutoSelectCardBossRush   = false,
+    AutoSelectCardBossRush          = false,
+    AutoJoinBossRush                = false,
+    SelectedBossRush                = "Chainsaw Boss Rush",
+    AutoJoinBossRushSelectionMode   = false, -- false = traits, true = traitless
 
     -- Retry config
-    AutoRetryAttempts        = 3,
-    AutoRetryDelay           = 2,
+    AutoRetryAttempts               = 3,
+    AutoRetryDelay                  = 2,
 
-    AutoNextExpedition = false,
+    -- Expedition
+    AutoNextExpedition              = false,
     AutoResetExpeditionOnCompletion = false,
-    AutoResetAfterXExpeditions = 0,
-    ExpeditionCompletionCount = 0,
-    AutoResetAfterXRooms = 0,
-    RoomsJoinedThisRun   = 0,
+    AutoResetAfterXExpeditions      = 0,
+    ExpeditionCompletionCount       = 0,
+    AutoResetAfterXRooms            = 0,
+    RoomsJoinedThisRun              = 0,
 
-    --Merchant
-    AutoBuyRelics            = false,
-    RelicPriorities          = {},
+    -- Merchant
+    AutoBuyRelics                   = false,
+    RelicPriorities                 = {},
 
-    -- Auto Join
-    AutoJoinEnabled          = false,
-    SelectedStageType        = "Story",
-    SelectedWorld            = "",
-    SelectedStage            = "",
-    SelectedDifficulty       = "Normal",
-    UseMatchmaking           = false,
-    AutoJoinChallenge        = false,
-    AutoJoinDailyChallenge   = false,
-    ChallengeRewardFilters   = {},
-    IgnoreChallengeWorlds    = {},
-    SelectedPortalId         = nil,
-    AutoJoinBossRush         = false,
-    BossRushLobbyId          = "BossRush1",
-    AutoJoinSamuraiHunt      = false,
-    AutoJoinInfinitycastle   = false,
-    AutoJoinExpedition       = false,
+    -- Challenge
+    AutoJoinChallenge               = false,
+    AutoJoinDailyChallenge          = false,
+    ChallengeRewardsFilter          = {},
+    IgnoreWorlds                    = {},
+    dailyChallengeJoinAttempts      = 0,
+    maxDailyChallengeAttempts       = 3,
+    challengeJoinAttempts           = 0,
+    maxChallengeAttempts            = 3,
+
+    -- Portal
+    AutoJoinPortal                  = false,
+    SelectedPortal                  = "",
+    AutoNextPortal                  = false,
+    AutoSelectPortalReward          = false,
+    PortalRewardTierFilter          = {},
+
+    -- Story
+    AutoJoinStory                   = false,
+    StoryStageSelected              = nil,
+    StoryActSelected                = nil,
+    StoryDifficultySelected         = "Normal",
+    AutoMatchmakeStoryStage         = false,
+
+    -- Legend
+    AutoJoinLegendStage             = false,
+    LegendStageSelected             = nil,
+    LegendActSelected               = nil,
+    AutoMatchmakeLegendStage        = false,
+
+    -- Raid
+    AutoJoinRaid                    = false,
+    RaidStageSelected               = nil,
+    RaidActSelected                 = nil,
+    AutoMatchmakeRaidStage          = false,
+
+    -- Samurai Hunt
+    AutoJoinSamuraiHunt             = false,
+    AutoMatchmakeSamuraiHunt        = false,
+
+    -- Infinity Castle
+    AutoJoinInfinityCastle          = false,
+    AutoJoinInfinityCastleSelectionMode = false,
 
     -- Contracts
-    AutoJoinContracts       = false,
-    SelectedContractType    = {},
-    IgnoreContractModifiers = {},
-    AutoNextContract        = false,
+    AutoJoinContracts               = false,
+    SelectedContractType            = {},
+    IgnoreContractModifiers         = {},
+    AutoNextContract                = false,
 }
 
 local Webhook = {
