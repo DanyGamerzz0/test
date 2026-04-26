@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.22"
+local script_version = "V0.23"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -4253,7 +4253,7 @@ end)
     setupRemoteConnections()
     if not Util.isInLobby() then monitorWaves() end
     _G.Rayfield:LoadConfiguration()
-    task.spawn(function() loadStagesWithRetry("Story", StoryStageDropdown, getBackendWorldKeyFromDisplayName) end)
+    task.spawn(function() AutoJoin.loadStagesWithRetry("Story", StoryStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
 end
 
 initialize()
