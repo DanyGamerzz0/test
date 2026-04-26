@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.3"
+local script_version = "V0.31"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3603,7 +3603,7 @@ AutoJoinTab:CreateToggle({
         end,
     })
 
-    local CardPriorityTab = Window:CreateTab("Auto Pick Card", "card")
+    local CardPriorityTab = Window:CreateTab("Auto Pick Card", "credit-card")
 
     CardPriorityTab:CreateToggle({
     Name = "Auto Select Card",
