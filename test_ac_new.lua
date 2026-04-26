@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.24"
+local script_version = "V0.25"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -689,6 +689,24 @@ local function findBestGate()
     return nil
 end
 
+local Util = {}
+
+function Util.debugPrint(message, ...)
+    if DEBUG then print("[DEBUG]", message, ...) end
+end
+
+function Util.notify(title, content, duration)
+    if not NOTIFICATION_ENABLED then return end
+    if _G.Rayfield then
+        _G.Rayfield:Notify({
+            Title    = title or "Notice",
+            Content  = content or "No message.",
+            Duration = duration or 5,
+            Image    = "info",
+        })
+    end
+end
+
 local function joinGate(gate)
     local lobbyId = "_GATE" .. gate.folderName
     local ok = pcall(function()
@@ -938,23 +956,6 @@ end
 -- ============================================================
 -- UTILITY FUNCTIONS
 -- ============================================================
-local Util = {}
-
-function Util.debugPrint(message, ...)
-    if DEBUG then print("[DEBUG]", message, ...) end
-end
-
-function Util.notify(title, content, duration)
-    if not NOTIFICATION_ENABLED then return end
-    if _G.Rayfield then
-        _G.Rayfield:Notify({
-            Title    = title or "Notice",
-            Content  = content or "No message.",
-            Duration = duration or 5,
-            Image    = "info",
-        })
-    end
-end
 
 function Util.isInLobby()
     local mapConfig = Services.Workspace:FindFirstChild("_MAP_CONFIG")
@@ -4489,7 +4490,6 @@ end)
 end
 
 initialize()
-AutoJoin.startLoop()
 _G.Rayfield:SetVisibility(false)
 
 _G.Rayfield:TopNotify({
