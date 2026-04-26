@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.25"
+local script_version = "V0.26"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -2516,28 +2516,33 @@ function AutoJoin.isGameDataLoaded()
     return d and d:FindFirstChild("WorldLevelOrder") and d:FindFirstChild("Worlds")
 end
 
-function AutoJoin.getBackendWorldKeyFromDisplayName(selectedDisplayName)
+function AutoJoin.getBackendWorldKeyFromDisplayName(selectedDisplayName, stageType)
+    local orderKeys = {Story = "WORLD_ORDER", Legend = "LEGEND_WORLD_ORDER", Raid = "RAID_WORLD_ORDER"}
+    local validChecks = {
+        Story  = function(w) return w.name end,
+        Legend = function(w) return w.name and w.legend_stage end,
+        Raid   = function(w) return w.raid_world and w.name == selectedDisplayName end,
+    }
+
     local WorldLevelOrder = require(Services.ReplicatedStorage.Framework.Data.WorldLevelOrder)
-    local WorldsFolder = Services.ReplicatedStorage.Framework.Data.Worlds
+    local worldOrder = WorldLevelOrder[orderKeys[stageType]]
+    if not worldOrder then return nil end
 
-    if not WorldsFolder or not WorldLevelOrder or not WorldLevelOrder.WORLD_ORDER then return nil end
-
-    for _, orderedWorldKey in ipairs(WorldLevelOrder.WORLD_ORDER) do
-        for _, worldModule in ipairs(WorldsFolder:GetChildren()) do
+    for _, orderedWorldKey in ipairs(worldOrder) do
+        for _, worldModule in ipairs(Services.ReplicatedStorage.Framework.Data.Worlds:GetChildren()) do
             if worldModule:IsA("ModuleScript") then
                 local ok, worldData = pcall(require, worldModule)
                 if ok and worldData and worldData[orderedWorldKey] then
-                    local worldInfo = worldData[orderedWorldKey]
-                    if type(worldInfo) == "table" and worldInfo.name == selectedDisplayName then
-                        return orderedWorldKey
+                    local w = worldData[orderedWorldKey]
+                    if type(w) == "table" and validChecks[stageType](w) and (stageType == "Raid" or w.name == selectedDisplayName) then
+                        print("Found", stageType, "match:", selectedDisplayName, "-> Backend key:", orderedWorldKey)
+                        return orderedWorldKey .. (stageType == "Raid" and "_Raid" or "")
                     end
                     break
                 end
             end
         end
     end
-
-    return nil
 end
 
 function AutoJoin.loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
@@ -3108,7 +3113,7 @@ local StoryStageDropdown = AutoJoinTab:CreateDropdown({
     end,
 })
 
-ChapterDropdown869 = AutoJoinTab:CreateDropdown({
+AutoJoinTab:CreateDropdown({
     Name = "Select Story Act",
     Options = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
     CurrentOption = {},
@@ -3124,7 +3129,7 @@ ChapterDropdown869 = AutoJoinTab:CreateDropdown({
     end,
 })
 
-ChapterDropdown = AutoJoinTab:CreateDropdown({
+AutoJoinTab:CreateDropdown({
     Name = "Select Story Difficulty",
     Options = {"Normal", "Hard"},
     CurrentOption = {},
@@ -3133,6 +3138,78 @@ ChapterDropdown = AutoJoinTab:CreateDropdown({
     Callback = function(Option)
         State.StoryDifficultySelected = (type(Option) == "table" and Option[1] or Option)
     end,
+})
+
+AutoJoinTab:CreateSection("Legend Stage Joiner")
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Join Legend", CurrentValue = false, Flag = "AutoJoinLegend",
+    Callback = function(Value) State.AutoJoinLegendStage = Value end,
+})
+
+local LegendStageDropdown = AutoJoinTab:CreateDropdown({
+    Name = "Select Legend Stage", Options = {}, CurrentOption = {}, MultipleOptions = false, Flag = "LegendWorldSelector",
+    Callback = function(Option)
+        if not AutoJoin.isGameDataLoaded() then warn("Game data not loaded yet, ignoring legend stage selection") return end
+        local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
+        if not displayName then warn("Invalid option type in LegendStageDropdown:", type(Option)) return end
+        local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, displayName, "Legend")
+        if ok and key then
+            State.LegendStageSelected = key
+            print("Selected legend stage:", displayName, "-> Stored backend key:", key)
+        else
+            warn("Failed to get backend legend world key for:", displayName, not ok and ("Error: " .. key) or "")
+        end
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name = "Select Legend Stage Act", Options = {"Act 1","Act 2","Act 3"}, CurrentOption = {}, MultipleOptions = false, Flag = "LegendActSelector",
+    Callback = function(Option)
+        State.LegendActSelected = tonumber((type(Option) == "table" and Option[1] or Option):match("%d+"))
+        print("Selected legend act number:", State.LegendActSelected)
+    end,
+})
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Matchmake Legend Stage", CurrentValue = false, Flag = "AutoMatchmakeLegendStage",
+    Callback = function(Value) State.AutoMatchmakeLegendStage = Value end,
+})
+
+AutoJoinTab:CreateSection("Raid Joiner")
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Join Raid", CurrentValue = false, Flag = "AutoJoinRaid",
+    Callback = function(Value) State.AutoJoinRaid = Value end,
+})
+
+local RaidStageDropdown = AutoJoinTab:CreateDropdown({
+    Name = "Select Raid Stage", Options = {}, CurrentOption = {}, MultipleOptions = false, Flag = "RaidWorldSelector",
+    Callback = function(Option)
+        if not AutoJoin.isGameDataLoaded() then warn("Game data not loaded yet, ignoring raid stage selection") return end
+        local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
+        if not displayName then warn("Invalid option type in RaidStageDropdown:", type(Option)) return end
+        local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, displayName, "Raid")
+        if ok and key then
+            State.RaidStageSelected = key
+            print("Selected raid stage:", displayName, "-> Stored backend key:", key)
+        else
+            warn("Failed to get backend raid world key for:", displayName, not ok and ("Error: " .. key) or "")
+        end
+    end,
+})
+
+AutoJoinTab:CreateDropdown({
+    Name = "Select Raid Stage Act", Options = {"Act 1","Act 2","Act 3","Act 4","Act 5"}, CurrentOption = {}, MultipleOptions = false, Flag = "RaidActSelector",
+    Callback = function(Option)
+        State.RaidActSelected = tonumber((type(Option) == "table" and Option[1] or Option):match("%d+"))
+        print("Selected raid act number:", State.RaidActSelected)
+    end,
+})
+
+AutoJoinTab:CreateToggle({
+    Name = "Auto Matchmake Raid Stage", CurrentValue = false, Flag = "AutoMatchmakeRaidStage",
+    Callback = function(Value) State.AutoMatchmakeRaidStage = Value end,
 })
 
     AutoJoinTab:CreateSection("Contract Joiner")
