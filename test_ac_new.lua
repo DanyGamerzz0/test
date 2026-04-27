@@ -5367,15 +5367,8 @@ end
     task.spawn(function() AutoJoin.loadStagesWithRetry("Raid", RaidStageDropdown, AutoJoin.getBackendWorldKeyFromDisplayName) end)
     task.spawn(function() AutoJoin.loadIgnoreWorldsWithRetry() end)
     task.spawn(function() AutoJoin.loadPortals() end)
+    task.spawn(function() AutoJoin.createAutoSelectDropdowns() end)
 end
 
 initialize()
 _G.Rayfield:SetVisibility(false)
-
-_G.Rayfield:TopNotify({
-    Title = "UI is hidden",
-    Content = "The UI has automatically closed. If you want to enable visibility, click the 'Show' button.",
-    Image = "eye-off",
-    IconColor = Color3.fromRGB(100, 150, 255),
-    Duration = 5
-})
