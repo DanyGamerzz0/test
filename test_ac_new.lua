@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.32"
+local script_version = "V0.34"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -171,6 +171,9 @@ local loadingRetries = {
     ignoreWorlds = 0,
     portal = 0
 }
+
+local worldMacroMappings = {}
+local worldDropdowns = {}
 
 -- ============================================================
 -- WEBHOOK MODULE
@@ -813,22 +816,41 @@ function AutoJoin.getBackendRaidWorldKey(displayName)
     return ok and result or displayName
 end
 
-function AutoJoin.getExactLevelId(worldKey, stageName, stageType)
-    local ok, result = pcall(function()
-        local moduleMap = {
-            Story  = "WorldLevelOrder",
-            Legend = "LegendWorldLevelOrder",
-            Raid   = "RaidWorldLevelOrder",
-        }
-        local moduleName = moduleMap[stageType] or "WorldLevelOrder"
-        local data = require(Services.ReplicatedStorage.Framework.Data[moduleName])
-        local worldData = data[worldKey]
-        if not worldData or not worldData.levels then return nil end
-        for _, level in ipairs(worldData.levels) do
-            if level.name == stageName or level.id == stageName then return level.id end
+function AutoJoin.getExactLevelId(stageType, worldKey, actNumber)
+    local cleanWorldKey = stageType == "Raid" and worldKey:gsub("_Raid$", "") or worldKey
+    print(string.format("getExactLevelId - type: %s, worldKey: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
+
+    local ok, exactLevelId = pcall(function()
+        for _, worldModule in ipairs(Services.ReplicatedStorage.Framework.Data.Worlds:GetChildren()) do
+            if worldModule:IsA("ModuleScript") then
+                local mok, worldData = pcall(require, worldModule)
+                if mok and worldData and worldData[cleanWorldKey] then
+                    local worldInfo = worldData[cleanWorldKey]
+
+                    if stageType == "Story" and worldInfo.levels then
+                        if actNumber == "infinite" and worldInfo.infinite and worldInfo.infinite.id then
+                            return worldInfo.infinite.id
+                        end
+                        for levelKey, levelData in pairs(worldInfo.levels) do
+                            local actMatch = levelKey:match("_?(%d+)$")
+                            if actMatch and tonumber(actMatch) == actNumber and type(levelData) == "table" and levelData.id then
+                                return levelData.id
+                            end
+                        end
+                    elseif stageType == "Legend" and worldInfo.legend_stage and worldInfo.levels then
+                        local levelData = worldInfo.levels[tostring(actNumber)]
+                        if levelData and levelData.id then return levelData.id end
+                    elseif stageType == "Raid" and worldInfo.raid_world and worldInfo.levels then
+                        local levelData = worldInfo.levels[tostring(actNumber)]
+                        if levelData and levelData.id then return levelData.id end
+                    end
+                end
+            end
         end
     end)
-    return ok and result or nil
+
+    if ok and exactLevelId then return exactLevelId end
+    warn(string.format("Could not find exact %s level ID for world: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
 end
 
 -- ── Stage join ───────────────────────────────────────────────
@@ -2821,46 +2843,9 @@ function AutoJoin.joinChallenge(isDaily)
         ep:WaitForChild("request_start_game"):InvokeServer(pod)
     end)
 
-    AutoJoin.notify(label, (ok and "Joining" or "Failed to join") .. " challenge: " .. (ok and (data.current_challenge or "Unknown") or ""))
+    Util.notify(label, (ok and "Joining" or "Failed to join") .. " challenge: " .. (ok and (data.current_challenge or "Unknown") or ""))
     if not isDaily then State.challengeJoinAttempts = ok and 0 or State.challengeJoinAttempts end
     return isDaily and (ok and "success" or "failed") or ok
-end
-
-function AutoJoin.getExactLevelId(stageType, worldKey, actNumber)
-    local cleanWorldKey = stageType == "Raid" and worldKey:gsub("_Raid$", "") or worldKey
-    print(string.format("getExactLevelId - type: %s, worldKey: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
-
-    local ok, exactLevelId = pcall(function()
-        for _, worldModule in ipairs(Services.ReplicatedStorage.Framework.Data.Worlds:GetChildren()) do
-            if worldModule:IsA("ModuleScript") then
-                local mok, worldData = pcall(require, worldModule)
-                if mok and worldData and worldData[cleanWorldKey] then
-                    local worldInfo = worldData[cleanWorldKey]
-
-                    if stageType == "Story" and worldInfo.levels then
-                        if actNumber == "infinite" and worldInfo.infinite and worldInfo.infinite.id then
-                            return worldInfo.infinite.id
-                        end
-                        for levelKey, levelData in pairs(worldInfo.levels) do
-                            local actMatch = levelKey:match("_?(%d+)$")
-                            if actMatch and tonumber(actMatch) == actNumber and type(levelData) == "table" and levelData.id then
-                                return levelData.id
-                            end
-                        end
-                    elseif stageType == "Legend" and worldInfo.legend_stage and worldInfo.levels then
-                        local levelData = worldInfo.levels[tostring(actNumber)]
-                        if levelData and levelData.id then return levelData.id end
-                    elseif stageType == "Raid" and worldInfo.raid_world and worldInfo.levels then
-                        local levelData = worldInfo.levels[tostring(actNumber)]
-                        if levelData and levelData.id then return levelData.id end
-                    end
-                end
-            end
-        end
-    end)
-
-    if ok and exactLevelId then return exactLevelId end
-    warn(string.format("Could not find exact %s level ID for world: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
 end
 
 local function checkAndExecuteHighestPriority()
@@ -2882,7 +2867,7 @@ local function checkAndExecuteHighestPriority()
                 State.dailyChallengeJoinAttempts += 1
                 print(string.format("Daily challenge join failed! Attempt %d/%d", State.dailyChallengeJoinAttempts, State.maxDailyChallengeAttempts))
                 if State.dailyChallengeJoinAttempts >= State.maxDailyChallengeAttempts then
-                    AutoJoin.notify("Daily Challenge", string.format("Failed %d times - trying other options", State.maxDailyChallengeAttempts))
+                    Util.notify("Daily Challenge", string.format("Failed %d times - trying other options", State.maxDailyChallengeAttempts))
                     State.dailyChallengeJoinAttempts = 0
                     AutoJoin.clearProcessingState()
                 else
@@ -2894,7 +2879,7 @@ local function checkAndExecuteHighestPriority()
                 AutoJoin.clearProcessingState()
             end
         else
-            AutoJoinState.clearProcessingState()
+            AutoJoin.clearProcessingState()
         end
     end
 
@@ -2910,7 +2895,7 @@ local function checkAndExecuteHighestPriority()
             State.challengeJoinAttempts += 1
             print(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
             if State.challengeJoinAttempts >= State.maxChallengeAttempts then
-                AutoJoin.notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
+                Util.notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
                 State.challengeJoinAttempts = 0
             else
                 task.delay(5, AutoJoin.clearProcessingState)
@@ -2991,7 +2976,7 @@ local function checkAndExecuteHighestPriority()
             matchmake = State.AutoMatchmakeRaidStage,
             matchArgs = function(id) return id, {Difficulty = "Normal"} end,
             lobbyKey = "R1",
-            difficulty = "Hard",vvv
+            difficulty = "Hard",
         },
     }
 
@@ -3132,8 +3117,9 @@ local StoryStageDropdown = AutoJoinTab:CreateDropdown({
             warn("Game data not loaded yet, ignoring story stage selection")
             return
         end
-
-        local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, type(Option) == "table" and Option[1] or type(Option) == "string" and Option or nil)
+        local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
+        if not displayName then warn("Invalid option type in StoryStageDropdown:", type(Option)) return end
+        local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, displayName, "Story")
         if ok and key then
             State.StoryStageSelected = key
             print("Selected story stage:", type(Option) == "table" and Option[1] or Option, "-> Stored backend key:", key)
@@ -3437,7 +3423,7 @@ AutoJoinTab:CreateButton({
     Callback = function()
         local options = AutoJoin.buildPortalDropdownOptions()
         SelectPortalDropdown:Refresh(#options > 0 and options or {"No portals found"})
-        notify("Portal Refresh", #options > 0 and string.format("Found %d owned portals", #options) or "No portals found in inventory")
+        Util.notify("Portal Refresh", #options > 0 and string.format("Found %d owned portals", #options) or "No portals found in inventory")
     end,
 })
 
@@ -3919,7 +3905,7 @@ function AutoJoin.autoSelectCard(cardData)
         end
     end
 
-    notify("Card Selected", string.format("%s (Score: %d)\n%s", selectedCard.CardName, score, effectsText:sub(1, 80)))
+    Util.notify("Card Selected", string.format("%s (Score: %d)\n%s", selectedCard.CardName, score, effectsText:sub(1, 80)))
 
     local promptGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("Prompt")
     if promptGui then
@@ -4887,6 +4873,150 @@ end)
             })
         end
     end)
+
+    function AutoJoin.saveWorldMappings()
+    if not isfolder("LixHub") then makefolder("LixHub") end
+    writefile("LixHub/world_macro_mappings_" .. game.Players.LocalPlayer.Name .. ".json", Services.HttpService:JSONEncode({
+        version = script_version,
+        mappings = worldMacroMappings
+    }))
+end
+
+    function AutoJoin.createAutoSelectDropdowns()
+    local initialMacroOptions = {"None"}
+    for macroName in pairs(Macro.library) do
+        table.insert(initialMacroOptions, macroName)
+    end
+    table.sort(initialMacroOptions)
+
+    local function makeDropdown(tab, name, key, info)
+        local dropdown = tab:CreateDropdown({
+            Name = name,
+            Options = initialMacroOptions,
+            CurrentOption = {worldMacroMappings[key] or "None"},
+            MultipleOptions = false,
+            Flag = "AutoSelect_" .. key,
+            Info = info or string.format("Auto-select macro for %s", name),
+            Callback = function(Option)
+                local selected = type(Option) == "table" and Option[1] or Option
+                worldMacroMappings[key] = (selected == "None" or selected == "") and nil or selected
+                AutoJoin.saveWorldMappings()
+                print(worldMacroMappings[key] and ("Set auto-select: " .. name .. " -> " .. selected) or ("Cleared auto-select for " .. name))
+            end,
+        })
+        worldDropdowns[key] = dropdown
+    end
+
+    local categories = {
+        {
+            dropdown = StoryStageDropdown,
+            sectionName = "Auto Select - Story Stages",
+            getKey = function(name) return AutoJoin.getBackendWorldKeyFromDisplayName(name, "Story") end,
+            label = "",
+        },
+        {
+            dropdown = LegendStageDropdown,
+            sectionName = "Auto Select - Legend Stages",
+            getKey = function(name) return AutoJoin.getBackendWorldKeyFromDisplayName(name, "Legend") end,
+            label = " (Legend)",
+            specialCase = function(tab, name, opts)
+                if name:lower():find("nightmare") then
+                    for actNum = 1, 3 do
+                        local actKey = "ds_legend_act_" .. actNum
+                        makeDropdown(tab, "Nightmare Train Act " .. actNum, actKey,
+                            string.format("Auto-select macro for Nightmare Train Act %d", actNum))
+                    end
+                    return true
+                end
+            end,
+        },
+        {
+            dropdown = RaidStageDropdown,
+            sectionName = "Auto Select - Raid Stages",
+            getKey = function(name) return AutoJoin.getBackendWorldKeyFromDisplayName(name, "Raid") end,
+            label = " (Raid)",
+        },
+        {
+            dropdown = SelectPortalDropdown,
+            sectionName = "Auto Select - Portals",
+            getKey = function(name)
+                for portalId, info in pairs(AutoJoin.getAllPortalDataFromModules()) do
+                    if info.name == name then return portalId end
+                end
+            end,
+            label = " (Portal)",
+        },
+    }
+
+    for _, cat in ipairs(categories) do
+        if cat.dropdown and cat.dropdown.Options and #cat.dropdown.Options > 0 then
+            MacroTab:CreateSection(cat.sectionName)
+            for _, stageName in ipairs(cat.dropdown.Options) do
+                if cat.specialCase and cat.specialCase(MacroTab, stageName) then continue end
+                local key = cat.getKey(stageName)
+                if not key then warn("Could not get backend key for:", stageName) continue end
+                makeDropdown(MacroTab, stageName, key, string.format("Auto-select macro for %s%s", stageName, cat.label))
+            end
+        end
+    end
+
+    -- Other
+    MacroTab:CreateSection("Auto Select - Other")
+    for _, entry in ipairs({
+        {name = "Frog Hunt",       key = "NASA"},
+        {name = "Chainsaw Boss Rush", key = "Csm_bossrush"},
+        {name = "Aizen Boss Rush",    key = "FakeKarakura"},
+    }) do
+        makeDropdown(MacroTab, entry.name, entry.key)
+        print("  ✓ Added", entry.name, "| ID:", entry.key)
+    end
+end
+
+function AutoJoin.refreshAutoSelectDropdowns()
+    local macroOptions = {"None"}
+    for macroName in pairs(Macro.library) do
+        table.insert(macroOptions, macroName)
+    end
+    table.sort(macroOptions)
+    print("Refreshing auto-select dropdowns with", #macroOptions - 1, "macros")
+
+    for worldKey, dropdown in pairs(worldDropdowns) do
+        if not dropdown or type(dropdown) ~= "table" then
+            print("⚠ Invalid dropdown object for", worldKey)
+            continue
+        end
+
+        local currentMapping = worldMacroMappings[worldKey] or "None"
+        local mappingExists = table.find(macroOptions, currentMapping)
+
+        if not mappingExists and currentMapping ~= "None" then
+            print("Saved mapping", currentMapping, "for", worldKey, "no longer exists, resetting to None")
+            worldMacroMappings[worldKey] = nil
+            currentMapping = "None"
+            AutoJoin.saveWorldMappings()
+        end
+
+        local ok = pcall(function()
+            if dropdown.Refresh then
+                dropdown:Refresh(macroOptions, currentMapping)
+                print("✓ Refreshed dropdown for", worldKey, "using Refresh method")
+            elseif dropdown.UpdateOptions then
+                dropdown:UpdateOptions(macroOptions)
+                print("✓ Updated options for", worldKey, "using UpdateOptions method")
+            elseif dropdown.Options then
+                dropdown.Options = macroOptions
+                if dropdown.CurrentOption then dropdown.CurrentOption = {currentMapping} end
+                print("✓ Updated", worldKey, "via direct property access")
+            else
+                print("⚠ No refresh method available for", worldKey)
+            end
+        end)
+
+        print(ok and "" or ("✗ Failed to refresh dropdown for " .. worldKey))
+    end
+
+    print("Finished refreshing all auto-select dropdowns")
+end
 
     -- ══════════════════════════════════════════════
     -- GAME TRACKING HOOKS
