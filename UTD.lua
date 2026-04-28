@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.7"
+local script_version = "V0.8"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1773,7 +1773,7 @@ end
 function AutoJoin.startGameViaAPI()
     if not PodController then warn("PodController not initialized") return false end
     local success = pcall(function()
-        local startButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Start.Hitbox
+        local startButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Container1.Start.Hitbox
         for _, conn in pairs(getconnections(startButton.MouseButton1Up)) do
             if conn.Enabled then conn:Fire() end
         end
@@ -1830,7 +1830,7 @@ function AutoJoin.tryStartGameWithRetry(maxAttempts)
     end
     warn(" Failed to start game after", maxAttempts, "attempts - clicking Leave")
     pcall(function()
-        local leaveButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Leave.Hitbox
+        local leaveButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Container1.Leave.Hitbox
         for _, conn in pairs(getconnections(leaveButton.MouseButton1Up)) do
             if conn.Enabled then conn:Fire() end
         end
@@ -4381,10 +4381,6 @@ task.spawn(function()
 			Size = UDim2.new(0, 50, 0, 50),
 			BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 		}):Play()
-	end)
-
-	Rayfield.Destroying:Connect(function()
-		screenGui:Destroy()
 	end)
 end)
 
