@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.6"
+local script_version = "V0.7"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -267,6 +267,13 @@ local State = {
     AutoJoinOlympusJudgement = false,
     AutoJoinShinobiAlliance = false,
     AutoJoinRagnarok = false,
+    AutoMatchmakeShinobiAlliance = false,
+    AutoJoinUniversalTear = false,
+    AutoMatchmakeUniversalTear = false,
+    AutoStabilizeCores = false,
+    ReturnToLobbyAfterLosses = 0,
+    LeaveAfterRerollLimitHitTheHunt = false,
+    LeaveAfterRerollLimitHitOlympus = false,
 
     -- Raid
     AutoJoinRaid = false,
@@ -1960,8 +1967,22 @@ function AutoJoin.checkAndExecuteHighestPriority()
         Util.setProcessingState("Shinobi Alliance Auto Join")
         local success = AutoJoin.joinShinobiAlliance()
         if success then
-            if AutoJoin.waitForJoinSuccess(10) then
-                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+            if State.AutoMatchmakeShinobiAlliance then
+                task.wait(1.5) -- wait for lobby to be created
+                pcall(function()
+                    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+                    Event:FireServer(buffer.fromstring(",\001"), nil)
+                end)
+                -- just wait for game to start, don't tryStartGameWithRetry
+                local waitStart = tick()
+                while Util.isInLobby() and tick() - waitStart < 360 do
+                    task.wait(0.5)
+                end
+                task.wait(3)
+            else
+                if AutoJoin.waitForJoinSuccess(10) then
+                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
             end
         end
         Util.clearProcessingState()
@@ -2381,10 +2402,20 @@ AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (The Hunt)", CurrentValue = false, Flag = "AutoJoinFeaturedChallenge",
     Callback = function(Value) State.AutoJoinFeaturedChallenge = Value end,
 })
+
+LeaveAfterRerollLimitHitTheHunt = JoinerTab:CreateToggle({
+    Name = "Leave After Reroll Limit Hit (The Hunt)", CurrentValue = false, Flag = "LeaveAfterRerollLimitHitTheHunt",
+    Callback = function(Value) State.LeaveAfterRerollLimitHitTheHunt = Value end,
+})
  
 AutoJoinOlympusToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (Olympus Judgement)", CurrentValue = false, Flag = "AutoJoinOlympusJudgement",
     Callback = function(Value) State.AutoJoinOlympusJudgement = Value end,
+})
+
+LeaveAfterRerollLimitHitOlympus = JoinerTab:CreateToggle({
+    Name = "Leave After Reroll Limit Hit (Olympus Judgement)", CurrentValue = false, Flag = "LeaveAfterRerollLimitHitOlympus",
+    Callback = function(Value) State.LeaveAfterRerollLimitHitOlympus = Value end,
 })
  
 AutoJoinChallengeToggle = JoinerTab:CreateToggle({
@@ -2433,6 +2464,21 @@ JoinerTab:CreateSection("Event Joiner")
 AutoJoinShinobiToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Shinobi Alliance", CurrentValue = false, Flag = "AutoJoinShinobiAlliance",
     Callback = function(Value) State.AutoJoinShinobiAlliance = Value end,
+})
+
+AutoJoinShinobiToggle = JoinerTab:CreateToggle({
+    Name = "Use Matchmake for Shinobi Alliance", CurrentValue = false, Flag = "AutoMatchmakeShinobiAlliance",
+    Callback = function(Value) State.AutoMatchmakeShinobiAlliance = Value end,
+})
+
+AutoJoinTearToggle = JoinerTab:CreateToggle({
+    Name = "Auto Join Universal Tear", CurrentValue = false, Flag = "AutoJoinUniversalTear",
+    Callback = function(Value) State.AutoJoinUniversalTear = Value end,
+})
+
+AutoMatchmakeTearToggle = JoinerTab:CreateToggle({
+    Name = "Use Matchmake for Universal Tear", CurrentValue = false, Flag = "AutoMatchmakeUniversalTear",
+    Callback = function(Value) State.AutoMatchmakeUniversalTear = Value end,
 })
  
 AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
@@ -3093,6 +3139,14 @@ AutoLobbyToggle = GameTab:CreateToggle({
     Name = "Auto Lobby", CurrentValue = false, Flag = "AutoLobby",
     Callback = function(Value) State.AutoLobby = Value end,
 })
+
+Slider = GameTab:CreateSlider({
+    Name = "Return to lobby after x losses", Range = {0, 50}, Increment = 1, Suffix = "losses",
+    CurrentValue = 0, Flag = "ReturnToLobbyAfterLosses", Info = "0 = disable",
+    Callback = function(Value)
+        State.ReturnToLobbyAfterLosses = Value
+    end,
+})
  
 local function enableModdedPlacement()
     if moddedPlacementEnabled then return end
@@ -3281,6 +3335,15 @@ GameTab:CreateToggle({
     Flag = "AutoKuramaHands",
     Callback = function(Value)
         State.AutoKuramaHands = Value
+    end,
+})
+
+GameTab:CreateToggle({
+    Name = "Auto Stabilize Cores (Universal Tear)",
+    CurrentValue = false,
+    Flag = "AutoStabilizeCores",
+    Callback = function(Value)
+        State.AutoStabilizeCores = Value
     end,
 })
 
