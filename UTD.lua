@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.92"
+local script_version = "V0.93"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -293,7 +293,7 @@ local State = {
 
     -- Portal
     AutoJoinPortal = false,
-    PortalSelected = nil,
+    PortalsSelected = {},
 
     ShinobiAutoGaaraZone = false,
     ShinobiAutoOpenCoffin = false,
@@ -329,6 +329,7 @@ function Util.isInLobby()
     return Services.Workspace:GetAttribute("IsLobby") or false
 end
 
+local UINameToPortalModule = {}
 local TowerService = nil
 local BlessingService = nil
 local RequestData = nil
@@ -1809,6 +1810,20 @@ function AutoJoin.waitForJoinSuccess(timeout)
     return false
 end
 
+function AutoJoin.waitForPortalJoinSuccess(timeout)
+    local startTime = tick()
+    timeout = timeout or 10
+    while tick() - startTime < timeout do
+        local ok, visible = pcall(function()
+            local portalParty = Services.Players.LocalPlayer.PlayerGui.LobbyUi:FindFirstChild("PortalParty")
+            return portalParty and portalParty.Enabled
+        end)
+        if ok and visible then return true end
+        task.wait(0.5)
+    end
+    return false
+end
+
 function AutoJoin.tryStartGameWithRetry(maxAttempts)
     maxAttempts = maxAttempts or 3
     for attempt = 1, maxAttempts do
@@ -1842,6 +1857,51 @@ function AutoJoin.tryStartGameWithRetry(maxAttempts)
     pcall(function()
         local leaveButton = Services.Players.LocalPlayer.PlayerGui.LobbyUi.PartyFrame.RightFrame.Content.Buttons.Container1.Leave.Hitbox
         for _, conn in pairs(getconnections(leaveButton.MouseButton1Up)) do
+            if conn.Enabled then conn:Fire() end
+        end
+    end)
+    task.wait(2)
+    return false
+end
+
+function AutoJoin.tryStartPortalWithRetry(maxAttempts)
+    maxAttempts = maxAttempts or 3
+
+    for attempt = 1, maxAttempts do
+        pcall(function()
+            local startHitbox = Services.Players.LocalPlayer.PlayerGui.LobbyUi
+                .PortalParty.RightFrame.Content.Container.MainPanel
+                .ContainerBottom.Buttons.Start.Hitbox
+            for _, conn in pairs(getconnections(startHitbox.MouseButton1Click)) do
+                if conn.Enabled then conn:Fire() end
+            end
+        end)
+
+        local waitStart = tick()
+        while tick() - waitStart < 3 do
+            if not Util.isInLobby() then return true end
+            local ok, visible = pcall(function()
+                local portalParty = Services.Players.LocalPlayer.PlayerGui.LobbyUi:FindFirstChild("PortalParty")
+                return portalParty and portalParty.Enabled
+            end)
+            if ok and not visible then return true end
+            task.wait(0.3)
+        end
+
+        local ok, visible = pcall(function()
+            local portalParty = Services.Players.LocalPlayer.PlayerGui.LobbyUi:FindFirstChild("PortalParty")
+            return portalParty and portalParty.Enabled
+        end)
+        if not ok or not visible then return true end
+        task.wait(0.5)
+    end
+
+    warn("Failed to start portal after", maxAttempts, "attempts - clicking Leave")
+    pcall(function()
+        local leaveHitbox = Services.Players.LocalPlayer.PlayerGui.LobbyUi
+            .PortalParty.RightFrame.Content.Container.MainPanel
+            .ContainerBottom.Buttons.Leave.Hitbox
+        for _, conn in pairs(getconnections(leaveHitbox.MouseButton1Click)) do
             if conn.Enabled then conn:Fire() end
         end
     end)
@@ -1989,16 +2049,15 @@ function AutoJoin.checkAndExecuteHighestPriority()
         end
     end
 
-    if State.AutoJoinPortal and State.PortalSelected then
+if State.AutoJoinPortal and State.PortalsSelected and #State.PortalsSelected > 0 then
     Util.setProcessingState("Portal Auto Join")
     local success = AutoJoin.usePortal()
     if success then
-        if AutoJoin.waitForJoinSuccess(10) then
-            if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+        if AutoJoin.waitForPortalJoinSuccess(10) then
+            if AutoJoin.tryStartPortalWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
         end
     end
     Util.clearProcessingState()
-    -- no return here = falls through to next joiner
 end
  
     if State.AutoJoinFeaturedChallenge then
@@ -2551,45 +2610,55 @@ JoinerTab:CreateToggle({
 })
 
 local PortalDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Portal",
+    Name = "Select Portal(s)",
     Options = {},
     CurrentOption = {},
-    MultipleOptions = false,
+    MultipleOptions = true,
     Flag = "PortalSelector",
-    Callback = function(Option)
-        State.PortalSelected = type(Option) == "table" and Option[1] or Option
+    Callback = function(Options)
+        State.PortalsSelected = {}
+        for _, displayName in ipairs(Options) do
+            local moduleName = UINameToPortalModule[displayName]
+            if moduleName then table.insert(State.PortalsSelected, moduleName) end
+        end
     end,
 })
 
 function AutoJoin.usePortal()
-    if not State.PortalSelected then return false end
+    if not State.PortalsSelected or #State.PortalsSelected == 0 then return false end
 
     local craftingItems = DataController and DataController.Items and DataController.Items.CraftingItems
-    if not craftingItems or not craftingItems[State.PortalSelected] or craftingItems[State.PortalSelected] <= 0 then
-        return false -- no keys, fall through to next joiner
+    if not craftingItems then return false end
+
+    for _, moduleName in ipairs(State.PortalsSelected) do
+        if craftingItems[moduleName] and craftingItems[moduleName] > 0 then
+            local ok = pcall(function()
+                Services.ReplicatedStorage.Packages
+                    ._Index["sleitnick_knit@1.7.0"]
+                    .knit.Services.ItemService.RF.UseItem
+                    :InvokeServer(moduleName)
+            end)
+            if ok then return true end
+        end
     end
 
-    local ok = pcall(function()
-        Services.ReplicatedStorage.Packages
-            ._Index["sleitnick_knit@1.7.0"]
-            .knit.Services.ItemService.RF.UseItem
-            :InvokeServer(State.PortalSelected)
-    end)
-    return ok
+    return false -- all selected portals empty, fall through
 end
 
 function Loader.portalItems()
     local ok, result = pcall(function()
-        local items = {}
+        local displayNames = {}
         for _, module in ipairs(Services.ReplicatedStorage.Shared.Data.Items:GetChildren()) do
             if module:IsA("ModuleScript") then
                 local moduleOk, data = pcall(require, module)
                 if moduleOk and type(data) == "table" and data.IsPortal then
-                    table.insert(items, module.Name)
+                    local displayName = data.Name or module.Name
+                    UINameToPortalModule[displayName] = module.Name
+                    table.insert(displayNames, displayName)
                 end
             end
         end
-        return items
+        return displayNames
     end)
     if ok and result and #result > 0 then
         PortalDropdown:Refresh(result)
