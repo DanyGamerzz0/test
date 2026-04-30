@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.9"
+local script_version = "V0.91"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -122,6 +122,8 @@ local hasRecentlyRestarted = false
 local currentPlaybackThread = nil
 local moddedPlacementEnabled = false
 local finishedRewardData = nil
+local consecutiveLosses = 0
+local forcedLobbyReturn = false
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -137,6 +139,7 @@ local pendingValkPlacement = nil
 local pendingValkGUID = nil  -- for playback
 local pendingValkCardList = nil
 local currentShopOffers = {}
+local lastMatchResult = nil
 
 -- ============================================
 -- NAMESPACE TABLES
@@ -200,6 +203,7 @@ task.spawn(function()
         local SendFinished = Services.ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.WaveService.RE.SendFinished
         SendFinished.OnClientEvent:Connect(function(result, rewards, gameInfo, ...)
             finishedRewardData = { result = result, rewards = rewards, gameInfo = gameInfo }
+            lastMatchResult = result -- "Won" or "Lost"
         end)
     end)
 end)
@@ -4172,8 +4176,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
     if matchFinished and gameInProgress then
         afterRewardData = Util.deepCopy(RequestData:InvokeServer())
         if State.SendStageCompletedWebhook then
-            local currentHealth = workspace:GetAttribute("Health") or 0
-            local gameResult = currentHealth > 0
+            local gameResult = lastMatchResult == "Won"
             local gameDuration = "Unknown"
             if currentGameInfo.StartTime then
                 local duration = tick() - currentGameInfo.StartTime
@@ -4182,6 +4185,23 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
         gameInProgress = false
+        if State.ReturnToLobbyAfterLosses and State.ReturnToLobbyAfterLosses > 0 then
+        if lastMatchResult == "Lost" then
+            consecutiveLosses = consecutiveLosses + 1
+            Rayfield:Notify({ Title = "Loss Tracked", Content = string.format("%d/%d losses", consecutiveLosses, State.ReturnToLobbyAfterLosses), Duration = 3 })
+            if consecutiveLosses >= State.ReturnToLobbyAfterLosses then
+                consecutiveLosses = 0
+                task.wait(1)
+                pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+                end)
+                Rayfield:Notify({ Title = "Returning to Lobby", Content = "Loss limit reached", Duration = 4 })
+            end
+        else
+            consecutiveLosses = 0 -- reset on win
+        end
+    end
+        lastMatchResult = nil
         gameStartTime = 0
         lastWave = 0
         if isPlaybackEnabled then UnitTracker.clearSpawnIdMappings() end
@@ -4268,58 +4288,62 @@ task.spawn(function()
     while true do
         while not workspace:GetAttribute("MatchFinished") do task.wait(0.5) end
         task.wait(1)
-        if State.NewChallengesAvailable and State.ReturnToLobbyOnNewChallenge then
-            local success = pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
-            end)
-            if success then
-                Rayfield:Notify({ Title = "Returned to Lobby", Content = "Ready to join new challenges", Duration = 3 })
-                State.NewChallengesAvailable = false
-            end
+        if forcedLobbyReturn then
+            forcedLobbyReturn = false
         else
-            local actions = {}
-            if State.AutoRetry then table.insert(actions, "retry") end
-            if State.AutoNext then table.insert(actions, "next") end
-            if State.AutoLobby then table.insert(actions, "lobby") end
-            if #actions > 0 then
-                local actionWorked = false
-                for _, action in ipairs(actions) do
-                    if actionWorked then break end
-                    local maxAttempts = 3
-                    for attempt = 1, maxAttempts do
-                        local success = false
-                        local remoteExists = false
-                        if action == "retry" then
-                            success, remoteExists = pcall(function()
-                                local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
-                                local remote = service:FindFirstChild("VoteReplay")
-                                if remote then remote:FireServer() return true else return false end
-                            end)
-                            if success and remoteExists then Rayfield:Notify({ Title = "Auto Retry", Content = string.format("Voting for Replay (attempt %d)...", attempt), Duration = 2 })
-                            elseif not remoteExists then break end
-                        elseif action == "next" then
-                            success, remoteExists = pcall(function()
-                                local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
-                                local remote = service:FindFirstChild("NextMap")
-                                if remote then remote:FireServer() return true else return false end
-                            end)
-                            if success and remoteExists then Rayfield:Notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
-                            elseif not remoteExists then break end
-                        elseif action == "lobby" then
-                            success = pcall(function()
-                                game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
-                            end)
-                            if success then Rayfield:Notify({ Title = "Auto Lobby", Content = "Returning to Lobby...", Duration = 2 }) actionWorked = true break
-                            else break end
-                        end
-                        if remoteExists or action == "lobby" then
-                            local waitStart = tick()
-                            while tick() - waitStart < 10 do
-                                if not workspace:GetAttribute("MatchFinished") then actionWorked = true break end
-                                task.wait(0.5)
+            if State.NewChallengesAvailable and State.ReturnToLobbyOnNewChallenge then
+                local success = pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
+                end)
+                if success then
+                    Rayfield:Notify({ Title = "Returned to Lobby", Content = "Ready to join new challenges", Duration = 3 })
+                    State.NewChallengesAvailable = false
+                end
+            else
+                local actions = {}
+                if State.AutoRetry then table.insert(actions, "retry") end
+                if State.AutoNext then table.insert(actions, "next") end
+                if State.AutoLobby then table.insert(actions, "lobby") end
+                if #actions > 0 then
+                    local actionWorked = false
+                    for _, action in ipairs(actions) do
+                        if actionWorked then break end
+                        local maxAttempts = 3
+                        for attempt = 1, maxAttempts do
+                            local success = false
+                            local remoteExists = false
+                            if action == "retry" then
+                                success, remoteExists = pcall(function()
+                                    local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
+                                    local remote = service:FindFirstChild("VoteReplay")
+                                    if remote then remote:FireServer() return true else return false end
+                                end)
+                                if success and remoteExists then Rayfield:Notify({ Title = "Auto Retry", Content = string.format("Voting for Replay (attempt %d)...", attempt), Duration = 2 })
+                                elseif not remoteExists then break end
+                            elseif action == "next" then
+                                success, remoteExists = pcall(function()
+                                    local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
+                                    local remote = service:FindFirstChild("NextMap")
+                                    if remote then remote:FireServer() return true else return false end
+                                end)
+                                if success and remoteExists then Rayfield:Notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
+                                elseif not remoteExists then break end
+                            elseif action == "lobby" then
+                                success = pcall(function()
+                                    game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
+                                end)
+                                if success then Rayfield:Notify({ Title = "Auto Lobby", Content = "Returning to Lobby...", Duration = 2 }) actionWorked = true break
+                                else break end
                             end
-                            if actionWorked then break end
-                            if attempt < maxAttempts then task.wait(1) end
+                            if remoteExists or action == "lobby" then
+                                local waitStart = tick()
+                                while tick() - waitStart < 10 do
+                                    if not workspace:GetAttribute("MatchFinished") then actionWorked = true break end
+                                    task.wait(0.5)
+                                end
+                                if actionWorked then break end
+                                if attempt < maxAttempts then task.wait(1) end
+                            end
                         end
                     end
                 end
