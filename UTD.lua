@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.8"
+local script_version = "V0.9"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -290,6 +290,8 @@ local State = {
     ShinobiAutoGaaraZone = false,
     ShinobiAutoOpenCoffin = false,
     AutoKuramaHands = false,
+
+    SelectedRiftMaps = {},
 }
 
         local loadingRetries = {
@@ -1897,6 +1899,44 @@ function Util.isGameDataLoaded()
     return success
 end
 
+function AutoJoin.joinUniversalTear()
+    local currentRift = game:GetService("ReplicatedStorage"):GetAttribute("CurrentRiftMap")
+    if not currentRift then
+        warn("No CurrentRiftMap attribute found")
+        return false
+    end
+    
+    local selectedMaps = State.SelectedRiftMaps or {}
+    if #selectedMaps == 0 then
+        warn("No rift maps selected")
+        return false
+    end
+    
+    local matchFound = false
+    for _, map in ipairs(selectedMaps) do
+        if currentRift == map then matchFound = true break end
+    end
+    
+    if not matchFound then
+        return false -- current rift not in selected list, skip
+    end
+    
+    local Event = game:GetService("ReplicatedStorage").ByteNetReliable
+    local success = false
+    
+    if currentRift == "MegunaRift" then
+        success = pcall(function()
+            Event:FireServer(buffer.fromstring(")\n\x00MegunaRift\x00\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\x05\x00Rifts\x00\x00"), nil)
+        end)
+    elseif currentRift == "GojoRift" then
+        success = pcall(function()
+            Event:FireServer(buffer.fromstring(")\n\x00GojoRift\x00\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\x05\x00Rifts\x00\x00"), nil)
+        end)
+    end
+    
+    return success
+end
+
 function AutoJoin.checkAndExecuteHighestPriority()
     if not Util.isInLobby() then return end
     if AutoJoinState.isProcessing then return end
@@ -1987,6 +2027,38 @@ function AutoJoin.checkAndExecuteHighestPriority()
         end
         Util.clearProcessingState()
     end
+
+    if State.AutoJoinUniversalTear and State.SelectedRiftMaps and #State.SelectedRiftMaps > 0 then
+    local currentRift = game:GetService("ReplicatedStorage"):GetAttribute("CurrentRiftMap")
+    if currentRift then
+        local matchFound = false
+        for _, map in ipairs(State.SelectedRiftMaps) do
+            if currentRift == map then matchFound = true break end
+        end
+        if matchFound then
+            Util.setProcessingState("Universal Tear Auto Join")
+            local success = AutoJoin.joinUniversalTear()
+            if success then
+                if State.AutoMatchmakeUniversalTear then
+                    task.wait(1.5)
+                    pcall(function()
+                        game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                    end)
+                    local waitStart = tick()
+                    while Util.isInLobby() and tick() - waitStart < 30 do
+                        task.wait(0.5)
+                    end
+                    task.wait(3)
+                else
+                    if AutoJoin.waitForJoinSuccess(10) then
+                        if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                    end
+                end
+            end
+            Util.clearProcessingState()
+        end
+    end
+end
  
     if State.AutoJoinRagnarok then
         Util.setProcessingState("Ragnarok Infinite Auto Join")
@@ -2474,6 +2546,18 @@ AutoJoinShinobiToggle = JoinerTab:CreateToggle({
 AutoJoinTearToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Universal Tear", CurrentValue = false, Flag = "AutoJoinUniversalTear",
     Callback = function(Value) State.AutoJoinUniversalTear = Value end,
+})
+
+JoinerTab:CreateDropdown({
+    Name = "Select Rift", Options = {"Sukuna", "Gojo"}, CurrentOption = {}, MultipleOptions = true,
+    Flag = "TearRiftSelector",
+    Callback = function(Options)
+        State.SelectedRiftMaps = {}
+        for _, opt in ipairs(Options) do
+            if opt == "Sukuna" then table.insert(State.SelectedRiftMaps, "MegunaRift")
+            elseif opt == "Gojo" then table.insert(State.SelectedRiftMaps, "GojoRift") end
+        end
+    end,
 })
 
 AutoMatchmakeTearToggle = JoinerTab:CreateToggle({
