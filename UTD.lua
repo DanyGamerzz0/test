@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.91"
+local script_version = "V0.92"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -274,7 +274,7 @@ local State = {
     AutoMatchmakeShinobiAlliance = false,
     AutoJoinUniversalTear = false,
     AutoMatchmakeUniversalTear = false,
-    AutoStabilizeCores = false,
+    AutoCollectRiftOrbs = false,
     ReturnToLobbyAfterLosses = 0,
     LeaveAfterRerollLimitHitTheHunt = false,
     LeaveAfterRerollLimitHitOlympus = false,
@@ -290,6 +290,10 @@ local State = {
     WinterActSelected = false,
     WinterStageDifficultySelected = false,
     WinterStageDifficultyMeterSelected = 100,
+
+    -- Portal
+    AutoJoinPortal = false,
+    PortalSelected = nil,
 
     ShinobiAutoGaaraZone = false,
     ShinobiAutoOpenCoffin = false,
@@ -1984,6 +1988,18 @@ function AutoJoin.checkAndExecuteHighestPriority()
             Util.clearProcessingState()
         end
     end
+
+    if State.AutoJoinPortal and State.PortalSelected then
+    Util.setProcessingState("Portal Auto Join")
+    local success = AutoJoin.usePortal()
+    if success then
+        if AutoJoin.waitForJoinSuccess(10) then
+            if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+        end
+    end
+    Util.clearProcessingState()
+    -- no return here = falls through to next joiner
+end
  
     if State.AutoJoinFeaturedChallenge then
         Util.setProcessingState("Featured Challenge Auto Join")
@@ -2478,20 +2494,10 @@ AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (The Hunt)", CurrentValue = false, Flag = "AutoJoinFeaturedChallenge",
     Callback = function(Value) State.AutoJoinFeaturedChallenge = Value end,
 })
-
-LeaveAfterRerollLimitHitTheHunt = JoinerTab:CreateToggle({
-    Name = "Leave After Reroll Limit Hit (The Hunt)", CurrentValue = false, Flag = "LeaveAfterRerollLimitHitTheHunt",
-    Callback = function(Value) State.LeaveAfterRerollLimitHitTheHunt = Value end,
-})
  
 AutoJoinOlympusToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (Olympus Judgement)", CurrentValue = false, Flag = "AutoJoinOlympusJudgement",
     Callback = function(Value) State.AutoJoinOlympusJudgement = Value end,
-})
-
-LeaveAfterRerollLimitHitOlympus = JoinerTab:CreateToggle({
-    Name = "Leave After Reroll Limit Hit (Olympus Judgement)", CurrentValue = false, Flag = "LeaveAfterRerollLimitHitOlympus",
-    Callback = function(Value) State.LeaveAfterRerollLimitHitOlympus = Value end,
 })
  
 AutoJoinChallengeToggle = JoinerTab:CreateToggle({
@@ -2534,6 +2540,61 @@ ReturnToLobbyToggle = JoinerTab:CreateToggle({
     Info = "Return to lobby when new challenge appears instead of using retry/next",
     Callback = function(Value) State.ReturnToLobbyOnNewChallenge = Value end,
 })
+
+JoinerTab:CreateSection("Portal Joiner")
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Portal",
+    CurrentValue = false,
+    Flag = "AutoJoinPortal",
+    Callback = function(Value) State.AutoJoinPortal = Value end,
+})
+
+local PortalDropdown = JoinerTab:CreateDropdown({
+    Name = "Select Portal",
+    Options = {},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "PortalSelector",
+    Callback = function(Option)
+        State.PortalSelected = type(Option) == "table" and Option[1] or Option
+    end,
+})
+
+function AutoJoin.usePortal()
+    if not State.PortalSelected then return false end
+
+    local craftingItems = DataController and DataController.Items and DataController.Items.CraftingItems
+    if not craftingItems or not craftingItems[State.PortalSelected] or craftingItems[State.PortalSelected] <= 0 then
+        return false -- no keys, fall through to next joiner
+    end
+
+    local ok = pcall(function()
+        Services.ReplicatedStorage.Packages
+            ._Index["sleitnick_knit@1.7.0"]
+            .knit.Services.ItemService.RF.UseItem
+            :InvokeServer(State.PortalSelected)
+    end)
+    return ok
+end
+
+function Loader.portalItems()
+    local ok, result = pcall(function()
+        local items = {}
+        for _, module in ipairs(Services.ReplicatedStorage.Shared.Data.Items:GetChildren()) do
+            if module:IsA("ModuleScript") then
+                local moduleOk, data = pcall(require, module)
+                if moduleOk and type(data) == "table" and data.IsPortal then
+                    table.insert(items, module.Name)
+                end
+            end
+        end
+        return items
+    end)
+    if ok and result and #result > 0 then
+        PortalDropdown:Refresh(result)
+    end
+end
  
 JoinerTab:CreateSection("Event Joiner")
  
@@ -3427,13 +3488,55 @@ GameTab:CreateToggle({
 })
 
 GameTab:CreateToggle({
-    Name = "Auto Stabilize Cores (Universal Tear)",
+    Name = "Auto Collect Rift Orbs (Universal Tear)",
     CurrentValue = false,
-    Flag = "AutoStabilizeCores",
+    Flag = "AutoCollectRiftOrbs",
     Callback = function(Value)
-        State.AutoStabilizeCores = Value
+        State.AutoCollectRiftOrbs = Value
     end,
 })
+
+task.spawn(function()
+    local function collectOrb(orb)
+        local prompt = orb:FindFirstChildWhichIsA("ProximityPrompt", true)
+        if not prompt then return end
+
+        local character = Services.Players.LocalPlayer.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        hrp.CFrame = orb.CFrame * CFrame.new(0, 0, -3)
+        task.wait(0.15)
+
+        if prompt and prompt.Parent then
+            pcall(fireproximityprompt, prompt)
+        end
+    end
+
+    local function isRiftOrb(name)
+    return name:find("GojoEssencePrompt_Static", 1, true)
+        or name:find("MegunaFugaPrompt_Static", 1, true)
+    end
+
+    workspace.DescendantAdded:Connect(function(v)
+        if not State.AutoCollectRiftOrbs then return end
+        if isRiftOrb(v.Name) then
+            task.wait(0.5)
+            task.spawn(collectOrb, v)
+        end
+    end)
+
+    -- Catch any already spawned orbs
+    while true do
+        task.wait(1)
+        if not State.AutoCollectRiftOrbs then continue end
+        for _, v in workspace:GetDescendants() do
+            if isRiftOrb(v.Name) then
+                task.spawn(collectOrb, v)
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     local handLocations = {"1", "2", "3"}
@@ -4363,6 +4466,7 @@ task.spawn(Loader.legendStages)
 task.spawn(Loader.virtualStages)
 task.spawn(Loader.challengeModifiers)
 task.spawn(Loader.raidStages)
+task.spawn(Loader.portalItems)
 
 task.spawn(function()
     task.wait(2)
