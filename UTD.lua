@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.97"
+local script_version = "V0.98"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3265,7 +3265,7 @@ Toggle = GameTab:CreateToggle({
 Button = LobbyTab:CreateButton({
     Name = "Return to lobby",
     Callback = function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
     end,
 })
 
@@ -3447,7 +3447,7 @@ task.spawn(function()
         if State.AutoGameSpeed and State.SelectedGameSpeed then
             local currentSpeed = Services.Workspace:GetAttribute("Speed")
             if currentSpeed and currentSpeed ~= State.SelectedGameSpeed then
-                game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("SetSpeed"):FireServer(State.SelectedGameSpeed)
+                game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("SetSpeed"):FireServer(State.SelectedGameSpeed)
             end
         end
     end
@@ -3506,7 +3506,7 @@ task.spawn(function()
             local matchFinished = Services.Workspace:GetAttribute("MatchFinished")
             if currentWave >= State.AutoRestartMatchWave and not matchFinished and not hasRestarted then
                 local success = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("MidMatchVote"):FireServer()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("MidMatchVote"):FireServer()
                 end)
                 if success then
                     hasRestarted = true
@@ -3909,7 +3909,7 @@ Tab:CreateButton({
 
 function GameState.restartMatch()
     local success, result = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("MidMatchVote"):FireServer()
+        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("MidMatchVote"):FireServer()
         return true
     end)
     if not success then warn("⚠️ Failed to press restart button:", result) return false end
@@ -4389,7 +4389,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
                 consecutiveLosses = 0
                 task.wait(1)
                 pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
                 end)
                 Rayfield:Notify({ Title = "Returning to Lobby", Content = "Loss limit reached", Duration = 4 })
             end
@@ -4428,7 +4428,7 @@ task.spawn(function()
                 if isPlaybackEnabled then Playback.checkAndSwitchMacroForCurrentWorld() task.wait(0.5) end
                 task.wait(2)
                 local success = pcall(function()
-                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RF"):WaitForChild("Vote"):InvokeServer(true)
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RF"):WaitForChild("Vote"):InvokeServer(true)
                     local skipButton = Services.Players.LocalPlayer.PlayerGui.GameUI.HUD.Vote.Button.TextButton
                     for _, startConn in pairs(getconnections(skipButton.MouseButton1Up)) do
                         if startConn.Enabled then startConn:Fire() end
@@ -4466,7 +4466,7 @@ task.spawn(function()
             if (currentMinute == 0 or currentMinute == 30) and currentMinute ~= lastCheckMinute then
                 lastCheckMinute = currentMinute
                 if Services.Workspace:GetAttribute("MatchFinished") then
-                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService"):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
                 end
                 State.NewChallengesAvailable = true
                 Rayfield:Notify({ Title = "New Challenges Available", Content = "Will return to lobby when game ends", Duration = 4 })
