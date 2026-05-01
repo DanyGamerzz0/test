@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -765,12 +765,14 @@ local generalHook = newcclosure(function(self, ...)
             elseif method == "FireServer" and self.Name == "UseAbility" then
                 local uuid = args[1]
                 local abilitySlot = args[2]
+                local abilityType = args[3]  -- e.g. "Specialist", nil for basic abilities
                 local unitTag = recordingUUIDToTag[uuid]
                 if not unitTag then warn("Ability used for untracked unit:", uuid) return end
                 table.insert(macro, {
                     Type = "use_ability",
                     Unit = unitTag,
                     AbilitySlot = abilitySlot,
+                    AbilityType = abilityType,  -- will be nil for abilities that don't send this
                     Time = string.format("%.2f", gameRelativeTime)
                 })
                 elseif method == "InvokeServer" and self.Name == "CommitSpecialPlacement" then
@@ -817,6 +819,48 @@ local generalHook = newcclosure(function(self, ...)
                         Time = string.format("%.2f", gameRelativeTime),
                     })
                     print(string.format("Recorded shop purchase: %s / %s", shopId, itemId))
+                end
+elseif method == "InvokeServer" and self.Name == "RequestFusion" then
+                local success = results[1]
+                local message = results[2]
+                local resultGuid = results[3]
+                if success == true then
+                    local baseGuid = args[1]
+                    local sacrificeGuid = args[2]
+                    local baseTag = recordingUUIDToTag[baseGuid]
+                    local sacrificeTag = recordingUUIDToTag[sacrificeGuid]
+                    if not baseTag or not sacrificeTag then
+                        warn(string.format("Fusion recorded but couldn't resolve tags — base: %s, sacrifice: %s", tostring(baseGuid), tostring(sacrificeGuid)))
+                        return
+                    end
+
+                    recordingUUIDToTag[baseGuid] = nil
+                    recordingUUIDToTag[sacrificeGuid] = nil
+
+                    local unitClass = PlacedTowerController:GetUnitClass(resultGuid)
+                    local fusedUnitName = unitClass and Util.cleanUnitName(
+                        rawget(unitClass, "TowerID") or rawget(unitClass, "UnitId") or ""
+                    ) or ""
+
+                    if fusedUnitName == "" then
+                        warn("Could not resolve fused unit name from result GUID: " .. resultGuid)
+                        return
+                    end
+
+                    recordingUnitCounter[fusedUnitName] = (recordingUnitCounter[fusedUnitName] or 0) + 1
+                    local fusedTag = string.format("%s #%d", fusedUnitName, recordingUnitCounter[fusedUnitName])
+                    recordingUUIDToTag[resultGuid] = fusedTag
+
+                    table.insert(macro, {
+                        Type = "fuse_units",
+                        BaseUnit = baseTag,
+                        SacrificeUnit = sacrificeTag,
+                        ResultUnit = fusedTag,
+                        Time = string.format("%.2f", gameRelativeTime),
+                    })
+                    print(string.format("Recorded fusion: %s + %s → %s (UUID=%s)", baseTag, sacrificeTag, fusedTag, resultGuid))
+                else
+                    warn(string.format("Fusion failed/skipped: %s", tostring(message)))
                 end
             end
         end)
@@ -1114,15 +1158,21 @@ function Playback.executeAbility(action, actionIndex, totalActions)
         Util.updateDetailedStatus(string.format("Error: Invalid UUID for %s", action.Unit))
         return false
     end
-    Util.updateDetailedStatus(string.format("Using %s ability (Slot %d)...", action.Unit, action.AbilitySlot))
+
+    local abilityDesc = action.AbilityType
+        and string.format("Slot %d (%s)", action.AbilitySlot, action.AbilityType)
+        or string.format("Slot %d", action.AbilitySlot)
+    Util.updateDetailedStatus(string.format("Using %s ability %s...", action.Unit, abilityDesc))
+
     local success = pcall(function()
         game:GetService("ReplicatedStorage")
-            :WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0")
-            :WaitForChild("knit"):WaitForChild("Services"):WaitForChild("TowerService")
-            :WaitForChild("RE"):WaitForChild("UseAbility"):FireServer(uuid, action.AbilitySlot)
+            .Packages._Index["sleitnick_knit@1.7.0"]
+            .knit.Services.TowerService.RE.UseAbility
+            :FireServer(uuid, action.AbilitySlot, action.AbilityType)
     end)
+
     if success then
-        Util.updateDetailedStatus(string.format("Used %s ability ✓", action.Unit))
+        Util.updateDetailedStatus(string.format("Used %s ability %s ✓", action.Unit, abilityDesc))
         return true
     end
     Util.updateDetailedStatus("Ability use failed")
@@ -1239,6 +1289,54 @@ function Playback.executeShopPurchase(action, actionIndex, totalActions)
     end
     Util.updateDetailedStatus("Purchase failed")
     return false
+end
+
+function Playback.executeFusion(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Fusing %s + %s", actionIndex, totalActions, action.BaseUnit, action.SacrificeUnit))
+
+    local baseUUID = playbackUnitTagToUUID[action.BaseUnit]
+    local sacrificeUUID = playbackUnitTagToUUID[action.SacrificeUnit]
+
+    if not baseUUID or type(baseUUID) ~= "string" then
+        Util.updateDetailedStatus(string.format("Error: No UUID for base unit %s", action.BaseUnit))
+        return false
+    end
+    if not sacrificeUUID or type(sacrificeUUID) ~= "string" then
+        Util.updateDetailedStatus(string.format("Error: No UUID for sacrifice unit %s", action.SacrificeUnit))
+        return false
+    end
+
+    Util.updateDetailedStatus(string.format("Fusing %s + %s...", action.BaseUnit, action.SacrificeUnit))
+
+    local fusionRemote = game:GetService("ReplicatedStorage")
+        .Packages._Index["sleitnick_knit@1.7.0"]["knit.Services"]
+        .TowerService.RF.RequestFusion
+
+    local callOk, success, message, resultGuid = pcall(function()
+        return fusionRemote:InvokeServer(baseUUID, sacrificeUUID)
+    end)
+
+    if not callOk then
+        Util.updateDetailedStatus(string.format("Fusion remote call errored for %s", action.BaseUnit))
+        return false
+    end
+
+    if success == true then
+        playbackUnitTagToUUID[action.BaseUnit] = nil
+        playbackUnitTagToUUID[action.SacrificeUnit] = nil
+
+        if resultGuid and type(resultGuid) == "string" then
+            playbackUnitTagToUUID[action.ResultUnit] = resultGuid
+        else
+            warn(string.format("Fusion succeeded but no result GUID returned for %s", action.ResultUnit))
+        end
+
+        Util.updateDetailedStatus(string.format("Fused %s + %s → %s ✓", action.BaseUnit, action.SacrificeUnit, action.ResultUnit))
+        return true
+    else
+        Util.updateDetailedStatus(string.format("Fusion failed: %s", tostring(message)))
+        return false
+    end
 end
 
 -- ============================================
@@ -4111,6 +4209,8 @@ function Playback.playMacro()
             Playback.executePlaceValkyrie(action, i, totalActions)
         elseif action.Type == "shop_purchase" then
             Playback.executeShopPurchase(action, i, totalActions)
+        elseif action.Type == "fuse_units" then
+            Playback.executeFusion(action, i, totalActions)
         end
         task.wait(0.1)
     end
