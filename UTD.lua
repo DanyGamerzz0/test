@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.68"
+local script_version = "V0.69"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -125,6 +125,7 @@ local finishedRewardData = nil
 local consecutiveLosses = 0
 local forcedLobbyReturn = false
 local pendingSubTowerInfo = nil
+local pendingReplacementInfo = nil
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -901,6 +902,35 @@ elseif method == "InvokeServer" and self.Name == "RequestFusion" then
                 else
                     warn(string.format("Skipped sub tower placement: %s", tostring(message)))
                 end
+                elseif method == "InvokeServer" and self.Name == "CommitUnitReplacement" then
+            local result = results[1]
+            local placementKey = args[1]
+            local cframe = args[2]
+            if result == true then
+                local info = pendingReplacementInfo
+                if info then
+                    -- The source unit (being replaced) tag
+                    local sourceTag = recordingUUIDToTag[info.sourceUUID]
+                    -- The new unit that appears after replacement
+                    local cleanName = Util.cleanUnitName(info.unitName)
+                    recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
+                    local newTag = string.format("%s #%d", cleanName, recordingUnitCounter[cleanName])
+                    -- Map the new GUID to the new tag
+                    recordingUUIDToTag[placementKey] = newTag
+                    -- Remove old source UUID mapping
+                    if info.sourceUUID then recordingUUIDToTag[info.sourceUUID] = nil end
+                    table.insert(macro, {
+                        Type = "replace_unit",
+                        SourceUnit = sourceTag,   -- the unit whose ability triggered this
+                        NewUnit = newTag,
+                        UnitName = cleanName,
+                        Time = string.format("%.2f", gameRelativeTime),
+                        Position = { cframe.Position.X, cframe.Position.Y, cframe.Position.Z },
+                    })
+                    print(string.format("Recorded replacement: %s → %s", tostring(sourceTag), newTag))
+                    pendingReplacementInfo = nil
+                end
+            end
             end
         end)
     end
@@ -927,6 +957,15 @@ task.spawn(function()
                 print(string.format("BeginSpecialPlacement: %s (GUID: %s)", valkId, guid))
             end
         end)
+
+        TowerServiceRE.BeginUnitReplacement.OnClientEvent:Connect(function(guid, sourceUUID, unitName, options)
+    pendingReplacementInfo = {
+        guid = guid,
+        sourceUUID = sourceUUID,
+        unitName = unitName,
+    }
+    print(string.format("BeginUnitReplacement: %s replacing %s (GUID: %s)", unitName, sourceUUID, guid))
+end)
 
         TowerServiceRE.EndSpecialPlacement.OnClientEvent:Connect(function(guid, status)
             if status == "Placed" then
@@ -1439,6 +1478,46 @@ function Playback.executePlaceSubTower(action, actionIndex, totalActions)
     end
 
     Util.updateDetailedStatus(string.format("Sub tower placement failed: %s", tostring(message)))
+    return false
+end
+
+function Playback.executeReplaceUnit(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Replacing unit: %s", actionIndex, totalActions, action.NewUnit))
+
+    local TowerServiceRF = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.TowerService.RF
+
+    -- Wait for BeginUnitReplacement to give us the live GUID
+    local deadline = tick() + 15
+    while not pendingReplacementInfo and tick() < deadline do
+        task.wait(0.3)
+        if not isPlaybackEnabled or not gameInProgress then return false end
+    end
+
+    local info = pendingReplacementInfo
+    if not info then
+        Util.updateDetailedStatus("Timed out waiting for replacement GUID")
+        return false
+    end
+    pendingReplacementInfo = nil
+
+    local pos = action.Position
+    local cframe = CFrame.new(pos[1], pos[2], pos[3])
+
+    local callOk, result = pcall(function()
+        return TowerServiceRF.CommitUnitReplacement:InvokeServer(info.guid, cframe)
+    end)
+
+    if callOk and result then
+        -- Remap: old source tag → new unit tag
+        if action.SourceUnit then
+            playbackUnitTagToUUID[action.SourceUnit] = nil
+        end
+        playbackUnitTagToUUID[action.NewUnit] = info.guid
+        Util.updateDetailedStatus(string.format("Replaced → %s ✓", action.NewUnit))
+        return true
+    end
+
+    Util.updateDetailedStatus("Unit replacement failed")
     return false
 end
 
@@ -4330,6 +4409,8 @@ function Playback.playMacro()
             else
                 Playback.executePlaceSubTower(action, i, totalActions)
             end
+        elseif action.Type == "replace_unit" then
+            Playback.executeReplaceUnit(action, i, totalActions)
         end
         task.wait(0.1)
     end
