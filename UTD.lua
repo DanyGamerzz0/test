@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.95"
+local script_version = "V0.96"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1868,10 +1868,12 @@ function AutoJoin.tryStartPortalWithRetry(maxAttempts)
     maxAttempts = maxAttempts or 3
 
     for attempt = 1, maxAttempts do
+        print("Portal start attempt", attempt)
         pcall(function()
             local startHitbox = Services.Players.LocalPlayer.PlayerGui.LobbyUi
                 .PortalParty.RightFrame.Content.Container.MainPanel
                 .ContainerBottom.Buttons.Start.Hitbox
+                print("Found hitbox:", startHitbox)
             for _, conn in pairs(getconnections(startHitbox.MouseButton1Click)) do
                 if conn.Enabled then conn:Fire() end
             end
