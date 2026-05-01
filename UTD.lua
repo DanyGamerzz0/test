@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.02"
+local script_version = "V0.7"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -928,6 +928,42 @@ elseif method == "InvokeServer" and self.Name == "RequestFusion" then
                     print(string.format("Recorded replacement: %s → %s (new UUID: %s)", tostring(sourceTag), newTag, args[1]))
                     pendingReplacementInfo = nil
                 end
+                elseif method == "InvokeServer" and self.Name == "AutoAbility" then
+                local uuid = args[1]
+                local abilitySlot = args[2]
+                local enabled = args[3]
+                local unitTag = recordingUUIDToTag[uuid]
+                if not unitTag then warn("AutoAbility for untracked unit:", uuid) return end
+                table.insert(macro, {
+                    Type = "auto_ability",
+                    Unit = unitTag,
+                    AbilitySlot = abilitySlot,
+                    Enabled = enabled,
+                    Time = string.format("%.2f", gameRelativeTime),
+                })
+                print(string.format("Recorded auto ability: %s slot %d enabled=%s", unitTag, abilitySlot, tostring(enabled)))
+
+            elseif method == "InvokeServer" and self.Name == "ToggleAutoUpgrade" then
+                local uuid = args[1]
+                local unitTag = recordingUUIDToTag[uuid]
+                if not unitTag then warn("ToggleAutoUpgrade for untracked unit:", uuid) return end
+                table.insert(macro, {
+                    Type = "toggle_auto_upgrade",
+                    Unit = unitTag,
+                    Time = string.format("%.2f", gameRelativeTime),
+                })
+                print(string.format("Recorded toggle auto upgrade: %s", unitTag))
+
+            elseif method == "InvokeServer" and self.Name == "IncrementAutoUpgradePriority" then
+                local uuid = args[1]
+                local unitTag = recordingUUIDToTag[uuid]
+                if not unitTag then warn("IncrementAutoUpgradePriority for untracked unit:", uuid) return end
+                table.insert(macro, {
+                    Type = "increment_auto_upgrade_priority",
+                    Unit = unitTag,
+                    Time = string.format("%.2f", gameRelativeTime),
+                })
+                print(string.format("Recorded increment auto upgrade priority: %s", unitTag))
             end
         end)
     end
@@ -1529,6 +1565,77 @@ function Playback.executeReplaceUnit(action, actionIndex, totalActions)
 
     Util.updateDetailedStatus(string.format("Replaced → %s ✓ (UUID: %s)", action.NewUnit, newUUID))
     return true
+end
+
+function Playback.executeAutoAbility(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Auto ability %s slot %d = %s",
+        actionIndex, totalActions, action.Unit, action.AbilitySlot, tostring(action.Enabled)))
+
+    local uuid = playbackUnitTagToUUID[action.Unit]
+    if not uuid or type(uuid) ~= "string" then
+        Util.updateDetailedStatus(string.format("Error: No UUID for %s", action.Unit))
+        return false
+    end
+
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"]
+            .knit.Services.TowerService.RF.AutoAbility
+            :InvokeServer(uuid, action.AbilitySlot, action.Enabled)
+    end)
+
+    if success then
+        Util.updateDetailedStatus(string.format("Auto ability set: %s slot %d = %s ✓",
+            action.Unit, action.AbilitySlot, tostring(action.Enabled)))
+        return true
+    end
+    Util.updateDetailedStatus("Auto ability failed")
+    return false
+end
+
+function Playback.executeToggleAutoUpgrade(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Toggle auto upgrade: %s", actionIndex, totalActions, action.Unit))
+
+    local uuid = playbackUnitTagToUUID[action.Unit]
+    if not uuid or type(uuid) ~= "string" then
+        Util.updateDetailedStatus(string.format("Error: No UUID for %s", action.Unit))
+        return false
+    end
+
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"]
+            .knit.Services.DataService.RF.ToggleAutoUpgrade
+            :InvokeServer(uuid)
+    end)
+
+    if success then
+        Util.updateDetailedStatus(string.format("Toggled auto upgrade: %s ✓", action.Unit))
+        return true
+    end
+    Util.updateDetailedStatus("Toggle auto upgrade failed")
+    return false
+end
+
+function Playback.executeIncrementAutoUpgradePriority(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Increment auto upgrade priority: %s", actionIndex, totalActions, action.Unit))
+
+    local uuid = playbackUnitTagToUUID[action.Unit]
+    if not uuid or type(uuid) ~= "string" then
+        Util.updateDetailedStatus(string.format("Error: No UUID for %s", action.Unit))
+        return false
+    end
+
+    local success = pcall(function()
+        game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"]
+            .knit.Services.DataService.RF.IncrementAutoUpgradePriority
+            :InvokeServer(uuid)
+    end)
+
+    if success then
+        Util.updateDetailedStatus(string.format("Incremented auto upgrade priority: %s ✓", action.Unit))
+        return true
+    end
+    Util.updateDetailedStatus("Increment auto upgrade priority failed")
+    return false
 end
 
 -- ============================================
@@ -4421,6 +4528,12 @@ function Playback.playMacro()
             end
         elseif action.Type == "replace_unit" then
             Playback.executeReplaceUnit(action, i, totalActions)
+        elseif action.Type == "auto_ability" then
+            Playback.executeAutoAbility(action, i, totalActions)
+        elseif action.Type == "toggle_auto_upgrade" then
+            Playback.executeToggleAutoUpgrade(action, i, totalActions)
+        elseif action.Type == "increment_auto_upgrade_priority" then
+            Playback.executeIncrementAutoUpgradePriority(action, i, totalActions)
         end
         task.wait(0.1)
     end
