@@ -1,4 +1,4 @@
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local Services = {
     HttpService = game:GetService("HttpService"),
@@ -161,6 +161,8 @@ local State = {
     RestartGameOnWave = 0,
     EndGameOnWave = 0,
     capturedWave = nil,
+    autoSpiralDrill = false,
+    EndGameAfterMinutes = 0,
 }
 
 local pendingWebhookData = {
@@ -3910,6 +3912,72 @@ GameTab:CreateSlider({
         State.EndGameOnWave = Value
     end,
 })
+
+GameTab:CreateToggle({
+    Name = "Auto Spiral Drill",
+    CurrentValue = false,
+    Flag = "AutoSpiralDrill",
+    Callback = function(Value)
+        State.autoSpiralDrill = Value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if State.autoSpiralDrill and not isInLobby() and State.gameRunning then
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remote.Server.UI.SpiralDrill:FireServer()
+            end)
+        end
+    end
+end)
+
+GameTab:CreateSlider({
+    Name = "End Match After x Minutes",
+    Range = {0, 360},
+    Increment = 1,
+    Suffix = "minutes",
+    CurrentValue = 0,
+    Flag = "EndMatchAfterMinutesSlider",
+    Info = "0 = disable",
+    Callback = function(Value)
+        State.EndGameAfterMinutes = Value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.EndGameAfterMinutes and State.EndGameAfterMinutes > 0
+            and State.gameRunning and not isInLobby()
+            and State.stageStartTime then
+
+            local elapsed = tick() - State.stageStartTime
+            local limitSeconds = State.EndGameAfterMinutes * 60
+
+            if elapsed >= limitSeconds then
+                notify("End Match", "Time limit reached! Ending match...", 3)
+
+                State.gameRunning = false
+                State.hasGameEnded = true
+                State.autoPlayDelayActive = false
+                State.stageStartTime = nil  -- add this line
+
+                resetUpgradeOrder()
+                lastCheckedLevels = {}
+                processedUnits = {}
+
+                pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Remote")
+                        :WaitForChild("Server")
+                        :WaitForChild("OnGame")
+                        :WaitForChild("EndMatch"):FireServer()
+                end)
+            end
+        end
+    end
+end)
 
 --// AUTO PLAY TAB //--
 
