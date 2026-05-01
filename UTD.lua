@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.9999"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -140,6 +140,10 @@ local pendingValkGUID = nil  -- for playback
 local pendingValkCardList = nil
 local currentShopOffers = {}
 local lastMatchResult = nil
+local RerollLimitHit = {
+    TheHunt = false,
+    Olympus = false,
+}
 
 -- ============================================
 -- NAMESPACE TABLES
@@ -1670,6 +1674,18 @@ function Util.convertDifficultyMeter(percentage)
     return percentage / 100
 end
 
+function AutoJoin.checkRerollLimit(challengeKey)
+    local success, result = pcall(function()
+        local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService.RF.GetRerollLimit
+        local current, limit = Event:InvokeServer(challengeKey)
+        return current, limit
+    end)
+    if not success then return false end
+    local current, limit = result
+    if type(current) ~= "number" or type(limit) ~= "number" then return false end
+    return current >= limit
+end
+
 function AutoJoin.joinStory(mapUIName, act, difficulty, difficultyPercent)
     if not PodController then warn("PodController not initialized") return false end
     local mapModuleName = AutoJoin.getModuleNameFromUI(mapUIName, "Story")
@@ -2087,25 +2103,45 @@ if State.AutoJoinPortal and State.PortalsSelected and #State.PortalsSelected > 0
 end
  
     if State.AutoJoinFeaturedChallenge then
-        Util.setProcessingState("Featured Challenge Auto Join")
-        local success = AutoJoin.joinFeaturedChallenge()
-        if success then
-            if AutoJoin.waitForJoinSuccess(10) then
-                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+        -- Check if we should skip due to reroll limit
+        if State.LeaveAfterRerollLimitHitTheHunt and not RerollLimitHit.TheHunt then
+            RerollLimitHit.TheHunt = AutoJoin.checkRerollLimit("Frozen StrongholdFeaturedChallenge_1")
+            if RerollLimitHit.TheHunt then
+                Rayfield:Notify({ Title = "The Hunt", Content = "Reroll limit hit - skipping", Duration = 4 })
             end
         end
-        Util.clearProcessingState()
+
+        if not (State.LeaveAfterRerollLimitHitTheHunt and RerollLimitHit.TheHunt) then
+            Util.setProcessingState("Featured Challenge Auto Join")
+            local success = AutoJoin.joinFeaturedChallenge()
+            if success then
+                if AutoJoin.waitForJoinSuccess(10) then
+                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
+            end
+            Util.clearProcessingState()
+        end
     end
  
     if State.AutoJoinOlympusJudgement then
-        Util.setProcessingState("Olympus Judgement Auto Join")
-        local success = AutoJoin.joinOlympusJudgement()
-        if success then
-            if AutoJoin.waitForJoinSuccess(10) then
-                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+        -- Check if we should skip due to reroll limit
+        if State.LeaveAfterRerollLimitHitOlympus and not RerollLimitHit.Olympus then
+            RerollLimitHit.Olympus = AutoJoin.checkRerollLimit("Olympus JudgementFeaturedChallenge_1")
+            if RerollLimitHit.Olympus then
+                Rayfield:Notify({ Title = "Olympus Judgement", Content = "Reroll limit hit - skipping", Duration = 4 })
             end
         end
-        Util.clearProcessingState()
+
+        if not (State.LeaveAfterRerollLimitHitOlympus and RerollLimitHit.Olympus) then
+            Util.setProcessingState("Olympus Judgement Auto Join")
+            local success = AutoJoin.joinOlympusJudgement()
+            if success then
+                if AutoJoin.waitForJoinSuccess(10) then
+                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
+            end
+            Util.clearProcessingState()
+        end
     end
  
     if State.AutoJoinShinobiAlliance then
@@ -2579,10 +2615,20 @@ AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (The Hunt)", CurrentValue = false, Flag = "AutoJoinFeaturedChallenge",
     Callback = function(Value) State.AutoJoinFeaturedChallenge = Value end,
 })
+
+AutoLeaveTheHuntToggle = JoinerTab:CreateToggle({
+    Name = "Stop Joining after reroll limit hit (The Hunt)", CurrentValue = false, Flag = "QuitAfterRerollLimitTheHunt",
+    Callback = function(Value) State.LeaveAfterRerollLimitHitTheHunt = Value end,
+})
  
 AutoJoinOlympusToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (Olympus Judgement)", CurrentValue = false, Flag = "AutoJoinOlympusJudgement",
     Callback = function(Value) State.AutoJoinOlympusJudgement = Value end,
+})
+
+AutoLeaveOlympusToggle = JoinerTab:CreateToggle({
+    Name = "Stop Joining after reroll limit hit (Olympus Judgement)", CurrentValue = false, Flag = "QuitAfterRerollLimitOlympus",
+    Callback = function(Value) State.LeaveAfterRerollLimitHitOlympus = Value end,
 })
  
 AutoJoinChallengeToggle = JoinerTab:CreateToggle({
