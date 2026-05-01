@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.98"
+local script_version = "V0.99"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1833,6 +1833,7 @@ function AutoJoin.waitForJoinSuccess(timeout)
 end
 
 function AutoJoin.waitForPortalJoinSuccess(timeout)
+    print("Waiting for portal join success...")
     local startTime = tick()
     timeout = timeout or 10
     while tick() - startTime < timeout do
@@ -1840,9 +1841,10 @@ function AutoJoin.waitForPortalJoinSuccess(timeout)
             local portalParty = Services.Players.LocalPlayer.PlayerGui.LobbyUi:FindFirstChild("PortalParty")
             return portalParty and portalParty.Enabled
         end)
-        if ok and visible then return true end
+        if ok and visible then print("Portal join successful!") return true end
         task.wait(0.5)
     end
+    print("Portal join failed after waiting")
     return false
 end
 
