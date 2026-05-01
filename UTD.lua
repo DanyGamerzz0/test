@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.71"
+local script_version = "V0.01"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -903,38 +903,30 @@ elseif method == "InvokeServer" and self.Name == "RequestFusion" then
                     warn(string.format("Skipped sub tower placement: %s", tostring(message)))
                 end
             elseif method == "InvokeServer" and self.Name == "CommitUnitReplacement" then
-                local result = results[1]
-                local placementKey = args[1]  -- this is the NEW guid for the placed unit
-                local cframe = args[2]
-                if result == true then
-                    local info = pendingReplacementInfo
-                    if info then
-                        local sourceTag = recordingUUIDToTag[info.sourceUUID]
-                        local cleanName = Util.cleanUnitName(info.unitName)
-                        recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
-                        local newTag = string.format("%s #%d", cleanName, recordingUnitCounter[cleanName])
+                local cframe = args[2]  -- args[1] is the guid key
+                local info = pendingReplacementInfo
+                if info then
+                    local sourceTag = recordingUUIDToTag[info.sourceUUID]
+                    local cleanName = Util.cleanUnitName(info.unitName)
+                    recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
+                    local newTag = string.format("%s #%d", cleanName, recordingUnitCounter[cleanName])
 
-                        -- Remove OLD uuid mapping
-                        recordingUUIDToTag[info.sourceUUID] = nil
+                    recordingUUIDToTag[info.sourceUUID] = newTag  -- keep old mapped to new tag
+                    recordingUUIDToTag[args[1]] = newTag           -- map new GUID too
 
-                        -- *** THIS IS THE FIX: map the new GUID so upgrades/sells work ***
-                        recordingUUIDToTag[placementKey] = newTag
+                    UnitTracker.stopTracking(info.sourceUUID)
+                    UnitTracker.startTracking(args[1], newTag, cleanName)
 
-                        -- Also restart tracking on the new GUID
-                        UnitTracker.stopTracking(info.sourceUUID)
-                        UnitTracker.startTracking(placementKey, newTag, cleanName)
-
-                        table.insert(macro, {
-                            Type = "replace_unit",
-                            SourceUnit = sourceTag,
-                            NewUnit = newTag,
-                            UnitName = cleanName,
-                            Time = string.format("%.2f", gameRelativeTime),
-                            Position = { cframe.Position.X, cframe.Position.Y, cframe.Position.Z },
-                        })
-                        print(string.format("Recorded replacement: %s → %s (new UUID: %s)", tostring(sourceTag), newTag, placementKey))
-                        pendingReplacementInfo = nil
-                    end
+                    table.insert(macro, {
+                        Type = "replace_unit",
+                        SourceUnit = sourceTag,
+                        NewUnit = newTag,
+                        UnitName = cleanName,
+                        Time = string.format("%.2f", gameRelativeTime),
+                        Position = { cframe.Position.X, cframe.Position.Y, cframe.Position.Z },
+                    })
+                    print(string.format("Recorded replacement: %s → %s (new UUID: %s)", tostring(sourceTag), newTag, args[1]))
+                    pendingReplacementInfo = nil
                 end
             end
         end)
