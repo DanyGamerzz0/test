@@ -3925,7 +3925,7 @@ GameTab:CreateToggle({
 task.spawn(function()
     while true do
         task.wait(5)
-        if State.autoSpiralDrill and not isInLobby() and State.gameRunning then
+        if State.autoSpiralDrill and not isInLobby() and game:GetService("ReplicatedStorage").Values.Game.SpiralInvasion.SpiralDrillVisible.Value then
             pcall(function()
                 game:GetService("ReplicatedStorage").Remote.Server.UI.SpiralDrill:FireServer()
             end)
