@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.96"
+local script_version = "V0.97"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -342,9 +342,31 @@ local Knit = require(Services.ReplicatedStorage.Packages.knit)
 task.spawn(function()
     task.wait(2)
     pcall(function()
-        TowerService = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 10):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("TowerService"):WaitForChild("RF")
-        BlessingService = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 10):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("BlessingService"):WaitForChild("RE")
-        RequestData = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 10):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RF"):WaitForChild("RequestData")
+        TowerService = Services.ReplicatedStorage
+            :WaitForChild("Packages", 10)
+            :WaitForChild("_Index", 10)
+            :WaitForChild("sleitnick_knit@1.7.0", 10)
+            :WaitForChild("knit", 10)
+            :WaitForChild("Services", 10)
+            :WaitForChild("TowerService", 10) -- 10s timeout instead of infinite
+            :WaitForChild("RF", 10)
+        BlessingService = Services.ReplicatedStorage
+            :WaitForChild("Packages", 10)
+            :WaitForChild("_Index", 10)
+            :WaitForChild("sleitnick_knit@1.7.0", 10)
+            :WaitForChild("knit", 10)
+            :WaitForChild("Services", 10)
+            :WaitForChild("BlessingService", 10)
+            :WaitForChild("RE", 10)
+        RequestData = Services.ReplicatedStorage
+            :WaitForChild("Packages", 10)
+            :WaitForChild("_Index", 10)
+            :WaitForChild("sleitnick_knit@1.7.0", 10)
+            :WaitForChild("knit", 10)
+            :WaitForChild("Services", 10)
+            :WaitForChild("DataService", 10)
+            :WaitForChild("RF", 10)
+            :WaitForChild("RequestData", 10)
     end)
 end)
 
