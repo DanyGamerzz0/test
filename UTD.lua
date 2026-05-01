@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.7"
+local script_version = "V0.67"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -124,6 +124,7 @@ local moddedPlacementEnabled = false
 local finishedRewardData = nil
 local consecutiveLosses = 0
 local forcedLobbyReturn = false
+local pendingSubTowerInfo = nil
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -862,6 +863,44 @@ elseif method == "InvokeServer" and self.Name == "RequestFusion" then
                 else
                     warn(string.format("Fusion failed/skipped: %s", tostring(message)))
                 end
+                elseif method == "InvokeServer" and self.Name == "PlaceSubTower" then
+                local result  = results[1]
+                local message = results[2]
+                local subGUID = results[3]  -- new UUID of the placed sub tower
+
+                if result == true then
+                    local parentUUID   = args[1]
+                    local subTowerName = args[2]
+                    local cframe       = args[3]
+                    -- args[4] = { placementToken = "..." }
+
+                    local parentTag = recordingUUIDToTag[parentUUID]
+                    if not parentTag then
+                        warn("Sub tower placed for untracked parent:", parentUUID)
+                        return
+                    end
+
+                    local cleanSubName = Util.cleanUnitName(subTowerName)
+                    recordingUnitCounter[cleanSubName] = (recordingUnitCounter[cleanSubName] or 0) + 1
+                    local subTag = string.format("%s #%d", cleanSubName, recordingUnitCounter[cleanSubName])
+
+                    -- Track the sub tower so upgrades/sells work on it too
+                    if subGUID then
+                        recordingUUIDToTag[subGUID] = subTag
+                    end
+
+                    table.insert(macro, {
+                        Type        = "place_sub_tower",
+                        ParentUnit  = parentTag,
+                        SubUnitTag  = subTag,
+                        SubTowerName = cleanSubName,
+                        Time        = string.format("%.2f", gameRelativeTime),
+                        Position    = { cframe.Position.X, cframe.Position.Y, cframe.Position.Z },
+                    })
+                    print(string.format("Recorded sub tower: %s on %s (UUID=%s)", subTag, parentTag, tostring(subGUID)))
+                else
+                    warn(string.format("Skipped sub tower placement: %s", tostring(message)))
+                end
             end
         end)
     end
@@ -894,6 +933,14 @@ task.spawn(function()
                 pendingValkGUID = nil
             end
         end)
+        TowerServiceRE.BeginSubTowerPlacement.OnClientEvent:Connect(function(placementToken, parentGUID, subTowerName, options)
+    pendingSubTowerInfo = {
+        token = placementToken,
+        parentUUID = parentGUID,
+        subTowerName = subTowerName,
+    }
+    print(string.format("BeginSubTowerPlacement: %s (parent: %s, token: %s)", subTowerName, parentGUID, placementToken))
+end)
     end)
 end)
 
@@ -1337,6 +1384,66 @@ function Playback.executeFusion(action, actionIndex, totalActions)
         Util.updateDetailedStatus(string.format("Fusion failed: %s", tostring(message)))
         return false
     end
+end
+
+function Playback.executePlaceSubTower(action, actionIndex, totalActions)
+    Util.updateMacroStatus(string.format("(%d/%d) Placing sub tower: %s on %s",
+        actionIndex, totalActions, action.SubTowerName, action.ParentUnit))
+
+    local parentUUID = playbackUnitTagToUUID[action.ParentUnit]
+    if not parentUUID or type(parentUUID) ~= "string" then
+        Util.updateDetailedStatus(string.format("Error: No UUID for parent unit %s", action.ParentUnit))
+        return false
+    end
+
+    -- Clear any stale pending info so we wait for a fresh one matching this parent
+    pendingSubTowerInfo = nil
+
+    -- Wait for the server to fire BeginSubTowerPlacement for this parent
+    local info    = nil
+    local deadline = tick() + 15
+    while tick() < deadline do
+        if pendingSubTowerInfo and pendingSubTowerInfo.parentUUID == parentUUID then
+            info = pendingSubTowerInfo
+            pendingSubTowerInfo = nil
+            break
+        end
+        task.wait(0.3)
+        if not isPlaybackEnabled or not gameInProgress then return false end
+    end
+
+    if not info then
+        Util.updateDetailedStatus(string.format("Timed out waiting for sub tower token (%s)", action.SubTowerName))
+        return false
+    end
+
+    local pos    = action.Position
+    local cframe = CFrame.new(pos[1], pos[2], pos[3])
+
+    local PlaceSubTowerRF = game:GetService("ReplicatedStorage")
+        .Packages._Index["sleitnick_knit@1.7.0"]
+        .knit.Services.TowerService.RF.PlaceSubTower
+
+    local callOk, result, message, subGUID = pcall(function()
+        return PlaceSubTowerRF:InvokeServer(
+            parentUUID,
+            action.SubTowerName,
+            cframe,
+            { placementToken = info.token }
+        )
+    end)
+
+    if callOk and result == true then
+        -- Register the new sub tower UUID so sells/upgrades work on it
+        if subGUID and type(subGUID) == "string" then
+            playbackUnitTagToUUID[action.SubUnitTag] = subGUID
+        end
+        Util.updateDetailedStatus(string.format("Placed sub tower %s ✓", action.SubTowerName))
+        return true
+    end
+
+    Util.updateDetailedStatus(string.format("Sub tower placement failed: %s", tostring(message)))
+    return false
 end
 
 -- ============================================
@@ -4211,6 +4318,22 @@ function Playback.playMacro()
             Playback.executeShopPurchase(action, i, totalActions)
         elseif action.Type == "fuse_units" then
             Playback.executeFusion(action, i, totalActions)
+        elseif action.Type == "place_sub_tower" then
+            if ignoreTiming then
+                local subTime = tonumber(action.Time)
+                local delayTime = math.max(0, subTime - (tick() - startTime))
+                task.spawn(function()
+                    task.wait(delayTime)
+                    local mf = workspace:GetAttribute("MatchFinished")
+                    if isPlaybackEnabled and gameInProgress and not mf then
+                        Playback.executePlaceSubTower(action, i, totalActions)
+                    end
+                end)
+                Util.updateDetailedStatus(string.format("(%d/%d) Scheduled sub tower for %s on %s",
+                    i, totalActions, action.SubTowerName, action.ParentUnit))
+            else
+                Playback.executePlaceSubTower(action, i, totalActions)
+            end
         end
         task.wait(0.1)
     end
