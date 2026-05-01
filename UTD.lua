@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.69"
+local script_version = "V0.71"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -902,35 +902,40 @@ elseif method == "InvokeServer" and self.Name == "RequestFusion" then
                 else
                     warn(string.format("Skipped sub tower placement: %s", tostring(message)))
                 end
-                elseif method == "InvokeServer" and self.Name == "CommitUnitReplacement" then
-            local result = results[1]
-            local placementKey = args[1]
-            local cframe = args[2]
-            if result == true then
-                local info = pendingReplacementInfo
-                if info then
-                    -- The source unit (being replaced) tag
-                    local sourceTag = recordingUUIDToTag[info.sourceUUID]
-                    -- The new unit that appears after replacement
-                    local cleanName = Util.cleanUnitName(info.unitName)
-                    recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
-                    local newTag = string.format("%s #%d", cleanName, recordingUnitCounter[cleanName])
-                    -- Map the new GUID to the new tag
-                    recordingUUIDToTag[placementKey] = newTag
-                    -- Remove old source UUID mapping
-                    if info.sourceUUID then recordingUUIDToTag[info.sourceUUID] = nil end
-                    table.insert(macro, {
-                        Type = "replace_unit",
-                        SourceUnit = sourceTag,   -- the unit whose ability triggered this
-                        NewUnit = newTag,
-                        UnitName = cleanName,
-                        Time = string.format("%.2f", gameRelativeTime),
-                        Position = { cframe.Position.X, cframe.Position.Y, cframe.Position.Z },
-                    })
-                    print(string.format("Recorded replacement: %s → %s", tostring(sourceTag), newTag))
-                    pendingReplacementInfo = nil
+            elseif method == "InvokeServer" and self.Name == "CommitUnitReplacement" then
+                local result = results[1]
+                local placementKey = args[1]  -- this is the NEW guid for the placed unit
+                local cframe = args[2]
+                if result == true then
+                    local info = pendingReplacementInfo
+                    if info then
+                        local sourceTag = recordingUUIDToTag[info.sourceUUID]
+                        local cleanName = Util.cleanUnitName(info.unitName)
+                        recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
+                        local newTag = string.format("%s #%d", cleanName, recordingUnitCounter[cleanName])
+
+                        -- Remove OLD uuid mapping
+                        recordingUUIDToTag[info.sourceUUID] = nil
+
+                        -- *** THIS IS THE FIX: map the new GUID so upgrades/sells work ***
+                        recordingUUIDToTag[placementKey] = newTag
+
+                        -- Also restart tracking on the new GUID
+                        UnitTracker.stopTracking(info.sourceUUID)
+                        UnitTracker.startTracking(placementKey, newTag, cleanName)
+
+                        table.insert(macro, {
+                            Type = "replace_unit",
+                            SourceUnit = sourceTag,
+                            NewUnit = newTag,
+                            UnitName = cleanName,
+                            Time = string.format("%.2f", gameRelativeTime),
+                            Position = { cframe.Position.X, cframe.Position.Y, cframe.Position.Z },
+                        })
+                        print(string.format("Recorded replacement: %s → %s (new UUID: %s)", tostring(sourceTag), newTag, placementKey))
+                        pendingReplacementInfo = nil
+                    end
                 end
-            end
             end
         end)
     end
