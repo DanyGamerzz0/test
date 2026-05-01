@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.99"
+local script_version = "V0.999"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2664,10 +2664,9 @@ function AutoJoin.usePortal()
                     .knit.Services.ItemService.RF.UseItem
                     :InvokeServer(moduleName)
             end)
-            if ok then return true end
+            return true
         end
     end
-
     return false -- all selected portals empty, fall through
 end
 
