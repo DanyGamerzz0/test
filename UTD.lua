@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.01"
+local script_version = "V0.02"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1504,18 +1504,31 @@ function Playback.executeReplaceUnit(action, actionIndex, totalActions)
         return TowerServiceRF.CommitUnitReplacement:InvokeServer(info.guid, cframe)
     end)
 
-    if callOk and result then
-        -- Remap: old source tag → new unit tag
-        if action.SourceUnit then
-            playbackUnitTagToUUID[action.SourceUnit] = nil
-        end
-        playbackUnitTagToUUID[action.NewUnit] = info.guid
-        Util.updateDetailedStatus(string.format("Replaced → %s ✓", action.NewUnit))
-        return true
+    -- Clear old tag mappings regardless of result (same as recording side)
+    if action.SourceUnit then
+        playbackUnitTagToUUID[action.SourceUnit] = nil
     end
 
-    Util.updateDetailedStatus("Unit replacement failed")
-    return false
+    -- Map new tag to the GUID from BeginUnitReplacement
+    -- Also try to find it fresh in GC as fallback
+    local newUUID = info.guid
+    task.wait(0.5)
+    local excludeUUIDs = {}
+    for _, mappedUUID in pairs(playbackUnitTagToUUID) do excludeUUIDs[mappedUUID] = true end
+    local foundUUID = UnitTracker.findNewInGC(action.UnitName, excludeUUIDs)
+    if foundUUID then
+        newUUID = foundUUID
+        print(string.format("Found replaced unit in GC: %s -> %s", action.NewUnit, newUUID))
+    end
+
+    playbackUnitTagToUUID[action.NewUnit] = newUUID
+    -- Also keep source tag mapped as fallback in case timing is off
+    if action.SourceUnit then
+        playbackUnitTagToUUID[action.SourceUnit] = newUUID
+    end
+
+    Util.updateDetailedStatus(string.format("Replaced → %s ✓ (UUID: %s)", action.NewUnit, newUUID))
+    return true
 end
 
 -- ============================================
