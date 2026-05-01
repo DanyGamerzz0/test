@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.11"
+local script_version = "V0.7"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1309,7 +1309,7 @@ function Playback.executeFusion(action, actionIndex, totalActions)
     Util.updateDetailedStatus(string.format("Fusing %s + %s...", action.BaseUnit, action.SacrificeUnit))
 
     local fusionRemote = game:GetService("ReplicatedStorage")
-        .Packages._Index["sleitnick_knit@1.7.0"]["knit.Services"]
+        .Packages._Index["sleitnick_knit@1.7.0"]["knit"].Services
         .TowerService.RF.RequestFusion
 
     local callOk, success, message, resultGuid = pcall(function()
