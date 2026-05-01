@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.999"
+local script_version = "V0.9999"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2658,16 +2658,19 @@ function AutoJoin.usePortal()
 
     for _, moduleName in ipairs(State.PortalsSelected) do
         if craftingItems[moduleName] and craftingItems[moduleName] > 0 then
-            local ok = pcall(function()
-                Services.ReplicatedStorage.Packages
-                    ._Index["sleitnick_knit@1.7.0"]
-                    .knit.Services.ItemService.RF.UseItem
-                    :InvokeServer(moduleName)
+            task.spawn(function()
+                pcall(function()
+                    Services.ReplicatedStorage.Packages
+                        ._Index["sleitnick_knit@1.7.0"]
+                        .knit.Services.ItemService.RF.UseItem
+                        :InvokeServer(moduleName)
+                end)
             end)
             return true
         end
     end
-    return false -- all selected portals empty, fall through
+
+    return false
 end
 
 function Loader.portalItems()
