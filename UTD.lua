@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.67"
+local script_version = "V0.68"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1396,10 +1396,7 @@ function Playback.executePlaceSubTower(action, actionIndex, totalActions)
         return false
     end
 
-    -- Clear any stale pending info so we wait for a fresh one matching this parent
-    pendingSubTowerInfo = nil
-
-    -- Wait for the server to fire BeginSubTowerPlacement for this parent
+    -- DON'T clear pendingSubTowerInfo here — the event may have already fired
     local info    = nil
     local deadline = tick() + 15
     while tick() < deadline do
@@ -1434,7 +1431,6 @@ function Playback.executePlaceSubTower(action, actionIndex, totalActions)
     end)
 
     if callOk and result == true then
-        -- Register the new sub tower UUID so sells/upgrades work on it
         if subGUID and type(subGUID) == "string" then
             playbackUnitTagToUUID[action.SubUnitTag] = subGUID
         end
