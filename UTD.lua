@@ -229,6 +229,7 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
+    disableScriptNotifications = false,
     AutoStartGame = false,
     AutoRetry = false,
     AutoNext = false,
@@ -2029,8 +2030,17 @@ function Util.getCurrentWorldKey()
     return nil
 end
 
-function Util.notify(title, content)
-    Rayfield:Notify({ Title = title, Content = content, Duration = 3 })
+function Util.notify(params)
+    if State.disableScriptNotifications then return end
+    if type(params) == "string" then
+        Rayfield:Notify({ Title = params, Content = "", Duration = 3 })
+    elseif type(params) == "table" then
+        Rayfield:Notify({
+            Title = params.Title or "Notification",
+            Content = params.Content or "",
+            Duration = params.Duration or 3
+        })
+    end
 end
 
 function Util.canPerformAction()
@@ -3775,6 +3785,11 @@ Button = LobbyTab:CreateButton({
 })
 
 Toggle = LobbyTab:CreateToggle({
+    Name = "Disable Script Notifications", CurrentValue = false, Flag = "disableScriptNotifications",
+    Callback = function(Value) State.disableScriptNotifications = Value end,
+})
+
+Toggle = LobbyTab:CreateToggle({
     Name = "Auto Execute Script", CurrentValue = false, Flag = "enableAutoExecute",
     Info = "This auto executes and persists through teleports until you disable it or leave the game.",
     Callback = function(Value)
@@ -4956,7 +4971,6 @@ task.spawn(function()
         local towers = PlacedTowerController:GetTowers()
         local count = 0
         for _ in pairs(towers) do count = count + 1 end
-        print("Tower count:", count)
         if not towers then continue end
 
         local currentWave = workspace:GetAttribute("Wave") or 0
