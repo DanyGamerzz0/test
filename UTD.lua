@@ -3734,6 +3734,77 @@ Toggle = GameTab:CreateToggle({
     Callback = function(Value) State.enableBlackScreen = Value enableBlackScreen() end,
 })
 
+LobbyTab:CreateToggle({
+    Name = "Auto Collect Present Drops",
+    CurrentValue = false,
+    Flag = "AutoCollectPresents",
+    Info = "Automatically teleport and collect present drops around the map",
+    Callback = function(Value)
+        State.AutoCollectPresents = Value
+    end,
+})
+
+task.spawn(function()
+    local isCollecting = false
+    
+    while true do
+        task.wait(0.5)
+        
+        if State.AutoCollectPresents and not isCollecting then
+            isCollecting = true
+            
+            pcall(function()
+                local drops = workspace:FindFirstChild("Ignore")
+                if drops then
+                    drops = drops:FindFirstChild("Drops")
+                end
+                
+                if drops then
+                    local presents = {}
+                    for _, child in pairs(drops:GetChildren()) do
+                        if child.Name == "Present" and child:IsA("Model") then
+                            table.insert(presents, child)
+                        end
+                    end
+                    
+                    for _, present in ipairs(presents) do
+                        if not State.AutoCollectPresents then break end
+                        
+                        if present and present.Parent then
+                            local character = Services.Players.LocalPlayer.Character
+                            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+                            
+                            if humanoidRootPart then
+                                -- Save original position
+                                local originalCFrame = humanoidRootPart.CFrame
+                                
+                                -- Teleport to present
+                                local presentPos = present:GetPivot().Position
+                                humanoidRootPart.CFrame = CFrame.new(presentPos)
+                                
+                                -- Wait for present to be collected
+                                local timeout = 0
+                                while present and present.Parent and timeout < 20 do
+                                    task.wait(0.1)
+                                    timeout = timeout + 1
+                                end
+                                
+                                -- Teleport back to original position
+                                if humanoidRootPart and humanoidRootPart.Parent then
+                                    humanoidRootPart.CFrame = originalCFrame
+                                end
+                                
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end)
+            isCollecting = false
+        end
+    end
+end)
+
 Toggle = LobbyTab:CreateToggle({
     Name = "Auto Claim Event Missions", CurrentValue = false, Flag = "enableAutoClaimEventMissions",
     Callback = function(Value) State.enableAutoClaimEventMissions = Value end,
@@ -4077,7 +4148,7 @@ GameTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoGaaraZone",
     Callback = function(Value)
-        State_ShinobiAutoGaaraZone = Value
+        State.ShinobiAutoGaaraZone = Value
     end,
 })
 
@@ -4087,7 +4158,7 @@ GameTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoOpenCoffin",
     Callback = function(Value)
-        State_ShinobiAutoOpenCoffin = Value
+        State.ShinobiAutoOpenCoffin = Value
     end,
 })
 
@@ -4222,7 +4293,7 @@ local hasTeleported = false
 task.spawn(function()
     while true do
         task.wait(1)
-        if not State_ShinobiAutoGaaraZone then continue end
+        if not State.ShinobiAutoGaaraZone then continue end
 
         local runtime = workspace:FindFirstChild("ShinobiAllianceRuntime")
         if not runtime then continue end
@@ -4258,7 +4329,7 @@ task.spawn(function()
 
     while true do
         task.wait(1)
-        if not State_ShinobiAutoOpenCoffin then
+        if not State.ShinobiAutoOpenCoffin then
             lastTriedCoffin = nil
             continue
         end
