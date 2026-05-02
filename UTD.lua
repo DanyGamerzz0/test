@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -387,14 +387,12 @@ end)
 
 task.spawn(function()
     task.wait(2)
-    ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController)
     pcall(function() PodController = Knit.GetController("PodController") end)
     pcall(function() DataController = Knit.GetController("DataController") end)
     pcall(function() PlacedTowerController = Knit.GetController("PlacedTowerController") end)
     pcall(function() CalendarEventsController = Knit.GetController("CalendarEventsController") end)
+    ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController)
 end)
-
-
 
 -- ============================================
 -- LOADOUT MANAGEMENT
@@ -4945,6 +4943,11 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    while not PlacedTowerController do
+        task.wait(0.5)
+    end
+    print("PlacedTowerController ready!")
+
     while true do
         task.wait(0.5)
 
