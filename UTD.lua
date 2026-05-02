@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3709,30 +3709,60 @@ Toggle = LobbyTab:CreateToggle({
 task.spawn(function()
     local EventsConfig = require(game:GetService("ReplicatedStorage").Shared.Data.EventsConfig)
     
+    print("[AutoClaim] Waiting for ClientInit...")
     repeat task.wait() until workspace:GetAttribute("ClientInit")
+    print("[AutoClaim] ClientInit done, waiting for CalendarEventsController...")
     repeat task.wait(0.5) until CalendarEventsController ~= nil
+    print("[AutoClaim] CalendarEventsController ready!")
     
     while true do
         task.wait(5)
         
-        if not State.enableAutoClaimEventMissions then continue end
-        if not Util.isInLobby() then continue end
+        if not State.enableAutoClaimEventMissions then
+            print("[AutoClaim] Toggle is OFF, skipping")
+            continue
+        end
+        if not Util.isInLobby() then
+            print("[AutoClaim] Not in lobby, skipping")
+            continue
+        end
         
-        pcall(function()
+        print("[AutoClaim] Fetching event state...")
+        local fetchOk = pcall(function()
             CalendarEventsController:FetchEventsState():await()
         end)
+        print("[AutoClaim] Fetch result:", fetchOk)
         task.wait(1)
         
         for eventId, _ in pairs(EventsConfig.primaryEvents or {}) do
-            local state = CalendarEventsController:GetEventState(eventId)
-            if not state or not state.isActive or not state.missions then continue end
-            
+            local eventState = CalendarEventsController:GetEventState(eventId)
+            if not eventState then
+                print("[AutoClaim] No state for event:", eventId)
+                continue
+            end
+            if not eventState.isActive then
+                print("[AutoClaim] Event not active:", eventId)
+                continue
+            end
+            if not eventState.missions then
+                print("[AutoClaim] No missions for event:", eventId)
+                continue
+            end
+
+            print("[AutoClaim] Checking missions for:", eventId)
             local missions = CalendarEventsController:GetSortedMissionsList(eventId)
-            if not missions then continue end
-            
+            if not missions then
+                print("[AutoClaim] GetSortedMissionsList returned nil for:", eventId)
+                continue
+            end
+
             for _, mission in ipairs(missions) do
+                print(string.format("[AutoClaim] Mission: %s | completed: %s | claimed: %s", 
+                    mission.missionId, tostring(mission.completed), tostring(mission.claimed)))
                 if mission.completed and not mission.claimed then
+                    print("[AutoClaim] Claiming:", mission.missionId)
                     local success, result = CalendarEventsController:ClaimMission(eventId, mission.missionId):await()
+                    print("[AutoClaim] Claim result:", success, result)
                     if success then
                         Util.notify({
                             Title = "Mission Claimed",
