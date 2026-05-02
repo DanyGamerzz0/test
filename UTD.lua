@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4807,7 +4807,6 @@ Tab:CreateButton({
 Div2 = Tab:CreateDivider()
 
 AutoAbilityTab:CreateLabel("Configure per-unit ability automation")
-AutoAbilityTab:CreateDivider()
 
 AutoAbilityTab:CreateToggle({
     Name = "Enable Auto Abilities",
@@ -4891,7 +4890,15 @@ local function buildAutoAbilityUI()
         if #abilities == 0 then continue end
 
         local cleanId = Util.cleanUnitName(unitId)
-        AutoAbilityTab:CreateSection(cleanId)
+        local displayName = cleanId
+        local ok, unitData = pcall(function()
+            return require(Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(cleanId)
+                or Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(unitId))
+        end)
+        if ok and unitData and unitData.Name then
+            displayName = unitData.Name
+        end
+        AutoAbilityTab:CreateSection(displayName)
 
         for _, ability in ipairs(abilities) do
             local settingKey = cleanId .. "_" .. ability.Name
@@ -4899,10 +4906,7 @@ local function buildAutoAbilityUI()
                 abilitySettings[settingKey] = { mode = "Disabled", wave = 1 }
             end
 
-            local label = string.format("%s (CD: %ss%s)",
-                ability.Title,
-                tostring(ability.Cooldown),
-                ability.Global and " · Global" or "")
+            local label = string.format("%s%s",ability.Title,ability.Global and " (Global)" or "")
 
             AutoAbilityTab:CreateLabel(label)
 
@@ -4928,8 +4932,6 @@ local function buildAutoAbilityUI()
                     abilitySettings[settingKey].wave = Value
                 end,
             })
-
-            AutoAbilityTab:CreateDivider()
         end
     end
 end
@@ -4939,21 +4941,6 @@ task.spawn(function()
     task.wait(3) -- wait for DataController to be ready
     buildAutoAbilityUI()
 end)
-
--- Refresh button in case loadout changes
-AutoAbilityTab:CreateButton({
-    Name = "Refresh Ability List",
-    Callback = function()
-        abilitySettings = {}
-        -- Can't remove existing elements from Rayfield tabs,
-        -- so notify user to re-execute
-        Util.notify({
-            Title = "Auto Abilities",
-            Content = "Re-execute the script to refresh the ability list",
-            Duration = 4,
-        })
-    end,
-})
 
 WebhookInput = WebhookTab:CreateInput({
     Name = "Input Webhook", CurrentValue = "", PlaceholderText = "Input Webhook...",
