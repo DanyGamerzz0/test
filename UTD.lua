@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -468,19 +468,22 @@ end
 
 function UnitTracker.getPlayerLoadout()
     local loadout = {}
-    local success = pcall(function()
-        local EquippedUnits = game:GetService("HttpService"):JSONDecode(game:GetService("Players").LocalPlayer:WaitForChild("Equipped").Value)
+    local success, err = pcall(function()
+        local dc = DataController or Knit.GetController("DataController")
+        local EquippedUnits = game:GetService("HttpService"):JSONDecode(
+            game:GetService("Players").LocalPlayer:WaitForChild("Equipped").Value
+        )
 
-        for slot, unitGUID in pairs(EquippedUnits) do
+        for slot, unitGUID in ipairs(EquippedUnits) do
             if unitGUID and unitGUID ~= "" then
-                local inventoryData = DataController:GetUnitData(unitGUID)
-                if inventoryData and inventoryData.UnitId then
+                local ok, inventoryData = pcall(function() return dc:GetUnitData(unitGUID) end)
+                if ok and inventoryData and inventoryData.UnitId then
                     loadout[slot] = Util.cleanUnitName(inventoryData.UnitId)
                 end
             end
         end
     end)
-    if not success then warn("Failed to get player loadout") end
+    if not success then warn("Failed to get player loadout:", err) end
     return loadout
 end
 
@@ -4956,7 +4959,17 @@ task.spawn(function()
             local model = towerData.Model
             if not model then continue end
 
-            local unitId = Util.cleanUnitName(towerData.TowerID or "")
+            local unitId = Util.cleanUnitName(
+                towerData.TowerID
+                or (model.TowerID)
+                or ""
+            )
+            
+            if unitId == "" then
+                warn("Could not resolve unitId for guid:", guid)
+                continue
+            end
+
             local allAbilities = model:GetAllAbilities()
             if not allAbilities or not next(allAbilities) then continue end
 
@@ -4966,6 +4979,11 @@ task.spawn(function()
 
                 local settingKey = unitId .. "_" .. abilityInfo.Name
                 local settings = abilitySettings[settingKey]
+                
+                -- Debug: print what keys we're checking
+                print(string.format("Checking: unitId=%s abilityName=%s settingKey=%s mode=%s", 
+                    unitId, abilityInfo.Name, settingKey, settings and settings.mode or "NO SETTING"))
+
                 if not settings or settings.mode == "Disabled" then continue end
 
                 local cooldown = abilityInfo.Cooldown or 60
@@ -4975,7 +4993,6 @@ task.spawn(function()
 
                 if not isReady then continue end
 
-                -- Check global cooldown
                 if abilityInfo.Global and abilityInfo.Name then
                     if PlacedTowerController:IsGlobalCooldownActive(abilityInfo.Name) then
                         continue
@@ -5001,7 +5018,6 @@ task.spawn(function()
 
                 if settings.mode == "Auto (Always)" then
                     fireAbility()
-
                 elseif settings.mode == "On Wave" then
                     local targetWave = settings.wave or 1
                     local waveKey = trackKey .. "_wave_" .. targetWave
