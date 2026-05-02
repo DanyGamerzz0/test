@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "V0.08"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4806,8 +4806,6 @@ Tab:CreateButton({
 
 Div2 = Tab:CreateDivider()
 
-AutoAbilityTab:CreateLabel("Configure per-unit ability automation")
-
 AutoAbilityTab:CreateToggle({
     Name = "Enable Auto Abilities",
     CurrentValue = false,
@@ -4821,20 +4819,24 @@ AutoAbilityTab:CreateDivider()
 
 local function getEquippedUnitIds()
     local unitIds = {}
-    local success = pcall(function()
-        local equipped = game:GetService("HttpService"):JSONDecode(
-            Services.Players.LocalPlayer:WaitForChild("Equipped").Value
-        )
-        for _, unitGUID in pairs(equipped) do
+    local success, err = pcall(function()
+        local equippedValue = Services.Players.LocalPlayer:WaitForChild("Equipped", 10)
+        if not equippedValue then error("Equipped not found") end
+
+        local equipped = Services.HttpService:JSONDecode(equippedValue.Value)
+        -- It's a JSON array of GUIDs
+        for _, unitGUID in ipairs(equipped) do
             if unitGUID and unitGUID ~= "" then
-                local data = DataController:GetUnitData(unitGUID)
-                if data and data.UnitId then
+                local ok, data = pcall(function()
+                    return DataController:GetUnitData(unitGUID)
+                end)
+                if ok and data and data.UnitId then
                     table.insert(unitIds, data.UnitId)
                 end
             end
         end
     end)
-    if not success then warn("Failed to get equipped units") end
+    if not success then warn("Failed to get equipped units:", err) end
     return unitIds
 end
 
@@ -4906,7 +4908,7 @@ local function buildAutoAbilityUI()
                 abilitySettings[settingKey] = { mode = "Disabled", wave = 1 }
             end
 
-            local label = string.format("%s%s",ability.Title,ability.Global and " (Global)" or "")
+            local label = string.format("%s",ability.Title)
 
             AutoAbilityTab:CreateLabel(label)
 
@@ -4938,8 +4940,97 @@ end
 
 -- Build UI on load
 task.spawn(function()
-    task.wait(3) -- wait for DataController to be ready
+    -- Wait for DataController to be fully ready
+    local timeout = 0
+    while not DataController and timeout < 20 do
+        task.wait(0.5)
+        timeout = timeout + 1
+    end
+    task.wait(1) -- extra buffer
     buildAutoAbilityUI()
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+
+        if not AutoAbility.enabled then continue end
+        if not gameInProgress then continue end
+        if not PlacedTowerController then continue end
+
+        local currentWave = workspace:GetAttribute("Wave") or 0
+        local towers = PlacedTowerController:GetTowers()
+
+        for guid, towerData in pairs(towers) do
+            local model = towerData.Model
+            if not model then continue end
+
+            local unitId = Util.cleanUnitName(towerData.TowerID or "")
+            local allAbilities = model:GetAllAbilities()
+            if not allAbilities or not next(allAbilities) then continue end
+
+            for abilityIndex, _ in pairs(allAbilities) do
+                local abilityInfo = PlacedTowerController:GetAbility(guid, abilityIndex)
+                if not abilityInfo or not abilityInfo.Name then continue end
+
+                local settingKey = unitId .. "_" .. abilityInfo.Name
+                local settings = abilitySettings[settingKey]
+                if not settings or settings.mode == "Disabled" then continue end
+
+                local cooldown = abilityInfo.Cooldown or 60
+                local trackKey = guid .. "_" .. abilityIndex
+                local lastUsed = abilityLastUsed[trackKey] or 0
+                local isReady = (tick() - lastUsed) >= cooldown
+
+                if not isReady then continue end
+
+                -- Check global cooldown
+                if abilityInfo.Global and abilityInfo.Name then
+                    if PlacedTowerController:IsGlobalCooldownActive(abilityInfo.Name) then
+                        continue
+                    end
+                end
+
+                local function fireAbility()
+                    local success = pcall(function()
+                        Services.ReplicatedStorage.Packages
+                            ._Index["sleitnick_knit@1.7.0"]
+                            .knit.Services.TowerService.RE.UseAbility
+                            :FireServer(guid, abilityIndex, nil)
+                    end)
+                    if success then
+                        abilityLastUsed[trackKey] = tick()
+                        Util.notify({
+                            Title = "Auto Ability",
+                            Content = string.format("%s → %s", unitId, abilityInfo.Title or abilityInfo.Name),
+                            Duration = 2,
+                        })
+                    end
+                end
+
+                if settings.mode == "Auto (Always)" then
+                    fireAbility()
+
+                elseif settings.mode == "On Wave" then
+                    local targetWave = settings.wave or 1
+                    local waveKey = trackKey .. "_wave_" .. targetWave
+                    if currentWave >= targetWave and not abilityUsedOnWave[waveKey] then
+                        fireAbility()
+                        abilityUsedOnWave[waveKey] = true
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Reset tracking on game restart
+workspace:GetAttributeChangedSignal("Wave"):Connect(function()
+    local wave = workspace:GetAttribute("Wave") or 0
+    if wave <= 1 then
+        abilityLastUsed = {}
+        abilityUsedOnWave = {}
+    end
 end)
 
 WebhookInput = WebhookTab:CreateInput({
