@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4948,11 +4948,16 @@ task.spawn(function()
     while true do
         task.wait(0.5)
 
+        print("AutoAbility check - enabled:", AutoAbility.enabled, "gameInProgress:", gameInProgress, "PTC:", PlacedTowerController ~= nil)
+
         if not AutoAbility.enabled then continue end
         if not gameInProgress then continue end
         if not PlacedTowerController then continue end
 
         local towers = PlacedTowerController:GetTowers()
+        local count = 0
+        for _ in pairs(towers) do count = count + 1 end
+        print("Tower count:", count)
         if not towers then continue end
 
         local currentWave = workspace:GetAttribute("Wave") or 0
