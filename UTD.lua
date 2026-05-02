@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3710,9 +3710,10 @@ task.spawn(function()
     local EventsConfig = require(game:GetService("ReplicatedStorage").Shared.Data.EventsConfig)
     
     repeat task.wait() until workspace:GetAttribute("ClientInit")
+    repeat task.wait(0.5) until CalendarEventsController ~= nil
     
     while true do
-        task.wait(3)
+        task.wait(5)
         
         if not State.enableAutoClaimEventMissions then continue end
         if not Util.isInLobby() then continue end
