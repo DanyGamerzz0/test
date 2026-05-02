@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3738,7 +3738,6 @@ task.spawn(function()
         task.wait(5)
         
         if not State.enableAutoClaimEventMissions then continue end
-        if not Util.isInLobby() then continue end
         
         pcall(function()
             CalendarEventsController:FetchEventsState():await()
@@ -4820,23 +4819,21 @@ AutoAbilityTab:CreateDivider()
 local function getEquippedUnitIds()
     local unitIds = {}
     local success, err = pcall(function()
-        local equippedValue = Services.Players.LocalPlayer:WaitForChild("Equipped", 10)
-        if not equippedValue then error("Equipped not found") end
+        local dc = DataController or Knit.GetController("DataController")
+        
+        local equipped = Services.HttpService:JSONDecode(
+            Services.Players.LocalPlayer:WaitForChild("Equipped", 10).Value
+        )
 
-        local equipped = Services.HttpService:JSONDecode(equippedValue.Value)
-        -- It's a JSON array of GUIDs
-        for _, unitGUID in ipairs(equipped) do
-            if unitGUID and unitGUID ~= "" then
-                local ok, data = pcall(function()
-                    return DataController:GetUnitData(unitGUID)
-                end)
-                if ok and data and data.UnitId then
-                    table.insert(unitIds, data.UnitId)
-                end
+        for _, guid in ipairs(equipped) do
+            if not guid or guid == "" then continue end
+            local ok, data = pcall(function() return dc:GetUnitData(guid) end)
+            if ok and data and data.UnitId then
+                table.insert(unitIds, data.UnitId)
             end
         end
     end)
-    if not success then warn("Failed to get equipped units:", err) end
+    if not success then warn("getEquippedUnitIds failed:", err) end
     return unitIds
 end
 
@@ -4940,13 +4937,7 @@ end
 
 -- Build UI on load
 task.spawn(function()
-    -- Wait for DataController to be fully ready
-    local timeout = 0
-    while not DataController and timeout < 20 do
-        task.wait(0.5)
-        timeout = timeout + 1
-    end
-    task.wait(1) -- extra buffer
+    Knit.OnStart():await()
     buildAutoAbilityUI()
 end)
 
