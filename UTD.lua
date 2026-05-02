@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.7"
+local script_version = "V0.08"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -141,6 +141,7 @@ local pendingValkPlacement = nil
 local pendingValkGUID = nil  -- for playback
 local pendingValkCardList = nil
 local currentShopOffers = {}
+local disabledByLowPerf = {}
 local lastMatchResult = nil
 local RerollLimitHit = {
     TheHunt = false,
@@ -306,6 +307,7 @@ local State = {
     AutoKuramaHands = false,
 
     SelectedRiftMaps = {},
+    enableAutoClaimEventMissions = false,
 }
 
         local loadingRetries = {
@@ -343,6 +345,7 @@ local ChallengeController = nil
 local PodController = nil
 local DataController = nil
 local PlacedTowerController = nil
+local CalendarEventsController = nil
 local Knit = require(Services.ReplicatedStorage.Packages.knit)
 
 task.spawn(function()
@@ -379,27 +382,10 @@ end)
 task.spawn(function()
     task.wait(2)
     ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController)
-end)
-
-task.spawn(function()
-    task.wait(2)
-    pcall(function()
-        PodController = Knit.GetController("PodController")
-    end)
-end)
-
-task.spawn(function()
-    task.wait(2)
-    pcall(function()
-        DataController = Knit.GetController("DataController")
-    end)
-end)
-
-task.spawn(function()
-    task.wait(2)
-    pcall(function()
-        PlacedTowerController = Knit.GetController("PlacedTowerController")
-    end)
+    pcall(function() PodController = Knit.GetController("PodController") end)
+    pcall(function() DataController = Knit.GetController("DataController") end)
+    pcall(function() PlacedTowerController = Knit.GetController("PlacedTowerController") end)
+    pcall(function() CalendarEventsController = Knit.GetController("CalendarEventsController") end)
 end)
 
 
@@ -2504,7 +2490,7 @@ end
         if State.LeaveAfterRerollLimitHitTheHunt and not RerollLimitHit.TheHunt then
             RerollLimitHit.TheHunt = AutoJoin.checkRerollLimit("Frozen StrongholdFeaturedChallenge_1")
             if RerollLimitHit.TheHunt then
-                Rayfield:Notify({ Title = "The Hunt", Content = "Reroll limit hit - skipping", Duration = 4 })
+                Util.notify({ Title = "The Hunt", Content = "Reroll limit hit - skipping", Duration = 4 })
             end
         end
 
@@ -2525,7 +2511,7 @@ end
         if State.LeaveAfterRerollLimitHitOlympus and not RerollLimitHit.Olympus then
             RerollLimitHit.Olympus = AutoJoin.checkRerollLimit("Olympus JudgementFeaturedChallenge_1")
             if RerollLimitHit.Olympus then
-                Rayfield:Notify({ Title = "Olympus Judgement", Content = "Reroll limit hit - skipping", Duration = 4 })
+                Util.notify({ Title = "Olympus Judgement", Content = "Reroll limit hit - skipping", Duration = 4 })
             end
         end
 
@@ -2869,7 +2855,7 @@ task.spawn(function()
 
         if voteSuccess then
             local chosenCard = cards[bestIndex]
-            Rayfield:Notify({
+            Util.notify({
                 Title = "Ragnarok Card Picked",
                 Content = "Selected: " .. (chosenCard and chosenCard.name or "Unknown"),
                 Duration = 4,
@@ -3586,7 +3572,7 @@ local function createAutoSelectDropdowns()
     end
 end
 
-GameSection = GameTab:CreateSection("👥 Player 👥")
+GameSection = GameTab:CreateSection("Player")
 
 Slider = GameTab:CreateSlider({
     Name = "Max Camera Zoom Distance", Range = {5, 100}, Increment = 1,
@@ -3609,7 +3595,7 @@ task.spawn(function()
         end
     end)
 end)
- 
+
 local function enableLowPerformanceMode()
     if State.enableLowPerformanceMode then
         Services.Lighting.Brightness = 1
@@ -3619,7 +3605,12 @@ local function enableLowPerformanceMode()
         Services.Lighting.EnvironmentDiffuseScale = 0
         Services.Lighting.EnvironmentSpecularScale = 0
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then obj.Enabled = false end
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                if obj.Enabled then
+                    obj.Enabled = false
+                    disabledByLowPerf[obj] = true
+                end
+            end
         end
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
             if obj:IsA("Decal") or obj:IsA("Texture") then if obj.Transparency < 1 then obj.Transparency = 1 end end
@@ -3633,17 +3624,18 @@ local function enableLowPerformanceMode()
         local RE = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting")
         RE:FireServer("LowGraphics",true) RE:FireServer("DamageNumbers",false) RE:FireServer("VFX",false) RE:FireServer("EnableAnimations",false) RE:FireServer("EnemyInfo",false)
     else
-        local RE = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting")
-        RE:FireServer("LowGraphics",false) RE:FireServer("DamageNumbers",true) RE:FireServer("VFX",true) RE:FireServer("EnableAnimations",true) RE:FireServer("EnemyInfo",true)
         Services.Lighting.Brightness = 1.51
         Services.Lighting.GlobalShadows = true
         Services.Lighting.Technology = Enum.Technology.Future
         Services.Lighting.ShadowSoftness = 0
         Services.Lighting.EnvironmentDiffuseScale = 1
         Services.Lighting.EnvironmentSpecularScale = 1
-        for _, obj in pairs(Services.Workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then obj.Enabled = true end
+        for obj, _ in pairs(disabledByLowPerf) do
+            if obj and obj.Parent then
+                obj.Enabled = true
+            end
         end
+        disabledByLowPerf = {}
         for _, obj in pairs(Services.Workspace:GetDescendants()) do
             if obj:IsA("Decal") or obj:IsA("Texture") then obj.Transparency = 0 end
         end
@@ -3708,6 +3700,51 @@ Toggle = GameTab:CreateToggle({
     Name = "Black Screen", CurrentValue = false, Flag = "enableBlackScreen",
     Callback = function(Value) State.enableBlackScreen = Value enableBlackScreen() end,
 })
+
+Toggle = LobbyTab:CreateToggle({
+    Name = "Auto Claim Event Missions", CurrentValue = false, Flag = "enableAutoClaimEventMissions",
+    Callback = function(Value) State.enableAutoClaimEventMissions = Value end,
+})
+
+task.spawn(function()
+    local EventsConfig = require(game:GetService("ReplicatedStorage").Shared.Data.EventsConfig)
+    
+    repeat task.wait() until workspace:GetAttribute("ClientInit")
+    
+    while true do
+        task.wait(3)
+        
+        if not State.enableAutoClaimEventMissions then continue end
+        if not Util.isInLobby() then continue end
+        
+        pcall(function()
+            CalendarEventsController:FetchEventsState():await()
+        end)
+        task.wait(1)
+        
+        for eventId, _ in pairs(EventsConfig.primaryEvents or {}) do
+            local state = CalendarEventsController:GetEventState(eventId)
+            if not state or not state.isActive or not state.missions then continue end
+            
+            local missions = CalendarEventsController:GetSortedMissionsList(eventId)
+            if not missions then continue end
+            
+            for _, mission in ipairs(missions) do
+                if mission.completed and not mission.claimed then
+                    local success, result = CalendarEventsController:ClaimMission(eventId, mission.missionId):await()
+                    if success then
+                        Util.notify({
+                            Title = "Mission Claimed",
+                            Content = string.format("[%s] %s", eventId, mission.missionId),
+                            Duration = 3,
+                        })
+                    end
+                    task.wait(0.5)
+                end
+            end
+        end
+    end
+end)
 
 Button = LobbyTab:CreateButton({
     Name = "Return to lobby",
@@ -3860,7 +3897,7 @@ end
  
 local function disableModdedPlacement()
     moddedPlacementEnabled = false
-    Rayfield:Notify({ Title = "Success", Content = "Rejoin to disable", Duration = 4 })
+    Util.notify({ Title = "Success", Content = "Rejoin to disable", Duration = 4 })
 end
  
 Toggle = GameTab:CreateToggle({
@@ -3869,8 +3906,8 @@ Toggle = GameTab:CreateToggle({
     Callback = function(Value)
         if Value then
             local success = enableModdedPlacement()
-            if success then Rayfield:Notify({ Title = "Success", Content = "Enabled! Place anywhere", Duration = 3 })
-            else Rayfield:Notify({ Title = "Error", Content = "Failed to enable", Duration = 3 }) end
+            if success then Util.notify({ Title = "Success", Content = "Enabled! Place anywhere", Duration = 3 })
+            else Util.notify({ Title = "Error", Content = "Failed to enable", Duration = 3 }) end
         else disableModdedPlacement() end
     end,
 })
@@ -3957,7 +3994,7 @@ task.spawn(function()
                 end)
                 if success then
                     hasRestarted = true
-                    Rayfield:Notify({ Title = "Auto Restart", Content = string.format("Restarted at wave %d", currentWave), Duration = 3 })
+                    Util.notify({ Title = "Auto Restart", Content = string.format("Restarted at wave %d", currentWave), Duration = 3 })
                 end
             end
             if currentWave == 1 then hasRestarted = false end
@@ -3991,7 +4028,7 @@ task.spawn(function()
                 end)
                 if success then
                     hasSold = true
-                    Rayfield:Notify({ Title = "Auto Sell", Content = string.format("Sold all units at wave %d", currentWave), Duration = 3 })
+                    Util.notify({ Title = "Auto Sell", Content = string.format("Sold all units at wave %d", currentWave), Duration = 3 })
                 end
             end
             if currentWave == 1 then hasSold = false end
@@ -4258,7 +4295,7 @@ task.spawn(function()
         end)
 
         if fireSuccess then
-            Rayfield:Notify({
+            Util.notify({
                 Title = "Coffin Opened",
                 Content = string.format("%s (¥%d)", coffinAnchor.Name, price),
                 Duration = 3,
@@ -4293,13 +4330,13 @@ function Playback.checkAndSwitchMacroForCurrentWorld()
         if currentMacroName ~= macroToLoad then
             currentMacroName = macroToLoad
             MacroDropdown:Set(macroToLoad)
-            Rayfield:Notify({ Title = "Macro Auto-Selected", Content = string.format("%s for %s", macroToLoad, mapName), Duration = 3 })
+            Util.notify({ Title = "Macro Auto-Selected", Content = string.format("%s for %s", macroToLoad, mapName), Duration = 3 })
             return true
         end
         return true
     else
         if currentMacroName == "" or not currentMacroName then
-            Rayfield:Notify({ Title = "No Macro Selected", Content = string.format("No macro mapped for %s", mapName), Duration = 4 })
+            Util.notify({ Title = "No Macro Selected", Content = string.format("No macro mapped for %s", mapName), Duration = 4 })
         end
         return false
     end
@@ -4310,17 +4347,17 @@ local MacroInput = Tab:CreateInput({
     Callback = function(text)
         local cleanedName = text:gsub("[<>:\"/\\|?*]", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if cleanedName == "" then
-            Rayfield:Notify({ Title = "Error", Content = "Macro name cannot be empty", Duration = 3 })
+            Util.notify({ Title = "Error", Content = "Macro name cannot be empty", Duration = 3 })
             return
         end
         if macroManager[cleanedName] then
-            Rayfield:Notify({ Title = "Error", Content = "Macro already exists: " .. cleanedName, Duration = 3 })
+            Util.notify({ Title = "Error", Content = "Macro already exists: " .. cleanedName, Duration = 3 })
             return
         end
         macroManager[cleanedName] = {}
         MacroIO.save(cleanedName, {})
         MacroDropdown:Refresh(MacroIO.getList(), cleanedName)
-        Rayfield:Notify({ Title = "Success", Content = "Created macro: " .. cleanedName, Duration = 3 })
+        Util.notify({ Title = "Success", Content = "Created macro: " .. cleanedName, Duration = 3 })
     end,
 })
 
@@ -4334,7 +4371,7 @@ Tab:CreateButton({
         for name in pairs(macroManager) do table.insert(macroList, name) end
         table.sort(macroList)
         for worldKey, dropdown in pairs(worldDropdowns) do dropdown:Refresh(macroList) end
-        Rayfield:Notify({ Title = "Refreshed", Content = "Macro list updated", Duration = 2 })
+        Util.notify({ Title = "Refreshed", Content = "Macro list updated", Duration = 2 })
     end,
 })
 
@@ -4342,11 +4379,11 @@ Tab:CreateButton({
     Name = "Delete Selected Macro",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 })
+            Util.notify({ Title = "Error", Content = "No macro selected", Duration = 3 })
             return
         end
         MacroIO.delete(currentMacroName)
-        Rayfield:Notify({ Title = "Deleted", Content = currentMacroName, Duration = 3 })
+        Util.notify({ Title = "Deleted", Content = currentMacroName, Duration = 3 })
         currentMacroName = ""
         macro = {}
         MacroDropdown:Refresh(MacroIO.getList())
@@ -4368,7 +4405,7 @@ local RecordToggle = Tab:CreateToggle({
     Callback = function(Value)
         if Value then
             if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({ Title = "Recording Error", Content = "Please select a macro first!", Duration = 3 })
+                Util.notify({ Title = "Recording Error", Content = "Please select a macro first!", Duration = 3 })
                 RecordToggle:Set(false)
                 return
             end
@@ -4377,7 +4414,7 @@ local RecordToggle = Tab:CreateToggle({
             if currentWave >= 1 and not matchFinished then
                 isRecording = true
                 recordingHasStarted = false
-                Rayfield:Notify({ Title = "Mid-Game Detected", Content = "Attempting to restart game...", Duration = 3 })
+                Util.notify({ Title = "Mid-Game Detected", Content = "Attempting to restart game...", Duration = 3 })
                 local restartSuccess = false
                 for attempt = 1, 3 do
                     GameState.restartMatch()
@@ -4391,7 +4428,7 @@ local RecordToggle = Tab:CreateToggle({
                     if attempt < 3 then task.wait(0.3) end
                 end
                 if not restartSuccess then
-                    Rayfield:Notify({ Title = "Restart Failed", Content = "Recording from current wave...", Duration = 5 })
+                    Util.notify({ Title = "Restart Failed", Content = "Recording from current wave...", Duration = 5 })
                     recordingHasStarted = true
                     gameStartTime = tick()
                     recordingUnitCounter = {}
@@ -4406,18 +4443,18 @@ local RecordToggle = Tab:CreateToggle({
                 isRecording = true
                 recordingHasStarted = false
                 Util.updateMacroStatus("Recording enabled - Waiting for game to start...")
-                Rayfield:Notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
+                Util.notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
             else
                 isRecording = true
                 recordingHasStarted = false
                 Util.updateMacroStatus("Recording enabled - Waiting for game to start...")
-                Rayfield:Notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
+                Util.notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
             end
         else
             if recordingHasStarted then
                 local actionCount = #macro
                 GameState.stopRecording()
-                Rayfield:Notify({ Title = "Recording Stopped", Content = string.format("Saved %d actions", actionCount), Duration = 3 })
+                Util.notify({ Title = "Recording Stopped", Content = string.format("Saved %d actions", actionCount), Duration = 3 })
             else
                 isRecording = false
                 Util.updateMacroStatus("Ready")
@@ -4557,7 +4594,7 @@ function Playback.autoPlaybackLoop()
             local macroToLoad = worldMacroMappings[worldKey]
             if currentMacroName ~= macroToLoad then
                 currentMacroName = macroToLoad
-                Rayfield:Notify({ Title = "Auto-Switched Macro", Content = string.format("%s for %s", macroToLoad, worldKey), Duration = 3 })
+                Util.notify({ Title = "Auto-Switched Macro", Content = string.format("%s for %s", macroToLoad, worldKey), Duration = 3 })
                 MacroDropdown:Set(macroToLoad)
             end
         end
@@ -4576,7 +4613,7 @@ function Playback.autoPlaybackLoop()
         UnitTracker.clearSpawnIdMappings()
         Util.updateMacroStatus(string.format("Executing: %s (%d actions)", currentMacroName, #macro))
         Util.updateDetailedStatus("Starting playback...")
-        Rayfield:Notify({ Title = "Playback Started", Content = currentMacroName .. " (" .. #macro .. " actions)", Duration = 3 })
+        Util.notify({ Title = "Playback Started", Content = currentMacroName .. " (" .. #macro .. " actions)", Duration = 3 })
         currentPlaybackThread = coroutine.running()
         Playback.playMacro()
         currentPlaybackThread = nil
@@ -4598,26 +4635,26 @@ local PlaybackToggle = Tab:CreateToggle({
         if Value then
             task.wait(0.1)
             if not currentMacroName or currentMacroName == "" then
-                Rayfield:Notify({ Title = "Playback Error", Content = "Please select a macro first!", Duration = 3 })
+                Util.notify({ Title = "Playback Error", Content = "Please select a macro first!", Duration = 3 })
                 return
             end
             local loadedMacro = macroManager[currentMacroName] or MacroIO.load(currentMacroName)
             if not loadedMacro or #loadedMacro == 0 then
-                Rayfield:Notify({ Title = "Playback Error", Content = "Macro is empty or doesn't exist", Duration = 3 })
+                Util.notify({ Title = "Playback Error", Content = "Macro is empty or doesn't exist", Duration = 3 })
                 return
             end
             if playbackLoopRunning then return end
             macro = loadedMacro
             local currentWave = workspace:GetAttribute("Wave") or 0
             if currentWave >= 1 and not workspace:GetAttribute("MatchFinished") then
-                Rayfield:Notify({ Title = "Mid-Game Detected", Content = "Restarting game for accurate playback...", Duration = 4 })
+                Util.notify({ Title = "Mid-Game Detected", Content = "Restarting game for accurate playback...", Duration = 4 })
                 GameState.restartMatch()
                 gameInProgress = false
                 gameStartTime = 0
             end
             isPlaybackEnabled = true
             Util.updateMacroStatus("Playback Enabled - Waiting for game...")
-            Rayfield:Notify({ Title = "Playback Enabled", Content = "Macro will playback: " .. currentMacroName, Duration = 4 })
+            Util.notify({ Title = "Playback Enabled", Content = "Macro will playback: " .. currentMacroName, Duration = 4 })
             task.spawn(Playback.autoPlaybackLoop)
         else
             isPlaybackEnabled = false
@@ -4625,7 +4662,7 @@ local PlaybackToggle = Tab:CreateToggle({
             while playbackLoopRunning and timeout < 20 do task.wait(0.1) timeout = timeout + 1 end
             if playbackLoopRunning then playbackLoopRunning = false end
             Util.updateMacroStatus("Playback Disabled")
-            Rayfield:Notify({ Title = "Playback Disabled", Content = "Stopped playback loop", Duration = 3 })
+            Util.notify({ Title = "Playback Disabled", Content = "Stopped playback loop", Duration = 3 })
         end
     end,
 })
@@ -4641,19 +4678,19 @@ Button1 = Tab:CreateButton({
     Name = "Export Macro (Copy JSON)",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
+            Util.notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
         end
         local macroData = macroManager[currentMacroName]
         if not macroData or #macroData == 0 then
-            Rayfield:Notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
+            Util.notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
         end
         local json = game:GetService("HttpService"):JSONEncode(macroData)
         if setclipboard then
             setclipboard(json)
-            Rayfield:Notify({ Title = "Exported", Content = string.format("Copied %s (%d actions)", currentMacroName, #macroData), Duration = 3 })
+            Util.notify({ Title = "Exported", Content = string.format("Copied %s (%d actions)", currentMacroName, #macroData), Duration = 3 })
         else
             print(json)
-            Rayfield:Notify({ Title = "Exported", Content = "JSON printed to console", Duration = 3 })
+            Util.notify({ Title = "Exported", Content = "JSON printed to console", Duration = 3 })
         end
     end,
 })
@@ -4662,14 +4699,14 @@ Button = Tab:CreateButton({
     Name = "Export Macro via Webhook",
     Callback = function()
         if not ValidWebhook or ValidWebhook == "" then
-            Rayfield:Notify({ Title = "Error", Content = "No webhook URL set!", Duration = 3 }) return
+            Util.notify({ Title = "Error", Content = "No webhook URL set!", Duration = 3 }) return
         end
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
+            Util.notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
         end
         local macroData = macroManager[currentMacroName]
         if not macroData or #macroData == 0 then
-            Rayfield:Notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
+            Util.notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
         end
         local unitNames = {}
         local seenUnits = {}
@@ -4689,14 +4726,14 @@ Button = Tab:CreateButton({
             boundary, Services.HttpService:JSONEncode({ username = "LixHub", content = "Units: " .. unitsText }), boundary, fileName, jsonContent, boundary
         )
         local requestFunc = syn and syn.request or request or http_request or (fluxus and fluxus.request) or getgenv().request
-        if not requestFunc then Rayfield:Notify({ Title = "Error", Content = "Executor doesn't support HTTP requests", Duration = 3 }) return end
+        if not requestFunc then Util.notify({ Title = "Error", Content = "Executor doesn't support HTTP requests", Duration = 3 }) return end
         local success, response = pcall(function()
             return requestFunc({ Url = ValidWebhook, Method = "POST", Headers = { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary }, Body = body })
         end)
         if success and response and (response.StatusCode == 204 or response.StatusCode == 200) then
-            Rayfield:Notify({ Title = "Macro Sent ✓", Content = string.format("Sent %s.json", currentMacroName), Duration = 3 })
+            Util.notify({ Title = "Macro Sent ✓", Content = string.format("Sent %s.json", currentMacroName), Duration = 3 })
         else
-            Rayfield:Notify({ Title = "Error", Content = "Failed to send webhook", Duration = 3 })
+            Util.notify({ Title = "Error", Content = "Failed to send webhook", Duration = 3 })
         end
     end,
 })
@@ -4706,13 +4743,13 @@ local ImportInput = Tab:CreateInput({
     Callback = function(text)
         if not text or text:match("^%s*$") then return end
         local success, importData = pcall(function() return game:GetService("HttpService"):JSONDecode(text) end)
-        if not success then Rayfield:Notify({ Title = "Import Error", Content = "Invalid JSON format", Duration = 3 }) return end
-        if type(importData) ~= "table" or #importData == 0 then Rayfield:Notify({ Title = "Import Error", Content = "No actions found in JSON", Duration = 3 }) return end
+        if not success then Util.notify({ Title = "Import Error", Content = "Invalid JSON format", Duration = 3 }) return end
+        if type(importData) ~= "table" or #importData == 0 then Util.notify({ Title = "Import Error", Content = "No actions found in JSON", Duration = 3 }) return end
         local macroName = "Imported_" .. os.time()
         macroManager[macroName] = importData
         MacroIO.save(macroName, importData)
         MacroDropdown:Refresh(MacroIO.getList(), macroName)
-        Rayfield:Notify({ Title = "Import Success", Content = string.format("%s (%d actions)", macroName, #importData), Duration = 4 })
+        Util.notify({ Title = "Import Success", Content = string.format("%s (%d actions)", macroName, #importData), Duration = 4 })
     end,
 })
 
@@ -4720,11 +4757,11 @@ Tab:CreateButton({
     Name = "Check Macro Units",
     Callback = function()
         if not currentMacroName or currentMacroName == "" then
-            Rayfield:Notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
+            Util.notify({ Title = "Error", Content = "No macro selected", Duration = 3 }) return
         end
         local macroData = macroManager[currentMacroName]
         if not macroData or #macroData == 0 then
-            Rayfield:Notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
+            Util.notify({ Title = "Error", Content = "Macro is empty", Duration = 3 }) return
         end
         local unitCounts = {}
         for _, action in ipairs(macroData) do
@@ -4734,13 +4771,13 @@ Tab:CreateButton({
             end
         end
         if next(unitCounts) == nil then
-            Rayfield:Notify({ Title = "No Units", Content = "No placements found in macro", Duration = 3 }) return
+            Util.notify({ Title = "No Units", Content = "No placements found in macro", Duration = 3 }) return
         end
         local unitList = {}
         for unitName in pairs(unitCounts) do table.insert(unitList, string.format("%s", unitName)) end
         table.sort(unitList)
         for _, line in ipairs(unitList) do print("  " .. line) end
-        Rayfield:Notify({ Title = "Macro Units", Content = table.concat(unitList, ", "), Duration = 5 })
+        Util.notify({ Title = "Macro Units", Content = table.concat(unitList, ", "), Duration = 5 })
     end,
 })
 
@@ -4791,7 +4828,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         if isRecording and recordingHasStarted then
             local actionCount = #macro
             GameState.stopRecording()
-            Rayfield:Notify({ Title = "Recording Stopped", Content = string.format("Game restarted - saved %d actions", actionCount), Duration = 3 })
+            Util.notify({ Title = "Recording Stopped", Content = string.format("Game restarted - saved %d actions", actionCount), Duration = 3 })
         end
         if isRecording then
             recordingHasStarted = false
@@ -4835,7 +4872,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
             UnitTracker.startUpgradePolling()
             Util.updateMacroStatus("Recording...")
             Util.updateDetailedStatus("Recording in progress - " .. currentMacroName)
-            Rayfield:Notify({ Title = "Recording Started", Content = string.format("Wave %d detected - recording: %s", wave, currentMacroName), Duration = 3 })
+            Util.notify({ Title = "Recording Started", Content = string.format("Wave %d detected - recording: %s", wave, currentMacroName), Duration = 3 })
         end
     end
 end)
@@ -4857,14 +4894,14 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
         if State.ReturnToLobbyAfterLosses and State.ReturnToLobbyAfterLosses > 0 then
         if lastMatchResult == "Lost" then
             consecutiveLosses = consecutiveLosses + 1
-            Rayfield:Notify({ Title = "Loss Tracked", Content = string.format("%d/%d losses", consecutiveLosses, State.ReturnToLobbyAfterLosses), Duration = 3 })
+            Util.notify({ Title = "Loss Tracked", Content = string.format("%d/%d losses", consecutiveLosses, State.ReturnToLobbyAfterLosses), Duration = 3 })
             if consecutiveLosses >= State.ReturnToLobbyAfterLosses then
                 consecutiveLosses = 0
                 task.wait(1)
                 pcall(function()
                     game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
                 end)
-                Rayfield:Notify({ Title = "Returning to Lobby", Content = "Loss limit reached", Duration = 4 })
+                Util.notify({ Title = "Returning to Lobby", Content = "Loss limit reached", Duration = 4 })
             end
         else
             consecutiveLosses = 0 -- reset on win
@@ -4877,7 +4914,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
         if isRecording and recordingHasStarted then
             local actionCount = #macro
             GameState.stopRecording()
-            Rayfield:Notify({ Title = "Recording Auto-Stopped", Content = string.format("Saved %d actions to %s", actionCount, currentMacroName), Duration = 4 })
+            Util.notify({ Title = "Recording Auto-Stopped", Content = string.format("Saved %d actions to %s", actionCount, currentMacroName), Duration = 4 })
             RecordToggle:Set(false)
             recordingHasStarted = false
         end
@@ -4908,7 +4945,7 @@ task.spawn(function()
                     end
                 end)
                 if success then
-                    Rayfield:Notify({ Title = "Auto Start", Content = "Voting to start game...", Duration = 2 })
+                    Util.notify({ Title = "Auto Start", Content = "Voting to start game...", Duration = 2 })
                     task.wait(5)
                 end
             end
@@ -4942,7 +4979,7 @@ task.spawn(function()
                     game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
                 end
                 State.NewChallengesAvailable = true
-                Rayfield:Notify({ Title = "New Challenges Available", Content = "Will return to lobby when game ends", Duration = 4 })
+                Util.notify({ Title = "New Challenges Available", Content = "Will return to lobby when game ends", Duration = 4 })
             end
             if currentMinute > 1 and currentMinute < 30 then lastCheckMinute = -1
             elseif currentMinute > 31 then lastCheckMinute = -1 end
@@ -4965,7 +5002,7 @@ task.spawn(function()
                     game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
                 end)
                 if success then
-                    Rayfield:Notify({ Title = "Returned to Lobby", Content = "Ready to join new challenges", Duration = 3 })
+                    Util.notify({ Title = "Returned to Lobby", Content = "Ready to join new challenges", Duration = 3 })
                     State.NewChallengesAvailable = false
                 end
             else
@@ -4987,7 +5024,7 @@ task.spawn(function()
                                     local remote = service:FindFirstChild("VoteReplay")
                                     if remote then remote:FireServer() return true else return false end
                                 end)
-                                if success and remoteExists then Rayfield:Notify({ Title = "Auto Retry", Content = string.format("Voting for Replay (attempt %d)...", attempt), Duration = 2 })
+                                if success and remoteExists then Util.notify({ Title = "Auto Retry", Content = string.format("Voting for Replay (attempt %d)...", attempt), Duration = 2 })
                                 elseif not remoteExists then break end
                             elseif action == "next" then
                                 success, remoteExists = pcall(function()
@@ -4995,13 +5032,13 @@ task.spawn(function()
                                     local remote = service:FindFirstChild("NextMap")
                                     if remote then remote:FireServer() return true else return false end
                                 end)
-                                if success and remoteExists then Rayfield:Notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
+                                if success and remoteExists then Util.notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
                                 elseif not remoteExists then break end
                             elseif action == "lobby" then
                                 success = pcall(function()
                                     game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
                                 end)
-                                if success then Rayfield:Notify({ Title = "Auto Lobby", Content = "Returning to Lobby...", Duration = 2 }) actionWorked = true break
+                                if success then Util.notify({ Title = "Auto Lobby", Content = "Returning to Lobby...", Duration = 2 }) actionWorked = true break
                                 else break end
                             end
                             if remoteExists or action == "lobby" then
