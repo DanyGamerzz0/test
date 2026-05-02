@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4952,65 +4952,63 @@ task.spawn(function()
         if not gameInProgress then continue end
         if not PlacedTowerController then continue end
 
-        local currentWave = workspace:GetAttribute("Wave") or 0
         local towers = PlacedTowerController:GetTowers()
+        if not towers then continue end
+
+        local currentWave = workspace:GetAttribute("Wave") or 0
 
         for guid, towerData in pairs(towers) do
-            local model = towerData.Model
-            if not model then continue end
+            local unitId = towerData.TowerID
+            if not unitId then continue end
+            local cleanId = Util.cleanUnitName(unitId)
 
-            local unitId = Util.cleanUnitName(
-                towerData.TowerID
-                or (model.TowerID)
-                or ""
-            )
-            
-            if unitId == "" then
-                warn("Could not resolve unitId for guid:", guid)
-                continue
+            -- Get all abilities via controller, not model
+            local allAbilities = PlacedTowerController:GetAllAbilities(guid)
+            print("Abilities for", guid, ":", allAbilities)
+            for k, v in pairs(allAbilities or {}) do
+                print("  index:", k, "value:", v)
+                local info = PlacedTowerController:GetAbility(guid, k)
+                print("  abilityInfo:", info)
+                if info then for ik, iv in pairs(info) do print("    ", ik, iv) end end
             end
-
-            local allAbilities = model:GetAllAbilities()
-            if not allAbilities or not next(allAbilities) then continue end
+            if not allAbilities then continue end
 
             for abilityIndex, _ in pairs(allAbilities) do
                 local abilityInfo = PlacedTowerController:GetAbility(guid, abilityIndex)
-                if not abilityInfo or not abilityInfo.Name then continue end
+                if not abilityInfo then continue end
 
-                local settingKey = unitId .. "_" .. abilityInfo.Name
+                -- GetAbilityData returns the ability table - check what field has the name
+                local abilityName = abilityInfo.Name or abilityInfo.Title or tostring(abilityIndex)
+                local settingKey = cleanId .. "_" .. abilityName
                 local settings = abilitySettings[settingKey]
-                
-                -- Debug: print what keys we're checking
-                print(string.format("Checking: unitId=%s abilityName=%s settingKey=%s mode=%s", 
-                    unitId, abilityInfo.Name, settingKey, settings and settings.mode or "NO SETTING"))
 
                 if not settings or settings.mode == "Disabled" then continue end
 
+                -- Use controller's built-in cooldown tracking
+                local lastUsed = PlacedTowerController:GetLastAbilityUse(guid, abilityIndex)
                 local cooldown = abilityInfo.Cooldown or 60
-                local trackKey = guid .. "_" .. abilityIndex
-                local lastUsed = abilityLastUsed[trackKey] or 0
-                local isReady = (tick() - lastUsed) >= cooldown
+                -- GetLastAbilityUse returns elapsed time since last use
+                local isReady = (lastUsed == nil) or (lastUsed >= cooldown)
 
                 if not isReady then continue end
 
-                if abilityInfo.Global and abilityInfo.Name then
-                    if PlacedTowerController:IsGlobalCooldownActive(abilityInfo.Name) then
+                if abilityInfo.Global and abilityName then
+                    if PlacedTowerController:IsGlobalCooldownActive(abilityName) then
                         continue
                     end
                 end
 
                 local function fireAbility()
                     local success = pcall(function()
-                        Services.ReplicatedStorage.Packages
-                            ._Index["sleitnick_knit@1.7.0"]
+                        game:GetService("ReplicatedStorage")
+                            .Packages._Index["sleitnick_knit@1.7.0"]
                             .knit.Services.TowerService.RE.UseAbility
                             :FireServer(guid, abilityIndex, nil)
                     end)
                     if success then
-                        abilityLastUsed[trackKey] = tick()
                         Util.notify({
                             Title = "Auto Ability",
-                            Content = string.format("%s → %s", unitId, abilityInfo.Title or abilityInfo.Name),
+                            Content = string.format("%s → %s", cleanId, abilityName),
                             Duration = 2,
                         })
                     end
@@ -5020,7 +5018,7 @@ task.spawn(function()
                     fireAbility()
                 elseif settings.mode == "On Wave" then
                     local targetWave = settings.wave or 1
-                    local waveKey = trackKey .. "_wave_" .. targetWave
+                    local waveKey = guid .. "_" .. abilityIndex .. "_wave_" .. targetWave
                     if currentWave >= targetWave and not abilityUsedOnWave[waveKey] then
                         fireAbility()
                         abilityUsedOnWave[waveKey] = true
