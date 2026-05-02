@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.11"
+local script_version = "V0.08"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -97,10 +97,16 @@ local AutoPathTab = Window:CreateTab("Auto Path", "target")
 local RagnarokTab = Window:CreateTab("Cards", "target")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local Tab = Window:CreateTab("Macro", "tv")
+local AutoAbilityTab = Window:CreateTab("Auto Abilities", "zap")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 
 local StatusLabel = Tab:CreateLabel("Status: Ready")
 local DetailLabel = Tab:CreateLabel("Waiting...")
+
+local AutoAbility = { enabled = false }
+local abilitySettings = {} -- { [unitId_abilityName] = { mode, wave } }
+local abilityLastUsed = {}
+local abilityUsedOnWave = {}
 
 Div = Tab:CreateDivider()
 
@@ -645,8 +651,26 @@ local generalHook = newcclosure(function(self, ...)
     local method = getnamecallmethod()
     
     local results = {originalNamecall(self, table.unpack(args))}
+
+    if checkcaller() or not isRecording or not recordingHasStarted then
+        return table.unpack(results)
+    end
+
+    if method ~= "InvokeServer" and method ~= "FireServer" then
+        return table.unpack(results)
+    end
+
+    local name = self.Name
+
+    if name ~= "PlaceUnit" and name ~= "UpgradeUnit" and name ~= "SellUnit" 
+    and name ~= "UseAbility" and name ~= "CommitSpecialPlacement" 
+    and name ~= "VoteCard" and name ~= "Purchase" and name ~= "RequestFusion"
+    and name ~= "PlaceSubTower" and name ~= "CommitUnitReplacement"
+    and name ~= "AutoAbility" and name ~= "ToggleAutoUpgrade"
+    and name ~= "IncrementAutoUpgradePriority" then
+        return table.unpack(results)
+    end
     
-    if not checkcaller() and isRecording and recordingHasStarted then
         task.spawn(function()
             local timestamp = tick()
             local gameRelativeTime = timestamp - gameStartTime
@@ -808,7 +832,7 @@ local generalHook = newcclosure(function(self, ...)
                     })
                     print(string.format("Recorded shop purchase: %s / %s", shopId, itemId))
                 end
-elseif method == "InvokeServer" and self.Name == "RequestFusion" then
+            elseif method == "InvokeServer" and self.Name == "RequestFusion" then
                 local success = results[1]
                 local message = results[2]
                 local resultGuid = results[3]
@@ -952,8 +976,6 @@ elseif method == "InvokeServer" and self.Name == "RequestFusion" then
                 print(string.format("Recorded increment auto upgrade priority: %s", unitTag))
             end
         end)
-    end
-
     return table.unpack(results)
 end)
 
@@ -4783,6 +4805,155 @@ Tab:CreateButton({
 })
 
 Div2 = Tab:CreateDivider()
+
+AutoAbilityTab:CreateLabel("Configure per-unit ability automation")
+AutoAbilityTab:CreateDivider()
+
+AutoAbilityTab:CreateToggle({
+    Name = "Enable Auto Abilities",
+    CurrentValue = false,
+    Flag = "AutoAbilityMasterToggle",
+    Callback = function(Value)
+        AutoAbility.enabled = Value
+    end,
+})
+
+AutoAbilityTab:CreateDivider()
+
+local function getEquippedUnitIds()
+    local unitIds = {}
+    local success = pcall(function()
+        local equipped = game:GetService("HttpService"):JSONDecode(
+            Services.Players.LocalPlayer:WaitForChild("Equipped").Value
+        )
+        for _, unitGUID in pairs(equipped) do
+            if unitGUID and unitGUID ~= "" then
+                local data = DataController:GetUnitData(unitGUID)
+                if data and data.UnitId then
+                    table.insert(unitIds, data.UnitId)
+                end
+            end
+        end
+    end)
+    if not success then warn("Failed to get equipped units") end
+    return unitIds
+end
+
+local function getAbilitiesFromModule(unitId)
+    local abilities = {}
+    local success, result = pcall(function()
+        local cleanId = Util.cleanUnitName(unitId)
+        local towersFolder = Services.ReplicatedStorage.Shared.Data.Towers
+        local module = towersFolder:FindFirstChild(cleanId)
+            or towersFolder:FindFirstChild(unitId)
+        if not module or not module:IsA("ModuleScript") then return end
+
+        local data = require(module)
+        if type(data) == "function" then data = data() end
+        if not data or not data.Stats or not data.Stats.Upgrades then return end
+
+        -- Find the highest upgrade tier to get all possible abilities
+        -- We collect all unique abilities across all upgrade tiers
+        local seen = {}
+        for _, upgrade in ipairs(data.Stats.Upgrades) do
+            if upgrade.Ability then
+                local abilityList = type(upgrade.Ability[1]) == "table" 
+                    and upgrade.Ability 
+                    or upgrade.Ability
+                for _, ability in ipairs(abilityList) do
+                    if ability.Name and not seen[ability.Name] then
+                        seen[ability.Name] = true
+                        table.insert(abilities, {
+                            Name = ability.Name,
+                            Title = ability.Title or ability.Name,
+                            Cooldown = ability.Cooldown or 60,
+                            Global = ability.Global or false,
+                            Icon = ability.Icon,
+                        })
+                    end
+                end
+            end
+        end
+    end)
+    if not success then warn("Failed to load module for: " .. tostring(unitId)) end
+    return abilities
+end
+
+local function buildAutoAbilityUI()
+    local unitIds = getEquippedUnitIds()
+    if #unitIds == 0 then
+        AutoAbilityTab:CreateLabel("No equipped units found. Rejoin or re-execute.")
+        return
+    end
+
+    for _, unitId in ipairs(unitIds) do
+        local abilities = getAbilitiesFromModule(unitId)
+        if #abilities == 0 then continue end
+
+        local cleanId = Util.cleanUnitName(unitId)
+        AutoAbilityTab:CreateSection(cleanId)
+
+        for _, ability in ipairs(abilities) do
+            local settingKey = cleanId .. "_" .. ability.Name
+            if not abilitySettings[settingKey] then
+                abilitySettings[settingKey] = { mode = "Disabled", wave = 1 }
+            end
+
+            local label = string.format("%s (CD: %ss%s)",
+                ability.Title,
+                tostring(ability.Cooldown),
+                ability.Global and " · Global" or "")
+
+            AutoAbilityTab:CreateLabel(label)
+
+            AutoAbilityTab:CreateDropdown({
+                Name = "Mode",
+                Options = { "Disabled", "Auto (Always)", "On Wave" },
+                CurrentOption = { "Disabled" },
+                MultipleOptions = false,
+                Flag = "AutoAbility_Mode_" .. settingKey,
+                Callback = function(Option)
+                    local selected = type(Option) == "table" and Option[1] or Option
+                    abilitySettings[settingKey].mode = selected
+                end,
+            })
+
+            AutoAbilityTab:CreateSlider({
+                Name = "Use on Wave (if 'On Wave' selected)",
+                Range = { 1, 300 },
+                Increment = 1,
+                CurrentValue = 1,
+                Flag = "AutoAbility_Wave_" .. settingKey,
+                Callback = function(Value)
+                    abilitySettings[settingKey].wave = Value
+                end,
+            })
+
+            AutoAbilityTab:CreateDivider()
+        end
+    end
+end
+
+-- Build UI on load
+task.spawn(function()
+    task.wait(3) -- wait for DataController to be ready
+    buildAutoAbilityUI()
+end)
+
+-- Refresh button in case loadout changes
+AutoAbilityTab:CreateButton({
+    Name = "Refresh Ability List",
+    Callback = function()
+        abilitySettings = {}
+        -- Can't remove existing elements from Rayfield tabs,
+        -- so notify user to re-execute
+        Util.notify({
+            Title = "Auto Abilities",
+            Content = "Re-execute the script to refresh the ability list",
+            Duration = 4,
+        })
+    end,
+})
 
 WebhookInput = WebhookTab:CreateInput({
     Name = "Input Webhook", CurrentValue = "", PlaceholderText = "Input Webhook...",
