@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.13"
+local script_version = "V0.08"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -391,7 +391,7 @@ task.spawn(function()
     pcall(function() DataController = Knit.GetController("DataController") end)
     pcall(function() PlacedTowerController = Knit.GetController("PlacedTowerController") end)
     pcall(function() CalendarEventsController = Knit.GetController("CalendarEventsController") end)
-    ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController)
+    pcall(function() ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController) end)
 end)
 
 -- ============================================
@@ -3729,42 +3729,40 @@ Toggle = LobbyTab:CreateToggle({
     Callback = function(Value) State.enableAutoClaimEventMissions = Value end,
 })
 
-task.spawn(function()
-    local EventsConfig = require(game:GetService("ReplicatedStorage").Shared.Data.EventsConfig)
+task.spawn(function()    
+    -- Hardcoded mission IDs
+    local missions = {
+        "dailySameElement",
+        "dailyClearStageWithPlayer1",
+        "weeklySameClass",
+        "dailyClearStageWithPlayer0",
+        "dailySameClass",
+        "weeklySupportClass",
+        "dailySupportClass",
+        "dailyFree",
+        "weeklyFree"
+    }
     
-    repeat task.wait() until workspace:GetAttribute("ClientInit")
-    repeat task.wait(0.5) until CalendarEventsController ~= nil
+    -- Get the remote
+    local claimMissionRemote = game:GetService("ReplicatedStorage")
+        .Packages
+        ._Index["sleitnick_knit@1.7.0"]
+        .knit
+        .Services
+        .CalendarEventService
+        .RF
+        .claimMission
     
     while true do
         task.wait(5)
         
         if not State.enableAutoClaimEventMissions then continue end
         
-        pcall(function()
-            CalendarEventsController:FetchEventsState():await()
-        end)
-        task.wait(1)
-        
-        for eventId, _ in pairs(EventsConfig.primaryEvents or {}) do
-            local eventState = CalendarEventsController:GetEventState(eventId)
-            if not eventState or not eventState.isActive or not eventState.missions then continue end
-            
-            local missions = CalendarEventsController:GetSortedMissionsList(eventId)
-            if not missions then continue end
-            
-            for _, mission in ipairs(missions) do
-                if not mission.claimed then
-                    local success, result = CalendarEventsController:ClaimMission(eventId, mission.missionId):await()
-                    if success then
-                        Util.notify({
-                            Title = "Mission Claimed",
-                            Content = string.format("[%s] %s", eventId, mission.missionId),
-                            Duration = 3,
-                        })
-                    end
-                    task.wait(0.5)
-                end
-            end
+        for _, missionId in ipairs(missions) do
+            local success, result = pcall(function()
+                return claimMissionRemote:InvokeServer(missionId)
+            end)
+            task.wait(0.5)
         end
     end
 end)
@@ -4951,8 +4949,6 @@ task.spawn(function()
     while true do
         task.wait(0.5)
 
-        print("AutoAbility check - enabled:", AutoAbility.enabled, "gameInProgress:", gameInProgress, "PTC:", PlacedTowerController ~= nil)
-
         if not AutoAbility.enabled then continue end
         if not gameInProgress then continue end
         if not PlacedTowerController then continue end
@@ -4972,13 +4968,6 @@ task.spawn(function()
 
             -- Get all abilities via controller, not model
             local allAbilities = PlacedTowerController:GetAllAbilities(guid)
-            print("Abilities for", guid, ":", allAbilities)
-            for k, v in pairs(allAbilities or {}) do
-                print("  index:", k, "value:", v)
-                local info = PlacedTowerController:GetAbility(guid, k)
-                print("  abilityInfo:", info)
-                if info then for ik, iv in pairs(info) do print("    ", ik, iv) end end
-            end
             if not allAbilities then continue end
 
             for abilityIndex, _ in pairs(allAbilities) do
@@ -5014,11 +5003,6 @@ task.spawn(function()
                             :FireServer(guid, abilityIndex, nil)
                     end)
                     if success then
-                        Util.notify({
-                            Title = "Auto Ability",
-                            Content = string.format("%s → %s", cleanId, abilityName),
-                            Duration = 2,
-                        })
                     end
                 end
 
