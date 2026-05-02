@@ -3760,7 +3760,7 @@ task.spawn(function()
         
         for _, missionId in ipairs(missions) do
             local success, result = pcall(function()
-                return claimMissionRemote:InvokeServer(missionId)
+                return claimMissionRemote:InvokeServer("DevilWithin",missionId)
             end)
             task.wait(0.5)
         end
