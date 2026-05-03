@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.25"
+local script_version = "V0.3"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3965,44 +3965,72 @@ end
 
 task.spawn(AutoJoin.setupCardSelectionMonitoring)
 
+local function getCurrentWorld()
+    local success, levelData = pcall(function()
+        return Services.Workspace._MAP_CONFIG.GetLevelData:InvokeServer()
+    end)
+    
+    if success and levelData then
+        -- Priority 1: Check if this is a portal level
+        if levelData._portal_only_level == true and levelData.id then
+            print("getCurrentWorld: Detected portal level, ID:", levelData.id)
+            return levelData.id -- Returns "portal_tengen", "portal_tengen_secret", etc.
+        end
+        
+        -- Priority 2: Check for world field (story/legend/raid stages)
+        if levelData.world then
+            print("getCurrentWorld: Using world field:", levelData.world)
+            return levelData.world
+        end
+        
+        -- Priority 3: Fallback to map field (special maps like "DoubleDungeon")
+        if levelData.map then
+            print("getCurrentWorld: Using map field:", levelData.map)
+            return levelData.map
+        end
+        
+        print("getCurrentWorld: No world, map, or portal ID found in levelData")
+    else
+        print("getCurrentWorld: Failed to get level data:", levelData)
+    end
+    
+    return nil
+end
+
 local function getMacroForCurrentWorld()
     if Util.isInLobby() then return nil end
 
-    -- Get current world key from MAP_CONFIG
-    local currentWorld = nil
+    local currentWorld = getCurrentWorld()
+    if not currentWorld then return nil end
+
+    -- Nightmare Train act detection only
     local actNum = nil
     pcall(function()
         local cfg = Services.Workspace:FindFirstChild("_MAP_CONFIG")
         if not cfg then return end
         local levelData = cfg.GetLevelData:InvokeServer()
         if not levelData then return end
-
-        -- Try to get world key from level_id
         if levelData.level_id then
-            -- Check for nightmare train (ds_legend acts)
-            local extractedAct = levelData.level_id:match("ds_legend_(%d)$")
-            if extractedAct then
-                actNum = tonumber(extractedAct)
-            end
-            -- Strip act suffix to get base world key
-            currentWorld = levelData.level_id:match("^(.-)_%d+$") or levelData.level_id
+            local extracted = levelData.level_id:match("ds_legend_(%d)$")
+            if extracted then actNum = tonumber(extracted) end
         end
-
-        -- Fallback to map field
-        if not currentWorld and levelData.map then
-            currentWorld = levelData.map
+        if not actNum and levelData.map then
+            local mapLower = levelData.map:lower()
+            if mapLower:find("one") then actNum = 1
+            elseif mapLower:find("two") then actNum = 2
+            elseif mapLower:find("three") then actNum = 3
+            end
         end
     end)
 
-    if not currentWorld then return nil end
     print("[AutoSelect] Current world:", currentWorld, "Act:", actNum or "N/A")
 
-    -- Nightmare Train act-specific lookup
+    -- Nightmare act lookup
     if actNum then
-        local nightmareKey = "ds_legend_act_" .. actNum
-        local mapped = worldMacroMappings[nightmareKey]
+        local key = "ds_legend_act_" .. actNum
+        local mapped = worldMacroMappings[key]
         if mapped and Macro.library[mapped] then
-            print("[AutoSelect] Nightmare act match:", nightmareKey, "->", mapped)
+            print("[AutoSelect] Nightmare act match:", key, "->", mapped)
             return mapped
         end
     end
