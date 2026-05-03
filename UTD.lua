@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -91,7 +91,6 @@ local Window = Rayfield:CreateWindow({
       Key = {"0xLIXHUB"},
    }
 })
-local LobbyTab = Window:CreateTab("Lobby", "tv")
 local JoinerTab = Window:CreateTab("Joiner", "plug-zap")
 local AutoPathTab = Window:CreateTab("Auto Path", "target")
 local RagnarokTab = Window:CreateTab("Cards", "target")
@@ -99,13 +98,13 @@ local GameTab = Window:CreateTab("Game", "gamepad-2")
 local Tab = Window:CreateTab("Macro", "tv")
 local AutoAbilityTab = Window:CreateTab("Auto Abilities", "zap")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
+local MiscTab = Window:CreateTab("Misc", "cog")
 
 local StatusLabel = Tab:CreateLabel("Status: Ready")
 local DetailLabel = Tab:CreateLabel("Waiting...")
 
 local AutoAbility = { enabled = false }
 local abilitySettings = {} -- { [unitId_abilityName] = { mode, wave } }
-local abilityLastUsed = {}
 local abilityUsedOnWave = {}
 
 Div = Tab:CreateDivider()
@@ -125,7 +124,6 @@ local ValidWebhook = nil
 local beforeRewardData = nil
 local afterRewardData = nil
 local hasRecentlyRestarted = false
-local currentPlaybackThread = nil
 local moddedPlacementEnabled = false
 local finishedRewardData = nil
 local consecutiveLosses = 0
@@ -139,7 +137,6 @@ local currentGameInfo = {
     StartTime = nil
 }
 local UINameToModuleName = {}
-local ModifierModuleToTag = {}
 local ModifierMapping = {}
 local worldMacroMappings = {}
 local worldDropdowns = {}
@@ -290,6 +287,8 @@ local State = {
     AutoMatchmakeUniversalTear = false,
     AutoCollectRiftOrbs = false,
     ReturnToLobbyAfterLosses = 0,
+    ReturnToLobbyAfterMatches = 0,
+    matchesPlayed = 0,
     LeaveAfterRerollLimitHitTheHunt = false,
     LeaveAfterRerollLimitHitOlympus = false,
 
@@ -315,6 +314,17 @@ local State = {
 
     SelectedRiftMaps = {},
     enableAutoClaimEventMissions = false,
+    enableAutoClaimBattlepass = false,
+
+    enableAutoSummonBanner = false,
+    SelectedSummonType = nil,
+    SelectedBannerId = nil,
+
+    enableAutoOpenCapsules = false,
+    SelectedCapsuleIds = {},
+    CapsuleNameToId = {},
+    enableAutoBuyCapsules = false,
+    SelectedCapsulesToBuy = {},
 }
 
         local loadingRetries = {
@@ -427,7 +437,6 @@ function MacroIO.delete(name)
     local filePath = MacroIO.getFilename(name)
     if isfile(filePath) then delfile(filePath) end
     macroManager[name] = nil
-    print(string.format("🗑️ Deleted macro: %s", name))
 end
 
 function MacroIO.loadAll()
@@ -440,7 +449,7 @@ function MacroIO.loadAll()
             local data = MacroIO.load(name)
             if data then
                 macroManager[name] = data
-                print(string.format("📂 Loaded macro: %s (%d actions)", name, #data))
+                print(string.format("Loaded macro: %s (%d actions)", name, #data))
             end
         end
     end
@@ -3167,6 +3176,8 @@ AutoJoinShinobiToggle = JoinerTab:CreateToggle({
     Callback = function(Value) State.AutoMatchmakeShinobiAlliance = Value end,
 })
 
+JoinerTab:CreateLabel("Note: If you want to return to lobby automatically on rift refresh turn on both auto retry and auto lobby in game tab")
+
 AutoJoinTearToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Universal Tear", CurrentValue = false, Flag = "AutoJoinUniversalTear",
     Callback = function(Value) State.AutoJoinUniversalTear = Value end,
@@ -3193,67 +3204,6 @@ AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Ragnarok Infinite", CurrentValue = false, Flag = "AutoJoinRagnarok",
     Callback = function(Value) State.AutoJoinRagnarok = Value end,
 })
-
---[[task.spawn(function()
-    local isCollecting = false
-    
-    while true do
-        task.wait(0.5)
-        
-        if State.AutoCollectPresents and not isCollecting then
-            isCollecting = true
-            
-            pcall(function()
-                local drops = workspace:FindFirstChild("Ignore")
-                if drops then
-                    drops = drops:FindFirstChild("Drops")
-                end
-                
-                if drops then
-                    local presents = {}
-                    for _, child in pairs(drops:GetChildren()) do
-                        if child.Name == "Present" and child:IsA("Model") then
-                            table.insert(presents, child)
-                        end
-                    end
-                    
-                    for _, present in ipairs(presents) do
-                        if not State.AutoCollectPresents then break end
-                        
-                        if present and present.Parent then
-                            local character = Services.Players.LocalPlayer.Character
-                            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
-                            
-                            if humanoidRootPart then
-                                -- Save original position
-                                local originalCFrame = humanoidRootPart.CFrame
-                                
-                                -- Teleport to present
-                                local presentPos = present:GetPivot().Position
-                                humanoidRootPart.CFrame = CFrame.new(presentPos)
-                                
-                                -- Wait for present to be collected
-                                local timeout = 0
-                                while present and present.Parent and timeout < 20 do
-                                    task.wait(0.1)
-                                    timeout = timeout + 1
-                                end
-                                
-                                -- Teleport back to original position
-                                if humanoidRootPart and humanoidRootPart.Parent then
-                                    humanoidRootPart.CFrame = originalCFrame
-                                end
-                                
-                                task.wait(0.2)
-                            end
-                        end
-                    end
-                end
-            end)
-            isCollecting = false
-        end
-    end
-end)--]]
 
 function Loader.buildMapLookup()
     local success, result = pcall(function()
@@ -3393,8 +3343,6 @@ function Loader.challengeModifiers()
     if success and result and #result > 0 then
         if IgnoreModifierDropdown then
             ModifierMapping = result
-            ModifierModuleToTag = {}
-            for _, modifier in ipairs(result) do ModifierModuleToTag[modifier.ModuleName] = modifier.DisplayName end
             local displayNames = {}
             for _, modifier in ipairs(result) do table.insert(displayNames, modifier.DisplayName) end
             IgnoreModifierDropdown:Refresh(displayNames)
@@ -3734,78 +3682,7 @@ Toggle = GameTab:CreateToggle({
     Callback = function(Value) State.enableBlackScreen = Value enableBlackScreen() end,
 })
 
-LobbyTab:CreateToggle({
-    Name = "Auto Collect Present Drops",
-    CurrentValue = false,
-    Flag = "AutoCollectPresents",
-    Info = "Automatically teleport and collect present drops around the map",
-    Callback = function(Value)
-        State.AutoCollectPresents = Value
-    end,
-})
-
-task.spawn(function()
-    local isCollecting = false
-    
-    while true do
-        task.wait(0.5)
-        
-        if State.AutoCollectPresents and not isCollecting then
-            isCollecting = true
-            
-            pcall(function()
-                local drops = workspace:FindFirstChild("Ignore")
-                if drops then
-                    drops = drops:FindFirstChild("Drops")
-                end
-                
-                if drops then
-                    local presents = {}
-                    for _, child in pairs(drops:GetChildren()) do
-                        if child.Name == "Present" and child:IsA("Model") then
-                            table.insert(presents, child)
-                        end
-                    end
-                    
-                    for _, present in ipairs(presents) do
-                        if not State.AutoCollectPresents then break end
-                        
-                        if present and present.Parent then
-                            local character = Services.Players.LocalPlayer.Character
-                            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
-                            
-                            if humanoidRootPart then
-                                -- Save original position
-                                local originalCFrame = humanoidRootPart.CFrame
-                                
-                                -- Teleport to present
-                                local presentPos = present:GetPivot().Position
-                                humanoidRootPart.CFrame = CFrame.new(presentPos)
-                                
-                                -- Wait for present to be collected
-                                local timeout = 0
-                                while present and present.Parent and timeout < 20 do
-                                    task.wait(0.1)
-                                    timeout = timeout + 1
-                                end
-                                
-                                -- Teleport back to original position
-                                if humanoidRootPart and humanoidRootPart.Parent then
-                                    humanoidRootPart.CFrame = originalCFrame
-                                end
-                                
-                                task.wait(0.2)
-                            end
-                        end
-                    end
-                end
-            end)
-            isCollecting = false
-        end
-    end
-end)
-
-Toggle = LobbyTab:CreateToggle({
+Toggle = MiscTab:CreateToggle({
     Name = "Auto Claim Event Missions", CurrentValue = false, Flag = "enableAutoClaimEventMissions",
     Callback = function(Value) State.enableAutoClaimEventMissions = Value end,
 })
@@ -3848,19 +3725,193 @@ task.spawn(function()
     end
 end)
 
-Button = LobbyTab:CreateButton({
+Toggle = MiscTab:CreateToggle({
+    Name = "Auto Claim Battlepass", CurrentValue = false, Flag = "enableAutoClaimBattlepass",
+    Callback = function(Value) State.enableAutoClaimBattlepass = Value end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+        if not State.enableAutoClaimBattlepass then continue end
+        
+        local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.BattlepassService.RF.ClaimTiers
+        
+        for tier = 1, 100 do
+            local success, result = pcall(function()
+                return Event:InvokeServer({ tier })
+            end)
+            if not success or result == "Error" then break end
+            if result == "Tier not unlocked!" then break end
+            task.wait(0.5)
+        end
+    end
+end)
+
+Toggle = MiscTab:CreateToggle({
+    Name = "Auto Summon Banner", CurrentValue = false, Flag = "enableAutoSummonBanner",
+    Callback = function(Value) State.enableAutoSummonBanner = Value end,
+})
+
+MiscTab:CreateDropdown({
+    Name = "Select Auto Summon Banner",
+    Options = {"Special Banner", "Selection Banner", "God's Step Up Banner"},
+    CurrentOption = {}, MultipleOptions = false, Flag = "SelectAutoSummonBanner",
+    Callback = function(Options)
+        local selected = type(Options) == "table" and Options[1] or Options
+        if selected == "Special Banner" then
+            State.SelectedSummonType = "TenSummon"
+            State.SelectedBannerId = "Special"
+        elseif selected == "Selection Banner" then
+            State.SelectedSummonType = "TenSummon"
+            State.SelectedBannerId = "Selection"
+        elseif selected == "God's Step Up Banner" then
+            State.SelectedSummonType = "StepUpThree"
+            State.SelectedBannerId = "StepUp"
+        end
+    end,
+})
+
+task.spawn(function()
+    local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.BannerService.RF.BuyBanner
+
+    while true do
+        task.wait(0.5)
+        if not State.enableAutoSummonBanner then continue end
+        if not State.SelectedSummonType or not State.SelectedBannerId then continue end
+
+        local success, result = pcall(function()
+            return Event:InvokeServer(State.SelectedSummonType, State.SelectedBannerId)
+        end)
+
+        if not success or result == "Not enough gems!" then
+            State.enableAutoSummonBanner = false
+            Util.notify({ Title = "Auto Summon", Content = result or "Error — stopping", Duration = 4 })
+        end
+
+        task.wait(0.5)
+    end
+end)
+
+MiscTab:CreateToggle({
+    Name = "Auto Buy Capsules", CurrentValue = false, Flag = "enableAutoBuyCapsules",
+    Callback = function(Value) State.enableAutoBuyCapsules = Value end,
+})
+
+MiscTab:CreateDropdown({
+    Name = "Select Capsule(s) To Buy",
+    Options = {"Devil Capsule", "Winter Capsule", "New Years Capsule"},
+    CurrentOption = {}, MultipleOptions = true, Flag = "SelectAutoBuyCapsules",
+    Callback = function(Options)
+        State.SelectedCapsulesToBuy = {}
+        for _, name in ipairs(Options) do
+            if name == "Devil Capsule" then
+                table.insert(State.SelectedCapsulesToBuy, { service = "CalendarEventService", method = "purchaseOffer", args = { "DevilWithin", "DMCCapsule", 1 } })
+            elseif name == "Winter Capsule" then
+                table.insert(State.SelectedCapsulesToBuy, { service = "WinterShopService", method = "BuyItem", args = { "WinterCapsule", 1 } })
+            elseif name == "New Years Capsule" then
+                table.insert(State.SelectedCapsulesToBuy, { service = "WinterShopService", method = "BuyItem", args = { "NewYearsCapsule", 1 } })
+            end
+        end
+    end,
+})
+
+task.spawn(function()
+    local base = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services
+
+    while true do
+        task.wait(1)
+        if not State.enableAutoBuyCapsules then continue end
+        if not State.SelectedCapsulesToBuy or #State.SelectedCapsulesToBuy == 0 then continue end
+
+        for _, capsule in ipairs(State.SelectedCapsulesToBuy) do
+            local ok, result = pcall(function()
+                return base[capsule.service].RF[capsule.method]:InvokeServer(table.unpack(capsule.args))
+            end)
+            if not ok or result == "Error" or result == "Not enough currency!" then
+                State.enableAutoBuyCapsules = false
+                Util.notify({ Title = "Auto Buy Capsules", Content = result or "Error — stopping", Duration = 4 })
+                break
+            end
+            task.wait(0.5)
+        end
+    end
+end)
+
+Toggle = MiscTab:CreateToggle({
+    Name = "Auto Open Capsules", CurrentValue = false, Flag = "enableAutoOpenCapsules",
+    Callback = function(Value) State.enableAutoOpenCapsules = Value end,
+})
+
+local CapsuleDropdown = MiscTab:CreateDropdown({
+    Name = "Select Capsule(s) To Open",
+    Options = {},
+    CurrentOption = {}, MultipleOptions = true, Flag = "SelectAutoOpenCapsules",
+    Callback = function(Options)
+        State.SelectedCapsuleIds = {}
+        for _, displayName in ipairs(Options) do
+            if State.CapsuleNameToId[displayName] then
+                table.insert(State.SelectedCapsuleIds, State.CapsuleNameToId[displayName])
+            end
+        end
+    end,
+})
+
+task.spawn(function()
+    task.wait(2)
+    State.CapsuleNameToId = {}
+    local displayNames = {}
+    for _, module in ipairs(game:GetService("ReplicatedStorage").Shared.Data.Items:GetChildren()) do
+        if module:IsA("ModuleScript") and module.Name:find("Capsule") then
+            local ok, data = pcall(require, module)
+            if ok and data.IsCapsule and data.CapsuleId and data.Name then
+                State.CapsuleNameToId[data.Name] = data.CapsuleId
+                table.insert(displayNames, data.Name)
+            end
+        end
+    end
+    table.sort(displayNames)
+    CapsuleDropdown:Refresh(displayNames)
+end)
+
+task.spawn(function()
+    local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.ItemService.RF.UseItemBulk
+
+    while true do
+        task.wait(1)
+        if not State.enableAutoOpenCapsules then continue end
+        if not State.SelectedCapsuleIds or #State.SelectedCapsuleIds == 0 then continue end
+
+        for _, capsuleId in ipairs(State.SelectedCapsuleIds) do
+            local amount = DataController and DataController.Items and DataController.Items.CraftingItems and DataController.Items.CraftingItems[capsuleId] or 0
+            if amount <= 0 then continue end
+
+            while amount > 0 do
+                local batch = math.min(amount, 250)
+                local ok, result = pcall(function()
+                    return Event:InvokeServer(capsuleId, batch)
+                end)
+                if not ok or result == "Error" or result == "You don't have enough of this item!" then break end
+                amount -= batch
+                task.wait(0.5)
+            end
+        end
+    end
+end)
+
+Button = MiscTab:CreateButton({
     Name = "Return to lobby",
     Callback = function()
         game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
     end,
 })
 
-Toggle = LobbyTab:CreateToggle({
+Toggle = MiscTab:CreateToggle({
     Name = "Disable Script Notifications", CurrentValue = false, Flag = "disableScriptNotifications",
     Callback = function(Value) State.disableScriptNotifications = Value end,
 })
 
-Toggle = LobbyTab:CreateToggle({
+Toggle = MiscTab:CreateToggle({
     Name = "Auto Execute Script", CurrentValue = false, Flag = "enableAutoExecute",
     Info = "This auto executes and persists through teleports until you disable it or leave the game.",
     Callback = function(Value)
@@ -3978,6 +4029,14 @@ Slider = GameTab:CreateSlider({
     CurrentValue = 0, Flag = "ReturnToLobbyAfterLosses", Info = "0 = disable",
     Callback = function(Value)
         State.ReturnToLobbyAfterLosses = Value
+    end,
+})
+
+Slider = GameTab:CreateSlider({
+    Name = "Return to lobby after x matches", Range = {0, 250}, Increment = 1, Suffix = "matches",
+    CurrentValue = 0, Flag = "ReturnToLobbyAfterMatches", Info = "0 = disable",
+    Callback = function(Value)
+        State.ReturnToLobbyAfterMatches = Value
     end,
 })
  
@@ -4143,6 +4202,8 @@ task.spawn(function()
     end
 end)
 
+Rayfield:CreateDivider()
+
 GameTab:CreateToggle({
     Name = "Auto Gaara Zone (Shinobi Alliance)",
     CurrentValue = false,
@@ -4179,6 +4240,68 @@ GameTab:CreateToggle({
         State.AutoCollectRiftOrbs = Value
     end,
 })
+
+GameTab:CreateToggle({
+    Name = "Auto Collect Presents",
+    CurrentValue = false,
+    Flag = "AutoCollectPresents",
+    Callback = function(Value)
+        State.AutoCollectPresents = Value
+    end,
+})
+
+task.spawn(function()
+    local isCollecting = false
+    
+    while true do
+        task.wait(0.5)
+        
+        if State.AutoCollectPresents and not isCollecting then
+            isCollecting = true
+            
+            pcall(function()
+                local drops = workspace:FindFirstChild("Ignore")
+                if drops then drops = drops:FindFirstChild("Drops") end
+                
+                if not drops then return end
+
+                local presents = {}
+                for _, child in pairs(drops:GetChildren()) do
+                    if child.Name == "Present" and child:IsA("Model") then
+                        table.insert(presents, child)
+                    end
+                end
+                    
+                for _, present in ipairs(presents) do
+                    if not State.AutoCollectPresents then break end
+                        
+                    if present and present.Parent then
+                        local hrp = Services.Players.LocalPlayer.Character
+                            and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            
+                        if hrp then
+                            local originalCFrame = hrp.CFrame
+                            hrp.CFrame = CFrame.new(present:GetPivot().Position)
+                                
+                            local timeout = 0
+                            while present and present.Parent and timeout < 20 do
+                                task.wait(0.1)
+                                timeout = timeout + 1
+                            end
+                                
+                            if hrp and hrp.Parent then
+                                hrp.CFrame = originalCFrame
+                            end
+                                
+                            task.wait(0.2)
+                        end
+                    end
+                end
+            end)
+            isCollecting = false
+        end
+    end
+end)
 
 task.spawn(function()
     local function collectOrb(orb)
@@ -4721,9 +4844,7 @@ function Playback.autoPlaybackLoop()
         Util.updateMacroStatus(string.format("Executing: %s (%d actions)", currentMacroName, #macro))
         Util.updateDetailedStatus("Starting playback...")
         Util.notify({ Title = "Playback Started", Content = currentMacroName .. " (" .. #macro .. " actions)", Duration = 3 })
-        currentPlaybackThread = coroutine.running()
         Playback.playMacro()
-        currentPlaybackThread = nil
         while gameInProgress and isPlaybackEnabled do task.wait(0.5) end
         if not isPlaybackEnabled then break end
         UnitTracker.clearSpawnIdMappings()
@@ -5110,7 +5231,6 @@ end)
 workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
     if wave <= 1 then
-        abilityLastUsed = {}
         abilityUsedOnWave = {}
     end
 end)
@@ -5223,6 +5343,21 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
         gameInProgress = false
+
+            if State.ReturnToLobbyAfterMatches and State.ReturnToLobbyAfterMatches > 0 then
+            State.matchesPlayed = (State.matchesPlayed or 0) + 1
+            Util.notify({ Title = "Match Tracked", Content = string.format("%d/%d matches", State.matchesPlayed, State.ReturnToLobbyAfterMatches), Duration = 3 })
+            if State.matchesPlayed >= State.ReturnToLobbyAfterMatches then
+                State.matchesPlayed = 0
+                task.wait(1)
+                pcall(function()
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("WaveService", 10):WaitForChild("RE"):WaitForChild("ToLobby"):FireServer()
+                end)
+                Util.notify({ Title = "Returning to Lobby", Content = "Match limit reached", Duration = 4 })
+            end
+        end
+
+
         if State.ReturnToLobbyAfterLosses and State.ReturnToLobbyAfterLosses > 0 then
         if lastMatchResult == "Lost" then
             consecutiveLosses = consecutiveLosses + 1
