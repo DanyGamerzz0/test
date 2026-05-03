@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.1"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2701,6 +2701,38 @@ end
 
 --[[--------------------------------------------------------------]]
 
+AutoPathTab:CreateButton({
+    Name = "Export Path Config",
+    Callback = function()
+        setclipboard(Services.HttpService:JSONEncode(PathState.BlessingPriorities))
+        Util.notify({ Title = "Exported", Content = "Path config copied to clipboard", Duration = 3 })
+    end,
+})
+
+AutoPathTab:CreateInput({
+    Name = "Import Path Config", PlaceholderText = "Paste JSON here...", RemoveTextAfterFocusLost = true,
+    Callback = function(text)
+        local ok, data = pcall(function() return Services.HttpService:JSONDecode(text) end)
+        if not ok or type(data) ~= "table" then
+            Util.notify({ Title = "Error", Content = "Invalid JSON", Duration = 3 }) return
+        end
+        for k, v in pairs(data) do
+            PathState.BlessingPriorities[k] = v
+        end
+        for _, slider in ipairs(pathSliders) do
+            local flag = slider.Flag
+            local key = flag:match("PathPriority_Resonance_(.+)$") or flag:match("PathPriority_[^_]+_(.+)$")
+            if key and PathState.BlessingPriorities[key] then
+                slider:Set(PathState.BlessingPriorities[key])
+            end
+        end
+        MacroIO.savePathPriorities()
+        Util.notify({ Title = "Imported", Content = "Path config applied", Duration = 3 })
+    end,
+})
+
+AutoPathTab:CreateDivider()
+
 AutoPathTab:CreateLabel("Higher number = higher priority")
 
 AutoPathTab:CreateToggle({
@@ -2856,6 +2888,8 @@ RagnarokTab:CreateInput({
         Util.notify({ Title = "Imported", Content = "Card config applied", Duration = 3 })
     end,
 })
+
+RagnarokTab:CreateDivider()
 
 RagnarokTab:CreateToggle({
     Name = "Auto Pick Ragnarok Cards",
@@ -5535,45 +5569,68 @@ task.spawn(function()
                 if State.AutoRetry then table.insert(actions, "retry") end
                 if State.AutoNext then table.insert(actions, "next") end
                 if State.AutoLobby then table.insert(actions, "lobby") end
+
                 if #actions > 0 then
-                    local actionWorked = false
                     for _, action in ipairs(actions) do
-                        if actionWorked then break end
+                        local actionWorked = false
                         local maxAttempts = 3
+
                         for attempt = 1, maxAttempts do
                             local success = false
                             local remoteExists = false
+
                             if action == "retry" then
                                 success, remoteExists = pcall(function()
                                     local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
                                     local remote = service:FindFirstChild("VoteReplay")
                                     if remote then remote:FireServer() return true else return false end
                                 end)
-                                if success and remoteExists then Util.notify({ Title = "Auto Retry", Content = string.format("Voting for Replay (attempt %d)...", attempt), Duration = 2 })
-                                elseif not remoteExists then break end
+                                if success and remoteExists then
+                                    Util.notify({ Title = "Auto Retry", Content = string.format("Voting for Replay (attempt %d)...", attempt), Duration = 2 })
+                                elseif not remoteExists then
+                                    break
+                                end
                             elseif action == "next" then
                                 success, remoteExists = pcall(function()
                                     local service = game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5)
                                     local remote = service:FindFirstChild("NextMap")
                                     if remote then remote:FireServer() return true else return false end
                                 end)
-                                if success and remoteExists then Util.notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
-                                elseif not remoteExists then break end
+                                if success and remoteExists then
+                                    Util.notify({ Title = "Auto Next", Content = string.format("Voting for Next Stage (attempt %d)...", attempt), Duration = 2 })
+                                elseif not remoteExists then
+                                    break
+                                end
                             elseif action == "lobby" then
                                 success = pcall(function()
                                     game:GetService("ReplicatedStorage"):WaitForChild("Packages", 5):WaitForChild("_Index", 5):WaitForChild("sleitnick_knit@1.7.0", 5):WaitForChild("knit", 5):WaitForChild("Services", 5):WaitForChild("WaveService", 5):WaitForChild("RE", 5):WaitForChild("ToLobby", 5):FireServer()
                                 end)
-                                if success then Util.notify({ Title = "Auto Lobby", Content = "Returning to Lobby...", Duration = 2 }) actionWorked = true break
-                                else break end
+                                if success then
+                                    Util.notify({ Title = "Auto Lobby", Content = "Returning to Lobby...", Duration = 2 })
+                                    actionWorked = true
+                                end
+                                break
                             end
+
                             if remoteExists or action == "lobby" then
                                 local waitStart = tick()
                                 while tick() - waitStart < 10 do
-                                    if not workspace:GetAttribute("MatchFinished") then actionWorked = true break end
+                                    if not workspace:GetAttribute("MatchFinished") then
+                                        actionWorked = true
+                                        break
+                                    end
                                     task.wait(0.5)
                                 end
                                 if actionWorked then break end
                                 if attempt < maxAttempts then task.wait(1) end
+                            end
+                        end
+
+                        if actionWorked then
+                            break
+                        else
+                            if action ~= "lobby" then
+                                Util.notify({ Title = "Fallback", Content = string.format("%s failed, trying next option...", action), Duration = 3 })
                             end
                         end
                     end
