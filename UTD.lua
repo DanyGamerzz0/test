@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1705,6 +1705,11 @@ function MacroIO.savePathPriorities()
     writefile(fileName, json)
 end
 
+function MacroIO.saveRagnarokPriorities()
+    MacroIO.ensureFolders()
+    writefile(string.format("LixHub/%s_CardSettings_UTD.json", Services.Players.LocalPlayer.Name), Services.HttpService:JSONEncode(RagnarokState.CardPriorities))
+end
+
 -- Function to load path priorities from file
 function MacroIO.loadPathPriorities()
     MacroIO.ensureFolders()
@@ -1715,6 +1720,12 @@ function MacroIO.loadPathPriorities()
     local data = game:GetService("HttpService"):JSONDecode(json)
     print("✓ Loaded path priorities")
     return data or {}
+end
+
+function MacroIO.loadRagnarokPriorities()
+    local filePath = string.format("LixHub/%s_CardSettings_UTD.json", Services.Players.LocalPlayer.Name)
+    if not isfile(filePath) then return {} end
+    return Services.HttpService:JSONDecode(readfile(filePath)) or {}
 end
 
 function PathSystem.getCardOptions()
@@ -2812,6 +2823,40 @@ task.spawn(function()
     end
 end)
 
+task.spawn(function()
+    task.wait(2)
+    local savedRagnarok = MacroIO.loadRagnarokPriorities()
+    for k, v in pairs(savedRagnarok) do RagnarokState.CardPriorities[k] = v end
+end)
+
+RagnarokTab:CreateButton({
+    Name = "Export Card Config",
+    Callback = function()
+        setclipboard(Services.HttpService:JSONEncode(RagnarokState.CardPriorities))
+        Util.notify({ Title = "Exported", Content = "Card config copied to clipboard", Duration = 3 })
+    end,
+})
+
+RagnarokTab:CreateInput({
+    Name = "Import Card Config", PlaceholderText = "Paste JSON here...", RemoveTextAfterFocusLost = true,
+    Callback = function(text)
+        local ok, data = pcall(function() return Services.HttpService:JSONDecode(text) end)
+        if not ok or type(data) ~= "table" then
+            Util.notify({ Title = "Error", Content = "Invalid JSON", Duration = 3 }) return
+        end
+        for k, v in pairs(data) do
+            RagnarokState.CardPriorities[k] = v
+        end
+        Rayfield.Flags["RagnarokCard_QuickenedHands"]:Set(RagnarokState.CardPriorities["Quickened Hands"] or 1)
+        Rayfield.Flags["RagnarokCard_SpoilsOfWar"]:Set(RagnarokState.CardPriorities["Spoils of War"] or 1)
+        Rayfield.Flags["RagnarokCard_SilenceTheGods"]:Set(RagnarokState.CardPriorities["Silence the Gods"] or 1)
+        Rayfield.Flags["RagnarokCard_ExtendedReach"]:Set(RagnarokState.CardPriorities["Extended Reach"] or 1)
+        Rayfield.Flags["RagnarokCard_ExposedWeakness"]:Set(RagnarokState.CardPriorities["Exposed Weakness"] or 1)
+        MacroIO.saveRagnarokPriorities()
+        Util.notify({ Title = "Imported", Content = "Card config applied", Duration = 3 })
+    end,
+})
+
 RagnarokTab:CreateToggle({
     Name = "Auto Pick Ragnarok Cards",
     CurrentValue = false,
@@ -2829,35 +2874,35 @@ RagnarokTab:CreateSlider({
     Range = {1, 5}, Increment = 1,
     CurrentValue = RagnarokState.CardPriorities["Quickened Hands"],
     Flag = "RagnarokCard_QuickenedHands",
-    Callback = function(Value) RagnarokState.CardPriorities["Quickened Hands"] = Value end,
+    Callback = function(Value) RagnarokState.CardPriorities["Quickened Hands"] = Value MacroIO.saveRagnarokPriorities() end,
 })
 RagnarokTab:CreateSlider({
     Name = "Spoils of War",
     Range = {1, 5}, Increment = 1,
     CurrentValue = RagnarokState.CardPriorities["Spoils of War"],
     Flag = "RagnarokCard_SpoilsOfWar",
-    Callback = function(Value) RagnarokState.CardPriorities["Spoils of War"] = Value end,
+    Callback = function(Value) RagnarokState.CardPriorities["Spoils of War"] = Value MacroIO.saveRagnarokPriorities() end,
 })
 RagnarokTab:CreateSlider({
     Name = "Silence the Gods",
     Range = {1, 5}, Increment = 1,
     CurrentValue = RagnarokState.CardPriorities["Silence the Gods"],
     Flag = "RagnarokCard_SilenceTheGods",
-    Callback = function(Value) RagnarokState.CardPriorities["Silence the Gods"] = Value end,
+    Callback = function(Value) RagnarokState.CardPriorities["Silence the Gods"] = Value MacroIO.saveRagnarokPriorities() end,
 })
 RagnarokTab:CreateSlider({
     Name = "Extended Reach",
     Range = {1, 5}, Increment = 1,
     CurrentValue = RagnarokState.CardPriorities["Extended Reach"],
     Flag = "RagnarokCard_ExtendedReach",
-    Callback = function(Value) RagnarokState.CardPriorities["Extended Reach"] = Value end,
+    Callback = function(Value) RagnarokState.CardPriorities["Extended Reach"] = Value MacroIO.saveRagnarokPriorities() end,
 })
 RagnarokTab:CreateSlider({
     Name = "Exposed Weakness",
     Range = {1, 5}, Increment = 1,
     CurrentValue = RagnarokState.CardPriorities["Exposed Weakness"],
     Flag = "RagnarokCard_ExposedWeakness",
-    Callback = function(Value) RagnarokState.CardPriorities["Exposed Weakness"] = Value end,
+    Callback = function(Value) RagnarokState.CardPriorities["Exposed Weakness"] = Value MacroIO.saveRagnarokPriorities() end,
 })
 
 task.spawn(function()
@@ -3682,6 +3727,8 @@ Toggle = GameTab:CreateToggle({
     Callback = function(Value) State.enableBlackScreen = Value enableBlackScreen() end,
 })
 
+MiscTab:CreateSection("Claim")
+
 Toggle = MiscTab:CreateToggle({
     Name = "Auto Claim Event Missions", CurrentValue = false, Flag = "enableAutoClaimEventMissions",
     Callback = function(Value) State.enableAutoClaimEventMissions = Value end,
@@ -3731,22 +3778,29 @@ Toggle = MiscTab:CreateToggle({
 })
 
 task.spawn(function()
+    local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.BattlepassService.RF.ClaimTiers
+    local done = false
+
     while true do
-        task.wait(3)
-        if not State.enableAutoClaimBattlepass then continue end
+        task.wait(10)
+        if not State.enableAutoClaimBattlepass or done then continue end
         
-        local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.BattlepassService.RF.ClaimTiers
-        
-        for tier = 1, 100 do
-            local success, result = pcall(function()
+        for tier = 1, 50 do
+            local ok, result = pcall(function()
                 return Event:InvokeServer({ tier })
             end)
-            if not success or result == "Error" then break end
+
+            if not ok or result == "Error" then
+                if tier == 50 then done = true end
+                break
+            end
             if result == "Tier not unlocked!" then break end
             task.wait(0.5)
         end
     end
 end)
+
+MiscTab:CreateSection("Banner")
 
 Toggle = MiscTab:CreateToggle({
     Name = "Auto Summon Banner", CurrentValue = false, Flag = "enableAutoSummonBanner",
@@ -3793,6 +3847,8 @@ task.spawn(function()
     end
 end)
 
+MiscTab:CreateSection("Capsules")
+
 MiscTab:CreateToggle({
     Name = "Auto Buy Capsules", CurrentValue = false, Flag = "enableAutoBuyCapsules",
     Callback = function(Value) State.enableAutoBuyCapsules = Value end,
@@ -3806,11 +3862,11 @@ MiscTab:CreateDropdown({
         State.SelectedCapsulesToBuy = {}
         for _, name in ipairs(Options) do
             if name == "Devil Capsule" then
-                table.insert(State.SelectedCapsulesToBuy, { service = "CalendarEventService", method = "purchaseOffer", args = { "DevilWithin", "DMCCapsule", 1 } })
+                table.insert(State.SelectedCapsulesToBuy, { service = "CalendarEventService", method = "purchaseOffer", args = { "DevilWithin", "DMCCapsule", 10 } })
             elseif name == "Winter Capsule" then
-                table.insert(State.SelectedCapsulesToBuy, { service = "WinterShopService", method = "BuyItem", args = { "WinterCapsule", 1 } })
+                table.insert(State.SelectedCapsulesToBuy, { service = "WinterShopService", method = "BuyItem", args = { "WinterCapsule", 50 } })
             elseif name == "New Years Capsule" then
-                table.insert(State.SelectedCapsulesToBuy, { service = "WinterShopService", method = "BuyItem", args = { "NewYearsCapsule", 1 } })
+                table.insert(State.SelectedCapsulesToBuy, { service = "WinterShopService", method = "BuyItem", args = { "NewYearsCapsule", 50 } })
             end
         end
     end,
@@ -3820,7 +3876,7 @@ task.spawn(function()
     local base = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services
 
     while true do
-        task.wait(1)
+        task.wait(0.3)
         if not State.enableAutoBuyCapsules then continue end
         if not State.SelectedCapsulesToBuy or #State.SelectedCapsulesToBuy == 0 then continue end
 
@@ -3833,7 +3889,7 @@ task.spawn(function()
                 Util.notify({ Title = "Auto Buy Capsules", Content = result or "Error — stopping", Duration = 4 })
                 break
             end
-            task.wait(0.5)
+            task.wait(0.3)
         end
     end
 end)
@@ -3898,6 +3954,8 @@ task.spawn(function()
         end
     end
 end)
+
+MiscTab:CreateSection("Misc")
 
 Button = MiscTab:CreateButton({
     Name = "Return to lobby",
@@ -4005,7 +4063,7 @@ task.spawn(function() while true do task.wait(0.1) StreamerMode() end end)
 
 if State.enableLowPerformanceMode then enableLowPerformanceMode() end
 
-GameSection = GameTab:CreateSection("🎮 Game 🎮")
+GameSection = GameTab:CreateSection("Game")
 
 AutoStartToggle = GameTab:CreateToggle({
     Name = "Auto Start Game", CurrentValue = false, Flag = "AutoStartGame",
@@ -4202,7 +4260,7 @@ task.spawn(function()
     end
 end)
 
-Rayfield:CreateDivider()
+GameTab:CreateDivider()
 
 GameTab:CreateToggle({
     Name = "Auto Gaara Zone (Shinobi Alliance)",
