@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.22"
+local script_version = "V0.23"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -993,7 +993,7 @@ function AutoJoin.joinPortal(portalId)
     local portalUUID = ownedPortals[portalId]
     
     if not portalUUID then
-        notify("Portal Joiner", "Portal not found in inventory - do you own this portal?")
+        Util.notify("Portal Joiner", "Portal not found in inventory - do you own this portal?")
         print("Failed to find UUID for portal ID:", portalId)
         return false
     end
@@ -1009,7 +1009,7 @@ function AutoJoin.joinPortal(portalId)
     end)
     
     if success then
-        notify("Portal Joiner", string.format("Joining portal: %s", portalId))
+        Util.notify("Portal Joiner", string.format("Joining portal: %s", portalId))
         print("Successfully called use_portal with UUID:", portalUUID)
         
         task.wait(0.5)
@@ -1022,7 +1022,7 @@ function AutoJoin.joinPortal(portalId)
             
         return true
     else
-        notify("Portal Joiner", "Failed to join portal")
+        Util.notify("Portal Joiner", "Failed to join portal")
         return false
     end
 end
