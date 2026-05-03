@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.31"
+local script_version = "V0.22"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -174,6 +174,12 @@ local loadingRetries = {
 
 local worldMacroMappings = {}
 local worldDropdowns = {}
+local lastChallengeResetTime = 0
+local Util = {}
+
+function Util.debugPrint(message, ...)
+    if DEBUG then print("[DEBUG]", message, ...) end
+end
 
 -- ============================================================
 -- WEBHOOK MODULE
@@ -375,7 +381,7 @@ do
                 :WaitForChild("request_start_dungeon")
         end)
         if not ok then
-            warn("[AutoDungeon] Failed to load dependencies: " .. tostring(err))
+            Util.debugPrint("[AutoDungeon] Failed to load dependencies: " .. tostring(err))
             return false
         end
         return true
@@ -401,7 +407,7 @@ do
     }
 
     local function setStatus(msg)
-        print("[AutoDungeon] " .. msg)
+        Util.debugPrint("[AutoDungeon] " .. msg)
     end
 
     local function getRoomType(gamemode, path, node)
@@ -423,7 +429,7 @@ do
         if ok then
             setStatus(string.format("✓ Joined Path %d, Node %d", path, node))
         else
-            warn(string.format("[AutoDungeon] ✗ Failed Path %d, Node %d: %s", path, node, tostring(err)))
+            Util.debugPrint(string.format("[AutoDungeon] ✗ Failed Path %d, Node %d: %s", path, node, tostring(err)))
         end
         return ok
     end
@@ -469,7 +475,7 @@ do
                     setStatus("Reset successful, waiting for server...")
                     task.wait(2)
                 else
-                    warn("[AutoDungeon] Reset failed: " .. tostring(err))
+                    Util.debugPrint("[AutoDungeon] Reset failed: " .. tostring(err))
                 end
             end
 
@@ -539,9 +545,9 @@ do
                 })
         end)
         if ok then
-            print(string.format("[AutoDungeon] ✓ Voted next room: Path %d, Node %d", roomInfo.path, roomInfo.node))
+            Util.debugPrint(string.format("[AutoDungeon] ✓ Voted next room: Path %d, Node %d", roomInfo.path, roomInfo.node))
         else
-            warn("[AutoDungeon] Failed to vote next room: " .. tostring(err))
+            Util.debugPrint("[AutoDungeon] Failed to vote next room: " .. tostring(err))
         end
         return ok
     end
@@ -562,7 +568,7 @@ do
             _GUIService         = _Loader.load_client_service(script, "GUIService")
         end)
         if not ok then
-            warn("[RelicShop] Failed to load dependencies: " .. tostring(err))
+            Util.debugPrint("[RelicShop] Failed to load dependencies: " .. tostring(err))
             return false
         end
         return true
@@ -586,7 +592,7 @@ do
             end
         end)
         if not ok then
-            warn("[RelicShop] Failed to iterate ITEMS: " .. tostring(err))
+            Util.debugPrint("[RelicShop] Failed to iterate ITEMS: " .. tostring(err))
             return {}
         end
         table.sort(_itemCache, function(a, b)
@@ -632,7 +638,7 @@ do
                 :InvokeServer()
         end)
         if not ok then
-            warn("[RelicShop] FetchDungeonShop failed: " .. tostring(err))
+            Util.debugPrint("[RelicShop] FetchDungeonShop failed: " .. tostring(err))
             return nil
         end
         return result
@@ -647,9 +653,9 @@ do
                 :InvokeServer(itemId)
         end)
         if ok then
-            print("[RelicShop] ✓ Purchased:", itemId)
+            Util.debugPrint("[RelicShop] ✓ Purchased:", itemId)
         else
-            warn("[RelicShop] ✗ Failed to purchase:", itemId, err)
+            Util.debugPrint("[RelicShop] ✗ Failed to purchase:", itemId, err)
         end
         return ok
     end
@@ -725,12 +731,6 @@ local function findBestGate()
         if not ignored then return gate end
     end
     return nil
-end
-
-local Util = {}
-
-function Util.debugPrint(message, ...)
-    if DEBUG then print("[DEBUG]", message, ...) end
 end
 
 function Util.notify(title, content, duration)
@@ -818,7 +818,7 @@ end
 
 function AutoJoin.getExactLevelId(stageType, worldKey, actNumber)
     local cleanWorldKey = stageType == "Raid" and worldKey:gsub("_Raid$", "") or worldKey
-    print(string.format("getExactLevelId - type: %s, worldKey: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
+    Util.debugPrint(string.format("getExactLevelId - type: %s, worldKey: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
 
     local ok, exactLevelId = pcall(function()
         for _, worldModule in ipairs(Services.ReplicatedStorage.Framework.Data.Worlds:GetChildren()) do
@@ -850,7 +850,7 @@ function AutoJoin.getExactLevelId(stageType, worldKey, actNumber)
     end)
 
     if ok and exactLevelId then return exactLevelId end
-    warn(string.format("Could not find exact %s level ID for world: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
+    Util.debugPrint(string.format("Could not find exact %s level ID for world: %s, act: %s", stageType, cleanWorldKey, tostring(actNumber)))
 end
 
 -- ── Stage join ───────────────────────────────────────────────
@@ -946,7 +946,7 @@ function AutoJoin.getOwnedPortalsFromInventory()
     
     local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
     if not itemsGui then 
-        print("Items GUI not found")
+        Util.debugPrint("Items GUI not found")
         return ownedPortals 
     end
 
@@ -956,7 +956,7 @@ function AutoJoin.getOwnedPortalsFromInventory()
     if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
     
     if not itemFrames then 
-        print("ItemFrames not found")
+        Util.debugPrint("ItemFrames not found")
         return ownedPortals 
     end
 
@@ -974,7 +974,7 @@ function AutoJoin.getOwnedPortalsFromInventory()
                 
                 ownedPortals[actualPortalId] = uuidValue.Value
                 if DEBUG then
-                    print("Found owned portal:", inventoryName, "| Mapped to ID:", actualPortalId, "| UUID:", uuidValue.Value)
+                    Util.debugPrint("Found owned portal:", inventoryName, "| Mapped to ID:", actualPortalId, "| UUID:", uuidValue.Value)
                 end
             end
         end
@@ -986,7 +986,7 @@ end
 function AutoJoin.joinPortal(portalId)
     if not portalId then return false end
     
-    print("Attempting to join portal with ID:", portalId)
+    Util.debugPrint("Attempting to join portal with ID:", portalId)
     
     -- Get UUID from inventory
     local ownedPortals = AutoJoin.getOwnedPortalsFromInventory()
@@ -994,11 +994,11 @@ function AutoJoin.joinPortal(portalId)
     
     if not portalUUID then
         Util.notify("Portal Joiner", "Portal not found in inventory - do you own this portal?")
-        print("Failed to find UUID for portal ID:", portalId)
+        Util.debugPrint("Failed to find UUID for portal ID:", portalId)
         return false
     end
     
-    print("Found portal UUID:", portalUUID, "for ID:", portalId)
+    Util.debugPrint("Found portal UUID:", portalUUID, "for ID:", portalId)
     
     local success = pcall(function()
         game:GetService("ReplicatedStorage")
@@ -1010,7 +1010,7 @@ function AutoJoin.joinPortal(portalId)
     
     if success then
         Util.notify("Portal Joiner", string.format("Joining portal: %s", portalId))
-        print("Successfully called use_portal with UUID:", portalUUID)
+        Util.debugPrint("Successfully called use_portal with UUID:", portalUUID)
         
         task.wait(0.5)
         
@@ -1294,7 +1294,7 @@ function Util.resolveUUIDFromInternalName(internalName)
         return nil
     end)
     if not success then
-        warn("Error resolving UUID for", internalName, ":", uuid)
+        Util.debugPrint("Error resolving UUID for", internalName, ":", uuid)
         return nil
     end
     return uuid
@@ -1539,9 +1539,9 @@ function GameTracking.getMapInfo()
                result.PortalItem._unique_item_data._unique_portal_data then
                 portalDepth = result.PortalItem._unique_item_data._unique_portal_data.portal_depth
             end
-            print("Map info retrieved:", mapName, "| Full data:", result)
+            Util.debugPrint("Map info retrieved:", mapName, "| Full data:", result)
         else
-            print("Failed to get map data:", result)
+            Util.debugPrint("Failed to get map data:", result)
         end
     end
 
@@ -1855,9 +1855,9 @@ function Macro.processPurchaseRecording(actionInfo)
     if cost == 0 and unit_id then
         -- getPurchaseCost returned 0, meaning rarity wasn't in the table (e.g. Rare/Common)
         -- These aren't purchasable rarities so 0 is likely correct, but warn anyway
-        warn("[Macro Recorder] purchase_unit: cost resolved to 0 for unit_id:", unit_id)
+        Util.debugPrint("[Macro Recorder] purchase_unit: cost resolved to 0 for unit_id:", unit_id)
     elseif not unit_id then
-        warn("[Macro Recorder] purchase_unit: could not resolve unit for UUID:", inventoryUUID)
+        Util.debugPrint("[Macro Recorder] purchase_unit: could not resolve unit for UUID:", inventoryUUID)
     end
 
     local gameRelativeTime = actionInfo.timestamp - GameTracking.gameStartTime
@@ -1901,7 +1901,7 @@ function Macro.forgeTraitRecording(actionInfo)
     -- it won't be in spawnIdToPlacement yet. In that case we can't resolve it —
     -- forge should only be recorded after placement anyway.
     if not placementId then
-        warn("[Macro Recorder] forge_trait_purchase: could not resolve placementId for UUID:", inventoryUUID)
+        Util.debugPrint("[Macro Recorder] forge_trait_purchase: could not resolve placementId for UUID:", inventoryUUID)
         return
     end
 
@@ -2084,7 +2084,7 @@ function Macro.setupPurchaseListener()
             Util.debugPrint("unit_added_temporary:", unit_id, "→", uuid)
         end)
     else
-        warn("[Macro] unit_added_temporary remote not found")
+        Util.debugPrint("[Macro] unit_added_temporary remote not found")
     end
 
     -- Keep equippedSlotMap updated for reference
@@ -2149,7 +2149,7 @@ function Macro.loadFromFile(name)
     elseif type(data) == "table" then
         actionsArray = data
     else
-        warn("Unrecognized file format for macro:", name)
+        Util.debugPrint("Unrecognized file format for macro:", name)
         return nil
     end
     return actionsArray
@@ -2264,7 +2264,7 @@ end
 function Macro.exportToClipboard(macroName)
     if not Macro.library[macroName] or #Macro.library[macroName] == 0 then Util.notify("Export Error", "No macro data to export") return false end
     local jsonData = Services.HttpService:JSONEncode(Macro.library[macroName])
-    if setclipboard then setclipboard(jsonData) Util.notify("Export Success", "Macro JSON copied to clipboard") else print(jsonData) end
+    if setclipboard then setclipboard(jsonData) Util.notify("Export Success", "Macro JSON copied to clipboard") else Util.debugPrint(jsonData) end
     return true
 end
 
@@ -2666,7 +2666,7 @@ function AutoJoin.getBackendWorldKeyFromDisplayName(selectedDisplayName, stageTy
                 if ok and worldData and worldData[orderedWorldKey] then
                     local w = worldData[orderedWorldKey]
                     if type(w) == "table" and validChecks[stageType](w) and (stageType == "Raid" or w.name == selectedDisplayName) then
-                        print("Found", stageType, "match:", selectedDisplayName, "-> Backend key:", orderedWorldKey)
+                        Util.debugPrint("Found", stageType, "match:", selectedDisplayName, "-> Backend key:", orderedWorldKey)
                         return orderedWorldKey .. (stageType == "Raid" and "_Raid" or "")
                     end
                     break
@@ -2684,12 +2684,12 @@ function AutoJoin.loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
 
     local function retry(reason)
         if loadingRetries[retryKey] <= 10 then
-            print(string.format("%s stages loading failed (attempt %d/%d)%s - retrying...",
+            Util.debugPrint(string.format("%s stages loading failed (attempt %d/%d)%s - retrying...",
                 stageType, loadingRetries[retryKey], 10, reason and (": " .. reason) or " - game data not ready"))
             task.wait(2)
             task.spawn(AutoJoin.loadStagesWithRetry, stageType, dropdown, getBackendKeyFunc)
         else
-            warn(string.format("Failed to load %s stages after %d attempts%s",
+            Util.debugPrint(string.format("Failed to load %s stages after %d attempts%s",
                 stageType, 10, reason and (": " .. reason) or " - giving up"))
             dropdown:Refresh({"Failed to load - check console"})
         end
@@ -2722,7 +2722,7 @@ function AutoJoin.loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
                         if type(worldInfo) == "table" and validChecks[stageType](worldInfo) and not addedWorlds[orderedWorldKey] then
                             table.insert(displayNames, worldInfo.name)
                             addedWorlds[orderedWorldKey] = true
-                            print(string.format("Loaded %s stage: %s -> backend key: %s", stageType, worldInfo.name, orderedWorldKey))
+                            Util.debugPrint(string.format("Loaded %s stage: %s -> backend key: %s", stageType, worldInfo.name, orderedWorldKey))
                         end
                         break
                     end
@@ -2736,7 +2736,7 @@ function AutoJoin.loadStagesWithRetry(stageType, dropdown, getBackendKeyFunc)
 
     if ok and result and #result > 0 then
         dropdown:Refresh(result)
-        print(string.format("Successfully loaded %d %s stages (attempt %d)", #result, stageType, loadingRetries[retryKey]))
+        Util.debugPrint(string.format("Successfully loaded %d %s stages (attempt %d)", #result, stageType, loadingRetries[retryKey]))
     else
         retry(tostring(result))
     end
@@ -2760,17 +2760,17 @@ function AutoJoin.getWorldNameFromLevelId(levelId)
                                     if worldModule:IsA("ModuleScript") then
                                         local wok, worldData = pcall(require, worldModule)
                                         if wok and worldData and worldData[levelInfo.world] and worldData[levelInfo.world].name then
-                                            print(string.format("Found world for level %s: %s (display: %s)", levelId, levelInfo.world, worldData[levelInfo.world].name))
+                                            Util.debugPrint(string.format("Found world for level %s: %s (display: %s)", levelId, levelInfo.world, worldData[levelInfo.world].name))
                                             return worldData[levelInfo.world].name
                                         end
                                     end
                                 end
-                                print(string.format("Found world key for level %s: %s (no display name)", levelId, levelInfo.world))
+                                Util.debugPrint(string.format("Found world key for level %s: %s (no display name)", levelId, levelInfo.world))
                                 return levelInfo.world
                             end
                             local worldFromId = levelId:match("^([^_]+)")
                             if worldFromId then
-                                print(string.format("Extracted world from level ID %s: %s", levelId, worldFromId))
+                                Util.debugPrint(string.format("Extracted world from level ID %s: %s", levelId, worldFromId))
                                 return worldFromId
                             end
                         end
@@ -2781,7 +2781,7 @@ function AutoJoin.getWorldNameFromLevelId(levelId)
     end)
 
     if ok and worldName then return worldName end
-    warn("Could not determine world name for level ID:", levelId)
+    Util.debugPrint("Could not determine world name for level ID:", levelId)
 end
 
 function AutoJoin.fetchChallengeData(endpointName, label)
@@ -2791,10 +2791,10 @@ function AutoJoin.fetchChallengeData(endpointName, label)
             :WaitForChild(endpointName):InvokeServer()
     end)
     if ok and data then
-        print(label .. " data retrieved:", data.current_challenge, "Level:", data.current_level_id, data.current_uuid and ("UUID: " .. data.current_uuid) or "")
+        Util.debugPrint(label .. " data retrieved:", data.current_challenge, "Level:", data.current_level_id, data.current_uuid and ("UUID: " .. data.current_uuid) or "")
         return data
     end
-    print("Failed to get " .. label .. " data or none available")
+    Util.debugPrint("Failed to get " .. label .. " data or none available")
 end
 
 function AutoJoin.getDailyChallengeData() return AutoJoin.fetchChallengeData("get_daily_challenge", "Daily challenge") end
@@ -2807,21 +2807,61 @@ function AutoJoin.checkIgnoreWorlds(challengeData, isDaily)
     local worldName = AutoJoin.getWorldNameFromLevelId(levelId)
 
     if not worldName then
-        print("Could not determine world name for level ID:", levelId)
+        Util.debugPrint("Could not determine world name for level ID:", levelId)
         return false
     end
 
-    print((isDaily and "Daily c" or "C") .. "hallenge is from world:", worldName, "(Level ID:", levelId .. ")")
+    Util.debugPrint((isDaily and "Daily c" or "C") .. "hallenge is from world:", worldName, "(Level ID:", levelId .. ")")
 
     local worldLower = string.lower(worldName)
     for _, ignoredWorld in ipairs(State.IgnoreWorlds) do
         if worldLower == string.lower(ignoredWorld) then
-            print("Ignoring " .. (isDaily and "daily " or "") .. "challenge based on world filter:", ignoredWorld)
+            Util.debugPrint("Ignoring " .. (isDaily and "daily " or "") .. "challenge based on world filter:", ignoredWorld)
             return true
         end
     end
 
     return false
+end
+
+local function monitorChallengeReset()
+    while true do
+        task.wait(5)
+        if not State.ReturnToLobbyOnNewChallenge then continue end
+        if Util.isInLobby() then continue end
+        if not GameTracking.gameInProgress then continue end
+
+        local currentTime = os.time()
+        local currentDate = os.date("!*t", currentTime)
+        local isResetTime = (currentDate.min == 0 or currentDate.min == 30) and currentDate.sec < 10
+
+        if isResetTime and (currentTime - lastChallengeResetTime) > 600 then
+            lastChallengeResetTime = currentTime
+            Util.debugPrint(string.format("[ChallengeMonitor] Reset detected at %02d:%02d UTC", currentDate.hour, currentDate.min))
+
+            -- Log new challenge data
+            task.spawn(function()
+                task.wait(0.5)
+                local newChallenge = AutoJoin.getChallengeData()
+                if newChallenge then
+                    Util.debugPrint("[ChallengeMonitor] New challenge:", newChallenge.current_challenge, "Level:", newChallenge.current_level_id)
+                end
+                local newDaily = AutoJoin.getDailyChallengeData()
+                if newDaily then
+                    Util.debugPrint("[ChallengeMonitor] New daily:", newDaily.current_challenge, "Level:", newDaily.current_level_id)
+                end
+            end)
+
+            Util.notify("Challenge Reset", string.format("New challenge at %02d:%02d UTC — returning to lobby", currentDate.hour, currentDate.min))
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("teleport_back_to_lobby")
+                    :InvokeServer()
+            end)
+        end
+    end
 end
 
 local rewardMappingsCache = {}
@@ -2853,9 +2893,9 @@ function AutoJoin.buildRewardMappingsCache()
         local itemId = AutoJoin.getItemIdFromDisplayName(stoneName)
         if itemId then
             rewardMappingsCache[string.lower(stoneName)] = {itemId}
-            print("Mapped stone:", stoneName, "->", itemId)
+            Util.debugPrint("Mapped stone:", stoneName, "->", itemId)
         else
-            warn("Could not find item ID for stone:", stoneName)
+            Util.debugPrint("Could not find item ID for stone:", stoneName)
         end
     end
 end
@@ -2871,7 +2911,7 @@ function AutoJoin.checkChallengeRewards(challengeData)
             for _, desiredReward in ipairs(State.ChallengeRewardsFilter) do
                 local desiredLower = string.lower(desiredReward)
                 if itemIdLower == desiredLower or string.find(itemIdLower, desiredLower) or string.find(desiredLower, itemIdLower) then
-                    print("Found direct matching reward:", rewardData.params.item_id, "matches filter:", desiredReward)
+                    Util.debugPrint("Found direct matching reward:", rewardData.params.item_id, "matches filter:", desiredReward)
                     return true
                 end
                 local mappedRewards = rewardMappingsCache[desiredLower]
@@ -2879,7 +2919,7 @@ function AutoJoin.checkChallengeRewards(challengeData)
                     for _, mappedReward in ipairs(mappedRewards) do
                         local mappedLower = string.lower(mappedReward)
                         if itemIdLower == mappedLower or string.find(itemIdLower, mappedLower) then
-                            print("Found mapped reward:", rewardData.params.item_id, "matches mapped filter:", mappedReward, "for:", desiredReward)
+                            Util.debugPrint("Found mapped reward:", rewardData.params.item_id, "matches mapped filter:", mappedReward, "for:", desiredReward)
                             return true
                         end
                     end
@@ -2888,7 +2928,7 @@ function AutoJoin.checkChallengeRewards(challengeData)
         end
     end
 
-    print("No matching rewards found in challenge")
+    Util.debugPrint("No matching rewards found in challenge")
     return false
 end
 
@@ -2898,17 +2938,17 @@ function AutoJoin.joinChallenge(isDaily)
     local data = isDaily and AutoJoin.getDailyChallengeData() or AutoJoin.getChallengeData()
 
     if not data then
-        print("No " .. (isDaily and "daily " or "") .. "challenge data available")
+        Util.debugPrint("No " .. (isDaily and "daily " or "") .. "challenge data available")
         return isDaily and "no_data" or false
     end
 
     if (isDaily and AutoJoin.checkIgnoreWorlds(data, true) or AutoJoin.checkIgnoreWorlds(data, false)) or not AutoJoin.checkChallengeRewards(data) then
-        print("Skipping " .. (isDaily and "daily " or "") .. "challenge due to filters")
+        Util.debugPrint("Skipping " .. (isDaily and "daily " or "") .. "challenge due to filters")
         if not isDaily then State.challengeJoinAttempts = 0 end
         return isDaily and "skipped" or false
     end
 
-    print((isDaily and "Daily c" or "C") .. "hallenge passed all filters, attempting to join...", data.current_challenge, data.current_level_id)
+    Util.debugPrint((isDaily and "Daily c" or "C") .. "hallenge passed all filters, attempting to join...", data.current_challenge, data.current_level_id)
 
     local ok = pcall(function()
         local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
@@ -2933,13 +2973,13 @@ local function checkAndExecuteHighestPriority()
             local joinStatus = AutoJoin.joinChallenge(true)
 
             if joinStatus == "success" then
-                print("Successfully initiated daily challenge join!")
+                Util.debugPrint("Successfully initiated daily challenge join!")
                 State.dailyChallengeJoinAttempts = 0
                 task.delay(5, AutoJoin.clearProcessingState)
                 return
             elseif joinStatus == "failed" then
                 State.dailyChallengeJoinAttempts += 1
-                print(string.format("Daily challenge join failed! Attempt %d/%d", State.dailyChallengeJoinAttempts, State.maxDailyChallengeAttempts))
+                Util.debugPrint(string.format("Daily challenge join failed! Attempt %d/%d", State.dailyChallengeJoinAttempts, State.maxDailyChallengeAttempts))
                 if State.dailyChallengeJoinAttempts >= State.maxDailyChallengeAttempts then
                     Util.notify("Daily Challenge", string.format("Failed %d times - trying other options", State.maxDailyChallengeAttempts))
                     State.dailyChallengeJoinAttempts = 0
@@ -2963,11 +3003,11 @@ local function checkAndExecuteHighestPriority()
         local joinSuccess = AutoJoin.joinChallenge(false)
 
         if joinSuccess then
-            print("Successfully initiated challenge join!")
+            Util.debugPrint("Successfully initiated challenge join!")
             State.challengeJoinAttempts = 0
         else
             State.challengeJoinAttempts += 1
-            print(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
+            Util.debugPrint(string.format("Challenge join failed! Attempt %d/%d", State.challengeJoinAttempts, State.maxChallengeAttempts))
             if State.challengeJoinAttempts >= State.maxChallengeAttempts then
                 Util.notify("Challenge Joiner", string.format("Failed %d times - trying other options", State.maxChallengeAttempts))
                 State.challengeJoinAttempts = 0
@@ -2984,7 +3024,7 @@ local function checkAndExecuteHighestPriority()
     -- PORTAL
     if State.AutoJoinPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
         AutoJoin.setProcessingState("Portal Auto Join")
-        print(AutoJoin.joinPortal(State.SelectedPortal) and "Successfully initiated portal join!" or "Portal join failed!")
+        Util.debugPrint(AutoJoin.joinPortal(State.SelectedPortal) and "Successfully initiated portal join!" or "Portal join failed!")
         task.delay(5, AutoJoin.clearProcessingState)
         return
     end
@@ -2997,7 +3037,7 @@ local function checkAndExecuteHighestPriority()
             ["Aizen Boss Rush"]    = {[true] = "_BL_BOSSRUSH_TRAITLESS",  [false] = "_BL_BOSSRUSH_TRAITS"},
         }
         local lobbyId = bossRushIds[State.SelectedBossRush or "Chainsaw Boss Rush"][State.AutoJoinBossRushSelectionMode == true]
-        print("Joining Boss Rush:", State.SelectedBossRush, "| Lobby ID:", lobbyId, "| Traitless Mode:", State.AutoJoinBossRushSelectionMode)
+        Util.debugPrint("Joining Boss Rush:", State.SelectedBossRush, "| Lobby ID:", lobbyId, "| Traitless Mode:", State.AutoJoinBossRushSelectionMode)
         local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
         ep:WaitForChild("request_join_lobby"):InvokeServer(lobbyId)
         task.wait(0.5)
@@ -3059,14 +3099,15 @@ local function checkAndExecuteHighestPriority()
             AutoJoin.setProcessingState(cfg.label)
             local exactLevelId = cfg.getLevelId()
             if not exactLevelId then
-                warn("Failed to get exact level ID for:", cfg.label)
+                Util.debugPrint("Failed to get exact level ID for:", cfg.label)
                 AutoJoin.clearProcessingState()
                 return
             end
-            print(cfg.label, "using EXACT level ID:", exactLevelId)
+            Util.debugPrint(cfg.label, "using EXACT level ID:", exactLevelId)
             local ep = Services.ReplicatedStorage:WaitForChild("endpoints"):WaitForChild("client_to_server")
             if cfg.matchmake then
-                ep:WaitForChild("request_matchmaking"):InvokeServer(cfg.matchArgs(exactLevelId))
+                local id, opts = cfg.matchArgs(exactLevelId)
+                ep:WaitForChild("request_matchmaking"):InvokeServer(id, opts)
             else
                 ep:WaitForChild("request_join_lobby"):InvokeServer(cfg.lobbyKey)
                 ep:WaitForChild("request_lock_level"):InvokeServer(cfg.lobbyKey, exactLevelId, false, cfg.difficulty)
@@ -3086,7 +3127,7 @@ local function initialize()
         return loadstring(game:HttpGet('https://raw.githubusercontent.com/DanyGamerzz0/Rayfield-Custom/refs/heads/main/source.lua'))()
     end)
     if not success or not Rayfield then
-        warn("Failed to load Rayfield UI library:", Rayfield)
+        Util.debugPrint("Failed to load Rayfield UI library:", Rayfield)
         return
     end
     _G.Rayfield = Rayfield
@@ -3144,7 +3185,7 @@ local function initialize()
                 if queue_on_teleport then
                     queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/LixHub_ACV2.lua"))()')
                 else
-                    warn("queue_on_teleport not supported by this executor")
+                    Util.debugPrint("queue_on_teleport not supported by this executor")
                 end
             else
                 if queue_on_teleport then
@@ -3188,18 +3229,18 @@ local StoryStageDropdown = AutoJoinTab:CreateDropdown({
     Flag = "StageStorySelector",
     Callback = function(Option)
         if not AutoJoin.isGameDataLoaded() then
-            warn("Game data not loaded yet, ignoring story stage selection")
+            Util.debugPrint("Game data not loaded yet, ignoring story stage selection")
             return
         end
         local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
-        if not displayName then warn("Invalid option type in StoryStageDropdown:", type(Option)) return end
+        if not displayName then Util.debugPrint("Invalid option type in StoryStageDropdown:", type(Option)) return end
         local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, displayName, "Story")
         if ok and key then
             State.StoryStageSelected = key
-            print("Selected story stage:", type(Option) == "table" and Option[1] or Option, "-> Stored backend key:", key)
+            Util.debugPrint("Selected story stage:", type(Option) == "table" and Option[1] or Option, "-> Stored backend key:", key)
         else
-            warn("Failed to get backend world key for story stage:", type(Option) == "table" and Option[1] or Option)
-            if not ok then warn("Error:", key) end
+            Util.debugPrint("Failed to get backend world key for story stage:", type(Option) == "table" and Option[1] or Option)
+            if not ok then Util.debugPrint("Error:", key) end
         end
     end,
 })
@@ -3216,7 +3257,7 @@ AutoJoinTab:CreateDropdown({
         else
             State.StoryActSelected = tonumber((type(Option) == "table" and Option[1] or Option):match("%d+"))
         end
-        print("Selected story act:", State.StoryActSelected)
+        Util.debugPrint("Selected story act:", State.StoryActSelected)
     end,
 })
 
@@ -3241,15 +3282,15 @@ AutoJoinTab:CreateToggle({
 local LegendStageDropdown = AutoJoinTab:CreateDropdown({
     Name = "Select Legend Stage", Options = {}, CurrentOption = {}, MultipleOptions = false, Flag = "LegendWorldSelector",
     Callback = function(Option)
-        if not AutoJoin.isGameDataLoaded() then warn("Game data not loaded yet, ignoring legend stage selection") return end
+        if not AutoJoin.isGameDataLoaded() then Util.debugPrint("Game data not loaded yet, ignoring legend stage selection") return end
         local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
-        if not displayName then warn("Invalid option type in LegendStageDropdown:", type(Option)) return end
+        if not displayName then Util.debugPrint("Invalid option type in LegendStageDropdown:", type(Option)) return end
         local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, displayName, "Legend")
         if ok and key then
             State.LegendStageSelected = key
-            print("Selected legend stage:", displayName, "-> Stored backend key:", key)
+            Util.debugPrint("Selected legend stage:", displayName, "-> Stored backend key:", key)
         else
-            warn("Failed to get backend legend world key for:", displayName, not ok and ("Error: " .. key) or "")
+            Util.debugPrint("Failed to get backend legend world key for:", displayName, not ok and ("Error: " .. key) or "")
         end
     end,
 })
@@ -3258,7 +3299,7 @@ AutoJoinTab:CreateDropdown({
     Name = "Select Legend Stage Act", Options = {"Act 1","Act 2","Act 3"}, CurrentOption = {}, MultipleOptions = false, Flag = "LegendActSelector",
     Callback = function(Option)
         State.LegendActSelected = tonumber((type(Option) == "table" and Option[1] or Option):match("%d+"))
-        print("Selected legend act number:", State.LegendActSelected)
+        Util.debugPrint("Selected legend act number:", State.LegendActSelected)
     end,
 })
 
@@ -3277,15 +3318,15 @@ AutoJoinTab:CreateToggle({
 local RaidStageDropdown = AutoJoinTab:CreateDropdown({
     Name = "Select Raid Stage", Options = {}, CurrentOption = {}, MultipleOptions = false, Flag = "RaidWorldSelector",
     Callback = function(Option)
-        if not AutoJoin.isGameDataLoaded() then warn("Game data not loaded yet, ignoring raid stage selection") return end
+        if not AutoJoin.isGameDataLoaded() then Util.debugPrint("Game data not loaded yet, ignoring raid stage selection") return end
         local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
-        if not displayName then warn("Invalid option type in RaidStageDropdown:", type(Option)) return end
+        if not displayName then Util.debugPrint("Invalid option type in RaidStageDropdown:", type(Option)) return end
         local ok, key = pcall(AutoJoin.getBackendWorldKeyFromDisplayName, displayName, "Raid")
         if ok and key then
             State.RaidStageSelected = key
-            print("Selected raid stage:", displayName, "-> Stored backend key:", key)
+            Util.debugPrint("Selected raid stage:", displayName, "-> Stored backend key:", key)
         else
-            warn("Failed to get backend raid world key for:", displayName, not ok and ("Error: " .. key) or "")
+            Util.debugPrint("Failed to get backend raid world key for:", displayName, not ok and ("Error: " .. key) or "")
         end
     end,
 })
@@ -3294,7 +3335,7 @@ AutoJoinTab:CreateDropdown({
     Name = "Select Raid Stage Act", Options = {"Act 1","Act 2","Act 3","Act 4","Act 5"}, CurrentOption = {}, MultipleOptions = false, Flag = "RaidActSelector",
     Callback = function(Option)
         State.RaidActSelected = tonumber((type(Option) == "table" and Option[1] or Option):match("%d+"))
-        print("Selected raid act number:", State.RaidActSelected)
+        Util.debugPrint("Selected raid act number:", State.RaidActSelected)
     end,
 })
 
@@ -3322,7 +3363,7 @@ AutoJoinTab:CreateDropdown({
     Info = "Only join challenges that contain one or more of these rewards",
     Callback = function(Options)
         State.ChallengeRewardsFilter = Options or {}
-        print("Challenge rewards filter updated:", table.concat(State.ChallengeRewardsFilter, ", "))
+        Util.debugPrint("Challenge rewards filter updated:", table.concat(State.ChallengeRewardsFilter, ", "))
     end,
 })
 
@@ -3331,7 +3372,7 @@ local IgnoreWorldsDropdown = AutoJoinTab:CreateDropdown({
     Info = "Skip challenges based on these worlds",
     Callback = function(Options)
         State.IgnoreWorlds = Options or {}
-        print("Ignore worlds updated:", table.concat(State.IgnoreWorlds, ", "))
+        Util.debugPrint("Ignore worlds updated:", table.concat(State.IgnoreWorlds, ", "))
     end,
 })
 
@@ -3340,12 +3381,12 @@ function AutoJoin.loadIgnoreWorldsWithRetry()
 
     local function retry(reason)
         if loadingRetries.ignoreWorlds <= 20 then
-            print(string.format("Ignore worlds loading failed (attempt %d/%d)%s - retrying...",
+            Util.debugPrint(string.format("Ignore worlds loading failed (attempt %d/%d)%s - retrying...",
                 loadingRetries.ignoreWorlds, 20, reason and (": " .. reason) or " - game data not ready"))
             task.wait(2)
             task.spawn(AutoJoin.loadIgnoreWorldsWithRetry)
         else
-            warn("Failed to load ignore worlds after", 20, "attempts", reason or "- giving up")
+            Util.debugPrint("Failed to load ignore worlds after", 20, "attempts", reason or "- giving up")
         end
     end
 
@@ -3390,7 +3431,7 @@ function AutoJoin.loadIgnoreWorldsWithRetry()
 
     if ok and result and #result > 0 then
         IgnoreWorldsDropdown:Refresh(result)
-        print(string.format("Successfully loaded %d worlds for ignore list (attempt %d)", #result, loadingRetries.ignoreWorlds))
+        Util.debugPrint(string.format("Successfully loaded %d worlds for ignore list (attempt %d)", #result, loadingRetries.ignoreWorlds))
     else
         retry(tostring(result))
     end
@@ -3421,7 +3462,7 @@ function AutoJoin.getAllPortalDataFromModules()
                 for _, levelInfo in pairs(moduleData) do
                     if type(levelInfo) == "table" and levelInfo._portal_only_level and levelInfo.id and levelInfo.name then
                         portalData[levelInfo.id] = {name = levelInfo.name, id = levelInfo.id, moduleName = moduleScript.Name}
-                        print("Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Module:", moduleScript.Name)
+                        Util.debugPrint("Found portal:", levelInfo.name, "| ID:", levelInfo.id, "| Module:", moduleScript.Name)
                     end
                 end
             end
@@ -3437,7 +3478,7 @@ function AutoJoin.buildPortalDropdownOptions()
     for portalId in pairs(AutoJoin.getOwnedPortalsFromInventory()) do
         if portalModuleData[portalId] then
             table.insert(options, portalModuleData[portalId].name)
-            print("Added to dropdown:", portalModuleData[portalId].name, "(Owned)")
+            Util.debugPrint("Added to dropdown:", portalModuleData[portalId].name, "(Owned)")
         end
     end
     table.sort(options)
@@ -3447,24 +3488,24 @@ end
 local SelectPortalDropdown = AutoJoinTab:CreateDropdown({
     Name = "Select Portal to join", Options = {}, CurrentOption = {}, MultipleOptions = false, Flag = "SelectPortalDropdown",
     Callback = function(Option)
-        if not AutoJoin.isGameDataLoaded() then warn("Game data not loaded yet, ignoring portal selection") return end
+        if not AutoJoin.isGameDataLoaded() then Util.debugPrint("Game data not loaded yet, ignoring portal selection") return end
         local displayName = type(Option) == "table" and Option[1] or type(Option) == "string" and Option
-        if not displayName then warn("Invalid option type in SelectPortalDropdown:", type(Option)) return end
+        if not displayName then Util.debugPrint("Invalid option type in SelectPortalDropdown:", type(Option)) return end
         for portalId, moduleInfo in pairs(AutoJoin.getAllPortalDataFromModules()) do
             if moduleInfo.name == displayName then
                 State.SelectedPortal = portalId
-                print("Selected portal:", displayName, "| ID:", portalId)
+                Util.debugPrint("Selected portal:", displayName, "| ID:", portalId)
                 return
             end
         end
-        warn("Could not find portal ID for:", displayName)
+        Util.debugPrint("Could not find portal ID for:", displayName)
     end,
 })
 
 function AutoJoin.loadPortals()
     local options = AutoJoin.buildPortalDropdownOptions()
     SelectPortalDropdown:Refresh(#options > 0 and options or {"No portals found"})
-    print(#options > 0 and string.format("Successfully loaded %d portals", #options) or "No owned portals found")
+    Util.debugPrint(#options > 0 and string.format("Successfully loaded %d portals", #options) or "No owned portals found")
 end
 
 AutoJoinTab:CreateButton({
@@ -3941,7 +3982,7 @@ function AutoJoin.autoSelectCard(cardData)
         local ok2, confirmButton = pcall(function() return promptGui:GetChildren()[2]:GetChildren()[5].Template end)
         if ok2 and confirmButton then
             AutoJoin.fireConnections(confirmButton)
-            print("Successfully clicked confirm button after card selection")
+            Util.debugPrint("Successfully clicked confirm button after card selection")
         end
     end
 
@@ -3973,25 +4014,25 @@ local function getCurrentWorld()
     if success and levelData then
         -- Priority 1: Check if this is a portal level
         if levelData._portal_only_level == true and levelData.id then
-            print("getCurrentWorld: Detected portal level, ID:", levelData.id)
+            Util.debugPrint("getCurrentWorld: Detected portal level, ID:", levelData.id)
             return levelData.id -- Returns "portal_tengen", "portal_tengen_secret", etc.
         end
         
         -- Priority 2: Check for world field (story/legend/raid stages)
         if levelData.world then
-            print("getCurrentWorld: Using world field:", levelData.world)
+            Util.debugPrint("getCurrentWorld: Using world field:", levelData.world)
             return levelData.world
         end
         
         -- Priority 3: Fallback to map field (special maps like "DoubleDungeon")
         if levelData.map then
-            print("getCurrentWorld: Using map field:", levelData.map)
+            Util.debugPrint("getCurrentWorld: Using map field:", levelData.map)
             return levelData.map
         end
         
-        print("getCurrentWorld: No world, map, or portal ID found in levelData")
+        Util.debugPrint("getCurrentWorld: No world, map, or portal ID found in levelData")
     else
-        print("getCurrentWorld: Failed to get level data:", levelData)
+        Util.debugPrint("getCurrentWorld: Failed to get level data:", levelData)
     end
     
     return nil
@@ -4023,11 +4064,11 @@ local function getMacroForCurrentWorld()
         end
     end)
 
-    print("[AutoSelect] Current world:", currentWorld, "Act:", actNum or "N/A")
+    Util.debugPrint("[AutoSelect] Current world:", currentWorld, "Act:", actNum or "N/A")
 
-    print("[AutoSelect] worldMacroMappings contents:")
+    Util.debugPrint("[AutoSelect] worldMacroMappings contents:")
 for k, v in pairs(worldMacroMappings) do
-    print("  ", k, "->", v)
+    Util.debugPrint("  ", k, "->", v)
 end
 
     -- Nightmare act lookup
@@ -4035,7 +4076,7 @@ end
         local key = "ds_legend_act_" .. actNum
         local mapped = worldMacroMappings[key]
         if mapped and Macro.library[mapped] then
-            print("[AutoSelect] Nightmare act match:", key, "->", mapped)
+            Util.debugPrint("[AutoSelect] Nightmare act match:", key, "->", mapped)
             return mapped
         end
     end
@@ -4043,7 +4084,7 @@ end
     -- Exact match
     local mapped = worldMacroMappings[currentWorld]
     if mapped and Macro.library[mapped] then
-        print("[AutoSelect] Exact match:", currentWorld, "->", mapped)
+        Util.debugPrint("[AutoSelect] Exact match:", currentWorld, "->", mapped)
         return mapped
     end
 
@@ -4051,12 +4092,12 @@ end
     local lower = currentWorld:lower()
     for key, macroName in pairs(worldMacroMappings) do
         if key:lower() == lower and Macro.library[macroName] then
-            print("[AutoSelect] Case-insensitive match:", currentWorld, "->", macroName)
+            Util.debugPrint("[AutoSelect] Case-insensitive match:", currentWorld, "->", macroName)
             return macroName
         end
     end
 
-    print("[AutoSelect] No mapping found for:", currentWorld)
+    Util.debugPrint("[AutoSelect] No mapping found for:", currentWorld)
     return nil
 end
 
@@ -4261,7 +4302,7 @@ end
                     -- Switch to world macro if different
                     if worldMacro and worldMacro ~= Macro.currentName then
                         Macro.currentName = worldMacro
-                        print("[AutoSelect] Playback switching macro to:", worldMacro)
+                        Util.debugPrint("[AutoSelect] Playback switching macro to:", worldMacro)
                     end
 
                     Macro.actions = loadedMacro
@@ -4552,7 +4593,7 @@ task.spawn(function()
                     if worldMacro then
                         Macro.currentName = worldMacro
                         Macro.actions = Macro.library[worldMacro]
-                        print("[AutoSelect] Switched macro to:", worldMacro)
+                        Util.debugPrint("[AutoSelect] Switched macro to:", worldMacro)
                     end
                     Util.autoEquipMacroUnits(macroToUse, Macro.library)
                     task.wait(1)
@@ -5064,7 +5105,7 @@ end
                 local selected = type(Option) == "table" and Option[1] or Option
                 worldMacroMappings[key] = (selected == "None" or selected == "") and nil or selected
                 AutoJoin.saveWorldMappings()
-                print(worldMacroMappings[key] and ("Set auto-select: " .. name .. " -> " .. selected) or ("Cleared auto-select for " .. name))
+                Util.debugPrint(worldMacroMappings[key] and ("Set auto-select: " .. name .. " -> " .. selected) or ("Cleared auto-select for " .. name))
             end,
         })
         worldDropdowns[key] = dropdown
@@ -5117,7 +5158,7 @@ end
             for _, stageName in ipairs(cat.dropdown.Options) do
                 if cat.specialCase and cat.specialCase(MacroTab, stageName) then continue end
                 local key = cat.getKey(stageName)
-                if not key then warn("Could not get backend key for:", stageName) continue end
+                if not key then Util.debugPrint("Could not get backend key for:", stageName) continue end
                 makeDropdown(MacroTab, stageName, key, string.format("Auto-select macro for %s%s", stageName, cat.label))
             end
         end
@@ -5131,7 +5172,7 @@ end
         {name = "Aizen Boss Rush",    key = "FakeKarakura"},
     }) do
         makeDropdown(MacroTab, entry.name, entry.key)
-        print("  ✓ Added", entry.name, "| ID:", entry.key)
+        Util.debugPrint("  ✓ Added", entry.name, "| ID:", entry.key)
     end
 end
 
@@ -5141,11 +5182,11 @@ function AutoJoin.refreshAutoSelectDropdowns()
         table.insert(macroOptions, macroName)
     end
     table.sort(macroOptions)
-    print("Refreshing auto-select dropdowns with", #macroOptions - 1, "macros")
+    Util.debugPrint("Refreshing auto-select dropdowns with", #macroOptions - 1, "macros")
 
     for worldKey, dropdown in pairs(worldDropdowns) do
         if not dropdown or type(dropdown) ~= "table" then
-            print("⚠ Invalid dropdown object for", worldKey)
+            Util.debugPrint("⚠ Invalid dropdown object for", worldKey)
             continue
         end
 
@@ -5153,7 +5194,7 @@ function AutoJoin.refreshAutoSelectDropdowns()
         local mappingExists = table.find(macroOptions, currentMapping)
 
         if not mappingExists and currentMapping ~= "None" then
-            print("Saved mapping", currentMapping, "for", worldKey, "no longer exists, resetting to None")
+            Util.debugPrint("Saved mapping", currentMapping, "for", worldKey, "no longer exists, resetting to None")
             worldMacroMappings[worldKey] = nil
             currentMapping = "None"
             AutoJoin.saveWorldMappings()
@@ -5162,23 +5203,23 @@ function AutoJoin.refreshAutoSelectDropdowns()
         local ok = pcall(function()
             if dropdown.Refresh then
                 dropdown:Refresh(macroOptions, currentMapping)
-                print("✓ Refreshed dropdown for", worldKey, "using Refresh method")
+                Util.debugPrint("✓ Refreshed dropdown for", worldKey, "using Refresh method")
             elseif dropdown.UpdateOptions then
                 dropdown:UpdateOptions(macroOptions)
-                print("✓ Updated options for", worldKey, "using UpdateOptions method")
+                Util.debugPrint("✓ Updated options for", worldKey, "using UpdateOptions method")
             elseif dropdown.Options then
                 dropdown.Options = macroOptions
                 if dropdown.CurrentOption then dropdown.CurrentOption = {currentMapping} end
-                print("✓ Updated", worldKey, "via direct property access")
+                Util.debugPrint("✓ Updated", worldKey, "via direct property access")
             else
-                print("⚠ No refresh method available for", worldKey)
+                Util.debugPrint("⚠ No refresh method available for", worldKey)
             end
         end)
 
-        print(ok and "" or ("✗ Failed to refresh dropdown for " .. worldKey))
+        Util.debugPrint(ok and "" or ("✗ Failed to refresh dropdown for " .. worldKey))
     end
 
-    print("Finished refreshing all auto-select dropdowns")
+    Util.debugPrint("Finished refreshing all auto-select dropdowns")
 end
 
     -- ══════════════════════════════════════════════
@@ -5476,21 +5517,21 @@ end
 
                                     local actualCost = RelicShop.getActualCost(itemData)
                                     if currency >= actualCost then
-                                        print(string.format("[RelicShop] Buying '%s' (priority %d, cost %d, balance %d)",
+                                        Util.debugPrint(string.format("[RelicShop] Buying '%s' (priority %d, cost %d, balance %d)",
                                             itemData.name, entry.priority, actualCost, currency))
                                         RelicShop.buyItem(entry.itemId)
                                         task.wait(0.5)
                                     else
-                                        print(string.format("[RelicShop] Skipping '%s' — need %d, have %d",
+                                        Util.debugPrint(string.format("[RelicShop] Skipping '%s' — need %d, have %d",
                                             itemData.name, actualCost, currency))
                                     end
                                 end
                                 Util.notify("Relic Shop", string.format("Auto-buy done (%d items checked)", #toBuy))
                             else
-                                print("[RelicShop] No wanted items in shop this run.")
+                                Util.debugPrint("[RelicShop] No wanted items in shop this run.")
                             end
                         else
-                            print("[RelicShop] Shop empty or not a merchant room, skipping.")
+                            Util.debugPrint("[RelicShop] Shop empty or not a merchant room, skipping.")
                         end
                     end
 
@@ -5543,7 +5584,7 @@ end
         local saved = Services.HttpService:JSONDecode(readfile(path))
         if type(saved) == "table" and saved.mappings then
             worldMacroMappings = saved.mappings
-            print("Loaded world macro mappings:", #(function(t) local n=0 for _ in pairs(t) do n=n+1 end return n end)(worldMacroMappings), "entries")
+            Util.debugPrint("Loaded world macro mappings:", #(function(t) local n=0 for _ in pairs(t) do n=n+1 end return n end)(worldMacroMappings), "entries")
         end
     end
 end)
@@ -5558,6 +5599,7 @@ end)
     task.spawn(function() AutoJoin.loadIgnoreWorldsWithRetry() end)
     task.spawn(function() AutoJoin.loadPortals() end)
     task.spawn(function() AutoJoin.createAutoSelectDropdowns() end)
+    task.spawn(monitorChallengeReset)
 end
 
 initialize()
