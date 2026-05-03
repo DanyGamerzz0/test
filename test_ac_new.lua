@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.34"
+local script_version = "V0.22"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -936,21 +936,95 @@ function AutoJoin.getOwnedPortals()
     return portals
 end
 
-function AutoJoin.joinPortal(portalId)
-    if not AutoJoin.canPerformAction() then return "cooldown" end
-    if not portalId then return "no_data" end
+function AutoJoin.getOwnedPortalsFromInventory()
+    local ownedPortals = {} -- {id = uuid}
 
-    AutoJoin.setProcessingState("Portal")
+    local portalNameToIdMap = {
+        ["portal_christmas"] = "ChristmasLevel",
+        -- Add more mappings here if there are other mismatched portals
+    }
+    
+    local itemsGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
+    if not itemsGui then 
+        print("Items GUI not found")
+        return ownedPortals 
+    end
+
+    local itemFrames = itemsGui:FindFirstChild("grid")
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("List") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("Outer") end
+    if itemFrames then itemFrames = itemFrames:FindFirstChild("ItemFrames") end
+    
+    if not itemFrames then 
+        print("ItemFrames not found")
+        return ownedPortals 
+    end
+
+    -- Scan through all inventory items
+    for _, child in ipairs(itemFrames:GetChildren()) do
+        local inventoryName = child.Name  -- "portal_christmas"
+        
+        -- Only process items that contain "portal" in their name
+        if inventoryName and inventoryName:lower():find("portal") then
+            local uuidValue = child:FindFirstChild("_uuid_or_id")
+
+            if uuidValue and uuidValue:IsA("StringValue") then
+                -- Check if there's a manual mapping first
+                local actualPortalId = portalNameToIdMap[inventoryName] or inventoryName
+                
+                ownedPortals[actualPortalId] = uuidValue.Value
+                if DEBUG then
+                    print("Found owned portal:", inventoryName, "| Mapped to ID:", actualPortalId, "| UUID:", uuidValue.Value)
+                end
+            end
+        end
+    end
+    
+    return ownedPortals
+end
+
+function AutoJoin.joinPortal(portalId)
+    if not portalId then return false end
+    
+    print("Attempting to join portal with ID:", portalId)
+    
+    -- Get UUID from inventory
+    local ownedPortals = AutoJoin.getOwnedPortalsFromInventory()
+    local portalUUID = ownedPortals[portalId]
+    
+    if not portalUUID then
+        notify("Portal Joiner", "Portal not found in inventory - do you own this portal?")
+        print("Failed to find UUID for portal ID:", portalId)
+        return false
+    end
+    
+    print("Found portal UUID:", portalUUID, "for ID:", portalId)
+    
     local success = pcall(function()
-        Services.ReplicatedStorage
+        game:GetService("ReplicatedStorage")
             :WaitForChild("endpoints")
             :WaitForChild("client_to_server")
-            :WaitForChild("request_enter_portal")
-            :InvokeServer(portalId)
+            :WaitForChild("use_portal")
+            :InvokeServer(portalUUID)
     end)
-    task.wait(1)
-    AutoJoin.clearProcessingState()
-    return success and "success" or "failed"
+    
+    if success then
+        notify("Portal Joiner", string.format("Joining portal: %s", portalId))
+        print("Successfully called use_portal with UUID:", portalUUID)
+        
+        task.wait(0.5)
+        
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("endpoints")
+            :WaitForChild("client_to_server")
+            :WaitForChild("request_start_game")
+            :InvokeServer(portalUUID)
+            
+        return true
+    else
+        notify("Portal Joiner", "Failed to join portal")
+        return false
+    end
 end
 
 -- ── Event joins ──────────────────────────────────────────────
@@ -3334,31 +3408,6 @@ AutoJoinTab:CreateToggle({
     Name = "Auto Join Portal", CurrentValue = false, Flag = "AutoJoinPortal",
     Callback = function(Value) State.AutoJoinPortal = Value end,
 })
-
-function AutoJoin.getOwnedPortalsFromInventory()
-    local portalNameToIdMap = {["portal_christmas"] = "ChristmasLevel"}
-    local ownedPortals = {}
-
-    local itemFrames = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("items")
-    for _, child in ipairs({"grid","List","Outer","ItemFrames"}) do
-        itemFrames = itemFrames and itemFrames:FindFirstChild(child)
-    end
-
-    if not itemFrames then print("ItemFrames not found") return ownedPortals end
-
-    for _, child in ipairs(itemFrames:GetChildren()) do
-        if child.Name and child.Name:lower():find("portal") then
-            local uuidValue = child:FindFirstChild("_uuid_or_id")
-            if uuidValue and uuidValue:IsA("StringValue") then
-                local actualId = portalNameToIdMap[child.Name] or child.Name
-                ownedPortals[actualId] = uuidValue.Value
-                print("Found owned portal:", child.Name, "| Mapped to ID:", actualId, "| UUID:", uuidValue.Value)
-            end
-        end
-    end
-
-    return ownedPortals
-end
 
 function AutoJoin.getAllPortalDataFromModules()
     local portalData = {}
