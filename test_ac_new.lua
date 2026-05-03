@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.3"
+local script_version = "V0.31"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -4025,6 +4025,11 @@ local function getMacroForCurrentWorld()
 
     print("[AutoSelect] Current world:", currentWorld, "Act:", actNum or "N/A")
 
+    print("[AutoSelect] worldMacroMappings contents:")
+for k, v in pairs(worldMacroMappings) do
+    print("  ", k, "->", v)
+end
+
     -- Nightmare act lookup
     if actNum then
         local key = "ds_legend_act_" .. actNum
@@ -5532,6 +5537,16 @@ end
     -- ── FINALIZE ──────────────────────────────────
     Util.ensureFolders()
     Macro.loadAll()
+    pcall(function()
+    local path = "LixHub/world_macro_mappings_" .. Services.Players.LocalPlayer.Name .. ".json"
+    if isfile(path) then
+        local saved = Services.HttpService:JSONDecode(readfile(path))
+        if type(saved) == "table" and saved.mappings then
+            worldMacroMappings = saved.mappings
+            print("Loaded world macro mappings:", #(function(t) local n=0 for _ in pairs(t) do n=n+1 end return n end)(worldMacroMappings), "entries")
+        end
+    end
+end)
     refreshMacroDropdown()
     Macro.setupHook()
     setupRemoteConnections()
