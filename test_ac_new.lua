@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.23"
+local script_version = "V0.24"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3481,26 +3481,6 @@ AutoJoinTab:CreateToggle({
     Callback = function(Value) State.AutoNextPortal = Value end,
 })
 
-AutoJoinTab:CreateToggle({
-    Name = "Auto Select Portal Reward", CurrentValue = false, Flag = "AutoSelectPortalReward",
-    Info = "Automatically picks a portal reward after completing a portal",
-    Callback = function(Value) State.AutoSelectPortalReward = Value end,
-})
-
-AutoJoinTab:CreateDropdown({
-    Name = "Select Reward Tiers",
-    Options = {"Tier 1","Tier 2","Tier 3","Tier 4","Tier 5","Tier 6","Tier 7","Tier 8","Tier 9","Tier 10","Tier 11"},
-    CurrentOption = {}, MultipleOptions = true, Flag = "PortalRewardTierFilter",
-    Info = "Only pick portals with these tiers.",
-    Callback = function(Options)
-        State.PortalRewardTierFilter = {}
-        for _, option in ipairs(Options) do
-            local tierNum = tonumber(option:match("%d+"))
-            if tierNum then table.insert(State.PortalRewardTierFilter, tierNum) end
-        end
-    end,
-})
-
 AutoJoinTab:CreateSection("Infinity Castle Joiner")
 
    AutoJoinTab:CreateToggle({
@@ -5288,6 +5268,23 @@ end
                                 return
                             end
                         end
+
+                        if State.AutoNextPortal and State.SelectedPortal and State.SelectedPortal ~= "" then
+                        local ownedPortals = AutoJoin.getOwnedPortalsFromInventory()
+                        local portalUUID = ownedPortals[State.SelectedPortal]
+                        if portalUUID then
+                            if tryVote({
+                                function()
+                                    endpoints:WaitForChild("set_game_finished_vote"):InvokeServer("replay_portal", portalUUID)
+                                end
+                            }) then
+                                GameTracking.reset()
+                                return
+                            end
+                        else
+                            Util.notify("Auto Next Portal", "Portal not found in inventory")
+                        end
+                    end
 
                         if State.AutoVoteRetry then
                             if tryVote({
