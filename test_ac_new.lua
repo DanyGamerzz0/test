@@ -1,6 +1,6 @@
 local DEBUG = true
 local NOTIFICATION_ENABLED = true
-local script_version = "V0.24"
+local script_version = "V0.25"
 -- ============================================================
 -- EXECUTOR CHECK
 -- ============================================================
@@ -3965,6 +3965,68 @@ end
 
 task.spawn(AutoJoin.setupCardSelectionMonitoring)
 
+local function getMacroForCurrentWorld()
+    if Util.isInLobby() then return nil end
+
+    -- Get current world key from MAP_CONFIG
+    local currentWorld = nil
+    local actNum = nil
+    pcall(function()
+        local cfg = Services.Workspace:FindFirstChild("_MAP_CONFIG")
+        if not cfg then return end
+        local levelData = cfg.GetLevelData:InvokeServer()
+        if not levelData then return end
+
+        -- Try to get world key from level_id
+        if levelData.level_id then
+            -- Check for nightmare train (ds_legend acts)
+            local extractedAct = levelData.level_id:match("ds_legend_(%d)$")
+            if extractedAct then
+                actNum = tonumber(extractedAct)
+            end
+            -- Strip act suffix to get base world key
+            currentWorld = levelData.level_id:match("^(.-)_%d+$") or levelData.level_id
+        end
+
+        -- Fallback to map field
+        if not currentWorld and levelData.map then
+            currentWorld = levelData.map
+        end
+    end)
+
+    if not currentWorld then return nil end
+    print("[AutoSelect] Current world:", currentWorld, "Act:", actNum or "N/A")
+
+    -- Nightmare Train act-specific lookup
+    if actNum then
+        local nightmareKey = "ds_legend_act_" .. actNum
+        local mapped = worldMacroMappings[nightmareKey]
+        if mapped and Macro.library[mapped] then
+            print("[AutoSelect] Nightmare act match:", nightmareKey, "->", mapped)
+            return mapped
+        end
+    end
+
+    -- Exact match
+    local mapped = worldMacroMappings[currentWorld]
+    if mapped and Macro.library[mapped] then
+        print("[AutoSelect] Exact match:", currentWorld, "->", mapped)
+        return mapped
+    end
+
+    -- Case-insensitive match
+    local lower = currentWorld:lower()
+    for key, macroName in pairs(worldMacroMappings) do
+        if key:lower() == lower and Macro.library[macroName] then
+            print("[AutoSelect] Case-insensitive match:", currentWorld, "->", macroName)
+            return macroName
+        end
+    end
+
+    print("[AutoSelect] No mapping found for:", currentWorld)
+    return nil
+end
+
     AutoJoinTab:CreateSection("Auto Join Expedition")
 
     AutoJoinTab:CreateDropdown({
@@ -4123,39 +4185,67 @@ task.spawn(AutoJoin.setupCardSelectionMonitoring)
     })
 
     MacroTab:CreateToggle({
-        Name         = "Playback Macro",
-        CurrentValue = false,
-        Flag         = "PlaybackMacro",
-        Callback     = function(Value)
-            Macro.isPlaying = Value
-            if Value then
-                MacroStatusLabel:Set("Status: Playback enabled")
-                Util.notify("Playback Enabled", "Macro will play when conditions are met.")
-                task.spawn(function()
-                    while Macro.isPlaying do
+    Name         = "Playback Macro",
+    CurrentValue = false,
+    Flag         = "PlaybackMacro",
+    Callback     = function(Value)
+        Macro.isPlaying = Value
+        if Value then
+            MacroStatusLabel:Set("Status: Playback enabled")
+            Util.notify("Playback Enabled", "Macro will play when conditions are met.")
+            task.spawn(function()
+                while Macro.isPlaying do
+                    -- Wait for active game
+                    while (not GameTracking.gameInProgress or Util.isInLobby()) and Macro.isPlaying do
+                        Macro.updateStatus("Waiting for active game...")
                         task.wait(1)
-                        if not Util.isInLobby() and GameTracking.gameInProgress and not Macro.hasPlayedThisGame then
-                            if not Macro.currentName or Macro.currentName == "" then
-                                MacroStatusLabel:Set("Status: Error - No macro selected!")
-                                break
-                            end
-                            local loadedMacro = Macro.loadFromFile(Macro.currentName)
-                            if not loadedMacro or #loadedMacro == 0 then
-                                MacroStatusLabel:Set("Status: Error - Failed to load macro!")
-                                break
-                            end
-                            Macro.actions = loadedMacro
-                            MacroStatusLabel:Set("Status: Playing " .. Macro.currentName .. "...")
-                            Macro.play()
-                        end
                     end
-                end)
-            else
-                MacroStatusLabel:Set("Status: Playback disabled")
-                Util.notify("Playback Disabled", "Macro playback stopped.")
-            end
-        end,
-    })
+                    if not Macro.isPlaying then break end
+
+                    -- Already played this game, wait for next
+                    if Macro.hasPlayedThisGame then
+                        Macro.updateStatus("Already played this game — waiting for next...")
+                        while GameTracking.gameInProgress and Macro.isPlaying do task.wait(1) end
+                        while (not GameTracking.gameInProgress or Util.isInLobby()) and Macro.isPlaying do task.wait(1) end
+                        if not Macro.isPlaying then break end
+                    end
+
+                    -- Resolve macro: world-specific > manual selection
+                    local worldMacro = getMacroForCurrentWorld()
+                    local macroToUse = worldMacro or Macro.currentName
+
+                    if not macroToUse or macroToUse == "" then
+                        MacroStatusLabel:Set("Status: Error - No macro selected!")
+                        break
+                    end
+
+                    local loadedMacro = Macro.loadFromFile(macroToUse)
+                    if not loadedMacro or #loadedMacro == 0 then
+                        MacroStatusLabel:Set("Status: Error - Failed to load macro!")
+                        break
+                    end
+
+                    -- Switch to world macro if different
+                    if worldMacro and worldMacro ~= Macro.currentName then
+                        Macro.currentName = worldMacro
+                        print("[AutoSelect] Playback switching macro to:", worldMacro)
+                    end
+
+                    Macro.actions = loadedMacro
+                    local source = worldMacro and " (Auto-selected)" or " (Manual)"
+                    MacroStatusLabel:Set("Status: Playing " .. macroToUse .. source .. "...")
+                    Macro.play()
+
+                    task.wait(1)
+                end
+                MacroStatusLabel:Set("Status: Playback stopped")
+            end)
+        else
+            MacroStatusLabel:Set("Status: Playback disabled")
+            Util.notify("Playback Disabled", "Macro playback stopped.")
+        end
+    end,
+})
 
     MacroTab:CreateToggle({
         Name         = "Random Offset",
@@ -4413,27 +4503,38 @@ task.spawn(AutoJoin.setupCardSelectionMonitoring)
         end,
     })
 
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            if not State.AutoVoteStart then continue end
-            if Util.isInLobby() then continue end
-            local waveNum = Services.Workspace:FindFirstChild("_wave_num")
-            if waveNum and waveNum.Value == 0 then
-                if State.AutoEquipMacroUnits and Macro.currentName and Macro.currentName ~= "" then
-                    Util.autoEquipMacroUnits(Macro.currentName, Macro.library)
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not State.AutoVoteStart then continue end
+        if Util.isInLobby() then continue end
+        local waveNum = Services.Workspace:FindFirstChild("_wave_num")
+        if waveNum and waveNum.Value == 0 then
+            -- Auto-select macro for this world before starting
+            if State.AutoEquipMacroUnits then
+                local worldMacro = getMacroForCurrentWorld()
+                local macroToUse = worldMacro or Macro.currentName
+                if macroToUse and macroToUse ~= "" and Macro.library[macroToUse] then
+                    -- Update current macro to world-specific one
+                    if worldMacro then
+                        Macro.currentName = worldMacro
+                        Macro.actions = Macro.library[worldMacro]
+                        print("[AutoSelect] Switched macro to:", worldMacro)
+                    end
+                    Util.autoEquipMacroUnits(macroToUse, Macro.library)
                     task.wait(1)
                 end
-                pcall(function()
-                    Services.ReplicatedStorage
-                        :WaitForChild("endpoints")
-                        :WaitForChild("client_to_server")
-                        :WaitForChild("vote_start")
-                        :InvokeServer()
-                end)
             end
+            pcall(function()
+                Services.ReplicatedStorage
+                    :WaitForChild("endpoints")
+                    :WaitForChild("client_to_server")
+                    :WaitForChild("vote_start")
+                    :InvokeServer()
+            end)
         end
-    end)
+    end
+end)
 
     GameTab:CreateToggle({
         Name         = "Auto Retry",
