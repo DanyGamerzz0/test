@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.02"
+local script_version = "V0.03"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -689,7 +689,7 @@ local generalHook = newcclosure(function(self, ...)
     and name ~= "VoteCard" and name ~= "Purchase" and name ~= "RequestFusion"
     and name ~= "PlaceSubTower" and name ~= "CommitUnitReplacement"
     and name ~= "AutoAbility" and name ~= "ToggleAutoUpgrade"
-    and name ~= "IncrementAutoUpgradePriority" and name ~= "BulmaPath" then 
+    and name ~= "IncrementAutoUpgradePriority" then 
         return table.unpack(results)
     end
     
@@ -836,14 +836,6 @@ local generalHook = newcclosure(function(self, ...)
                     AbilityType = abilityType,  -- will be nil for abilities that don't send this
                     Time = string.format("%.2f", gameRelativeTime)
                 })
-                elseif method == "FireServer" and self.Name == "BulmaPath" then
-                local pathIndex = args[1]
-                table.insert(macro, {
-                    Type = "bulma_path",
-                    PathIndex = pathIndex,
-                    Time = string.format("%.2f", gameRelativeTime),
-                })
-                print(string.format("Recorded Bulma path: %d", pathIndex))
                 elseif method == "InvokeServer" and self.Name == "CommitSpecialPlacement" then
                 local result = results[1]
                 local placementKey = args[1]  -- the GUID key
@@ -1700,46 +1692,6 @@ function Playback.executeIncrementAutoUpgradePriority(action, actionIndex, total
         return true
     end
     Util.updateDetailedStatus("Increment auto upgrade priority failed")
-    return false
-end
-
-function Playback.executeBulmaPath(action, actionIndex, totalActions)
-    Util.updateMacroStatus(string.format("(%d/%d) Picking Bulma path: %d", actionIndex, totalActions, action.PathIndex))
-
-    local BulmaPathRE = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.TowerService.RE.BulmaPath
-
-    local received = false
-    local deadline = tick() + 15
-    local connection
-    connection = BulmaPathRE.OnClientEvent:Connect(function()
-        received = true
-    end)
-
-    while not received and tick() < deadline do
-        task.wait(0.3)
-        if not isPlaybackEnabled or not gameInProgress then
-            connection:Disconnect()
-            return false
-        end
-    end
-    connection:Disconnect()
-
-    if not received then
-        Util.updateDetailedStatus("Timed out waiting for Bulma path prompt")
-        return false
-    end
-
-    task.wait(0.2)
-
-    local success = pcall(function()
-        BulmaPathRE:FireServer(action.PathIndex)
-    end)
-
-    if success then
-        Util.updateDetailedStatus(string.format("Picked Bulma path %d ✓", action.PathIndex))
-        return true
-    end
-    Util.updateDetailedStatus("Bulma path pick failed")
     return false
 end
 
@@ -4984,8 +4936,6 @@ function Playback.playMacro()
             Playback.executeToggleAutoUpgrade(action, i, totalActions)
         elseif action.Type == "increment_auto_upgrade_priority" then
             Playback.executeIncrementAutoUpgradePriority(action, i, totalActions)
-        elseif action.Type == "bulma_path" then
-            Playback.executeBulmaPath(action, i, totalActions)
         end
         task.wait(0.1)
     end
@@ -5299,6 +5249,20 @@ local function buildAutoAbilityUI()
             local label = string.format("%s",ability.Title)
 
             AutoAbilityTab:CreateLabel(label)
+
+            if ability.Name == "ShenronSummon" then
+                AutoAbilityTab:CreateDropdown({
+                    Name = "Shanlong Wish",
+                    Options = { "Wealth", "Power", "Knowledge" },
+                    CurrentOption = { "Wealth" },
+                    MultipleOptions = false,
+                    Flag = "AutoAbility_Shanlong_Wish_" .. cleanId,
+                    Callback = function(Option)
+                        local selected = type(Option) == "table" and Option[1] or Option
+                        abilitySettings[settingKey].shanglongWish = selected
+                    end,
+                })
+            end
 
             AutoAbilityTab:CreateDropdown({
                 Name = "Mode",
