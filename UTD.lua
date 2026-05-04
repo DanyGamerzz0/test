@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.07"
+local script_version = "V0.08"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -130,6 +130,8 @@ local consecutiveLosses = 0
 local forcedLobbyReturn = false
 local pendingSubTowerInfo = nil
 local pendingReplacementInfo = nil
+local bossSpawnedThisWave = false
+local bossAbilityFiredKeys = {}
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -233,6 +235,7 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
+    SendDisconnectWebhook = false,
     disableScriptNotifications = false,
     AutoStartGame = false,
     AutoRetry = false,
@@ -1928,6 +1931,37 @@ function Webhook.getRewards(before, after, path)
         end
     end
     return rewards
+end
+
+function Webhook.sendDisconnect(source, reason)
+    if not ValidWebhook or ValidWebhook == "" then return end
+    if not State.SendDisconnectWebhook then return end
+
+    local playerName = Services.Players.LocalPlayer.Name
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+
+    local data = {
+        username = "LixHub",
+        embeds = {{
+            title = "Kicked / Disconnected",
+            description = string.format("**||%s||** was kicked\n\n**Reason:** %s", playerName, tostring(reason ~= "" and reason or "No reason given")),
+            color = 0xFF0000,
+            footer = { text = "discord.gg/cYKnXE2Nf8" },
+            timestamp = timestamp
+        }}
+    }
+
+    local requestFunc = syn and syn.request or request or http_request or (fluxus and fluxus.request) or getgenv().request
+    if not requestFunc then return end
+
+    pcall(function()
+        requestFunc({
+            Url = ValidWebhook,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = Services.HttpService:JSONEncode(data)
+        })
+    end)
 end
 
 function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReached)
@@ -5243,7 +5277,7 @@ local function buildAutoAbilityUI()
         for _, ability in ipairs(abilities) do
             local settingKey = cleanId .. "_" .. ability.Name
             if not abilitySettings[settingKey] then
-                abilitySettings[settingKey] = { mode = "Disabled", wave = 1 }
+                abilitySettings[settingKey] = { mode = "Disabled", wave = 1, delay = 0 }
             end
 
             local label = string.format("%s",ability.Title)
@@ -5266,7 +5300,7 @@ local function buildAutoAbilityUI()
 
             AutoAbilityTab:CreateDropdown({
                 Name = "Mode",
-                Options = { "Disabled", "Auto (Always)", "On Wave" },
+                Options = { "Disabled", "Auto (Always)", "On Wave", "On Boss" },
                 CurrentOption = { "Disabled" },
                 MultipleOptions = false,
                 Flag = "AutoAbility_Mode_" .. settingKey,
@@ -5275,6 +5309,17 @@ local function buildAutoAbilityUI()
                     abilitySettings[settingKey].mode = selected
                 end,
             })
+
+            AutoAbilityTab:CreateSlider({
+            Name = "Delay use by x seconds (0 = disable)",
+            Range = { 0, 300 },
+            Increment = 1,
+            CurrentValue = 0,
+            Flag = "AutoAbility_Delay_" .. settingKey,
+            Callback = function(Value)
+                abilitySettings[settingKey].delay = Value
+            end,
+        })
 
             AutoAbilityTab:CreateSlider({
                 Name = "Use on Wave (if 'On Wave' selected)",
@@ -5402,15 +5447,37 @@ task.spawn(function()
                         end)
                     end
                 end
+                local delaySeconds = settings.delay or 0
+                local function fireWithDelay(onFire)
+                    if delaySeconds > 0 then
+                        task.spawn(function()
+                            task.wait(delaySeconds)
+                            local mf = workspace:GetAttribute("MatchFinished")
+                            if isPlaybackEnabled or gameInProgress and not mf then
+                                onFire()
+                            end
+                        end)
+                    else
+                        onFire()
+                    end
+                end
 
                 if settings.mode == "Auto (Always)" then
-                    fireAbility()
+                    fireWithDelay(fireAbility)
                 elseif settings.mode == "On Wave" then
                     local targetWave = settings.wave or 1
                     local waveKey = guid .. "_" .. abilityIndex .. "_wave_" .. targetWave
                     if currentWave >= targetWave and not abilityUsedOnWave[waveKey] then
-                        fireAbility()
                         abilityUsedOnWave[waveKey] = true
+                        fireWithDelay(fireAbility)
+                    end
+                elseif settings.mode == "On Boss" then
+                    if bossSpawnedThisWave then
+                        local bossKey = guid .. "_" .. abilityIndex .. "_boss_" .. currentWave
+                        if not bossAbilityFiredKeys[bossKey] then
+                            bossAbilityFiredKeys[bossKey] = true
+                            fireWithDelay(fireAbility)
+                        end
                     end
                 end
             end
@@ -5423,7 +5490,9 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
     if wave <= 1 then
         abilityUsedOnWave = {}
+        bossAbilityFiredKeys = {}
     end
+    bossSpawnedThisWave = false
 end)
 
 WebhookInput = WebhookTab:CreateInput({
@@ -5445,6 +5514,11 @@ UserIDInput = WebhookTab:CreateInput({
 WebhookToggle = WebhookTab:CreateToggle({
     Name = "Send On Stage Finished", CurrentValue = false, Flag = "SendWebhookOnStageFinished",
     Callback = function(Value) State.SendStageCompletedWebhook = Value end,
+})
+
+WebhookTab:CreateToggle({
+    Name = "Send On Kick / Disconnect", CurrentValue = false, Flag = "SendWebhookOnDisconnect",
+    Callback = function(Value) State.SendDisconnectWebhook = Value end,
 })
  
 WebhookToggle = WebhookTab:CreateToggle({
@@ -5646,6 +5720,57 @@ task.spawn(function()
             State.NewChallengesAvailable = false
         end
     end
+end)
+
+task.spawn(function()
+    local lp = Services.Players.LocalPlayer
+    local webhookSent = false
+
+    local old_nc
+    old_nc = hookmetamethod(
+        game, "__namecall", newcclosure(
+            function(self, ...)
+                local method = string.lower(getnamecallmethod())
+                if self ~= lp or checkcaller() then return old_nc(self, ...) end
+
+                if method == "kick" or method == "destroy" then
+                    local args = {...}
+                    local reason = (method == "kick" and type(args[1]) == "string") and args[1] or ""
+
+                    if not webhookSent then
+                        webhookSent = true
+                        task.spawn(function()
+                            Webhook.sendDisconnect("kick", reason)
+                        end)
+                    end
+
+                    task.wait(1)
+                    return old_nc(self, ...)
+                end
+
+                return old_nc(self, ...)
+            end))
+end)
+
+task.spawn(function()
+    local ok, EnemyNetwork = pcall(function()
+        return require(game:GetService("ReplicatedStorage"):WaitForChild("Network", 10):WaitForChild("Enemy", 10))
+    end)
+    if not ok or not EnemyNetwork then
+        warn("Failed to find Enemy network")
+        return
+    end
+
+    EnemyNetwork.CreateEnemy.listen(function(data)
+        local enemyModule = game:GetService("ReplicatedStorage").Shared.Data.Enemies:FindFirstChild(data.EnemyID)
+        if not enemyModule then return end
+        local moduleOk, enemyData = pcall(require, enemyModule)
+        if not moduleOk or not enemyData then return end
+        if enemyData.Status and enemyData.Status.Boss then
+            bossSpawnedThisWave = true
+            print(string.format("Boss: %s (%s)", data.EnemyID, tostring(data.EnemyGUID)))
+        end
+    end)
 end)
 
 task.spawn(function()
