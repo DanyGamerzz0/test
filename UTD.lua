@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.08"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5726,6 +5726,15 @@ task.spawn(function()
     local lp = Services.Players.LocalPlayer
     local webhookSent = false
 
+    local function trySendDisconnect(source, reason)
+        if webhookSent then return end
+        webhookSent = true
+        task.spawn(function()
+            Webhook.sendDisconnect(source, reason)
+        end)
+    end
+
+    -- Hook 1: :Kick() / :Destroy() from server scripts
     local old_nc
     old_nc = hookmetamethod(
         game, "__namecall", newcclosure(
@@ -5736,20 +5745,39 @@ task.spawn(function()
                 if method == "kick" or method == "destroy" then
                     local args = {...}
                     local reason = (method == "kick" and type(args[1]) == "string") and args[1] or ""
-
-                    if not webhookSent then
-                        webhookSent = true
-                        task.spawn(function()
-                            Webhook.sendDisconnect("kick", reason)
-                        end)
-                    end
-
+                    trySendDisconnect("Script Kick", reason)
                     task.wait(1)
                     return old_nc(self, ...)
                 end
 
                 return old_nc(self, ...)
             end))
+
+    -- Hook 2: Roblox network disconnects (error 273, 288, etc.)
+    local CoreGui = game:GetService("CoreGui")
+
+    local function scanGui(gui)
+        if not gui:IsA("ScreenGui") then return end
+        task.wait(0.2) -- let it fully load
+        local reason = "Unknown"
+        pcall(function()
+            for _, v in ipairs(gui:GetDescendants()) do
+                if v:IsA("TextLabel") and #v.Text > 10 then
+                    reason = v.Text
+                    break
+                end
+            end
+        end)
+        -- only send if it looks like a disconnect screen
+        if reason:lower():find("error") or reason:lower():find("disconnect") or reason:lower():find("kicked") or reason:lower():find("account") or reason:lower():find("server") then
+            trySendDisconnect("Roblox Network", reason)
+        end
+    end
+
+    CoreGui.ChildAdded:Connect(function(v) scanGui(v) end)
+    CoreGui.DescendantAdded:Connect(function(v)
+        if v:IsA("ScreenGui") then scanGui(v) end
+    end)
 end)
 
 task.spawn(function()
