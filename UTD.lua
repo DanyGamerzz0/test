@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.03"
+local script_version = "V0.04"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5252,7 +5252,7 @@ local function buildAutoAbilityUI()
 
             if ability.Name == "ShenronSummon" then
                 AutoAbilityTab:CreateDropdown({
-                    Name = "Shanlong Wish",
+                    Name = "Select Wish",
                     Options = { "Wealth", "Power", "Knowledge" },
                     CurrentOption = { "Wealth" },
                     MultipleOptions = false,
@@ -5357,7 +5357,29 @@ task.spawn(function()
                             .knit.Services.TowerService.RE.UseAbility
                             :FireServer(guid, abilityIndex, nil)
                     end)
-                    if success then
+                    if success and abilityInfo.Name == "ShenronSummon" then
+                        local wishMap = { Wealth = 1, Power = 2, Knowledge = 3 }
+                        local wish = abilitySettings[settingKey].shanglongWish or "Wealth"
+                        local wishIndex = wishMap[wish] or 1
+                        task.spawn(function()
+                            local deadline = tick() + 10
+                            local playerGui = Services.Players.LocalPlayer.PlayerGui
+                            while tick() < deadline do
+                                local pathsGui = playerGui:FindFirstChild("GameUI")
+                                    and playerGui.GameUI:FindFirstChild("PathsBulma")
+                                if pathsGui and pathsGui.Enabled then
+                                    task.wait(0.3)
+                                    pcall(function()
+                                        game:GetService("ReplicatedStorage")
+                                            .Packages._Index["sleitnick_knit@1.7.0"]
+                                            .knit.Services.TowerService.RE.BulmaPath
+                                            :FireServer(wishIndex)
+                                    end)
+                                    break
+                                end
+                                task.wait(0.2)
+                            end
+                        end)
                     end
                 end
 
