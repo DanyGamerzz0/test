@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.05"
+local script_version = "V0.06"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5351,58 +5351,57 @@ task.spawn(function()
                 end
 
                 local function fireAbility()
-                -- If this is ShenronSummon, check if wish UI is already open
-                if abilityInfo.Name == "ShenronSummon" then
-                    local playerGui = Services.Players.LocalPlayer.PlayerGui
-                    local pathsGui = playerGui:FindFirstChild("GameUI")
-                        and playerGui.GameUI:FindFirstChild("PathsBulma")
-                    
-                    if pathsGui and pathsGui.Enabled then
-                        -- UI already open, just pick the wish
+                    -- If Shenron wish UI is already open, just click the right card button
+                    if abilityInfo.Name == "ShenronSummon" then
+                        local playerGui = Services.Players.LocalPlayer.PlayerGui
+                        local pathsGui = playerGui:FindFirstChild("GameUI")
+                            and playerGui.GameUI:FindFirstChild("PathsBulma")
+                        
+                        if pathsGui and pathsGui.Enabled then
+                            local wishMap = { Wealth = 1, Power = 2, Knowledge = 3 }
+                            local wish = abilitySettings[settingKey].shanglongWish or "Wealth"
+                            local wishIndex = tostring(wishMap[wish] or 1)
+                            pcall(function()
+                                local card = pathsGui.PathSelection.Cards[wishIndex]
+                                for _, connection in pairs(getconnections(card.ImageButton.MouseButton1Click)) do
+                                    connection:Fire()
+                                end
+                            end)
+                            return
+                        end
+                    end
+
+                    local success = pcall(function()
+                        game:GetService("ReplicatedStorage")
+                            .Packages._Index["sleitnick_knit@1.7.0"]
+                            .knit.Services.TowerService.RE.UseAbility
+                            :FireServer(guid, abilityIndex, nil)
+                    end)
+                    if success and abilityInfo.Name == "ShenronSummon" then
                         local wishMap = { Wealth = 1, Power = 2, Knowledge = 3 }
                         local wish = abilitySettings[settingKey].shanglongWish or "Wealth"
-                        local wishIndex = wishMap[wish] or 1
-                        pcall(function()
-                            game:GetService("ReplicatedStorage")
-                                .Packages._Index["sleitnick_knit@1.7.0"]
-                                .knit.Services.TowerService.RE.BulmaPath
-                                :FireServer(wishIndex)
+                        local wishIndex = tostring(wishMap[wish] or 1)
+                        task.spawn(function()
+                            local deadline = tick() + 10
+                            local playerGui = Services.Players.LocalPlayer.PlayerGui
+                            while tick() < deadline do
+                                local pathsGui = playerGui:FindFirstChild("GameUI")
+                                    and playerGui.GameUI:FindFirstChild("PathsBulma")
+                                if pathsGui and pathsGui.Enabled then
+                                    task.wait(0.3)
+                                    pcall(function()
+                                        local card = pathsGui.PathSelection.Cards[wishIndex]
+                                        for _, connection in pairs(getconnections(card.ImageButton.MouseButton1Click)) do
+                                            connection:Fire()
+                                        end
+                                    end)
+                                    break
+                                end
+                                task.wait(0.2)
+                            end
                         end)
-                        return -- Don't fire UseAbility
                     end
                 end
-
-                local success = pcall(function()
-                    game:GetService("ReplicatedStorage")
-                        .Packages._Index["sleitnick_knit@1.7.0"]
-                        .knit.Services.TowerService.RE.UseAbility
-                        :FireServer(guid, abilityIndex, nil)
-                end)
-                if success and abilityInfo.Name == "ShenronSummon" then
-                    local wishMap = { Wealth = 1, Power = 2, Knowledge = 3 }
-                    local wish = abilitySettings[settingKey].shanglongWish or "Wealth"
-                    local wishIndex = wishMap[wish] or 1
-                    task.spawn(function()
-                        local deadline = tick() + 10
-                        local playerGui = Services.Players.LocalPlayer.PlayerGui
-                        while tick() < deadline do
-                            local pathsGui = playerGui:FindFirstChild("GameUI")
-                                and playerGui.GameUI:FindFirstChild("PathsBulma")
-                            if pathsGui and pathsGui.Enabled then
-                                task.wait(0.3)
-                                pcall(function()
-                                    game:GetService("ReplicatedStorage")
-                                        .Packages._Index["sleitnick_knit@1.7.0"]
-                                        .knit.Services.TowerService.RE.BulmaPath
-                                        :FireServer(wishIndex)
-                                end)
-                                break
-                            end
-                            task.wait(0.2)
-                        end
-                    end)
-                end
-            end
 
                 if settings.mode == "Auto (Always)" then
                     fireAbility()
