@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "VROLLBACK"
+local script_version = "V0.01"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -155,6 +155,7 @@ local RecordCache = {
     lastSecondaryCheck = 0,
     lastLoadoutCheck = 0,
     loadout = nil,
+    unitDataCache = {},
 }
 
 -- ============================================
@@ -549,12 +550,12 @@ function UnitTracker.findNewInGC(unitName, excludeUUIDs)
         return nil, nil
     end
 
-    for _, unit in pairs(unitsFolder:GetChildren()) do
+    local function checkUnit(unit)
         local uuid = unit.Name
-        if excludeUUIDs[uuid] then continue end
+        if excludeUUIDs[uuid] then return end
 
         local unitClass = PlacedTowerController:GetUnitClass(uuid)
-        if not unitClass then continue end
+        if not unitClass then return end
 
         local towerId = rawget(unitClass, "TowerID") or rawget(unitClass, "UnitId") or ""
         local unitDisplayName = rawget(unitClass, "Name") or ""
@@ -568,6 +569,10 @@ function UnitTracker.findNewInGC(unitName, excludeUUIDs)
                 upgrade = rawget(unitClass, "Upgrade") or 1
             })
         end
+    end
+
+    for _, unit in pairs(unitsFolder:GetChildren()) do
+        checkUnit(unit)
     end
 
     if #candidates == 0 then
@@ -699,22 +704,29 @@ local generalHook = newcclosure(function(self, ...)
                 local slot = args[1]
                 local cframe = args[2]
 
-                -- Try secondary slot units first (Ragnarok overrides normal loadout)
                 local unitName = nil
-                local success, secondaryUnits = pcall(function()
-                    return TowerService:WaitForChild("GetSecondarySlotUnits"):InvokeServer()
-                end)
-                if success and secondaryUnits and type(secondaryUnits) == "table" and #secondaryUnits > 0 then
-                    local slotData = secondaryUnits[slot]
+
+                if tick() - RecordCache.lastSecondaryCheck > 5 then
+                    local ok, res = pcall(function()
+                        return TowerService:WaitForChild("GetSecondarySlotUnits"):InvokeServer()
+                    end)
+                    if ok then RecordCache.secondaryUnits = res end
+                    RecordCache.lastSecondaryCheck = tick()
+                end
+
+                if RecordCache.secondaryUnits and type(RecordCache.secondaryUnits) == "table" and #RecordCache.secondaryUnits > 0 then
+                    local slotData = RecordCache.secondaryUnits[slot]
                     if slotData and slotData.unitId then
                         unitName = Util.cleanUnitName(slotData.unitId)
                     end
                 end
 
-                -- Fall back to normal loadout if secondary slots empty or slot not found
                 if not unitName then
-                    local loadout = UnitTracker.getPlayerLoadout()
-                    unitName = loadout[slot]
+                    if tick() - RecordCache.lastLoadoutCheck > 3 then
+                        RecordCache.loadout = UnitTracker.getPlayerLoadout()
+                        RecordCache.lastLoadoutCheck = tick()
+                    end
+                    unitName = RecordCache.loadout and RecordCache.loadout[slot]
                 end
 
                 if not unitName then
@@ -722,22 +734,42 @@ local generalHook = newcclosure(function(self, ...)
                     return
                 end
 
-                task.wait(0.5)
+                task.wait(0.2)
+
                 local excludeUUIDs = {}
                 for uuid, _ in pairs(recordingUUIDToTag) do excludeUUIDs[uuid] = true end
                 local uuid, detectedName = nil, nil
-                for attempt = 1, 10 do
-                    uuid, detectedName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
-                    if uuid then break end
-                    task.wait(0.3)
+                local unitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
+
+                local found = false
+                local connection
+                connection = unitsFolder.ChildAdded:Connect(function(child)
+                    if found then return end
+                    local testUUID, testName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
+                    if testUUID then
+                        uuid = testUUID
+                        detectedName = testName
+                        found = true
+                    end
+                end)
+
+                local deadline = tick() + 3
+                while not found and tick() < deadline do
+                    task.wait(0.1)
                 end
+                connection:Disconnect()
+
+                if not found then
+                    uuid, detectedName = UnitTracker.findNewInGC(unitName, excludeUUIDs)
+                end
+
                 if uuid then
-                    local cleanName = Util.cleanUnitName(unitName)
                     local unit = UnitTracker.getByUUID(uuid)
                     if not unit then
                         warn(string.format("UUID %s found in GC but not in workspace!", uuid))
                         return
                     end
+                    local cleanName = Util.cleanUnitName(unitName)
                     recordingUnitCounter[cleanName] = (recordingUnitCounter[cleanName] or 0) + 1
                     local unitNumber = recordingUnitCounter[cleanName]
                     local unitTag = string.format("%s #%d", cleanName, unitNumber)
@@ -1675,6 +1707,11 @@ function UnitTracker.clearSpawnIdMappings()
         pcall(function() connection:Disconnect() end)
     end
     unitChangeListeners = {}
+    RecordCache.secondaryUnits = nil
+    RecordCache.lastSecondaryCheck = 0
+    RecordCache.lastLoadoutCheck = 0
+    RecordCache.loadout = nil
+    RecordCache.unitDataCache = {}
 end
 
 function GameState.startRecording()
