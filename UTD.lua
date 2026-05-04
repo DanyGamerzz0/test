@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.06"
+local script_version = "V0.07"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5363,7 +5363,7 @@ task.spawn(function()
                             local wishIndex = tostring(wishMap[wish] or 1)
                             pcall(function()
                                 local card = pathsGui.PathSelection.Cards[wishIndex]
-                                for _, connection in pairs(getconnections(card.ImageButton.MouseButton1Click)) do
+                                for _, connection in pairs(getconnections(card.ImageButton.Activated)) do
                                     connection:Fire()
                                 end
                             end)
@@ -5391,7 +5391,7 @@ task.spawn(function()
                                     task.wait(0.3)
                                     pcall(function()
                                         local card = pathsGui.PathSelection.Cards[wishIndex]
-                                        for _, connection in pairs(getconnections(card.ImageButton.MouseButton1Click)) do
+                                        for _, connection in pairs(getconnections(card.ImageButton.Activated)) do
                                             connection:Fire()
                                         end
                                     end)
