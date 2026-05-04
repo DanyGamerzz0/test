@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "VROLLBACK"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -149,6 +149,12 @@ local lastMatchResult = nil
 local RerollLimitHit = {
     TheHunt = false,
     Olympus = false,
+}
+local RecordCache = {
+    secondaryUnits = nil,
+    lastSecondaryCheck = 0,
+    lastLoadoutCheck = 0,
+    loadout = nil,
 }
 
 -- ============================================
