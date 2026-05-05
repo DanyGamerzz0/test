@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.11"
+local script_version = "V0.12"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2569,7 +2569,9 @@ function AutoJoin.checkAndExecuteHighestPriority()
                                     game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
                                 end)
                                 local waitStart = tick()
-                                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinChallenge do
+                                    task.wait(0.5)
+                                end
                                 task.wait(3)
                                 Util.clearProcessingState()
                                 return
@@ -2602,7 +2604,9 @@ function AutoJoin.checkAndExecuteHighestPriority()
                     game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.PortalService.RF.RequestMatchmaking:InvokeServer()
                 end)
                 local waitStart = tick()
-                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinPortal do
+                    task.wait(0.5)
+                end
                 task.wait(3)
             else
                 if AutoJoin.waitForPortalJoinSuccess(10) then
@@ -2630,7 +2634,9 @@ function AutoJoin.checkAndExecuteHighestPriority()
                         game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
                     end)
                     local waitStart = tick()
-                    while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                    while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinFeaturedChallenge do
+                        task.wait(0.5)
+                    end
                     task.wait(3)
                 else
                     if AutoJoin.waitForJoinSuccess(10) then
@@ -2659,7 +2665,9 @@ function AutoJoin.checkAndExecuteHighestPriority()
                         game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
                     end)
                     local waitStart = tick()
-                    while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                    while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinOlympusJudgement do
+                        task.wait(0.5)
+                    end
                     task.wait(3)
                 else
                     if AutoJoin.waitForJoinSuccess(10) then
@@ -2680,7 +2688,7 @@ function AutoJoin.checkAndExecuteHighestPriority()
                 game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
             end)
             local waitStart = tick()
-            while Util.isInLobby() and tick() - waitStart < 360 do
+            while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinAntKingLair do
                 task.wait(0.5)
             end
             task.wait(3)
@@ -2700,7 +2708,7 @@ function AutoJoin.checkAndExecuteHighestPriority()
                 end)
                 -- just wait for game to start, don't tryStartGameWithRetry
                 local waitStart = tick()
-                while Util.isInLobby() and tick() - waitStart < 360 do
+                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinShinobiAlliance do
                     task.wait(0.5)
                 end
                 task.wait(3)
@@ -2730,7 +2738,7 @@ function AutoJoin.checkAndExecuteHighestPriority()
                         game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
                     end)
                     local waitStart = tick()
-                    while Util.isInLobby() and tick() - waitStart < 30 do
+                    while Util.isInLobby() and tick() - waitStart < 30 and State.AutoJoinUniversalTear do
                         task.wait(0.5)
                     end
                     task.wait(3)
@@ -2786,7 +2794,9 @@ end
                     game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
                 end)
                 local waitStart = tick()
-                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinVirtualStage do
+                    task.wait(0.5)
+                end
                 task.wait(3)
             else
                 if AutoJoin.waitForJoinSuccess(10) then
@@ -2806,7 +2816,9 @@ end
                     game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
                 end)
                 local waitStart = tick()
-                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinRaid do
+                    task.wait(0.5)
+                end
                 task.wait(3)
             else
                 if AutoJoin.waitForJoinSuccess(10) then
