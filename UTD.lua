@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.15"
+local script_version = "V0.16"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1963,6 +1963,26 @@ function Webhook.getRewards(before, after, path)
     return rewards
 end
 
+function Webhook.getCurrencies()
+    local p = Services.Players.LocalPlayer
+    local icons = {
+        Gems         = "💎",
+        Coins        = "🪙",
+        DevilOrb     = "🔮",
+        IceGifts     = "🎁",
+        Rerolls      = "🎲",
+        SpiritSouls  = "👻",
+        VirtualTokens = "💠",
+    }
+    local order = { "Gems", "Coins", "DevilOrb", "IceGifts", "Rerolls", "SpiritSouls", "VirtualTokens" }
+    local lines = {}
+    for _, key in ipairs(order) do
+        local val = p:GetAttribute(key) or 0
+        table.insert(lines, string.format("%s %s: **%s**", icons[key], key, Util.formatNumber(val)))
+    end
+    return table.concat(lines, "\n")
+end
+
 function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReached)
     if not ValidWebhook or ValidWebhook == "" then return end
     local data
@@ -2057,6 +2077,7 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
                     { name = "Duration", value = gameDuration or "Unknown", inline = true },
                     { name = "Waves Completed", value = tostring(currentWave), inline = true },
                     { name = "Macro", value = macroInfo, inline = true },
+                    { name = "Currencies", value = Webhook.getCurrencies(), inline = false },
                     { name = "Rewards", value = rewardsText, inline = false },
                     { name = "Units", value = unitStatsText, inline = false },
                 },
