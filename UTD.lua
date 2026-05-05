@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -371,7 +371,7 @@ local ChallengeController = nil
 local PodController = nil
 local DataController = nil
 local PlacedTowerController = nil
-local CalendarEventsController = nil
+local pendingUpgrades = {}
 local Knit = require(Services.ReplicatedStorage.Packages.knit)
 
 task.spawn(function()
@@ -410,7 +410,6 @@ task.spawn(function()
     pcall(function() PodController = Knit.GetController("PodController") end)
     pcall(function() DataController = Knit.GetController("DataController") end)
     pcall(function() PlacedTowerController = Knit.GetController("PlacedTowerController") end)
-    pcall(function() CalendarEventsController = Knit.GetController("CalendarEventsController") end)
     pcall(function() ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController) end)
 end)
 
@@ -783,6 +782,19 @@ local generalHook = newcclosure(function(self, ...)
                     })
                     UnitTracker.startTracking(uuid, unitTag, unitName)
                     print(string.format("Recorded: %s (UUID=%s)", unitTag, uuid))
+                    if pendingUpgrades[uuid] then
+                        for _, buffered in ipairs(pendingUpgrades[uuid]) do
+                            if buffered.result == true then
+                                table.insert(macro, {
+                                    Type = "upgrade_unit",
+                                    Unit = unitTag,
+                                    Time = string.format("%.2f", buffered.gameRelativeTime)
+                                })
+                                print(string.format("Flushed buffered upgrade: %s", unitTag))
+                            end
+                        end
+                        pendingUpgrades[uuid] = nil
+                    end
                 else
                     warn("Failed to find placed unit in GC!")
                 end
@@ -795,14 +807,27 @@ local generalHook = newcclosure(function(self, ...)
                 local message = results[2]
                 local uuid = args[1]
                 local unitTag = recordingUUIDToTag[uuid]
-                if not unitTag then warn("Upgrade detected for untracked unit:", uuid) return end
+                
+                if not unitTag then
+                    -- Buffer this upgrade — placement detection may still be running
+                    if not pendingUpgrades[uuid] then
+                        pendingUpgrades[uuid] = {}
+                    end
+                    table.insert(pendingUpgrades[uuid], {
+                        gameRelativeTime = gameRelativeTime,
+                        result = result,
+                        message = message,
+                    })
+                    warn("Buffered upgrade for untracked unit:", uuid)
+                    return
+                end
+                
                 if result == true then
                     table.insert(macro, {
                         Type = "upgrade_unit",
                         Unit = unitTag,
                         Time = string.format("%.2f", gameRelativeTime)
                     })
-                    print(string.format("Recorded upgrade: %s (%s)", unitTag, tostring(message)))
                 else
                     warn(string.format("Skipped upgrade for %s: %s", unitTag, tostring(message)))
                 end
@@ -1705,6 +1730,7 @@ function UnitTracker.clearSpawnIdMappings()
     playbackUnitTagToUUID = {}
     recordingUnitCounter = {}
     recordingUUIDToTag = {}
+    pendingUpgrades = {}
     for uuid, connection in pairs(unitChangeListeners) do
         pcall(function() connection:Disconnect() end)
     end
@@ -3365,8 +3391,8 @@ local IgnoreModifierDropdown = JoinerTab:CreateDropdown({
 })
  
 SelectChallengeRewardsDropdown = JoinerTab:CreateDropdown({
-    Name = "Select Challenge Rewards", Options = {"Fragments","Gems","Stat Rerolls","Trait Rerolls"},
-    CurrentOption = {}, MultipleOptions = true, Flag = "SelectedChallengeRewards",
+    Name = "Select Challenge Rewards", Options = {"Universal Fragment", "Frozen Fragment", "Ocean Fragment", "Petal Fragment", "Sky Fragment", "Burning Fragment", "Holy Fragment", "Phantom Fragment","Gems","Stat Rerolls","Trait Rerolls", "Relic Rerolls", "Locks"},
+    CurrentOption = {}, MultipleOptions = true, Flag = "SelectedChallengeRewards1",
     Info = "Only join challenges that contain one or more of these rewards",
     Callback = function(Options) State.SelectedChallengeRewards = Options or {} end,
 })
