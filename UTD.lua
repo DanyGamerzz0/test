@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2269,10 +2269,13 @@ function AutoJoin.joinChallenge(challengeType, challengeNumber)
 end
 
 function AutoJoin.joinFeaturedChallenge()
-    if not PodController then warn("PodController not initialized") return false end
-    local cfg = require(Services.ReplicatedStorage.Shared.Data.Config)
-    local gameData = { Category = "Challenge", Challenge = { Type = "Special", Number = 1 }, Map = cfg.CurrentFeaturedChallenge or "Frozen Stronghold", Act = "1", Difficulty = "Easy", Modulation = 1.0, FriendsOnly = false }
-    local success = pcall(function() PodController:RequestPod(gameData) end)
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(
+            buffer.fromstring(")\x11\x00Frozen Stronghold\x01\x02\a\x00Special\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\t\x00Challenge\x00\x00"),
+            nil
+        )
+    end)
     return success
 end
 
@@ -2451,12 +2454,14 @@ function AutoJoin.challengeMatchesFilters(challengeData)
     local challengeMapModule = challengeData.Map
     local modifiers = challengeData.Modifiers or {}
     local reward = challengeData.Reward
+
     if #State.IgnoreWorlds > 0 then
         for _, ignoredMapUI in ipairs(State.IgnoreWorlds) do
             local ignoredMapModule = UINameToModuleName[ignoredMapUI]
             if ignoredMapModule and challengeMapModule == ignoredMapModule then return false end
         end
     end
+
     if #State.IgnoreModifier > 0 then
         for _, modifierName in pairs(modifiers) do
             for _, ignoredModifier in ipairs(State.IgnoreModifier) do
@@ -2464,17 +2469,53 @@ function AutoJoin.challengeMatchesFilters(challengeData)
             end
         end
     end
+
     if #State.SelectedChallengeRewards > 0 then
-        local rewardMapping = { ["Fragments"] = "Fragments", ["Gems"] = "Gems", ["Stats"] = "Stat Rerolls", ["Rerolls"] = "Trait Rerolls" }
-        local friendlyReward = rewardMapping[reward] or reward
+        -- Map dropdown display names to actual Currency/Item keys
+        local rewardKeyMap = {
+            ["Universal Fragment"] = "UniversalFragment",
+            ["Frozen Fragment"]    = "FrozenFragment",
+            ["Ocean Fragment"]     = "OceanFragment",
+            ["Petal Fragment"]     = "PetalFragment",
+            ["Sky Fragment"]       = "SkyFragment",
+            ["Burning Fragment"]   = "BurningFragment",
+            ["Holy Fragment"]      = "HolyFragment",
+            ["Phantom Fragment"]   = "PhantomFragment",
+            ["Gems"]               = "Gems",
+            ["Stat Rerolls"]       = "StatRerolls",
+            ["Trait Rerolls"]      = "Rerolls",
+            ["Relic Rerolls"]      = "RelicRerolls",
+            ["Locks"]              = "Locks",
+        }
+
+        -- Load the reward module and collect all keys from Currency + Items
+        local rewardKeys = {}
+        pcall(function()
+            local module = game:GetService("ReplicatedStorage").Shared.Data.ChallengeRewards:FindFirstChild(reward)
+            if not module then return end
+            local data = require(module)
+            if data.Currency then
+                for k in pairs(data.Currency) do rewardKeys[k] = true end
+            end
+            if data.Items then
+                for k in pairs(data.Items) do rewardKeys[k] = true end
+            end
+        end)
+
+        -- Check if at least one selected reward exists in this challenge's rewards
         local rewardMatches = false
         for _, selectedReward in ipairs(State.SelectedChallengeRewards) do
-            if friendlyReward == selectedReward then rewardMatches = true break end
+            local key = rewardKeyMap[selectedReward]
+            if key and rewardKeys[key] then
+                rewardMatches = true
+                break
+            end
         end
         if not rewardMatches then return false end
     else
         return false
     end
+
     return true
 end
 
