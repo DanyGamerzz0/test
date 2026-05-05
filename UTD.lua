@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.17"
+local script_version = "V0.18"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -235,6 +235,7 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
+    sessionRuns = 0,
     disableScriptNotifications = false,
     AutoStartGame = false,
     AutoRetry = false,
@@ -2057,7 +2058,7 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
             table.sort(unitStatsLines)
         end)
         local unitStatsText = #unitStatsLines > 0 and table.concat(unitStatsLines, "\n") or "Unavailable"
-        local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
+        local titleText = (gameResult and "Stage Completed!" or "Stage Failed!") .. " - " .. tostring(State.sessionRuns) .. " Run(s)"
         local embedColor = gameResult and 0x57F287 or 0xED4245
         local TitleSubText = "Unknown Stage"
         if gameInfo and gameInfo.MapName and gameInfo.Act and gameInfo.Category then
@@ -2077,7 +2078,7 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
                     { name = "Duration", value = gameDuration or "Unknown", inline = true },
                     { name = "Waves Completed", value = tostring(currentWave), inline = true },
                     { name = "Macro", value = macroInfo, inline = true },
-                    { name = "Currencies", value = Webhook.getCurrencies(), inline = false },
+                    { name = "Stats", value = Webhook.getCurrencies(), inline = false },
                     { name = "Rewards", value = rewardsText, inline = false },
                     { name = "Units", value = unitStatsText, inline = false },
                 },
@@ -5816,6 +5817,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
         gameInProgress = false
+        State.sessionRuns = State.sessionRuns + 1
 
             if State.ReturnToLobbyAfterMatches and State.ReturnToLobbyAfterMatches > 0 then
             State.matchesPlayed = (State.matchesPlayed or 0) + 1
