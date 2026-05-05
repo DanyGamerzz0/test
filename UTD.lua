@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.14"
+local script_version = "V0.15"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -480,6 +480,11 @@ end
 
 function Util.cleanUnitName(unitName)
     return unitName:gsub(":[Ss]hiny", "")
+end
+
+function Util.formatNumber(n)
+    local s = tostring(math.floor(n))
+    return s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
 end
 
 function UnitTracker.getPlayerLoadout()
@@ -2011,6 +2016,27 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
         else
             rewardsText = "No rewards obtained"
         end
+        local unitStatsLines = {}
+        local ok = pcall(function()
+            local dc = DataController or Knit.GetController("DataController")
+            local units = dc:RequestData("Units", "Inventory")
+            local equipped = dc:RequestData("Units", "Equipped") or {}
+            local StatsUtil = require(Services.ReplicatedStorage.Shared.Modules.StatsUtil)
+            local Config = require(Services.ReplicatedStorage.Shared.Data.Config)
+            local levelCap = Config.LevelCap or 70
+
+            for guid, unitData in pairs(units) do
+                if table.find(equipped, guid) then
+                    local xp = unitData.Experience or 0
+                    local level = math.min(StatsUtil.CalculateUnitLevel(xp), levelCap)
+                    local takedowns = unitData.TotalTakedowns or 0
+                    local name = unitData.UnitId and Util.cleanUnitName(unitData.UnitId) or "Unknown"
+                    table.insert(unitStatsLines, string.format("[%d] %s - %s Takedowns", level, name, Util.formatNumber(takedowns)))
+                end
+            end
+            table.sort(unitStatsLines)
+        end)
+        local unitStatsText = #unitStatsLines > 0 and table.concat(unitStatsLines, "\n") or "Unavailable"
         local titleText = gameResult and "Stage Completed!" or "Stage Failed!"
         local embedColor = gameResult and 0x57F287 or 0xED4245
         local TitleSubText = "Unknown Stage"
@@ -2032,6 +2058,7 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
                     { name = "Waves Completed", value = tostring(currentWave), inline = true },
                     { name = "Macro", value = macroInfo, inline = true },
                     { name = "Rewards", value = rewardsText, inline = false },
+                    { name = "Units", value = unitStatsText, inline = false },
                 },
                 footer = { text = "discord.gg/cYKnXE2Nf8" }, timestamp = timestamp
             }}
