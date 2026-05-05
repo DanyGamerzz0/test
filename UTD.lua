@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.16"
+local script_version = "V0.17"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1966,19 +1966,19 @@ end
 function Webhook.getCurrencies()
     local p = Services.Players.LocalPlayer
     local icons = {
-        Gems         = "💎",
-        Coins        = "🪙",
-        DevilOrb     = "🔮",
-        IceGifts     = "🎁",
-        Rerolls      = "🎲",
-        SpiritSouls  = "👻",
-        VirtualTokens = "💠",
+        Gems          = "<:gem_utd:1501278199382802523>",
+        Coins         = "<:coin_utd:1501278159642034176>",
+        DevilOrb      = "<:devil_orb_utd:1501278243247095919>",
+        IceGifts      = "<:winter_gift_utd:1501278432154226939>",
+        Rerolls       = "<:reroll_utd:1501278285336940695>",
+        SpiritSouls   = "<:spirit_soul_utd:1501278328609575073>",
+        VirtualTokens = "<:virtual_token_utd:1501278372372807792>",
     }
     local order = { "Gems", "Coins", "DevilOrb", "IceGifts", "Rerolls", "SpiritSouls", "VirtualTokens" }
     local lines = {}
     for _, key in ipairs(order) do
         local val = p:GetAttribute(key) or 0
-        table.insert(lines, string.format("%s %s: **%s**", icons[key], key, Util.formatNumber(val)))
+        table.insert(lines, string.format("%s %s", icons[key], Util.formatNumber(val)))
     end
     return table.concat(lines, "\n")
 end
