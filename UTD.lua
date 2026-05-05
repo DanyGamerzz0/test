@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.18"
+local script_version = "V0.19"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -96,6 +96,7 @@ local AutoPathTab = Window:CreateTab("Auto Path", "target")
 local RagnarokTab = Window:CreateTab("Cards", "target")
 local GameTab = Window:CreateTab("Game", "gamepad-2")
 local Tab = Window:CreateTab("Macro", "tv")
+local AutoPlayTab = Window:CreateTab("Auto Play", "play")
 local AutoAbilityTab = Window:CreateTab("Auto Abilities", "zap")
 local WebhookTab = Window:CreateTab("Webhook", "bluetooth")
 local MiscTab = Window:CreateTab("Misc", "cog")
@@ -335,6 +336,51 @@ local State = {
     CapsuleNameToId = {},
     enableAutoBuyCapsules = false,
     SelectedCapsulesToBuy = {},
+
+    -- Autoplay
+    AutoPlayEnableAutoPlace = false,
+    AutoPlayEnableAutoUpgrade = false,
+    AutoPlayFocusFarmUnits = false,
+    AutoPlayEnableHologram = false,
+    AutoPlayDistancePercentage = 50,
+    AutoPlayGroundPercentage = 50,
+    AutoPlayHillPercentage = 50,
+
+    AutoPlayPlaceCap1 = 3,
+    AutoPlayPlaceCap2 = 3,
+    AutoPlayPlaceCap3 = 3,
+    AutoPlayPlaceCap4 = 3,
+    AutoPlayPlaceCap5 = 3,
+    AutoPlayPlaceCap6 = 3,
+
+    AutoPlayUpgradeCap1 = 10,
+    AutoPlayUpgradeCap2 = 10,
+    AutoPlayUpgradeCap3 = 10,
+    AutoPlayUpgradeCap4 = 10,
+    AutoPlayUpgradeCap5 = 10,
+    AutoPlayUpgradeCap6 = 10,
+
+    AutoPlayPlaceOnWaveUnit1 = 0,
+    AutoPlayPlaceOnWaveUnit2 = 0,
+    AutoPlayPlaceOnWaveUnit3 = 0,
+    AutoPlayPlaceOnWaveUnit4 = 0,
+    AutoPlayPlaceOnWaveUnit5 = 0,
+    AutoPlayPlaceOnWaveUnit6 = 0,
+
+    AutoPlayUpgradeOnWaveUnit1 = 0,
+    AutoPlayUpgradeOnWaveUnit2 = 0,
+    AutoPlayUpgradeOnWaveUnit3 = 0,
+    AutoPlayUpgradeOnWaveUnit4 = 0,
+    AutoPlayUpgradeOnWaveUnit5 = 0,
+    AutoPlayUpgradeOnWaveUnit6 = 0,
+    AutoPlayUnitPositions = {
+    [1] = nil,
+    [2] = nil,
+    [3] = nil,
+    [4] = nil,
+    [5] = nil,
+    [6] = nil,
+},
 }
 
         local loadingRetries = {
@@ -4201,7 +4247,7 @@ task.spawn(function()
     local base = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services
 
     while true do
-        task.wait(0.3)
+        task.wait(0.1)
         if not State.enableAutoBuyCapsules then continue end
         if not State.SelectedCapsulesToBuy or #State.SelectedCapsulesToBuy == 0 then continue end
 
@@ -4214,7 +4260,7 @@ task.spawn(function()
                 Util.notify({ Title = "Auto Buy Capsules", Content = result or "Error — stopping", Duration = 4 })
                 break
             end
-            task.wait(0.3)
+            task.wait(0.1)
         end
     end
 end)
@@ -5394,6 +5440,451 @@ Tab:CreateButton({
 
 Div2 = Tab:CreateDivider()
 
+AutoPlayTab:CreateToggle({
+    Name = "Enable Auto Place",
+    CurrentValue = false,
+    Flag = "AutoPlayEnableAutoPlace",
+    Callback = function(Value)
+        State.AutoPlayEnableAutoPlace = Value
+    end,
+})
+
+AutoPlayTab:CreateToggle({
+    Name = "Enable Auto Upgrade",
+    CurrentValue = false,
+    Flag = "AutoPlayEnableAutoUpgrade",
+    Callback = function(Value)
+        State.AutoPlayEnableAutoUpgrade = Value
+    end,
+})
+
+AutoPlayTab:CreateToggle({
+    Name = "Focus Farm Units",
+    CurrentValue = false,
+    Flag = "AutoPlayFocusFarmUnits",
+    Callback = function(Value)
+        State.AutoPlayFocusFarmUnits = Value
+    end,
+})
+
+AutoPlayTab:CreateToggle({
+    Name = "Enable Hologram",
+    CurrentValue = false,
+    Flag = "AutoPlayEnableHologram",
+    Callback = function(Value)
+        State.AutoPlayEnableHologram = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Distance Percentage",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "%",
+    CurrentValue = 50,
+    Flag = "AutoPlayDistancePercentage",
+    Callback = function(Value)
+        State.AutoPlayDistancePercentage = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Ground Percentage",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "%",
+    CurrentValue = 50,
+    Flag = "AutoPlayGroundPercentage",
+    Callback = function(Value)
+        State.AutoPlayGroundPercentage = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Hill Percentage",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = "%",
+    CurrentValue = 50,
+    Flag = "AutoPlayHillPercentage",
+    Callback = function(Value)
+        State.AutoPlayHillPercentage = Value
+    end,
+})
+
+-- ============================================
+-- MANUAL PLACEMENT SECTION
+-- ============================================
+
+AutoPlayTab:CreateSection("Manual Placement")
+
+AutoPlayTab:CreateButton({
+    Name = "Set Unit 1 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[1] = nil
+    end,
+})
+AutoPlayTab:CreateButton({
+    Name = "Reset Unit 1 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[1] = nil
+    end,
+})
+
+AutoPlayTab:CreateButton({
+    Name = "Set Unit 2 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[2] = nil
+    end,
+})
+AutoPlayTab:CreateButton({
+    Name = "Reset Unit 2 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[2] = nil
+    end,
+})
+
+AutoPlayTab:CreateButton({
+    Name = "Set Unit 3 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[3] = nil
+    end,
+})
+AutoPlayTab:CreateButton({
+    Name = "Reset Unit 3 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[3] = nil
+    end,
+})
+
+AutoPlayTab:CreateButton({
+    Name = "Set Unit 4 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[4] = nil
+    end,
+})
+AutoPlayTab:CreateButton({
+    Name = "Reset Unit 4 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[4] = nil
+    end,
+})
+
+AutoPlayTab:CreateButton({
+    Name = "Set Unit 5 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[5] = nil
+    end,
+})
+AutoPlayTab:CreateButton({
+    Name = "Reset Unit 5 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[5] = nil
+    end,
+})
+
+AutoPlayTab:CreateButton({
+    Name = "Set Unit 6 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[6] = nil
+    end,
+})
+AutoPlayTab:CreateButton({
+    Name = "Reset Unit 6 Position",
+    Callback = function()
+        State.AutoPlayUnitPositions[6] = nil
+    end,
+})
+
+AutoPlayTab:CreateButton({
+    Name = "Show All Positions",
+    Callback = function() end,
+})
+
+-- ============================================
+-- AUTO PLACE & UPGRADE SETTINGS SECTION
+-- ============================================
+
+AutoPlayTab:CreateSection("Auto Place & Upgrade Settings")
+
+AutoPlayTab:CreateSlider({
+    Name = "Place Cap 1",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 3,
+    Flag = "AutoPlayPlaceCap1",
+    Callback = function(Value)
+        State.AutoPlayPlaceCap1 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Place Cap 2",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 3,
+    Flag = "AutoPlayPlaceCap2",
+    Callback = function(Value)
+        State.AutoPlayPlaceCap2 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Place Cap 3",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 3,
+    Flag = "AutoPlayPlaceCap3",
+    Callback = function(Value)
+        State.AutoPlayPlaceCap3 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Place Cap 4",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 3,
+    Flag = "AutoPlayPlaceCap4",
+    Callback = function(Value)
+        State.AutoPlayPlaceCap4 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Place Cap 5",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 3,
+    Flag = "AutoPlayPlaceCap5",
+    Callback = function(Value)
+        State.AutoPlayPlaceCap5 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Place Cap 6",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 3,
+    Flag = "AutoPlayPlaceCap6",
+    Callback = function(Value)
+        State.AutoPlayPlaceCap6 = Value
+    end,
+})
+
+AutoPlayTab:CreateDivider()
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap 1",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap1",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap1 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap 2",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap2",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap2 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap 3",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap3",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap3 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap 4",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap4",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap4 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap 5",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap5",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap5 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap 6",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap6",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap6 = Value
+    end,
+})
+
+-- ============================================
+-- AUTO PLACE ON WAVE SECTION
+-- ============================================
+
+AutoPlayTab:CreateSection("Auto Place on Wave")
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 1",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayPlaceOnWaveUnit1",
+    Callback = function(Value)
+        State.AutoPlayPlaceOnWaveUnit1 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 2",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayPlaceOnWaveUnit2",
+    Callback = function(Value)
+        State.AutoPlayPlaceOnWaveUnit2 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 3",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayPlaceOnWaveUnit3",
+    Callback = function(Value)
+        State.AutoPlayPlaceOnWaveUnit3 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 4",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayPlaceOnWaveUnit4",
+    Callback = function(Value)
+        State.AutoPlayPlaceOnWaveUnit4 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 5",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayPlaceOnWaveUnit5",
+    Callback = function(Value)
+        State.AutoPlayPlaceOnWaveUnit5 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 6",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayPlaceOnWaveUnit6",
+    Callback = function(Value)
+        State.AutoPlayPlaceOnWaveUnit6 = Value
+    end,
+})
+
+-- ============================================
+-- AUTO UPGRADE ON WAVE SECTION
+-- ============================================
+
+AutoPlayTab:CreateSection("Auto Upgrade on Wave")
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 1",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayUpgradeOnWaveUnit1",
+    Callback = function(Value)
+        State.AutoPlayUpgradeOnWaveUnit1 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 2",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayUpgradeOnWaveUnit2",
+    Callback = function(Value)
+        State.AutoPlayUpgradeOnWaveUnit2 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 3",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayUpgradeOnWaveUnit3",
+    Callback = function(Value)
+        State.AutoPlayUpgradeOnWaveUnit3 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 4",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayUpgradeOnWaveUnit4",
+    Callback = function(Value)
+        State.AutoPlayUpgradeOnWaveUnit4 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 5",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayUpgradeOnWaveUnit5",
+    Callback = function(Value)
+        State.AutoPlayUpgradeOnWaveUnit5 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Unit 6",
+    Range = {0, 300},
+    Increment = 1,
+    CurrentValue = 0,
+    Flag = "AutoPlayUpgradeOnWaveUnit6",
+    Callback = function(Value)
+        State.AutoPlayUpgradeOnWaveUnit6 = Value
+    end,
+})
+
 AutoAbilityTab:CreateToggle({
     Name = "Enable Auto Abilities",
     CurrentValue = false,
@@ -5807,6 +6298,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
     local matchFinished = workspace:GetAttribute("MatchFinished")
     if matchFinished and gameInProgress then
         afterRewardData = Util.deepCopy(RequestData:InvokeServer())
+        State.sessionRuns = State.sessionRuns + 1
         if State.SendStageCompletedWebhook then
             local gameResult = lastMatchResult == "Won"
             local gameDuration = "Unknown"
@@ -5817,8 +6309,6 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
         gameInProgress = false
-        State.sessionRuns = State.sessionRuns + 1
-
             if State.ReturnToLobbyAfterMatches and State.ReturnToLobbyAfterMatches > 0 then
             State.matchesPlayed = (State.matchesPlayed or 0) + 1
             Util.notify({ Title = "Match Tracked", Content = string.format("%d/%d matches", State.matchesPlayed, State.ReturnToLobbyAfterMatches), Duration = 3 })
