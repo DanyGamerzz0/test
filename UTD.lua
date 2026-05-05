@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -235,7 +235,6 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
-    SendDisconnectWebhook = false,
     disableScriptNotifications = false,
     AutoStartGame = false,
     AutoRetry = false,
@@ -1933,37 +1932,6 @@ function Webhook.getRewards(before, after, path)
     return rewards
 end
 
-function Webhook.sendDisconnect(source, reason)
-    if not ValidWebhook or ValidWebhook == "" then return end
-    if not State.SendDisconnectWebhook then return end
-
-    local playerName = Services.Players.LocalPlayer.Name
-    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-
-    local data = {
-        username = "LixHub",
-        embeds = {{
-            title = "Kicked / Disconnected",
-            description = string.format("**||%s||** was kicked\n\n**Reason:** %s", playerName, tostring(reason ~= "" and reason or "No reason given")),
-            color = 0xFF0000,
-            footer = { text = "discord.gg/cYKnXE2Nf8" },
-            timestamp = timestamp
-        }}
-    }
-
-    local requestFunc = syn and syn.request or request or http_request or (fluxus and fluxus.request) or getgenv().request
-    if not requestFunc then return end
-
-    pcall(function()
-        requestFunc({
-            Url = ValidWebhook,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = Services.HttpService:JSONEncode(data)
-        })
-    end)
-end
-
 function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReached)
     if not ValidWebhook or ValidWebhook == "" then return end
     local data
@@ -2324,6 +2292,14 @@ function AutoJoin.joinShinobiAlliance()
     return success
 end
 
+function AutoJoin.joinAntKingLair()
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(buffer.fromstring(")\a\x00AntKing\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\x00\x00\t\x00WorldRaid\x00\x00"), nil)
+    end)
+    return success
+end
+
 function AutoJoin.joinRagnarok()
     local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
     local success = pcall(function()
@@ -2583,12 +2559,24 @@ function AutoJoin.checkAndExecuteHighestPriority()
             if challenges and challenges["HalfHour"] then
                 local matchingChallenges = AutoJoin.findAllMatchingChallenges(challenges["HalfHour"])
                 if #matchingChallenges > 0 then
-                    for attemptNum, challenge in ipairs(matchingChallenges) do
+                    for _, challenge in ipairs(matchingChallenges) do
                         local success = AutoJoin.joinChallenge("HalfHour", challenge.index)
                         if success == true then
                             State.LastFailedChallengeAttempt = 0
-                            if AutoJoin.waitForJoinSuccess(10) then
-                                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                            if State.useMatchmakeChallenge then
+                                task.wait(1.5)
+                                pcall(function()
+                                    game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                                end)
+                                local waitStart = tick()
+                                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                                task.wait(3)
+                                Util.clearProcessingState()
+                                return
+                            else
+                                if AutoJoin.waitForJoinSuccess(10) then
+                                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                                end
                             end
                         elseif success == "already_completed" then continue
                         else continue end
@@ -2604,32 +2592,50 @@ function AutoJoin.checkAndExecuteHighestPriority()
         end
     end
 
-if State.AutoJoinPortal and State.PortalsSelected and #State.PortalsSelected > 0 then
-    Util.setProcessingState("Portal Auto Join")
-    local success = AutoJoin.usePortal()
-    if success then
-        if AutoJoin.waitForPortalJoinSuccess(10) then
-            if AutoJoin.tryStartPortalWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+    if State.AutoJoinPortal and State.PortalsSelected and #State.PortalsSelected > 0 then
+        Util.setProcessingState("Portal Auto Join")
+        local success = AutoJoin.usePortal()
+        if success then
+            if State.useMatchmakePortal then
+                task.wait(1.5)
+                pcall(function()
+                    game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.PortalService.RF.RequestMatchmaking:InvokeServer()
+                end)
+                local waitStart = tick()
+                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                task.wait(3)
+            else
+                if AutoJoin.waitForPortalJoinSuccess(10) then
+                    if AutoJoin.tryStartPortalWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
+            end
         end
+        Util.clearProcessingState()
     end
-    Util.clearProcessingState()
-end
  
     if State.AutoJoinFeaturedChallenge then
-        -- Check if we should skip due to reroll limit
         if State.LeaveAfterRerollLimitHitTheHunt and not RerollLimitHit.TheHunt then
             RerollLimitHit.TheHunt = AutoJoin.checkRerollLimit("Frozen StrongholdFeaturedChallenge_1")
             if RerollLimitHit.TheHunt then
                 Util.notify({ Title = "The Hunt", Content = "Reroll limit hit - skipping", Duration = 4 })
             end
         end
-
         if not (State.LeaveAfterRerollLimitHitTheHunt and RerollLimitHit.TheHunt) then
             Util.setProcessingState("Featured Challenge Auto Join")
             local success = AutoJoin.joinFeaturedChallenge()
             if success then
-                if AutoJoin.waitForJoinSuccess(10) then
-                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                if State.useMatchmakeTheHuntChallenge then
+                    task.wait(1.5)
+                    pcall(function()
+                        game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                    end)
+                    local waitStart = tick()
+                    while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                    task.wait(3)
+                else
+                    if AutoJoin.waitForJoinSuccess(10) then
+                        if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                    end
                 end
             end
             Util.clearProcessingState()
@@ -2637,24 +2643,49 @@ end
     end
  
     if State.AutoJoinOlympusJudgement then
-        -- Check if we should skip due to reroll limit
         if State.LeaveAfterRerollLimitHitOlympus and not RerollLimitHit.Olympus then
             RerollLimitHit.Olympus = AutoJoin.checkRerollLimit("Olympus JudgementFeaturedChallenge_1")
             if RerollLimitHit.Olympus then
                 Util.notify({ Title = "Olympus Judgement", Content = "Reroll limit hit - skipping", Duration = 4 })
             end
         end
-
         if not (State.LeaveAfterRerollLimitHitOlympus and RerollLimitHit.Olympus) then
             Util.setProcessingState("Olympus Judgement Auto Join")
             local success = AutoJoin.joinOlympusJudgement()
             if success then
-                if AutoJoin.waitForJoinSuccess(10) then
-                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                if State.useMatchmakeOlympusJudgement then
+                    task.wait(1.5)
+                    pcall(function()
+                        game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                    end)
+                    local waitStart = tick()
+                    while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                    task.wait(3)
+                else
+                    if AutoJoin.waitForJoinSuccess(10) then
+                        if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                    end
                 end
             end
             Util.clearProcessingState()
         end
+    end
+
+    if State.AutoJoinAntKingLair then
+        Util.setProcessingState("Ant King Lair Auto Join")
+        local success = AutoJoin.joinAntKingLair()
+        if success then
+            task.wait(1.5)
+            pcall(function()
+                game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+            end)
+            local waitStart = tick()
+            while Util.isInLobby() and tick() - waitStart < 360 do
+                task.wait(0.5)
+            end
+            task.wait(3)
+        end
+        Util.clearProcessingState()
     end
  
     if State.AutoJoinShinobiAlliance then
@@ -2749,8 +2780,18 @@ end
         Util.setProcessingState("Virtual Stage Auto Join")
         local success = AutoJoin.joinVirtual(State.VirtualStageSelected, tonumber(State.VirtualStageActSelected), State.VirtualStageDifficultySelected, State.VirtualStageDifficultyMeterSelected)
         if success then
-            if AutoJoin.waitForJoinSuccess(10) then
-                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+            if State.useMatchmakeVirtualStage then
+                task.wait(1.5)
+                pcall(function()
+                    game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                end)
+                local waitStart = tick()
+                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                task.wait(3)
+            else
+                if AutoJoin.waitForJoinSuccess(10) then
+                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
             end
         else Util.clearProcessingState() end
     end
@@ -2759,8 +2800,18 @@ end
         Util.setProcessingState("Raid Stage Auto Join")
         local success = AutoJoin.joinRaid(State.RaidStageSelected, State.RaidActSelected)
         if success then
-            if AutoJoin.waitForJoinSuccess(10) then
-                if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+            if State.useMatchmakeRaid then
+                task.wait(1.5)
+                pcall(function()
+                    game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                end)
+                local waitStart = tick()
+                while Util.isInLobby() and tick() - waitStart < 360 do task.wait(0.5) end
+                task.wait(3)
+            else
+                if AutoJoin.waitForJoinSuccess(10) then
+                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
             end
         else Util.clearProcessingState() end
     end
@@ -3167,6 +3218,11 @@ VirtualSlider = JoinerTab:CreateSlider({
     Suffix = "", CurrentValue = 100, Flag = "VirtualStageDifficultyMeterSelector",
     Callback = function(Value) State.VirtualStageDifficultyMeterSelected = Value end,
 })
+
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake", CurrentValue = false, Flag = "useMatchmakeVirtualStage",
+    Callback = function(Value) State.useMatchmakeVirtualStage = Value end,
+})
  
 JoinerTab:CreateSection("Raid Joiner")
  
@@ -3189,6 +3245,11 @@ RaidChapterDropdown = JoinerTab:CreateDropdown({
         else local num = selectedOption:match("%d+") if num then State.RaidActSelected = num end end
     end,
 })
+
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake", CurrentValue = false, Flag = "useMatchmakeRaid",
+    Callback = function(Value) State.useMatchmakeRaid = Value end,
+})
  
 JoinerTab:CreateSection("Challenge Joiner")
  
@@ -3201,6 +3262,11 @@ AutoLeaveTheHuntToggle = JoinerTab:CreateToggle({
     Name = "Stop Joining after reroll limit hit (The Hunt)", CurrentValue = false, Flag = "QuitAfterRerollLimitTheHunt",
     Callback = function(Value) State.LeaveAfterRerollLimitHitTheHunt = Value end,
 })
+
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake (The Hunt)", CurrentValue = false, Flag = "useMatchmakeTheHuntChallenge",
+    Callback = function(Value) State.useMatchmakeTheHuntChallenge = Value end,
+})
  
 AutoJoinOlympusToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (Olympus Judgement)", CurrentValue = false, Flag = "AutoJoinOlympusJudgement",
@@ -3210,6 +3276,11 @@ AutoJoinOlympusToggle = JoinerTab:CreateToggle({
 AutoLeaveOlympusToggle = JoinerTab:CreateToggle({
     Name = "Stop Joining after reroll limit hit (Olympus Judgement)", CurrentValue = false, Flag = "QuitAfterRerollLimitOlympus",
     Callback = function(Value) State.LeaveAfterRerollLimitHitOlympus = Value end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake (Olympus Judgement)", CurrentValue = false, Flag = "useMatchmakeOlympusJudgement",
+    Callback = function(Value) State.useMatchmakeOlympusJudgement = Value end,
 })
  
 AutoJoinChallengeToggle = JoinerTab:CreateToggle({
@@ -3253,6 +3324,11 @@ ReturnToLobbyToggle = JoinerTab:CreateToggle({
     Callback = function(Value) State.ReturnToLobbyOnNewChallenge = Value end,
 })
 
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake", CurrentValue = false, Flag = "useMatchmakeChallenge",
+    Callback = function(Value) State.useMatchmakeChallenge = Value end,
+})
+
 JoinerTab:CreateSection("Portal Joiner")
 
 JoinerTab:CreateToggle({
@@ -3275,6 +3351,11 @@ local PortalDropdown = JoinerTab:CreateDropdown({
             if moduleName then table.insert(State.PortalsSelected, moduleName) end
         end
     end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake", CurrentValue = false, Flag = "useMatchmakePortal",
+    Callback = function(Value) State.useMatchmakePortal = Value end,
 })
 
 function AutoJoin.usePortal()
@@ -3330,6 +3411,11 @@ AutoJoinShinobiToggle = JoinerTab:CreateToggle({
 AutoJoinShinobiToggle = JoinerTab:CreateToggle({
     Name = "Use Matchmake for Shinobi Alliance", CurrentValue = false, Flag = "AutoMatchmakeShinobiAlliance",
     Callback = function(Value) State.AutoMatchmakeShinobiAlliance = Value end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Ant King Lair", CurrentValue = false, Flag = "AutoJoinAntKingLair",
+    Callback = function(Value) State.AutoJoinAntKingLair = Value end,
 })
 
 JoinerTab:CreateLabel("Note: If you want to return to lobby automatically on rift refresh turn on both auto retry and auto lobby in game tab")
@@ -5515,11 +5601,6 @@ WebhookToggle = WebhookTab:CreateToggle({
     Name = "Send On Stage Finished", CurrentValue = false, Flag = "SendWebhookOnStageFinished",
     Callback = function(Value) State.SendStageCompletedWebhook = Value end,
 })
-
-WebhookTab:CreateToggle({
-    Name = "Send On Kick / Disconnect", CurrentValue = false, Flag = "SendWebhookOnDisconnect",
-    Callback = function(Value) State.SendDisconnectWebhook = Value end,
-})
  
 WebhookToggle = WebhookTab:CreateToggle({
     Name = "Send On Match Restarted", CurrentValue = false, Flag = "SendWebhookOnMatchRestarted",
@@ -5720,64 +5801,6 @@ task.spawn(function()
             State.NewChallengesAvailable = false
         end
     end
-end)
-
-task.spawn(function()
-    local lp = Services.Players.LocalPlayer
-    local webhookSent = false
-
-    local function trySendDisconnect(source, reason)
-        if webhookSent then return end
-        webhookSent = true
-        task.spawn(function()
-            Webhook.sendDisconnect(source, reason)
-        end)
-    end
-
-    -- Hook 1: :Kick() / :Destroy() from server scripts
-    local old_nc
-    old_nc = hookmetamethod(
-        game, "__namecall", newcclosure(
-            function(self, ...)
-                local method = string.lower(getnamecallmethod())
-                if self ~= lp or checkcaller() then return old_nc(self, ...) end
-
-                if method == "kick" or method == "destroy" then
-                    local args = {...}
-                    local reason = (method == "kick" and type(args[1]) == "string") and args[1] or ""
-                    trySendDisconnect("Script Kick", reason)
-                    task.wait(1)
-                    return old_nc(self, ...)
-                end
-
-                return old_nc(self, ...)
-            end))
-
-    -- Hook 2: Roblox network disconnects (error 273, 288, etc.)
-    local CoreGui = game:GetService("CoreGui")
-
-    local function scanGui(gui)
-        if not gui:IsA("ScreenGui") then return end
-        task.wait(0.2) -- let it fully load
-        local reason = "Unknown"
-        pcall(function()
-            for _, v in ipairs(gui:GetDescendants()) do
-                if v:IsA("TextLabel") and #v.Text > 10 then
-                    reason = v.Text
-                    break
-                end
-            end
-        end)
-        -- only send if it looks like a disconnect screen
-        if reason:lower():find("error") or reason:lower():find("disconnect") or reason:lower():find("kicked") or reason:lower():find("account") or reason:lower():find("server") then
-            trySendDisconnect("Roblox Network", reason)
-        end
-    end
-
-    CoreGui.ChildAdded:Connect(function(v) scanGui(v) end)
-    CoreGui.DescendantAdded:Connect(function(v)
-        if v:IsA("ScreenGui") then scanGui(v) end
-    end)
 end)
 
 task.spawn(function()
