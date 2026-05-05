@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2529,7 +2529,7 @@ function AutoJoin.joinUniversalTear()
         end)
     elseif currentRift == "GojoRift" then
         success = pcall(function()
-            Event:FireServer(buffer.fromstring(")\n\x00GojoRift\x00\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\x05\x00Rifts\x00\x00"), nil)
+            Event:FireServer(buffer.fromstring(")\b\x00GojoRift\x00\x00\x00\x80?\x01\x001\x00\x04\x00Easy\x00\x00\x05\x00Rifts\x00\x00"), nil)
         end)
     end
     
