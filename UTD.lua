@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.58"
+local script_version = "V0.59"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6286,14 +6286,11 @@ function Autoplay.getPlacedCountForSlot(slot)
     for guid, tower in pairs(towers) do
         local owner = PlacedTowerController:GetOwner(guid)
         if not owner or owner ~= Services.Players.LocalPlayer then continue end
+
         local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
         local cleanId = Util.cleanUnitName(towerId)
         if cleanId == unitData.UnitId then
-            -- Verify the model actually exists in workspace
-            local model = rawget(tower, "Model")
-            if model and model.Parent then
-                count = count + 1
-            end
+            count = count + 1
         end
     end
     return count
