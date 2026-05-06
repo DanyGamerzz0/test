@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.53"
+local script_version = "V0.54"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1993,6 +1993,16 @@ function Util.isTrackedPath(path)
         path:match("^Items%.CraftingItems") or
         path:match("^Items%.UniqueItems")
 end
+
+    local ItemsFolder = Services.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Data"):WaitForChild("Items")
+    for _, module in ipairs(ItemsFolder:GetChildren()) do
+        if module:IsA("ModuleScript") then
+            local ok, data = pcall(require, module)
+            if ok and type(data) == "table" and data.Name and module.Name then
+                FriendlyNameToID[data.Name] = module.Name
+            end
+        end
+    end
 
 function Webhook.getRewards(before, after, path)
     path = path or ""
@@ -7543,18 +7553,6 @@ task.spawn(function()
     local timeout = 0
     while not Util.isGameDataLoaded() and timeout < 20 do task.wait(0.5) timeout = timeout + 1 end
     if Util.isGameDataLoaded() then Loader.buildMapLookup() end
-end)
-
-task.spawn(function()
-    local ItemsFolder = Services.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Data"):WaitForChild("Items")
-    for _, module in ipairs(ItemsFolder:GetChildren()) do
-        if module:IsA("ModuleScript") then
-            local ok, data = pcall(require, module)
-            if ok and type(data) == "table" and data.Name and module.Name then
-                FriendlyNameToID[data.Name] = module.Name
-            end
-        end
-    end
 end)
 
 task.spawn(function()
