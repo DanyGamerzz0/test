@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.25"
+local script_version = "V0.26"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5502,10 +5502,8 @@ function Autoplay.updateHologramPosition()
     local pos = Vector3.new(pathPos.X, y, pathPos.Z)
     local rotation = CFrame.Angles(0, 0, math.rad(90))
 
-    -- Ground circle size based on ground percentage (75 studs at 100%)
-    local groundSize = (State.AutoPlayGroundPercentage / 100) * 75
-    -- Hill circle size based on hill percentage (47.434 studs at 100%)
-    local hillSize = (State.AutoPlayHillPercentage / 100) * 47.434
+    local groundSize = (State.AutoPlayGroundPercentage / 100) * 70
+    local hillSize = (State.AutoPlayHillPercentage / 100) * 70
 
     if hologramParts.ground then
         hologramParts.ground.Size = Vector3.new(0.1, groundSize, groundSize)
@@ -5541,8 +5539,8 @@ function Autoplay.showPlacementSquares()
     if not center then return end
 
     local flatCenter = Vector3.new(center.X, 0, center.Z)
-    local groundRadius = (State.AutoPlayGroundPercentage / 100) * 37.5
-    local hillRadius = (State.AutoPlayHillPercentage / 100) * 37.5
+    local groundRadius = (State.AutoPlayGroundPercentage / 100) * 35
+    local hillRadius = (State.AutoPlayHillPercentage / 100) * 35
 
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = { workspace.Ignore }
@@ -5550,7 +5548,7 @@ function Autoplay.showPlacementSquares()
     rayParams.CollisionGroup = "Tower"
     rayParams.RespectCanCollide = false
 
-    local stepSize = 1.5
+    local stepSize = 2.5
     local floorY = center.Y + 50
 
     local function makeSquare(pos, color)
@@ -5618,14 +5616,14 @@ function Autoplay.showHologram()
 
     hologramParts.ground = Autoplay.createHologramPart(
         "AutoPlayGroundCircle",
-        75,
+        70,
         Color3.fromRGB(75, 151, 75),
         0.9
     )
 
     hologramParts.hill = Autoplay.createHologramPart(
         "AutoPlayHillCircle",
-        47.434,
+        70,
         Color3.fromRGB(13, 105, 172),
         0.9
     )
