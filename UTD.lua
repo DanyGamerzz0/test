@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.19"
+local script_version = "V0.2"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -183,6 +183,12 @@ local PathSystem = {}
 local Loader = {}
 -- Groups game/match state helpers
 local GameState = {}
+
+local Autoplay = {}
+
+local hologramParts = {}
+local hologramEnabled = false
+local hologramConnection = nil
 
 local RagnarokState = {
     AutoPickEnabled = false,
@@ -5440,6 +5446,119 @@ Tab:CreateButton({
 
 Div2 = Tab:CreateDivider()
 
+function Autoplay.getPathPosition(percent)
+    local PathManager = require(game:GetService("ReplicatedStorage").Shared.Modules.PathManager)
+    local points, segStarts, segLengths, totalLength = PathManager.GetPathData()
+    if not points or totalLength <= 0 then return nil end
+    local distance = (percent / 100) * totalLength
+    local position, _ = PathManager.GetPositionOnPath(distance)
+    return position
+end
+
+function Autoplay.getGroundY()
+    local realFloor = workspace.Map:FindFirstChild("RealFloor", true)
+    if realFloor then
+        local face = realFloor:FindFirstChild("Face")
+        if face then
+            return face.WorldPosition.Y + 0.1
+        end
+    end
+    return 2.9 -- fallback from properties screenshot
+end
+
+function Autoplay.createHologramPart(name, size, color, transparency)
+    local part = Instance.new("Part")
+    part.Name = name
+    part.Shape = Enum.PartType.Cylinder
+    part.Size = Vector3.new(0.1, size, size)
+    part.Color = color
+    part.Material = Enum.Material.Neon
+    part.Transparency = transparency
+    part.CanCollide = false
+    part.CanQuery = false
+    part.CanTouch = false
+    part.Anchored = true
+    part.CastShadow = false
+    part.CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, 0, math.rad(90))
+    part.Parent = workspace.Ignore
+    return part
+end
+
+function Autoplay.updateHologramPosition()
+    if not hologramEnabled then return end
+    if not hologramParts.ground and not hologramParts.hill then return end
+
+    local pathPos = Autoplay.getPathPosition(State.AutoPlayDistancePercentage)
+    if not pathPos then return end
+
+    local y = Autoplay.getGroundY()
+    local pos = Vector3.new(pathPos.X, y, pathPos.Z)
+    local rotation = CFrame.Angles(0, 0, math.rad(90))
+
+    -- Ground circle size based on ground percentage (75 studs at 100%)
+    local groundSize = (State.AutoPlayGroundPercentage / 100) * 75
+    -- Hill circle size based on hill percentage (47.434 studs at 100%)
+    local hillSize = (State.AutoPlayHillPercentage / 100) * 47.434
+
+    if hologramParts.ground then
+        hologramParts.ground.Size = Vector3.new(0.1, groundSize, groundSize)
+        hologramParts.ground.CFrame = CFrame.new(pos) * rotation
+    end
+
+    if hologramParts.hill then
+        hologramParts.hill.Size = Vector3.new(0.1, hillSize, hillSize)
+        hologramParts.hill.CFrame = CFrame.new(pos) * rotation
+    end
+end
+
+function Autoplay.showHologram()
+    if hologramEnabled then return end
+    hologramEnabled = true
+
+    hologramParts.ground = Autoplay.createHologramPart(
+        "AutoPlayGroundCircle",
+        75,
+        Color3.fromRGB(75, 151, 75),
+        0.9
+    )
+
+    hologramParts.hill = Autoplay.createHologramPart(
+        "AutoPlayHillCircle",
+        47.434,
+        Color3.fromRGB(13, 105, 172),
+        0.9
+    )
+
+    Autoplay.updateHologramPosition()
+
+    hologramConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not hologramEnabled then return end
+        Autoplay.updateHologramPosition()
+    end)
+end
+
+function Autoplay.hideHologram()
+    hologramEnabled = false
+
+    if hologramConnection then
+        hologramConnection:Disconnect()
+        hologramConnection = nil
+    end
+
+    for _, part in pairs(hologramParts) do
+        if part and part.Parent then
+            part:Destroy()
+        end
+    end
+    hologramParts = {}
+end
+
+function Autoplay.refreshHologram()
+    if hologramEnabled then
+        Autoplay.updateHologramPosition()
+    end
+end
+
 AutoPlayTab:CreateToggle({
     Name = "Enable Auto Place",
     CurrentValue = false,
@@ -5454,7 +5573,12 @@ AutoPlayTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoPlayEnableAutoUpgrade",
     Callback = function(Value)
-        State.AutoPlayEnableAutoUpgrade = Value
+        State.AutoPlayEnableHologram = Value
+        if Value then
+            Autoplay.showHologram()
+        else
+            Autoplay.hideHologram()
+        end
     end,
 })
 
@@ -5485,6 +5609,7 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayDistancePercentage",
     Callback = function(Value)
         State.AutoPlayDistancePercentage = Value
+        Autoplay.refreshHologram()
     end,
 })
 
@@ -5497,6 +5622,7 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayGroundPercentage",
     Callback = function(Value)
         State.AutoPlayGroundPercentage = Value
+        Autoplay.refreshHologram()
     end,
 })
 
@@ -5509,6 +5635,7 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayHillPercentage",
     Callback = function(Value)
         State.AutoPlayHillPercentage = Value
+        Autoplay.refreshHologram()
     end,
 })
 
@@ -6309,6 +6436,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
         gameInProgress = false
+        
             if State.ReturnToLobbyAfterMatches and State.ReturnToLobbyAfterMatches > 0 then
             State.matchesPlayed = (State.matchesPlayed or 0) + 1
             Util.notify({ Title = "Match Tracked", Content = string.format("%d/%d matches", State.matchesPlayed, State.ReturnToLobbyAfterMatches), Duration = 3 })
