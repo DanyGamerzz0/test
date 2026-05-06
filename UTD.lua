@@ -2328,8 +2328,8 @@ function Util.getCurrentWorldKey()
     end
 
     if categoryLower == "rift" then
-        if mapInternal == "Shinjuku" then return "universal_tear_gojo" end
-        if mapInternal == "???" then return "universal_tear_sukuna" end
+        if mapName == "The Strongest Of Today" then return "universal_tear_gojo" end
+        if mapName == "The Strongest Of All Time" then return "universal_tear_sukuna" end
     end
 
     return nil
