@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.52"
+local script_version = "V0.53"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2153,6 +2153,8 @@ end
         end
         if next(rewards) then
             for rewardType, amount in pairs(rewards) do
+                local itemID = FriendlyNameToID[rewardType]
+                print("Reward:", rewardType, "-> ItemID:", itemID)
                 local sign = amount > 0 and "+" or ""
                 local total = getRewardTotal(rewardType)
                 if total then
