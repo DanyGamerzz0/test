@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.46"
+local script_version = "V0.47"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6362,7 +6362,8 @@ function Autoplay.startAutoUpgrade()
             for guid, tower in pairs(towers) do
                 local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
                 local cleanId = Util.cleanUnitName(towerId)
-                local currentLevel = rawget(tower, "Upgrade") or 1
+                local freshData = UnitTracker.findDataInGC(guid)
+                local currentLevel = (freshData and freshData.Upgrade) or 1
 
                 -- Find which slot this unit belongs to
                 local slot = nil
@@ -7640,7 +7641,8 @@ task.spawn(function()
         for guid, tower in pairs(towers) do
             local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or "UNKNOWN"
             local cleanId = Util.cleanUnitName(towerId)
-            local currentLevel = rawget(tower, "Upgrade") or 1
+            local freshData = UnitTracker.findDataInGC(guid)
+            local currentLevel = (freshData and freshData.Upgrade) or 1
             
             -- Find slot
             local slot = nil
