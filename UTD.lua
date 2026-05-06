@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.48"
+local script_version = "V0.49"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2108,10 +2108,57 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
         finishedRewardData = nil
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        local rewardsText = ""
+        local function getRewardTotal(rewardType)
+            local p = Services.Players.LocalPlayer
+            -- Direct attribute currencies
+            local attrMap = {
+                ["Gems"]          = "Gems",
+                ["Coins"]         = "Coins",
+                ["IceGifts"]      = "IceGifts",
+                ["Rerolls"]       = "Rerolls",
+                ["SpiritSouls"]   = "SpiritSouls",
+                ["VirtualTokens"] = "VirtualTokens",
+                ["DevilOrb"]      = "DevilOrb",
+                ["FamilyEye"]    = "FamilyEye",
+                ["Locks"] = "Locks",
+                ["RelicDust"] = "RelicDust",
+                ["RelicRerolls"] = "RelicRerolls",
+                ["ShadowEnergy"] = "ShadowEnergy",
+                ["SorcererAscensionCoin"] = "SorcererAscensionCoin",
+                ["WarCoin"] = "WarCoin",
+                ["YenCrates"] = "YenCrates",
+            }
+            if attrMap[rewardType] then
+                local val = p:GetAttribute(attrMap[rewardType])
+                return val and Util.formatNumber(val) or nil
+            end
+            -- Crafting/unique items from DataController
+            local ok, val = pcall(function()
+                local dc = DataController or Knit.GetController("DataController")
+                local craftingItems = dc:RequestData("Items", "CraftingItems")
+                if craftingItems then
+                    -- try matching by display name variants
+                    for k, v in pairs(craftingItems) do
+                        if k:lower():find(rewardType:lower(), 1, true) then
+                            return Util.formatNumber(v)
+                        end
+                    end
+                end
+                return nil
+            end)
+            if ok and val then return val end
+            return nil
+        end
+
         if next(rewards) then
             for rewardType, amount in pairs(rewards) do
-                rewardsText = rewardsText .. string.format("+%s %s\n", amount, rewardType)
+                local sign = amount > 0 and "+" or ""
+                local total = getRewardTotal(rewardType)
+                if total then
+                    rewardsText = rewardsText .. string.format("%s%s %s [%s]\n", sign, Util.formatNumber(amount), rewardType, total)
+                else
+                    rewardsText = rewardsText .. string.format("%s%s %s\n", sign, Util.formatNumber(amount), rewardType)
+                end
             end
             rewardsText = rewardsText:gsub("\n$", "")
         else
@@ -5644,7 +5691,7 @@ function Autoplay.showPlacementSquares()
                         isFloor = true
                     end
                     if isFloor then
-                        makeSquare(result.Position, Color3.fromRGB(75, 151, 75))
+                        makeSquare(result.Position, Color3.fromRGB(75, 219, 75))
                     end
                 end
             end
@@ -5662,7 +5709,7 @@ function Autoplay.showPlacementSquares()
                     local isHill = hit:HasTag("HillPlacement") or 
                         (hit.Parent and hit.Parent:HasTag("HillPlacement"))
                     if isHill then
-                        makeSquare(result.Position, Color3.fromRGB(13, 105, 172))
+                        makeSquare(result.Position, Color3.fromRGB(13, 105, 229))
                     end
                 end
             end
@@ -5678,14 +5725,14 @@ function Autoplay.showHologram()
     hologramParts.ground = Autoplay.createHologramPart(
         "AutoPlayGroundCircle",
         70,
-        Color3.fromRGB(75, 151, 75),
+        Color3.fromRGB(75, 216, 75),
         0.9
     )
 
     hologramParts.hill = Autoplay.createHologramPart(
         "AutoPlayHillCircle",
         70,
-        Color3.fromRGB(13, 105, 172),
+        Color3.fromRGB(13, 105, 233),
         0.9
     )
 
