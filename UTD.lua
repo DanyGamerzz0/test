@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.33"
+local script_version = "V0.34"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5728,68 +5728,135 @@ function Autoplay.getMouseHit()
     return result.Position, isValid
 end
 
+function Autoplay.getSlotUnitData(slot)
+    local ok, result = pcall(function()
+        local dc = DataController or Knit.GetController("DataController")
+        local equipped = Services.HttpService:JSONDecode(
+            Services.Players.LocalPlayer:WaitForChild("Equipped").Value
+        )
+        local guid = equipped[slot]
+        if not guid or guid == "" then return nil end
+
+        local unitData = dc:GetUnitData(guid)
+        if not unitData or not unitData.UnitId then return nil end
+
+        local cleanId = Util.cleanUnitName(unitData.UnitId)
+        local module = Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(cleanId)
+        if not module then return nil end
+
+        local moduleData = require(module)
+        if type(moduleData) == "function" then moduleData = moduleData() end
+
+        local isRuler = false
+        if unitData.Traits then
+            for _, trait in pairs(unitData.Traits) do
+                if trait == "Ruler" then
+                    isRuler = true
+                    break
+                end
+            end
+        end
+
+        local placementLimit = isRuler and 1 or (moduleData.Stats.Placement or 1)
+        local isGround = moduleData.Stats.Ground or false
+        local isHill = moduleData.Stats.Hill or false
+
+        return {
+            UnitId = cleanId,
+            PlacementLimit = placementLimit,
+            IsGround = isGround,
+            IsHill = isHill,
+            IsRuler = isRuler,
+        }
+    end)
+
+    if ok and result then return result end
+    return nil
+end
+
 function Autoplay.beginManualPlacement(slot)
-        if Util.isInLobby() then
-        Util.notify({ Title = "Error", Content = "Cannot set positions in lobby", Duration = 3 })
-        return
-    end
     if Autoplay.manualPlacementActive then
         Autoplay.endManualPlacement()
     end
 
+    local unitData = Autoplay.getSlotUnitData(slot)
+    if not unitData then
+        Util.notify({ Title = "Error", Content = "No unit in slot " .. slot, Duration = 3 })
+        return
+    end
+
     Autoplay.manualPlacementActive = true
     Autoplay.manualPlacementSlot = slot
+    Autoplay.manualPlacementUnitData = unitData
+    Autoplay.manualPlacementSquares = {}
 
-    Autoplay.manualPlacementSquare = Instance.new("Part")
-    Autoplay.manualPlacementSquare.Name = "ManualPlacementSquare"
-    Autoplay.manualPlacementSquare.Size = Vector3.new(1, 1, 1)
-    Autoplay.manualPlacementSquare.Material = Enum.Material.Plastic
-    Autoplay.manualPlacementSquare.Transparency = 0.3
-    Autoplay.manualPlacementSquare.CanCollide = false
-    Autoplay.manualPlacementSquare.CanQuery = false
-    Autoplay.manualPlacementSquare.CanTouch = false
-    Autoplay.manualPlacementSquare.Anchored = true
-    Autoplay.manualPlacementSquare.CastShadow = false
-    Autoplay.manualPlacementSquare.Color = Color3.fromRGB(75, 151, 75)
-    Autoplay.manualPlacementSquare.Parent = workspace.Ignore
+    -- Create one following square per placement limit
+    for i = 1, unitData.PlacementLimit do
+        local part = Instance.new("Part")
+        part.Name = "ManualPlacementSquare"
+        part.Size = Vector3.new(1, 1, 1)
+        part.Material = Enum.Material.Plastic
+        part.Transparency = 0.3
+        part.CanCollide = false
+        part.CanQuery = false
+        part.CanTouch = false
+        part.Anchored = true
+        part.CastShadow = false
+        part.Color = Color3.fromRGB(75, 151, 75)
+        part.Parent = workspace.Ignore
+        table.insert(Autoplay.manualPlacementSquares, part)
+    end
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.BackgroundTransparency = 1
-    shadow.Position = UDim2.new(0, -15, 0, -15)
-    shadow.Size = UDim2.new(1, 30, 1, 30)
-    shadow.ZIndex = 9999
-    shadow.Image = "rbxassetid://6014261993"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.5
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(49, 49, 450, 450)
-
-    Util.notify({ Title = "Manual Placement", Content = "Click to set Unit " .. slot .. " position", Duration = 3 })
+    Util.notify({
+        Title = "Manual Placement",
+        Content = string.format("Click to set Unit %d position (%s, %dx)", 
+            slot,
+            unitData.IsGround and unitData.IsHill and "Ground/Hill" or unitData.IsGround and "Ground" or "Hill",
+            unitData.PlacementLimit
+        ),
+        Duration = 4
+    })
 
     Autoplay.manualPlacementConnection = Services.RunService.RenderStepped:Connect(function()
         if not Autoplay.manualPlacementActive then return end
         local pos, isValid = Autoplay.getMouseHit()
-        if pos then
-            Autoplay.manualPlacementSquare.CFrame = CFrame.new(pos)
-            Autoplay.manualPlacementSquare.Color = isValid
-                and Color3.fromRGB(75, 151, 75)
-                or Color3.fromRGB(255, 0, 0)
+        if not pos then return end
+
+        -- Validate based on unit type
+        if isValid then
+            local hit = workspace:Raycast(
+                Vector3.new(pos.X, pos.Y + 50, pos.Z),
+                Vector3.new(0, -100, 0),
+                manualRayParams
+            )
+            if hit then
+                local isHill = hit.Instance:HasTag("HillPlacement") or 
+                    (hit.Instance.Parent and hit.Instance.Parent:HasTag("HillPlacement"))
+                local ok2, floor = pcall(function() return workspace.Map:FindFirstChild("RealFloor", true) end)
+                local isFloor = ok2 and floor and (hit.Instance == floor or hit.Instance:IsDescendantOf(floor))
+
+                if isHill and not unitData.IsHill then isValid = false end
+                if isFloor and not unitData.IsGround then isValid = false end
+            end
+        end
+
+        local color = isValid 
+            and Color3.fromRGB(75, 151, 75) 
+            or Color3.fromRGB(255, 0, 0)
+
+        -- Spread squares out slightly around the position
+        for i, square in pairs(Autoplay.manualPlacementSquares) do
+            local offset = Vector3.new((i - 1) * 1.5, 0, 0)
+            square.CFrame = CFrame.new(pos + offset)
+            square.Color = color
         end
     end)
 
-    -- Wait a bit longer to ensure the button click is fully processed
     task.wait(0.3)
-    
-    -- Connect to InputBegan instead of InputChanged for better detection
+
     Autoplay.manualPlacementClickConn = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        -- Don't ignore gameProcessed - we want to catch all clicks
         local isTap = input.UserInputType == Enum.UserInputType.Touch
         local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
-        
         if not (isClick or isTap) then return end
         if not Autoplay.manualPlacementActive then return end
 
@@ -5800,7 +5867,7 @@ function Autoplay.beginManualPlacement(slot)
             Util.notify({ Title = "Position Saved", Content = "Unit " .. slot .. " position set!", Duration = 3 })
             Autoplay.endManualPlacement()
         else
-            Util.notify({ Title = "Invalid Position", Content = "Place on a valid position", Duration = 2 })
+            Util.notify({ Title = "Invalid Position", Content = "Place on a valid position for this unit type", Duration = 2 })
         end
     end)
 end
@@ -5808,6 +5875,7 @@ end
 function Autoplay.endManualPlacement()
     Autoplay.manualPlacementActive = false
     Autoplay.manualPlacementSlot = nil
+    Autoplay.manualPlacementUnitData = nil
 
     if Autoplay.manualPlacementConnection then
         Autoplay.manualPlacementConnection:Disconnect()
@@ -5819,9 +5887,13 @@ function Autoplay.endManualPlacement()
         Autoplay.manualPlacementClickConn = nil
     end
 
-    if Autoplay.manualPlacementSquare and Autoplay.manualPlacementSquare.Parent then
-        Autoplay.manualPlacementSquare:Destroy()
-        Autoplay.manualPlacementSquare = nil
+    if Autoplay.manualPlacementSquares then
+        for _, part in pairs(Autoplay.manualPlacementSquares) do
+            if part and part.Parent then
+                part:Destroy()
+            end
+        end
+        Autoplay.manualPlacementSquares = nil
     end
 end
 
@@ -6371,6 +6443,8 @@ AutoPlayTab:CreateSlider({
         State.AutoPlayUpgradeOnWaveUnit6 = Value
     end,
 })
+
+AutoPlayTab:CreateDivider()
 
 AutoAbilityTab:CreateToggle({
     Name = "Enable Auto Abilities",
