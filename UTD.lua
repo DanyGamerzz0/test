@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.51"
+local script_version = "V0.52"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -133,6 +133,7 @@ local pendingSubTowerInfo = nil
 local pendingReplacementInfo = nil
 local bossSpawnedThisWave = false
 local bossAbilityFiredKeys = {}
+local FriendlyNameToID = {}
 local currentGameInfo = {
     MapName = nil,
     Act = nil,
@@ -2140,24 +2141,16 @@ end
                 local val = p:GetAttribute(attrMap[rewardType])
                 return val and Util.formatNumber(val) or nil
             end
-            -- Crafting/unique items from DataController
-            local ok, val = pcall(function()
+            local itemID = FriendlyNameToID[rewardType]
+            if itemID then
                 local dc = DataController or Knit.GetController("DataController")
-                local craftingItems = dc:RequestData("Items", "CraftingItems")
-                if craftingItems then
-                    -- try matching by display name variants
-                    for k, v in pairs(craftingItems) do
-                        if k:lower():find(rewardType:lower(), 1, true) then
-                            return Util.formatNumber(v)
-                        end
-                    end
+                local craftingItems = dc.Items and dc.Items.CraftingItems
+                if craftingItems and craftingItems[itemID] then
+                    return Util.formatNumber(craftingItems[itemID])
                 end
-                return nil
-            end)
-            if ok and val then return val end
+            end
             return nil
         end
-
         if next(rewards) then
             for rewardType, amount in pairs(rewards) do
                 local sign = amount > 0 and "+" or ""
@@ -2242,7 +2235,12 @@ end
         if next(rewards) then
             for rewardType, amount in pairs(rewards) do
                 local sign = amount > 0 and "+" or ""
-                rewardsText = rewardsText .. string.format("%s%s %s\n", sign, amount, rewardType)
+                local total = getRewardTotal(rewardType)  -- use auto-mapped totals
+                if total then
+                    rewardsText = rewardsText .. string.format("%s%s %s [%s]\n", sign, Util.formatNumber(amount), rewardType, total)
+                else
+                    rewardsText = rewardsText .. string.format("%s%s %s\n", sign, Util.formatNumber(amount), rewardType)
+                end
             end
             rewardsText = rewardsText:gsub("\n$", "")
         else
@@ -7543,6 +7541,18 @@ task.spawn(function()
     local timeout = 0
     while not Util.isGameDataLoaded() and timeout < 20 do task.wait(0.5) timeout = timeout + 1 end
     if Util.isGameDataLoaded() then Loader.buildMapLookup() end
+end)
+
+task.spawn(function()
+    local ItemsFolder = Services.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Data"):WaitForChild("Items")
+    for _, module in ipairs(ItemsFolder:GetChildren()) do
+        if module:IsA("ModuleScript") then
+            local ok, data = pcall(require, module)
+            if ok and type(data) == "table" and data.Name and module.Name then
+                FriendlyNameToID[data.Name] = module.Name
+            end
+        end
+    end
 end)
 
 task.spawn(function()
