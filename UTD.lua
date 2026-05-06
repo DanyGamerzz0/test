@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.59"
+local script_version = "V0.6"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6497,23 +6497,11 @@ function Autoplay.startAutoUpgrade()
             for guid, tower in pairs(towers) do
                 local owner = PlacedTowerController:GetOwner(guid)
                 if not owner or owner ~= Services.Players.LocalPlayer then continue end
+
                 local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
                 local cleanId = Util.cleanUnitName(towerId)
 
-                -- Verify model exists
-                local model = rawget(tower, "Model")
-                if not model or not model.Parent then continue end
-
-                -- Get REAL current level from model attribute first, fallback to rawget
-                local currentLevel = 1
-                if model then
-                    local attr = model:GetAttribute("Upgrade")
-                    if attr then
-                        currentLevel = attr
-                    else
-                        currentLevel = rawget(tower, "Upgrade") or 1
-                    end
-                end
+                local currentLevel = PlacedTowerController:GetUpgradeLevel(guid)
 
                 -- Find which slot
                 local slot = nil
@@ -6569,19 +6557,17 @@ function Autoplay.startAutoUpgrade()
                 end
             end
 
-            -- Sort by lowest level (no unit left behind)
+            -- Sort by lowest level
             table.sort(candidates, function(a, b)
                 return a.level < b.level
             end)
 
             local upgraded = false
             for _, candidate in ipairs(candidates) do
-                -- Re-read level right before upgrading to avoid stale data
-                local model = rawget(PlacedTowerController:GetTowers()[candidate.guid] or {}, "Model")
-                local freshLevel = (model and model:GetAttribute("Upgrade")) or candidate.level
+                local freshLevel = PlacedTowerController:GetUpgradeLevel(candidate.guid)
                 if freshLevel >= candidate.cap then continue end
 
-                -- Get upgrade cost using fresh level
+                -- Get upgrade cost
                 local upgradeCost = 0
                 local ok, data = pcall(function()
                     return require(Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(candidate.unitId))
@@ -6606,7 +6592,6 @@ function Autoplay.startAutoUpgrade()
                     Util.updateDetailedStatus(string.format("Upgraded %s (Lv%d→%d)",
                         candidate.unitId, freshLevel, freshLevel + 1))
                     upgraded = true
-                    -- Wait for server to confirm before next upgrade
                     task.wait(0.5)
                     break
                 end
@@ -7298,7 +7283,7 @@ task.spawn(function()
 
         for guid, towerData in pairs(towers) do
             local owner = PlacedTowerController:GetOwner(guid)
-            if owner ~= Services.Players.LocalPlayer then continue end
+            if not owner or owner ~= Services.Players.LocalPlayer then continue end
             local unitId = towerData.TowerID
             if not unitId then continue end
             local cleanId = Util.cleanUnitName(unitId)
