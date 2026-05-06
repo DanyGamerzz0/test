@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.42"
+local script_version = "V0.43"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6119,7 +6119,7 @@ function Autoplay.findNearestValidSquare(squares, unitData, excludePositions)
     end)
 
     -- Find first unoccupied spot with enough spread from other placed units
-    local MIN_SPREAD = 1.5 -- increase this to spread units further apart
+    local MIN_SPREAD = 0.5 -- increase this to spread units further apart
     for _, square in pairs(filtered) do
         -- Check against already-placed units in workspace
         if Autoplay.isPositionOccupied(square.Position) then continue end
