@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.26"
+local script_version = "V0.27"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -190,6 +190,15 @@ local hologramParts = {}
 local placementSquares = {}
 local hologramEnabled = false
 local hologramConnection = nil
+Autoplay.manualPlacementActive = false
+Autoplay.manualPlacementSlot = nil
+Autoplay.manualPlacementSquare = nil
+Autoplay.manualPlacementConnection = nil
+local manualRayParams = RaycastParams.new()
+manualRayParams.FilterDescendantsInstances = { workspace.Ignore }
+manualRayParams.FilterType = Enum.RaycastFilterType.Exclude
+manualRayParams.CollisionGroup = "Tower"
+manualRayParams.RespectCanCollide = false
 
 local RagnarokState = {
     AutoPickEnabled = false,
@@ -5661,6 +5670,105 @@ function Autoplay.refreshHologram()
     end
 end
 
+function Autoplay.getMouseHit()
+    local camera = workspace.CurrentCamera
+    local unitPos
+
+    if Services.UserInputService.TouchEnabled then
+        local touches = Services.UserInputService:GetTouchPositions()
+        if #touches == 0 then return nil, false end
+        unitPos = touches[1]
+    else
+        unitPos = Services.UserInputService:GetMouseLocation()
+    end
+
+    local ray = camera:ViewportPointToRay(unitPos.X, unitPos.Y)
+    local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, manualRayParams)
+    if not result then return nil, false end
+
+    local hit = result.Instance
+    local isHill = hit:HasTag("HillPlacement") or (hit.Parent and hit.Parent:HasTag("HillPlacement"))
+    local ok, floor = pcall(function() return workspace.Map:FindFirstChild("RealFloor", true) end)
+    local isFloor = ok and floor and (hit == floor or hit:IsDescendantOf(floor))
+    local isValid = isHill or isFloor
+
+    return result.Position, isValid
+end
+
+function Autoplay.beginManualPlacement(slot)
+    if Autoplay.manualPlacementActive then
+        Autoplay.endManualPlacement()
+    end
+
+    Autoplay.manualPlacementActive = true
+    Autoplay.manualPlacementSlot = slot
+
+    -- Create the following square
+    Autoplay.manualPlacementSquare = Instance.new("Part")
+    Autoplay.manualPlacementSquare.Name = "ManualPlacementSquare"
+    Autoplay.manualPlacementSquare.Size = Vector3.new(1, 1, 1)
+    Autoplay.manualPlacementSquare.Material = Enum.Material.Plastic
+    Autoplay.manualPlacementSquare.Transparency = 0.3
+    Autoplay.manualPlacementSquare.CanCollide = false
+    Autoplay.manualPlacementSquare.CanQuery = false
+    Autoplay.manualPlacementSquare.CanTouch = false
+    Autoplay.manualPlacementSquare.Anchored = true
+    Autoplay.manualPlacementSquare.CastShadow = false
+    Autoplay.manualPlacementSquare.Color = Color3.fromRGB(75, 151, 75)
+    Autoplay.manualPlacementSquare.Parent = workspace.Ignore
+
+    Util.notify({ Title = "Manual Placement", Content = "Click to set Unit " .. slot .. " position", Duration = 3 })
+
+    -- Update square position every frame
+    Autoplay.manualPlacementConnection = Services.RunService.RenderStepped:Connect(function()
+        if not Autoplay.manualPlacementActive then return end
+        local pos, isValid = Autoplay.getMouseHit()
+        if pos then
+            Autoplay.manualPlacementSquare.CFrame = CFrame.new(pos)
+            Autoplay.manualPlacementSquare.Color = isValid 
+                and Color3.fromRGB(75, 151, 75) 
+                or Color3.fromRGB(255, 0, 0)
+        end
+    end)
+
+    -- Click to confirm
+    Autoplay.manualPlacementClickConn = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        local isTap = input.UserInputType == Enum.UserInputType.Touch
+        local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
+        if not (isClick or isTap) then return end
+
+        local pos, isValid = Autoplay.getMouseHit()
+        if pos and isValid then
+            State.AutoPlayUnitPositions[Autoplay.manualPlacementSlot] = pos
+            Util.notify({ Title = "Position Saved", Content = "Unit " .. slot .. " position set!", Duration = 3 })
+            Autoplay.endManualPlacement()
+        else
+            Util.notify({ Title = "Invalid Position", Content = "Place on a valid ground or hill tile", Duration = 2 })
+        end
+    end)
+end
+
+function Autoplay.endManualPlacement()
+    Autoplay.manualPlacementActive = false
+    Autoplay.manualPlacementSlot = nil
+
+    if Autoplay.manualPlacementConnection then
+        Autoplay.manualPlacementConnection:Disconnect()
+        Autoplay.manualPlacementConnection = nil
+    end
+
+    if Autoplay.manualPlacementClickConn then
+        Autoplay.manualPlacementClickConn:Disconnect()
+        Autoplay.manualPlacementClickConn = nil
+    end
+
+    if Autoplay.manualPlacementSquare and Autoplay.manualPlacementSquare.Parent then
+        Autoplay.manualPlacementSquare:Destroy()
+        Autoplay.manualPlacementSquare = nil
+    end
+end
+
 AutoPlayTab:CreateToggle({
     Name = "Enable Auto Place",
     CurrentValue = false,
@@ -5750,78 +5858,84 @@ AutoPlayTab:CreateSection("Manual Placement")
 AutoPlayTab:CreateButton({
     Name = "Set Unit 1 Position",
     Callback = function()
-        State.AutoPlayUnitPositions[1] = nil
+        Autoplay.beginManualPlacement(1)
     end,
 })
 AutoPlayTab:CreateButton({
     Name = "Reset Unit 1 Position",
     Callback = function()
         State.AutoPlayUnitPositions[1] = nil
+        Util.notify({ Title = "Reset", Content = "Unit 1 position cleared", Duration = 1.5 })
     end,
 })
 
 AutoPlayTab:CreateButton({
     Name = "Set Unit 2 Position",
     Callback = function()
-        State.AutoPlayUnitPositions[2] = nil
+        Autoplay.beginManualPlacement(2)
     end,
 })
 AutoPlayTab:CreateButton({
     Name = "Reset Unit 2 Position",
     Callback = function()
         State.AutoPlayUnitPositions[2] = nil
+        Util.notify({ Title = "Reset", Content = "Unit 2 position cleared", Duration = 1.5 })
     end,
 })
 
 AutoPlayTab:CreateButton({
     Name = "Set Unit 3 Position",
     Callback = function()
-        State.AutoPlayUnitPositions[3] = nil
+        Autoplay.beginManualPlacement(3)
     end,
 })
 AutoPlayTab:CreateButton({
     Name = "Reset Unit 3 Position",
     Callback = function()
         State.AutoPlayUnitPositions[3] = nil
+        Util.notify({ Title = "Reset", Content = "Unit 3 position cleared", Duration = 1.5 })
     end,
 })
 
 AutoPlayTab:CreateButton({
     Name = "Set Unit 4 Position",
     Callback = function()
-        State.AutoPlayUnitPositions[4] = nil
+        Autoplay.beginManualPlacement(4)
     end,
 })
 AutoPlayTab:CreateButton({
     Name = "Reset Unit 4 Position",
     Callback = function()
         State.AutoPlayUnitPositions[4] = nil
+        Util.notify({ Title = "Reset", Content = "Unit 4 position cleared", Duration = 1.5 })
     end,
 })
 
 AutoPlayTab:CreateButton({
     Name = "Set Unit 5 Position",
     Callback = function()
-        State.AutoPlayUnitPositions[5] = nil
+        Autoplay.beginManualPlacement(5)
     end,
 })
 AutoPlayTab:CreateButton({
     Name = "Reset Unit 5 Position",
     Callback = function()
         State.AutoPlayUnitPositions[5] = nil
+        Util.notify({ Title = "Reset", Content = "Unit 5 position cleared", Duration = 1.5 })
     end,
 })
 
 AutoPlayTab:CreateButton({
     Name = "Set Unit 6 Position",
     Callback = function()
-        State.AutoPlayUnitPositions[6] = nil
+        Autoplay.beginManualPlacement(6)
     end,
 })
 AutoPlayTab:CreateButton({
     Name = "Reset Unit 6 Position",
     Callback = function()
         State.AutoPlayUnitPositions[6] = nil
+        Util.notify({ Title = "Reset", Content = "Unit 6 position cleared", Duration = 1.5 })
     end,
 })
 
