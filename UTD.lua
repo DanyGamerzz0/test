@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.29"
+local script_version = "V0.3"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5787,6 +5787,78 @@ function Autoplay.endManualPlacement()
     end
 end
 
+function Autoplay.showAllPositions()
+    local hasAny = false
+    for i = 1, 6 do
+        if State.AutoPlayUnitPositions[i] then
+            hasAny = true
+            break
+        end
+    end
+
+    if not hasAny then
+        Util.notify({ Title = "No Positions Set", Content = "No unit positions have been saved yet", Duration = 3 })
+        return
+    end
+
+    local colors = {
+        Color3.fromRGB(255, 100, 100), -- Unit 1 - red
+        Color3.fromRGB(255, 180, 0),   -- Unit 2 - orange
+        Color3.fromRGB(255, 255, 0),   -- Unit 3 - yellow
+        Color3.fromRGB(0, 200, 100),   -- Unit 4 - green
+        Color3.fromRGB(0, 150, 255),   -- Unit 5 - blue
+        Color3.fromRGB(200, 0, 255),   -- Unit 6 - purple
+    }
+
+    local positionParts = {}
+
+    for i = 1, 6 do
+        local pos = State.AutoPlayUnitPositions[i]
+        if pos then
+            local part = Instance.new("Part")
+            part.Name = "AutoPlayPositionSquare"
+            part.Size = Vector3.new(1, 1, 1)
+            part.CFrame = CFrame.new(pos)
+            part.Color = colors[i]
+            part.Material = Enum.Material.Neon
+            part.Transparency = 0.3
+            part.CanCollide = false
+            part.CanQuery = false
+            part.CanTouch = false
+            part.Anchored = true
+            part.CastShadow = false
+            part.Parent = workspace.Ignore
+
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "UnitLabel"
+            billboard.Size = UDim2.new(0, 60, 0, 20)
+            billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+            billboard.AlwaysOnTop = true
+            billboard.Parent = part
+
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, 0, 1, 0)
+            label.BackgroundTransparency = 1
+            label.Text = "Unit " .. i
+            label.TextColor3 = Color3.fromRGB(255, 255, 255)
+            label.TextScaled = true
+            label.Font = Enum.Font.GothamBold
+            label.Parent = billboard
+
+            table.insert(positionParts, part)
+        end
+    end
+
+    task.delay(10, function()
+        for _, part in pairs(positionParts) do
+            if part and part.Parent then
+                part:Destroy()
+            end
+        end
+        positionParts = {}
+    end)
+end
+
 AutoPlayTab:CreateToggle({
     Name = "Enable Auto Place",
     CurrentValue = false,
@@ -5959,7 +6031,9 @@ AutoPlayTab:CreateButton({
 
 AutoPlayTab:CreateButton({
     Name = "Show All Positions",
-    Callback = function() end,
+    Callback = function()
+        Autoplay.showAllPositions()
+    end,
 })
 
 -- ============================================
