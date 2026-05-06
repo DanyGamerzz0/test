@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.44"
+local script_version = "V0.45"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6257,12 +6257,9 @@ function Autoplay.startAutoPlace()
 
             local squares = Autoplay.getValidSquaresInCircle()
             if #squares == 0 then
-                print("No valid squares found in area")
                 task.wait(1)
                 continue
             end
-
-            print(string.format("Found %d valid squares", #squares))
 
             -- Build slot order, farm units first if Focus Farm enabled
             local slots = {}
@@ -6805,7 +6802,7 @@ AutoPlayTab:CreateToggle({
 AutoPlayTab:CreateToggle({
     Name = "Focus On Farm Units",
     CurrentValue = false,
-    Flag = "AutoPlayFocusFarmUnits",
+    Flag = "AutoPlayFocusFarmUnitsUpgrade",
     Callback = function(Value)
         State.AutoPlayFocusFarmUnitsUpgrade = Value
     end,
