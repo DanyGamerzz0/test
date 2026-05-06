@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.38"
+local script_version = "V0.39"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -7170,6 +7170,12 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     if wave >= 1 and not gameInProgress then
         gameInProgress = true
         gameStartTime = tick()
+        autoPlayUsedPositions = {}
+            if State.AutoPlayEnableAutoPlace then
+            Autoplay.stopAutoPlace()
+            task.wait(0.5)
+            Autoplay.startAutoPlace()
+        end
         currentGameInfo = {
             MapName = workspace:GetAttribute("MapName") or "Unknown",
             Act = workspace:GetAttribute("ActName") or "Unknown",
