@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.36"
+local script_version = "V0.37"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1280,6 +1280,21 @@ function Playback.waitForMoney(requiredAmount, actionDescription)
             Util.updateDetailedStatus(string.format("Waiting: ¥%d / ¥%d (%s)", currentMoney, requiredAmount, actionDescription))
             lastUpdateTime = tick()
         end
+    end
+end
+
+function Autoplay.waitForMoney(requiredAmount, actionDescription)
+    local currentMoney = Util.getPlayerMoney()
+    if not currentMoney or currentMoney >= requiredAmount then return true end
+    while true do
+        local matchFinished = workspace:GetAttribute("MatchFinished")
+        if not State.AutoPlayEnableAutoPlace or not gameInProgress or matchFinished then
+            return false
+        end
+        task.wait(1)
+        currentMoney = Util.getPlayerMoney()
+        if not currentMoney or currentMoney >= requiredAmount then return true end
+        Util.updateDetailedStatus(string.format("Waiting: ¥%d / ¥%d (%s)", currentMoney, requiredAmount, actionDescription))
     end
 end
 
@@ -6069,19 +6084,15 @@ function Autoplay.getPathDistanceForPosition(pos)
 end
 
 function Autoplay.isPositionOccupied(pos)
-    if not PlacedTowerController then return false end
-    local towers = PlacedTowerController:GetTowers()
-    for _, tower in pairs(towers) do
-        if tower.Model then
-            local ok, towerPos = pcall(function()
-                return tower.Model.PrimaryPart and tower.Model.PrimaryPart.Position
-            end)
-            if ok and towerPos then
-                local flatTower = Vector3.new(towerPos.X, 0, towerPos.Z)
-                local flatPos = Vector3.new(pos.X, 0, pos.Z)
-                if (flatTower - flatPos).Magnitude < 2 then
-                    return true
-                end
+    local unitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
+    if not unitsFolder then return false end
+    local flatPos = Vector3.new(pos.X, 0, pos.Z)
+    for _, unit in pairs(unitsFolder:GetChildren()) do
+        local root = unit:FindFirstChild("HumanoidRootPart") or unit:FindFirstChildWhichIsA("BasePart")
+        if root then
+            local flatUnit = Vector3.new(root.Position.X, 0, root.Position.Z)
+            if (flatUnit - flatPos).Magnitude < 2.5 then
+                return true
             end
         end
     end
@@ -6204,7 +6215,7 @@ function Autoplay.tryPlaceUnit(slot, unitData, squares)
     end
 
     if placementCost > 0 then
-        local canContinue = Playback.waitForMoney(placementCost, unitData.UnitId)
+        local canContinue = Autoplay.waitForMoney(placementCost, unitData.UnitId)
         if not canContinue then return false end
     end
 
