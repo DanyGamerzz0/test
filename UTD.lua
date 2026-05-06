@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.47"
+local script_version = "V0.48"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6405,10 +6405,28 @@ function Autoplay.startAutoUpgrade()
             end
 
             -- Sort: farm first if enabled, then by lowest level (no unit left behind)
-            table.sort(candidates, function(a, b)
-                if State.AutoPlayFocusFarmUnitsUpgrade then
-                    if a.isFarm ~= b.isFarm then return a.isFarm end
+            local farmNotMaxed = false
+            if State.AutoPlayFocusFarmUnitsUpgrade then
+                for _, candidate in ipairs(candidates) do
+                    if candidate.isFarm and candidate.level < candidate.cap then
+                        farmNotMaxed = true
+                        break
+                    end
                 end
+                -- If farms aren't maxed yet, filter out non-farm candidates
+                if farmNotMaxed then
+                    local farmOnly = {}
+                    for _, candidate in ipairs(candidates) do
+                        if candidate.isFarm then
+                            table.insert(farmOnly, candidate)
+                        end
+                    end
+                    candidates = farmOnly
+                end
+            end
+
+            -- Sort by lowest level (no unit left behind)
+            table.sort(candidates, function(a, b)
                 return a.level < b.level
             end)
 
@@ -7625,69 +7643,6 @@ task.spawn(MacroIO.loadAutoPlayPositions)
 task.spawn(function()
     task.wait(2)
     createAutoSelectDropdowns()
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(3)
-        if not gameInProgress then continue end
-        if not PlacedTowerController then print("❌ PlacedTowerController nil") continue end
-        
-        local towers = PlacedTowerController:GetTowers()
-        print("=== AUTO UPGRADE DEBUG ===")
-        print("gameInProgress:", gameInProgress)
-        print("AutoPlayEnableAutoUpgrade:", State.AutoPlayEnableAutoUpgrade)
-        
-        for guid, tower in pairs(towers) do
-            local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or "UNKNOWN"
-            local cleanId = Util.cleanUnitName(towerId)
-            local freshData = UnitTracker.findDataInGC(guid)
-            local currentLevel = (freshData and freshData.Upgrade) or 1
-            
-            -- Find slot
-            local slot = nil
-            for i = 1, 6 do
-                local unitData = Autoplay.getSlotUnitData(i)
-                if unitData and unitData.UnitId == cleanId then
-                    slot = i
-                    break
-                end
-            end
-            
-            if not slot then
-                print(string.format("  [%s] cleanId=%s → NO SLOT FOUND", guid:sub(1,8), cleanId))
-                continue
-            end
-            
-            local unitData = Autoplay.getSlotUnitData(slot)
-            local effectiveCap = unitData and Autoplay.getEffectiveUpgradeCap(slot, unitData) or -1
-            local upgradeOnWave = Autoplay.getUpgradeOnWave(slot)
-            local currentWave = workspace:GetAttribute("Wave") or 0
-            local waveOk = upgradeOnWave == 0 or currentWave >= upgradeOnWave
-            local isFarm = unitData and unitData.IsFarm or false
-            
-            -- Get raw upgrades count from module
-            local rawUpgradesCount = -1
-            pcall(function()
-                local mod = require(game:GetService("ReplicatedStorage").Shared.Data.Towers:FindFirstChild(cleanId))
-                if mod and mod.Stats and mod.Stats.Upgrades then
-                    rawUpgradesCount = #mod.Stats.Upgrades
-                end
-            end)
-            
-            -- Fresh data from GC
-            local freshData = UnitTracker.findDataInGC(guid)
-            local freshLevel = freshData and freshData.Upgrade or -1
-            
-            print(string.format(
-                "  [slot%d] %s | rawLvl=%d freshLvl=%d | cap=%d | rawUpgrades=%d | waveOk=%s | farm=%s | wouldSkip=%s",
-                slot, cleanId, currentLevel, freshLevel, effectiveCap, rawUpgradesCount,
-                tostring(waveOk), tostring(isFarm),
-                tostring(freshLevel >= effectiveCap)
-            ))
-        end
-        print("==========================")
-    end
 end)
 
 Rayfield:LoadConfiguration()
