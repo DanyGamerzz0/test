@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.3"
+local script_version = "V0.31"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3823,6 +3823,20 @@ function MacroIO.saveWorldMappings()
     print("✓ Saved world macro mappings")
 end
 
+function MacroIO.saveAutoPlayPositions()
+    MacroIO.ensureFolders()
+    local playerName = Services.Players.LocalPlayer.Name
+    local fileName = string.format("LixHub/%s_AutoplayPositions_UTD.json", playerName)
+    local data = {}
+    for i = 1, 6 do
+        if State.AutoPlayUnitPositions[i] then
+            local pos = State.AutoPlayUnitPositions[i]
+            data[i] = { X = pos.X, Y = pos.Y, Z = pos.Z }
+        end
+    end
+    writefile(fileName, Services.HttpService:JSONEncode(data))
+end
+
 function MacroIO.loadWorldMappings()
     MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
@@ -3832,6 +3846,23 @@ function MacroIO.loadWorldMappings()
     local data = game:GetService("HttpService"):JSONDecode(json)
     print("✓ Loaded world macro mappings")
     return data or {}
+end
+
+function MacroIO.loadAutoPlayPositions()
+    MacroIO.ensureFolders()
+    local playerName = Services.Players.LocalPlayer.Name
+    local filePath = string.format("LixHub/%s_AutoplayPositions_UTD.json", playerName)
+    if not isfile(filePath) then return end
+    local ok, data = pcall(function()
+        return Services.HttpService:JSONDecode(readfile(filePath))
+    end)
+    if not ok or not data then return end
+    for i = 1, 6 do
+        if data[i] then
+            State.AutoPlayUnitPositions[i] = Vector3.new(data[i].X, data[i].Y, data[i].Z)
+        end
+    end
+    print("✓ Loaded autoplay positions")
 end
 
 local function refreshAllWorldDropdowns()
@@ -5759,6 +5790,7 @@ function Autoplay.beginManualPlacement(slot)
         local pos, isValid = Autoplay.getMouseHit()
         if pos and isValid then
             State.AutoPlayUnitPositions[Autoplay.manualPlacementSlot] = pos
+            MacroIO.saveAutoPlayPositions()
             Util.notify({ Title = "Position Saved", Content = "Unit " .. slot .. " position set!", Duration = 3 })
             Autoplay.endManualPlacement()
         else
@@ -5955,6 +5987,7 @@ AutoPlayTab:CreateButton({
     Name = "Reset Unit 1 Position",
     Callback = function()
         State.AutoPlayUnitPositions[1] = nil
+        MacroIO.saveAutoPlayPositions()
         Util.notify({ Title = "Reset", Content = "Unit 1 position cleared", Duration = 1.5 })
     end,
 })
@@ -5969,6 +6002,7 @@ AutoPlayTab:CreateButton({
     Name = "Reset Unit 2 Position",
     Callback = function()
         State.AutoPlayUnitPositions[2] = nil
+        MacroIO.saveAutoPlayPositions()
         Util.notify({ Title = "Reset", Content = "Unit 2 position cleared", Duration = 1.5 })
     end,
 })
@@ -5983,6 +6017,7 @@ AutoPlayTab:CreateButton({
     Name = "Reset Unit 3 Position",
     Callback = function()
         State.AutoPlayUnitPositions[3] = nil
+        MacroIO.saveAutoPlayPositions()
         Util.notify({ Title = "Reset", Content = "Unit 3 position cleared", Duration = 1.5 })
     end,
 })
@@ -5997,6 +6032,7 @@ AutoPlayTab:CreateButton({
     Name = "Reset Unit 4 Position",
     Callback = function()
         State.AutoPlayUnitPositions[4] = nil
+        MacroIO.saveAutoPlayPositions()
         Util.notify({ Title = "Reset", Content = "Unit 4 position cleared", Duration = 1.5 })
     end,
 })
@@ -6011,6 +6047,7 @@ AutoPlayTab:CreateButton({
     Name = "Reset Unit 5 Position",
     Callback = function()
         State.AutoPlayUnitPositions[5] = nil
+        MacroIO.saveAutoPlayPositions()
         Util.notify({ Title = "Reset", Content = "Unit 5 position cleared", Duration = 1.5 })
     end,
 })
@@ -6025,6 +6062,7 @@ AutoPlayTab:CreateButton({
     Name = "Reset Unit 6 Position",
     Callback = function()
         State.AutoPlayUnitPositions[6] = nil
+        MacroIO.saveAutoPlayPositions()
         Util.notify({ Title = "Reset", Content = "Unit 6 position cleared", Duration = 1.5 })
     end,
 })
@@ -6982,6 +7020,7 @@ task.spawn(Loader.virtualStages)
 task.spawn(Loader.challengeModifiers)
 task.spawn(Loader.raidStages)
 task.spawn(Loader.portalItems)
+task.spawn(MacroIO.loadAutoPlayPositions())
 
 task.spawn(function()
     task.wait(2)
