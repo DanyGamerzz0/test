@@ -2301,7 +2301,7 @@ function Util.getCurrentWorldKey()
         end
     end
 
-    if categoryLower == "legend" then
+    if categoryLower == "legendstage" then
         if mapInternal then return "legend_" .. mapInternal:lower() end
         local moduleName = UINameToModuleName[mapName]
         if moduleName then return "legend_" .. moduleName:lower() end
@@ -5208,6 +5208,10 @@ function Playback.checkAndSwitchMacroForCurrentWorld()
     local category = workspace:GetAttribute("Category")
     local mapName = workspace:GetAttribute("MapName")
     if not category or not mapName then return false end
+    local deadline = tick() + 10
+    while (not workspace:GetAttribute("Category") or not workspace:GetAttribute("MapName")) and tick() < deadline do
+        task.wait(0.5)
+    end
     local worldKey = Util.getCurrentWorldKey()
     if not worldKey then return false end
     if worldMacroMappings[worldKey] then
@@ -7651,6 +7655,12 @@ task.spawn(function()
         if State.AutoStartGame then
             local currentWave = workspace:GetAttribute("Wave") or 0
             if currentWave == 0 then
+                -- Wait for map attributes to load
+                local deadline = tick() + 10
+                while (not workspace:GetAttribute("Category") or not workspace:GetAttribute("MapName")) and tick() < deadline do
+                    task.wait(0.5)
+                end
+                
                 if isPlaybackEnabled then Playback.checkAndSwitchMacroForCurrentWorld() task.wait(0.5) end
                 task.wait(2)
                 local success = pcall(function()
