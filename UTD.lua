@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.35"
+local script_version = "V0.36"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -199,6 +199,7 @@ manualRayParams.FilterDescendantsInstances = { workspace.Ignore }
 manualRayParams.FilterType = Enum.RaycastFilterType.Exclude
 manualRayParams.CollisionGroup = "Tower"
 manualRayParams.RespectCanCollide = false
+local autoPlaceRunning = false
 
 local RagnarokState = {
     AutoPickEnabled = false,
@@ -5760,6 +5761,7 @@ function Autoplay.getSlotUnitData(slot)
         local placementLimit = isRuler and 1 or (moduleData.Stats.Placement or 1)
         local isGround = moduleData.Stats.Ground or false
         local isHill = moduleData.Stats.Hill or false
+        local isFarm = moduleData.Stats.IsFarm or false
 
         return {
             UnitId = cleanId,
@@ -5767,6 +5769,7 @@ function Autoplay.getSlotUnitData(slot)
             IsGround = isGround,
             IsHill = isHill,
             IsRuler = isRuler,
+            IsFarm = isFarm,
         }
     end)
 
@@ -5979,6 +5982,319 @@ function Autoplay.showAllPositions()
     end)
 end
 
+function Autoplay.getValidSquaresInCircle()
+    local center = Autoplay.getCircleCenter()
+    if not center then return {} end
+
+    local flatCenter = Vector3.new(center.X, 0, center.Z)
+    local groundRadius = (State.AutoPlayGroundPercentage / 100) * 35
+    local hillRadius = (State.AutoPlayHillPercentage / 100) * 35
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = { workspace.Ignore }
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.CollisionGroup = "Tower"
+    rayParams.RespectCanCollide = false
+
+    local squares = {}
+    local stepSize = 2.5
+    local floorY = center.Y + 50
+
+    local function addSquare(pos, isHill)
+        table.insert(squares, {
+            Position = pos,
+            IsHill = isHill,
+            IsGround = not isHill,
+        })
+    end
+
+    -- Ground squares
+    for x = -groundRadius, groundRadius, stepSize do
+        for z = -groundRadius, groundRadius, stepSize do
+            if Vector3.new(x, 0, z).Magnitude <= groundRadius then
+                local origin = Vector3.new(center.X + x, floorY, center.Z + z)
+                local result = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
+                if result then
+                    local ok, floor = pcall(function() return workspace.Map:FindFirstChild("RealFloor", true) end)
+                    if ok and floor and (result.Instance == floor or result.Instance:IsDescendantOf(floor)) then
+                        addSquare(result.Position, false)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Hill squares
+    for x = -hillRadius, hillRadius, stepSize do
+        for z = -hillRadius, hillRadius, stepSize do
+            if Vector3.new(x, 0, z).Magnitude <= hillRadius then
+                local origin = Vector3.new(center.X + x, floorY, center.Z + z)
+                local result = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
+                if result then
+                    local isHill = result.Instance:HasTag("HillPlacement") or
+                        (result.Instance.Parent and result.Instance.Parent:HasTag("HillPlacement"))
+                    if isHill then
+                        addSquare(result.Position, true)
+                    end
+                end
+            end
+        end
+    end
+
+    return squares
+end
+
+function Autoplay.getPathDistanceForPosition(pos)
+    local PathManager = require(game:GetService("ReplicatedStorage").Shared.Modules.PathManager)
+    local points, segStarts, segLengths, totalLength = PathManager.GetPathData()
+    if not points or #points == 0 then return math.huge end
+
+    local flatPos = Vector3.new(pos.X, 0, pos.Z)
+    local closestDist = math.huge
+
+    for i = 1, #points - 1 do
+        local a = Vector3.new(points[i].X, 0, points[i].Z)
+        local b = Vector3.new(points[i+1].X, 0, points[i+1].Z)
+        local ab = b - a
+        local ap = flatPos - a
+        local t = math.clamp(ap:Dot(ab) / ab:Dot(ab), 0, 1)
+        local closest = a + ab * t
+        local dist = (flatPos - closest).Magnitude
+        if dist < closestDist then
+            closestDist = dist
+        end
+    end
+
+    return closestDist
+end
+
+function Autoplay.isPositionOccupied(pos)
+    if not PlacedTowerController then return false end
+    local towers = PlacedTowerController:GetTowers()
+    for _, tower in pairs(towers) do
+        if tower.Model then
+            local ok, towerPos = pcall(function()
+                return tower.Model.PrimaryPart and tower.Model.PrimaryPart.Position
+            end)
+            if ok and towerPos then
+                local flatTower = Vector3.new(towerPos.X, 0, towerPos.Z)
+                local flatPos = Vector3.new(pos.X, 0, pos.Z)
+                if (flatTower - flatPos).Magnitude < 2 then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+function Autoplay.findNearestValidSquare(squares, unitData, excludePositions)
+    excludePositions = excludePositions or {}
+
+    -- Filter by unit type
+    local filtered = {}
+    for _, square in pairs(squares) do
+        local typeOk = (unitData.IsGround and square.IsGround) or (unitData.IsHill and square.IsHill)
+        if typeOk then
+            table.insert(filtered, square)
+        end
+    end
+
+    -- Sort by path proximity
+    table.sort(filtered, function(a, b)
+        return Autoplay.getPathDistanceForPosition(a.Position) < Autoplay.getPathDistanceForPosition(b.Position)
+    end)
+
+    -- Find first unoccupied spot not in excludePositions
+    for _, square in pairs(filtered) do
+        if not Autoplay.isPositionOccupied(square.Position) then
+            local excluded = false
+            for _, exPos in pairs(excludePositions) do
+                if (Vector3.new(square.Position.X, 0, square.Position.Z) - Vector3.new(exPos.X, 0, exPos.Z)).Magnitude < 2 then
+                    excluded = true
+                    break
+                end
+            end
+            if not excluded then
+                return square.Position
+            end
+        end
+    end
+
+    return nil
+end
+
+function Autoplay.getPlacedCountForSlot(slot)
+    if not PlacedTowerController then return 0 end
+    local unitData = Autoplay.getSlotUnitData(slot)
+    if not unitData then return 0 end
+
+    local count = 0
+    local towers = PlacedTowerController:GetTowers()
+    for _, tower in pairs(towers) do
+        local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
+        if Util.cleanUnitName(towerId) == unitData.UnitId then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Autoplay.getEffectivePlacementCap(slot, unitData)
+    local userCap = ({
+        State.AutoPlayPlaceCap1,
+        State.AutoPlayPlaceCap2,
+        State.AutoPlayPlaceCap3,
+        State.AutoPlayPlaceCap4,
+        State.AutoPlayPlaceCap5,
+        State.AutoPlayPlaceCap6,
+    })[slot] or unitData.PlacementLimit
+
+    -- User cap cant exceed unit's own limit
+    return math.min(userCap, unitData.PlacementLimit)
+end
+
+function Autoplay.getPlaceOnWave(slot)
+    return ({
+        State.AutoPlayPlaceOnWaveUnit1,
+        State.AutoPlayPlaceOnWaveUnit2,
+        State.AutoPlayPlaceOnWaveUnit3,
+        State.AutoPlayPlaceOnWaveUnit4,
+        State.AutoPlayPlaceOnWaveUnit5,
+        State.AutoPlayPlaceOnWaveUnit6,
+    })[slot] or 0
+end
+
+function Autoplay.tryPlaceUnit(slot, unitData, squares)
+    local currentWave = workspace:GetAttribute("Wave") or 0
+    local placeOnWave = Autoplay.getPlaceOnWave(slot)
+
+    -- Check wave restriction
+    if placeOnWave > 0 and currentWave < placeOnWave then return false end
+
+    local effectiveCap = Autoplay.getEffectivePlacementCap(slot, unitData)
+    local alreadyPlaced = Autoplay.getPlacedCountForSlot(slot)
+
+    if alreadyPlaced >= effectiveCap then return false end
+
+    -- Check if manual position is set
+    local targetPos = nil
+    local usedPositions = {}
+
+    if State.AutoPlayUnitPositions[slot] then
+        targetPos = State.AutoPlayUnitPositions[slot]
+        if Autoplay.isPositionOccupied(targetPos) then
+            -- Manual position occupied, find nearest valid instead
+            targetPos = Autoplay.findNearestValidSquare(squares, unitData, usedPositions)
+        end
+    else
+        targetPos = Autoplay.findNearestValidSquare(squares, unitData, usedPositions)
+    end
+
+    if not targetPos then return false end
+
+    -- Check cost
+    local placementCost = 0
+    local towerModule = Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(unitData.UnitId)
+    if towerModule then
+        local ok, data = pcall(require, towerModule)
+        if ok and data and data.Stats and data.Stats.Upgrades then
+            placementCost = data.Stats.Upgrades[1].Cost or 0
+        end
+    end
+
+    if placementCost > 0 then
+        local canContinue = Playback.waitForMoney(placementCost, unitData.UnitId)
+        if not canContinue then return false end
+    end
+
+    -- Find the slot number
+    local slotNum = UnitTracker.getSlotForUnit(unitData.UnitId)
+    if not slotNum then return false end
+
+    local cframe = CFrame.new(targetPos)
+    local success = pcall(function()
+        TowerService:WaitForChild("PlaceUnit"):InvokeServer(slotNum, cframe)
+    end)
+
+    if success then
+        table.insert(usedPositions, targetPos)
+        return true
+    end
+
+    return false
+end
+
+function Autoplay.startAutoPlace()
+    if autoPlaceRunning then return end
+    autoPlaceRunning = true
+
+    task.spawn(function()
+        while State.AutoPlayEnableAutoPlace and gameInProgress do
+            local matchFinished = workspace:GetAttribute("MatchFinished")
+            if matchFinished then break end
+
+            local currentWave = workspace:GetAttribute("Wave") or 0
+            if currentWave < 1 then
+                task.wait(0.5)
+                continue
+            end
+
+            local squares = Autoplay.getValidSquaresInCircle()
+            if #squares == 0 then
+                task.wait(1)
+                continue
+            end
+
+            -- Build slot order, farm units first if Focus Farm enabled
+            local slots = {}
+            for i = 1, 6 do
+                local unitData = Autoplay.getSlotUnitData(i)
+                if unitData then
+                    table.insert(slots, { slot = i, unitData = unitData })
+                end
+            end
+
+            if State.AutoPlayFocusFarmUnits then
+                table.sort(slots, function(a, b)
+                    local aFarm = a.unitData.IsFarm or false
+                    local bFarm = b.unitData.IsFarm or false
+                    if aFarm ~= bFarm then return aFarm end
+                    return a.slot < b.slot
+                end)
+            end
+
+            local allPlaced = true
+            for _, entry in pairs(slots) do
+                local effectiveCap = Autoplay.getEffectivePlacementCap(entry.slot, entry.unitData)
+                local alreadyPlaced = Autoplay.getPlacedCountForSlot(entry.slot)
+                local placeOnWave = Autoplay.getPlaceOnWave(entry.slot)
+                local currentWaveCheck = workspace:GetAttribute("Wave") or 0
+
+                local waveOk = placeOnWave == 0 or currentWaveCheck >= placeOnWave
+
+                if waveOk and alreadyPlaced < effectiveCap then
+                    allPlaced = false
+                    Autoplay.tryPlaceUnit(entry.slot, entry.unitData, squares)
+                    task.wait(0.5)
+                end
+            end
+
+            if allPlaced then
+                task.wait(2)
+            else
+                task.wait(0.5)
+            end
+        end
+
+        autoPlaceRunning = false
+    end)
+end
+
+function Autoplay.stopAutoPlace()
+    autoPlaceRunning = false
+end
+
 AutoPlayTab:CreateToggle({
     Name = "Enable Hologram",
     CurrentValue = false,
@@ -6153,6 +6469,11 @@ AutoPlayTab:CreateToggle({
     Flag = "AutoPlayEnableAutoPlace",
     Callback = function(Value)
         State.AutoPlayEnableAutoPlace = Value
+        if Value and gameInProgress then
+            Autoplay.startAutoPlace()
+        else
+            Autoplay.stopAutoPlace()
+        end
     end,
 })
 
