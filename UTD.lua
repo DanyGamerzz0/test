@@ -5495,6 +5495,9 @@ function Playback.autoPlaybackLoop()
 
         -- Always check world mapping FIRST before anything else
         local worldKey = Util.getCurrentWorldKey()
+        print("WorldKey:", worldKey)
+        print("WorldMapping:", worldMacroMappings[worldKey])
+        print("CurrentMacroName:", currentMacroName)
         if worldKey and worldMacroMappings[worldKey] then
             local macroToLoad = worldMacroMappings[worldKey]
             if currentMacroName ~= macroToLoad then
