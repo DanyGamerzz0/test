@@ -2284,6 +2284,10 @@ function Util.getCurrentWorldKey()
     if not category or not mapName then return nil end
     local categoryLower = category:lower()
 
+    if categoryLower == "story" and mapInternal == "Winter" then
+    return "winter_event"
+    end
+
     if categoryLower == "story" then
         return "challenge_" .. mapName:lower():gsub("%s+", "_")
     end
@@ -2328,10 +2332,6 @@ function Util.getCurrentWorldKey()
     if categoryLower == "rift" then
         if mapInternal == "Shinjuku" then return "universal_tear_gojo" end
         if mapInternal == "???" then return "universal_tear_sukuna" end
-    end
-
-    if categoryLower == "story" and mapInternal == "Winter" then
-        return "winter_event"
     end
 
     return nil
