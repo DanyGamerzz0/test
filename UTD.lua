@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.61"
+local script_version = "V0.09"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2330,6 +2330,10 @@ function Util.getCurrentWorldKey()
         if mapInternal == "???" then return "universal_tear_sukuna" end
     end
 
+    if categoryLower == "story" and mapInternal == "Winter" then
+        return "winter_event"
+    end
+
     return nil
 end
 
@@ -4185,6 +4189,7 @@ local function createAutoSelectDropdowns()
             { key = "ant_king_lair", name = "Ant King Lair" },
             { key = "universal_tear_gojo", name = "Universal Tear (Gojo)" },
             { key = "universal_tear_sukuna", name = "Universal Tear (Sukuna)" },
+            { key = "winter_event", name = "Winter Event" },
         }
         for _, event in ipairs(eventMaps) do
             local currentMapping = worldMacroMappings[event.key] or "None"
