@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.5"
+local script_version = "V0.51"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2077,34 +2077,41 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
         local rewards = {}
         local hasUnitDrop = false
         if finishedRewardData and finishedRewardData.rewards then
-            local rewardData = finishedRewardData.rewards
-            for rewardKey, rewardValue in pairs(rewardData) do
-                if type(rewardValue) == "number" and rewardValue > 0 then
-                    local friendlyName = rewardKey
-                    if rewardKey == "Experience" then friendlyName = "XP"
-                    elseif rewardKey == "SpiritSouls" then friendlyName = "Spirit Souls" end
-                    rewards[friendlyName] = rewardValue
-                elseif type(rewardValue) == "table" and rewardKey == "Relics" then
-                    for relicKey, relicData in pairs(rewardValue) do
-                        local relicName = (relicKey:match("^[^:]+:(.+)$") or relicKey):gsub("^%d+Star_", "")
-                        local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
-                        if relicData.Stars then displayName = displayName .. string.format(" ⭐%d", relicData.Stars) end
-                        rewards[displayName] = relicData.Amount or 1
-                    end
-                elseif type(rewardValue) == "table" and rewardKey == "Unit" then
-                    if rewardValue.Unit and rewardValue.Rarity then
-                        hasUnitDrop = true
-                        rewards[string.format("[%s] %s", rewardValue.Rarity, rewardValue.Unit)] = 1
-                    end
+    local rewardData = finishedRewardData.rewards
+    for rewardKey, rewardValue in pairs(rewardData) do
+        -- Handle numeric rewards (Gold, Gems, XP, etc.)
+        if type(rewardValue) == "number" and rewardValue > 0 then
+            local friendlyName = rewardKey
+            if rewardKey == "Experience" then friendlyName = "XP"
+            elseif rewardKey == "SpiritSouls" then friendlyName = "Spirit Souls" end
+            rewards[friendlyName] = rewardValue
+        
+        -- Handle table-based rewards
+        elseif type(rewardValue) == "table" then
+            -- Relics
+            if rewardKey == "Relics" then
+                for relicKey, relicData in pairs(rewardValue) do
+                    local relicName = (relicKey:match("^[^:]+:(.+)$") or relicKey):gsub("^%d+Star_", "")
+                    local displayName = string.format("%s (%s)", relicName, relicData.Rarity)
+                    if relicData.Stars then displayName = displayName .. string.format(" ⭐%d", relicData.Stars) end
+                    rewards[displayName] = relicData.Amount or 1
                 end
-            end
-        else
-            if beforeRewardData and afterRewardData then
-                rewards = Webhook.getRewards(beforeRewardData, afterRewardData)
-                hasUnitDrop = rewards["__UNIT_DROP__"]
-                rewards["__UNIT_DROP__"] = nil
+            
+            -- Unit drops
+            elseif rewardKey == "Unit" then
+                if rewardValue.Unit and rewardValue.Rarity then
+                    hasUnitDrop = true
+                    rewards[string.format("[%s] %s", rewardValue.Rarity, rewardValue.Unit)] = 1
+                end
+            
+            -- Generic items with ID/Rarity/Amount structure (Kunai, Keys, etc.)
+            elseif rewardValue.ID and rewardValue.Rarity and rewardValue.Amount then
+                local displayName = string.format("[%s] %s", rewardValue.Rarity, rewardKey)
+                rewards[displayName] = rewardValue.Amount
             end
         end
+    end
+end
         finishedRewardData = nil
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -2114,7 +2121,7 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
             -- Direct attribute currencies
             local attrMap = {
                 ["Gems"]          = "Gems",
-                ["Coins"]         = "Coins",
+                ["Gold"]         = "Coins",
                 ["IceGifts"]      = "IceGifts",
                 ["Rerolls"]       = "Rerolls",
                 ["SpiritSouls"]   = "SpiritSouls",
