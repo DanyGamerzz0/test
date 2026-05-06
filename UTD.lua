@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.23"
+local script_version = "V0.24"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5544,30 +5544,25 @@ function Autoplay.showPlacementSquares()
     local groundRadius = (State.AutoPlayGroundPercentage / 100) * 37.5
     local hillRadius = (State.AutoPlayHillPercentage / 100) * 23.717
 
-    local CollectionService = game:GetService("CollectionService")
-
-    -- Hill squares from CollectionService tagged parts
-    for _, tagged in pairs(CollectionService:GetTagged("Placement")) do
-        if tagged:HasTag("HillPlacement") then
-            local place = tagged:FindFirstChild("Place")
-            if place and place:IsA("BasePart") then
-                local flatPart = Vector3.new(place.Position.X, 0, place.Position.Z)
-                if (flatPart - flatCenter).Magnitude <= hillRadius then
-                    local highlight = Instance.new("Part")
-                    highlight.Name = "AutoPlaySquare"
-                    highlight.Size = place.Size
-                    highlight.CFrame = place.CFrame
-                    highlight.Color = Color3.fromRGB(13, 105, 172)
-                    highlight.Material = Enum.Material.Plastic
-                    highlight.Transparency = 0.3
-                    highlight.CanCollide = false
-                    highlight.CanQuery = false
-                    highlight.CanTouch = false
-                    highlight.Anchored = true
-                    highlight.CastShadow = false
-                    highlight.Parent = workspace.Ignore
-                    table.insert(placementSquares, highlight)
-                end
+    -- Hill squares directly from workspace.Ignore.HillPlacement
+    for _, part in pairs(workspace.Ignore.HillPlacement:GetChildren()) do
+        if part:IsA("BasePart") and part.Name == "Place" then
+            local flatPart = Vector3.new(part.Position.X, 0, part.Position.Z)
+            if (flatPart - flatCenter).Magnitude <= hillRadius then
+                local highlight = Instance.new("Part")
+                highlight.Name = "AutoPlaySquare"
+                highlight.Size = Vector3.new(part.Size.X, part.Size.Y, part.Size.Z)
+                highlight.CFrame = part.CFrame * CFrame.new(0, 0.5, 0)
+                highlight.Color = Color3.fromRGB(13, 105, 172)
+                highlight.Material = Enum.Material.Plastic
+                highlight.Transparency = 0.3
+                highlight.CanCollide = false
+                highlight.CanQuery = false
+                highlight.CanTouch = false
+                highlight.Anchored = true
+                highlight.CastShadow = false
+                highlight.Parent = workspace.Ignore
+                table.insert(placementSquares, highlight)
             end
         end
     end
@@ -5579,8 +5574,8 @@ function Autoplay.showPlacementSquares()
     rayParams.CollisionGroup = "Tower"
     rayParams.RespectCanCollide = false
 
-    local stepSize = 1.5 -- grid density, matches ~1x1 square size
-    local floorY = center.Y + 50 -- raycast from above
+    local stepSize = 3
+    local floorY = center.Y + 50
 
     for x = -groundRadius, groundRadius, stepSize do
         for z = -groundRadius, groundRadius, stepSize do
@@ -5592,22 +5587,20 @@ function Autoplay.showPlacementSquares()
                 local result = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
                 if result then
                     local hit = result.Instance
-                    -- Check it hit the floor and not a hill
-                    local isFloor = hit:HasTag("Placement") and not hit:HasTag("HillPlacement")
-                    if not isFloor then
-                        -- also check via CollectionService for the RealFloor
-                        local ok, floor = pcall(function()
-                            return workspace.Map:FindFirstChild("RealFloor", true)
-                        end)
-                        if ok and floor and (hit == floor or hit:IsDescendantOf(floor)) then
-                            isFloor = true
-                        end
+                    local isFloor = false
+
+                    local ok, floor = pcall(function()
+                        return workspace.Map:FindFirstChild("RealFloor", true)
+                    end)
+                    if ok and floor and (hit == floor or hit:IsDescendantOf(floor)) then
+                        isFloor = true
                     end
+
                     if isFloor then
                         local highlight = Instance.new("Part")
                         highlight.Name = "AutoPlaySquare"
-                        highlight.Size = Vector3.new(1, 0.1, 1)
-                        highlight.CFrame = CFrame.new(result.Position + Vector3.new(0, 0.05, 0))
+                        highlight.Size = Vector3.new(2, 0.5, 2)
+                        highlight.CFrame = CFrame.new(result.Position + Vector3.new(0, 0.75, 0))
                         highlight.Color = Color3.fromRGB(75, 151, 75)
                         highlight.Material = Enum.Material.Plastic
                         highlight.Transparency = 0.3
