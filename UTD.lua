@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.22"
+local script_version = "V0.23"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5525,6 +5525,13 @@ function Autoplay.hidePlacementSquares()
         end
     end
     placementSquares = {}
+end
+
+function Autoplay.getCircleCenter()
+    local pathPos = Autoplay.getPathPosition(State.AutoPlayDistancePercentage)
+    if not pathPos then return nil end
+    local y = Autoplay.getGroundY()
+    return Vector3.new(pathPos.X, y, pathPos.Z)
 end
 
 function Autoplay.showPlacementSquares()
