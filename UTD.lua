@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.4"
+local script_version = "V0.41"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6119,7 +6119,7 @@ function Autoplay.findNearestValidSquare(squares, unitData, excludePositions)
     end)
 
     -- Find first unoccupied spot with enough spread from other placed units
-    local MIN_SPREAD = 6 -- increase this to spread units further apart
+    local MIN_SPREAD = 3 -- increase this to spread units further apart
     for _, square in pairs(filtered) do
         -- Check against already-placed units in workspace
         if Autoplay.isPositionOccupied(square.Position) then continue end
@@ -6152,7 +6152,7 @@ function Autoplay.getPlacedCountForSlot(slot)
     local towers = PlacedTowerController:GetTowers()
     for _, tower in pairs(towers) do
         local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
-        if Util.cleanUnitName(towerId) == unitData.UnitId then
+        if Util.cleanUnitName(towerId) == unitData.UnitId then  -- ADD cleanUnitName here
             count = count + 1
         end
     end
