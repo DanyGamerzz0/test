@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.54"
+local script_version = "V0.55"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -1990,7 +1990,7 @@ function Util.isTrackedPath(path)
         path == "Stats.Experience" or
         path:match("^Relics%.[^%.]+$") or
         path:match("^Units%.Inventory%.%[.+%]$") or
-        path:match("^Items%.CraftingItems") or
+        path:match("^Items%.CraftingItems") or 
         path:match("^Items%.UniqueItems")
 end
 
@@ -2129,36 +2129,44 @@ end
         local rewardsText = ""
         local function getRewardTotal(rewardType)
             local p = Services.Players.LocalPlayer
-            -- Direct attribute currencies
             local attrMap = {
                 ["Gems"]          = "Gems",
-                ["Gold"]         = "Coins",
+                ["Gold"]          = "Coins",
+                ["Coins"]         = "Coins",
                 ["IceGifts"]      = "IceGifts",
                 ["Rerolls"]       = "Rerolls",
                 ["SpiritSouls"]   = "SpiritSouls",
                 ["VirtualTokens"] = "VirtualTokens",
                 ["DevilOrb"]      = "DevilOrb",
-                ["FamilyEye"]    = "FamilyEye",
-                ["Locks"] = "Locks",
-                ["RelicDust"] = "RelicDust",
-                ["RelicRerolls"] = "RelicRerolls",
-                ["ShadowEnergy"] = "ShadowEnergy",
-                ["SorcererAscensionCoin"] = "SorcererAscensionCoin",
-                ["WarCoin"] = "WarCoin",
-                ["YenCrates"] = "YenCrates",
+                ["FamilyEye"]     = "FamilyEye",
+                ["Locks"]         = "Locks",
+                ["RelicDust"]     = "RelicDust",
+                ["RelicRerolls"]  = "RelicRerolls",
+                ["ShadowEnergy"]  = "ShadowEnergy",
+                ["XP"]            = nil, -- no attribute
             }
-            if attrMap[rewardType] then
+            if attrMap[rewardType] ~= nil then
                 local val = p:GetAttribute(attrMap[rewardType])
                 return val and Util.formatNumber(val) or nil
             end
-            local itemID = FriendlyNameToID[rewardType]
+
+            -- Strip rarity prefix e.g. "[Mythic] Kunai" -> "Kunai"
+            local stripped = rewardType:gsub("^%[.-%]%s*", "")
+
+            -- Try FriendlyNameToID with both original and stripped
+            local itemID = FriendlyNameToID[rewardType] or FriendlyNameToID[stripped]
             if itemID then
                 local dc = DataController or Knit.GetController("DataController")
                 local craftingItems = dc.Items and dc.Items.CraftingItems
                 if craftingItems and craftingItems[itemID] then
                     return Util.formatNumber(craftingItems[itemID])
                 end
+                local uniqueItems = dc.Items and dc.Items.UniqueItems
+                if uniqueItems and uniqueItems[itemID] then
+                    return Util.formatNumber(uniqueItems[itemID])
+                end
             end
+
             return nil
         end
         if next(rewards) then
