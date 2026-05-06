@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.49"
+local script_version = "V0.5"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2108,6 +2108,7 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
         finishedRewardData = nil
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        local rewardsText = ""
         local function getRewardTotal(rewardType)
             local p = Services.Players.LocalPlayer
             -- Direct attribute currencies
