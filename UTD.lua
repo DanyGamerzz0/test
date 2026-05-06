@@ -2302,9 +2302,7 @@ function Util.getCurrentWorldKey()
     end
 
     if categoryLower == "legendstage" then
-        if mapInternal then return "legend_" .. mapInternal:lower() end
-        local moduleName = UINameToModuleName[mapName]
-        if moduleName then return "legend_" .. moduleName:lower() end
+        return "legend_" .. mapName:lower():gsub("%s+", "_")
     end
 
     if categoryLower:find("virtual") then
@@ -4050,30 +4048,18 @@ local function createAutoSelectDropdowns()
     Tab:CreateSection("Legend Stage Macros")
     if LegendStageDropdown and LegendStageDropdown.Options then
         for _, stageName in ipairs(LegendStageDropdown.Options) do
-            local success, legendModuleName = pcall(function()
-                local LegendFolder = Services.ReplicatedStorage.Shared.Data.LegendStages
-                for _, stageModule in ipairs(LegendFolder:GetChildren()) do
-                    if stageModule:IsA("ModuleScript") then
-                        local stageData = require(stageModule)
-                        if stageData.Information and stageData.Information.Name == stageName then return stageModule.Name end
-                    end
-                end
-                return nil
-            end)
-            if success and legendModuleName then
-                local worldKey = "legend_" .. legendModuleName:lower()
-                local currentMapping = worldMacroMappings[worldKey] or "None"
-                local dropdown = Tab:CreateDropdown({
-                    Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
-                    MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
-                    Callback = function(Option)
-                        local selectedMacro = type(Option) == "table" and Option[1] or Option
-                        worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                        MacroIO.saveWorldMappings()
-                    end,
-                })
-                worldDropdowns[worldKey] = dropdown
-            end
+            local worldKey = "legend_" .. stageName:lower():gsub("%s+", "_")
+            local currentMapping = worldMacroMappings[worldKey] or "None"
+            local dropdown = Tab:CreateDropdown({
+                Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                    MacroIO.saveWorldMappings()
+                end,
+            })
+            worldDropdowns[worldKey] = dropdown
         end
     end
  
