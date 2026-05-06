@@ -3740,6 +3740,8 @@ AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
     Callback = function(Value) State.AutoJoinRagnarok = Value end,
 })
 
+JoinerTab:CreateDivider()
+
 JoinerTab:CreateToggle({
         Name = "Auto Join Winter Event",
         CurrentValue = false,
