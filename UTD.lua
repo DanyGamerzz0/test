@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.24"
+local script_version = "V0.25"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5542,75 +5542,69 @@ function Autoplay.showPlacementSquares()
 
     local flatCenter = Vector3.new(center.X, 0, center.Z)
     local groundRadius = (State.AutoPlayGroundPercentage / 100) * 37.5
-    local hillRadius = (State.AutoPlayHillPercentage / 100) * 23.717
+    local hillRadius = (State.AutoPlayHillPercentage / 100) * 37.5
 
-    -- Hill squares directly from workspace.Ignore.HillPlacement
-    for _, part in pairs(workspace.Ignore.HillPlacement:GetChildren()) do
-        if part:IsA("BasePart") and part.Name == "Place" then
-            local flatPart = Vector3.new(part.Position.X, 0, part.Position.Z)
-            if (flatPart - flatCenter).Magnitude <= hillRadius then
-                local highlight = Instance.new("Part")
-                highlight.Name = "AutoPlaySquare"
-                highlight.Size = Vector3.new(part.Size.X, part.Size.Y, part.Size.Z)
-                highlight.CFrame = part.CFrame * CFrame.new(0, 0.5, 0)
-                highlight.Color = Color3.fromRGB(13, 105, 172)
-                highlight.Material = Enum.Material.Plastic
-                highlight.Transparency = 0.3
-                highlight.CanCollide = false
-                highlight.CanQuery = false
-                highlight.CanTouch = false
-                highlight.Anchored = true
-                highlight.CastShadow = false
-                highlight.Parent = workspace.Ignore
-                table.insert(placementSquares, highlight)
-            end
-        end
-    end
-
-    -- Ground squares via grid raycast within circle
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = { workspace.Ignore }
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     rayParams.CollisionGroup = "Tower"
     rayParams.RespectCanCollide = false
 
-    local stepSize = 3
+    local stepSize = 1.5
     local floorY = center.Y + 50
 
+    local function makeSquare(pos, color)
+        local highlight = Instance.new("Part")
+        highlight.Name = "AutoPlaySquare"
+        highlight.Size = Vector3.new(1, 1, 1)
+        highlight.CFrame = CFrame.new(pos)
+        highlight.Color = color
+        highlight.Material = Enum.Material.Plastic
+        highlight.Transparency = 0.3
+        highlight.CanCollide = false
+        highlight.CanQuery = false
+        highlight.CanTouch = false
+        highlight.Anchored = true
+        highlight.CastShadow = false
+        highlight.Parent = workspace.Ignore
+        table.insert(placementSquares, highlight)
+    end
+
+    -- Ground squares
     for x = -groundRadius, groundRadius, stepSize do
         for z = -groundRadius, groundRadius, stepSize do
-            local flatOffset = Vector3.new(x, 0, z)
-            if flatOffset.Magnitude <= groundRadius then
-                local worldX = center.X + x
-                local worldZ = center.Z + z
-                local origin = Vector3.new(worldX, floorY, worldZ)
+            if Vector3.new(x, 0, z).Magnitude <= groundRadius then
+                local origin = Vector3.new(center.X + x, floorY, center.Z + z)
                 local result = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
                 if result then
                     local hit = result.Instance
                     local isFloor = false
-
                     local ok, floor = pcall(function()
                         return workspace.Map:FindFirstChild("RealFloor", true)
                     end)
                     if ok and floor and (hit == floor or hit:IsDescendantOf(floor)) then
                         isFloor = true
                     end
-
                     if isFloor then
-                        local highlight = Instance.new("Part")
-                        highlight.Name = "AutoPlaySquare"
-                        highlight.Size = Vector3.new(2, 0.5, 2)
-                        highlight.CFrame = CFrame.new(result.Position + Vector3.new(0, 0.75, 0))
-                        highlight.Color = Color3.fromRGB(75, 151, 75)
-                        highlight.Material = Enum.Material.Plastic
-                        highlight.Transparency = 0.3
-                        highlight.CanCollide = false
-                        highlight.CanQuery = false
-                        highlight.CanTouch = false
-                        highlight.Anchored = true
-                        highlight.CastShadow = false
-                        highlight.Parent = workspace.Ignore
-                        table.insert(placementSquares, highlight)
+                        makeSquare(result.Position, Color3.fromRGB(75, 151, 75))
+                    end
+                end
+            end
+        end
+    end
+
+    -- Hill squares
+    for x = -hillRadius, hillRadius, stepSize do
+        for z = -hillRadius, hillRadius, stepSize do
+            if Vector3.new(x, 0, z).Magnitude <= hillRadius then
+                local origin = Vector3.new(center.X + x, floorY, center.Z + z)
+                local result = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
+                if result then
+                    local hit = result.Instance
+                    local isHill = hit:HasTag("HillPlacement") or 
+                        (hit.Parent and hit.Parent:HasTag("HillPlacement"))
+                    if isHill then
+                        makeSquare(result.Position, Color3.fromRGB(13, 105, 172))
                     end
                 end
             end
