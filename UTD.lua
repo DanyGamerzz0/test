@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.31"
+local script_version = "V0.32"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5574,6 +5574,7 @@ end
 
 function Autoplay.showPlacementSquares()
     Autoplay.hidePlacementSquares()
+    if Util.isInLobby() then return end
 
     local center = Autoplay.getCircleCenter()
     if not center then return end
@@ -5652,6 +5653,7 @@ end
 
 function Autoplay.showHologram()
     if hologramEnabled then return end
+    if Util.isInLobby() then return end
     hologramEnabled = true
 
     hologramParts.ground = Autoplay.createHologramPart(
@@ -5727,6 +5729,10 @@ function Autoplay.getMouseHit()
 end
 
 function Autoplay.beginManualPlacement(slot)
+        if Util.isInLobby() then
+        Util.notify({ Title = "Error", Content = "Cannot set positions in lobby", Duration = 3 })
+        return
+    end
     if Autoplay.manualPlacementActive then
         Autoplay.endManualPlacement()
     end
@@ -5901,16 +5907,7 @@ AutoPlayTab:CreateToggle({
 })
 
 AutoPlayTab:CreateToggle({
-    Name = "Enable Auto Upgrade",
-    CurrentValue = false,
-    Flag = "AutoPlayEnableAutoUpgrade",
-    Callback = function(Value)
-        State.AutoPlayEnableAutoUpgrade = Value
-    end,
-})
-
-AutoPlayTab:CreateToggle({
-    Name = "Focus Farm Units",
+    Name = "Focus On Farm Units",
     CurrentValue = false,
     Flag = "AutoPlayFocusFarmUnits",
     Callback = function(Value)
@@ -5925,7 +5922,9 @@ AutoPlayTab:CreateToggle({
     Callback = function(Value)
         State.AutoPlayEnableHologram = Value
         if Value then
+            if not Util.isInLobby() then
             Autoplay.showHologram()
+            end
         else
             Autoplay.hideHologram()
         end
@@ -5975,7 +5974,7 @@ AutoPlayTab:CreateSlider({
 -- MANUAL PLACEMENT SECTION
 -- ============================================
 
-AutoPlayTab:CreateSection("Manual Placement")
+AutoPlayTab:CreateSection("Manual Placement Positions")
 
 AutoPlayTab:CreateButton({
     Name = "Set Unit 1 Position",
@@ -6078,10 +6077,10 @@ AutoPlayTab:CreateButton({
 -- AUTO PLACE & UPGRADE SETTINGS SECTION
 -- ============================================
 
-AutoPlayTab:CreateSection("Auto Place & Upgrade Settings")
+AutoPlayTab:CreateSection("Auto Place Settings")
 
 AutoPlayTab:CreateSlider({
-    Name = "Place Cap 1",
+    Name = "Place Cap Unit 1",
     Range = {0, 20},
     Increment = 1,
     CurrentValue = 3,
@@ -6092,7 +6091,7 @@ AutoPlayTab:CreateSlider({
 })
 
 AutoPlayTab:CreateSlider({
-    Name = "Place Cap 2",
+    Name = "Place Cap Unit 2",
     Range = {0, 20},
     Increment = 1,
     CurrentValue = 3,
@@ -6103,7 +6102,7 @@ AutoPlayTab:CreateSlider({
 })
 
 AutoPlayTab:CreateSlider({
-    Name = "Place Cap 3",
+    Name = "Place Cap Unit 3",
     Range = {0, 20},
     Increment = 1,
     CurrentValue = 3,
@@ -6114,7 +6113,7 @@ AutoPlayTab:CreateSlider({
 })
 
 AutoPlayTab:CreateSlider({
-    Name = "Place Cap 4",
+    Name = "Place Cap Unit 4",
     Range = {0, 20},
     Increment = 1,
     CurrentValue = 3,
@@ -6125,7 +6124,7 @@ AutoPlayTab:CreateSlider({
 })
 
 AutoPlayTab:CreateSlider({
-    Name = "Place Cap 5",
+    Name = "Place Cap Unit 5",
     Range = {0, 20},
     Increment = 1,
     CurrentValue = 3,
@@ -6136,7 +6135,7 @@ AutoPlayTab:CreateSlider({
 })
 
 AutoPlayTab:CreateSlider({
-    Name = "Place Cap 6",
+    Name = "Place Cap Unit 6",
     Range = {0, 20},
     Increment = 1,
     CurrentValue = 3,
@@ -6146,79 +6145,11 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
-AutoPlayTab:CreateDivider()
-
-AutoPlayTab:CreateSlider({
-    Name = "Upgrade Cap 1",
-    Range = {0, 20},
-    Increment = 1,
-    CurrentValue = 10,
-    Flag = "AutoPlayUpgradeCap1",
-    Callback = function(Value)
-        State.AutoPlayUpgradeCap1 = Value
-    end,
-})
-
-AutoPlayTab:CreateSlider({
-    Name = "Upgrade Cap 2",
-    Range = {0, 20},
-    Increment = 1,
-    CurrentValue = 10,
-    Flag = "AutoPlayUpgradeCap2",
-    Callback = function(Value)
-        State.AutoPlayUpgradeCap2 = Value
-    end,
-})
-
-AutoPlayTab:CreateSlider({
-    Name = "Upgrade Cap 3",
-    Range = {0, 20},
-    Increment = 1,
-    CurrentValue = 10,
-    Flag = "AutoPlayUpgradeCap3",
-    Callback = function(Value)
-        State.AutoPlayUpgradeCap3 = Value
-    end,
-})
-
-AutoPlayTab:CreateSlider({
-    Name = "Upgrade Cap 4",
-    Range = {0, 20},
-    Increment = 1,
-    CurrentValue = 10,
-    Flag = "AutoPlayUpgradeCap4",
-    Callback = function(Value)
-        State.AutoPlayUpgradeCap4 = Value
-    end,
-})
-
-AutoPlayTab:CreateSlider({
-    Name = "Upgrade Cap 5",
-    Range = {0, 20},
-    Increment = 1,
-    CurrentValue = 10,
-    Flag = "AutoPlayUpgradeCap5",
-    Callback = function(Value)
-        State.AutoPlayUpgradeCap5 = Value
-    end,
-})
-
-AutoPlayTab:CreateSlider({
-    Name = "Upgrade Cap 6",
-    Range = {0, 20},
-    Increment = 1,
-    CurrentValue = 10,
-    Flag = "AutoPlayUpgradeCap6",
-    Callback = function(Value)
-        State.AutoPlayUpgradeCap6 = Value
-    end,
-})
-
 -- ============================================
 -- AUTO PLACE ON WAVE SECTION
 -- ============================================
 
-AutoPlayTab:CreateSection("Auto Place on Wave")
+AutoPlayTab:CreateSection("Auto Place On Wave")
 
 AutoPlayTab:CreateSlider({
     Name = "Unit 1",
@@ -6286,11 +6217,86 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
--- ============================================
--- AUTO UPGRADE ON WAVE SECTION
--- ============================================
+AutoPlayTab:CreateDivider()
 
-AutoPlayTab:CreateSection("Auto Upgrade on Wave")
+AutoPlayTab:CreateSection("Auto Upgrade Settings")
+
+AutoPlayTab:CreateToggle({
+    Name = "Enable Auto Upgrade",
+    CurrentValue = false,
+    Flag = "AutoPlayEnableAutoUpgrade",
+    Callback = function(Value)
+        State.AutoPlayEnableAutoUpgrade = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap Unit 1",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap1",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap1 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap Unit 2",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap2",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap2 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap Unit 3",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap3",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap3 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap Unit 4",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap4",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap4 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap Unit 5",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap5",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap5 = Value
+    end,
+})
+
+AutoPlayTab:CreateSlider({
+    Name = "Upgrade Cap Unit 6",
+    Range = {0, 20},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "AutoPlayUpgradeCap6",
+    Callback = function(Value)
+        State.AutoPlayUpgradeCap6 = Value
+    end,
+})
+
+AutoPlayTab:CreateSection("Auto Upgrade On Wave")
 
 AutoPlayTab:CreateSlider({
     Name = "Unit 1",
