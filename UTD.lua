@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.32"
+local script_version = "V0.33"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5898,24 +5898,6 @@ function Autoplay.showAllPositions()
 end
 
 AutoPlayTab:CreateToggle({
-    Name = "Enable Auto Place",
-    CurrentValue = false,
-    Flag = "AutoPlayEnableAutoPlace",
-    Callback = function(Value)
-        State.AutoPlayEnableAutoPlace = Value
-    end,
-})
-
-AutoPlayTab:CreateToggle({
-    Name = "Focus On Farm Units",
-    CurrentValue = false,
-    Flag = "AutoPlayFocusFarmUnits",
-    Callback = function(Value)
-        State.AutoPlayFocusFarmUnits = Value
-    end,
-})
-
-AutoPlayTab:CreateToggle({
     Name = "Enable Hologram",
     CurrentValue = false,
     Flag = "AutoPlayEnableHologram",
@@ -5973,6 +5955,8 @@ AutoPlayTab:CreateSlider({
 -- ============================================
 -- MANUAL PLACEMENT SECTION
 -- ============================================
+
+AutoPlayTab:CreateDivider()
 
 AutoPlayTab:CreateSection("Manual Placement Positions")
 
@@ -6077,7 +6061,27 @@ AutoPlayTab:CreateButton({
 -- AUTO PLACE & UPGRADE SETTINGS SECTION
 -- ============================================
 
+AutoPlayTab:CreateDivider()
+
 AutoPlayTab:CreateSection("Auto Place Settings")
+
+AutoPlayTab:CreateToggle({
+    Name = "Enable Auto Place",
+    CurrentValue = false,
+    Flag = "AutoPlayEnableAutoPlace",
+    Callback = function(Value)
+        State.AutoPlayEnableAutoPlace = Value
+    end,
+})
+
+AutoPlayTab:CreateToggle({
+    Name = "Focus On Farm Units",
+    CurrentValue = false,
+    Flag = "AutoPlayFocusFarmUnits",
+    Callback = function(Value)
+        State.AutoPlayFocusFarmUnits = Value
+    end,
+})
 
 AutoPlayTab:CreateSlider({
     Name = "Place Cap Unit 1",
@@ -6148,6 +6152,8 @@ AutoPlayTab:CreateSlider({
 -- ============================================
 -- AUTO PLACE ON WAVE SECTION
 -- ============================================
+
+AutoPlayTab:CreateDivider()
 
 AutoPlayTab:CreateSection("Auto Place On Wave")
 
@@ -6295,6 +6301,8 @@ AutoPlayTab:CreateSlider({
         State.AutoPlayUpgradeCap6 = Value
     end,
 })
+
+AutoPlayTab:CreateDivider()
 
 AutoPlayTab:CreateSection("Auto Upgrade On Wave")
 
@@ -7026,7 +7034,7 @@ task.spawn(Loader.virtualStages)
 task.spawn(Loader.challengeModifiers)
 task.spawn(Loader.raidStages)
 task.spawn(Loader.portalItems)
-task.spawn(MacroIO.loadAutoPlayPositions())
+task.spawn(MacroIO.loadAutoPlayPositions)
 
 task.spawn(function()
     task.wait(2)
