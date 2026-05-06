@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.34"
+local script_version = "V0.35"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5750,7 +5750,7 @@ function Autoplay.getSlotUnitData(slot)
         local isRuler = false
         if unitData.Traits then
             for _, trait in pairs(unitData.Traits) do
-                if trait == "Ruler" then
+                if trait.Name == "Ruler" then
                     isRuler = true
                     break
                 end
@@ -5912,12 +5912,12 @@ function Autoplay.showAllPositions()
     end
 
     local colors = {
-        Color3.fromRGB(255, 100, 100), -- Unit 1 - red
-        Color3.fromRGB(255, 180, 0),   -- Unit 2 - orange
-        Color3.fromRGB(255, 255, 0),   -- Unit 3 - yellow
-        Color3.fromRGB(0, 200, 100),   -- Unit 4 - green
-        Color3.fromRGB(0, 150, 255),   -- Unit 5 - blue
-        Color3.fromRGB(200, 0, 255),   -- Unit 6 - purple
+        Color3.fromRGB(255, 100, 100),
+        Color3.fromRGB(255, 255, 255),
+        Color3.fromRGB(255, 255, 0),
+        Color3.fromRGB(0, 200, 100),
+        Color3.fromRGB(0, 150, 255),
+        Color3.fromRGB(200, 0, 255),
     }
 
     local positionParts = {}
@@ -5925,37 +5925,47 @@ function Autoplay.showAllPositions()
     for i = 1, 6 do
         local pos = State.AutoPlayUnitPositions[i]
         if pos then
-            local part = Instance.new("Part")
-            part.Name = "AutoPlayPositionSquare"
-            part.Size = Vector3.new(1, 1, 1)
-            part.CFrame = CFrame.new(pos)
-            part.Color = colors[i]
-            part.Material = Enum.Material.Neon
-            part.Transparency = 0.3
-            part.CanCollide = false
-            part.CanQuery = false
-            part.CanTouch = false
-            part.Anchored = true
-            part.CastShadow = false
-            part.Parent = workspace.Ignore
+            local unitData = Autoplay.getSlotUnitData(i)
+            local placementLimit = unitData and unitData.PlacementLimit or 1
 
-            local billboard = Instance.new("BillboardGui")
-            billboard.Name = "UnitLabel"
-            billboard.Size = UDim2.new(0, 60, 0, 20)
-            billboard.StudsOffset = Vector3.new(0, 1.5, 0)
-            billboard.AlwaysOnTop = true
-            billboard.Parent = part
+            for j = 1, placementLimit do
+                local offset = Vector3.new((j - 1) * 1.5, 0, 0)
 
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, 0, 1, 0)
-            label.BackgroundTransparency = 1
-            label.Text = "Unit " .. i
-            label.TextColor3 = Color3.fromRGB(255, 255, 255)
-            label.TextScaled = true
-            label.Font = Enum.Font.GothamBold
-            label.Parent = billboard
+                local part = Instance.new("Part")
+                part.Name = "AutoPlayPositionSquare"
+                part.Size = Vector3.new(1, 1, 1)
+                part.CFrame = CFrame.new(pos + offset)
+                part.Color = colors[i]
+                part.Material = Enum.Material.Neon
+                part.Transparency = 0.3
+                part.CanCollide = false
+                part.CanQuery = false
+                part.CanTouch = false
+                part.Anchored = true
+                part.CastShadow = false
+                part.Parent = workspace.Ignore
 
-            table.insert(positionParts, part)
+                -- Only add label on first square of each slot
+                if j == 1 then
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "UnitLabel"
+                    billboard.Size = UDim2.new(0, 80, 0, 20)
+                    billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+                    billboard.AlwaysOnTop = true
+                    billboard.Parent = part
+
+                    local label = Instance.new("TextLabel")
+                    label.Size = UDim2.new(1, 0, 1, 0)
+                    label.BackgroundTransparency = 1
+                    label.Text = string.format("Unit %d (%dx)", i, placementLimit)
+                    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    label.TextScaled = true
+                    label.Font = Enum.Font.GothamBold
+                    label.Parent = billboard
+                end
+
+                table.insert(positionParts, part)
+            end
         end
     end
 
