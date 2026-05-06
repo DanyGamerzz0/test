@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.55"
+local script_version = "V0.56"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2117,7 +2117,7 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
             
             -- Generic items with ID/Rarity/Amount structure (Kunai, Keys, etc.)
             elseif rewardValue.ID and rewardValue.Rarity and rewardValue.Amount then
-                local displayName = string.format("[%s] %s", rewardValue.Rarity, rewardKey)
+                local displayName = rewardKey  -- no rarity prefix
                 rewards[displayName] = rewardValue.Amount
             end
         end
@@ -2128,45 +2128,29 @@ end
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local rewardsText = ""
         local function getRewardTotal(rewardType)
-            local p = Services.Players.LocalPlayer
-            local attrMap = {
-                ["Gems"]          = "Gems",
-                ["Gold"]          = "Coins",
-                ["Coins"]         = "Coins",
-                ["IceGifts"]      = "IceGifts",
-                ["Rerolls"]       = "Rerolls",
-                ["SpiritSouls"]   = "SpiritSouls",
-                ["VirtualTokens"] = "VirtualTokens",
-                ["DevilOrb"]      = "DevilOrb",
-                ["FamilyEye"]     = "FamilyEye",
-                ["Locks"]         = "Locks",
-                ["RelicDust"]     = "RelicDust",
-                ["RelicRerolls"]  = "RelicRerolls",
-                ["ShadowEnergy"]  = "ShadowEnergy",
-                ["XP"]            = nil, -- no attribute
-            }
-            if attrMap[rewardType] ~= nil then
-                local val = p:GetAttribute(attrMap[rewardType])
-                return val and Util.formatNumber(val) or nil
+            local ok, dc = pcall(function() return DataController or Knit.GetController("DataController") end)
+            if not ok or not dc then return nil end
+
+            local data = dc:RequestData()
+            local currencies = data and data.Currency or {}
+
+            -- Try direct currency match
+            if currencies[rewardType] ~= nil then
+                return Util.formatNumber(currencies[rewardType])
             end
 
-            -- Strip rarity prefix e.g. "[Mythic] Kunai" -> "Kunai"
-            local stripped = rewardType:gsub("^%[.-%]%s*", "")
-
-            -- Try FriendlyNameToID with both original and stripped
-            local itemID = FriendlyNameToID[rewardType] or FriendlyNameToID[stripped]
+            -- Try items (CraftingItems / UniqueItems)
+            local itemID = FriendlyNameToID[rewardType]
             if itemID then
-                local dc = DataController or Knit.GetController("DataController")
-                local craftingItems = dc.Items and dc.Items.CraftingItems
+                local craftingItems = data.Items and data.Items.CraftingItems
                 if craftingItems and craftingItems[itemID] then
                     return Util.formatNumber(craftingItems[itemID])
                 end
-                local uniqueItems = dc.Items and dc.Items.UniqueItems
+                local uniqueItems = data.Items and data.Items.UniqueItems
                 if uniqueItems and uniqueItems[itemID] then
                     return Util.formatNumber(uniqueItems[itemID])
                 end
             end
-
             return nil
         end
         if next(rewards) then
