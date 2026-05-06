@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.39"
+local script_version = "V0.4"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6221,7 +6221,11 @@ function Autoplay.tryPlaceUnit(slot, unitData, squares)
     end
 
     local slotNum = UnitTracker.getSlotForUnit(unitData.UnitId)
-    if not slotNum then return false end
+    if not slotNum then
+        print(string.format("Unit %s not found in loadout", unitData.UnitId))
+        return false
+    end
+    print(string.format("Placing %s at slot %d...", unitData.UnitId, slotNum))
 
     local cframe = CFrame.new(targetPos)
     local success = pcall(function()
@@ -6252,9 +6256,12 @@ function Autoplay.startAutoPlace()
 
             local squares = Autoplay.getValidSquaresInCircle()
             if #squares == 0 then
+                print("No valid squares found in area")
                 task.wait(1)
                 continue
             end
+
+            print(string.format("Found %d valid squares", #squares))
 
             -- Build slot order, farm units first if Focus Farm enabled
             local slots = {}
