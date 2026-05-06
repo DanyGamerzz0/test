@@ -18,7 +18,7 @@ local Window = Rayfield:CreateWindow({
    Name = "LixHub - Universal Tower Defense",
    Icon = 0,
    LoadingTitle = "Loading for Universal Tower Defense",
-   ScriptID = "sid_a20vo45rkxte",   
+   ScriptID = "sid_a20vo45rkxte",
    LoadingSubtitle = script_version,
    ShowText = "LixHub",
    Theme = {
@@ -3979,7 +3979,7 @@ end
 function MacroIO.saveWorldMappings()
     MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
-    local fileName = string.format("LixHub/%s_WorldMappings_UTD.json", playerName)
+    local fileName = string.format("LixHub/%s_WorldMappings_UTD1.json", playerName)
     local json = game:GetService("HttpService"):JSONEncode(worldMacroMappings)
     writefile(fileName, json)
     print("✓ Saved world macro mappings")
@@ -4002,7 +4002,7 @@ end
 function MacroIO.loadWorldMappings()
     MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
-    local filePath = string.format("LixHub/%s_WorldMappings_UTD.json", playerName)
+    local filePath = string.format("LixHub/%s_WorldMappings_UTD1.json", playerName)
     if not isfile(filePath) then return {} end
     local json = readfile(filePath)
     local data = game:GetService("HttpService"):JSONDecode(json)
