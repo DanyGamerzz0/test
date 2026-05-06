@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.37"
+local script_version = "V0.38"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -200,6 +200,7 @@ manualRayParams.FilterType = Enum.RaycastFilterType.Exclude
 manualRayParams.CollisionGroup = "Tower"
 manualRayParams.RespectCanCollide = false
 local autoPlaceRunning = false
+local autoPlayUsedPositions = {}
 
 local RagnarokState = {
     AutoPickEnabled = false,
@@ -5376,6 +5377,7 @@ local PlaybackToggle = Tab:CreateToggle({
                 Util.notify({ Title = "Mid-Game Detected", Content = "Restarting game for accurate playback...", Duration = 4 })
                 GameState.restartMatch()
                 gameInProgress = false
+                autoPlayUsedPositions = {}
                 gameStartTime = 0
             end
             isPlaybackEnabled = true
@@ -6111,24 +6113,30 @@ function Autoplay.findNearestValidSquare(squares, unitData, excludePositions)
         end
     end
 
-    -- Sort by path proximity
+    -- Sort ALL squares by path proximity (closest to path first)
     table.sort(filtered, function(a, b)
         return Autoplay.getPathDistanceForPosition(a.Position) < Autoplay.getPathDistanceForPosition(b.Position)
     end)
 
-    -- Find first unoccupied spot not in excludePositions
+    -- Find first unoccupied spot with enough spread from other placed units
+    local MIN_SPREAD = 6 -- increase this to spread units further apart
     for _, square in pairs(filtered) do
-        if not Autoplay.isPositionOccupied(square.Position) then
-            local excluded = false
-            for _, exPos in pairs(excludePositions) do
-                if (Vector3.new(square.Position.X, 0, square.Position.Z) - Vector3.new(exPos.X, 0, exPos.Z)).Magnitude < 2 then
-                    excluded = true
-                    break
-                end
+        -- Check against already-placed units in workspace
+        if Autoplay.isPositionOccupied(square.Position) then continue end
+
+        -- Check against units placed THIS session (excludePositions)
+        local tooClose = false
+        for _, exPos in pairs(excludePositions) do
+            local dist = (Vector3.new(square.Position.X, 0, square.Position.Z) 
+                        - Vector3.new(exPos.X, 0, exPos.Z)).Magnitude
+            if dist < MIN_SPREAD then
+                tooClose = true
+                break
             end
-            if not excluded then
-                return square.Position
-            end
+        end
+
+        if not tooClose then
+            return square.Position
         end
     end
 
@@ -6179,32 +6187,26 @@ end
 function Autoplay.tryPlaceUnit(slot, unitData, squares)
     local currentWave = workspace:GetAttribute("Wave") or 0
     local placeOnWave = Autoplay.getPlaceOnWave(slot)
-
-    -- Check wave restriction
     if placeOnWave > 0 and currentWave < placeOnWave then return false end
 
     local effectiveCap = Autoplay.getEffectivePlacementCap(slot, unitData)
     local alreadyPlaced = Autoplay.getPlacedCountForSlot(slot)
-
     if alreadyPlaced >= effectiveCap then return false end
 
-    -- Check if manual position is set
     local targetPos = nil
-    local usedPositions = {}
 
     if State.AutoPlayUnitPositions[slot] then
         targetPos = State.AutoPlayUnitPositions[slot]
         if Autoplay.isPositionOccupied(targetPos) then
-            -- Manual position occupied, find nearest valid instead
-            targetPos = Autoplay.findNearestValidSquare(squares, unitData, usedPositions)
+            targetPos = Autoplay.findNearestValidSquare(squares, unitData, autoPlayUsedPositions)
         end
     else
-        targetPos = Autoplay.findNearestValidSquare(squares, unitData, usedPositions)
+        targetPos = Autoplay.findNearestValidSquare(squares, unitData, autoPlayUsedPositions)
     end
 
     if not targetPos then return false end
 
-    -- Check cost
+    -- Cost check
     local placementCost = 0
     local towerModule = Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(unitData.UnitId)
     if towerModule then
@@ -6213,13 +6215,11 @@ function Autoplay.tryPlaceUnit(slot, unitData, squares)
             placementCost = data.Stats.Upgrades[1].Cost or 0
         end
     end
-
     if placementCost > 0 then
         local canContinue = Autoplay.waitForMoney(placementCost, unitData.UnitId)
         if not canContinue then return false end
     end
 
-    -- Find the slot number
     local slotNum = UnitTracker.getSlotForUnit(unitData.UnitId)
     if not slotNum then return false end
 
@@ -6229,10 +6229,9 @@ function Autoplay.tryPlaceUnit(slot, unitData, squares)
     end)
 
     if success then
-        table.insert(usedPositions, targetPos)
+        table.insert(autoPlayUsedPositions, targetPos) -- track for spread
         return true
     end
-
     return false
 end
 
@@ -7144,7 +7143,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
             Webhook.send("match_restart", nil, currentGameInfo, lastWave)
         end
         hasRecentlyRestarted = true
-        if gameInProgress then gameInProgress = false gameStartTime = 0 end
+        if gameInProgress then gameInProgress = false autoPlayUsedPositions = {} gameStartTime = 0 end
         if isRecording and recordingHasStarted then
             local actionCount = #macro
             GameState.stopRecording()
@@ -7158,6 +7157,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
         end
         if isPlaybackEnabled and playbackLoopRunning then
             gameInProgress = false
+            autoPlayUsedPositions = {}
             gameStartTime = 0
             UnitTracker.clearSpawnIdMappings()
             Util.updateMacroStatus("Game restarted - waiting for wave 1...")
@@ -7212,6 +7212,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
         gameInProgress = false
+        autoPlayUsedPositions = {}
 
             if State.ReturnToLobbyAfterMatches and State.ReturnToLobbyAfterMatches > 0 then
             State.matchesPlayed = (State.matchesPlayed or 0) + 1
