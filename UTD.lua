@@ -5498,6 +5498,10 @@ function Playback.autoPlaybackLoop()
         print("WorldKey:", worldKey)
         print("WorldMapping:", worldMacroMappings[worldKey])
         print("CurrentMacroName:", currentMacroName)
+        print("All world mappings:")
+        for k, v in pairs(worldMacroMappings) do
+            print(" ", k, "=", v)
+        end
         if worldKey and worldMacroMappings[worldKey] then
             local macroToLoad = worldMacroMappings[worldKey]
             if currentMacroName ~= macroToLoad then
