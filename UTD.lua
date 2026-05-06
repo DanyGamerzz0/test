@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.6"
+local script_version = "V0.61"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2283,27 +2283,53 @@ function Util.getCurrentWorldKey()
     local mapInternal = workspace:GetAttribute("Map")
     if not category or not mapName then return nil end
     local categoryLower = category:lower()
+
     if categoryLower == "story" then
         return "challenge_" .. mapName:lower():gsub("%s+", "_")
     end
+
     if categoryLower == "featured" then
         if mapName:lower():find("frozen") or mapName == "Frozen Stronghold" then
             return "challenge_featured"
         end
+        if mapInternal and mapInternal:find("Olympus") then
+            return "olympus_judgement"
+        end
     end
+
     if categoryLower == "legend" then
         if mapInternal then return "legend_" .. mapInternal:lower() end
         local moduleName = UINameToModuleName[mapName]
         if moduleName then return "legend_" .. moduleName:lower() end
     end
+
     if categoryLower:find("virtual") then
         return "virtual_" .. mapName:lower():gsub("%s+", "_")
     end
+
     if categoryLower == "raid" then
         if mapInternal then return "raid_" .. mapInternal:lower() end
         local moduleName = UINameToModuleName[mapName]
         if moduleName then return "raid_" .. moduleName:lower() end
     end
+
+    if categoryLower == "ragnarok" then
+        return "ragnarok"
+    end
+
+    if categoryLower == "shinobialliance" then
+        return "shinobi_alliance"
+    end
+
+    if categoryLower == "worldraid" then
+        if mapInternal == "AntKing" then return "ant_king_lair" end
+    end
+
+    if categoryLower == "rift" then
+        if mapInternal == "Shinjuku" then return "universal_tear_gojo" end
+        if mapInternal == "???" then return "universal_tear_sukuna" end
+    end
+
     return nil
 end
 
@@ -4133,18 +4159,46 @@ local function createAutoSelectDropdowns()
  
     Tab:CreateSection("Featured Challenge Macro")
     do
-        local worldKey = "challenge_featured"
-        local currentMapping = worldMacroMappings[worldKey] or "None"
-        local dropdown = Tab:CreateDropdown({
-            Name = "Frozen Stronghold", Options = initialMacroOptions, CurrentOption = {currentMapping},
-            MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
-            Callback = function(Option)
-                local selectedMacro = type(Option) == "table" and Option[1] or Option
-                worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                MacroIO.saveWorldMappings()
-            end,
-        })
-        worldDropdowns[worldKey] = dropdown
+        local featuredMaps = {
+            { key = "challenge_featured", name = "Frozen Stronghold (The Hunt)" },
+            { key = "olympus_judgement", name = "Olympus Judgement" },
+        }
+        for _, featured in ipairs(featuredMaps) do
+            local currentMapping = worldMacroMappings[featured.key] or "None"
+            local dropdown = Tab:CreateDropdown({
+                Name = featured.name, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                MultipleOptions = false, Flag = "WorldMacro_" .. featured.key,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    worldMacroMappings[featured.key] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                    MacroIO.saveWorldMappings()
+                end,
+            })
+            worldDropdowns[featured.key] = dropdown
+        end
+    end
+    Tab:CreateSection("Event Macros")
+    do
+        local eventMaps = {
+            { key = "ragnarok", name = "Ragnarok Infinite" },
+            { key = "shinobi_alliance", name = "Shinobi Alliance" },
+            { key = "ant_king_lair", name = "Ant King Lair" },
+            { key = "universal_tear_gojo", name = "Universal Tear (Gojo)" },
+            { key = "universal_tear_sukuna", name = "Universal Tear (Sukuna)" },
+        }
+        for _, event in ipairs(eventMaps) do
+            local currentMapping = worldMacroMappings[event.key] or "None"
+            local dropdown = Tab:CreateDropdown({
+                Name = event.name, Options = initialMacroOptions, CurrentOption = {currentMapping},
+                MultipleOptions = false, Flag = "WorldMacro_" .. event.key,
+                Callback = function(Option)
+                    local selectedMacro = type(Option) == "table" and Option[1] or Option
+                    worldMacroMappings[event.key] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
+                    MacroIO.saveWorldMappings()
+                end,
+            })
+            worldDropdowns[event.key] = dropdown
+        end
     end
 end
 
