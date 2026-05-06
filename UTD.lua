@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.27"
+local script_version = "V0.28"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5703,7 +5703,6 @@ function Autoplay.beginManualPlacement(slot)
     Autoplay.manualPlacementActive = true
     Autoplay.manualPlacementSlot = slot
 
-    -- Create the following square
     Autoplay.manualPlacementSquare = Instance.new("Part")
     Autoplay.manualPlacementSquare.Name = "ManualPlacementSquare"
     Autoplay.manualPlacementSquare.Size = Vector3.new(1, 1, 1)
@@ -5719,33 +5718,35 @@ function Autoplay.beginManualPlacement(slot)
 
     Util.notify({ Title = "Manual Placement", Content = "Click to set Unit " .. slot .. " position", Duration = 3 })
 
-    -- Update square position every frame
     Autoplay.manualPlacementConnection = Services.RunService.RenderStepped:Connect(function()
         if not Autoplay.manualPlacementActive then return end
         local pos, isValid = Autoplay.getMouseHit()
         if pos then
             Autoplay.manualPlacementSquare.CFrame = CFrame.new(pos)
-            Autoplay.manualPlacementSquare.Color = isValid 
-                and Color3.fromRGB(75, 151, 75) 
+            Autoplay.manualPlacementSquare.Color = isValid
+                and Color3.fromRGB(75, 151, 75)
                 or Color3.fromRGB(255, 0, 0)
         end
     end)
 
-    -- Click to confirm
-    Autoplay.manualPlacementClickConn = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        local isTap = input.UserInputType == Enum.UserInputType.Touch
-        local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
-        if not (isClick or isTap) then return end
+    -- Delay so the button click that opened this doesn't immediately fire
+    task.delay(0.2, function()
+        if not Autoplay.manualPlacementActive then return end
+        Autoplay.manualPlacementClickConn = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            local isTap = input.UserInputType == Enum.UserInputType.Touch
+            local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
+            if not (isClick or isTap) then return end
 
-        local pos, isValid = Autoplay.getMouseHit()
-        if pos and isValid then
-            State.AutoPlayUnitPositions[Autoplay.manualPlacementSlot] = pos
-            Util.notify({ Title = "Position Saved", Content = "Unit " .. slot .. " position set!", Duration = 3 })
-            Autoplay.endManualPlacement()
-        else
-            Util.notify({ Title = "Invalid Position", Content = "Place on a valid ground or hill tile", Duration = 2 })
-        end
+            local pos, isValid = Autoplay.getMouseHit()
+            if pos and isValid then
+                State.AutoPlayUnitPositions[Autoplay.manualPlacementSlot] = pos
+                Util.notify({ Title = "Position Saved", Content = "Unit " .. slot .. " position set!", Duration = 3 })
+                Autoplay.endManualPlacement()
+            else
+                Util.notify({ Title = "Invalid Position", Content = "Place on a valid position", Duration = 2 })
+            end
+        end)
     end)
 end
 
