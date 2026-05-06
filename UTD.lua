@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.28"
+local script_version = "V0.29"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5716,6 +5716,21 @@ function Autoplay.beginManualPlacement(slot)
     Autoplay.manualPlacementSquare.Color = Color3.fromRGB(75, 151, 75)
     Autoplay.manualPlacementSquare.Parent = workspace.Ignore
 
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Position = UDim2.new(0, -15, 0, -15)
+    shadow.Size = UDim2.new(1, 30, 1, 30)
+    shadow.ZIndex = 9999
+    shadow.Image = "rbxassetid://6014261993"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.5
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+
     Util.notify({ Title = "Manual Placement", Content = "Click to set Unit " .. slot .. " position", Duration = 3 })
 
     Autoplay.manualPlacementConnection = Services.RunService.RenderStepped:Connect(function()
@@ -5729,24 +5744,26 @@ function Autoplay.beginManualPlacement(slot)
         end
     end)
 
-    -- Delay so the button click that opened this doesn't immediately fire
-    task.delay(0.2, function()
+    -- Wait a bit longer to ensure the button click is fully processed
+    task.wait(0.3)
+    
+    -- Connect to InputBegan instead of InputChanged for better detection
+    Autoplay.manualPlacementClickConn = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        -- Don't ignore gameProcessed - we want to catch all clicks
+        local isTap = input.UserInputType == Enum.UserInputType.Touch
+        local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
+        
+        if not (isClick or isTap) then return end
         if not Autoplay.manualPlacementActive then return end
-        Autoplay.manualPlacementClickConn = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if gameProcessed then return end
-            local isTap = input.UserInputType == Enum.UserInputType.Touch
-            local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
-            if not (isClick or isTap) then return end
 
-            local pos, isValid = Autoplay.getMouseHit()
-            if pos and isValid then
-                State.AutoPlayUnitPositions[Autoplay.manualPlacementSlot] = pos
-                Util.notify({ Title = "Position Saved", Content = "Unit " .. slot .. " position set!", Duration = 3 })
-                Autoplay.endManualPlacement()
-            else
-                Util.notify({ Title = "Invalid Position", Content = "Place on a valid position", Duration = 2 })
-            end
-        end)
+        local pos, isValid = Autoplay.getMouseHit()
+        if pos and isValid then
+            State.AutoPlayUnitPositions[Autoplay.manualPlacementSlot] = pos
+            Util.notify({ Title = "Position Saved", Content = "Unit " .. slot .. " position set!", Duration = 3 })
+            Autoplay.endManualPlacement()
+        else
+            Util.notify({ Title = "Invalid Position", Content = "Place on a valid position", Duration = 2 })
+        end
     end)
 end
 
