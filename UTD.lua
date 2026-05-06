@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -187,6 +187,7 @@ local GameState = {}
 local Autoplay = {}
 
 local hologramParts = {}
+local placementSquares = {}
 local hologramEnabled = false
 local hologramConnection = nil
 
@@ -5515,6 +5516,15 @@ function Autoplay.updateHologramPosition()
         hologramParts.hill.Size = Vector3.new(0.1, hillSize, hillSize)
         hologramParts.hill.CFrame = CFrame.new(pos) * rotation
     end
+end
+
+function Autoplay.hidePlacementSquares()
+    for _, part in pairs(placementSquares) do
+        if part and part.Parent then
+            part:Destroy()
+        end
+    end
+    placementSquares = {}
 end
 
 function Autoplay.showPlacementSquares()
