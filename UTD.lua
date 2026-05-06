@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.43"
+local script_version = "V0.44"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -358,6 +358,7 @@ local State = {
     -- Autoplay
     AutoPlayEnableAutoPlace = false,
     AutoPlayEnableAutoUpgrade = false,
+    AutoPlayFocusFarmUnitsUpgrade = false,
     AutoPlayFocusFarmUnits = false,
     AutoPlayEnableHologram = false,
     AutoPlayDistancePercentage = 50,
@@ -6312,6 +6313,148 @@ function Autoplay.stopAutoPlace()
     autoPlaceRunning = false
 end
 
+function Autoplay.getUpgradeOnWave(slot)
+    return ({
+        State.AutoPlayUpgradeOnWaveUnit1,
+        State.AutoPlayUpgradeOnWaveUnit2,
+        State.AutoPlayUpgradeOnWaveUnit3,
+        State.AutoPlayUpgradeOnWaveUnit4,
+        State.AutoPlayUpgradeOnWaveUnit5,
+        State.AutoPlayUpgradeOnWaveUnit6,
+    })[slot] or 0
+end
+
+function Autoplay.getEffectiveUpgradeCap(slot, unitData)
+    local userCap = ({
+        State.AutoPlayUpgradeCap1,
+        State.AutoPlayUpgradeCap2,
+        State.AutoPlayUpgradeCap3,
+        State.AutoPlayUpgradeCap4,
+        State.AutoPlayUpgradeCap5,
+        State.AutoPlayUpgradeCap6,
+    })[slot] or 10
+
+    -- Get max upgrades from unit data
+    local maxUpgrades = 1
+    local ok, data = pcall(function()
+        return require(Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(unitData.UnitId))
+    end)
+    if ok and data and data.Stats and data.Stats.Upgrades then
+        maxUpgrades = #data.Stats.Upgrades
+    end
+
+    -- User cap can't exceed unit's own max
+    return math.min(userCap, maxUpgrades)
+end
+
+function Autoplay.startAutoUpgrade()
+    task.spawn(function()
+        while State.AutoPlayEnableAutoUpgrade and gameInProgress do
+            local matchFinished = workspace:GetAttribute("MatchFinished")
+            if matchFinished then break end
+
+            local currentWave = workspace:GetAttribute("Wave") or 0
+            if currentWave < 1 then task.wait(0.5) continue end
+
+            if not PlacedTowerController then task.wait(1) continue end
+
+            -- Build list of all placed units with their current levels
+            local candidates = {}
+
+            local towers = PlacedTowerController:GetTowers()
+            for guid, tower in pairs(towers) do
+                local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
+                local cleanId = Util.cleanUnitName(towerId)
+                local currentLevel = rawget(tower, "Upgrade") or 1
+
+                -- Find which slot this unit belongs to
+                local slot = nil
+                for i = 1, 6 do
+                    local unitData = Autoplay.getSlotUnitData(i)
+                    if unitData and unitData.UnitId == cleanId then
+                        slot = i
+                        break
+                    end
+                end
+                if not slot then continue end
+
+                -- Check wave restriction
+                local upgradeOnWave = Autoplay.getUpgradeOnWave(slot)
+                if upgradeOnWave > 0 and currentWave < upgradeOnWave then continue end
+
+                local unitData = Autoplay.getSlotUnitData(slot)
+                if not unitData then continue end
+
+                local effectiveCap = Autoplay.getEffectiveUpgradeCap(slot, unitData)
+                if currentLevel >= effectiveCap then continue end
+
+                -- Farm priority flag
+                local isFarm = unitData.IsFarm or false
+
+                table.insert(candidates, {
+                    guid = guid,
+                    slot = slot,
+                    level = currentLevel,
+                    cap = effectiveCap,
+                    isFarm = isFarm,
+                    unitId = cleanId,
+                })
+            end
+
+            if #candidates == 0 then
+                task.wait(2)
+                continue
+            end
+
+            -- Sort: farm first if enabled, then by lowest level (no unit left behind)
+            table.sort(candidates, function(a, b)
+                if State.AutoPlayFocusFarmUnitsUpgrade then
+                    if a.isFarm ~= b.isFarm then return a.isFarm end
+                end
+                return a.level < b.level
+            end)
+
+            local upgraded = false
+            for _, candidate in ipairs(candidates) do
+                -- Get upgrade cost
+                local upgradeCost = 0
+                local ok, data = pcall(function()
+                    return require(Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(candidate.unitId))
+                end)
+                if ok and data and data.Stats and data.Stats.Upgrades then
+                    local nextUpgrade = data.Stats.Upgrades[candidate.level + 1]
+                    if nextUpgrade and nextUpgrade.Cost then
+                        upgradeCost = nextUpgrade.Cost
+                    end
+                end
+
+                if upgradeCost > 0 then
+                    local canContinue = Autoplay.waitForMoney(upgradeCost, candidate.unitId .. " upgrade")
+                    if not canContinue then break end
+                end
+
+                local success = pcall(function()
+                    TowerService:WaitForChild("UpgradeUnit"):InvokeServer(candidate.guid)
+                end)
+
+                if success then
+                    Util.updateDetailedStatus(string.format("Upgraded %s (Lv%d→%d)", 
+                        candidate.unitId, candidate.level, candidate.level + 1))
+                    upgraded = true
+                    task.wait(0.3)
+                    break -- one upgrade per cycle, then re-sort
+                end
+            end
+
+            if not upgraded then
+                task.wait(1)
+            else
+                task.wait(0.3)
+            end
+        end
+    end)
+end
+
 AutoPlayTab:CreateToggle({
     Name = "Enable Hologram",
     CurrentValue = false,
@@ -6653,6 +6796,18 @@ AutoPlayTab:CreateToggle({
     Flag = "AutoPlayEnableAutoUpgrade",
     Callback = function(Value)
         State.AutoPlayEnableAutoUpgrade = Value
+        if Value and gameInProgress then
+            Autoplay.startAutoUpgrade()
+        end
+    end,
+})
+
+AutoPlayTab:CreateToggle({
+    Name = "Focus On Farm Units",
+    CurrentValue = false,
+    Flag = "AutoPlayFocusFarmUnits",
+    Callback = function(Value)
+        State.AutoPlayFocusFarmUnitsUpgrade = Value
     end,
 })
 
@@ -7182,6 +7337,9 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
             Autoplay.stopAutoPlace()
             task.wait(0.5)
             Autoplay.startAutoPlace()
+        end
+        if State.AutoPlayEnableAutoUpgrade then
+            Autoplay.startAutoUpgrade()
         end
         currentGameInfo = {
             MapName = workspace:GetAttribute("MapName") or "Unknown",
