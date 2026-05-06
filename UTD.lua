@@ -4047,24 +4047,6 @@ local function createAutoSelectDropdowns()
     table.sort(initialMacroOptions)
     task.wait(1)
  
-    Tab:CreateSection("Story Stage Macros")
-    if StoryStageDropdown and StoryStageDropdown.Options then
-        for _, stageName in ipairs(StoryStageDropdown.Options) do
-            local worldKey = "story_" .. stageName:lower():gsub("%s+", "_")
-            local currentMapping = worldMacroMappings[worldKey] or "None"
-            local dropdown = Tab:CreateDropdown({
-                Name = stageName, Options = initialMacroOptions, CurrentOption = {currentMapping},
-                MultipleOptions = false, Flag = "WorldMacro_" .. worldKey,
-                Callback = function(Option)
-                    local selectedMacro = type(Option) == "table" and Option[1] or Option
-                    worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
-                    MacroIO.saveWorldMappings()
-                end,
-            })
-            worldDropdowns[worldKey] = dropdown
-        end
-    end
- 
     Tab:CreateSection("Legend Stage Macros")
     if LegendStageDropdown and LegendStageDropdown.Options then
         for _, stageName in ipairs(LegendStageDropdown.Options) do
@@ -4143,7 +4125,7 @@ local function createAutoSelectDropdowns()
         end
     end
  
-    Tab:CreateSection("Challenge Macros")
+    Tab:CreateSection("Story/Challenge Macros")
     if StoryStageDropdown and StoryStageDropdown.Options then
         for _, stageName in ipairs(StoryStageDropdown.Options) do
             local worldKey = "challenge_" .. stageName:lower():gsub("%s+", "_")
