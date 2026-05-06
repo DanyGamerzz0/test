@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.57"
+local script_version = "V0.58"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3712,6 +3712,63 @@ AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
     Callback = function(Value) State.AutoJoinRagnarok = Value end,
 })
 
+JoinerTab:CreateToggle({
+        Name = "Auto Join Winter Event",
+        CurrentValue = false,
+        Flag = "AutoJoinWinterEvent",
+        Callback = function(Value)
+            State.AutoJoinWinterEvent = Value
+        end,
+    })
+
+JoinerTab:CreateDropdown({
+    Name = "Select Winter Event Act",
+    Options = {"Act 1", "Infinite"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "WinterStageActSelector",
+    Callback = function(Option)
+        local selectedOption = type(Option) == "table" and Option[1] or Option
+            if selectedOption == "Infinite" then
+                State.WinterActSelected = "Infinite"
+            else
+                local num = selectedOption:match("%d+")
+                if num then
+                    State.WinterActSelected = num
+                end
+            end
+    end,
+})
+
+JoinerTab:CreateDropdown({
+        Name = "Select Winter Stage Difficulty",
+        Options = {"Easy","Hard","Nightmare"},
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "WinterStageDifficultySelector",
+        Callback = function(Option)
+            if Option[1] == "Easy" then
+                State.WinterStageDifficultySelected = "Easy"
+            elseif Option[1] == "Hard" then
+                State.WinterStageDifficultySelected = "Hard"
+            elseif Option[1] == "Nightmare" then
+                State.WinterStageDifficultySelected = "Nightmare"
+            end
+        end,
+    })
+
+JoinerTab:CreateSlider({
+   Name = "Select Difficulty Meter",
+   Range = {100, 700},
+   Increment = 1,
+   Suffix = "",
+   CurrentValue = 100,
+   Flag = "WinterStageDifficultyMeterSelector",
+   Callback = function(Value)
+    State.WinterStageDifficultyMeterSelected = Value
+   end,
+})
+
 function Loader.buildMapLookup()
     local success, result = pcall(function()
         local WavesFolder = Services.ReplicatedStorage.Shared.Data.Waves
@@ -6227,6 +6284,8 @@ function Autoplay.getPlacedCountForSlot(slot)
     local count = 0
     local towers = PlacedTowerController:GetTowers()
     for guid, tower in pairs(towers) do
+        local owner = PlacedTowerController:GetOwner(guid)
+        if not owner or owner ~= Services.Players.LocalPlayer then continue end
         local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
         local cleanId = Util.cleanUnitName(towerId)
         if cleanId == unitData.UnitId then
@@ -6439,6 +6498,8 @@ function Autoplay.startAutoUpgrade()
             local candidates = {}
 
             for guid, tower in pairs(towers) do
+                local owner = PlacedTowerController:GetOwner(guid)
+                if not owner or owner ~= Services.Players.LocalPlayer then continue end
                 local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
                 local cleanId = Util.cleanUnitName(towerId)
 
@@ -7239,6 +7300,8 @@ task.spawn(function()
         local currentWave = workspace:GetAttribute("Wave") or 0
 
         for guid, towerData in pairs(towers) do
+            local owner = PlacedTowerController:GetOwner(guid)
+            if owner ~= Services.Players.LocalPlayer then continue end
             local unitId = towerData.TowerID
             if not unitId then continue end
             local cleanId = Util.cleanUnitName(unitId)
