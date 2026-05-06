@@ -5492,34 +5492,41 @@ function Playback.autoPlaybackLoop()
         end
         if not isPlaybackEnabled then break end
         if not gameInProgress then task.wait(0.5) continue end
+
+        -- Always check world mapping FIRST before anything else
         local worldKey = Util.getCurrentWorldKey()
         if worldKey and worldMacroMappings[worldKey] then
             local macroToLoad = worldMacroMappings[worldKey]
             if currentMacroName ~= macroToLoad then
                 currentMacroName = macroToLoad
-                Util.notify({ Title = "Auto-Switched Macro", Content = string.format("%s for %s", macroToLoad, worldKey), Duration = 3 })
                 MacroDropdown:Set(macroToLoad)
+                Util.notify({ Title = "Auto-Switched Macro", Content = string.format("%s", macroToLoad), Duration = 3 })
             end
         end
+
         if not currentMacroName or currentMacroName == "" then
             Util.updateMacroStatus("Error: No macro selected")
             Util.updateDetailedStatus("Select a macro to continue")
             break
         end
+
         local loadedMacro = MacroIO.load(currentMacroName)
         if not loadedMacro or #loadedMacro == 0 then
             Util.updateMacroStatus("Error: Failed to load macro")
             Util.updateDetailedStatus("Could not load: " .. tostring(currentMacroName))
             break
         end
+
         macro = loadedMacro
         UnitTracker.clearSpawnIdMappings()
         Util.updateMacroStatus(string.format("Executing: %s (%d actions)", currentMacroName, #macro))
         Util.updateDetailedStatus("Starting playback...")
         Util.notify({ Title = "Playback Started", Content = currentMacroName .. " (" .. #macro .. " actions)", Duration = 3 })
         Playback.playMacro()
+
         while gameInProgress and isPlaybackEnabled do task.wait(0.5) end
         if not isPlaybackEnabled then break end
+
         UnitTracker.clearSpawnIdMappings()
         Util.updateMacroStatus("Game ended - waiting for next...")
         Util.updateDetailedStatus("Ready for next game")
