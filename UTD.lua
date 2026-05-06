@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.2"
+local script_version = "V0.21"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4155,6 +4155,7 @@ Toggle = MiscTab:CreateToggle({
 })
 
 task.spawn(function()
+    if Util.isInLobby() then
     local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.BattlepassService.RF.ClaimTiers
     local done = false
 
@@ -4173,6 +4174,7 @@ task.spawn(function()
             end
             if result == "Tier not unlocked!" then break end
             task.wait(0.5)
+            end
         end
     end
 end)
@@ -4204,6 +4206,7 @@ MiscTab:CreateDropdown({
 })
 
 task.spawn(function()
+    if Util.isInLobby() then
     local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.BannerService.RF.BuyBanner
 
     while true do
@@ -4221,6 +4224,7 @@ task.spawn(function()
         end
 
         task.wait(0.5)
+        end
     end
 end)
 
@@ -4308,6 +4312,7 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    if Util.isInLobby() then
     local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.ItemService.RF.UseItemBulk
 
     while true do
@@ -4325,8 +4330,9 @@ task.spawn(function()
                     return Event:InvokeServer(capsuleId, batch)
                 end)
                 if not ok or result == "Error" or result == "You don't have enough of this item!" then break end
-                amount -= batch
+                amount = amount - batch
                 task.wait(0.5)
+                end
             end
         end
     end
@@ -5511,6 +5517,97 @@ function Autoplay.updateHologramPosition()
     end
 end
 
+function Autoplay.showPlacementSquares()
+    Autoplay.hidePlacementSquares()
+
+    local center = Autoplay.getCircleCenter()
+    if not center then return end
+
+    local flatCenter = Vector3.new(center.X, 0, center.Z)
+    local groundRadius = (State.AutoPlayGroundPercentage / 100) * 37.5
+    local hillRadius = (State.AutoPlayHillPercentage / 100) * 23.717
+
+    local CollectionService = game:GetService("CollectionService")
+
+    -- Hill squares from CollectionService tagged parts
+    for _, tagged in pairs(CollectionService:GetTagged("Placement")) do
+        if tagged:HasTag("HillPlacement") then
+            local place = tagged:FindFirstChild("Place")
+            if place and place:IsA("BasePart") then
+                local flatPart = Vector3.new(place.Position.X, 0, place.Position.Z)
+                if (flatPart - flatCenter).Magnitude <= hillRadius then
+                    local highlight = Instance.new("Part")
+                    highlight.Name = "AutoPlaySquare"
+                    highlight.Size = place.Size
+                    highlight.CFrame = place.CFrame
+                    highlight.Color = Color3.fromRGB(13, 105, 172)
+                    highlight.Material = Enum.Material.Plastic
+                    highlight.Transparency = 0.3
+                    highlight.CanCollide = false
+                    highlight.CanQuery = false
+                    highlight.CanTouch = false
+                    highlight.Anchored = true
+                    highlight.CastShadow = false
+                    highlight.Parent = workspace.Ignore
+                    table.insert(placementSquares, highlight)
+                end
+            end
+        end
+    end
+
+    -- Ground squares via grid raycast within circle
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = { workspace.Ignore }
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.CollisionGroup = "Tower"
+    rayParams.RespectCanCollide = false
+
+    local stepSize = 1.5 -- grid density, matches ~1x1 square size
+    local floorY = center.Y + 50 -- raycast from above
+
+    for x = -groundRadius, groundRadius, stepSize do
+        for z = -groundRadius, groundRadius, stepSize do
+            local flatOffset = Vector3.new(x, 0, z)
+            if flatOffset.Magnitude <= groundRadius then
+                local worldX = center.X + x
+                local worldZ = center.Z + z
+                local origin = Vector3.new(worldX, floorY, worldZ)
+                local result = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
+                if result then
+                    local hit = result.Instance
+                    -- Check it hit the floor and not a hill
+                    local isFloor = hit:HasTag("Placement") and not hit:HasTag("HillPlacement")
+                    if not isFloor then
+                        -- also check via CollectionService for the RealFloor
+                        local ok, floor = pcall(function()
+                            return workspace.Map:FindFirstChild("RealFloor", true)
+                        end)
+                        if ok and floor and (hit == floor or hit:IsDescendantOf(floor)) then
+                            isFloor = true
+                        end
+                    end
+                    if isFloor then
+                        local highlight = Instance.new("Part")
+                        highlight.Name = "AutoPlaySquare"
+                        highlight.Size = Vector3.new(1, 0.1, 1)
+                        highlight.CFrame = CFrame.new(result.Position + Vector3.new(0, 0.05, 0))
+                        highlight.Color = Color3.fromRGB(75, 151, 75)
+                        highlight.Material = Enum.Material.Plastic
+                        highlight.Transparency = 0.3
+                        highlight.CanCollide = false
+                        highlight.CanQuery = false
+                        highlight.CanTouch = false
+                        highlight.Anchored = true
+                        highlight.CastShadow = false
+                        highlight.Parent = workspace.Ignore
+                        table.insert(placementSquares, highlight)
+                    end
+                end
+            end
+        end
+    end
+end
+
 function Autoplay.showHologram()
     if hologramEnabled then return end
     hologramEnabled = true
@@ -5530,6 +5627,7 @@ function Autoplay.showHologram()
     )
 
     Autoplay.updateHologramPosition()
+    Autoplay.showPlacementSquares()
 
     hologramConnection = game:GetService("RunService").Heartbeat:Connect(function()
         if not hologramEnabled then return end
@@ -5551,11 +5649,13 @@ function Autoplay.hideHologram()
         end
     end
     hologramParts = {}
+    Autoplay.hidePlacementSquares()
 end
 
 function Autoplay.refreshHologram()
     if hologramEnabled then
         Autoplay.updateHologramPosition()
+        Autoplay.showPlacementSquares()
     end
 end
 
@@ -5573,12 +5673,7 @@ AutoPlayTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoPlayEnableAutoUpgrade",
     Callback = function(Value)
-        State.AutoPlayEnableHologram = Value
-        if Value then
-            Autoplay.showHologram()
-        else
-            Autoplay.hideHologram()
-        end
+        State.AutoPlayEnableAutoUpgrade = Value
     end,
 })
 
@@ -5597,6 +5692,11 @@ AutoPlayTab:CreateToggle({
     Flag = "AutoPlayEnableHologram",
     Callback = function(Value)
         State.AutoPlayEnableHologram = Value
+        if Value then
+            Autoplay.showHologram()
+        else
+            Autoplay.hideHologram()
+        end
     end,
 })
 
@@ -6436,7 +6536,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
         gameInProgress = false
-        
+
             if State.ReturnToLobbyAfterMatches and State.ReturnToLobbyAfterMatches > 0 then
             State.matchesPlayed = (State.matchesPlayed or 0) + 1
             Util.notify({ Title = "Match Tracked", Content = string.format("%d/%d matches", State.matchesPlayed, State.ReturnToLobbyAfterMatches), Duration = 3 })
