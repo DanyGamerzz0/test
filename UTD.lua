@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.56"
+local script_version = "V0.57"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -6201,6 +6201,24 @@ function Autoplay.findNearestValidSquare(squares, unitData, excludePositions)
     return nil
 end
 
+function Autoplay.getTowerUpgradeLevel(guid)
+    local success, result = pcall(function()
+        local towers = PlacedTowerController:GetTowers()
+        local tower = towers[guid]
+        if not tower then return nil end
+        -- Use the model's Upgrade attribute directly
+        local model = rawget(tower, "Model")
+        if model then
+            local upgradeAttr = model:GetAttribute("Upgrade")
+            if upgradeAttr then return upgradeAttr end
+        end
+        -- Fallback to rawget
+        return rawget(tower, "Upgrade") or 1
+    end)
+    if success and result then return result end
+    return 1
+end
+
 function Autoplay.getPlacedCountForSlot(slot)
     if not PlacedTowerController then return 0 end
     local unitData = Autoplay.getSlotUnitData(slot)
@@ -6208,10 +6226,15 @@ function Autoplay.getPlacedCountForSlot(slot)
 
     local count = 0
     local towers = PlacedTowerController:GetTowers()
-    for _, tower in pairs(towers) do
+    for guid, tower in pairs(towers) do
         local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
-        if Util.cleanUnitName(towerId) == unitData.UnitId then  -- ADD cleanUnitName here
-            count = count + 1
+        local cleanId = Util.cleanUnitName(towerId)
+        if cleanId == unitData.UnitId then
+            -- Verify the model actually exists in workspace
+            local model = rawget(tower, "Model")
+            if model and model.Parent then
+                count = count + 1
+            end
         end
     end
     return count
@@ -6412,17 +6435,29 @@ function Autoplay.startAutoUpgrade()
 
             if not PlacedTowerController then task.wait(1) continue end
 
-            -- Build list of all placed units with their current levels
+            local towers = PlacedTowerController:GetTowers()
             local candidates = {}
 
-            local towers = PlacedTowerController:GetTowers()
             for guid, tower in pairs(towers) do
                 local towerId = rawget(tower, "TowerID") or rawget(tower, "UnitId") or ""
                 local cleanId = Util.cleanUnitName(towerId)
-                local freshData = UnitTracker.findDataInGC(guid)
-                local currentLevel = (freshData and freshData.Upgrade) or 1
 
-                -- Find which slot this unit belongs to
+                -- Verify model exists
+                local model = rawget(tower, "Model")
+                if not model or not model.Parent then continue end
+
+                -- Get REAL current level from model attribute first, fallback to rawget
+                local currentLevel = 1
+                if model then
+                    local attr = model:GetAttribute("Upgrade")
+                    if attr then
+                        currentLevel = attr
+                    else
+                        currentLevel = rawget(tower, "Upgrade") or 1
+                    end
+                end
+
+                -- Find which slot
                 local slot = nil
                 for i = 1, 6 do
                     local unitData = Autoplay.getSlotUnitData(i)
@@ -6433,7 +6468,7 @@ function Autoplay.startAutoUpgrade()
                 end
                 if not slot then continue end
 
-                -- Check wave restriction
+                -- Wave restriction
                 local upgradeOnWave = Autoplay.getUpgradeOnWave(slot)
                 if upgradeOnWave > 0 and currentWave < upgradeOnWave then continue end
 
@@ -6443,15 +6478,12 @@ function Autoplay.startAutoUpgrade()
                 local effectiveCap = Autoplay.getEffectiveUpgradeCap(slot, unitData)
                 if currentLevel >= effectiveCap then continue end
 
-                -- Farm priority flag
-                local isFarm = unitData.IsFarm or false
-
                 table.insert(candidates, {
                     guid = guid,
                     slot = slot,
                     level = currentLevel,
                     cap = effectiveCap,
-                    isFarm = isFarm,
+                    isFarm = unitData.IsFarm or false,
                     unitId = cleanId,
                 })
             end
@@ -6461,22 +6493,19 @@ function Autoplay.startAutoUpgrade()
                 continue
             end
 
-            -- Sort: farm first if enabled, then by lowest level (no unit left behind)
-            local farmNotMaxed = false
+            -- Farm priority
             if State.AutoPlayFocusFarmUnitsUpgrade then
-                for _, candidate in ipairs(candidates) do
-                    if candidate.isFarm and candidate.level < candidate.cap then
+                local farmNotMaxed = false
+                for _, c in ipairs(candidates) do
+                    if c.isFarm and c.level < c.cap then
                         farmNotMaxed = true
                         break
                     end
                 end
-                -- If farms aren't maxed yet, filter out non-farm candidates
                 if farmNotMaxed then
                     local farmOnly = {}
-                    for _, candidate in ipairs(candidates) do
-                        if candidate.isFarm then
-                            table.insert(farmOnly, candidate)
-                        end
+                    for _, c in ipairs(candidates) do
+                        if c.isFarm then table.insert(farmOnly, c) end
                     end
                     candidates = farmOnly
                 end
@@ -6489,13 +6518,18 @@ function Autoplay.startAutoUpgrade()
 
             local upgraded = false
             for _, candidate in ipairs(candidates) do
-                -- Get upgrade cost
+                -- Re-read level right before upgrading to avoid stale data
+                local model = rawget(PlacedTowerController:GetTowers()[candidate.guid] or {}, "Model")
+                local freshLevel = (model and model:GetAttribute("Upgrade")) or candidate.level
+                if freshLevel >= candidate.cap then continue end
+
+                -- Get upgrade cost using fresh level
                 local upgradeCost = 0
                 local ok, data = pcall(function()
                     return require(Services.ReplicatedStorage.Shared.Data.Towers:FindFirstChild(candidate.unitId))
                 end)
                 if ok and data and data.Stats and data.Stats.Upgrades then
-                    local nextUpgrade = data.Stats.Upgrades[candidate.level + 1]
+                    local nextUpgrade = data.Stats.Upgrades[freshLevel + 1]
                     if nextUpgrade and nextUpgrade.Cost then
                         upgradeCost = nextUpgrade.Cost
                     end
@@ -6511,11 +6545,12 @@ function Autoplay.startAutoUpgrade()
                 end)
 
                 if success then
-                    Util.updateDetailedStatus(string.format("Upgraded %s (Lv%d→%d)", 
-                        candidate.unitId, candidate.level, candidate.level + 1))
+                    Util.updateDetailedStatus(string.format("Upgraded %s (Lv%d→%d)",
+                        candidate.unitId, freshLevel, freshLevel + 1))
                     upgraded = true
-                    task.wait(0.3)
-                    break -- one upgrade per cycle, then re-sort
+                    -- Wait for server to confirm before next upgrade
+                    task.wait(0.5)
+                    break
                 end
             end
 
