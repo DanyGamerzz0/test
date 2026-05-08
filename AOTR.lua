@@ -1,7 +1,7 @@
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -565,8 +565,11 @@ local function onRoundEnd(encoded)
 
             task.wait(5)
             if State.autoRetry then
-                GET:InvokeServer("Functions", "Retry", "Add")
                 Util.notify("Auto Farm", "Retrying...", 3, "cog")
+                while State.autoRetry do
+                    GET:InvokeServer("Functions", "Retry", "Add")
+                    task.wait(3)
+                end
             elseif State.autoLobby then
                 POST:FireServer("Functions", "Teleport")
                 Util.notify("Auto Farm", "Returning to lobby...", 3, "house")
