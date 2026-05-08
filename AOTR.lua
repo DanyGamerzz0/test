@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -30,15 +30,20 @@ end)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local function isInLobby()
+    return workspace:GetAttribute("Map") == "Lobby"
+end
+
 repeat task.wait(0.5) until
     ReplicatedStorage:FindFirstChild("Assets") and
     ReplicatedStorage.Assets:FindFirstChild("Remotes") and
     ReplicatedStorage.Assets.Remotes:FindFirstChild("POST") and
     ReplicatedStorage.Assets.Remotes:FindFirstChild("GET")
 
+if not isInLobby() then
 repeat task.wait(0.5) until workspace:GetAttribute("Type") ~= nil
-
 repeat task.wait(0.5) until #getactors() > 0
+end
 
 local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
@@ -77,6 +82,8 @@ local Movers = {
 
 -- ==================== COLLISION ====================
 local noclipConnection = nil
+local currentTarget = nil
+local isReloading = false
 local Util = {}
 local PERK_RARITIES = {}
 
@@ -281,6 +288,8 @@ end
 local function stopAutoAttack()
     State.stopRequested = true
     State.farmActive    = false
+    currentTarget = nil
+    isReloading = false
     print("[LixHub] Auto farm stopped")
 
     if State.attackConnection then
@@ -322,6 +331,7 @@ local function startLobbyTimer()
 end
 
 local function startAutoAttack()
+    if isInLobby() then return end
     if State.attackConnection then
         State.attackConnection:Disconnect()
         State.attackConnection = nil
@@ -368,10 +378,26 @@ local function startAutoAttack()
         if tickAccum < State.attackInterval then return end
         tickAccum = 0
 
-        local titan, nape = getClosestNape()
-        if not titan or not nape then return end
+        if currentTarget then
+            local hum = currentTarget:FindFirstChild("Humanoid")
+            if not hum or hum.Health <= 0 then
+                currentTarget = nil
+            end
+        end
+
+        -- pick new target if needed
+        if not currentTarget then
+            local t, n = getClosestNape()
+            if not t then return end
+            currentTarget = t
+        end
+
+        local titan = currentTarget
         local titanRoot = titan:FindFirstChild("HumanoidRootPart")
-        if not titanRoot then return end
+        if not titanRoot then currentTarget = nil return end
+        local hb = titan:FindFirstChild("Hitboxes", true)
+        local nape = hb and hb.Hit and hb.Hit:FindFirstChild("Nape")
+        if not nape then return end
 
         local liveCount = countLiveTitans()
 
@@ -401,21 +427,19 @@ local function startAutoAttack()
         local targetPos      = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
         ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
 
-        -- Only attack once the lerp cursor has arrived within 20 studs of the target.
-        -- This prevents damage from firing while still travelling between titans.
-        if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 20 then return end
-
-        POST:FireServer("Attacks", "Slash", true)
-        local damage = 670 + math.random(55, 165)
-        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
-        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
-
+        -- proactive reload check runs every tick regardless of distance
         local reloadsLeft, segmentsLeft = getBladeStatus()
-        if segmentsLeft <= 0 then
+
+        if segmentsLeft <= 0 and not isReloading then
+            isReloading = true
             print("[LixHub] Blade fully broken — swapping blade")
             GET:InvokeServer("Blades", "Reload")
+            task.delay(1, function() isReloading = false end)
+            return -- skip attack this tick
         end
-        if reloadsLeft <= 0 then
+
+        if reloadsLeft <= 0 and not isReloading then
+            isReloading = true
             local refillPoint = workspace:FindFirstChild("Refill", true) or
                 (workspace.Unclimbable and workspace.Unclimbable.Props and
                 workspace.Unclimbable.Props.HQ and workspace.Unclimbable.Props.HQ.GasTanks and
@@ -423,26 +447,29 @@ local function startAutoAttack()
 
             if refillPoint then
                 print("[LixHub] Out of blade cassettes — spoofing position to refill station")
-
-                -- save current titan sync position
                 local titanSyncPos = State.syncedPosition
-
-                -- spoof to refill station
                 State.syncedPosition = refillPoint.Position + Vector3.new(0, 3, 0)
                 task.wait(0.5)
-
                 print("[LixHub] Requesting refill...")
                 GET:InvokeServer("Attacks", "Reload", refillPoint)
                 task.wait(0.3)
-
-                -- spoof back to titan
                 State.syncedPosition = titanSyncPos
                 print("[LixHub] Refill done — spoofed position back to titan")
             else
                 print("[LixHub] Warning: Could not find refill point!")
                 GET:InvokeServer("Attacks", "Reload", nil)
             end
+            task.delay(2, function() isReloading = false end)
+            return -- skip attack this tick
         end
+
+        -- only attack once in range
+        if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 20 then return end
+
+        POST:FireServer("Attacks", "Slash", true)
+        local damage = 670 + math.random(55, 165)
+        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
     end)
     Util.notify("Auto Farm", "Auto Farm Started", 3, "cog")
     if State.returnToLobbyEnabled then
@@ -574,12 +601,15 @@ local function sendWebhook(roundData, playerData)
         table.insert(rewardLines, "+1 " .. tostring(drop))
         table.insert(specialDrops, tostring(drop))
     end
+    for _, chest in ipairs(obtained.Chests or {}) do
+        table.insert(rewardLines, "+1 " .. tostring(chest) .. " Chest")
+    end
     local rewardsText = #rewardLines > 0 and table.concat(rewardLines, "\n") or "None"
 
     local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     local pingParts = {}
     if #specialDrops > 0 then table.insert(pingParts, "Special drop!") end
-    if #mythicPerks > 0 then table.insert(pingParts, "Special drop! " .. table.concat(mythicPerks, ", ")) end
+    if #mythicPerks > 0 then table.insert(pingParts, "Mythic perk! " .. table.concat(mythicPerks, ", ")) end
 
     local data = {
         username = "LixHub",
@@ -697,11 +727,14 @@ local function onRoundEnd(encoded)
 end
 
 -- Create bindable BEFORE running on actors
+if not isInLobby() then
 local bridge = Instance.new("BindableEvent")
 bridge.Parent = game:GetService("ReplicatedStorage")
 bridge.Name = "__LixBridge"
 bridge.Event:Connect(onRoundEnd)
+end
 
+if not isInLobby() then
 for _, actor in getactors() do
     run_on_actor(actor, [[
         local GET = game:GetService("ReplicatedStorage").Assets.Remotes.GET
@@ -734,6 +767,7 @@ for _, actor in getactors() do
             return mtHook(self, ...)
         end)
     ]])
+    end
 end
 
 -- ==================== RAYFIELD UI ====================
@@ -865,7 +899,7 @@ FarmTab:CreateToggle({
 FarmTab:CreateSlider({
     Name         = "Wait x Seconds Before Starting Farming",
     Flag         = "WaitFarmSeconds",
-    Range        = {0, 60},
+    Range        = {15, 600},
     Increment    = 1,
     CurrentValue = State.waitFarmSeconds,
     Callback     = function(val) State.waitFarmSeconds = val end,
@@ -874,7 +908,7 @@ FarmTab:CreateSlider({
 FarmTab:CreateSlider({
     Name         = "Wait x Seconds Before Killing Last Titan",
     Flag         = "WaitLastTitanSeconds",
-    Range        = {0, 180},
+    Range        = {30, 600},
     Increment    = 1,
     CurrentValue = State.waitLastTitanSeconds,
     Callback     = function(val) State.waitLastTitanSeconds = val end,
@@ -1029,5 +1063,7 @@ MiscTab:CreateButton({
 })
 
 -- ==================== INIT ====================
+if not isInLobby() then
 setupAutoEscape()
+end
 Rayfield:LoadConfiguration()
