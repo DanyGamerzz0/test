@@ -1,7 +1,11 @@
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
