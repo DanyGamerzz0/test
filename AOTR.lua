@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.14"
+local script_version = "V0.15"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -373,6 +373,39 @@ local function startAutoAttack()
             return
         end
 
+        -- proactive reload check runs ALWAYS, before any early returns
+        local reloadsLeft, segmentsLeft = getBladeStatus()
+
+        if segmentsLeft <= 0 and not isReloading then
+            isReloading = true
+            print("[LixHub] Blade fully broken — swapping blade")
+            GET:InvokeServer("Blades", "Reload")
+            task.delay(1, function() isReloading = false end)
+        end
+
+        if reloadsLeft <= 0 and not isReloading then
+            isReloading = true
+            local refillPoint = workspace:FindFirstChild("Refill", true) or
+                (workspace.Unclimbable and workspace.Unclimbable.Props and
+                workspace.Unclimbable.Props.HQ and workspace.Unclimbable.Props.HQ.GasTanks and
+                workspace.Unclimbable.Props.HQ.GasTanks.Refill)
+
+            if refillPoint then
+                print("[LixHub] Out of blade cassettes — spoofing position to refill station")
+                local titanSyncPos = State.syncedPosition
+                State.syncedPosition = refillPoint.Position + Vector3.new(0, 3, 0)
+                task.wait(0.5)
+                GET:InvokeServer("Attacks", "Reload", refillPoint)
+                task.wait(0.3)
+                State.syncedPosition = titanSyncPos
+                print("[LixHub] Refill done — spoofed position back to titan")
+            else
+                print("[LixHub] Warning: Could not find refill point!")
+                GET:InvokeServer("Attacks", "Reload", nil)
+            end
+            task.delay(2, function() isReloading = false end)
+        end
+
         if lastTitanWaiting then return end
         tickAccum = tickAccum + dt
         if tickAccum < State.attackInterval then return end
@@ -385,9 +418,8 @@ local function startAutoAttack()
             end
         end
 
-        -- pick new target if needed
         if not currentTarget then
-            local t, n = getClosestNape()
+            local t, _ = getClosestNape()
             if not t then return end
             currentTarget = t
         end
@@ -427,43 +459,6 @@ local function startAutoAttack()
         local targetPos      = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
         ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
 
-        -- proactive reload check runs every tick regardless of distance
-        local reloadsLeft, segmentsLeft = getBladeStatus()
-
-        if segmentsLeft <= 0 and not isReloading then
-            isReloading = true
-            print("[LixHub] Blade fully broken — swapping blade")
-            GET:InvokeServer("Blades", "Reload")
-            task.delay(1, function() isReloading = false end)
-            return -- skip attack this tick
-        end
-
-        if reloadsLeft <= 0 and not isReloading then
-            isReloading = true
-            local refillPoint = workspace:FindFirstChild("Refill", true) or
-                (workspace.Unclimbable and workspace.Unclimbable.Props and
-                workspace.Unclimbable.Props.HQ and workspace.Unclimbable.Props.HQ.GasTanks and
-                workspace.Unclimbable.Props.HQ.GasTanks.Refill)
-
-            if refillPoint then
-                print("[LixHub] Out of blade cassettes — spoofing position to refill station")
-                local titanSyncPos = State.syncedPosition
-                State.syncedPosition = refillPoint.Position + Vector3.new(0, 3, 0)
-                task.wait(0.5)
-                print("[LixHub] Requesting refill...")
-                GET:InvokeServer("Attacks", "Reload", refillPoint)
-                task.wait(0.3)
-                State.syncedPosition = titanSyncPos
-                print("[LixHub] Refill done — spoofed position back to titan")
-            else
-                print("[LixHub] Warning: Could not find refill point!")
-                GET:InvokeServer("Attacks", "Reload", nil)
-            end
-            task.delay(2, function() isReloading = false end)
-            return -- skip attack this tick
-        end
-
-        -- only attack once in range
         if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 20 then return end
 
         POST:FireServer("Attacks", "Slash", true)
@@ -471,10 +466,11 @@ local function startAutoAttack()
         if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
         POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
     end)
+
     Util.notify("Auto Farm", "Auto Farm Started", 3, "cog")
     if State.returnToLobbyEnabled then
-    startLobbyTimer()
-end
+        startLobbyTimer()
+    end
 end
 
 -- ==================== AUTO ESCAPE ====================
