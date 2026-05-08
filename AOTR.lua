@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.15"
+local script_version = "V0.16"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -73,11 +73,31 @@ local State = {
     webhookUrl     = nil,
     discordUserId  = nil,
     sessionRuns = 0,
+    autoJoinMissions       = false,
+    autoJoinMissionMap     = "",
+    autoJoinMissionObj     = "",
+    autoJoinMissionDiff    = "",
+    autoJoinMissionMods    = {},
+
+    autoJoinRaids          = false,
+    autoJoinRaidType       = "",
+    autoJoinRaidDiff       = "",
+    autoJoinRaidMods       = {},
+
+    autoJoinWaves          = false,
+    autoJoinWavesMap       = "",
 }
 
 local Movers = {
     bodyPos  = nil,
     bodyGyro = nil,
+}
+
+local RAID_TITAN_MAP = {
+    ["Attack Titan"]   = "Trost",
+    ["Armored Titan"]  = "Shiganshina",
+    ["Female Titan"]   = "Stohess",
+    ["Colossal Titan"] = "Shiganshina",
 }
 
 -- ==================== COLLISION ====================
@@ -86,6 +106,8 @@ local currentTarget = nil
 local isReloading = false
 local Util = {}
 local PERK_RARITIES = {}
+local autoJoinConnection = nil
+local autoJoinProcessing = false
 
 function Util.notify(title, content, duration, image)
     Rayfield:Notify({
@@ -844,6 +866,304 @@ local Window = Rayfield:CreateWindow({
       Key = {"0xLIXHUB"},
    }
 })
+
+-- ===== TAB: Join =====
+
+local function joinMission()
+    print("[LixHub] Auto Join: Creating mission —", State.autoJoinMissionMap, State.autoJoinMissionObj, State.autoJoinMissionDiff)
+
+    -- Create the lobby, server returns the mission instance on success
+    local result = GET:InvokeServer("S_Missions", "Create", {
+        Difficulty = State.autoJoinMissionDiff,
+        Type       = "Missions",
+        Objective  = State.autoJoinMissionObj,
+        Name       = State.autoJoinMissionMap,
+    })
+
+    -- Validate: server returns the ReplicatedStorage.Missions.<Map> instance
+    local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
+                            ReplicatedStorage.Missions:FindFirstChild(State.autoJoinMissionMap)
+
+    if not result or result ~= expectedMission then
+        warn("[LixHub] Auto Join: Create failed — unexpected result:", result)
+        return false
+    end
+
+    print("[LixHub] Auto Join: Lobby created successfully")
+
+    -- Apply modifiers, each should return true
+    for _, mod in ipairs(State.autoJoinMissionMods) do
+        local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
+        if modResult ~= true then
+            warn("[LixHub] Auto Join: Modifier failed —", mod, "got:", modResult)
+        else
+            print("[LixHub] Auto Join: Applied modifier —", mod)
+        end
+        task.wait(0.1)
+    end
+
+    -- Start the game
+    print("[LixHub] Auto Join: Starting mission...")
+    GET:InvokeServer("S_Missions", "Start")
+
+    return true
+end
+
+local function joinRaid()
+    local titanMap = RAID_TITAN_MAP[State.autoJoinRaidType]
+    if not titanMap then
+        warn("[LixHub] Auto Join Raid: Unknown titan type —", State.autoJoinRaidType)
+        return false
+    end
+
+    print("[LixHub] Auto Join Raid:", State.autoJoinRaidType, "on", titanMap, "—", State.autoJoinRaidDiff)
+
+    local payload = {
+        Type       = "Raids",
+        Objective  = State.autoJoinRaidType,
+        Difficulty = State.autoJoinRaidDiff,
+        Name       = titanMap,
+    }
+
+    -- Colossal requires a minimum player count
+    if State.autoJoinRaidType == "Colossal Titan" then
+        payload.Minimum = 3
+    end
+
+    local result = GET:InvokeServer("S_Missions", "Create", payload)
+
+    -- Validate: same pattern as missions
+    local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
+                            ReplicatedStorage.Missions:FindFirstChild(titanMap)
+
+    if not result or result ~= expectedMission then
+        warn("[LixHub] Auto Join Raid: Create failed — unexpected result:", result)
+        return false
+    end
+
+    print("[LixHub] Auto Join Raid: Lobby created successfully")
+
+    -- Apply modifiers
+    for _, mod in ipairs(State.autoJoinRaidMods) do
+        local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
+        if modResult ~= true then
+            warn("[LixHub] Auto Join Raid: Modifier failed —", mod, "got:", modResult)
+        else
+            print("[LixHub] Auto Join Raid: Applied modifier —", mod)
+        end
+        task.wait(0.1)
+    end
+
+    print("[LixHub] Auto Join Raid: Starting...")
+    GET:InvokeServer("S_Missions", "Start")
+
+    return true
+end
+
+local function joinWaves()
+    print("[LixHub] Auto Join Waves:", State.autoJoinWavesMap)
+
+    local result = GET:InvokeServer("S_Missions", "Create", {
+        Difficulty = "Easy",
+        Type       = "Waves",
+        Name       = State.autoJoinWavesMap,
+        Objective  = "Waves",
+    })
+
+    local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
+                            ReplicatedStorage.Missions:FindFirstChild(State.autoJoinWavesMap)
+
+    if not result or result ~= expectedMission then
+        warn("[LixHub] Auto Join Waves: Create failed — unexpected result:", result)
+        return false
+    end
+
+    print("[LixHub] Auto Join Waves: Starting...")
+    GET:InvokeServer("S_Missions", "Start")
+
+    return true
+end
+
+local function checkAndJoin()
+    if not isInLobby() then return end
+    if autoJoinProcessing then return end
+    if not State.autoJoinMissions and not State.autoJoinRaids and not State.autoJoinWaves then return end
+
+    autoJoinProcessing = true
+
+    local ok, err = pcall(function()
+        local success = false
+        local label = ""
+
+        if State.autoJoinMissions then
+            label = "Mission: " .. State.autoJoinMissionMap
+            success = joinMission()
+        elseif State.autoJoinRaids then
+            label = "Raid: " .. State.autoJoinRaidType
+            success = joinRaid()
+        elseif State.autoJoinWaves then
+            label = "Waves: " .. State.autoJoinWavesMap
+            success = joinWaves()
+        end
+
+        if success then
+            Util.notify("Auto Join", label .. " started", 3, "play")
+            local waitStart = tick()
+            repeat task.wait(0.5) until not isInLobby() or tick() - waitStart > 30
+            if not isInLobby() then
+                print("[LixHub] Auto Join: Successfully loaded into game")
+            else
+                warn("[LixHub] Auto Join: Timed out waiting to leave lobby")
+            end
+            task.wait(3)
+        else
+            Util.notify("Auto Join", label .. " failed, retrying...", 3, "alert-triangle")
+            task.wait(3)
+        end
+    end)
+
+    if not ok then
+        warn("[LixHub] checkAndJoin error:", err)
+    end
+
+    autoJoinProcessing = false
+end
+
+local function startAutoJoinLoop()
+    if autoJoinConnection then return end
+    autoJoinConnection = task.spawn(function()
+        while true do
+            task.wait(2)
+            checkAndJoin()
+        end
+    end)
+end
+
+startAutoJoinLoop()
+
+local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
+
+JoinerTab:CreateSection("Missions")
+
+JoinerTab:CreateToggle({
+    Name         = "Auto Join Missions",
+    Flag         = "AutoJoinMissions",
+    CurrentValue = false,
+    Callback     = function(val)
+        State.autoJoinMissions = val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Map",
+    Flag         = "AutoJoinMissionMap",
+    Options      = {"Shiganshina", "Trost", "Outskirts", "Forest", "Utgard", "Docks", "Stohess", "Chapel"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoJoinMissionMap = type(val) == "table" and val[1] or val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Objective",
+    Flag         = "AutoJoinMissionObj",
+    Options      = {"Skirmish", "Breach", "Random"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoJoinMissionObj = type(val) == "table" and val[1] or val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Difficulty",
+    Flag         = "AutoJoinMissionDiff",
+    Options      = {"Easy", "Normal", "Hard", "Severe", "Aberrant"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoJoinMissionDiff = type(val) == "table" and val[1] or val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Modifiers",
+    Flag         = "AutoJoinMissionMods",
+    Options      = {"No Perks", "No Skills", "No Memories", "Nightmare", "Oddball", "Injury Prone", "Chronic Injuries", "Fog", "Glass Cannon", "Time Trial", "Boring", "Simple"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Callback     = function(val)
+        State.autoJoinMissionMods = type(val) == "table" and val or {val}
+    end,
+})
+
+JoinerTab:CreateSection("Raids")
+
+JoinerTab:CreateToggle({
+    Name         = "Auto Join Raids",
+    Flag         = "AutoJoinRaids",
+    CurrentValue = false,
+    Callback     = function(val)
+        State.autoJoinRaids = val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Raid",
+    Flag         = "AutoJoinRaidType",
+    Options      = {"Attack Titan", "Armored Titan", "Female Titan", "Colossal Titan"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoJoinRaidType = type(val) == "table" and val[1] or val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Difficulty",
+    Flag         = "AutoJoinRaidDiff",
+    Options      = {"Hard", "Severe", "Aberrant"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoJoinRaidDiff = type(val) == "table" and val[1] or val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Modifiers",
+    Flag         = "AutoJoinRaidMods",
+    Options      = {"No Perks", "No Skills", "No Memories", "Nightmare", "Oddball", "Injury Prone", "Chronic Injuries", "Fog", "Glass Cannon", "Time Trial", "Boring", "Simple"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Callback     = function(val)
+        State.autoJoinRaidMods = type(val) == "table" and val or {val}
+    end,
+})
+
+JoinerTab:CreateSection("Waves")
+
+JoinerTab:CreateToggle({
+    Name         = "Auto Join Waves",
+    Flag         = "AutoJoinWaves",
+    CurrentValue = false,
+    Callback     = function(val)
+        State.autoJoinWaves = val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Map",
+    Flag         = "AutoJoinWavesMap",
+    Options      = {"Trost"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoJoinWavesMap = type(val) == "table" and val[1] or val
+    end,
+})
+
 
 -- ===== TAB: Farm =====
 local FarmTab = Window:CreateTab("Main", "play")
