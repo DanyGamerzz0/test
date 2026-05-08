@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.09"
+local script_version = "V0.1"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -922,6 +922,25 @@ WebhookTab:CreateButton({
 
 -- ===== TAB: Utility =====
 local MiscTab = Window:CreateTab("Misc", "settings")
+
+MiscTab:CreateToggle({
+    Name         = "Auto Execute Script",
+    CurrentValue = false,
+    Flag         = "EnableAutoExecute",
+    Callback     = function(val)
+        if not queue_on_teleport then
+            Util.notify("Auto Execute", "Your executor does not support queue_on_teleport", 5, "alert-triangle")
+            return
+        end
+        if val then
+            queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTR.lua"))()')
+            Util.notify("Auto Execute", "Script will auto execute on teleport", 3, "check")
+        else
+            queue_on_teleport("")
+            Util.notify("Auto Execute", "Auto execute disabled", 3, "x")
+        end
+    end,
+})
 
 MiscTab:CreateButton({
     Name     = "Check If Shadow Banned",
