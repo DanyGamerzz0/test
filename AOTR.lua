@@ -1,6 +1,7 @@
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local script_version = "V0.03"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -543,32 +544,36 @@ local function onRoundEnd(encoded)
     if roundEndDebounce then return end
     roundEndDebounce = true
     task.spawn(function()
-        local roundData, playerData
-        if encoded then
-            local HttpService = game:GetService("HttpService")
-            local ok, decoded = pcall(function()
-                return HttpService:JSONDecode(encoded)
-            end)
-            if ok and decoded then
-                roundData  = decoded.round
-                playerData = decoded.player
+        local ok, err = pcall(function()
+            State.sessionRuns += 1
+            resetLobbyTimer()
+
+            local roundData, playerData
+            if encoded then
+                local ok2, decoded = pcall(function()
+                    return game:GetService("HttpService"):JSONDecode(encoded)
+                end)
+                if ok2 and decoded then
+                    roundData  = decoded.round
+                    playerData = decoded.player
+                end
             end
-        end
 
-        resetLobbyTimer()
-        Util.notify("Auto Farm", "Round ended — lobby timer reset.", 3, "cog")
-        State.sessionRuns = State.sessionRuns + 1
-        if State.webhookEnabled and State.webhookUrl and roundData then
-            sendWebhook(roundData, playerData)
-        end
+            if State.webhookEnabled and State.webhookUrl and roundData then
+                sendWebhook(roundData, playerData)
+            end
 
-        task.wait(3)
-        if State.autoRetry then
-            GET:InvokeServer("Functions", "Retry", "Add")
-            Util.notify("Auto Farm", "Retrying round...", 3, "cog")
-        elseif State.autoLobby then
-            POST:FireServer("Functions", "Teleport")
-            Util.notify("Auto Farm", "Returning to lobby...", 3, "house")
+            task.wait(5)
+            if State.autoRetry then
+                GET:InvokeServer("Functions", "Retry", "Add")
+                Util.notify("Auto Farm", "Retrying...", 3, "cog")
+            elseif State.autoLobby then
+                POST:FireServer("Functions", "Teleport")
+                Util.notify("Auto Farm", "Returning to lobby...", 3, "house")
+            end
+        end)
+        if not ok then
+            warn("onRoundEnd error:", err)
         end
         task.wait(5)
         roundEndDebounce = false
@@ -616,8 +621,6 @@ for _, actor in getactors() do
 end
 
 -- ==================== RAYFIELD UI ====================
-local script_version = "V0.02"
-
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
    Icon = 0,
