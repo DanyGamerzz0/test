@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -560,10 +560,14 @@ local function sendWebhook(roundData, playerData)
     addReward("Gold",  obtained.Gold,  currency.Gold  or 0)
     addReward("Canes", obtained.Canes, currency.Canes or 0)
     addReward("Gems",  obtained.Gems,  currency.Gems  or 0)
+    local mythicPerks = {}
     for _, perk in ipairs(obtained.Perks or {}) do
         local rarity = PERK_RARITIES[perk]
         local line = rarity and string.format("+1 %s Perk [%s]", perk, rarity) or "+1 " .. perk .. " Perk"
         table.insert(rewardLines, line)
+        if rarity == "Mythic" then
+            table.insert(mythicPerks, perk)
+        end
     end
     local specialDrops = {}
     for _, drop in ipairs(obtained.Drops or {}) do
@@ -573,10 +577,13 @@ local function sendWebhook(roundData, playerData)
     local rewardsText = #rewardLines > 0 and table.concat(rewardLines, "\n") or "None"
 
     local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    local pingParts = {}
+    if #specialDrops > 0 then table.insert(pingParts, "Special drop!") end
+    if #mythicPerks > 0 then table.insert(pingParts, "Special drop! " .. table.concat(mythicPerks, ", ")) end
 
     local data = {
         username = "LixHub",
-        content  = #specialDrops > 0 and string.format("<@%s> Special drop!", State.discordUserId) or nil,
+        content = (#pingParts > 0 and State.discordUserId) and string.format("<@%s> %s", State.discordUserId, table.concat(pingParts, " | ")) or nil,
         embeds = {{
             title       = titleText,
             description = subtitleText,
