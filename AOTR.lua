@@ -5,12 +5,19 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.06"
+local script_version = "V0.07"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
+
+repeat task.wait(0.5) until
+    player.Character and
+    player.Character:FindFirstChild("HumanoidRootPart") and
+    player.Character:FindFirstChild("Humanoid") and
+    player.Character.Humanoid.Health > 0
+
 local character = player.Character or player.CharacterAdded:Wait()
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
@@ -20,6 +27,17 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+repeat task.wait(0.5) until
+    ReplicatedStorage:FindFirstChild("Assets") and
+    ReplicatedStorage.Assets:FindFirstChild("Remotes") and
+    ReplicatedStorage.Assets.Remotes:FindFirstChild("POST") and
+    ReplicatedStorage.Assets.Remotes:FindFirstChild("GET")
+
+repeat task.wait(0.5) until workspace:GetAttribute("Type") ~= nil
+
+repeat task.wait(0.5) until #getactors() > 0
+
 local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
