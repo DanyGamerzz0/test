@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -274,7 +274,7 @@ end
 
 local function teleportToLobby()
     Util.notify("Failsafe", "Time limit reached, teleporting to lobby", 5, "corner-down-left")
-    POST:FireServer("Functions", "Teleport")
+    game:GetService("TeleportService"):Teleport(14916516914, player)
 end
 
 local function resetLobbyTimer()
