@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.07"
+local script_version = "V0.08"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -406,14 +406,14 @@ local function startAutoAttack()
         POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
 
         local reloadsLeft, segmentsLeft = getBladeStatus()
-        if segmentsLeft <= 4 or reloadsLeft <= 1 then
+        if segmentsLeft <= 0 then
             GET:InvokeServer("Blades", "Reload")
         end
-        if reloadsLeft <= 1 or segmentsLeft <= 2 then
+        if reloadsLeft <= 0 then
             local refillPoint = workspace:FindFirstChild("Refill", true) or
                 (workspace.Unclimbable and workspace.Unclimbable.Props and
-                 workspace.Unclimbable.Props.HQ and workspace.Unclimbable.Props.HQ.GasTanks and
-                 workspace.Unclimbable.Props.HQ.GasTanks.Refill)
+                workspace.Unclimbable.Props.HQ and workspace.Unclimbable.Props.HQ.GasTanks and
+                workspace.Unclimbable.Props.HQ.GasTanks.Refill)
             GET:InvokeServer("Attacks", "Reload", refillPoint or nil)
         end
     end)
