@@ -5,10 +5,12 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 
@@ -586,6 +588,21 @@ end
 
 local roundEndDebounce = false
 
+local function retryViaNavigation()
+    local retry = player.PlayerGui.Interface.Rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
+    if not retry then 
+        print("[LixHub] Retry button not found")
+        return false
+    end
+    GuiService.SelectedObject = retry
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+    print("[LixHub] Fired retry via UI navigation")
+    return true
+end
+
 local function onRoundEnd(encoded)
     if roundEndDebounce then return end
     roundEndDebounce = true
@@ -614,11 +631,12 @@ local function onRoundEnd(encoded)
             if State.autoRetry then
                 Util.notify("Auto Farm", "Retrying...", 3, "cog")
                 while State.autoRetry do
-                    GET:InvokeServer("Functions", "Retry", "Add")
+                    print("[LixHub] Attempting retry via UI navigation...")
+                    retryViaNavigation()
                     task.wait(3)
                 end
             elseif State.autoLobby then
-                POST:FireServer("Functions", "Teleport")
+                game:GetService("TeleportService"):Teleport(14916516914, player)
                 Util.notify("Auto Farm", "Returning to lobby...", 3, "house")
             end
         end)
@@ -781,7 +799,7 @@ FarmTab:CreateSlider({
 FarmTab:CreateSlider({
     Name         = "Float Height",
     Flag         = "FloatHeight",
-    Range        = {100, 1000},
+    Range        = {100, 300},
     Increment    = 10,
     CurrentValue = State.floatHeight,
     Callback     = function(val)
