@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -78,6 +78,7 @@ local Movers = {
 -- ==================== COLLISION ====================
 local noclipConnection = nil
 local Util = {}
+local PERK_RARITIES = {}
 
 function Util.notify(title, content, duration, image)
     Rayfield:Notify({
@@ -476,6 +477,25 @@ end
 
 -- ==================== GAME END ====================
 
+local function buildPerkRarities()
+    local ok, PerkData = pcall(require, game:GetService("ReplicatedStorage").Modules.Storage.Perks)
+    if not ok or type(PerkData) ~= "table" then
+        warn("[LixHub] Failed to require Perks module:", PerkData)
+        return
+    end
+
+    for _, rarity in ipairs({"Common", "Rare", "Epic", "Legendary", "Mythic"}) do
+        local tier = PerkData[rarity]
+        if tier then
+            for perkName in pairs(tier) do
+                PERK_RARITIES[perkName] = rarity
+            end
+        end
+    end
+end
+
+buildPerkRarities()
+
 local function sendWebhook(roundData, playerData)
     if not State.webhookUrl then return end
 
@@ -541,7 +561,9 @@ local function sendWebhook(roundData, playerData)
     addReward("Canes", obtained.Canes, currency.Canes or 0)
     addReward("Gems",  obtained.Gems,  currency.Gems  or 0)
     for _, perk in ipairs(obtained.Perks or {}) do
-        table.insert(rewardLines, "+1 " .. perk .. " Perk")
+        local rarity = PERK_RARITIES[perk]
+        local line = rarity and string.format("+1 %s Perk [%s]", perk, rarity) or "+1 " .. perk .. " Perk"
+        table.insert(rewardLines, line)
     end
     local specialDrops = {}
     for _, drop in ipairs(obtained.Drops or {}) do
@@ -603,6 +625,21 @@ local function retryViaNavigation()
     return true
 end
 
+local function leaveViaNavigation()
+    local leaveBtn = player.PlayerGui.Interface.Rewards.Main.Info.Main.Buttons:FindFirstChild("Leave_2")
+    if not leaveBtn then 
+        print("[LixHub] Leave button not found")
+        return false
+    end
+    GuiService.SelectedObject = leaveBtn
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+    print("[LixHub] Fired leave via UI navigation")
+    return true
+end
+
 local function onRoundEnd(encoded)
     if roundEndDebounce then return end
     roundEndDebounce = true
@@ -636,8 +673,12 @@ local function onRoundEnd(encoded)
                     task.wait(3)
                 end
             elseif State.autoLobby then
-                game:GetService("TeleportService"):Teleport(14916516914, player)
                 Util.notify("Auto Farm", "Returning to lobby...", 3, "house")
+                while State.autoLobby do
+                    print("[LixHub] Attempting leave via UI navigation...")
+                    leaveViaNavigation()
+                    task.wait(3)
+                end
             end
         end)
         if not ok then
