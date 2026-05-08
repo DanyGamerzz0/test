@@ -616,7 +616,7 @@ for _, actor in getactors() do
 end
 
 -- ==================== RAYFIELD UI ====================
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
@@ -704,7 +704,11 @@ FarmTab:CreateToggle({
     Flag         = "AutoFarm",
     CurrentValue = false,
     Callback     = function(val)
-        if val then startAutoAttack() else stopAutoAttack() end
+        if val then
+            task.defer(startAutoAttack)
+        else
+            stopAutoAttack()
+        end
     end,
 })
 
@@ -871,9 +875,9 @@ MiscTab:CreateButton({
     Callback = function()
         local _, d = pcall(function() return GET:InvokeServer("Functions", "Settings", "Blur", "Off") end)
         if d and d.Disabled == "Delayed Ban" then
-            Util.notify("Shadow Ban Detected", "You got shadow banned", 5, "frown")
+            Util.notify("Shadow Ban Detected", "You got shadow banned", 6, "frown")
         else
-            Util.notify("Shadow Ban Not Detected", "You are not shadow banned", 3, "smile")
+            Util.notify("Shadow Ban Not Detected", "You are not shadow banned", 6, "smile")
         end
     end,
 })
