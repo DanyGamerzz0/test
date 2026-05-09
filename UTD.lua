@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.14"
+local script_version = "V0.15"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4055,7 +4055,21 @@ local function createAutoSelectDropdowns()
     for macroName in pairs(macroManager) do table.insert(initialMacroOptions, macroName) end
     table.sort(initialMacroOptions)
     task.wait(1)
- 
+
+    local function tryPreloadMacro(selectedMacro, worldKey)
+        if not selectedMacro or selectedMacro == "None" or selectedMacro == "" then return end
+        local currentWorldKey = Util.getCurrentWorldKey()
+        if currentWorldKey ~= worldKey then return end
+        local loadedMacro = macroManager[selectedMacro] or MacroIO.load(selectedMacro)
+        if loadedMacro and #loadedMacro > 0 then
+            macroManager[selectedMacro] = loadedMacro
+            macro = loadedMacro
+            currentMacroName = selectedMacro
+            MacroDropdown:Set(selectedMacro)
+            Util.notify({ Title = "Macro Ready", Content = string.format("%s (%d actions)", selectedMacro, #loadedMacro), Duration = 4 })
+        end
+    end
+
     Tab:CreateSection("Legend Stage Macros")
     if LegendStageDropdown and LegendStageDropdown.Options then
         for _, stageName in ipairs(LegendStageDropdown.Options) do
@@ -4068,12 +4082,13 @@ local function createAutoSelectDropdowns()
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                     MacroIO.saveWorldMappings()
+                    tryPreloadMacro(selectedMacro, worldKey)
                 end,
             })
             worldDropdowns[worldKey] = dropdown
         end
     end
- 
+
     Tab:CreateSection("Virtual Stage Macros")
     if VirtualStageDropdown and VirtualStageDropdown.Options then
         for _, stageName in ipairs(VirtualStageDropdown.Options) do
@@ -4086,12 +4101,13 @@ local function createAutoSelectDropdowns()
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                     MacroIO.saveWorldMappings()
+                    tryPreloadMacro(selectedMacro, worldKey)
                 end,
             })
             worldDropdowns[worldKey] = dropdown
         end
     end
- 
+
     Tab:CreateSection("Raid Stage Macros")
     if RaidStageDropdown and RaidStageDropdown.Options then
         for _, stageName in ipairs(RaidStageDropdown.Options) do
@@ -4115,13 +4131,14 @@ local function createAutoSelectDropdowns()
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                         MacroIO.saveWorldMappings()
+                        tryPreloadMacro(selectedMacro, worldKey)
                     end,
                 })
                 worldDropdowns[worldKey] = dropdown
             end
         end
     end
- 
+
     Tab:CreateSection("Story/Challenge Macros")
     if StoryStageDropdown and StoryStageDropdown.Options then
         for _, stageName in ipairs(StoryStageDropdown.Options) do
@@ -4134,12 +4151,13 @@ local function createAutoSelectDropdowns()
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                     MacroIO.saveWorldMappings()
+                    tryPreloadMacro(selectedMacro, worldKey)
                 end,
             })
             worldDropdowns[worldKey] = dropdown
         end
     end
- 
+
     Tab:CreateSection("Featured Challenge Macro")
     do
         local featuredMaps = {
@@ -4155,11 +4173,13 @@ local function createAutoSelectDropdowns()
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[featured.key] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                     MacroIO.saveWorldMappings()
+                    tryPreloadMacro(selectedMacro, featured.key)
                 end,
             })
             worldDropdowns[featured.key] = dropdown
         end
     end
+
     Tab:CreateSection("Event Macros")
     do
         local eventMaps = {
@@ -4179,6 +4199,7 @@ local function createAutoSelectDropdowns()
                     local selectedMacro = type(Option) == "table" and Option[1] or Option
                     worldMacroMappings[event.key] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                     MacroIO.saveWorldMappings()
+                    tryPreloadMacro(selectedMacro, event.key)
                 end,
             })
             worldDropdowns[event.key] = dropdown
