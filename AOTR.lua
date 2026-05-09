@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.17"
+local script_version = "V0.18"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -72,7 +72,7 @@ local State = {
     webhookEnabled = false,
     webhookUrl     = nil,
     discordUserId  = nil,
-    sessionRuns = 0,
+    sessionRuns = getgenv().__LIXHUB_RUNS or 0,
     autoJoinMissions       = false,
     autoJoinMissionMap     = "",
     autoJoinMissionObj     = "",
@@ -721,6 +721,7 @@ local function onRoundEnd(encoded)
     task.spawn(function()
         local ok, err = pcall(function()
             State.sessionRuns += 1
+            getgenv().__LIXHUB_RUNS = State.sessionRuns
             print("[LixHub] Round ended — processing results")
             resetLobbyTimer()
 
@@ -889,29 +890,58 @@ local Window = Rayfield:CreateWindow({
 
 -- ===== TAB: Join =====
 
+local MISSION_DIFF_ORDER = {"Aberrant", "Severe", "Hard", "Normal", "Easy"}
+local RAID_DIFF_ORDER    = {"Aberrant", "Severe", "Hard"}
+
+local function tryDifficulties(diffList, createFn)
+    for _, diff in ipairs(diffList) do
+        print("[LixHub] Trying difficulty:", diff)
+        local ok, result = pcall(createFn, diff)
+        if ok and result then
+            return true
+        end
+        print("[LixHub] Difficulty failed:", diff, "— trying next...")
+        task.wait(0.5)
+    end
+    return false
+end
+
 local function joinMission()
-    print("[LixHub] Auto Join: Creating mission —", State.autoJoinMissionMap, State.autoJoinMissionObj, State.autoJoinMissionDiff)
+    local function attemptCreate(diff)
+        print("[LixHub] Auto Join: Creating mission —", State.autoJoinMissionMap, State.autoJoinMissionObj, diff)
+        local result = GET:InvokeServer("S_Missions", "Create", {
+            Difficulty = diff,
+            Type       = "Missions",
+            Objective  = State.autoJoinMissionObj,
+            Name       = State.autoJoinMissionMap,
+        })
+        local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
+                                ReplicatedStorage.Missions:FindFirstChild(State.autoJoinMissionMap)
+        if not result or result ~= expectedMission then
+            error("Create failed for diff: " .. diff)
+        end
+        return true
+    end
 
-    -- Create the lobby, server returns the mission instance on success
-    local result = GET:InvokeServer("S_Missions", "Create", {
-        Difficulty = State.autoJoinMissionDiff,
-        Type       = "Missions",
-        Objective  = State.autoJoinMissionObj,
-        Name       = State.autoJoinMissionMap,
-    })
+    local success
+    if State.autoJoinMissionDiff == "Hardest" then
+        success = tryDifficulties(MISSION_DIFF_ORDER, attemptCreate)
+    else
+        local ok, err = pcall(attemptCreate, State.autoJoinMissionDiff)
+        if not ok then
+            warn("[LixHub] Auto Join: Create failed —", err)
+            return false
+        end
+        success = true
+    end
 
-    -- Validate: server returns the ReplicatedStorage.Missions.<Map> instance
-    local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
-                            ReplicatedStorage.Missions:FindFirstChild(State.autoJoinMissionMap)
-
-    if not result or result ~= expectedMission then
-        warn("[LixHub] Auto Join: Create failed — unexpected result:", result)
+    if not success then
+        warn("[LixHub] Auto Join: All difficulties failed")
         return false
     end
 
+    -- rest continues as before (modifiers + start)
     print("[LixHub] Auto Join: Lobby created successfully")
-
-    -- Apply modifiers, each should return true
     for _, mod in ipairs(State.autoJoinMissionMods) do
         local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
         if modResult ~= true then
@@ -921,11 +951,8 @@ local function joinMission()
         end
         task.wait(0.1)
     end
-
-    -- Start the game
     print("[LixHub] Auto Join: Starting mission...")
     GET:InvokeServer("S_Missions", "Start")
-
     return true
 end
 
@@ -936,34 +963,51 @@ local function joinRaid()
         return false
     end
 
-    print("[LixHub] Auto Join Raid:", State.autoJoinRaidType, "on", titanMap, "—", State.autoJoinRaidDiff)
+    local function attemptCreate(diff)
+        print("[LixHub] Auto Join Raid:", State.autoJoinRaidType, "on", titanMap, "—", diff)
 
-    local payload = {
-        Type       = "Raids",
-        Objective  = State.autoJoinRaidType,
-        Difficulty = State.autoJoinRaidDiff,
-        Name       = titanMap,
-    }
+        local payload = {
+            Type       = "Raids",
+            Objective  = State.autoJoinRaidType,
+            Difficulty = diff,
+            Name       = titanMap,
+        }
 
-    -- Colossal requires a minimum player count
-    if State.autoJoinRaidType == "Colossal Titan" then
-        payload.Minimum = 3
+        if State.autoJoinRaidType == "Colossal Titan" then
+            payload.Minimum = 3
+        end
+
+        local result = GET:InvokeServer("S_Missions", "Create", payload)
+
+        local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
+                                ReplicatedStorage.Missions:FindFirstChild(titanMap)
+
+        if not result or result ~= expectedMission then
+            error("Create failed for diff: " .. diff)
+        end
+
+        return true
     end
 
-    local result = GET:InvokeServer("S_Missions", "Create", payload)
+    local success
+    if State.autoJoinRaidDiff == "Hardest" then
+        success = tryDifficulties(RAID_DIFF_ORDER, attemptCreate)
+    else
+        local ok, err = pcall(attemptCreate, State.autoJoinRaidDiff)
+        if not ok then
+            warn("[LixHub] Auto Join Raid: Create failed —", err)
+            return false
+        end
+        success = true
+    end
 
-    -- Validate: same pattern as missions
-    local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
-                            ReplicatedStorage.Missions:FindFirstChild(titanMap)
-
-    if not result or result ~= expectedMission then
-        warn("[LixHub] Auto Join Raid: Create failed — unexpected result:", result)
+    if not success then
+        warn("[LixHub] Auto Join Raid: All difficulties failed")
         return false
     end
 
     print("[LixHub] Auto Join Raid: Lobby created successfully")
 
-    -- Apply modifiers
     for _, mod in ipairs(State.autoJoinRaidMods) do
         local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
         if modResult ~= true then
@@ -1099,7 +1143,7 @@ JoinerTab:CreateDropdown({
 JoinerTab:CreateDropdown({
     Name         = "Select Difficulty",
     Flag         = "AutoJoinMissionDiff",
-    Options      = {"Easy", "Normal", "Hard", "Severe", "Aberrant"},
+    Options      = {"Easy", "Normal", "Hard", "Severe", "Aberrant", "Hardest"},
     CurrentOption = {},
     MultipleOptions = false,
     Callback     = function(val)
@@ -1143,7 +1187,7 @@ JoinerTab:CreateDropdown({
 JoinerTab:CreateDropdown({
     Name         = "Select Difficulty",
     Flag         = "AutoJoinRaidDiff",
-    Options      = {"Hard", "Severe", "Aberrant"},
+    Options      = {"Hard", "Severe", "Aberrant","Hardest"},
     CurrentOption = {},
     MultipleOptions = false,
     Callback     = function(val)
