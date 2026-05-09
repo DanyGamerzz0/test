@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.09"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4895,17 +4895,23 @@ GameTab:CreateToggle({
 
 task.spawn(function()
     local isCollecting = false
-    
+    local tweenInfo = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+    local function tweenTo(hrp, targetCFrame)
+        local tween = Services.TweenService:Create(hrp, tweenInfo, { CFrame = targetCFrame })
+        tween:Play()
+        tween.Completed:Wait()
+    end
+
     while true do
         task.wait(0.5)
-        
+
         if State.AutoCollectPresents and not isCollecting then
             isCollecting = true
-            
+
             pcall(function()
                 local drops = workspace:FindFirstChild("Ignore")
                 if drops then drops = drops:FindFirstChild("Drops") end
-                
                 if not drops then return end
 
                 local presents = {}
@@ -4914,33 +4920,27 @@ task.spawn(function()
                         table.insert(presents, child)
                     end
                 end
-                    
+
+                local hrp = Services.Players.LocalPlayer.Character
+                    and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
+
+                local originalCFrame = hrp.CFrame
+
                 for _, present in ipairs(presents) do
                     if not State.AutoCollectPresents then break end
-                        
-                    if present and present.Parent then
-                        local hrp = Services.Players.LocalPlayer.Character
-                            and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                            
-                        if hrp then
-                            local originalCFrame = hrp.CFrame
-                            hrp.CFrame = CFrame.new(present:GetPivot().Position)
-                                
-                            local timeout = 0
-                            while present and present.Parent and timeout < 20 do
-                                task.wait(0.1)
-                                timeout = timeout + 1
-                            end
-                                
-                            if hrp and hrp.Parent then
-                                hrp.CFrame = originalCFrame
-                            end
-                                
-                            task.wait(0.2)
-                        end
-                    end
+                    if not (present and present.Parent) then continue end
+                    if not (hrp and hrp.Parent) then break end
+
+                    tweenTo(hrp, CFrame.new(present:GetPivot().Position))
+                    task.wait(0.1)
+                end
+
+                if hrp and hrp.Parent then
+                    tweenTo(hrp, originalCFrame)
                 end
             end)
+
             isCollecting = false
         end
     end
