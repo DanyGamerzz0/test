@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -150,6 +150,7 @@ local pendingValkCardList = nil
 local currentShopOffers = {}
 local disabledByLowPerf = {}
 local lastMatchResult = nil
+local sessionPresentsCollected = 0
 local RerollLimitHit = {
     TheHunt = false,
     Olympus = false,
@@ -2124,6 +2125,10 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
     end
 end
         finishedRewardData = nil
+        if sessionPresentsCollected > 0 then
+            rewards["IceGifts"] = (rewards["IceGifts"] or 0) + sessionPresentsCollected
+            sessionPresentsCollected = 0
+        end
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local rewardsText = ""
@@ -4902,6 +4907,16 @@ task.spawn(function()
         tween:Play()
         tween.Completed:Wait()
     end
+
+    -- Listen for present collection events
+    pcall(function()
+        local EffectEvent = Services.ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.EffectService.RE.Effect
+        EffectEvent.OnClientEvent:Connect(function(effectType, data)
+            if effectType == "ItemLog" and data and data.Currency == "IceGifts" and data.Amount then
+                sessionPresentsCollected = sessionPresentsCollected + data.Amount
+            end
+        end)
+    end)
 
     while true do
         task.wait(0.5)
