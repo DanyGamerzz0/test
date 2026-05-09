@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.16"
+local script_version = "V0.17"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -106,6 +106,7 @@ local currentTarget = nil
 local isReloading = false
 local Util = {}
 local PERK_RARITIES = {}
+local ITEM_RARITIES = {}
 local autoJoinConnection = nil
 local autoJoinProcessing = false
 
@@ -539,6 +540,20 @@ local function buildPerkRarities()
     end
 end
 
+local function buildItemRarities()
+    local ok, ItemData = pcall(require, game:GetService("ReplicatedStorage").Modules.Storage.Items)
+    if not ok or type(ItemData) ~= "table" then
+        warn("[LixHub] Failed to require Items module:", ItemData)
+        return
+    end
+    for itemName, itemInfo in pairs(ItemData) do
+        if type(itemInfo) == "table" and itemInfo.Rarity then
+            ITEM_RARITIES[itemName] = itemInfo.Rarity
+        end
+    end
+end
+
+buildItemRarities()
 buildPerkRarities()
 
 local function sendWebhook(roundData, playerData)
@@ -616,8 +631,13 @@ local function sendWebhook(roundData, playerData)
     end
     local specialDrops = {}
     for _, drop in ipairs(obtained.Drops or {}) do
-        table.insert(rewardLines, "+1 " .. tostring(drop))
-        table.insert(specialDrops, tostring(drop))
+        local dropName = tostring(drop)
+        local rarity = ITEM_RARITIES[dropName]
+        local line = rarity and string.format("+1 %s [%s]", dropName, rarity) or "+1 " .. dropName
+        table.insert(rewardLines, line)
+        if rarity == "Mythic" then
+            table.insert(specialDrops, dropName)
+        end
     end
     for _, chest in ipairs(obtained.Chests or {}) do
         table.insert(rewardLines, "+1 " .. tostring(chest) .. " Chest")
