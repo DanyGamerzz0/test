@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.19"
+local script_version = "V0.2"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -718,6 +718,17 @@ local function leaveViaNavigation()
     return true
 end
 
+local function updateQueuedCounter()
+    if not queue_on_teleport then return end
+    
+    -- Only queue the counter restoration, not the full script
+    local queuedScript = string.format([[
+        getgenv().__LIXHUB_RUNS = %d
+    ]], State.sessionRuns)
+    
+    queue_on_teleport(queuedScript)
+end
+
 local function onRoundEnd(encoded)
     if roundEndDebounce then return end
     roundEndDebounce = true
@@ -725,6 +736,7 @@ local function onRoundEnd(encoded)
         local ok, err = pcall(function()
             State.sessionRuns += 1
             getgenv().__LIXHUB_RUNS = State.sessionRuns
+            updateQueuedCounter()
             local forceLobby = State.returnToLobbyGamesEnabled and State.sessionRuns >= State.returnToLobbyGames
             print("[LixHub] Round ended — processing results")
             resetLobbyTimer()
@@ -1443,11 +1455,18 @@ MiscTab:CreateToggle({
             return
         end
         if val then
-            queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTR.lua"))()')
+            -- Queue both counter AND script
+            local queuedScript = string.format([[
+                getgenv().__LIXHUB_RUNS = %d
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTR.lua"))()
+            ]], State.sessionRuns)
+            
+            queue_on_teleport(queuedScript)
             Util.notify("Auto Execute", "Script will auto execute on teleport", 3, "check")
         else
-            queue_on_teleport("")
-            Util.notify("Auto Execute", "Auto execute disabled", 3, "x")
+            -- Still queue the counter, just not the full script
+            updateQueuedCounter()
+            Util.notify("Auto Execute", "Auto execute disabled (run counter still persists)", 3, "x")
         end
     end,
 })
