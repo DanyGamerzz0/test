@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.17"
+local script_version = "V0.18"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -269,6 +269,7 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
+    AutoEquipBeforeGame = false,
     sessionRuns = 0,
     disableScriptNotifications = false,
     AutoStartGame = false,
@@ -4709,8 +4710,16 @@ GameSection = GameTab:CreateSection("Game")
 
 AutoStartToggle = GameTab:CreateToggle({
     Name = "Auto Start Game", CurrentValue = false, Flag = "AutoStartGame",
-    Callback = function(Value) State.AutoStartGame = Value end,
+    Callback = function(Value)
+        State.AutoStartGame = Value
+        if Value then
+            pcall(function()
+                game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService.RE.SetSetting:FireServer("AutoStart", false)
+            end)
+        end
+    end,
 })
+
 AutoRetryToggle = GameTab:CreateToggle({
     Name = "Auto Retry", CurrentValue = false, Flag = "AutoRetry",
     Callback = function(Value) State.AutoRetry = Value end,
@@ -5236,6 +5245,161 @@ task.spawn(function()
     end
 end)
 
+local function getRequiredUnitsFromMacro(macroData)
+    local seen = {}
+    local ordered = {}
+    for _, action in ipairs(macroData) do
+        if action.Type == "spawn_unit" and action.Unit then
+            local unitName = Util.cleanUnitName(action.Unit:match("^(.+) #%d+$") or action.Unit)
+            if not seen[unitName] then
+                seen[unitName] = true
+                table.insert(ordered, unitName)
+            end
+        end
+    end
+    return ordered
+end
+
+local function findBestGuidForUnit(unitName, inventory)
+    local cleanName = Util.cleanUnitName(unitName)
+    local candidates = {}
+    for guid, data in pairs(inventory) do
+        if data.UnitId and Util.cleanUnitName(data.UnitId) == cleanName then
+            table.insert(candidates, {
+                guid = guid,
+                locked = data.Locked or false,
+                experience = data.Experience or 0,
+            })
+        end
+    end
+    if #candidates == 0 then return nil end
+    table.sort(candidates, function(a, b)
+        if a.locked ~= b.locked then return a.locked end
+        return a.experience > b.experience
+    end)
+    return candidates[1].guid
+end
+
+local function autoEquipMacroUnits()
+    if not macro or #macro == 0 then
+        Util.notify({ Title = "Auto Equip", Content = "No macro loaded", Duration = 3 })
+        return false
+    end
+
+    local requiredUnits = getRequiredUnitsFromMacro(macro)
+    if #requiredUnits == 0 then
+        Util.notify({ Title = "Auto Equip", Content = "No units found in macro", Duration = 3 })
+        return false
+    end
+
+    if #requiredUnits > 6 then
+        Util.notify({ Title = "Auto Equip", Content = "Macro has more than 6 unique units", Duration = 3 })
+        return false
+    end
+
+    -- Get inventory
+    local ok, data = pcall(function()
+        local dc = DataController or Knit.GetController("DataController")
+        return dc:RequestData()
+    end)
+    if not ok or not data or not data.Units or not data.Units.Inventory then
+        Util.notify({ Title = "Auto Equip", Content = "Failed to read inventory", Duration = 3 })
+        return false
+    end
+
+    local inventory = data.Units.Inventory
+
+    -- Find best GUID for each unit, abort if any missing
+    local unitGUIDs = {}
+    local missingUnits = {}
+    for _, unitName in ipairs(requiredUnits) do
+        local guid = findBestGuidForUnit(unitName, inventory)
+        if guid then
+            unitGUIDs[unitName] = guid
+        else
+            table.insert(missingUnits, unitName)
+        end
+    end
+
+    if #missingUnits > 0 then
+        Util.notify({
+            Title = "Auto Equip Failed",
+            Content = "Missing units: " .. table.concat(missingUnits, ", "),
+            Duration = 6,
+        })
+        return false
+    end
+
+    -- Check if already equipped correctly
+    local currentEquipped = {}
+    pcall(function()
+        local equipped = Services.HttpService:JSONDecode(
+            Services.Players.LocalPlayer:WaitForChild("Equipped").Value
+        )
+        for _, guid in ipairs(equipped) do
+            if guid and guid ~= "" then
+                currentEquipped[guid] = true
+            end
+        end
+    end)
+
+    local alreadyCorrect = true
+    for _, guid in pairs(unitGUIDs) do
+        if not currentEquipped[guid] then
+            alreadyCorrect = false
+            break
+        end
+    end
+
+    if alreadyCorrect then
+        Util.notify({ Title = "Auto Equip", Content = "Already equipped correctly", Duration = 3 })
+        return true
+    end
+
+    -- Unequip all
+    local DataServiceRE = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService.RE
+    local DataServiceRF = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService.RF
+
+    local unequipOk = pcall(function()
+        DataServiceRE.UnequipAll:FireServer()
+    end)
+    if not unequipOk then
+        Util.notify({ Title = "Auto Equip", Content = "Failed to unequip units", Duration = 3 })
+        return false
+    end
+
+    task.wait(0.5)
+
+    -- Equip each unit in order
+    local failedEquips = {}
+    for _, unitName in ipairs(requiredUnits) do
+        local guid = unitGUIDs[unitName]
+        local equipOk, result = pcall(function()
+            return DataServiceRF.ToggleEquip:InvokeServer(guid, nil)
+        end)
+        if not equipOk or result == false then
+            table.insert(failedEquips, unitName)
+        end
+        task.wait(0.3)
+    end
+
+    if #failedEquips > 0 then
+        Util.notify({
+            Title = "Auto Equip Partial",
+            Content = "Failed to equip: " .. table.concat(failedEquips, ", "),
+            Duration = 5,
+        })
+        return false
+    end
+
+    Util.notify({
+        Title = "Auto Equip Done",
+        Content = string.format("Equipped %d units for %s", #requiredUnits, currentMacroName),
+        Duration = 4,
+    })
+    return true
+end
+
 function Playback.checkAndSwitchMacroForCurrentWorld()
     if not isPlaybackEnabled then return false end
     local category = workspace:GetAttribute("Category")
@@ -5616,6 +5780,15 @@ local PlaybackToggle = Tab:CreateToggle({
 Tab:CreateToggle({
     Name = "Ignore Timing", CurrentValue = false, Flag = "IgnoreTimingToggle",
     Callback = function(Value) ignoreTiming = Value end,
+})
+
+Tab:CreateToggle({
+    Name = "Auto Equip Macro Units",
+    CurrentValue = false,
+    Flag = "AutoEquipBeforeGame",
+    Callback = function(Value)
+        State.AutoEquipBeforeGame = Value
+    end,
 })
 
 Div = Tab:CreateDivider()
@@ -7709,6 +7882,15 @@ task.spawn(function()
                 local deadline = tick() + 10
                 while (not workspace:GetAttribute("Category") or not workspace:GetAttribute("MapName")) and tick() < deadline do
                     task.wait(0.5)
+                end
+
+                    if State.AutoEquipBeforeGame and isPlaybackEnabled then
+                    local equipped = autoEquipMacroUnits()
+                    if not equipped then
+                        Util.notify({ Title = "Auto Equip", Content = "Equip failed - game may start with wrong units", Duration = 5 })
+                    else
+                        task.wait(1) -- small buffer after equipping before starting
+                    end
                 end
                 
                 if isPlaybackEnabled then Playback.checkAndSwitchMacroForCurrentWorld() task.wait(0.5) end
