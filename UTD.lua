@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.12"
+local script_version = "V0.13"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -2124,6 +2124,14 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
         end
     end
 end
+            local iceGiftsAfter = Services.Players.LocalPlayer:GetAttribute("IceGifts") or 0
+            if iceGiftsBefore > 0 then
+                local iceGiftsDelta = iceGiftsAfter - iceGiftsBefore
+                if iceGiftsDelta > 0 then
+                    rewards["IceGifts"] = iceGiftsDelta
+                end
+            end
+            iceGiftsBefore = 0
         finishedRewardData = nil
         local playerName = "||" .. Services.Players.LocalPlayer.Name .. "||"
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -7526,6 +7534,7 @@ workspace:GetAttributeChangedSignal("Wave"):Connect(function()
             Util.updateMacroStatus("Game restarted - waiting for wave 1...")
         end
         lastWave = 0
+        iceGiftsBefore = 0
         task.spawn(function() task.wait(2) hasRecentlyRestarted = false end)
         return
     end
@@ -7582,13 +7591,9 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
                 local duration = tick() - currentGameInfo.StartTime
                 gameDuration = string.format("%dm %ds", math.floor(duration / 60), math.floor(duration % 60))
             end
-            local iceGiftsAfter = Services.Players.LocalPlayer:GetAttribute("IceGifts") or 0
-            local iceGiftsDelta = iceGiftsAfter - iceGiftsBefore
-            if iceGiftsDelta > 0 then
-                rewards["IceGifts"] = iceGiftsDelta
-            end
             Webhook.send("game_end", gameResult, currentGameInfo, gameDuration)
         end
+        iceGiftsBefore = 0
         gameInProgress = false
         autoPlayUsedPositions = {}
 
