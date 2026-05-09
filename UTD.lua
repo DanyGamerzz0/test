@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.15"
+local script_version = "V0.16"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4050,6 +4050,18 @@ local function refreshAllWorldDropdowns()
     print("✓ Refreshed all world macro dropdowns")
 end
 
+local MacroDropdown = Tab:CreateDropdown({
+    Name = "Select Macro", Options = {}, CurrentOption = {}, Flag = "MacroDropdown",
+    Callback = function(selected)
+        local name = type(selected) == "table" and selected[1] or selected
+        currentMacroName = name
+        if name and macroManager[name] then
+            macro = macroManager[name]
+            Util.updateMacroStatus(string.format("Selected: %s", name))
+        end
+    end,
+})
+
 local function createAutoSelectDropdowns()
     local initialMacroOptions = {"None"}
     for macroName in pairs(macroManager) do table.insert(initialMacroOptions, macroName) end
@@ -5208,18 +5220,6 @@ task.spawn(function()
         end
     end
 end)
-
-local MacroDropdown = Tab:CreateDropdown({
-    Name = "Select Macro", Options = {}, CurrentOption = {}, Flag = "MacroDropdown",
-    Callback = function(selected)
-        local name = type(selected) == "table" and selected[1] or selected
-        currentMacroName = name
-        if name and macroManager[name] then
-            macro = macroManager[name]
-            Util.updateMacroStatus(string.format("Selected: %s", name))
-        end
-    end,
-})
 
 function Playback.checkAndSwitchMacroForCurrentWorld()
     if not isPlaybackEnabled then return false end
