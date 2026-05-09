@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.18"
+local script_version = "V0.19"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -86,6 +86,9 @@ local State = {
 
     autoJoinWaves          = false,
     autoJoinWavesMap       = "",
+
+    returnToLobbyGames         = 10,
+    returnToLobbyGamesEnabled  = false,
 }
 
 local Movers = {
@@ -722,6 +725,7 @@ local function onRoundEnd(encoded)
         local ok, err = pcall(function()
             State.sessionRuns += 1
             getgenv().__LIXHUB_RUNS = State.sessionRuns
+            local forceLobby = State.returnToLobbyGamesEnabled and State.sessionRuns >= State.returnToLobbyGames
             print("[LixHub] Round ended — processing results")
             resetLobbyTimer()
 
@@ -741,7 +745,13 @@ local function onRoundEnd(encoded)
             end
 
             task.wait(5)
-            if State.autoRetry then
+            if forceLobby then
+            Util.notify("Auto Farm", "Game limit reached, returning to lobby...", 3, "house")
+            while true do
+                leaveViaNavigation()
+                task.wait(3)
+            end
+        elseif State.autoRetry then
                 Util.notify("Auto Farm", "Retrying...", 3, "cog")
                 while State.autoRetry do
                     print("[LixHub] Attempting retry via UI navigation...")
@@ -1336,6 +1346,26 @@ FarmTab:CreateToggle({
     CurrentValue = State.autoLobby,
     Callback     = function(val)
         State.autoLobby = val
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Return To Lobby After X Games",
+    Flag         = "ReturnToLobbyGamesEnabled",
+    CurrentValue = false,
+    Callback     = function(val)
+        State.returnToLobbyGamesEnabled = val
+    end,
+})
+
+FarmTab:CreateSlider({
+    Name         = "Return To Lobby After X Games",
+    Flag         = "ReturnToLobbyGames",
+    Range        = {1, 300},
+    Increment    = 1,
+    CurrentValue = State.returnToLobbyGames,
+    Callback     = function(val)
+        State.returnToLobbyGames = val
     end,
 })
 -- ===== TAB: Webhook =====
