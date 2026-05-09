@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.13"
+local script_version = "V0.14"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5476,24 +5476,6 @@ function Playback.autoPlaybackLoop()
         if not isPlaybackEnabled then break end
         if not gameInProgress then task.wait(0.5) continue end
 
-        -- Always check world mapping FIRST before anything else
-        local worldKey = Util.getCurrentWorldKey()
-        print("WorldKey:", worldKey)
-        print("WorldMapping:", worldMacroMappings[worldKey])
-        print("CurrentMacroName:", currentMacroName)
-        print("All world mappings:")
-        for k, v in pairs(worldMacroMappings) do
-            print(" ", k, "=", v)
-        end
-        if worldKey and worldMacroMappings[worldKey] then
-            local macroToLoad = worldMacroMappings[worldKey]
-            if currentMacroName ~= macroToLoad then
-                currentMacroName = macroToLoad
-                MacroDropdown:Set(macroToLoad)
-                Util.notify({ Title = "Auto-Switched Macro", Content = string.format("%s", macroToLoad), Duration = 3 })
-            end
-        end
-
         if not currentMacroName or currentMacroName == "" then
             Util.updateMacroStatus("Error: No macro selected")
             Util.updateDetailedStatus("Select a macro to continue")
@@ -7735,6 +7717,42 @@ task.spawn(function()
             print(string.format("Boss: %s (%s)", data.EnemyID, tostring(data.EnemyGUID)))
         end
     end)
+end)
+
+task.spawn(function()
+    -- Wait for MapName to settle
+    local deadline = tick() + 30
+    while (not workspace:GetAttribute("MapName") or workspace:GetAttribute("MapName") == "") and tick() < deadline do
+        task.wait(0.5)
+    end
+
+    -- Wait for macros to be loaded from disk
+    local macrodeadline = tick() + 10
+    while not next(macroManager) and tick() < macrodeadline do
+        task.wait(0.5)
+    end
+
+    local mapName = workspace:GetAttribute("MapName")
+    if not mapName or Util.isInLobby() then return end
+
+    local worldKey = Util.getCurrentWorldKey()
+    if not worldKey then return end
+
+    local mappedMacro = worldMacroMappings[worldKey]
+    if not mappedMacro or mappedMacro == "" or mappedMacro == "None" then return end
+
+    local loadedMacro = macroManager[mappedMacro] or MacroIO.load(mappedMacro)
+    if not loadedMacro or #loadedMacro == 0 then
+        Util.notify({ Title = "Macro Error", Content = string.format("'%s' is empty or missing", mappedMacro), Duration = 4 })
+        return
+    end
+
+    macroManager[mappedMacro] = loadedMacro
+    macro = loadedMacro
+    currentMacroName = mappedMacro
+    MacroDropdown:Set(mappedMacro)
+
+    Util.notify({ Title = "Macro Ready", Content = string.format("%s (%d actions)", mappedMacro, #loadedMacro), Duration = 4 })
 end)
 
 task.spawn(function()
