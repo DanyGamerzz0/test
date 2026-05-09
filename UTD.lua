@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.16"
+local script_version = "V0.17"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -203,6 +203,7 @@ manualRayParams.CollisionGroup = "Tower"
 manualRayParams.RespectCanCollide = false
 local autoPlaceRunning = false
 local autoPlayUsedPositions = {}
+local restartDisabled = false
 
 local RagnarokState = {
     AutoPickEnabled = false,
@@ -244,6 +245,18 @@ task.spawn(function()
         SendFinished.OnClientEvent:Connect(function(result, rewards, gameInfo, ...)
             finishedRewardData = { result = result, rewards = rewards, gameInfo = gameInfo }
             lastMatchResult = result -- "Won" or "Lost"
+        end)
+    end)
+end)
+
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.EffectService.RE.SendMessage
+        Event.OnClientEvent:Connect(function(messageType, message)
+            if messageType == "Error" and message == "Restart is disabled for this gamemode." then
+                restartDisabled = true
+            end
         end)
     end)
 end)
@@ -4068,19 +4081,21 @@ local function createAutoSelectDropdowns()
     table.sort(initialMacroOptions)
     task.wait(1)
 
-    local function tryPreloadMacro(selectedMacro, worldKey)
-        if not selectedMacro or selectedMacro == "None" or selectedMacro == "" then return end
-        local currentWorldKey = Util.getCurrentWorldKey()
-        if currentWorldKey ~= worldKey then return end
-        local loadedMacro = macroManager[selectedMacro] or MacroIO.load(selectedMacro)
-        if loadedMacro and #loadedMacro > 0 then
-            macroManager[selectedMacro] = loadedMacro
-            macro = loadedMacro
-            currentMacroName = selectedMacro
-            MacroDropdown:Set(selectedMacro)
-            Util.notify({ Title = "Macro Ready", Content = string.format("%s (%d actions)", selectedMacro, #loadedMacro), Duration = 4 })
-        end
+local function tryPreloadMacro(selectedMacro, worldKey)
+    if not selectedMacro or selectedMacro == "None" or selectedMacro == "" then return end
+    local currentWorldKey = Util.getCurrentWorldKey()
+    if currentWorldKey ~= worldKey then return end
+    local loadedMacro = macroManager[selectedMacro] or MacroIO.load(selectedMacro)
+    if not loadedMacro or #loadedMacro == 0 then
+        Util.notify({ Title = "Warning", Content = string.format("'%s' is empty, record it first", selectedMacro), Duration = 4 })
+        return
     end
+    macroManager[selectedMacro] = loadedMacro
+    macro = loadedMacro
+    currentMacroName = selectedMacro
+    MacroDropdown:Set(selectedMacro)
+    Util.notify({ Title = "Macro Ready", Content = string.format("%s (%d actions)", selectedMacro, #loadedMacro), Duration = 4 })
+end
 
     Tab:CreateSection("Legend Stage Macros")
     if LegendStageDropdown and LegendStageDropdown.Options then
@@ -5318,7 +5333,37 @@ local RecordToggle = Tab:CreateToggle({
             end
             local currentWave = workspace:GetAttribute("Wave") or 0
             local matchFinished = workspace:GetAttribute("MatchFinished")
-            if currentWave >= 1 and not matchFinished then
+
+            if matchFinished or currentWave == 0 then
+                -- Game hasn't started yet, just wait for wave 1
+                isRecording = true
+                recordingHasStarted = false
+                Util.updateMacroStatus("Recording enabled - Waiting for game to start...")
+                Util.notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
+            elseif currentWave == 1 then
+                -- Already on wave 1, begin immediately without restarting
+                isRecording = true
+                recordingHasStarted = true
+                gameStartTime = tick()
+                recordingUnitCounter = {}
+                recordingUUIDToTag = {}
+                macro = {}
+                UnitTracker.startUpgradePolling()
+                Util.updateMacroStatus("Recording...")
+                Util.notify({ Title = "Recording Started", Content = "Started from Wave 1", Duration = 3 })
+            elseif restartDisabled then
+                -- Gamemode doesn't support restart, begin immediately from current wave
+                isRecording = true
+                recordingHasStarted = true
+                gameStartTime = tick()
+                recordingUnitCounter = {}
+                recordingUUIDToTag = {}
+                macro = {}
+                UnitTracker.startUpgradePolling()
+                Util.updateMacroStatus("Recording from Wave " .. currentWave)
+                Util.notify({ Title = "Recording Started", Content = "Restart disabled - recording from Wave " .. currentWave, Duration = 3 })
+            else
+                -- Mid game above wave 1, restart
                 isRecording = true
                 recordingHasStarted = false
                 Util.notify({ Title = "Mid-Game Detected", Content = "Attempting to restart game...", Duration = 3 })
@@ -5346,16 +5391,6 @@ local RecordToggle = Tab:CreateToggle({
                 else
                     Util.updateMacroStatus("Recording enabled - Restarting game...")
                 end
-            elseif matchFinished then
-                isRecording = true
-                recordingHasStarted = false
-                Util.updateMacroStatus("Recording enabled - Waiting for game to start...")
-                Util.notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
-            else
-                isRecording = true
-                recordingHasStarted = false
-                Util.updateMacroStatus("Recording enabled - Waiting for game to start...")
-                Util.notify({ Title = "Recording Ready", Content = "Recording will start when game begins (Wave 1)", Duration = 3 })
             end
         else
             if recordingHasStarted then
@@ -5547,12 +5582,21 @@ local PlaybackToggle = Tab:CreateToggle({
             if playbackLoopRunning then return end
             macro = loadedMacro
             local currentWave = workspace:GetAttribute("Wave") or 0
-            if currentWave >= 1 and not workspace:GetAttribute("MatchFinished") then
+            local matchFinished = workspace:GetAttribute("MatchFinished")
+
+            if not matchFinished and currentWave > 1 and not restartDisabled then
+                -- Mid game above wave 1 and restart is supported, restart for accuracy
                 Util.notify({ Title = "Mid-Game Detected", Content = "Restarting game for accurate playback...", Duration = 4 })
                 GameState.restartMatch()
                 gameInProgress = false
                 autoPlayUsedPositions = {}
                 gameStartTime = 0
+            elseif not matchFinished and currentWave == 1 then
+                -- Already on wave 1, playback will begin immediately via autoPlaybackLoop
+                Util.notify({ Title = "Playback Ready", Content = "On Wave 1 - starting playback now", Duration = 3 })
+            elseif restartDisabled then
+                -- Restart not supported, begin from current state
+                Util.notify({ Title = "Playback Ready", Content = "Restart disabled - playing from current wave", Duration = 3 })
             end
             isPlaybackEnabled = true
             Util.updateMacroStatus("Playback Enabled - Waiting for game...")
@@ -7512,6 +7556,9 @@ TestWebhookButton = WebhookTab:CreateButton({
 
 workspace:GetAttributeChangedSignal("Wave"):Connect(function()
     local wave = workspace:GetAttribute("Wave") or 0
+    if wave == 1 then
+        restartDisabled = false
+    end
     if wave < lastWave then
         if State.SendMatchRestartedWebhook and not hasRecentlyRestarted then
             Webhook.send("match_restart", nil, currentGameInfo, lastWave)
