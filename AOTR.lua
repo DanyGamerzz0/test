@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.33"
+local script_version = "V0.34"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1456,17 +1456,16 @@ function Raids.startFemale()
     local qteConnection = nil
 
     if qteGui then
-        qteConnection = qteGui:GetPropertyChangedSignal("Visible"):Connect(function()
-            if not qteGui.Visible then return end
-            local timing = qteGui:FindFirstChild("Main")
-                and qteGui.Main:FindFirstChild("Timing")
-            if not timing or timing.BackgroundTransparency == 1 then return end
-            print("[LixHub] Female Raid: QTE detected — clicking button")
-            local btn = qteGui.Main:FindFirstChild("Button")
-            if btn then clickButton(btn) end
-        end)
-    else
-        print("[LixHub] Female Raid: QTE GUI not found")
+        local timing = qteGui:WaitForChild("Main", 5) and qteGui.Main:WaitForChild("Timing", 5)
+        if timing then
+            qteConnection = timing:GetPropertyChangedSignal("BackgroundTransparency"):Connect(function()
+                if not qteGui.Visible then return end
+                if timing.BackgroundTransparency == 1 then return end
+                print("[LixHub] Female Raid: QTE detected — clicking button")
+                local btn = qteGui.Main:FindFirstChild("Button")
+                if btn then clickButton(btn) end
+            end)
+        end
     end
 
     Raids.State.connection = RunService.Heartbeat:Connect(function()
