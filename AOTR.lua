@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.32"
+local script_version = "V0.33"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1452,15 +1452,22 @@ function Raids.startFemale()
     print("[LixHub] Female Raid: Starting")
     Util.notify("Auto Farm Raids", "Female Raid Started...", 3, "shield")
 
-    local qteConnection = RunService.Heartbeat:Connect(function()
-        local qteGui = player.PlayerGui.Interface:FindFirstChild("QTE")
-        if not qteGui or not qteGui.Visible then return end
-        local timing = qteGui:FindFirstChild("Main")
-            and qteGui.Main:FindFirstChild("Timing")
-        if not timing or timing.BackgroundTransparency == 1 then return end
-        print("[LixHub] Female Raid: QTE detected — firing success")
-        POST:FireServer("Functions", "QTE_Success")
-    end)
+    local qteGui = player.PlayerGui.Interface:WaitForChild("QTE", 10)
+    local qteConnection = nil
+
+    if qteGui then
+        qteConnection = qteGui:GetPropertyChangedSignal("Visible"):Connect(function()
+            if not qteGui.Visible then return end
+            local timing = qteGui:FindFirstChild("Main")
+                and qteGui.Main:FindFirstChild("Timing")
+            if not timing or timing.BackgroundTransparency == 1 then return end
+            print("[LixHub] Female Raid: QTE detected — clicking button")
+            local btn = qteGui.Main:FindFirstChild("Button")
+            if btn then clickButton(btn) end
+        end)
+    else
+        print("[LixHub] Female Raid: QTE GUI not found")
+    end
 
     Raids.State.connection = RunService.Heartbeat:Connect(function()
         if Raids.State.stopRequested then
@@ -1468,7 +1475,7 @@ function Raids.startFemale()
                 Raids.State.connection:Disconnect()
                 Raids.State.connection = nil
             end
-            if qteConnection then qteConnection:Disconnect() end
+            if qteConnection then qteConnection:Disconnect(); qteConnection = nil end
             return
         end
     end)
