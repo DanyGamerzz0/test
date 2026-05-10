@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.56"
+local script_version = "V0.57"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1811,7 +1811,7 @@ function Raids.startColossal()
             end
 
             -- Defend Eren while cannon is on cooldown
-            local titan, dist = getClosestTitanToEren2()
+            local titan, dist = Raids.getClosestTitanToEren2()
             if titan and dist < 450 then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
                 if titanRoot then
