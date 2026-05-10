@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.52"
+local script_version = "V0.53"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1767,20 +1767,19 @@ local function fireCannon()
     local colossalRoot = colossal:FindFirstChild("HumanoidRootPart")
     if not colossalRoot then return end
 
-    -- disconnect previous listener if any
     if cannonImpactConnection then
         cannonImpactConnection:Disconnect()
         cannonImpactConnection = nil
     end
 
-    -- listen for server's Skills Impact signal as the trigger
     cannonImpactConnection = POST.OnClientEvent:Connect(function(a, b, obj)
         if a == "Skills" and b == "Impact" and obj == workspace:FindFirstChild("Cannon") then
             cannonImpactConnection:Disconnect()
             cannonImpactConnection = nil
-            local targetPos = colossalRoot.Position
             local cannonBall = workspace:FindFirstChild("Cannon")
-            if cannonBall then
+            if cannonBall and colossalRoot and colossalRoot.Parent then
+                -- sample position RIGHT NOW when cannonball hits
+                local targetPos = colossalRoot.Position
                 for i = 1, 10 do
                     POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
                 end
@@ -1788,6 +1787,7 @@ local function fireCannon()
         end
     end)
 
+    -- remount every shot cycle like the working script does
     GET:InvokeServer("Cannon", "State", cannon, true)
     GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
 end
