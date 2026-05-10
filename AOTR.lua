@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.39"
+local script_version = "V0.4"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1727,18 +1727,19 @@ end
         return bestTitan, bestDist
     end
 
-    local function mountCannon()
-        local cannon = getCannon()
-        if not cannon then return false end
-        pcall(function() GET:InvokeServer("Cannon", "Claim", cannon) end)
-        local result = GET:InvokeServer("Cannon", "State", cannon, true)
-        if result then
-            cannonMounted = true
-            print("[LixHub] Colossal Raid: Cannon mounted")
-            return true
-        end
-        return false
+local function mountCannon()
+    local cannon = getCannon()
+    if not cannon then return false end
+    GET:InvokeServer("Cannon", "Claim", cannon)
+    task.wait(0.1)
+    local result = GET:InvokeServer("Cannon", "State", cannon, true, nil)
+    if result then
+        cannonMounted = true
+        print("[LixHub] Colossal Raid: Cannon mounted")
+        return true
     end
+    return false
+end
 
     local function unmountCannon()
         local cannon = getCannon()
@@ -1765,17 +1766,31 @@ local function fireCannon()
     if not colossal then return end
     local colossalRoot = colossal:FindFirstChild("HumanoidRootPart")
     if not colossalRoot then return end
+    local nape = Raids.getNape(colossal)
+    if not nape then return end
 
     local fired = GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
     if not fired then return end
 
-    -- spam impacts directly to colossal nape instead of waiting for nil projectile
-    local nape = Raids.getNape(colossal)
-    if not nape then return end
+    print("[LixHub] Colossal Raid: Cannon fired — waiting for cannonball")
+
     task.spawn(function()
-        task.wait(0.1)
-        for i = 1, 10 do
-            POST:FireServer("S_Skills", "Impact", cannon, colossalRoot.Position)
+        -- cannonball spawns in workspace not nil instances, wait for it
+        local cannonBall = nil
+        local start = tick()
+        repeat
+            task.wait()
+            cannonBall = workspace:FindFirstChild("Cannon")
+        until cannonBall ~= nil or tick() - start > 2
+
+        if cannonBall then
+            print("[LixHub] Colossal Raid: Cannonball found — spamming impacts")
+            local targetPos = nape.Position
+            for i = 1, 10 do
+                POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
+            end
+        else
+            print("[LixHub] Colossal Raid: Cannonball not found in time")
         end
     end)
 end
