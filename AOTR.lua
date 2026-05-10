@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.26"
+local script_version = "V0.27"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -943,14 +943,19 @@ function Raids.getClosestTitanToBoat()
     local titans = workspace:FindFirstChild("Titans")
     if not titans then return nil end
     
-    -- use boat 2 as anchor
     local boat = workspace.Unclimbable
         and workspace.Unclimbable.Objective
         and workspace.Unclimbable.Objective:FindFirstChild("Boat2")
     
-    local anchor = boat and boat.Position or rootPart.Position
+    local anchor
+    if boat then
+        local part = boat.PrimaryPart or boat:FindFirstChildWhichIsA("BasePart")
+        anchor = part and part.Position or rootPart.Position
+    else
+        anchor = rootPart.Position
+    end
+
     local bestTitan, bestDist = nil, math.huge
-    
     for _, titan in ipairs(titans:GetChildren()) do
         local hrp = titan:FindFirstChild("HumanoidRootPart")
         local hum = titan:FindFirstChild("Humanoid")
