@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.61"
+local script_version = "V0.62"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1707,7 +1707,7 @@ function Raids.startColossal()
 
     local chestsDone = false
     local cannonLoopActive = true
-    local usingCannon = false  -- New flag
+    local isCannonReady = true
 
     -- ====================== CANNON LOOP ======================
     task.spawn(function()
@@ -1721,19 +1721,21 @@ function Raids.startColossal()
         task.wait(0.6)
 
         while cannonLoopActive and Raids.State.phase == "defend" and not Raids.State.stopRequested do
-            if cannon:GetAttribute("Firing") or cannon:GetAttribute("Cooldown") then
-                task.wait(0.2)
+            
+            -- Only fire if cannon is actually ready
+            if cannon:GetAttribute("Firing") or cannon:GetAttribute("Cooldown") or not isCannonReady then
+                task.wait(0.25)
                 continue
             end
 
-            usingCannon = true
+            isCannonReady = false
             print("[LixHub] Mounting + Firing Cannon...")
 
             GET:InvokeServer("Cannon", "State", cannon, true)
             task.wait(0.35)
 
             GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 12, Base = 0 })
-            task.wait(0.4)
+            task.wait(0.45)
 
             local cannonBall = workspace:FindFirstChild("Cannon")
             if cannonBall then
@@ -1763,13 +1765,12 @@ function Raids.startColossal()
             end
 
             unmountCannon(cannon)
-            usingCannon = false
-            task.wait(0.7) -- Important cooldown
+            isCannonReady = true
+            task.wait(0.9) -- Longer delay between shots to let defending happen
         end
 
         unmountCannon(cannon)
         cannonLoopActive = false
-        usingCannon = false
     end)
 
     -- ====================== DEFEND LOOP ======================
@@ -1792,7 +1793,7 @@ function Raids.startColossal()
 
         if Raids.State.phase == "defend" then
             if getColossalHpPercent() <= 50 then
-                print("[LixHub] Colossal at 50% → cutscene")
+                print("[LixHub] Colossal ≤50% → transitioning")
                 Raids.State.phase = "cutscene"
                 cannonLoopActive = false
                 removeBodyMovers()
@@ -1807,17 +1808,12 @@ function Raids.startColossal()
                         if hum then hum.PlatformStand = true; hum.AutoRotate = false end
                         enableSync()
                         Raids.State.phase = "defeat"
-                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Colossal!", 3, "sword")
                     end
                 end)
                 return
             end
 
-            -- Only defend if NOT using cannon
-            if usingCannon then 
-                return 
-            end
-
+            -- Defend Eren (only when cannon is not firing)
             local titan, dist = Raids.getClosestTitanToEren2()
             if titan and dist < 520 then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
@@ -1835,9 +1831,8 @@ function Raids.startColossal()
                     POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
                 end
             end
-
         elseif Raids.State.phase == "defeat" then
-            -- Phase 2 logic (unchanged)
+            -- Phase 2: Kill Colossal (same as before)
             local titan = getColossalTitan()
             if titan then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
