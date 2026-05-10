@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.2"
+local script_version = "V0.21"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -60,7 +60,7 @@ local State = {
     floatHeight          = 520,
     attackConnection     = nil,
     farmActive           = false,
-    attackInterval       = 0.3,
+    attackInterval       = 0,
     stopRequested        = false,
     tweenSpeed           = 300,
     returnToLobbyEnabled  = false,
@@ -91,6 +91,17 @@ local State = {
     returnToLobbyGamesEnabled  = false,
 }
 
+local Raids = {}
+
+Raids.State = {
+    active = false,
+    autoOpenChests = false,
+    autoOpenEmperorChests = false,
+    connection = nil,
+    phase = "defend",
+    stopRequested = false,
+}
+
 local Movers = {
     bodyPos  = nil,
     bodyGyro = nil,
@@ -106,7 +117,9 @@ local RAID_TITAN_MAP = {
 -- ==================== COLLISION ====================
 local noclipConnection = nil
 local currentTarget = nil
-local isReloading = false
+-- "idle" | "swapping" | "refilling"
+local ReloadState     = "idle"
+local RaidReloadState = "idle"
 local Util = {}
 local PERK_RARITIES = {}
 local ITEM_RARITIES = {}
@@ -119,8 +132,13 @@ function Util.notify(title, content, duration, image)
         Content = content or "",
         Duration = duration or 3,
         Image = image or nil,
-
     })
+end
+
+local function waitForCutscene()
+    while player:GetAttribute("Cutscene") == true do
+        task.wait(0.5)
+    end
 end
 
 local function disableCollision()
@@ -141,15 +159,6 @@ local function enableCollision()
 end
 
 -- ==================== BODY MOVERS + LERP ====================
--- The old code slammed BodyPosition.Position directly to the destination, which
--- made Roblox physics move the character as fast as it physically could regardless
--- of any P/D value. Travel time was not controllable that way.
---
--- Fix: we maintain a "lerp cursor" (lerpCurrent) that advances toward lerpTarget at
--- exactly State.tweenSpeed studs/sec every frame. BodyPosition.P is set very high so
--- the character tracks the cursor tightly. The cursor speed is now the only thing
--- that determines how fast you cross the map between titans.
-
 local lerpCurrent    = nil
 local lerpTarget     = nil
 local lerpGyroTarget = nil
@@ -180,7 +189,7 @@ local function ensureBodyMovers(targetCFrame)
     if not Movers.bodyPos then
         Movers.bodyPos          = Instance.new("BodyPosition")
         Movers.bodyPos.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-        Movers.bodyPos.P        = 1e5  -- high so it tracks the lerp cursor precisely
+        Movers.bodyPos.P        = 1e5
         Movers.bodyPos.D        = 1000
         Movers.bodyPos.Name     = "_FarmPos"
         Movers.bodyPos.Parent   = rootPart
@@ -252,19 +261,27 @@ end
 local function getBladeStatus()
     local rig = character:FindFirstChild("Rig_" .. character.Name)
     if not rig then return 0, 0 end
-    local reloadsLeft, segmentsLeft = 0, 0
+
+    local cassettesLeft = 0
     for i = 1, 3 do
         local c = rig:FindFirstChild("Left_" .. i, true)
-        if c and c:GetAttribute("Used") == nil then reloadsLeft += 1 end
+        if c and c:GetAttribute("Used") == nil then
+            cassettesLeft += 1
+        end
     end
+
+    local segmentsLeft = 0
     local lh = rig:FindFirstChild("LeftHand")
     if lh then
         for i = 1, 7 do
             local b = lh:FindFirstChild("Blade_" .. i)
-            if b and b:GetAttribute("Broken") == nil then segmentsLeft += 1 end
+            if b and b:GetAttribute("Broken") == nil then
+                segmentsLeft += 1
+            end
         end
     end
-    return reloadsLeft, segmentsLeft
+
+    return cassettesLeft, segmentsLeft
 end
 
 -- ==================== FARM HELPERS ====================
@@ -314,8 +331,8 @@ end
 local function stopAutoAttack()
     State.stopRequested = true
     State.farmActive    = false
-    currentTarget = nil
-    isReloading = false
+    currentTarget       = nil
+    ReloadState         = "idle"
     print("[LixHub] Auto farm stopped")
 
     if State.attackConnection then
@@ -356,8 +373,20 @@ local function startLobbyTimer()
     end)
 end
 
+local function findRefillPoint()
+    local tanks = workspace.Unclimbable
+        and workspace.Unclimbable.Props
+        and workspace.Unclimbable.Props.HQ
+        and workspace.Unclimbable.Props.HQ.GasTanks
+    return tanks and tanks:FindFirstChild("Refill")
+end
+
 local function startAutoAttack()
     if isInLobby() then return end
+        if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or State.stopRequested
+        if State.stopRequested then return end
+    end
     if State.attackConnection then
         State.attackConnection:Disconnect()
         State.attackConnection = nil
@@ -399,38 +428,45 @@ local function startAutoAttack()
             return
         end
 
-        -- proactive reload check runs ALWAYS, before any early returns
-        local reloadsLeft, segmentsLeft = getBladeStatus()
+        local cassettesLeft, segmentsLeft = getBladeStatus()
 
-        if segmentsLeft <= 0 and not isReloading then
-            isReloading = true
-            print("[LixHub] Blade fully broken — swapping blade")
-            GET:InvokeServer("Blades", "Reload")
-            task.delay(1, function() isReloading = false end)
+        -- Cassette swap — spam Blades/Reload until server returns true
+        if segmentsLeft <= 0 and cassettesLeft > 0 and ReloadState == "idle" then
+            ReloadState = "swapping"
+            print("[LixHub] Farm: Blade broken, swapping cassette —", cassettesLeft, "left")
+            task.spawn(function()
+                local result
+                repeat
+                    result = GET:InvokeServer("Blades", "Reload")
+                    task.wait()
+                until result == true or ReloadState ~= "swapping"
+                print("[LixHub] Farm: Blade swap confirmed —", tostring(result))
+                ReloadState = "idle"
+            end)
+            return
         end
 
-        if reloadsLeft <= 0 and not isReloading then
-            isReloading = true
-            local refillPoint = workspace:FindFirstChild("Refill", true) or
-                (workspace.Unclimbable and workspace.Unclimbable.Props and
-                workspace.Unclimbable.Props.HQ and workspace.Unclimbable.Props.HQ.GasTanks and
-                workspace.Unclimbable.Props.HQ.GasTanks.Refill)
-
-            if refillPoint then
-                print("[LixHub] Out of blade cassettes — spoofing position to refill station")
-                local titanSyncPos = State.syncedPosition
-                State.syncedPosition = refillPoint.Position + Vector3.new(0, 3, 0)
-                task.wait(0.5)
-                GET:InvokeServer("Attacks", "Reload", refillPoint)
-                task.wait(0.3)
-                State.syncedPosition = titanSyncPos
-                print("[LixHub] Refill done — spoofed position back to titan")
-            else
-                print("[LixHub] Warning: Could not find refill point!")
-                GET:InvokeServer("Attacks", "Reload", nil)
-            end
-            task.delay(2, function() isReloading = false end)
+        if segmentsLeft <= 0 and cassettesLeft <= 0 and ReloadState == "idle" then
+            ReloadState = "refilling"
+            print("[LixHub] Farm: Out of cassettes — refilling")
+            task.spawn(function()
+                local refillPoint = findRefillPoint()
+                repeat
+                    GET:InvokeServer("Attacks", "Reload", refillPoint)
+                    task.wait()
+                    local c, _ = getBladeStatus()
+                    if c > 0 then break end
+                until ReloadState ~= "refilling"
+                -- wait for segments to replicate before releasing
+                repeat task.wait() until (select(2, getBladeStatus())) > 0 or ReloadState ~= "refilling"
+                print("[LixHub] Farm: Refill done")
+                ReloadState = "idle"
+            end)
+            return
         end
+
+        -- Block all attacks while any reload is in progress
+        if ReloadState ~= "idle" then return end
 
         if lastTitanWaiting then return end
         tickAccum = tickAccum + dt
@@ -569,14 +605,12 @@ local function sendWebhook(roundData, playerData)
     local embedColor = completed and 0x57F287 or 0xED4245
     local resultText = completed and "Victory" or "Defeat"
 
-    -- Title
     local missionType  = workspace:GetAttribute("Type")       or "Unknown"
     local objective    = workspace:GetAttribute("Objective")  or "Unknown"
     local difficulty   = workspace:GetAttribute("Difficulty") or "Unknown"
     local titleText    = string.format("Stage %s! - %d Run(s)", completed and "Completed" or "Failed", State.sessionRuns or 1)
     local subtitleText = string.format("%s - %s (%s) - %s", missionType, objective, difficulty, resultText)
 
-    -- Duration from workspace
     local wsSeconds = workspace:GetAttribute("Seconds") or 0
     local duration  = string.format("%02d:%02d", math.floor(wsSeconds / 60), wsSeconds % 60)
 
@@ -585,7 +619,6 @@ local function sendWebhook(roundData, playerData)
     local currency    = r2 and r2.Currency    or {}
     local progression = r2 and r2.Progression or {}
 
-    -- Shadow ban check
     local isShadowBanned = false
     pcall(function()
         local d = GET:InvokeServer("Functions", "Settings", "Blur", "Off")
@@ -594,10 +627,8 @@ local function sendWebhook(roundData, playerData)
         end
     end)
 
-    -- Streak
     local streak = player:GetAttribute("Streak") or 0
 
-    -- Stats field
     local statsText = string.format(
         "Titans Killed: %d\nDamage Dealt: %d\nCritical Hits: %d\nBoss Damage: %d\nLevel: %d%s\nStreak: %d\nShadow Banned: %s",
         stats.Kills        or 0,
@@ -610,7 +641,6 @@ local function sendWebhook(roundData, playerData)
         isShadowBanned and "true" or "false"
     )
 
-    -- Rewards with totals
     local rewardLines = {}
     local function addReward(label, amount, total)
         if (amount or 0) > 0 then
@@ -660,11 +690,11 @@ local function sendWebhook(roundData, playerData)
             description = subtitleText,
             color       = embedColor,
             fields      = {
-                { name = "Player",   value = "||" .. player.Name .. "||", inline = true },
-                { name = "Duration", value = duration,                     inline = true },
-                { name = "\u{200B}", value = "\u{200B}",                   inline = true },
-                { name = "Game Stats",    value = statsText,   inline = false },
-                { name = "Rewards",  value = rewardsText, inline = false },
+                { name = "Player",     value = "||" .. player.Name .. "||", inline = true },
+                { name = "Duration",   value = duration,                     inline = true },
+                { name = "\u{200B}",   value = "\u{200B}",                   inline = true },
+                { name = "Game Stats", value = statsText,                    inline = false },
+                { name = "Rewards",    value = rewardsText,                  inline = false },
             },
             footer    = { text = "LixHub • discord.gg/cYKnXE2Nf8" },
             timestamp = timestamp,
@@ -720,12 +750,9 @@ end
 
 local function updateQueuedCounter()
     if not queue_on_teleport then return end
-    
-    -- Only queue the counter restoration, not the full script
     local queuedScript = string.format([[
         getgenv().__LIXHUB_RUNS = %d
     ]], State.sessionRuns)
-    
     queue_on_teleport(queuedScript)
 end
 
@@ -758,12 +785,12 @@ local function onRoundEnd(encoded)
 
             task.wait(5)
             if forceLobby then
-            Util.notify("Auto Farm", "Game limit reached, returning to lobby...", 3, "house")
-            while true do
-                leaveViaNavigation()
-                task.wait(3)
-            end
-        elseif State.autoRetry then
+                Util.notify("Auto Farm", "Game limit reached, returning to lobby...", 3, "house")
+                while true do
+                    leaveViaNavigation()
+                    task.wait(3)
+                end
+            elseif State.autoRetry then
                 Util.notify("Auto Farm", "Retrying...", 3, "cog")
                 while State.autoRetry do
                     print("[LixHub] Attempting retry via UI navigation...")
@@ -789,46 +816,316 @@ end
 
 -- Create bindable BEFORE running on actors
 if not isInLobby() then
-local bridge = Instance.new("BindableEvent")
-bridge.Parent = game:GetService("ReplicatedStorage")
-bridge.Name = "__LixBridge"
-bridge.Event:Connect(onRoundEnd)
+    local bridge = Instance.new("BindableEvent")
+    bridge.Parent = game:GetService("ReplicatedStorage")
+    bridge.Name = "__LixBridge"
+    bridge.Event:Connect(onRoundEnd)
 end
 
 if not isInLobby() then
-for _, actor in getactors() do
-    run_on_actor(actor, [[
-        local GET = game:GetService("ReplicatedStorage").Assets.Remotes.GET
-        local bridge = game:GetService("ReplicatedStorage"):WaitForChild("__LixBridge", 5)
+    for _, actor in getactors() do
+        run_on_actor(actor, [[
+            local GET = game:GetService("ReplicatedStorage").Assets.Remotes.GET
+            local bridge = game:GetService("ReplicatedStorage"):WaitForChild("__LixBridge", 5)
 
-        local mtHook; mtHook = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
+            local mtHook; mtHook = hookmetamethod(game, "__namecall", function(self, ...)
+                local method = getnamecallmethod()
 
-            if rawequal(self, GET) and method == "InvokeServer" then
-                local args = table.pack(...)
-                local result = table.pack(mtHook(self, ...))
+                if rawequal(self, GET) and method == "InvokeServer" then
+                    local args = table.pack(...)
+                    local result = table.pack(mtHook(self, ...))
 
-                if args[1] == "S_Rewards" and args[2] == "Get" then
-                    local r  = result[1]
-                    local r2 = result[2]
-                    if bridge then
-                        local HttpService = game:GetService("HttpService")
-                        local ok, encoded = pcall(function()
-                            return HttpService:JSONEncode({round = r, player = r2})
-                        end)
-                        if ok then
-                            bridge:Fire(encoded)
+                    if args[1] == "S_Rewards" and args[2] == "Get" then
+                        local r  = result[1]
+                        local r2 = result[2]
+                        if bridge then
+                            local HttpService = game:GetService("HttpService")
+                            local ok, encoded = pcall(function()
+                                return HttpService:JSONEncode({round = r, player = r2})
+                            end)
+                            if ok then
+                                bridge:Fire(encoded)
+                            end
                         end
                     end
+
+                    return table.unpack(result, 1, result.n)
                 end
 
-                return table.unpack(result, 1, result.n)
+                return mtHook(self, ...)
+            end)
+        ]])
+    end
+end
+
+function Raids.getNape(titan)
+    local hb = titan:FindFirstChild("Hitboxes", true)
+    if not hb then return nil end
+    local hit = hb:FindFirstChild("Hit", true)
+    if not hit then return nil end
+    return hit:FindFirstChild("Nape")
+end
+
+function Raids.getVulnerableSpot(titan)
+    local hb = titan:FindFirstChild("Hitboxes", true)
+    if not hb then return nil end
+    local hit = hb:FindFirstChild("Hit", true)
+    if not hit then return nil end
+    for _, part in ipairs(hit:GetChildren()) do
+        if part:GetAttribute("Vulnerable") ~= nil then
+            return part
+        end
+    end
+    return nil
+end
+
+function Raids.registerHit(nape, vulnSpot)
+    local damage = 670 + math.random(55, 165)
+    if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+    POST:FireServer("Attacks", "Slash", true)
+    POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+end
+
+function Raids.registerHitVuln(vulnSpot)
+    task.spawn(function()
+        POST:FireServer("Attacks", "Slash", true)
+        for i = 1, 5 do
+            local damage = 400 + math.random(50, 150)
+            if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+            POST:FireServer("Hitboxes", "Register", vulnSpot, math.floor(damage))
+        end
+    end)
+end
+
+function Raids.getObjectiveValue(name)
+    local obj = ReplicatedStorage:FindFirstChild("Objectives")
+    if not obj then return 0 end
+    local v = obj:FindFirstChild(name)
+    return v and v.Value or 0
+end
+
+function Raids.getErenRef()
+    local ref = workspace.Unclimbable:FindFirstChild("Objective")
+    if not ref then return nil end
+    local defend = ref:FindFirstChild("Defend_Eren")
+    if not defend then return nil end
+    local refVal = defend:FindFirstChild("Reference")
+    return refVal and refVal.Value or nil
+end
+
+function Raids.getClosestTitanToEren()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+    local eren = Raids.getErenRef()
+    local anchor = (eren and eren:IsA("BasePart")) and eren.Position or rootPart.Position
+    local bestTitan, bestDist = nil, math.huge
+    for _, titan in ipairs(titans:GetChildren()) do
+        local hrp = titan:FindFirstChild("HumanoidRootPart")
+        local hum = titan:FindFirstChild("Humanoid")
+        if hrp and hum and hum.Health > 0 then
+            local nape = Raids.getNape(titan)
+            if nape then
+                local dist = (hrp.Position - anchor).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    bestTitan = titan
+                end
+            end
+        end
+    end
+    return bestTitan
+end
+
+function Raids.getAttackTitan()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+    local at = titans:FindFirstChild("Attack_Titan")
+    if not at then return nil end
+    local hum = at:FindFirstChild("Humanoid")
+    if not hum or hum.Health <= 0 then return nil end
+    return at
+end
+
+function Raids.openChests()
+    if Raids.State.autoOpenEmperorChests then
+        pcall(function()
+            GET:InvokeServer("S_Rewards", "Chest", "Premium")
+        end)
+    end
+    if Raids.State.autoOpenChests then
+        pcall(function()
+            GET:InvokeServer("S_Rewards", "Chest", "Free")
+        end)
+    end
+end
+
+function Raids.clickFinish()
+    pcall(function()
+        local finishBtn = player.PlayerGui.Interface.Chests.Finish
+        GuiService.SelectedObject = finishBtn
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+        print("[LixHub] Raids: Finish clicked")
+    end)
+end
+
+function Raids.handleTitan(titan, useVulnerable)
+    local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+    if not titanRoot then return end
+    local nape = Raids.getNape(titan)
+    if not nape then return end
+
+    State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+    local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+    ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+
+    if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 500 then return end
+
+    if useVulnerable then
+        local vulnSpot = Raids.getVulnerableSpot(titan)
+        if vulnSpot then
+            Raids.registerHitVuln(vulnSpot)
+        else
+            Raids.registerHit(nape, nil)
+        end
+    else
+        Raids.registerHit(nape, nil)
+    end
+end
+
+function Raids.stop()
+    Raids.State.stopRequested = true
+    Raids.State.active        = false
+    Raids.State.phase         = "defend"
+    RaidReloadState           = "idle"
+    if Raids.State.connection then
+        Raids.State.connection:Disconnect()
+        Raids.State.connection = nil
+    end
+    removeBodyMovers()
+    disableSync()
+    Util.notify("Auto Farm Raids", "Raid farm stopped.", 3, "cog")
+    print("[LixHub] Raids: Stopped")
+end
+
+function Raids.start()
+    if isInLobby() then return end
+        if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+        if Raids.State.stopRequested then return end
+    end
+    if Raids.State.connection then
+        Raids.State.connection:Disconnect()
+        Raids.State.connection = nil
+    end
+
+    Raids.State.stopRequested = false
+    Raids.State.active        = true
+    Raids.State.phase         = "defend"
+    print("[LixHub] Raids: Starting — Phase 1: Defend Eren")
+    Util.notify("Auto Farm Raids", "Phase 1: Defending Eren...", 3, "shield")
+
+    disableCollision()
+    local _hum = character:FindFirstChildOfClass("Humanoid")
+    if _hum then _hum.PlatformStand = true; _hum.AutoRotate = false end
+    enableSync()
+
+    local tickAccum = 0
+    local chestsDone = false
+
+    Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
+        if Raids.State.stopRequested then
+            if Raids.State.connection then
+                Raids.State.connection:Disconnect()
+                Raids.State.connection = nil
+            end
+            return
+        end
+
+        local cassettesLeft, segmentsLeft = getBladeStatus()
+
+        -- Cassette swap — spam Blades/Reload until server returns true
+        if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
+            RaidReloadState = "swapping"
+            print("[LixHub] Raids: Blade broken, swapping cassette —", cassettesLeft, "left")
+            task.spawn(function()
+                local result
+                repeat
+                    result = GET:InvokeServer("Blades", "Reload")
+                    task.wait()
+                until result == true or RaidReloadState ~= "swapping"
+                print("[LixHub] Raids: Blade swap confirmed —", tostring(result))
+                RaidReloadState = "idle"
+            end)
+            return
+        end
+
+        if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
+            RaidReloadState = "refilling"
+            print("[LixHub] Raids: Out of cassettes — refilling")
+            task.spawn(function()
+                local refillPoint = findRefillPoint()
+                repeat
+                    GET:InvokeServer("Attacks", "Reload", refillPoint)
+                    task.wait()
+                    local c, _ = getBladeStatus()
+                    if c > 0 then break end
+                until RaidReloadState ~= "refilling"
+                -- wait for segments to replicate before releasing
+                repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
+                print("[LixHub] Raids: Refill done")
+                RaidReloadState = "idle"
+            end)
+            return
+        end
+
+        -- Block all attacks while any reload is in progress
+        if RaidReloadState ~= "idle" then return end
+
+        tickAccum = tickAccum + dt
+        if tickAccum < State.attackInterval then return end
+        tickAccum = 0
+
+        -- ===== PHASE 1: DEFEND EREN =====
+        if Raids.State.phase == "defend" then
+            if Raids.getObjectiveValue("Defend_Eren") >= 1 then
+                Raids.State.phase = "defeat"
+                print("[LixHub] Raids: Phase 1 done — Phase 2: Defeat Attack Titan")
+                Util.notify("Auto Farm Raids", "Phase 2: Defeat Attack Titan!", 3, "sword")
+                return
+            end
+            local titan = Raids.getClosestTitanToEren()
+            if titan then
+                Raids.handleTitan(titan, false)
             end
 
-            return mtHook(self, ...)
-        end)
-    ]])
-    end
+        -- ===== PHASE 2: DEFEAT ATTACK TITAN =====
+        elseif Raids.State.phase == "defeat" then
+            if Raids.getObjectiveValue("Defeat_Attack_Titan") >= 1 then
+                if not chestsDone then
+                    chestsDone = true
+                    print("[LixHub] Raids: Attack Titan defeated — collecting chests")
+                    Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
+                    task.spawn(function()
+                        task.wait(5)
+                        Raids.openChests()
+                        task.wait(2)
+                        Raids.clickFinish()
+                    end)
+                end
+                return
+            end
+            local titan = Raids.getAttackTitan()
+            if not titan then return end
+            if titan.Name == "Attack_Titan" and titan:GetAttribute("State") == "Roar" then return end
+            if titan.Name == "Attack_Titan" and titan:GetAttribute("State") == "Berserk_Mode" then return end
+            Raids.handleTitan(titan, true)
+        end
+    end)
+
+    Util.notify("Auto Farm Raids", "Raid Farm Started", 3, "shield")
 end
 
 -- ==================== RAYFIELD UI ====================
@@ -860,7 +1157,7 @@ local Window = Rayfield:CreateWindow({
     SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
     ElementStroke = Color3.fromRGB(50, 50, 50),
     SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
-            
+
     SliderBackground = Color3.fromRGB(50, 138, 220),
     SliderProgress = Color3.fromRGB(50, 138, 220),
     SliderStroke = Color3.fromRGB(58, 163, 255),
@@ -893,7 +1190,7 @@ local Window = Rayfield:CreateWindow({
    },
 
    Discord = {
-      Enabled = true, 
+      Enabled = true,
       Invite = "cYKnXE2Nf8",
       RememberJoins = true
    },
@@ -962,7 +1259,6 @@ local function joinMission()
         return false
     end
 
-    -- rest continues as before (modifiers + start)
     print("[LixHub] Auto Join: Lobby created successfully")
     for _, mod in ipairs(State.autoJoinMissionMods) do
         local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
@@ -1250,7 +1546,6 @@ JoinerTab:CreateDropdown({
     end,
 })
 
-
 -- ===== TAB: Farm =====
 local FarmTab = Window:CreateTab("Main", "play")
 
@@ -1264,6 +1559,37 @@ FarmTab:CreateToggle({
         else
             stopAutoAttack()
         end
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Farm Raids",
+    Flag         = "AutoFarmRaids",
+    CurrentValue = false,
+    Callback     = function(val)
+        if val then
+            task.defer(Raids.start)
+        else
+            Raids.stop()
+        end
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Open Chests",
+    Flag         = "AutoOpenChests",
+    CurrentValue = false,
+    Callback     = function(val)
+        Raids.State.autoOpenChests = val
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Open Emperor Chests",
+    Flag         = "AutoOpenEmperorChests",
+    CurrentValue = false,
+    Callback     = function(val)
+        Raids.State.autoOpenEmperorChests = val
     end,
 })
 
@@ -1380,13 +1706,13 @@ FarmTab:CreateSlider({
         State.returnToLobbyGames = val
     end,
 })
--- ===== TAB: Webhook =====
 
+-- ===== TAB: Webhook =====
 local WebhookTab = Window:CreateTab("Webhook", "link")
 
 WebhookTab:CreateInput({
     Name                   = "Webhook URL",
-    Flag         = "WebhookUrl",
+    Flag                   = "WebhookUrl",
     CurrentValue           = "",
     PlaceholderText        = "https://discord.com/api/webhooks/...",
     RemoveTextAfterFocusLost = false,
@@ -1398,7 +1724,7 @@ WebhookTab:CreateInput({
 
 WebhookTab:CreateInput({
     Name                     = "Discord User ID (for drop pings)",
-    Flag         = "WebhookDiscordId",
+    Flag                     = "WebhookDiscordId",
     CurrentValue             = "",
     PlaceholderText          = "Your Discord user ID...",
     RemoveTextAfterFocusLost = false,
@@ -1442,7 +1768,7 @@ WebhookTab:CreateButton({
     end,
 })
 
--- ===== TAB: Utility =====
+-- ===== TAB: Misc =====
 local MiscTab = Window:CreateTab("Misc", "settings")
 
 MiscTab:CreateToggle({
@@ -1455,16 +1781,13 @@ MiscTab:CreateToggle({
             return
         end
         if val then
-            -- Queue both counter AND script
             local queuedScript = string.format([[
                 getgenv().__LIXHUB_RUNS = %d
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTR.lua"))()
             ]], State.sessionRuns)
-            
             queue_on_teleport(queuedScript)
             Util.notify("Auto Execute", "Script will auto execute on teleport", 3, "check")
         else
-            -- Still queue the counter, just not the full script
             updateQueuedCounter()
             Util.notify("Auto Execute", "Auto execute disabled (run counter still persists)", 3, "x")
         end
@@ -1493,6 +1816,6 @@ MiscTab:CreateButton({
 
 -- ==================== INIT ====================
 if not isInLobby() then
-setupAutoEscape()
+    setupAutoEscape()
 end
 Rayfield:LoadConfiguration()
