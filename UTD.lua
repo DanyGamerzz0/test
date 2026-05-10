@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.21"
+local script_version = "V0.22"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -8170,28 +8170,29 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    local UIS = game:GetService("UserInputService")
     local RewardGui = game:GetService("Players").LocalPlayer
         :WaitForChild("PlayerGui"):WaitForChild("Rewards")
 
     local function dismissAll()
         while #RewardGui:GetChildren() > 0 do
-            task.wait(0.2) -- past the CanNext 0.125s gate
-            print("Dismissing reward...")
-            for _, conn in pairs(getconnections(UIS.InputBegan)) do
-                pcall(function()
-                    conn:Fire(
-                        { UserInputType = Enum.UserInputType.MouseButton1, KeyCode = Enum.KeyCode.Unknown },
-                        false
-                    )
-                end)
+            task.wait(0.2)
+            for _, frame in pairs(RewardGui:GetChildren()) do
+                -- Get the metatable set by the ViewReward module
+                local mt = getrawmetatable(frame)
+                if mt and mt.__index and mt.__index.Deactivate then
+                    pcall(function()
+                        frame.CanNext = true
+                        mt.__index.Deactivate(frame)
+                    end)
+                end
             end
-            task.wait(0.8) -- wait for exit tween + next reward to appear
+            task.wait(0.8)
         end
     end
 
     RewardGui.ChildAdded:Connect(function(child)
         if child.Name == "ViewReward" then
+            task.wait(0.2)
             dismissAll()
         end
     end)
