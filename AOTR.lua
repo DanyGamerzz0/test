@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.38"
+local script_version = "V0.39"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1760,38 +1760,22 @@ local function fireCannon()
     if not cannon then return end
     if cannon:GetAttribute("Firing") ~= nil then return end
     if cannon:GetAttribute("Cooldown") ~= nil then return end
-    
-    local fired = GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
-    if not fired then return end
-    
-    print("[LixHub] Colossal Raid: Cannon fired — spamming impacts")
-    
-    -- get colossal position for impact target
+
     local colossal = getColossalTitan()
     if not colossal then return end
     local colossalRoot = colossal:FindFirstChild("HumanoidRootPart")
     if not colossalRoot then return end
-    local targetPos = colossalRoot.Position
-    
-    -- wait a tick for the projectile to spawn in nil instances
+
+    local fired = GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
+    if not fired then return end
+
+    -- spam impacts directly to colossal nape instead of waiting for nil projectile
+    local nape = Raids.getNape(colossal)
+    if not nape then return end
     task.spawn(function()
         task.wait(0.1)
-        -- find cannon projectile in nil instances
-        local cannonProjectile = nil
-        for _, obj in ipairs(getnilinstances()) do
-            if obj.Name == "Cannon" and obj:IsA("Model") then
-                cannonProjectile = obj
-                break
-            end
-        end
-        
-        if cannonProjectile then
-            print("[LixHub] Colossal Raid: Found cannon projectile — firing impacts")
-            for i = 1, 10 do
-                POST:FireServer("S_Skills", "Impact", cannonProjectile, targetPos)
-            end
-        else
-            print("[LixHub] Colossal Raid: Cannon projectile not found in nil instances")
+        for i = 1, 10 do
+            POST:FireServer("S_Skills", "Impact", cannon, colossalRoot.Position)
         end
     end)
 end
@@ -1845,17 +1829,17 @@ end
             local closestTitan, closestDist = getClosestTitanToEren2()
 
             -- if titan is close to eren, unmount and defend
-if closestTitan and closestDist < 200 then
+if closestTitan and closestDist < 400 then
+    -- unmount cannon FIRST before trying to move
     if cannonMounted then unmountCannon() end
-    
-    -- move to titan
+
     local titanRoot = closestTitan:FindFirstChild("HumanoidRootPart")
     if titanRoot then
         State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
         local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
         ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
     end
-    
+
     local nape = Raids.getNape(closestTitan)
     if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 500 then
         POST:FireServer("Attacks", "Slash", true)
@@ -1864,9 +1848,17 @@ if closestTitan and closestDist < 200 then
         POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
     end
 else
-    -- no close titans, remount and fire cannon
+    -- no close titans, get on cannon and fire
     if not cannonMounted then
         mountCannon()
+    end
+    -- anchor position near cannon so server accepts shots
+    local cannon = getCannon()
+    if cannon then
+        local cp = cannon:FindFirstChildWhichIsA("BasePart")
+        if cp then
+            State.syncedPosition = cp.Position + Vector3.new(0, 5, 0)
+        end
     end
     fireCannon()
 end
