@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.29"
+local script_version = "V0.3"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -167,12 +167,13 @@ RunService.Heartbeat:Connect(function(dt)
     if not lerpTarget or not Movers.bodyPos then return end
     if not lerpCurrent then lerpCurrent = rootPart.Position end
     local remaining = (lerpTarget - lerpCurrent).Magnitude
-    if remaining < 0.05 then
+    if remaining < 2 then  -- increased from 0.05 to 2
         lerpCurrent = lerpTarget
-    else
-        local step = math.min(State.tweenSpeed * dt, remaining)
-        lerpCurrent = lerpCurrent + (lerpTarget - lerpCurrent).Unit * step
+        Movers.bodyPos.Position = lerpTarget
+        return
     end
+    local step = math.min(State.tweenSpeed * dt, remaining)
+    lerpCurrent = lerpCurrent + (lerpTarget - lerpCurrent).Unit * step
     Movers.bodyPos.Position = lerpCurrent
     if lerpGyroTarget then
         Movers.bodyGyro.CFrame = lerpGyroTarget
@@ -190,7 +191,7 @@ local function ensureBodyMovers(targetCFrame)
         Movers.bodyPos          = Instance.new("BodyPosition")
         Movers.bodyPos.MaxForce = Vector3.new(1e5, 1e5, 1e5)
         Movers.bodyPos.P        = 1e5
-        Movers.bodyPos.D        = 5000
+        Movers.bodyPos.D        = 1000
         Movers.bodyPos.Name     = "_FarmPos"
         Movers.bodyPos.Parent   = rootPart
     end
