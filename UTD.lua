@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.19"
+local script_version = "V0.2"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -8175,23 +8175,24 @@ task.spawn(function()
         :WaitForChild("PlayerGui"):WaitForChild("Rewards")
 
     local function dismissAll()
-        while RewardGui.Enabled and #RewardGui:GetChildren() > 0 do
-            task.wait(0.2) -- wait past CanNext 0.125s gate
+        while #RewardGui:GetChildren() > 0 do
+            task.wait(0.2) -- past CanNext 0.125s gate
             VirtualUser:Button1Down(Vector2.new(640, 360), workspace.CurrentCamera.CFrame)
             task.wait(0.05)
             VirtualUser:Button1Up(Vector2.new(640, 360), workspace.CurrentCamera.CFrame)
-            task.wait(0.6) -- wait for exit tween + next reward to appear
+            task.wait(0.8) -- wait for tween out + next reward
         end
     end
 
-    RewardGui:GetPropertyChangedSignal("Enabled"):Connect(function()
-        if RewardGui.Enabled then
+    -- watch for new ViewReward frames being added
+    RewardGui.ChildAdded:Connect(function(child)
+        if child.Name == "ViewReward" then
             dismissAll()
         end
     end)
 
-    -- catch already-open rewards on script load
-    if RewardGui.Enabled and #RewardGui:GetChildren() > 0 then
+    -- catch any already present on load
+    if #RewardGui:GetChildren() > 0 then
         dismissAll()
     end
 end)
