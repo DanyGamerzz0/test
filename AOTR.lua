@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.59"
+local script_version = "V0.6"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1693,6 +1693,7 @@ function Raids.startColossal()
     Raids.State.stopRequested = false
     Raids.State.active        = true
     Raids.State.phase         = "defend"
+
     print("[LixHub] Colossal Raid: Starting Phase 1")
     Util.notify("Auto Farm Raids", "Colossal Raid Started", 3, "shield")
 
@@ -1715,33 +1716,31 @@ function Raids.startColossal()
             return
         end
 
-        print("[LixHub] Cannon claimed")
         GET:InvokeServer("Cannon", "Claim", cannon)
-        task.wait(0.5)
+        task.wait(0.6)
 
         while cannonLoopActive and Raids.State.phase == "defend" and not Raids.State.stopRequested do
+            
             if cannon:GetAttribute("Firing") or cannon:GetAttribute("Cooldown") then
-                task.wait(0.2)
+                task.wait(0.25)
                 continue
             end
 
-            -- Mount + Shoot
+            print("[LixHub] Mounting + Firing Cannon...")
+
+            -- Proper mount sequence
             GET:InvokeServer("Cannon", "State", cannon, true)
-            task.wait(0.3)
-            
-            print("[LixHub] Firing Cannon...")
-            GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 13, Base = 0 })
+            task.wait(0.35)
 
-            -- Wait for ball
-            local cannonBall = nil
-            local startTime = tick()
-            repeat
-                task.wait()
-                cannonBall = workspace:FindFirstChild("Cannon")
-            until cannonBall or tick() - startTime > 3
+            -- Shoot with low angle
+            GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 22, Base = 0 })
+            task.wait(0.4)  -- Give time for cannonball to spawn
 
+            -- Find cannonball
+            local cannonBall = workspace:FindFirstChild("Cannon")
             if cannonBall then
-                print("[LixHub] Cannonball detected, waiting for impact...")
+                print("[LixHub] Cannonball found, waiting for impact...")
+
                 local impactFired = false
                 local conn = POST.OnClientEvent:Connect(function(a, b, obj)
                     if a == "Skills" and b == "Impact" and obj == cannonBall then
@@ -1750,33 +1749,33 @@ function Raids.startColossal()
                 end)
 
                 local waitStart = tick()
-                repeat task.wait() until impactFired or tick() - waitStart > 5
+                repeat task.wait() until impactFired or tick() - waitStart > 4.5
                 conn:Disconnect()
 
                 if impactFired then
                     local colossal = getColossalTitan()
                     if colossal and colossal:FindFirstChild("HumanoidRootPart") then
                         local targetPos = colossal.HumanoidRootPart.Position - Vector3.new(0, 20, 0)
-                        for i = 1, 20 do
+                        for i = 1, 18 do
                             POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
-                            if i % 4 == 0 then task.wait() end
+                            if i % 5 == 0 then task.wait() end
                         end
-                        print("[LixHub] Multi-hit spam sent")
                     end
                 end
             else
-                print("[LixHub] Cannonball not found")
+                print("[LixHub] Cannonball did not spawn")
             end
 
+            -- Safe unmount
             unmountCannon(cannon)
-            task.wait(0.25)
+            task.wait(0.8) -- Increased cooldown to prevent breaking cannon state
         end
 
         unmountCannon(cannon)
         cannonLoopActive = false
     end)
 
-    -- ====================== MAIN DEFEND LOOP ======================
+    -- ====================== DEFEND LOOP ======================
     local tickAccum = 0
 
     Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
@@ -1796,12 +1795,12 @@ function Raids.startColossal()
 
         if Raids.State.phase == "defend" then
             if getColossalHpPercent() <= 50 then
-                print("[LixHub] Colossal at 50% → Phase transition")
+                print("[LixHub] Colossal ≤50% → cutscene")
                 Raids.State.phase = "cutscene"
                 cannonLoopActive = false
                 removeBodyMovers()
                 disableSync()
-                
+                -- cutscene handler...
                 task.spawn(function()
                     repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
                     repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
@@ -1811,7 +1810,6 @@ function Raids.startColossal()
                         if hum then hum.PlatformStand = true; hum.AutoRotate = false end
                         enableSync()
                         Raids.State.phase = "defeat"
-                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Colossal!", 3, "sword")
                     end
                 end)
                 return
@@ -1837,7 +1835,7 @@ function Raids.startColossal()
             end
 
         elseif Raids.State.phase == "defeat" then
-            -- Phase 2 logic (unchanged)
+            -- Phase 2 (Colossal fight) - same as before
             local titan = getColossalTitan()
             if titan then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
@@ -1848,40 +1846,17 @@ function Raids.startColossal()
                 end
             end
 
-            if Raids.getObjectiveValue("Defeat_Colossal_Titan") >= 1 then
-                if not chestsDone then
-                    chestsDone = true
-                    Util.notify("Auto Farm Raids", "Raid Complete! Collecting chests...", 3, "gift")
-                    task.spawn(function()
-                        task.wait(5)
-                        local start = tick()
-                        repeat task.wait(0.3) until (player.PlayerGui.Interface:FindFirstChild("Chests") and player.PlayerGui.Interface.Chests.Visible) or tick() - start > 20
-                        Raids.openChests()
-                        task.wait(3)
-                        Raids.clickFinish()
-                    end)
-                end
-                return
-            end
-
-            if not titan then return end
-            if titan:GetAttribute("State") == "Roar" then return end
-
-            local nape = Raids.getNape(titan)
-            if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 500 then
-                local vuln = Raids.getVulnerableSpot(titan)
-                if vuln then
-                    Raids.registerHitVuln(vuln)
-                else
-                    task.spawn(function()
-                        POST:FireServer("Attacks", "Slash", true)
-                        for i = 1, 6 do
-                            local dmg = 670 + math.random(55, 165)
-                            if math.random(1,8)==1 then dmg = dmg * math.random(138,148)/100 end
-                            POST:FireServer("Hitboxes", "Register", nape, math.floor(dmg))
-                        end
-                    end)
-                end
+            if Raids.getObjectiveValue("Defeat_Colossal_Titan") >= 1 and not chestsDone then
+                chestsDone = true
+                Util.notify("Auto Farm Raids", "Raid Complete!", 3, "gift")
+                task.spawn(function()
+                    task.wait(5)
+                    local start = tick()
+                    repeat task.wait(0.3) until (player.PlayerGui.Interface:FindFirstChild("Chests") and player.PlayerGui.Interface.Chests.Visible) or tick() - start > 20
+                    Raids.openChests()
+                    task.wait(3)
+                    Raids.clickFinish()
+                end)
             end
         end
     end)
