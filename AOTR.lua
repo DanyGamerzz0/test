@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.34"
+local script_version = "V0.35"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1446,38 +1446,195 @@ end
 
 function Raids.startFemale()
     if isInLobby() then return end
+    if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+        if Raids.State.stopRequested then return end
+    end
 
     Raids.State.stopRequested = false
     Raids.State.active        = true
-    print("[LixHub] Female Raid: Starting")
-    Util.notify("Auto Farm Raids", "Female Raid Started...", 3, "shield")
+    Raids.State.phase         = "female_1"
+    print("[LixHub] Female Raid: Starting — Phase 1: Defeat Female Titan")
+    Util.notify("Auto Farm Raids", "Phase 1: Defeat Female Titan...", 3, "shield")
 
-    local qteGui = player.PlayerGui.Interface:WaitForChild("QTE", 10)
-    local qteConnection = nil
+    disableCollision()
+    local _hum = character:FindFirstChildOfClass("Humanoid")
+    if _hum then _hum.PlatformStand = true; _hum.AutoRotate = false end
+    enableSync()
 
-    if qteGui then
-        local timing = qteGui:WaitForChild("Main", 5) and qteGui.Main:WaitForChild("Timing", 5)
-        if timing then
-            qteConnection = timing:GetPropertyChangedSignal("BackgroundTransparency"):Connect(function()
-                if not qteGui.Visible then return end
-                if timing.BackgroundTransparency == 1 then return end
-                print("[LixHub] Female Raid: QTE detected — clicking button")
-                local btn = qteGui.Main:FindFirstChild("Button")
-                if btn then clickButton(btn) end
+    local tickAccum = 0
+    local chestsDone = false
+
+    local function handleCutsceneTransition(nextPhase, notifyMsg)
+        Raids.State.phase = "cutscene"
+        removeBodyMovers()
+        disableSync()
+        task.spawn(function()
+            repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
+            repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+            if not Raids.State.stopRequested then
+                disableCollision()
+                local hum = character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                enableSync()
+                Raids.State.phase = nextPhase
+                print("[LixHub] Female Raid: Cutscene done —", notifyMsg)
+                Util.notify("Auto Farm Raids", notifyMsg, 3, "sword")
+            end
+        end)
+    end
+
+    local function getTitan(name)
+        local titans = workspace:FindFirstChild("Titans")
+        if not titans then return nil end
+        local t = titans:FindFirstChild(name)
+        if not t then return nil end
+        local hum = t:FindFirstChild("Humanoid")
+        if not hum or hum.Health <= 0 then return nil end
+        return t
+    end
+
+    local function moveTo(titan)
+        local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+        if not titanRoot then return end
+        State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+        local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+        ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+    end
+
+    local function attackTitan(titan)
+        local nape = Raids.getNape(titan)
+        if not nape then return end
+        if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 500 then return end
+        local vulnSpot = Raids.getVulnerableSpot(titan)
+        if vulnSpot then
+            Raids.registerHitVuln(vulnSpot)
+        else
+            task.spawn(function()
+                POST:FireServer("Attacks", "Slash", true)
+                for i = 1, 5 do
+                    local damage = 670 + math.random(55, 165)
+                    if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+                    POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+                end
             end)
         end
     end
 
-    Raids.State.connection = RunService.Heartbeat:Connect(function()
+    Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
         if Raids.State.stopRequested then
             if Raids.State.connection then
                 Raids.State.connection:Disconnect()
                 Raids.State.connection = nil
             end
-            if qteConnection then qteConnection:Disconnect(); qteConnection = nil end
             return
         end
+
+        local cassettesLeft, segmentsLeft = getBladeStatus()
+
+        if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
+            RaidReloadState = "swapping"
+            task.spawn(function()
+                local result
+                repeat
+                    result = GET:InvokeServer("Blades", "Reload")
+                    task.wait()
+                    local c, s = getBladeStatus()
+                    if s > 0 then break end
+                until result == true or RaidReloadState ~= "swapping"
+                RaidReloadState = "idle"
+            end)
+            return
+        end
+
+        if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
+            RaidReloadState = "refilling"
+            task.spawn(function()
+                local refillPoint = findRefillPoint()
+                repeat
+                    GET:InvokeServer("Attacks", "Reload", refillPoint)
+                    task.wait()
+                    local c, _ = getBladeStatus()
+                    if c > 0 then break end
+                until RaidReloadState ~= "refilling"
+                repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
+                RaidReloadState = "idle"
+            end)
+            return
+        end
+
+        if RaidReloadState ~= "idle" then return end
+        if Raids.State.phase == "cutscene" then return end
+
+        tickAccum = tickAccum + dt
+        if tickAccum < State.attackInterval then return end
+        tickAccum = 0
+
+        -- ===== PHASE 1: FEMALE TITAN =====
+        if Raids.State.phase == "female_1" then
+            local titan = getTitan("Female_Titan")
+            if titan then moveTo(titan) end
+
+            if titan and titan:GetAttribute("State") == "Roar" then return end
+
+            -- mid HP cutscene triggers when Attack Titan appears
+            if getTitan("Attack_Titan") ~= nil then
+                print("[LixHub] Female Raid: Attack Titan appeared — waiting for cutscene")
+                handleCutsceneTransition("attack_titan", "Phase 2: Defeat Attack Titan!")
+                return
+            end
+
+            if not titan then return end
+            attackTitan(titan)
+
+        -- ===== PHASE 2: ATTACK TITAN =====
+        elseif Raids.State.phase == "attack_titan" then
+            local titan = getTitan("Attack_Titan")
+            if titan then moveTo(titan) end
+
+            if Raids.getObjectiveValue("Defeat_Attack_Titan") >= 1 then
+                print("[LixHub] Female Raid: Attack Titan defeated — waiting for cutscene")
+                handleCutsceneTransition("female_2", "Phase 3: Finish Female Titan!")
+                return
+            end
+
+            if not titan then return end
+            if titan:GetAttribute("State") == "Roar" then return end
+            if titan:GetAttribute("State") == "Berserk_Mode" then return end
+            attackTitan(titan)
+
+        -- ===== PHASE 3: FINISH FEMALE TITAN =====
+        elseif Raids.State.phase == "female_2" then
+            local titan = getTitan("Female_Titan")
+            if titan then moveTo(titan) end
+
+            if Raids.getObjectiveValue("Defeat_Female_Titan") >= 1 then
+                if not chestsDone then
+                    chestsDone = true
+                    print("[LixHub] Female Raid: Complete — collecting chests")
+                    Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
+                    task.spawn(function()
+                        task.wait(5)
+                        local start = tick()
+                        repeat task.wait(0.3) until
+                            (player.PlayerGui.Interface:FindFirstChild("Chests") and
+                            player.PlayerGui.Interface.Chests.Visible) or
+                            tick() - start > 20
+                        Raids.openChests()
+                        task.wait(3)
+                        Raids.clickFinish()
+                    end)
+                end
+                return
+            end
+
+            if not titan then return end
+            if titan:GetAttribute("State") == "Roar" then return end
+            attackTitan(titan)
+        end
     end)
+
+    Util.notify("Auto Farm Raids", "Female Raid Farm Started", 3, "shield")
 end
 
 -- ==================== RAYFIELD UI ====================
