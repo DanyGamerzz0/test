@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.51"
+local script_version = "V0.52"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1732,29 +1732,29 @@ local function mountCannon()
     if not cannon then return false end
     GET:InvokeServer("Cannon", "Claim", cannon)
     task.wait(0.1)
-    local result = GET:InvokeServer("Cannon", "State", cannon, true, nil)
+    local result = GET:InvokeServer("Cannon", "State", cannon, true)
     if result then
         cannonMounted = true
-        print("[LixHub] Colossal Raid: Cannon mounted")
         return true
     end
     return false
 end
 
-    local function unmountCannon()
-        local cannon = getCannon()
-        if not cannon then return end
-        GET:InvokeServer("Cannon", "State", cannon, false, {
-            SFX = {},
-            Object = cannon,
-            BarrelWood = cannon.Barrel.BarrelWood,
-            Angles = { BarrelWood = 0, Base = 0 },
-            Base = cannon.Base,
-            Directions = {}
-        })
-        cannonMounted = false
-        print("[LixHub] Colossal Raid: Cannon unmounted")
-    end
+local function unmountCannon()
+    local cannon = getCannon()
+    if not cannon then cannonMounted = false return end
+    GET:InvokeServer("Cannon", "State", cannon, false, {
+        SFX = {},
+        Object = cannon,
+        BarrelWood = cannon.Barrel.BarrelWood,
+        Angles = { BarrelWood = 0, Base = 0 },
+        Base = cannon.Base,
+        Directions = {}
+    })
+    cannonMounted = false
+end
+
+local cannonImpactConnection = nil
 
 local function fireCannon()
     local cannon = getCannon()
@@ -1767,31 +1767,29 @@ local function fireCannon()
     local colossalRoot = colossal:FindFirstChild("HumanoidRootPart")
     if not colossalRoot then return end
 
-    local fired = GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
-    if not fired then return end
+    -- disconnect previous listener if any
+    if cannonImpactConnection then
+        cannonImpactConnection:Disconnect()
+        cannonImpactConnection = nil
+    end
 
-    print("[LixHub] Colossal Raid: Cannon fired — waiting for cannonball")
-
-    task.spawn(function()
-        local cannonBall = nil
-        local start = tick()
-        repeat
-            task.wait()
-            cannonBall = workspace:FindFirstChild("Cannon")
-        until cannonBall ~= nil or tick() - start > 2
-
-        if cannonBall then
-            print("[LixHub] Colossal Raid: Cannonball found — spamming impacts")
-            -- use HumanoidRootPart position at time of impact, not nape
-            -- since colossal is walking forward nape lags behind
+    -- listen for server's Skills Impact signal as the trigger
+    cannonImpactConnection = POST.OnClientEvent:Connect(function(a, b, obj)
+        if a == "Skills" and b == "Impact" and obj == workspace:FindFirstChild("Cannon") then
+            cannonImpactConnection:Disconnect()
+            cannonImpactConnection = nil
             local targetPos = colossalRoot.Position
-            for i = 1, 10 do
-                POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
+            local cannonBall = workspace:FindFirstChild("Cannon")
+            if cannonBall then
+                for i = 1, 10 do
+                    POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
+                end
             end
-        else
-            print("[LixHub] Colossal Raid: Cannonball not found in time")
         end
     end)
+
+    GET:InvokeServer("Cannon", "State", cannon, true)
+    GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
 end
 
     -- start by mounting cannon
