@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.21"
+local script_version = "V0.22"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -946,16 +946,43 @@ function Raids.getAttackTitan()
     return at
 end
 
+local function clickButton(btn)
+    GuiService.SelectedObject = btn
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+end
+
+local function waitForFinishVisible(timeout)
+    local start = tick()
+    repeat task.wait(0.2) until 
+        (player.PlayerGui.Interface.Chests:FindFirstChild("Finish") and 
+         player.PlayerGui.Interface.Chests.Finish.Visible) or 
+        tick() - start > (timeout or 15)
+end
+
 function Raids.openChests()
-    if Raids.State.autoOpenEmperorChests then
-        pcall(function()
-            GET:InvokeServer("S_Rewards", "Chest", "Premium")
-        end)
-    end
+    local chests = player.PlayerGui.Interface:FindFirstChild("Chests")
+    if not chests or not chests.Visible then return end
+
     if Raids.State.autoOpenChests then
-        pcall(function()
-            GET:InvokeServer("S_Rewards", "Chest", "Free")
-        end)
+        local freeBtn = chests:FindFirstChild("Free")
+        if freeBtn and freeBtn.Visible then
+            print("[LixHub] Raids: Opening free chest")
+            clickButton(freeBtn)
+            -- wait for finish button to reappear (animation done)
+            waitForFinishVisible()
+        end
+    end
+
+    if Raids.State.autoOpenEmperorChests then
+        local premiumBtn = chests:FindFirstChild("Premium")
+        if premiumBtn and premiumBtn.Visible then
+            print("[LixHub] Raids: Opening emperor chest")
+            clickButton(premiumBtn)
+            waitForFinishVisible()
+        end
     end
 end
 
@@ -1083,17 +1110,42 @@ function Raids.start()
 
         -- Block all attacks while any reload is in progress
         if RaidReloadState ~= "idle" then return end
+        if Raids.State.phase == "cutscene" then return end
 
         tickAccum = tickAccum + dt
         if tickAccum < State.attackInterval then return end
         tickAccum = 0
 
         -- ===== PHASE 1: DEFEND EREN =====
+-- ===== PHASE 1: DEFEND EREN =====
         if Raids.State.phase == "defend" then
             if Raids.getObjectiveValue("Defend_Eren") >= 1 then
-                Raids.State.phase = "defeat"
-                print("[LixHub] Raids: Phase 1 done — Phase 2: Defeat Attack Titan")
-                Util.notify("Auto Farm Raids", "Phase 2: Defeat Attack Titan!", 3, "sword")
+                Raids.State.phase = "cutscene"
+                print("[LixHub] Raids: Phase 1 done — waiting for cutscene...")
+                Util.notify("Auto Farm Raids", "Cutscene... waiting for Phase 2", 3, "clock")
+                
+                -- stop movement so server can reposition us
+                removeBodyMovers()
+                disableSync()
+                
+                task.spawn(function()
+                    -- wait for cutscene to start
+                    repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
+                    -- wait for cutscene to finish
+                    repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+                    
+                    if not Raids.State.stopRequested then
+                        -- re-enable movement for phase 2
+                        disableCollision()
+                        local hum = character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                        enableSync()
+                        
+                        Raids.State.phase = "defeat"
+                        print("[LixHub] Raids: Cutscene done — Phase 2: Defeat Attack Titan")
+                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Attack Titan!", 3, "sword")
+                    end
+                end)
                 return
             end
             local titan = Raids.getClosestTitanToEren()
@@ -1110,8 +1162,15 @@ function Raids.start()
                     Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
                     task.spawn(function()
                         task.wait(5)
+                        -- wait for chests UI to appear
+                        local start = tick()
+                        repeat task.wait(0.3) until
+                            (player.PlayerGui.Interface:FindFirstChild("Chests") and 
+                            player.PlayerGui.Interface.Chests.Visible) or
+                            tick() - start > 20
+                        
                         Raids.openChests()
-                        task.wait(2)
+                        task.wait(1)
                         Raids.clickFinish()
                     end)
                 end
@@ -1600,7 +1659,7 @@ FarmTab:CreateSlider({
     Flag         = "AutoFarmSpeed",
     Range        = {100, 500},
     Increment    = 1,
-    CurrentValue = State.tweenSpeed,
+    CurrentValue = 300,
     Callback     = function(val)
         State.tweenSpeed = val
     end,
@@ -1611,7 +1670,7 @@ FarmTab:CreateSlider({
     Flag         = "FloatHeight",
     Range        = {100, 300},
     Increment    = 10,
-    CurrentValue = State.floatHeight,
+    CurrentValue = 200,
     Callback     = function(val)
         State.floatHeight = val
     end,
