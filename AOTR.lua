@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.58"
+local script_version = "V0.59"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1715,29 +1715,33 @@ function Raids.startColossal()
             return
         end
 
+        print("[LixHub] Cannon claimed")
         GET:InvokeServer("Cannon", "Claim", cannon)
-        task.wait(0.4)
+        task.wait(0.5)
 
         while cannonLoopActive and Raids.State.phase == "defend" and not Raids.State.stopRequested do
-            -- Wait for cannon to be ready
             if cannon:GetAttribute("Firing") or cannon:GetAttribute("Cooldown") then
-                task.wait(0.15)
+                task.wait(0.2)
                 continue
             end
 
-            -- Fire Cannon
+            -- Mount + Shoot
             GET:InvokeServer("Cannon", "State", cannon, true)
-            GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 14, Base = 0 })
+            task.wait(0.3)
+            
+            print("[LixHub] Firing Cannon...")
+            GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 13, Base = 0 })
 
-            -- Wait for cannonball
+            -- Wait for ball
             local cannonBall = nil
             local startTime = tick()
             repeat
                 task.wait()
                 cannonBall = workspace:FindFirstChild("Cannon")
-            until cannonBall or tick() - startTime > 2.5
+            until cannonBall or tick() - startTime > 3
 
             if cannonBall then
+                print("[LixHub] Cannonball detected, waiting for impact...")
                 local impactFired = false
                 local conn = POST.OnClientEvent:Connect(function(a, b, obj)
                     if a == "Skills" and b == "Impact" and obj == cannonBall then
@@ -1746,30 +1750,33 @@ function Raids.startColossal()
                 end)
 
                 local waitStart = tick()
-                repeat task.wait() until impactFired or tick() - waitStart > 4
+                repeat task.wait() until impactFired or tick() - waitStart > 5
                 conn:Disconnect()
 
                 if impactFired then
                     local colossal = getColossalTitan()
                     if colossal and colossal:FindFirstChild("HumanoidRootPart") then
-                        local targetPos = colossal.HumanoidRootPart.Position - Vector3.new(0, 22, 0)
+                        local targetPos = colossal.HumanoidRootPart.Position - Vector3.new(0, 20, 0)
                         for i = 1, 20 do
                             POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
                             if i % 4 == 0 then task.wait() end
                         end
+                        print("[LixHub] Multi-hit spam sent")
                     end
                 end
+            else
+                print("[LixHub] Cannonball not found")
             end
 
             unmountCannon(cannon)
-            task.wait(0.2)
+            task.wait(0.25)
         end
 
         unmountCannon(cannon)
         cannonLoopActive = false
     end)
 
-    -- ====================== MAIN LOOP (Defend Eren + Phase Management) ======================
+    -- ====================== MAIN DEFEND LOOP ======================
     local tickAccum = 0
 
     Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
@@ -1789,7 +1796,7 @@ function Raids.startColossal()
 
         if Raids.State.phase == "defend" then
             if getColossalHpPercent() <= 50 then
-                print("[LixHub] Colossal at 50% HP → cutscene")
+                print("[LixHub] Colossal at 50% → Phase transition")
                 Raids.State.phase = "cutscene"
                 cannonLoopActive = false
                 removeBodyMovers()
@@ -1804,24 +1811,24 @@ function Raids.startColossal()
                         if hum then hum.PlatformStand = true; hum.AutoRotate = false end
                         enableSync()
                         Raids.State.phase = "defeat"
-                        Util.notify("Auto Farm Raids", "Phase 2: Kill Colossal Titan!", 3, "sword")
+                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Colossal!", 3, "sword")
                     end
                 end)
                 return
             end
 
-            -- === DEFEND EREN WHILE CANNON IS COOLDOWN ===
+            -- Defend Eren
             local titan, dist = Raids.getClosestTitanToEren2()
-            if titan and dist < 480 then
+            if titan and dist < 520 then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
                 if titanRoot then
-                    State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+                    State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -8 + Vector3.new(0, 12, 0)
                     local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
                     ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
                 end
 
                 local nape = Raids.getNape(titan)
-                if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 520 then
+                if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 550 then
                     POST:FireServer("Attacks", "Slash", true)
                     local damage = 670 + math.random(55, 165)
                     if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
@@ -1830,7 +1837,7 @@ function Raids.startColossal()
             end
 
         elseif Raids.State.phase == "defeat" then
-            -- Phase 2: Kill Colossal
+            -- Phase 2 logic (unchanged)
             local titan = getColossalTitan()
             if titan then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
@@ -1878,8 +1885,6 @@ function Raids.startColossal()
             end
         end
     end)
-
-    Util.notify("Auto Farm Raids", "Colossal Raid Started", 3, "shield")
 end
 
 -- ==================== RAYFIELD UI ====================
