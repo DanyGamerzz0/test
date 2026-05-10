@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.4"
+local script_version = "V0.5"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1845,8 +1845,11 @@ end
 
             -- if titan is close to eren, unmount and defend
 if closestTitan and closestDist < 400 then
-    -- unmount cannon FIRST before trying to move
-    if cannonMounted then unmountCannon() end
+    -- unmount cannon FIRST and wait before doing anything
+    if cannonMounted then
+        unmountCannon()
+        task.wait(0.2)
+    end
 
     local titanRoot = closestTitan:FindFirstChild("HumanoidRootPart")
     if titanRoot then
@@ -1854,6 +1857,9 @@ if closestTitan and closestDist < 400 then
         local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
         ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
     end
+
+    -- skip blade attacks if blades are broken, let reload handle it
+    if RaidReloadState ~= "idle" then return end
 
     local nape = Raids.getNape(closestTitan)
     if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 500 then
@@ -1863,11 +1869,18 @@ if closestTitan and closestDist < 400 then
         POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
     end
 else
-    -- no close titans, get on cannon and fire
+    -- skip blade reload state machine entirely when on cannon
+    if RaidReloadState ~= "idle" then
+        RaidReloadState = "idle"
+    end
+
     if not cannonMounted then
+        -- only claim if we dont already own it
+        GET:InvokeServer("Cannon", "Claim", getCannon())
+        task.wait(0.1)
         mountCannon()
     end
-    -- anchor position near cannon so server accepts shots
+
     local cannon = getCannon()
     if cannon then
         local cp = cannon:FindFirstChildWhichIsA("BasePart")
