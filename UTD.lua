@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.22"
+local script_version = "V0.23"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -8170,36 +8170,16 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    local RewardGui = game:GetService("Players").LocalPlayer
-        :WaitForChild("PlayerGui"):WaitForChild("Rewards")
+    task.wait(2)
+    local ok, ViewReward = pcall(require, game:GetService("ReplicatedStorage").Client.UiComponents.ViewReward)
+    if not ok then warn("Failed:", ViewReward) return end
 
-    local function dismissAll()
-        while #RewardGui:GetChildren() > 0 do
-            task.wait(0.2)
-            for _, frame in pairs(RewardGui:GetChildren()) do
-                -- Get the metatable set by the ViewReward module
-                local mt = getrawmetatable(frame)
-                if mt and mt.__index and mt.__index.Deactivate then
-                    pcall(function()
-                        frame.CanNext = true
-                        mt.__index.Deactivate(frame)
-                    end)
-                end
-            end
-            task.wait(0.8)
-        end
+    -- Patch ClickContinue to resolve instantly
+    ViewReward.ClickContinue = function(self)
+        self.CanNext = true
     end
 
-    RewardGui.ChildAdded:Connect(function(child)
-        if child.Name == "ViewReward" then
-            task.wait(0.2)
-            dismissAll()
-        end
-    end)
-
-    if #RewardGui:GetChildren() > 0 then
-        dismissAll()
-    end
+    print("ViewReward.ClickContinue patched")
 end)
 
 Rayfield:LoadConfiguration()
