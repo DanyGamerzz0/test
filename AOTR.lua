@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.55"
+local script_version = "V0.56"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1620,6 +1620,67 @@ function Raids.startFemale()
     Util.notify("Auto Farm Raids", "Female Raid Farm Started", 3, "shield")
 end
 
+local function getCannon()
+    local walls = workspace.Climbable and workspace.Climbable:FindFirstChild("Walls")
+    if not walls then return nil end
+    for _, wall in ipairs(walls:GetChildren()) do
+        local cannons = wall:FindFirstChild("Cannons")
+        if cannons then
+            local cannon = cannons:FindFirstChild("1")
+            if cannon then return cannon end
+        end
+    end
+    return nil
+end
+
+local function unmountCannon(cannon)
+    if not cannon then return end
+    pcall(function()
+        GET:InvokeServer("Cannon", "State", cannon, false, {
+            SFX = {},
+            Object = cannon,
+            BarrelWood = cannon.Barrel.BarrelWood or 0,
+            Angles = { BarrelWood = 0, Base = 0 },
+            Base = cannon.Base,
+            Directions = {}
+        })
+    end)
+end
+
+function Raids.getClosestTitanToEren2()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil, math.huge end
+    
+    -- Try to use the Defend_Eren_2 collider first (most accurate)
+    local collider = workspace.Unclimbable
+        and workspace.Unclimbable.Objective
+        and workspace.Unclimbable.Objective.Defend_Eren_2
+        and workspace.Unclimbable.Objective.Defend_Eren_2:FindFirstChild("Collider")
+    
+    local anchor = collider and collider.Position or rootPart.Position
+    
+    local bestTitan, bestDist = nil, math.huge
+    
+    for _, titan in ipairs(titans:GetChildren()) do
+        if titan.Name == "Colossal_Titan" then continue end  -- skip the boss
+        
+        local hrp = titan:FindFirstChild("HumanoidRootPart")
+        local hum = titan:FindFirstChild("Humanoid")
+        
+        if hrp and hum and hum.Health > 0 then
+            local nape = Raids.getNape(titan)
+            if nape then
+                local dist = (hrp.Position - anchor).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    bestTitan = titan
+                end
+            end
+        end
+    end
+    return bestTitan, bestDist
+end
+
 -- ==================== COLOSSAL RAID - NEW CANNON LOGIC ====================
 
 function Raids.startColossal()
@@ -1632,8 +1693,8 @@ function Raids.startColossal()
     Raids.State.stopRequested = false
     Raids.State.active        = true
     Raids.State.phase         = "defend"
-    print("[LixHub] Colossal Raid: Starting — Phase 1: Defend Eren + Cannon")
-    Util.notify("Auto Farm Raids", "Colossal Raid Started - Cannon + Defend", 3, "shield")
+    print("[LixHub] Colossal Raid: Starting — Phase 1: Cannon + Defend Eren")
+    Util.notify("Auto Farm Raids", "Colossal Raid Started", 3, "shield")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -1643,7 +1704,7 @@ function Raids.startColossal()
     local chestsDone = false
     local cannonLoopActive = true
 
-    -- ====================== CANNON MANAGEMENT ======================
+    -- ====================== CANNON LOOP ======================
     task.spawn(function()
         local cannon = getCannon()
         if not cannon then
@@ -1652,18 +1713,19 @@ function Raids.startColossal()
         end
 
         GET:InvokeServer("Cannon", "Claim", cannon)
-        task.wait(0.3)
+        task.wait(0.4)
 
         while cannonLoopActive and Raids.State.phase == "defend" and not Raids.State.stopRequested do
-            -- Wait until cannon is ready
+            
+            -- Skip if cannon is on cooldown
             if cannon:GetAttribute("Firing") or cannon:GetAttribute("Cooldown") then
                 task.wait(0.1)
                 continue
             end
 
             -- Fire Cannon
-            GET:InvokeServer("Cannon", "State", cannon, true)  -- Mount
-            GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 22, Base = 0 })
+            GET:InvokeServer("Cannon", "State", cannon, true)   -- Mount
+            GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 14, Base = 0 })
 
             -- Wait for cannonball
             local cannonBall = nil
@@ -1674,6 +1736,7 @@ function Raids.startColossal()
             until cannonBall or tick() - startTime > 2.5
 
             if cannonBall then
+                -- Wait for server impact signal
                 local impactFired = false
                 local conn = POST.OnClientEvent:Connect(function(a, b, obj)
                     if a == "Skills" and b == "Impact" and obj == cannonBall then
@@ -1688,8 +1751,8 @@ function Raids.startColossal()
                 if impactFired then
                     local colossal = getColossalTitan()
                     if colossal and colossal:FindFirstChild("HumanoidRootPart") then
-                        local targetPos = colossal.HumanoidRootPart.Position - Vector3.new(0, 20, 0)
-                        for i = 1, 18 do
+                        local targetPos = colossal.HumanoidRootPart.Position - Vector3.new(0, 22, 0)
+                        for i = 1, 22 do
                             POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
                             if i % 4 == 0 then task.wait() end
                         end
@@ -1697,16 +1760,16 @@ function Raids.startColossal()
                 end
             end
 
-            -- Unmount and wait for cooldown
+            -- Unmount after shot
             unmountCannon(cannon)
-            task.wait(0.2)
+            task.wait(0.15)
         end
 
         unmountCannon(cannon)
         cannonLoopActive = false
     end)
 
-    -- ====================== MAIN HEARTBEAT (Defend + Phase) ======================
+    -- ====================== HEARTBEAT (Defend Eren during cooldown) ======================
     local tickAccum = 0
 
     Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
@@ -1724,14 +1787,14 @@ function Raids.startColossal()
         if tickAccum < State.attackInterval then return end
         tickAccum = 0
 
-        -- Phase 1: Defend Eren (while cannon is on cooldown)
         if Raids.State.phase == "defend" then
             if getColossalHpPercent() <= 50 then
-                print("[LixHub] Colossal Raid: 50% HP — cutscene incoming")
+                print("[LixHub] Colossal Raid: Colossal at 50% — cutscene")
                 Raids.State.phase = "cutscene"
                 cannonLoopActive = false
                 removeBodyMovers()
                 disableSync()
+                
                 task.spawn(function()
                     repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
                     repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
@@ -1747,7 +1810,7 @@ function Raids.startColossal()
                 return
             end
 
-            -- Defend Eren with normal titans while cannon is cooling down
+            -- Defend Eren while cannon is on cooldown
             local titan, dist = getClosestTitanToEren2()
             if titan and dist < 450 then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
@@ -1766,8 +1829,8 @@ function Raids.startColossal()
                 end
             end
 
-        -- Phase 2: Kill Colossal
         elseif Raids.State.phase == "defeat" then
+            -- Phase 2: Kill Colossal
             local titan = getColossalTitan()
             if titan then
                 local titanRoot = titan:FindFirstChild("HumanoidRootPart")
