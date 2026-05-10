@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.23"
+local script_version = "V0.24"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -990,7 +990,7 @@ end
 
 function Raids.clickFinish()
     pcall(function()
-        local finishBtn = player.PlayerGui.Interface.Chests.Finish
+        local finishBtn = player.PlayerGui.Interface.Chests:FindFirstChild("Finish")
         GuiService.SelectedObject = finishBtn
         task.wait(0.1)
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
@@ -1185,7 +1185,7 @@ function Raids.start()
                             player.PlayerGui.Interface.Chests.Visible) or
                             tick() - start > 20
                         Raids.openChests()
-                        task.wait(1)
+                        task.wait(3)
                         Raids.clickFinish()
                     end)
                 end
