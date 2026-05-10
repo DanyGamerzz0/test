@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.35"
+local script_version = "V0.36"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1102,6 +1102,8 @@ function Raids.start()
         Raids.startArmored()
     elseif objective == "Female Titan" then
         Raids.startFemale() -- no cutscene wait, QTE happens during cutscene
+    elseif objective == "Colossal Titan" then
+        Raids.startColossal()
     else
         Util.notify("Auto Farm Raids", "Unknown raid objective: " .. tostring(objective), 5, "alert-triangle")
         print("[LixHub] Raids: Unknown objective —", objective)
@@ -1635,6 +1637,240 @@ function Raids.startFemale()
     end)
 
     Util.notify("Auto Farm Raids", "Female Raid Farm Started", 3, "shield")
+end
+
+function Raids.startColossal()
+    if isInLobby() then return end
+    if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+        if Raids.State.stopRequested then return end
+    end
+
+    Raids.State.stopRequested = false
+    Raids.State.active        = true
+    Raids.State.phase         = "defend"
+    print("[LixHub] Colossal Raid: Starting — Phase 1: Defend Eren + Fire Cannons")
+    Util.notify("Auto Farm Raids", "Phase 1: Defend Eren & Fire Cannons!", 3, "shield")
+
+    disableCollision()
+    local _hum = character:FindFirstChildOfClass("Humanoid")
+    if _hum then _hum.PlatformStand = true; _hum.AutoRotate = false end
+    enableSync()
+
+    local tickAccum    = 0
+    local chestsDone   = false
+    local cannonMounted = false
+
+    local function getColossalTitan()
+        local titans = workspace:FindFirstChild("Titans")
+        if not titans then return nil end
+        local t = titans:FindFirstChild("Colossal_Titan")
+        if not t then return nil end
+        local hum = t:FindFirstChild("Humanoid")
+        if not hum or hum.Health <= 0 then return nil end
+        return t
+    end
+
+    local function getCannon()
+        return workspace.Climbable
+            and workspace.Climbable.Walls
+            and workspace.Climbable.Walls.Wall
+            and workspace.Climbable.Walls.Wall.Cannons
+            and workspace.Climbable.Walls.Wall.Cannons["1"]
+    end
+
+    local function getColossalHpPercent()
+        local t = getColossalTitan()
+        if not t then return 100 end
+        local hum = t:FindFirstChild("Humanoid")
+        if not hum then return 100 end
+        return (hum.Health / hum.MaxHealth) * 100
+    end
+
+    local function getClosestTitanToEren2()
+        local titans = workspace:FindFirstChild("Titans")
+        if not titans then return nil end
+        local collider = workspace.Unclimbable
+            and workspace.Unclimbable.Objective
+            and workspace.Unclimbable.Objective.Defend_Eren_2
+            and workspace.Unclimbable.Objective.Defend_Eren_2:FindFirstChild("Collider")
+        local anchor = collider and collider.Position or rootPart.Position
+        local bestTitan, bestDist = nil, math.huge
+        for _, titan in ipairs(titans:GetChildren()) do
+            if titan.Name == "Colossal_Titan" then continue end
+            local hrp = titan:FindFirstChild("HumanoidRootPart")
+            local hum = titan:FindFirstChild("Humanoid")
+            if hrp and hum and hum.Health > 0 then
+                local nape = Raids.getNape(titan)
+                if nape then
+                    local dist = (hrp.Position - anchor).Magnitude
+                    if dist < bestDist then
+                        bestDist = dist
+                        bestTitan = titan
+                    end
+                end
+            end
+        end
+        return bestTitan, bestDist
+    end
+
+    local function mountCannon()
+        local cannon = getCannon()
+        if not cannon then return false end
+        pcall(function() GET:InvokeServer("Cannon", "Claim", cannon) end)
+        local result = GET:InvokeServer("Cannon", "State", cannon, true)
+        if result then
+            cannonMounted = true
+            print("[LixHub] Colossal Raid: Cannon mounted")
+            return true
+        end
+        return false
+    end
+
+    local function unmountCannon()
+        local cannon = getCannon()
+        if not cannon then return end
+        GET:InvokeServer("Cannon", "State", cannon, false, {
+            SFX = {},
+            Object = cannon,
+            BarrelWood = cannon.Barrel.BarrelWood,
+            Angles = { BarrelWood = 0, Base = 0 },
+            Base = cannon.Base,
+            Directions = {}
+        })
+        cannonMounted = false
+        print("[LixHub] Colossal Raid: Cannon unmounted")
+    end
+
+    local function fireCannon()
+        local cannon = getCannon()
+        if not cannon then return end
+        if cannon:GetAttribute("Firing") ~= nil then return end
+        if cannon:GetAttribute("Cooldown") ~= nil then return end
+        GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
+        print("[LixHub] Colossal Raid: Cannon fired")
+    end
+
+    -- start by mounting cannon
+    mountCannon()
+
+    Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
+        if Raids.State.stopRequested then
+            if Raids.State.connection then
+                Raids.State.connection:Disconnect()
+                Raids.State.connection = nil
+            end
+            if cannonMounted then unmountCannon() end
+            return
+        end
+
+        if RaidReloadState ~= "idle" then return end
+        if Raids.State.phase == "cutscene" then return end
+
+        tickAccum = tickAccum + dt
+        if tickAccum < State.attackInterval then return end
+        tickAccum = 0
+
+        -- ===== PHASE 1: DEFEND EREN + FIRE CANNONS =====
+        if Raids.State.phase == "defend" then
+
+            -- check for cutscene transition (~50% hp)
+            if getColossalHpPercent() <= 50 then
+                print("[LixHub] Colossal Raid: Colossal at 50% — waiting for cutscene")
+                Raids.State.phase = "cutscene"
+                if cannonMounted then unmountCannon() end
+                removeBodyMovers()
+                disableSync()
+                task.spawn(function()
+                    repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
+                    repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+                    if not Raids.State.stopRequested then
+                        disableCollision()
+                        local hum = character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                        enableSync()
+                        Raids.State.phase = "defeat"
+                        print("[LixHub] Colossal Raid: Cutscene done — Phase 2: Defeat Colossal Titan")
+                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Colossal Titan!", 3, "sword")
+                    end
+                end)
+                return
+            end
+
+            local closestTitan, closestDist = getClosestTitanToEren2()
+
+            -- if titan is close to eren, unmount and defend
+            if closestTitan and closestDist < 200 then
+                if cannonMounted then
+                    unmountCannon()
+                    removeBodyMovers()
+                end
+                Raids.handleTitan(closestTitan, false)
+            else
+                -- no close titans, mount cannon and fire
+                if not cannonMounted then
+                    mountCannon()
+                end
+                fireCannon()
+            end
+
+        -- ===== PHASE 2: DEFEAT COLOSSAL TITAN =====
+        elseif Raids.State.phase == "defeat" then
+            local titan = getColossalTitan()
+
+            if titan then
+                local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+                if titanRoot then
+                    State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+                    local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+                    ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+                end
+            end
+
+            if Raids.getObjectiveValue("Defeat_Colossal_Titan") >= 1 then
+                if not chestsDone then
+                    chestsDone = true
+                    print("[LixHub] Colossal Raid: Defeated — collecting chests")
+                    Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
+                    task.spawn(function()
+                        task.wait(5)
+                        local start = tick()
+                        repeat task.wait(0.3) until
+                            (player.PlayerGui.Interface:FindFirstChild("Chests") and
+                            player.PlayerGui.Interface.Chests.Visible) or
+                            tick() - start > 20
+                        Raids.openChests()
+                        task.wait(3)
+                        Raids.clickFinish()
+                    end)
+                end
+                return
+            end
+
+            if not titan then return end
+            if titan:GetAttribute("State") == "Roar" then return end
+
+            local nape = Raids.getNape(titan)
+            if not nape then return end
+            if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 500 then return end
+
+            local vulnSpot = Raids.getVulnerableSpot(titan)
+            if vulnSpot then
+                Raids.registerHitVuln(vulnSpot)
+            else
+                task.spawn(function()
+                    POST:FireServer("Attacks", "Slash", true)
+                    for i = 1, 5 do
+                        local damage = 670 + math.random(55, 165)
+                        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+                        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+                    end
+                end)
+            end
+        end
+    end)
+
+    Util.notify("Auto Farm Raids", "Colossal Raid Farm Started", 3, "shield")
 end
 
 -- ==================== RAYFIELD UI ====================
