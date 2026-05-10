@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.3"
+local script_version = "V0.31"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1104,6 +1104,8 @@ function Raids.start()
         Raids.startEren()
     elseif objective == "Armored Titan" then
         Raids.startArmored()
+    elseif objective == "Female Titan" then
+        Raids.startFemale()
     else
         Util.notify("Auto Farm Raids", "Unknown raid objective: " .. tostring(objective), 5, "alert-triangle")
         print("[LixHub] Raids: Unknown objective —", objective)
@@ -1444,6 +1446,36 @@ function Raids.startArmored()
     end)
 
     Util.notify("Auto Farm Raids", "Armored Raid Farm Started", 3, "shield")
+end
+
+function Raids.startFemale()
+    if isInLobby() then return end
+
+    Raids.State.stopRequested = false
+    Raids.State.active        = true
+    print("[LixHub] Female Raid: Starting")
+    Util.notify("Auto Farm Raids", "Female Raid Started...", 3, "shield")
+
+    local qteConnection = RunService.Heartbeat:Connect(function()
+        local qteGui = player.PlayerGui.Interface:FindFirstChild("QTE")
+        if not qteGui or not qteGui.Visible then return end
+        local timing = qteGui:FindFirstChild("Main")
+            and qteGui.Main:FindFirstChild("Timing")
+        if not timing or timing.BackgroundTransparency == 1 then return end
+        print("[LixHub] Female Raid: QTE detected — firing success")
+        POST:FireServer("Functions", "QTE_Success")
+    end)
+
+    Raids.State.connection = RunService.Heartbeat:Connect(function()
+        if Raids.State.stopRequested then
+            if Raids.State.connection then
+                Raids.State.connection:Disconnect()
+                Raids.State.connection = nil
+            end
+            if qteConnection then qteConnection:Disconnect() end
+            return
+        end
+    end)
 end
 
 -- ==================== RAYFIELD UI ====================
