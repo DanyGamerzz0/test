@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.24"
+local script_version = "V0.22"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -3514,6 +3514,20 @@ StorySlider = JoinerTab:CreateSlider({
     Suffix = "", CurrentValue = 100, Flag = "StoryDifficultyMeterSelector",
     Callback = function(Value) State.StoryDifficultyMeterSelected = Value end,
 })
+
+JoinerTab:CreateInput({
+    Name = "Select Difficulty Meter",
+    PlaceholderText = "75 - 1000",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 75, 1000)
+        num = math.round(num)
+        StorySlider:Set(num)
+        State.StoryDifficultyMeterSelected = num
+    end,
+})
  
 JoinerTab:CreateSection("Legend Stage Joiner")
  
@@ -3540,6 +3554,19 @@ LegendSlider = JoinerTab:CreateSlider({
     Name = "Select Difficulty Meter", Range = {75, 1000}, Increment = 1,
     Suffix = "", CurrentValue = 100, Flag = "LegendStageDifficultyMeterSelector",
     Callback = function(Value) State.LegendStageDifficultyMeterSelected = Value end,
+})
+
+JoinerTab:CreateInput({
+    Name = "Select Difficulty Meter",
+    PlaceholderText = "75 - 1000",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 75, 1000)
+        LegendSlider:Set(num)
+        State.LegendStageDifficultyMeterSelected = num
+    end,
 })
  
 JoinerTab:CreateSection("Virtual Stage Joiner")
@@ -3573,6 +3600,19 @@ VirtualSlider = JoinerTab:CreateSlider({
     Name = "Select Difficulty Meter", Range = {75, 1000}, Increment = 1,
     Suffix = "", CurrentValue = 100, Flag = "VirtualStageDifficultyMeterSelector",
     Callback = function(Value) State.VirtualStageDifficultyMeterSelected = Value end,
+})
+
+JoinerTab:CreateInput({
+    Name = "Select Difficulty Meter",
+    PlaceholderText = "75 - 1000",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 75, 1000)
+        VirtualSlider:Set(num)
+        State.VirtualStageDifficultyMeterSelected = num
+    end,
 })
 
 JoinerTab:CreateToggle({
@@ -3860,6 +3900,19 @@ JoinerTab:CreateSlider({
    Callback = function(Value)
     State.WinterStageDifficultyMeterSelected = Value
    end,
+})
+
+JoinerTab:CreateInput({
+    Name = "Difficulty Meter",
+    PlaceholderText = "100 - 700",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 100, 700)
+        Rayfield.Flags["WinterStageDifficultyMeterSelector"]:Set(num)
+        State.WinterStageDifficultyMeterSelected = num
+    end,
 })
 
 function Loader.buildMapLookup()
@@ -4781,11 +4834,37 @@ Slider = GameTab:CreateSlider({
     end,
 })
 
+GameTab:CreateInput({
+    Name = "Return to lobby after x losses",
+    PlaceholderText = "0 - 50",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 50)
+        Rayfield.Flags["ReturnToLobbyAfterLosses"]:Set(num)
+        State.ReturnToLobbyAfterLosses = num
+    end,
+})
+
 Slider = GameTab:CreateSlider({
     Name = "Return to lobby after x matches", Range = {0, 250}, Increment = 1, Suffix = "matches",
     CurrentValue = 0, Flag = "ReturnToLobbyAfterMatches", Info = "0 = disable",
     Callback = function(Value)
         State.ReturnToLobbyAfterMatches = Value
+    end,
+})
+
+GameTab:CreateInput({
+    Name = "Return to lobby after x matches",
+    PlaceholderText = "0 - 250",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 250)
+        Rayfield.Flags["ReturnToLobbyAfterMatches"]:Set(num)
+        State.ReturnToLobbyAfterMatches = num
     end,
 })
  
@@ -4865,6 +4944,19 @@ Slider = GameTab:CreateSlider({
         game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit"):WaitForChild("Services"):WaitForChild("DataService"):WaitForChild("RE"):WaitForChild("SetSetting"):FireServer("AutoSkip",Value)
     end,
 })
+
+GameTab:CreateInput({
+    Name = "Auto Skip Until Wave",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["Slider1"]:Set(num)
+        State.AutoSkipUntilWave = num
+    end,
+})
  
 task.spawn(function()
     local lastAutoSkipState = nil
@@ -4894,6 +4986,19 @@ Slider = GameTab:CreateSlider({
     Name = "Restart Match on Wave", Range = {0, 300}, Increment = 1, Suffix = "wave",
     CurrentValue = 0, Flag = "AutoRestartMatchWave", Info = "0 = disable",
     Callback = function(Value) State.AutoRestartMatchWave = Value end,
+})
+
+GameTab:CreateInput({
+    Name = "Restart Match on Wave",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoRestartMatchWave"]:Set(num)
+        State.AutoRestartMatchWave = num
+    end,
 })
  
 task.spawn(function()
@@ -4925,6 +5030,19 @@ Slider = GameTab:CreateSlider({
     Name = "Sell All Units on Wave", Range = {0, 300}, Increment = 1, Suffix = "wave",
     CurrentValue = 0, Flag = "AutoSellAllUnitsWave", Info = "0 = disable",
     Callback = function(Value) State.AutoSellAllUnitsWave = Value end,
+})
+
+GameTab:CreateInput({
+    Name = "Sell All Units on Wave",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoSellAllUnitsWave"]:Set(num)
+        State.AutoSellAllUnitsWave = num
+    end,
 })
  
 task.spawn(function()
@@ -7198,6 +7316,19 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
+AutoPlayTab:CreateInput({
+    Name = "Unit 1",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayPlaceOnWaveUnit1"]:Set(num)
+        State.AutoPlayPlaceOnWaveUnit1 = num
+    end,
+})
+
 AutoPlayTab:CreateSlider({
     Name = "Unit 2",
     Range = {0, 300},
@@ -7206,6 +7337,19 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayPlaceOnWaveUnit2",
     Callback = function(Value)
         State.AutoPlayPlaceOnWaveUnit2 = Value
+    end,
+})
+
+AutoPlayTab:CreateInput({
+    Name = "Unit 2",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayPlaceOnWaveUnit2"]:Set(num)
+        State.AutoPlayPlaceOnWaveUnit2 = num
     end,
 })
 
@@ -7220,6 +7364,19 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
+AutoPlayTab:CreateInput({
+    Name = "Unit 3",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayPlaceOnWaveUnit3"]:Set(num)
+        State.AutoPlayPlaceOnWaveUnit3 = num
+    end,
+})
+
 AutoPlayTab:CreateSlider({
     Name = "Unit 4",
     Range = {0, 300},
@@ -7228,6 +7385,19 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayPlaceOnWaveUnit4",
     Callback = function(Value)
         State.AutoPlayPlaceOnWaveUnit4 = Value
+    end,
+})
+
+AutoPlayTab:CreateInput({
+    Name = "Unit 4",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayPlaceOnWaveUnit4"]:Set(num)
+        State.AutoPlayPlaceOnWaveUnit4 = num
     end,
 })
 
@@ -7242,6 +7412,19 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
+AutoPlayTab:CreateInput({
+    Name = "Unit 5",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayPlaceOnWaveUnit5"]:Set(num)
+        State.AutoPlayPlaceOnWaveUnit5 = num
+    end,
+})
+
 AutoPlayTab:CreateSlider({
     Name = "Unit 6",
     Range = {0, 300},
@@ -7250,6 +7433,19 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayPlaceOnWaveUnit6",
     Callback = function(Value)
         State.AutoPlayPlaceOnWaveUnit6 = Value
+    end,
+})
+
+AutoPlayTab:CreateInput({
+    Name = "Unit 6",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayPlaceOnWaveUnit6"]:Set(num)
+        State.AutoPlayPlaceOnWaveUnit6 = num
     end,
 })
 
@@ -7359,6 +7555,19 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
+AutoPlayTab:CreateInput({
+    Name = "Unit 1",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayUpgradeOnWaveUnit1"]:Set(num)
+        State.AutoPlayUpgradeOnWaveUnit1 = num
+    end,
+})
+
 AutoPlayTab:CreateSlider({
     Name = "Unit 2",
     Range = {0, 300},
@@ -7367,6 +7576,19 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayUpgradeOnWaveUnit2",
     Callback = function(Value)
         State.AutoPlayUpgradeOnWaveUnit2 = Value
+    end,
+})
+
+AutoPlayTab:CreateInput({
+    Name = "Unit 2",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayUpgradeOnWaveUnit2"]:Set(num)
+        State.AutoPlayUpgradeOnWaveUnit2 = num
     end,
 })
 
@@ -7381,6 +7603,19 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
+AutoPlayTab:CreateInput({
+    Name = "Unit 3",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayUpgradeOnWaveUnit3"]:Set(num)
+        State.AutoPlayUpgradeOnWaveUnit3 = num
+    end,
+})
+
 AutoPlayTab:CreateSlider({
     Name = "Unit 4",
     Range = {0, 300},
@@ -7389,6 +7624,19 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayUpgradeOnWaveUnit4",
     Callback = function(Value)
         State.AutoPlayUpgradeOnWaveUnit4 = Value
+    end,
+})
+
+AutoPlayTab:CreateInput({
+    Name = "Unit 4",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayUpgradeOnWaveUnit4"]:Set(num)
+        State.AutoPlayUpgradeOnWaveUnit4 = num
     end,
 })
 
@@ -7403,6 +7651,19 @@ AutoPlayTab:CreateSlider({
     end,
 })
 
+AutoPlayTab:CreateInput({
+    Name = "Unit 5",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayUpgradeOnWaveUnit5"]:Set(num)
+        State.AutoPlayUpgradeOnWaveUnit5 = num
+    end,
+})
+
 AutoPlayTab:CreateSlider({
     Name = "Unit 6",
     Range = {0, 300},
@@ -7411,6 +7672,19 @@ AutoPlayTab:CreateSlider({
     Flag = "AutoPlayUpgradeOnWaveUnit6",
     Callback = function(Value)
         State.AutoPlayUpgradeOnWaveUnit6 = Value
+    end,
+})
+
+AutoPlayTab:CreateInput({
+    Name = "Unit 6",
+    PlaceholderText = "0 - 300",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if not num then return end
+        num = math.clamp(num, 0, 300)
+        Rayfield.Flags["AutoPlayUpgradeOnWaveUnit6"]:Set(num)
+        State.AutoPlayUpgradeOnWaveUnit6 = num
     end,
 })
 
@@ -7546,18 +7820,31 @@ local function buildAutoAbilityUI()
                 end,
             })
 
-            AutoAbilityTab:CreateSlider({
-            Name = "Delay use by x seconds (0 = disable)",
-            Range = { 0, 300 },
-            Increment = 1,
-            CurrentValue = 0,
-            Flag = "AutoAbility_Delay_" .. settingKey,
-            Callback = function(Value)
-                abilitySettings[settingKey].delay = Value
-            end,
-        })
+            local delaySlider = AutoAbilityTab:CreateSlider({
+                Name = "Delay use by x seconds (0 = disable)",
+                Range = { 0, 300 },
+                Increment = 1,
+                CurrentValue = 0,
+                Flag = "AutoAbility_Delay_" .. settingKey,
+                Callback = function(Value)
+                    abilitySettings[settingKey].delay = Value
+                end,
+            })
 
-            AutoAbilityTab:CreateSlider({
+            AutoAbilityTab:CreateInput({
+                Name = "Delay use by x seconds (0 = disable)",
+                PlaceholderText = "0 - 300",
+                RemoveTextAfterFocusLost = true,
+                Callback = function(Text)
+                    local num = tonumber(Text)
+                    if not num then return end
+                    num = math.clamp(num, 0, 300)
+                    delaySlider:Set(num)
+                    abilitySettings[settingKey].delay = num
+                end,
+            })
+
+            local waveSlider = AutoAbilityTab:CreateSlider({
                 Name = "Use on Wave (if 'On Wave' selected)",
                 Range = { 1, 300 },
                 Increment = 1,
@@ -7565,6 +7852,19 @@ local function buildAutoAbilityUI()
                 Flag = "AutoAbility_Wave_" .. settingKey,
                 Callback = function(Value)
                     abilitySettings[settingKey].wave = Value
+                end,
+            })
+
+            AutoAbilityTab:CreateInput({
+                Name = "Use on Wave (if 'On Wave' selected)",
+                PlaceholderText = "1 - 300",
+                RemoveTextAfterFocusLost = true,
+                Callback = function(Text)
+                    local num = tonumber(Text)
+                    if not num then return end
+                    num = math.clamp(num, 1, 300)
+                    waveSlider:Set(num)
+                    abilitySettings[settingKey].wave = num
                 end,
             })
         end
@@ -8178,11 +8478,10 @@ task.spawn(function()
     local upvalues = getupvalues(ViewReward)
     for i, v in pairs(upvalues) do
         if type(v) == "table" and v.ClickContinue and v.Deactivate and v.Activate then
-            print("Found u26 at upvalue", i)
             v.ClickContinue = function(self)
                 self.CanNext = true
             end
-            print("Patched ClickContinue")
+            print("Patched")
             break
         end
     end
