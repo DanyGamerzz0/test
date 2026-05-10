@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.54"
+local script_version = "V0.55"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1696,7 +1696,6 @@ function Raids.startColossal()
                 Directions = {}
             })
         end)
-        print("[LixHub] Colossal Raid: Cannon unmounted")
     end
 
     local function spamOnImpact(cannonBall)
@@ -1711,112 +1710,55 @@ function Raids.startColossal()
         end
     end
 
-    local function fireCannon(cannon)
-        GET:InvokeServer("Cannon", "State", cannon, true)
-        GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 30, Base = 0 })
-    end
+    -- ===== STATE MACHINE =====
+    -- cannonState controls what the cannon sub-system is doing:
+    --   "ready"      = cannon is free, check if we should fire
+    --   "firing"     = mounted + shot fired, waiting for cannonball
+    --   "waitimpact" = cannonball in air, waiting for Impact event
+    --   "cooldown"   = cannon on cooldown, defend Eren until clear
 
-    -- ===== MAIN CANNON + DEFEND LOOP =====
-    -- Runs as a separate task so the Heartbeat connection only handles
-    -- phase transitions and phase-2 titan attacking.
+    local cannonState   = "ready"
+    local activeCannon  = nil
+    local activeImpactConn = nil
+    local activeCannonBall = nil
+    local impactReceived   = false
+    local fireTimestamp    = 0
 
-    local cannonLoopActive = true
-
+    -- claim cannon once upfront
     task.spawn(function()
-        local cannon = getCannon()
-        if not cannon then
-            print("[LixHub] Colossal Raid: No cannon found — skipping cannon loop")
+        activeCannon = getCannon()
+        if not activeCannon then
+            print("[LixHub] Colossal Raid: No cannon found")
             return
         end
-
-        -- Initial claim
-        GET:InvokeServer("Cannon", "Claim", cannon)
-        task.wait(0.1)
-        print("[LixHub] Colossal Raid: Cannon claimed, starting loop")
-
-        while cannonLoopActive and Raids.State.phase == "defend" and not Raids.State.stopRequested do
-            local colossal = getColossalTitan()
-            if not colossal then task.wait(0.5) continue end
-
-            -- Skip if cannon is busy
-            if cannon:GetAttribute("Firing") ~= nil or cannon:GetAttribute("Cooldown") ~= nil then
-                task.wait(0.1) continue
-            end
-
-            -- Fire the cannon
-            fireCannon(cannon)
-            print("[LixHub] Colossal Raid: Cannon fired")
-
-            -- Wait for cannonball to appear
-            local cannonBall = nil
-            local startTime = tick()
-            repeat
-                task.wait()
-                cannonBall = workspace:FindFirstChild("Cannon")
-            until cannonBall ~= nil or tick() - startTime > 2.5
-
-            if cannonBall then
-                -- Listen for Impact signal
-                local impactFired = false
-                local conn = POST.OnClientEvent:Connect(function(a, b, obj)
-                    if a == "Skills" and b == "Impact" and obj == cannonBall then
-                        impactFired = true
-                    end
-                end)
-                local waitStart = tick()
-                repeat task.wait() until impactFired or tick() - waitStart > 4
-                conn:Disconnect()
-
-                if impactFired then
-                    spamOnImpact(cannonBall)
-                end
-            end
-
-            -- Unmount while waiting for cooldown, defend Eren in the meantime
-            unmountCannon(cannon)
-            print("[LixHub] Colossal Raid: Cooldown — defending Eren")
-
-            while cannon:GetAttribute("Cooldown") ~= nil and cannonLoopActive and Raids.State.phase == "defend" and not Raids.State.stopRequested do
-                -- Defend Eren during cooldown
-                local closestTitan, closestDist = getClosestTitanToEren2()
-                if closestTitan then
-                    local titanRoot = closestTitan:FindFirstChild("HumanoidRootPart")
-                    if titanRoot then
-                        State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
-                        local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
-                        ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
-                    end
-                    local nape = Raids.getNape(closestTitan)
-                    if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 500 then
-                        POST:FireServer("Attacks", "Slash", true)
-                        local damage = 670 + math.random(55, 165)
-                        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
-                        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
-                    end
-                end
-                task.wait(0.05)
-            end
-
-            -- Cooldown cleared — re-claim and go again
-            if cannonLoopActive and Raids.State.phase == "defend" and not Raids.State.stopRequested then
-                print("[LixHub] Colossal Raid: Cooldown done — returning to cannon")
-                GET:InvokeServer("Cannon", "Claim", cannon)
-                task.wait(0.1)
-            end
-        end
-
-        -- Clean exit: unmount if loop ends naturally
-        unmountCannon(cannon)
-        cannonLoopActive = false
-        print("[LixHub] Colossal Raid: Cannon loop ended")
+        GET:InvokeServer("Cannon", "Claim", activeCannon)
+        print("[LixHub] Colossal Raid: Cannon claimed")
     end)
 
-    -- ===== HEARTBEAT: phase transitions + phase 2 =====
+    local function defendEren()
+        local closestTitan, _ = getClosestTitanToEren2()
+        if not closestTitan then return end
+        local titanRoot = closestTitan:FindFirstChild("HumanoidRootPart")
+        if not titanRoot then return end
+        State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+        local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+        ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+        local nape = Raids.getNape(closestTitan)
+        if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 500 then
+            POST:FireServer("Attacks", "Slash", true)
+            local damage = 670 + math.random(55, 165)
+            if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+            POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+        end
+    end
+
+    -- ===== HEARTBEAT: everything in one place =====
     local tickAccum = 0
 
     Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
         if Raids.State.stopRequested then
-            cannonLoopActive = false
+            if activeImpactConn then activeImpactConn:Disconnect(); activeImpactConn = nil end
+            if activeCannon then unmountCannon(activeCannon) end
             if Raids.State.connection then
                 Raids.State.connection:Disconnect()
                 Raids.State.connection = nil
@@ -1828,16 +1770,15 @@ function Raids.startColossal()
 
         if Raids.State.phase == "cutscene" then return end
 
-        tickAccum = tickAccum + dt
-        if tickAccum < State.attackInterval then return end
-        tickAccum = 0
-
-        -- ===== PHASE 1: watch for 50% HP to trigger cutscene =====
+        -- ===== PHASE 1: Defend Eren + Fire Cannon =====
         if Raids.State.phase == "defend" then
+
+            -- Check for phase transition at 50% Colossal HP
             if getColossalHpPercent() <= 50 then
                 print("[LixHub] Colossal Raid: Colossal at 50% — waiting for cutscene")
                 Raids.State.phase = "cutscene"
-                cannonLoopActive = false
+                if activeImpactConn then activeImpactConn:Disconnect(); activeImpactConn = nil end
+                if activeCannon then unmountCannon(activeCannon) end
                 removeBodyMovers()
                 disableSync()
                 task.spawn(function()
@@ -1849,14 +1790,100 @@ function Raids.startColossal()
                         if hum then hum.PlatformStand = true; hum.AutoRotate = false end
                         enableSync()
                         Raids.State.phase = "defeat"
+                        cannonState = "ready"
                         print("[LixHub] Colossal Raid: Cutscene done — Phase 2: Defeat Colossal Titan")
                         Util.notify("Auto Farm Raids", "Phase 2: Defeat Colossal Titan!", 3, "sword")
                     end
                 end)
+                return
+            end
+
+            tickAccum = tickAccum + dt
+            if tickAccum < State.attackInterval then return end
+            tickAccum = 0
+
+            -- ----- CANNON STATE MACHINE -----
+            if cannonState == "ready" then
+                -- Default: always defend Eren
+                defendEren()
+
+                -- Only attempt to fire if cannon exists, not on cooldown, and Colossal is alive
+                if activeCannon
+                    and activeCannon:GetAttribute("Cooldown") == nil
+                    and activeCannon:GetAttribute("Firing") == nil
+                    and getColossalTitan() ~= nil then
+
+                    -- Mount and fire
+                    GET:InvokeServer("Cannon", "State", activeCannon, true)
+                    GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 30, Base = 0 })
+                    activeCannonBall = nil
+                    impactReceived   = false
+                    fireTimestamp    = tick()
+                    cannonState      = "firing"
+                    print("[LixHub] Colossal Raid: Cannon fired")
+
+                    -- Hook impact listener
+                    if activeImpactConn then activeImpactConn:Disconnect() end
+                    activeImpactConn = POST.OnClientEvent:Connect(function(a, b, obj)
+                        if a == "Skills" and b == "Impact" then
+                            -- accept any cannonball impact during this window
+                            impactReceived  = true
+                            activeCannonBall = obj
+                        end
+                    end)
+                end
+
+            elseif cannonState == "firing" then
+                -- Waiting for cannonball to spawn (up to 2.5s)
+                local cb = workspace:FindFirstChild("Cannon")
+                if cb then
+                    activeCannonBall = cb
+                    cannonState = "waitimpact"
+                elseif tick() - fireTimestamp > 2.5 then
+                    -- No cannonball appeared — clean up and go back to defending
+                    if activeImpactConn then activeImpactConn:Disconnect(); activeImpactConn = nil end
+                    unmountCannon(activeCannon)
+                    cannonState = "cooldown"
+                    print("[LixHub] Colossal Raid: Cannonball not found — going to cooldown/defend")
+                end
+                -- Keep defending while waiting
+                defendEren()
+
+            elseif cannonState == "waitimpact" then
+                -- Waiting for Impact event (up to 4s from fire)
+                if impactReceived then
+                    spamOnImpact(activeCannonBall)
+                    if activeImpactConn then activeImpactConn:Disconnect(); activeImpactConn = nil end
+                    unmountCannon(activeCannon)
+                    cannonState = "cooldown"
+                    print("[LixHub] Colossal Raid: Impact registered — unmounted, defending during cooldown")
+                elseif tick() - fireTimestamp > 6 then
+                    -- Timed out waiting for impact
+                    if activeImpactConn then activeImpactConn:Disconnect(); activeImpactConn = nil end
+                    unmountCannon(activeCannon)
+                    cannonState = "cooldown"
+                    print("[LixHub] Colossal Raid: Impact timeout — unmounted, defending during cooldown")
+                end
+                -- Keep defending while waiting for impact
+                defendEren()
+
+            elseif cannonState == "cooldown" then
+                -- Defend Eren while cannon recharges
+                defendEren()
+                -- Once cooldown clears, re-claim and go back to ready
+                if activeCannon and activeCannon:GetAttribute("Cooldown") == nil then
+                    GET:InvokeServer("Cannon", "Claim", activeCannon)
+                    cannonState = "ready"
+                    print("[LixHub] Colossal Raid: Cooldown done — re-claimed cannon")
+                end
             end
 
         -- ===== PHASE 2: Defeat Colossal Titan =====
         elseif Raids.State.phase == "defeat" then
+            tickAccum = tickAccum + dt
+            if tickAccum < State.attackInterval then return end
+            tickAccum = 0
+
             local titan = getColossalTitan()
 
             if titan then
