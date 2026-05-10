@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.37"
+local script_version = "V0.38"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1672,12 +1672,25 @@ function Raids.startColossal()
     end
 
     local function getCannon()
-        return workspace.Climbable
-            and workspace.Climbable.Walls
-            and workspace.Climbable.Walls.Wall
-            and workspace.Climbable.Walls.Wall.Cannons
-            and workspace.Climbable.Walls.Wall.Cannons["1"]
+    local climbable = workspace:FindFirstChild("Climbable")
+    if not climbable then return nil end
+
+    local wallsFolder = climbable:FindFirstChild("Walls")
+    if not wallsFolder then return nil end
+
+    -- Iterate through each wall
+    for _, wall in pairs(wallsFolder:GetChildren()) do
+        local cannonsFolder = wall:FindFirstChild("Cannons")
+        if cannonsFolder then
+            local cannon = cannonsFolder:FindFirstChild("1")
+            if cannon then
+                return cannon -- Return the first cannon named "1" found
+            end
+        end
     end
+
+    return nil -- If no cannon named "1" is found
+end
 
     local function getColossalHpPercent()
         local t = getColossalTitan()
