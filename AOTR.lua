@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.31"
+local script_version = "V0.32"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1092,10 +1092,6 @@ end
 
 function Raids.start()
     if isInLobby() then return end
-    if player:GetAttribute("Cutscene") == true then
-        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
-        if Raids.State.stopRequested then return end
-    end
 
     local objective = workspace:GetAttribute("Objective")
     print("[LixHub] Raids: Detected objective —", objective)
@@ -1105,7 +1101,7 @@ function Raids.start()
     elseif objective == "Armored Titan" then
         Raids.startArmored()
     elseif objective == "Female Titan" then
-        Raids.startFemale()
+        Raids.startFemale() -- no cutscene wait, QTE happens during cutscene
     else
         Util.notify("Auto Farm Raids", "Unknown raid objective: " .. tostring(objective), 5, "alert-triangle")
         print("[LixHub] Raids: Unknown objective —", objective)
