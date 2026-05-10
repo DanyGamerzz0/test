@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.5"
+local script_version = "V0.51"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1766,8 +1766,6 @@ local function fireCannon()
     if not colossal then return end
     local colossalRoot = colossal:FindFirstChild("HumanoidRootPart")
     if not colossalRoot then return end
-    local nape = Raids.getNape(colossal)
-    if not nape then return end
 
     local fired = GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
     if not fired then return end
@@ -1775,7 +1773,6 @@ local function fireCannon()
     print("[LixHub] Colossal Raid: Cannon fired — waiting for cannonball")
 
     task.spawn(function()
-        -- cannonball spawns in workspace not nil instances, wait for it
         local cannonBall = nil
         local start = tick()
         repeat
@@ -1785,7 +1782,9 @@ local function fireCannon()
 
         if cannonBall then
             print("[LixHub] Colossal Raid: Cannonball found — spamming impacts")
-            local targetPos = nape.Position
+            -- use HumanoidRootPart position at time of impact, not nape
+            -- since colossal is walking forward nape lags behind
+            local targetPos = colossalRoot.Position
             for i = 1, 10 do
                 POST:FireServer("S_Skills", "Impact", cannonBall, targetPos)
             end
