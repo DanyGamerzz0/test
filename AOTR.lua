@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.28"
+local script_version = "V0.29"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -189,8 +189,8 @@ local function ensureBodyMovers(targetCFrame)
     if not Movers.bodyPos then
         Movers.bodyPos          = Instance.new("BodyPosition")
         Movers.bodyPos.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-        Movers.bodyPos.P        = 1e4
-        Movers.bodyPos.D        = 10000
+        Movers.bodyPos.P        = 1e5
+        Movers.bodyPos.D        = 5000
         Movers.bodyPos.Name     = "_FarmPos"
         Movers.bodyPos.Parent   = rootPart
     end
