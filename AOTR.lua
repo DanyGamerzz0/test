@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.22"
+local script_version = "V0.23"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -439,6 +439,8 @@ local function startAutoAttack()
                 repeat
                     result = GET:InvokeServer("Blades", "Reload")
                     task.wait()
+                    local c, s = getBladeStatus()
+                    if s > 0 then break end
                 until result == true or ReloadState ~= "swapping"
                 print("[LixHub] Farm: Blade swap confirmed —", tostring(result))
                 ReloadState = "idle"
@@ -1082,6 +1084,8 @@ function Raids.start()
                 repeat
                     result = GET:InvokeServer("Blades", "Reload")
                     task.wait()
+                    local c, s = getBladeStatus()
+                    if s > 0 then break end
                 until result == true or RaidReloadState ~= "swapping"
                 print("[LixHub] Raids: Blade swap confirmed —", tostring(result))
                 RaidReloadState = "idle"
@@ -1155,6 +1159,19 @@ function Raids.start()
 
         -- ===== PHASE 2: DEFEAT ATTACK TITAN =====
         elseif Raids.State.phase == "defeat" then
+            local titan = Raids.getAttackTitan()
+
+            -- always move toward titan if he exists
+            if titan then
+                local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+                if titanRoot then
+                    State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+                    local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+                    ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+                end
+            end
+
+            -- check objective first so chest collection never gets skipped
             if Raids.getObjectiveValue("Defeat_Attack_Titan") >= 1 then
                 if not chestsDone then
                     chestsDone = true
@@ -1162,13 +1179,11 @@ function Raids.start()
                     Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
                     task.spawn(function()
                         task.wait(5)
-                        -- wait for chests UI to appear
                         local start = tick()
                         repeat task.wait(0.3) until
-                            (player.PlayerGui.Interface:FindFirstChild("Chests") and 
+                            (player.PlayerGui.Interface:FindFirstChild("Chests") and
                             player.PlayerGui.Interface.Chests.Visible) or
                             tick() - start > 20
-                        
                         Raids.openChests()
                         task.wait(1)
                         Raids.clickFinish()
@@ -1176,10 +1191,11 @@ function Raids.start()
                 end
                 return
             end
-            local titan = Raids.getAttackTitan()
+
             if not titan then return end
-            if titan.Name == "Attack_Titan" and titan:GetAttribute("State") == "Roar" then return end
-            if titan.Name == "Attack_Titan" and titan:GetAttribute("State") == "Berserk_Mode" then return end
+            if titan:GetAttribute("State") == "Roar" then return end
+            if titan:GetAttribute("State") == "Berserk_Mode" then return end
+
             Raids.handleTitan(titan, true)
         end
     end)
