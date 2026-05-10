@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.25"
+local script_version = "V0.26"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -939,10 +939,49 @@ function Raids.getClosestTitanToEren()
     return bestTitan
 end
 
+function Raids.getClosestTitanToBoat()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+    
+    -- use boat 2 as anchor
+    local boat = workspace.Unclimbable
+        and workspace.Unclimbable.Objective
+        and workspace.Unclimbable.Objective:FindFirstChild("Boat2")
+    
+    local anchor = boat and boat.Position or rootPart.Position
+    local bestTitan, bestDist = nil, math.huge
+    
+    for _, titan in ipairs(titans:GetChildren()) do
+        local hrp = titan:FindFirstChild("HumanoidRootPart")
+        local hum = titan:FindFirstChild("Humanoid")
+        if hrp and hum and hum.Health > 0 then
+            local nape = Raids.getNape(titan)
+            if nape then
+                local dist = (hrp.Position - anchor).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    bestTitan = titan
+                end
+            end
+        end
+    end
+    return bestTitan
+end
+
 function Raids.getAttackTitan()
     local titans = workspace:FindFirstChild("Titans")
     if not titans then return nil end
     local at = titans:FindFirstChild("Attack_Titan")
+    if not at then return nil end
+    local hum = at:FindFirstChild("Humanoid")
+    if not hum or hum.Health <= 0 then return nil end
+    return at
+end
+
+function Raids.getArmoredTitan()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+    local at = titans:FindFirstChild("Armored_Titan")
     if not at then return nil end
     local hum = at:FindFirstChild("Humanoid")
     if not hum or hum.Health <= 0 then return nil end
@@ -1046,6 +1085,26 @@ function Raids.stop()
 end
 
 function Raids.start()
+    if isInLobby() then return end
+    if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+        if Raids.State.stopRequested then return end
+    end
+
+    local objective = workspace:GetAttribute("Objective")
+    print("[LixHub] Raids: Detected objective —", objective)
+
+    if objective == "Attack Titan" then
+        Raids.startEren()
+    elseif objective == "Armored Titan" then
+        Raids.startArmored()
+    else
+        Util.notify("Auto Farm Raids", "Unknown raid objective: " .. tostring(objective), 5, "alert-triangle")
+        print("[LixHub] Raids: Unknown objective —", objective)
+    end
+end
+
+function Raids.startEren()
     if isInLobby() then return end
         if player:GetAttribute("Cutscene") == true then
         repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
@@ -1207,6 +1266,178 @@ function Raids.start()
     end)
 
     Util.notify("Auto Farm Raids", "Raid Farm Started", 3, "shield")
+end
+
+function Raids.startArmored()
+    if isInLobby() then return end
+    if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+        if Raids.State.stopRequested then return end
+    end
+    if Raids.State.connection then
+        Raids.State.connection:Disconnect()
+        Raids.State.connection = nil
+    end
+
+    Raids.State.stopRequested = false
+    Raids.State.active        = true
+    Raids.State.phase         = "defend"
+    print("[LixHub] Armored Raid: Starting — Phase 1: Defend Boats")
+    Util.notify("Auto Farm Raids", "Phase 1: Defending Boats...", 3, "shield")
+
+    disableCollision()
+    local _hum = character:FindFirstChildOfClass("Humanoid")
+    if _hum then _hum.PlatformStand = true; _hum.AutoRotate = false end
+    enableSync()
+
+    local tickAccum = 0
+    local chestsDone = false
+
+    Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
+        if Raids.State.stopRequested then
+            if Raids.State.connection then
+                Raids.State.connection:Disconnect()
+                Raids.State.connection = nil
+            end
+            return
+        end
+
+        local cassettesLeft, segmentsLeft = getBladeStatus()
+
+        if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
+            RaidReloadState = "swapping"
+            print("[LixHub] Armored Raid: Blade broken, swapping cassette —", cassettesLeft, "left")
+            task.spawn(function()
+                local result
+                repeat
+                    result = GET:InvokeServer("Blades", "Reload")
+                    task.wait()
+                    local c, s = getBladeStatus()
+                    if s > 0 then break end
+                until result == true or RaidReloadState ~= "swapping"
+                print("[LixHub] Armored Raid: Blade swap confirmed")
+                RaidReloadState = "idle"
+            end)
+            return
+        end
+
+        if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
+            RaidReloadState = "refilling"
+            print("[LixHub] Armored Raid: Out of cassettes — refilling")
+            task.spawn(function()
+                local refillPoint = findRefillPoint()
+                repeat
+                    GET:InvokeServer("Attacks", "Reload", refillPoint)
+                    task.wait()
+                    local c, _ = getBladeStatus()
+                    if c > 0 then break end
+                until RaidReloadState ~= "refilling"
+                repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
+                print("[LixHub] Armored Raid: Refill done")
+                RaidReloadState = "idle"
+            end)
+            return
+        end
+
+        if RaidReloadState ~= "idle" then return end
+        if Raids.State.phase == "cutscene" then return end
+
+        tickAccum = tickAccum + dt
+        if tickAccum < State.attackInterval then return end
+        tickAccum = 0
+
+        -- ===== PHASE 1: DEFEND BOATS =====
+        if Raids.State.phase == "defend" then
+            if Raids.getObjectiveValue("Defend_Boats") >= 3 then
+                Raids.State.phase = "cutscene"
+                print("[LixHub] Armored Raid: Phase 1 done — waiting for cutscene...")
+                Util.notify("Auto Farm Raids", "Cutscene... waiting for Phase 2", 3, "clock")
+
+                removeBodyMovers()
+                disableSync()
+
+                task.spawn(function()
+                    repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
+                    repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+                    if not Raids.State.stopRequested then
+                        disableCollision()
+                        local hum = character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                        enableSync()
+                        Raids.State.phase = "defeat"
+                        print("[LixHub] Armored Raid: Cutscene done — Phase 2: Defeat Armored Titan")
+                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Armored Titan!", 3, "sword")
+                    end
+                end)
+                return
+            end
+
+            local titan = Raids.getClosestTitanToBoat()
+            if titan then
+                Raids.handleTitan(titan, false)
+            end
+
+        -- ===== PHASE 2: DEFEAT ARMORED TITAN =====
+        elseif Raids.State.phase == "defeat" then
+            local titan = Raids.getArmoredTitan()
+
+            if titan then
+                local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+                if titanRoot then
+                    State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+                    local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+                    ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+                end
+            end
+
+            if Raids.getObjectiveValue("Defeat_Armored_Titan") >= 1 then
+                if not chestsDone then
+                    chestsDone = true
+                    print("[LixHub] Armored Raid: Armored Titan defeated — collecting chests")
+                    Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
+                    task.spawn(function()
+                        task.wait(5)
+                        local start = tick()
+                        repeat task.wait(0.3) until
+                            (player.PlayerGui.Interface:FindFirstChild("Chests") and
+                            player.PlayerGui.Interface.Chests.Visible) or
+                            tick() - start > 20
+                        Raids.openChests()
+                        task.wait(3)
+                        Raids.clickFinish()
+                    end)
+                end
+                return
+            end
+
+            if not titan then return end
+            if titan:GetAttribute("State") == "Roar" then return end
+
+            -- vuln spot if available, otherwise hit nape 5 times
+            local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+            if not titanRoot then return end
+            local nape = Raids.getNape(titan)
+            if not nape then return end
+
+            if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 500 then return end
+
+            local vulnSpot = Raids.getVulnerableSpot(titan)
+            if vulnSpot then
+                Raids.registerHitVuln(vulnSpot)
+            else
+                task.spawn(function()
+                    POST:FireServer("Attacks", "Slash", true)
+                    for i = 1, 5 do
+                        local damage = 670 + math.random(55, 165)
+                        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+                        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+                    end
+                end)
+            end
+        end
+    end)
+
+    Util.notify("Auto Farm Raids", "Armored Raid Farm Started", 3, "shield")
 end
 
 -- ==================== RAYFIELD UI ====================
