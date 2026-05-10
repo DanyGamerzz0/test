@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.27"
+local script_version = "V0.28"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -189,8 +189,8 @@ local function ensureBodyMovers(targetCFrame)
     if not Movers.bodyPos then
         Movers.bodyPos          = Instance.new("BodyPosition")
         Movers.bodyPos.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-        Movers.bodyPos.P        = 1e5
-        Movers.bodyPos.D        = 1000
+        Movers.bodyPos.P        = 1e4
+        Movers.bodyPos.D        = 10000
         Movers.bodyPos.Name     = "_FarmPos"
         Movers.bodyPos.Parent   = rootPart
     end
@@ -959,7 +959,7 @@ function Raids.getClosestTitanToBoat()
     for _, titan in ipairs(titans:GetChildren()) do
         local hrp = titan:FindFirstChild("HumanoidRootPart")
         local hum = titan:FindFirstChild("Humanoid")
-        if hrp and hum and hum.Health > 0 then
+        if hrp and hum and hum.Health > 0 and titan.Name ~= "Armored_Titan" then
             local nape = Raids.getNape(titan)
             if nape then
                 local dist = (hrp.Position - anchor).Magnitude
