@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.24"
+local script_version = "V0.25"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -906,21 +906,22 @@ function Raids.getObjectiveValue(name)
     return v and v.Value or 0
 end
 
-function Raids.getErenRef()
-    local ref = workspace.Unclimbable:FindFirstChild("Objective")
-    if not ref then return nil end
-    local defend = ref:FindFirstChild("Defend_Eren")
-    if not defend then return nil end
-    local refVal = defend:FindFirstChild("Reference")
-    return refVal and refVal.Value or nil
-end
-
 function Raids.getClosestTitanToEren()
     local titans = workspace:FindFirstChild("Titans")
     if not titans then return nil end
-    local eren = Raids.getErenRef()
-    local anchor = (eren and eren:IsA("BasePart")) and eren.Position or rootPart.Position
+    
+    local collider = workspace.Unclimbable
+        and workspace.Unclimbable.Objective
+        and workspace.Unclimbable.Objective.Defend_Eren
+        and workspace.Unclimbable.Objective.Defend_Eren:FindFirstChild("Collider")
+    
+    if not collider then
+        print("[LixHub] Raids: Collider not found, falling back to player position")
+    end
+    
+    local anchor = collider and collider.Position or rootPart.Position
     local bestTitan, bestDist = nil, math.huge
+    
     for _, titan in ipairs(titans:GetChildren()) do
         local hrp = titan:FindFirstChild("HumanoidRootPart")
         local hum = titan:FindFirstChild("Humanoid")
@@ -957,10 +958,15 @@ local function clickButton(btn)
 end
 
 local function waitForFinishVisible(timeout)
+    local chests = player.PlayerGui.Interface.Chests
     local start = tick()
-    repeat task.wait(0.2) until 
-        (player.PlayerGui.Interface.Chests:FindFirstChild("Finish") and 
-         player.PlayerGui.Interface.Chests.Finish.Visible) or 
+    -- first wait for it to go invisible (animation started)
+    repeat task.wait(0.2) until
+        not (chests:FindFirstChild("Finish") and chests.Finish.Visible) or
+        tick() - start > (timeout or 15)
+    -- then wait for it to come back (animation finished)
+    repeat task.wait(0.2) until
+        (chests:FindFirstChild("Finish") and chests.Finish.Visible) or
         tick() - start > (timeout or 15)
 end
 
