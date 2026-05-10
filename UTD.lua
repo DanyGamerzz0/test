@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.18"
+local script_version = "V0.19"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -488,11 +488,51 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    task.wait(2)
-    pcall(function() PodController = Knit.GetController("PodController") end)
-    pcall(function() DataController = Knit.GetController("DataController") end)
-    pcall(function() PlacedTowerController = Knit.GetController("PlacedTowerController") end)
-    pcall(function() ChallengeController = require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController) end)
+    local ok, err = pcall(function()
+        Knit.OnStart():await()
+    end)
+    if not ok then
+        warn("Knit failed to start:", err)
+        return
+    end
+
+    -- Now safely get controllers
+    local maxAttempts = 10
+    local retryDelay = 1
+
+    local function tryGet(name)
+        for attempt = 1, maxAttempts do
+            local ok, result = pcall(function()
+                return Knit.GetController(name)
+            end)
+            if ok and result then
+                print(string.format("✓ Loaded %s (attempt %d)", name, attempt))
+                return result
+            end
+            warn(string.format("%s not ready, retrying... (%d/%d)", name, attempt, maxAttempts))
+            task.wait(retryDelay)
+        end
+        warn(string.format("✗ Failed to load %s after %d attempts", name, maxAttempts))
+        return nil
+    end
+
+    PodController = tryGet("PodController")
+    DataController = tryGet("DataController")
+    PlacedTowerController = tryGet("PlacedTowerController")
+
+    -- ChallengeController uses require instead of Knit
+    for attempt = 1, maxAttempts do
+        local ok, result = pcall(function()
+            return require(game:GetService("ReplicatedStorage").Client.Controllers.ChallengeController)
+        end)
+        if ok and result then
+            ChallengeController = result
+            print(string.format("Loaded ChallengeController (attempt %d)", attempt))
+            break
+        end
+        warn(string.format("ChallengeController not ready, retrying... (%d/%d)", attempt, maxAttempts))
+        task.wait(retryDelay)
+    end
 end)
 
 -- ============================================
@@ -7873,24 +7913,38 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
 end)
 
 task.spawn(function()
+    local lastProcessedWave = nil
+    while true do
+        task.wait(0.5)
+        if not State.AutoEquipBeforeGame then continue end
+        if not isPlaybackEnabled then continue end
+        if Util.isInLobby() then continue end
+
+        local currentWave = workspace:GetAttribute("Wave") or 0
+        local matchFinished = workspace:GetAttribute("MatchFinished")
+
+        -- Only act on wave 0 (pre-game) and only once per session
+        if currentWave == 0 and not matchFinished and lastProcessedWave ~= 0 then
+            lastProcessedWave = 0
+            task.spawn(autoEquipMacroUnits)
+        end
+
+        -- Reset when a new game cycle begins
+        if currentWave >= 1 then
+            lastProcessedWave = currentWave
+        end
+    end
+end)
+
+task.spawn(function()
     while true do
         task.wait(0.5)
         if State.AutoStartGame then
             local currentWave = workspace:GetAttribute("Wave") or 0
             if currentWave == 0 then
-                -- Wait for map attributes to load
                 local deadline = tick() + 10
                 while (not workspace:GetAttribute("Category") or not workspace:GetAttribute("MapName")) and tick() < deadline do
                     task.wait(0.5)
-                end
-
-                    if State.AutoEquipBeforeGame and isPlaybackEnabled then
-                    local equipped = autoEquipMacroUnits()
-                    if not equipped then
-                        Util.notify({ Title = "Auto Equip", Content = "Equip failed - game may start with wrong units", Duration = 5 })
-                    else
-                        task.wait(1) -- small buffer after equipping before starting
-                    end
                 end
                 
                 if isPlaybackEnabled then Playback.checkAndSwitchMacroForCurrentWorld() task.wait(0.5) end
@@ -8113,6 +8167,33 @@ task.spawn(MacroIO.loadAutoPlayPositions)
 task.spawn(function()
     task.wait(2)
     createAutoSelectDropdowns()
+end)
+
+task.spawn(function()
+    local VirtualUser = game:GetService("VirtualUser")
+    local RewardGui = game:GetService("Players").LocalPlayer
+        :WaitForChild("PlayerGui"):WaitForChild("Rewards")
+
+    local function dismissAll()
+        while RewardGui.Enabled and #RewardGui:GetChildren() > 0 do
+            task.wait(0.2) -- wait past CanNext 0.125s gate
+            VirtualUser:Button1Down(Vector2.new(640, 360), workspace.CurrentCamera.CFrame)
+            task.wait(0.05)
+            VirtualUser:Button1Up(Vector2.new(640, 360), workspace.CurrentCamera.CFrame)
+            task.wait(0.6) -- wait for exit tween + next reward to appear
+        end
+    end
+
+    RewardGui:GetPropertyChangedSignal("Enabled"):Connect(function()
+        if RewardGui.Enabled then
+            dismissAll()
+        end
+    end)
+
+    -- catch already-open rewards on script load
+    if RewardGui.Enabled and #RewardGui:GetChildren() > 0 then
+        dismissAll()
+    end
 end)
 
 Rayfield:LoadConfiguration()
