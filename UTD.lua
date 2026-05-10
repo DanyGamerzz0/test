@@ -10,7 +10,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.23"
+local script_version = "V0.24"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -8174,12 +8174,18 @@ task.spawn(function()
     local ok, ViewReward = pcall(require, game:GetService("ReplicatedStorage").Client.UiComponents.ViewReward)
     if not ok then warn("Failed:", ViewReward) return end
 
-    -- Patch ClickContinue to resolve instantly
-    ViewReward.ClickContinue = function(self)
-        self.CanNext = true
+    -- ViewReward is a function, u26 is its upvalue
+    local upvalues = getupvalues(ViewReward)
+    for i, v in pairs(upvalues) do
+        if type(v) == "table" and v.ClickContinue and v.Deactivate and v.Activate then
+            print("Found u26 at upvalue", i)
+            v.ClickContinue = function(self)
+                self.CanNext = true
+            end
+            print("Patched ClickContinue")
+            break
+        end
     end
-
-    print("ViewReward.ClickContinue patched")
 end)
 
 Rayfield:LoadConfiguration()
