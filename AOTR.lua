@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.36"
+local script_version = "V0.37"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1742,14 +1742,46 @@ function Raids.startColossal()
         print("[LixHub] Colossal Raid: Cannon unmounted")
     end
 
-    local function fireCannon()
-        local cannon = getCannon()
-        if not cannon then return end
-        if cannon:GetAttribute("Firing") ~= nil then return end
-        if cannon:GetAttribute("Cooldown") ~= nil then return end
-        GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
-        print("[LixHub] Colossal Raid: Cannon fired")
-    end
+local function fireCannon()
+    local cannon = getCannon()
+    if not cannon then return end
+    if cannon:GetAttribute("Firing") ~= nil then return end
+    if cannon:GetAttribute("Cooldown") ~= nil then return end
+    
+    local fired = GET:InvokeServer("Cannon", "Shoot", { BarrelWood = 40, Base = 0 })
+    if not fired then return end
+    
+    print("[LixHub] Colossal Raid: Cannon fired — spamming impacts")
+    
+    -- get colossal position for impact target
+    local colossal = getColossalTitan()
+    if not colossal then return end
+    local colossalRoot = colossal:FindFirstChild("HumanoidRootPart")
+    if not colossalRoot then return end
+    local targetPos = colossalRoot.Position
+    
+    -- wait a tick for the projectile to spawn in nil instances
+    task.spawn(function()
+        task.wait(0.1)
+        -- find cannon projectile in nil instances
+        local cannonProjectile = nil
+        for _, obj in ipairs(getnilinstances()) do
+            if obj.Name == "Cannon" and obj:IsA("Model") then
+                cannonProjectile = obj
+                break
+            end
+        end
+        
+        if cannonProjectile then
+            print("[LixHub] Colossal Raid: Found cannon projectile — firing impacts")
+            for i = 1, 10 do
+                POST:FireServer("S_Skills", "Impact", cannonProjectile, targetPos)
+            end
+        else
+            print("[LixHub] Colossal Raid: Cannon projectile not found in nil instances")
+        end
+    end)
+end
 
     -- start by mounting cannon
     mountCannon()
@@ -1800,19 +1832,31 @@ function Raids.startColossal()
             local closestTitan, closestDist = getClosestTitanToEren2()
 
             -- if titan is close to eren, unmount and defend
-            if closestTitan and closestDist < 200 then
-                if cannonMounted then
-                    unmountCannon()
-                    removeBodyMovers()
-                end
-                Raids.handleTitan(closestTitan, false)
-            else
-                -- no close titans, mount cannon and fire
-                if not cannonMounted then
-                    mountCannon()
-                end
-                fireCannon()
-            end
+if closestTitan and closestDist < 200 then
+    if cannonMounted then unmountCannon() end
+    
+    -- move to titan
+    local titanRoot = closestTitan:FindFirstChild("HumanoidRootPart")
+    if titanRoot then
+        State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+        local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+        ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+    end
+    
+    local nape = Raids.getNape(closestTitan)
+    if nape and lerpCurrent and (lerpTarget - lerpCurrent).Magnitude <= 500 then
+        POST:FireServer("Attacks", "Slash", true)
+        local damage = 670 + math.random(55, 165)
+        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+    end
+else
+    -- no close titans, remount and fire cannon
+    if not cannonMounted then
+        mountCannon()
+    end
+    fireCannon()
+end
 
         -- ===== PHASE 2: DEFEAT COLOSSAL TITAN =====
         elseif Raids.State.phase == "defeat" then
