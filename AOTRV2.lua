@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.09"
+local script_version = "V0.01"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1600,31 +1600,7 @@ function Raids.startArmored()
             if not titan then return end
             if titan:GetAttribute("State") == "Roar" then return end
 
-            local titanRoot = titan:FindFirstChild("HumanoidRootPart")
-            if not titanRoot then return end
-
-            local nape = Raids.getNape(titan)
-            if not nape then return end
-            State.inHook = true
-            local actualPos = rootPart.Position
-            State.inHook = false
-
-            local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
-            if horizontalDist > 50 then return end
-
-            local vulnSpot = Raids.getVulnerableSpot(titan)
-            if vulnSpot then
-                Raids.registerHitVuln(vulnSpot)
-            else
-                task.spawn(function()
-                    POST:FireServer("Attacks", "Slash", true)
-                    for i = 1, 5 do
-                        local damage = 670 + math.random(55, 165)
-                        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
-                        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
-                    end
-                end)
-            end
+            Raids.handleTitan(titan, true, true)
         end
     end)
 end
