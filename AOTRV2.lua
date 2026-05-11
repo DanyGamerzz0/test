@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.66"
+local script_version = "V0.67"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2597,7 +2597,7 @@ FarmTab:CreateDropdown({
     end,
 })
 
-WavesTab:CreateToggle({
+FarmTab:CreateToggle({
     Name         = "Return to Lobby After X Waves",
     CurrentValue = false,
     Flag         = "WavesReturnEnabled",
@@ -2606,7 +2606,7 @@ WavesTab:CreateToggle({
     end,
 })
 
-WavesTab:CreateSlider({
+FarmTab:CreateSlider({
     Name         = "Return After X Waves",
     Range        = {1, 100},
     Increment    = 1,
