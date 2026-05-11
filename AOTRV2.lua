@@ -49,6 +49,7 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    autoJoinDelaySecs = 3,
     syncEnabled          = false,
     syncedPosition       = nil,
     oldIndex             = nil,
@@ -1720,6 +1721,39 @@ function Raids.startFemale()
     Util.notify("Auto Farm Raids", "Female Raid Farm Started", 3, "shield")
 end
 
+-- ==================== AUTO UPGRADE GEAR ====================
+local autoUpgradeConnection = nil
+
+local function startAutoUpgrade()
+    if autoUpgradeConnection then return end
+    autoUpgradeConnection = task.spawn(function()
+        while true do
+            task.wait(2)
+            if isInLobby() then
+                pcall(function()
+                    GET:InvokeServer("S_Equipment", "Upgrade", {
+                        "Crit_Chance",
+                        "Blade_Durability",
+                        "ODM_Damage",
+                        "Crit_Damage",
+                        "ODM_Speed",
+                        "ODM_Control",
+                        "ODM_Range",
+                        "ODM_Gas"
+                    })
+                end)
+            end
+        end
+    end)
+end
+
+local function stopAutoUpgrade()
+    if autoUpgradeConnection then
+        task.cancel(autoUpgradeConnection)
+        autoUpgradeConnection = nil
+    end
+end
+
 -- ==================== RAYFIELD UI ====================
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
@@ -1965,6 +1999,10 @@ local function checkAndJoin()
 
     autoJoinProcessing = true
 
+    if State.autoJoinDelaySecs > 0 then
+        task.wait(State.autoJoinDelaySecs)
+    end
+
     local ok, err = pcall(function()
         local success = false
         local label = ""
@@ -2016,6 +2054,17 @@ end
 startAutoJoinLoop()
 
 local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
+
+JoinerTab:CreateSlider({
+    Name         = "Auto Join Delay (seconds)",
+    Flag         = "AutoJoinDelay",
+    Range        = {0, 60},
+    Increment    = 1,
+    CurrentValue = 3,
+    Callback     = function(val)
+        State.autoJoinDelaySecs = val
+    end,
+})
 
 JoinerTab:CreateSection("Missions")
 
@@ -2378,6 +2427,22 @@ WebhookTab:CreateButton({
 
 -- ===== TAB: Misc =====
 local MiscTab = Window:CreateTab("Misc", "settings")
+
+MiscTab:CreateToggle({
+    Name         = "Auto Upgrade Gear",
+    Flag         = "AutoUpgradeGear",
+    CurrentValue = false,
+    Callback     = function(val)
+        State.autoUpgradeGear = val
+        if val then
+            startAutoUpgrade()
+            Util.notify("Auto Upgrade", "Auto gear upgrade enabled", 3, "arrow-up")
+        else
+            stopAutoUpgrade()
+            Util.notify("Auto Upgrade", "Auto gear upgrade disabled", 3, "x")
+        end
+    end,
+})
 
 MiscTab:CreateToggle({
     Name         = "Auto Execute Script",
