@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.59"
+local script_version = "V0.6"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2391,7 +2391,7 @@ MiscTab:CreateToggle({
         if val then
             local queuedScript = string.format([[
                 getgenv().__LIXHUB_RUNS = %d
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTR.lua"))()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTRV2.lua"))()
             ]], State.sessionRuns)
             queue_on_teleport(queuedScript)
             Util.notify("Auto Execute", "Script will auto execute on teleport", 3, "check")
