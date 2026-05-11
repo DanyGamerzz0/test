@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -318,6 +318,30 @@ local function getBladeStatus()
     return cassettesLeft, segmentsLeft
 end
 
+local function getSpearStatus()
+    local spears = character:GetAttribute("Spears") or 0
+    return spears
+end
+
+local function isUsingSpears()
+    return player:GetAttribute("Weapon") == "Spears"
+end
+
+local function spearAttackTitan(nape, titanRoot)
+    -- Fire spear (spear slot number cycles 1-8, odd = left, even = right)
+    -- We just try firing with a spear index; game picks available one
+    local spearNum = tostring(math.random(1, 8))
+    local fired = GET:InvokeServer("Spears", "S_Fire", spearNum)
+    if not fired then return end
+
+    -- Small delay to let spear travel a bit
+    task.wait(0.05)
+
+    -- Explode at nape position
+    local targetPos = nape.Position
+    POST:FireServer("Spears", "S_Explode", targetPos)
+end
+
 -- ==================== FARM HELPERS ====================
 local function getClosestNape()
     local titans = workspace:FindFirstChild("Titans")
@@ -470,10 +494,27 @@ local function startAutoAttack()
             return
         end
 
-        local cassettesLeft, segmentsLeft = getBladeStatus()
+    if isUsingSpears() then
+                local spearCount = getSpearStatus()
+                if spearCount <= 0 and ReloadState == "idle" then
+                    ReloadState = "refilling"
+                    task.spawn(function()
+                        local refillPoint = findRefillPoint()
+                        repeat
+                            GET:InvokeServer("Attacks", "Reload", refillPoint)
+                            task.wait(0.5)
+                        until (character:GetAttribute("Spears") or 0) > 0 or ReloadState ~= "refilling"
+                        ReloadState = "idle"
+                    end)
+                    return
+                end
+                if ReloadState ~= "idle" then return end
+            end
 
-        -- Cassette swap — spam Blades/Reload until server returns true
-        if segmentsLeft <= 0 and cassettesLeft > 0 and ReloadState == "idle" then
+            local cassettesLeft, segmentsLeft = getBladeStatus()
+
+            -- Cassette swap — spam Blades/Reload until server returns true
+            if segmentsLeft <= 0 and cassettesLeft > 0 and ReloadState == "idle" then
             ReloadState = "swapping"
             print("[LixHub] Farm: Blade broken, swapping cassette —", cassettesLeft, "left")
             task.spawn(function()
@@ -572,10 +613,14 @@ local function startAutoAttack()
         local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
         if horizontalDist > 150 then return end
 
-        POST:FireServer("Attacks", "Slash", true)
-        local damage = 670 + math.random(55, 165)
-        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
-        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+        if isUsingSpears() then
+            spearAttackTitan(nape, titanRoot)
+        else
+            POST:FireServer("Attacks", "Slash", true)
+            local damage = 670 + math.random(55, 165)
+            if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+            POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+        end
     end)
 
     Util.notify("Auto Farm", "Auto Farm Started", 3, "cog")
@@ -1117,6 +1162,11 @@ function Raids.handleTitan(titan, useVulnerable)
     local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
     if horizontalDist > 50 then return end
 
+if isUsingSpears() then
+        spearAttackTitan(nape, titanRoot)
+        return
+    end
+
     if useVulnerable then
         local vulnSpot = Raids.getVulnerableSpot(titan)
         if vulnSpot then
@@ -1207,6 +1257,23 @@ function Raids.startEren()
                 Raids.State.connection = nil
             end
             return
+        end
+
+if isUsingSpears() then
+            local spearCount = getSpearStatus()
+            if spearCount <= 0 and RaidReloadState == "idle" then
+                RaidReloadState = "refilling"
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait(0.5)
+                    until (character:GetAttribute("Spears") or 0) > 0 or RaidReloadState ~= "refilling"
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+            if RaidReloadState ~= "idle" then return end
         end
 
         local cassettesLeft, segmentsLeft = getBladeStatus()
@@ -1383,6 +1450,23 @@ function Raids.startArmored()
                 Raids.State.connection = nil
             end
             return
+        end
+
+if isUsingSpears() then
+            local spearCount = getSpearStatus()
+            if spearCount <= 0 and RaidReloadState == "idle" then
+                RaidReloadState = "refilling"
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait(0.5)
+                    until (character:GetAttribute("Spears") or 0) > 0 or RaidReloadState ~= "refilling"
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+            if RaidReloadState ~= "idle" then return end
         end
 
         local cassettesLeft, segmentsLeft = getBladeStatus()
@@ -1618,6 +1702,23 @@ local function attackTitan(titan)
                 Raids.State.connection = nil
             end
             return
+        end
+
+if isUsingSpears() then
+            local spearCount = getSpearStatus()
+            if spearCount <= 0 and RaidReloadState == "idle" then
+                RaidReloadState = "refilling"
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait(0.5)
+                    until (character:GetAttribute("Spears") or 0) > 0 or RaidReloadState ~= "refilling"
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+            if RaidReloadState ~= "idle" then return end
         end
 
         local cassettesLeft, segmentsLeft = getBladeStatus()
@@ -1961,7 +2062,23 @@ function Waves.start()
             end
         end
 
-        -- Blade/cassette reload logic (mirrors your existing pattern)
+if isUsingSpears() then
+            local spearCount = getSpearStatus()
+            if spearCount <= 0 and WaveReloadState == "idle" then
+                WaveReloadState = "refilling"
+                task.spawn(function()
+                    local refillPoint = findWavesRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait(0.5)
+                    until (character:GetAttribute("Spears") or 0) > 0 or WaveReloadState ~= "refilling"
+                    WaveReloadState = "idle"
+                end)
+                return
+            end
+            if WaveReloadState ~= "idle" then return end
+        end
+
         local cassettesLeft, segmentsLeft = getBladeStatus()
 
         if segmentsLeft <= 0 and cassettesLeft > 0 and WaveReloadState == "idle" then
@@ -2025,10 +2142,14 @@ function Waves.start()
         ).Magnitude
         if horizontalDist > 150 then return end
 
-        POST:FireServer("Attacks", "Slash", true)
-        local damage = 670 + math.random(55, 165)
-        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
-        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+if isUsingSpears() then
+            spearAttackTitan(nape, titanRoot)
+        else
+            POST:FireServer("Attacks", "Slash", true)
+            local damage = 670 + math.random(55, 165)
+            if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+            POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+        end
     end)
 end
 
