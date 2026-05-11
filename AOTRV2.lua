@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -494,64 +494,61 @@ local function startAutoAttack()
             return
         end
 
-    if isUsingSpears() then
-                local spearCount = getSpearStatus()
-                if spearCount <= 0 and ReloadState == "idle" then
-                    ReloadState = "refilling"
-                    task.spawn(function()
-                        local refillPoint = findRefillPoint()
-                        repeat
-                            GET:InvokeServer("Attacks", "Reload", refillPoint)
-                            task.wait(0.5)
-                        until (character:GetAttribute("Spears") or 0) > 0 or ReloadState ~= "refilling"
-                        ReloadState = "idle"
-                    end)
-                    return
-                end
-                if ReloadState ~= "idle" then return end
+        if isUsingSpears() then
+            local spearCount = getSpearStatus()
+            if spearCount <= 0 and ReloadState == "idle" then
+                ReloadState = "refilling"
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait(0.5)
+                    until (character:GetAttribute("Spears") or 0) > 0 or ReloadState ~= "refilling"
+                    ReloadState = "idle"
+                end)
+                return
             end
-
+            if ReloadState ~= "idle" then return end
+        else
             local cassettesLeft, segmentsLeft = getBladeStatus()
 
-            -- Cassette swap — spam Blades/Reload until server returns true
             if segmentsLeft <= 0 and cassettesLeft > 0 and ReloadState == "idle" then
-            ReloadState = "swapping"
-            print("[LixHub] Farm: Blade broken, swapping cassette —", cassettesLeft, "left")
-            task.spawn(function()
-                local result
-                repeat
-                    result = GET:InvokeServer("Blades", "Reload")
-                    task.wait()
-                    local c, s = getBladeStatus()
-                    if s > 0 then break end
-                until result == true or ReloadState ~= "swapping"
-                print("[LixHub] Farm: Blade swap confirmed —", tostring(result))
-                ReloadState = "idle"
-            end)
-            return
-        end
+                ReloadState = "swapping"
+                print("[LixHub] Farm: Blade broken, swapping cassette —", cassettesLeft, "left")
+                task.spawn(function()
+                    local result
+                    repeat
+                        result = GET:InvokeServer("Blades", "Reload")
+                        task.wait()
+                        local c, s = getBladeStatus()
+                        if s > 0 then break end
+                    until result == true or ReloadState ~= "swapping"
+                    print("[LixHub] Farm: Blade swap confirmed —", tostring(result))
+                    ReloadState = "idle"
+                end)
+                return
+            end
 
-        if segmentsLeft <= 0 and cassettesLeft <= 0 and ReloadState == "idle" then
-            ReloadState = "refilling"
-            print("[LixHub] Farm: Out of cassettes — refilling")
-            task.spawn(function()
-                local refillPoint = findRefillPoint()
-                repeat
-                    GET:InvokeServer("Attacks", "Reload", refillPoint)
-                    task.wait()
-                    local c, _ = getBladeStatus()
-                    if c > 0 then break end
-                until ReloadState ~= "refilling"
-                -- wait for segments to replicate before releasing
-                repeat task.wait() until (select(2, getBladeStatus())) > 0 or ReloadState ~= "refilling"
-                print("[LixHub] Farm: Refill done")
-                ReloadState = "idle"
-            end)
-            return
-        end
+            if segmentsLeft <= 0 and cassettesLeft <= 0 and ReloadState == "idle" then
+                ReloadState = "refilling"
+                print("[LixHub] Farm: Out of cassettes — refilling")
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait()
+                        local c, _ = getBladeStatus()
+                        if c > 0 then break end
+                    until ReloadState ~= "refilling"
+                    repeat task.wait() until (select(2, getBladeStatus())) > 0 or ReloadState ~= "refilling"
+                    print("[LixHub] Farm: Refill done")
+                    ReloadState = "idle"
+                end)
+                return
+            end
 
-        -- Block all attacks while any reload is in progress
-        if ReloadState ~= "idle" then return end
+            if ReloadState ~= "idle" then return end
+        end
 
         if lastTitanWaiting then return end
         tickAccum = tickAccum + dt
@@ -1258,8 +1255,7 @@ function Raids.startEren()
             end
             return
         end
-
-if isUsingSpears() then
+        if isUsingSpears() then
             local spearCount = getSpearStatus()
             if spearCount <= 0 and RaidReloadState == "idle" then
                 RaidReloadState = "refilling"
@@ -1274,49 +1270,46 @@ if isUsingSpears() then
                 return
             end
             if RaidReloadState ~= "idle" then return end
+        else
+            local cassettesLeft, segmentsLeft = getBladeStatus()
+
+            if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
+                RaidReloadState = "swapping"
+                print("[LixHub] Raids: Blade broken, swapping cassette —", cassettesLeft, "left")
+                task.spawn(function()
+                    local result
+                    repeat
+                        result = GET:InvokeServer("Blades", "Reload")
+                        task.wait()
+                        local c, s = getBladeStatus()
+                        if s > 0 then break end
+                    until result == true or RaidReloadState ~= "swapping"
+                    print("[LixHub] Raids: Blade swap confirmed —", tostring(result))
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+
+            if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
+                RaidReloadState = "refilling"
+                print("[LixHub] Raids: Out of cassettes — refilling")
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait()
+                        local c, _ = getBladeStatus()
+                        if c > 0 then break end
+                    until RaidReloadState ~= "refilling"
+                    repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
+                    print("[LixHub] Raids: Refill done")
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+
+            if RaidReloadState ~= "idle" then return end
         end
-
-        local cassettesLeft, segmentsLeft = getBladeStatus()
-
-        -- Cassette swap — spam Blades/Reload until server returns true
-        if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
-            RaidReloadState = "swapping"
-            print("[LixHub] Raids: Blade broken, swapping cassette —", cassettesLeft, "left")
-            task.spawn(function()
-                local result
-                repeat
-                    result = GET:InvokeServer("Blades", "Reload")
-                    task.wait()
-                    local c, s = getBladeStatus()
-                    if s > 0 then break end
-                until result == true or RaidReloadState ~= "swapping"
-                print("[LixHub] Raids: Blade swap confirmed —", tostring(result))
-                RaidReloadState = "idle"
-            end)
-            return
-        end
-
-        if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
-            RaidReloadState = "refilling"
-            print("[LixHub] Raids: Out of cassettes — refilling")
-            task.spawn(function()
-                local refillPoint = findRefillPoint()
-                repeat
-                    GET:InvokeServer("Attacks", "Reload", refillPoint)
-                    task.wait()
-                    local c, _ = getBladeStatus()
-                    if c > 0 then break end
-                until RaidReloadState ~= "refilling"
-                -- wait for segments to replicate before releasing
-                repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
-                print("[LixHub] Raids: Refill done")
-                RaidReloadState = "idle"
-            end)
-            return
-        end
-
-        -- Block all attacks while any reload is in progress
-        if RaidReloadState ~= "idle" then return end
         if Raids.State.phase == "cutscene" then return end
 
         tickAccum = tickAccum + dt
@@ -1452,7 +1445,7 @@ function Raids.startArmored()
             return
         end
 
-if isUsingSpears() then
+        if isUsingSpears() then
             local spearCount = getSpearStatus()
             if spearCount <= 0 and RaidReloadState == "idle" then
                 RaidReloadState = "refilling"
@@ -1467,46 +1460,46 @@ if isUsingSpears() then
                 return
             end
             if RaidReloadState ~= "idle" then return end
+        else
+            local cassettesLeft, segmentsLeft = getBladeStatus()
+
+            if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
+                RaidReloadState = "swapping"
+                print("[LixHub] Armored Raid: Blade broken, swapping cassette —", cassettesLeft, "left")
+                task.spawn(function()
+                    local result
+                    repeat
+                        result = GET:InvokeServer("Blades", "Reload")
+                        task.wait()
+                        local c, s = getBladeStatus()
+                        if s > 0 then break end
+                    until result == true or RaidReloadState ~= "swapping"
+                    print("[LixHub] Armored Raid: Blade swap confirmed")
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+
+            if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
+                RaidReloadState = "refilling"
+                print("[LixHub] Armored Raid: Out of cassettes — refilling")
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait()
+                        local c, _ = getBladeStatus()
+                        if c > 0 then break end
+                    until RaidReloadState ~= "refilling"
+                    repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
+                    print("[LixHub] Armored Raid: Refill done")
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+
+            if RaidReloadState ~= "idle" then return end
         end
-
-        local cassettesLeft, segmentsLeft = getBladeStatus()
-
-        if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
-            RaidReloadState = "swapping"
-            print("[LixHub] Armored Raid: Blade broken, swapping cassette —", cassettesLeft, "left")
-            task.spawn(function()
-                local result
-                repeat
-                    result = GET:InvokeServer("Blades", "Reload")
-                    task.wait()
-                    local c, s = getBladeStatus()
-                    if s > 0 then break end
-                until result == true or RaidReloadState ~= "swapping"
-                print("[LixHub] Armored Raid: Blade swap confirmed")
-                RaidReloadState = "idle"
-            end)
-            return
-        end
-
-        if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
-            RaidReloadState = "refilling"
-            print("[LixHub] Armored Raid: Out of cassettes — refilling")
-            task.spawn(function()
-                local refillPoint = findRefillPoint()
-                repeat
-                    GET:InvokeServer("Attacks", "Reload", refillPoint)
-                    task.wait()
-                    local c, _ = getBladeStatus()
-                    if c > 0 then break end
-                until RaidReloadState ~= "refilling"
-                repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
-                print("[LixHub] Armored Raid: Refill done")
-                RaidReloadState = "idle"
-            end)
-            return
-        end
-
-        if RaidReloadState ~= "idle" then return end
         if Raids.State.phase == "cutscene" then return end
 
         tickAccum = tickAccum + dt
@@ -1704,7 +1697,7 @@ local function attackTitan(titan)
             return
         end
 
-if isUsingSpears() then
+        if isUsingSpears() then
             local spearCount = getSpearStatus()
             if spearCount <= 0 and RaidReloadState == "idle" then
                 RaidReloadState = "refilling"
@@ -1719,42 +1712,42 @@ if isUsingSpears() then
                 return
             end
             if RaidReloadState ~= "idle" then return end
+        else
+            local cassettesLeft, segmentsLeft = getBladeStatus()
+
+            if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
+                RaidReloadState = "swapping"
+                task.spawn(function()
+                    local result
+                    repeat
+                        result = GET:InvokeServer("Blades", "Reload")
+                        task.wait()
+                        local c, s = getBladeStatus()
+                        if s > 0 then break end
+                    until result == true or RaidReloadState ~= "swapping"
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+
+            if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
+                RaidReloadState = "refilling"
+                task.spawn(function()
+                    local refillPoint = findRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait()
+                        local c, _ = getBladeStatus()
+                        if c > 0 then break end
+                    until RaidReloadState ~= "refilling"
+                    repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
+                    RaidReloadState = "idle"
+                end)
+                return
+            end
+
+            if RaidReloadState ~= "idle" then return end
         end
-
-        local cassettesLeft, segmentsLeft = getBladeStatus()
-
-        if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
-            RaidReloadState = "swapping"
-            task.spawn(function()
-                local result
-                repeat
-                    result = GET:InvokeServer("Blades", "Reload")
-                    task.wait()
-                    local c, s = getBladeStatus()
-                    if s > 0 then break end
-                until result == true or RaidReloadState ~= "swapping"
-                RaidReloadState = "idle"
-            end)
-            return
-        end
-
-        if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
-            RaidReloadState = "refilling"
-            task.spawn(function()
-                local refillPoint = findRefillPoint()
-                repeat
-                    GET:InvokeServer("Attacks", "Reload", refillPoint)
-                    task.wait()
-                    local c, _ = getBladeStatus()
-                    if c > 0 then break end
-                until RaidReloadState ~= "refilling"
-                repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
-                RaidReloadState = "idle"
-            end)
-            return
-        end
-
-        if RaidReloadState ~= "idle" then return end
         if Raids.State.phase == "cutscene" then return end
 
         tickAccum = tickAccum + dt
@@ -2062,7 +2055,7 @@ function Waves.start()
             end
         end
 
-if isUsingSpears() then
+        if isUsingSpears() then
             local spearCount = getSpearStatus()
             if spearCount <= 0 and WaveReloadState == "idle" then
                 WaveReloadState = "refilling"
@@ -2077,42 +2070,42 @@ if isUsingSpears() then
                 return
             end
             if WaveReloadState ~= "idle" then return end
+        else
+            local cassettesLeft, segmentsLeft = getBladeStatus()
+
+            if segmentsLeft <= 0 and cassettesLeft > 0 and WaveReloadState == "idle" then
+                WaveReloadState = "swapping"
+                task.spawn(function()
+                    local result
+                    repeat
+                        result = GET:InvokeServer("Blades", "Reload")
+                        task.wait()
+                        local c, s = getBladeStatus()
+                        if s > 0 then break end
+                    until result == true or WaveReloadState ~= "swapping"
+                    WaveReloadState = "idle"
+                end)
+                return
+            end
+
+            if segmentsLeft <= 0 and cassettesLeft <= 0 and WaveReloadState == "idle" then
+                WaveReloadState = "refilling"
+                task.spawn(function()
+                    local refillPoint = findWavesRefillPoint()
+                    repeat
+                        GET:InvokeServer("Attacks", "Reload", refillPoint)
+                        task.wait()
+                        local c, _ = getBladeStatus()
+                        if c > 0 then break end
+                    until WaveReloadState ~= "refilling"
+                    repeat task.wait() until (select(2, getBladeStatus())) > 0 or WaveReloadState ~= "refilling"
+                    WaveReloadState = "idle"
+                end)
+                return
+            end
+
+            if WaveReloadState ~= "idle" then return end
         end
-
-        local cassettesLeft, segmentsLeft = getBladeStatus()
-
-        if segmentsLeft <= 0 and cassettesLeft > 0 and WaveReloadState == "idle" then
-            WaveReloadState = "swapping"
-            task.spawn(function()
-                local result
-                repeat
-                    result = GET:InvokeServer("Blades", "Reload")
-                    task.wait()
-                    local c, s = getBladeStatus()
-                    if s > 0 then break end
-                until result == true or WaveReloadState ~= "swapping"
-                WaveReloadState = "idle"
-            end)
-            return
-        end
-
-        if segmentsLeft <= 0 and cassettesLeft <= 0 and WaveReloadState == "idle" then
-            WaveReloadState = "refilling"
-            task.spawn(function()
-                local refillPoint = findWavesRefillPoint()
-                repeat
-                    GET:InvokeServer("Attacks", "Reload", refillPoint)
-                    task.wait()
-                    local c, _ = getBladeStatus()
-                    if c > 0 then break end
-                until WaveReloadState ~= "refilling"
-                repeat task.wait() until (select(2, getBladeStatus())) > 0 or WaveReloadState ~= "refilling"
-                WaveReloadState = "idle"
-            end)
-            return
-        end
-
-        if WaveReloadState ~= "idle" then return end
 
         tickAccum = tickAccum + dt
         if tickAccum < State.attackInterval then return end
