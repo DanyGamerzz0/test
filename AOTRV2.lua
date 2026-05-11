@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.01"
+local script_version = "V0.02"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -470,11 +470,18 @@ local function startLobbyTimer()
 end
 
 local function findRefillPoint()
-    local tanks = workspace.Unclimbable
-        and workspace.Unclimbable.Props
-        and workspace.Unclimbable.Props.HQ
-        and workspace.Unclimbable.Props.HQ.GasTanks
-    return tanks and tanks:FindFirstChild("Refill")
+    local function searchIn(parent)
+        if not parent then return nil end
+        for _, v in ipairs(parent:GetDescendants()) do
+            if v:IsA("Model") and v.Name == "GasTanks" then
+                local refill = v:FindFirstChild("Refill")
+                if refill then return refill end
+            end
+        end
+        return nil
+    end
+
+    return searchIn(workspace.Unclimbable) or searchIn(workspace)
 end
 
 local function findWavesRefillPoint()
