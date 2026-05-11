@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.68"
+local script_version = "V0.01"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -408,25 +408,19 @@ local function startLobbyTimer()
 end
 
 local function findRefillPoint()
-    -- Try mission/standard location first
     local tanks = workspace.Unclimbable
         and workspace.Unclimbable.Props
         and workspace.Unclimbable.Props.HQ
         and workspace.Unclimbable.Props.HQ.GasTanks
-    if tanks and tanks:FindFirstChild("Refill") then
-        return tanks.Refill
-    end
+    return tanks and tanks:FindFirstChild("Refill")
+end
 
-    -- Fallback for waves
-    local wavesTanks = workspace.Unclimbable
+local function findWavesRefillPoint()
+    local tanks = workspace.Unclimbable
         and workspace.Unclimbable.Objective
         and workspace.Unclimbable.Objective.Waves
         and workspace.Unclimbable.Objective.Waves.GasTanks
-    if wavesTanks and wavesTanks:FindFirstChild("Refill") then
-        return wavesTanks.Refill
-    end
-
-    return nil
+    return tanks and tanks:FindFirstChild("Refill")
 end
 
 local function startAutoAttack()
@@ -576,7 +570,7 @@ local function startAutoAttack()
         State.inHook = false
 
         local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
-        if horizontalDist > 75 then return end
+        if horizontalDist > 150 then return end
 
         POST:FireServer("Attacks", "Slash", true)
         local damage = 670 + math.random(55, 165)
@@ -1838,7 +1832,7 @@ end
 local function startWavesAutoVoteLoop()
     task.spawn(function()
         while Waves.State.active and not Waves.State.stopRequested do
-            task.wait(1)
+            task.wait(2)
             if Waves.State.autoVote then
                 local inner = player.PlayerGui.Interface:FindFirstChild("Waves")
                 if inner and inner:FindFirstChild("Inner") and inner.Inner.Visible then
@@ -1988,7 +1982,7 @@ function Waves.start()
         if segmentsLeft <= 0 and cassettesLeft <= 0 and WaveReloadState == "idle" then
             WaveReloadState = "refilling"
             task.spawn(function()
-                local refillPoint = findRefillPoint()
+                local refillPoint = findWavesRefillPoint()
                 repeat
                     GET:InvokeServer("Attacks", "Reload", refillPoint)
                     task.wait()
@@ -2029,7 +2023,7 @@ function Waves.start()
             actualPos.X - titanRoot.Position.X,
             actualPos.Z - titanRoot.Position.Z
         ).Magnitude
-        if horizontalDist > 75 then return end
+        if horizontalDist > 150 then return end
 
         POST:FireServer("Attacks", "Slash", true)
         local damage = 670 + math.random(55, 165)
@@ -2491,7 +2485,7 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateSlider({
     Name         = "Wait x Seconds Before Killing Last Titan",
-    Range        = {30, 600},
+    Range        = {0, 300},
     Increment    = 1,
     CurrentValue = State.waitLastTitanSeconds,
     Flag         = "WaitLastTitanSeconds",
