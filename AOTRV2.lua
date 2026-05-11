@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.61"
+local script_version = "V0.62"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -789,8 +789,6 @@ local function onRoundEnd(encoded)
             getgenv().__LIXHUB_RUNS = State.sessionRuns
             updateQueuedCounter()
             local forceLobby = State.returnToLobbyGamesEnabled and State.sessionRuns >= State.returnToLobbyGames
-            print("[LixHub] Round ended — processing results")
-            resetLobbyTimer()
 
             local roundData, playerData
             if encoded then
@@ -805,7 +803,12 @@ local function onRoundEnd(encoded)
 
             if State.webhookEnabled and State.webhookUrl and roundData then
                 sendWebhook(roundData, playerData)
+            else
+                warn("[LixHub] Webhook skipped — enabled:", State.webhookEnabled, "url:", State.webhookUrl ~= nil, "data:", roundData ~= nil)
             end
+
+            print("[LixHub] Round ended — processing results")
+            resetLobbyTimer()
 
             task.wait(5)
             if forceLobby then
@@ -2072,10 +2075,10 @@ local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
 
 JoinerTab:CreateSlider({
     Name         = "Auto Join Delay (seconds)",
-    Flag         = "AutoJoinDelay",
     Range        = {0, 60},
     Increment    = 1,
     CurrentValue = 3,
+    Flag         = "AutoJoinDelay",
     Callback     = function(val)
         State.autoJoinDelaySecs = val
     end,
@@ -2085,8 +2088,8 @@ JoinerTab:CreateSection("Missions")
 
 JoinerTab:CreateToggle({
     Name         = "Auto Join Missions",
-    Flag         = "AutoJoinMissions",
     CurrentValue = false,
+    Flag         = "AutoJoinMissions",
     Callback     = function(val)
         State.autoJoinMissions = val
     end,
@@ -2094,9 +2097,9 @@ JoinerTab:CreateToggle({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Map",
-    Flag         = "AutoJoinMissionMap",
     Options      = {"Shiganshina", "Trost", "Outskirts", "Forest", "Utgard", "Docks", "Stohess", "Chapel"},
     CurrentOption = {},
+    Flag         = "AutoJoinMissionMap",
     MultipleOptions = false,
     Callback     = function(val)
         State.autoJoinMissionMap = type(val) == "table" and val[1] or val
@@ -2140,8 +2143,8 @@ JoinerTab:CreateSection("Raids")
 
 JoinerTab:CreateToggle({
     Name         = "Auto Join Raids",
-    Flag         = "AutoJoinRaids",
     CurrentValue = false,
+    Flag         = "AutoJoinRaids",
     Callback     = function(val)
         State.autoJoinRaids = val
     end,
@@ -2149,9 +2152,9 @@ JoinerTab:CreateToggle({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Raid",
-    Flag         = "AutoJoinRaidType",
     Options      = {"Attack Titan", "Armored Titan", "Female Titan", "Colossal Titan"},
     CurrentOption = {},
+    Flag         = "AutoJoinRaidType",
     MultipleOptions = false,
     Callback     = function(val)
         State.autoJoinRaidType = type(val) == "table" and val[1] or val
@@ -2160,9 +2163,9 @@ JoinerTab:CreateDropdown({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Difficulty",
-    Flag         = "AutoJoinRaidDiff",
     Options      = {"Hard", "Severe", "Aberrant","Hardest"},
     CurrentOption = {},
+    Flag         = "AutoJoinRaidDiff",
     MultipleOptions = false,
     Callback     = function(val)
         State.autoJoinRaidDiff = type(val) == "table" and val[1] or val
@@ -2171,9 +2174,9 @@ JoinerTab:CreateDropdown({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Modifiers",
-    Flag         = "AutoJoinRaidMods",
     Options      = {"No Perks", "No Skills", "No Memories", "Nightmare", "Oddball", "Injury Prone", "Chronic Injuries", "Fog", "Glass Cannon", "Time Trial", "Boring", "Simple"},
     CurrentOption = {},
+    Flag         = "AutoJoinRaidMods",
     MultipleOptions = true,
     Callback     = function(val)
         State.autoJoinRaidMods = type(val) == "table" and val or {val}
@@ -2184,8 +2187,8 @@ JoinerTab:CreateSection("Waves")
 
 JoinerTab:CreateToggle({
     Name         = "Auto Join Waves",
-    Flag         = "AutoJoinWaves",
     CurrentValue = false,
+    Flag         = "AutoJoinWaves",
     Callback     = function(val)
         State.autoJoinWaves = val
     end,
@@ -2193,9 +2196,9 @@ JoinerTab:CreateToggle({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Map",
-    Flag         = "AutoJoinWavesMap",
     Options      = {"Trost"},
     CurrentOption = {},
+    Flag         = "AutoJoinWavesMap",
     MultipleOptions = false,
     Callback     = function(val)
         State.autoJoinWavesMap = type(val) == "table" and val[1] or val
@@ -2207,8 +2210,8 @@ local FarmTab = Window:CreateTab("Main", "play")
 
 FarmTab:CreateToggle({
     Name         = "Auto Farm",
-    Flag         = "AutoFarm",
     CurrentValue = false,
+    Flag         = "AutoFarm",
     Callback     = function(val)
         if val then
             task.defer(startAutoAttack)
@@ -2220,8 +2223,8 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateToggle({
     Name         = "Auto Farm Raids",
-    Flag         = "AutoFarmRaids",
     CurrentValue = false,
+    Flag         = "AutoFarmRaids",
     Callback     = function(val)
         if val then
             task.defer(Raids.start)
@@ -2233,24 +2236,24 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateToggle({
     Name         = "Wait Before Killing Raid Boss",
-    Flag         = "WaitBeforeRaidBoss",
     CurrentValue = false,
+    Flag         = "WaitBeforeRaidBoss",
     Callback     = function(val) State.waitBeforeRaidBoss = val end,
 })
 
 FarmTab:CreateSlider({
     Name         = "Wait x Seconds Before Killing Raid Boss",
-    Flag         = "WaitRaidBossSeconds",
     Range        = {5, 300},
     Increment    = 5,
     CurrentValue = 30,
+    Flag         = "WaitRaidBossSeconds",
     Callback     = function(val) State.waitRaidBossSeconds = val end,
 })
 
 FarmTab:CreateToggle({
     Name         = "Auto Open Chests",
-    Flag         = "AutoOpenChests",
     CurrentValue = false,
+    Flag         = "AutoOpenChests",
     Callback     = function(val)
         Raids.State.autoOpenChests = val
     end,
@@ -2258,8 +2261,8 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateToggle({
     Name         = "Auto Open Emperor Chests",
-    Flag         = "AutoOpenEmperorChests",
     CurrentValue = false,
+    Flag         = "AutoOpenEmperorChests",
     Callback     = function(val)
         Raids.State.autoOpenEmperorChests = val
     end,
@@ -2269,10 +2272,10 @@ FarmTab:CreateSection("Auto Farm Settings")
 
 FarmTab:CreateSlider({
     Name         = "Auto Farm Speed",
-    Flag         = "AutoFarmSpeed",
     Range        = {100, 500},
     Increment    = 1,
     CurrentValue = 300,
+    Flag         = "AutoFarmSpeed",
     Callback     = function(val)
         State.tweenSpeed = val
     end,
@@ -2280,10 +2283,10 @@ FarmTab:CreateSlider({
 
 FarmTab:CreateSlider({
     Name         = "Float Height",
-    Flag         = "FloatHeight",
     Range        = {100, 300},
     Increment    = 10,
     CurrentValue = 200,
+    Flag         = "FloatHeight",
     Callback     = function(val)
         State.floatHeight = val
     end,
@@ -2291,40 +2294,40 @@ FarmTab:CreateSlider({
 
 FarmTab:CreateToggle({
     Name         = "Wait Before Farming",
-    Flag         = "WaitBeforeFarming",
     CurrentValue = State.waitBeforeFarming,
+    Flag         = "WaitBeforeFarming",
     Callback     = function(val) State.waitBeforeFarming = val end,
 })
 
 FarmTab:CreateSlider({
     Name         = "Wait x Seconds Before Starting Farming",
-    Flag         = "WaitFarmSeconds",
     Range        = {15, 600},
     Increment    = 1,
     CurrentValue = State.waitFarmSeconds,
+    Flag         = "WaitFarmSeconds",
     Callback     = function(val) State.waitFarmSeconds = val end,
 })
 
 FarmTab:CreateSlider({
     Name         = "Wait x Seconds Before Killing Last Titan",
-    Flag         = "WaitLastTitanSeconds",
     Range        = {30, 600},
     Increment    = 1,
     CurrentValue = State.waitLastTitanSeconds,
+    Flag         = "WaitLastTitanSeconds",
     Callback     = function(val) State.waitLastTitanSeconds = val end,
 })
 
 FarmTab:CreateToggle({
     Name         = "Auto Escape Grab",
-    Flag         = "AutoEscapeGrab",
     CurrentValue = false,
+    Flag         = "AutoEscapeGrab",
     Callback     = function(val) State.escapeEnabled = val end,
 })
 
 FarmTab:CreateToggle({
     Name         = "Return To Lobby After X Mins",
-    Flag         = "ReturnToLobbyEnabled",
     CurrentValue = State.returnToLobbyEnabled,
+    Flag         = "ReturnToLobbyEnabled",
     Callback     = function(val)
         State.returnToLobbyEnabled = val
     end,
@@ -2332,10 +2335,10 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateSlider({
     Name         = "Return To Lobby After X Mins",
-    Flag         = "ReturnToLobbyMinutes",
     Range        = {1, 120},
     Increment    = 1,
     CurrentValue = State.returnToLobbyMinutes,
+    Flag         = "ReturnToLobbyMinutes",
     Callback     = function(val)
         State.returnToLobbyMinutes = val
     end,
@@ -2343,8 +2346,8 @@ FarmTab:CreateSlider({
 
 FarmTab:CreateToggle({
     Name         = "Auto Retry",
-    Flag         = "AutoRetry",
     CurrentValue = State.autoRetry,
+    Flag         = "AutoRetry",
     Callback     = function(val)
         State.autoRetry = val
     end,
@@ -2352,8 +2355,8 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateToggle({
     Name         = "Auto Lobby",
-    Flag         = "AutoLobby",
     CurrentValue = State.autoLobby,
+    Flag         = "AutoLobby",
     Callback     = function(val)
         State.autoLobby = val
     end,
@@ -2361,8 +2364,8 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateToggle({
     Name         = "Return To Lobby After X Games",
-    Flag         = "ReturnToLobbyGamesEnabled",
     CurrentValue = false,
+    Flag         = "ReturnToLobbyGamesEnabled",
     Callback     = function(val)
         State.returnToLobbyGamesEnabled = val
     end,
@@ -2370,10 +2373,10 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateSlider({
     Name         = "Return To Lobby After X Games",
-    Flag         = "ReturnToLobbyGames",
     Range        = {1, 300},
     Increment    = 1,
     CurrentValue = State.returnToLobbyGames,
+    Flag         = "ReturnToLobbyGames",
     Callback     = function(val)
         State.returnToLobbyGames = val
     end,
@@ -2384,8 +2387,8 @@ local WebhookTab = Window:CreateTab("Webhook", "link")
 
 WebhookTab:CreateInput({
     Name                   = "Webhook URL",
-    Flag                   = "WebhookUrl",
     CurrentValue           = "",
+    Flag                   = "WebhookUrl",
     PlaceholderText        = "https://discord.com/api/webhooks/...",
     RemoveTextAfterFocusLost = false,
     Callback               = function(text)
@@ -2396,8 +2399,8 @@ WebhookTab:CreateInput({
 
 WebhookTab:CreateInput({
     Name                     = "Discord User ID (for drop pings)",
-    Flag                     = "WebhookDiscordId",
     CurrentValue             = "",
+    Flag                     = "WebhookDiscordId",
     PlaceholderText          = "Your Discord user ID...",
     RemoveTextAfterFocusLost = false,
     Callback                 = function(text)
@@ -2408,8 +2411,8 @@ WebhookTab:CreateInput({
 
 WebhookTab:CreateToggle({
     Name         = "Send Webhook On Round End",
-    Flag         = "WebhookEnabled",
     CurrentValue = false,
+    Flag         = "WebhookEnabled",
     Callback     = function(val) State.webhookEnabled = val end,
 })
 
@@ -2445,8 +2448,8 @@ local MiscTab = Window:CreateTab("Misc", "settings")
 
 MiscTab:CreateToggle({
     Name         = "Auto Upgrade Gear",
-    Flag         = "AutoUpgradeGear",
     CurrentValue = false,
+    Flag         = "AutoUpgradeGear",
     Callback     = function(val)
         State.autoUpgradeGear = val
         if val then
