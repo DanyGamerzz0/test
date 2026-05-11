@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -327,19 +327,17 @@ local function isUsingSpears()
     return player:GetAttribute("Weapon") == "Spears"
 end
 
+local spearSlot = 8
+
 local function spearAttackTitan(nape, titanRoot)
-    -- Fire spear (spear slot number cycles 1-8, odd = left, even = right)
-    -- We just try firing with a spear index; game picks available one
-    local spearNum = tostring(math.random(1, 8))
-    local fired = GET:InvokeServer("Spears", "S_Fire", spearNum)
+    local fired = GET:InvokeServer("Spears", "S_Fire", tostring(spearSlot))
     if not fired then return end
 
-    -- Small delay to let spear travel a bit
     task.wait(0.05)
+    POST:FireServer("Spears", "S_Explode", nape.Position)
 
-    -- Explode at nape position
-    local targetPos = nape.Position
-    POST:FireServer("Spears", "S_Explode", targetPos)
+    spearSlot = spearSlot - 1
+    if spearSlot < 1 then spearSlot = 8 end
 end
 
 -- ==================== FARM HELPERS ====================
