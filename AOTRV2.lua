@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.03"
+local script_version = "V0.04"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -655,13 +655,38 @@ local function startAutoAttack()
         local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
         if horizontalDist > 150 then return end
 
-        if isUsingSpears() then
+            if isUsingSpears() then
             spearAttackTitan(nape, titanRoot)
-        else
+            else
             POST:FireServer("Attacks", "Slash", true)
             local damage = 670 + math.random(55, 165)
             if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
             POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+
+            if State.multiHitEnabled then
+                local titans = workspace:FindFirstChild("Titans")
+                if titans then
+                    local count = 0
+                    for _, otherTitan in ipairs(titans:GetChildren()) do
+                        if count >= State.multiHitCount then break end
+                        local hum = otherTitan:FindFirstChild("Humanoid")
+                        if hum and hum.Health > 0 then
+                            local hb2 = otherTitan:FindFirstChild("Hitboxes", true)
+                            local otherNape = hb2 and hb2:FindFirstChild("Hit", true) and hb2.Hit:FindFirstChild("Nape")
+                            if otherNape and otherNape ~= nape then
+                                local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
+                                local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
+                                if dist <= 500 then
+                                    local d2 = 670 + math.random(55, 165)
+                                    if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
+                                    POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
+                                    count += 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
         end
     end)
 
@@ -1208,15 +1233,52 @@ function Raids.handleTitan(titan, useVulnerable, isRaidBoss)
         return
     end
 
-    if useVulnerable then
+        if useVulnerable then
         local vulnSpot = Raids.getVulnerableSpot(titan)
         if vulnSpot then
             Raids.registerHitVuln(vulnSpot)
         else
-            Raids.registerHit(nape, nil)
+            -- boss but no vuln spot yet, fire 5 fast
+            task.spawn(function()
+                POST:FireServer("Attacks", "Slash", true)
+                for i = 1, 5 do
+                    local damage = 670 + math.random(55, 165)
+                    if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+                    POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+                end
+            end)
         end
     else
-        Raids.registerHit(nape, nil)
+        -- defend phase: 1 register on main target + multi hit on nearby titans
+        POST:FireServer("Attacks", "Slash", true)
+        local damage = 670 + math.random(55, 165)
+        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+
+        if State.multiHitEnabled then
+            local titans = workspace:FindFirstChild("Titans")
+            if titans then
+                local count = 0
+                for _, otherTitan in ipairs(titans:GetChildren()) do
+                    if count >= State.multiHitCount then break end
+                    local hum = otherTitan:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local hb2 = otherTitan:FindFirstChild("Hitboxes", true)
+                        local otherNape = hb2 and hb2:FindFirstChild("Hit", true) and hb2.Hit:FindFirstChild("Nape")
+                        if otherNape and otherNape ~= nape then
+                            local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
+                            local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
+                            if dist <= 500 then
+                                local d2 = 670 + math.random(55, 165)
+                                if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
+                                POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
+                                count += 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
 end
 
@@ -2145,13 +2207,38 @@ function Waves.start()
         ).Magnitude
         if horizontalDist > 150 then return end
 
-if isUsingSpears() then
+            if isUsingSpears() then
             spearAttackTitan(nape, titanRoot)
         else
             POST:FireServer("Attacks", "Slash", true)
             local damage = 670 + math.random(55, 165)
             if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
             POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+
+            if State.multiHitEnabled then
+                local titans = workspace:FindFirstChild("Titans")
+                if titans then
+                    local count = 0
+                    for _, otherTitan in ipairs(titans:GetChildren()) do
+                        if count >= State.multiHitCount then break end
+                        local hum = otherTitan:FindFirstChild("Humanoid")
+                        if hum and hum.Health > 0 then
+                            local hb2 = otherTitan:FindFirstChild("Hitboxes", true)
+                            local otherNape = hb2 and hb2:FindFirstChild("Hit", true) and hb2.Hit:FindFirstChild("Nape")
+                            if otherNape and otherNape ~= nape then
+                                local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
+                                local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
+                                if dist <= 500 then
+                                    local d2 = 670 + math.random(55, 165)
+                                    if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
+                                    POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
+                                    count += 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
         end
     end)
 end
