@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.6"
+local script_version = "V0.61"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -162,9 +162,6 @@ local function enableCollision()
 end
 
 -- ==================== BODY MOVERS + LERP ====================
-local lerpCurrent    = nil
-local lerpTarget     = nil
-local lerpGyroTarget = nil
 local targetPosition = nil
 local targetGyro     = nil
 
@@ -1085,7 +1082,12 @@ function Raids.handleTitan(titan, useVulnerable)
     local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
     ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
 
-    if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 500 then return end
+    State.inHook = true
+    local actualPos = rootPart.Position
+    State.inHook = false
+
+    local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
+    if horizontalDist > 50 then return end
 
     if useVulnerable then
         local vulnSpot = Raids.getVulnerableSpot(titan)
@@ -1495,7 +1497,12 @@ function Raids.startArmored()
 
             local nape = Raids.getNape(titan)
             if not nape then return end
-            if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 500 then return end
+            State.inHook = true
+            local actualPos = rootPart.Position
+            State.inHook = false
+
+            local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
+            if horizontalDist > 50 then return end
 
             local vulnSpot = Raids.getVulnerableSpot(titan)
             if vulnSpot then
@@ -1576,10 +1583,18 @@ function Raids.startFemale()
         ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
     end
 
-    local function attackTitan(titan)
-        local nape = Raids.getNape(titan)
-        if not nape then return end
-        if not lerpCurrent or (lerpTarget - lerpCurrent).Magnitude > 500 then return end
+local function attackTitan(titan)
+    local titanRoot = titan:FindFirstChild("HumanoidRootPart")  -- ADD THIS LINE
+    if not titanRoot then return end  -- ADD THIS LINE
+    local nape = Raids.getNape(titan)
+    if not nape then return end
+    
+    State.inHook = true
+    local actualPos = rootPart.Position
+    State.inHook = false
+
+    local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
+    if horizontalDist > 50 then return end
         local vulnSpot = Raids.getVulnerableSpot(titan)
         if vulnSpot then
             Raids.registerHitVuln(vulnSpot)
@@ -2090,9 +2105,9 @@ JoinerTab:CreateDropdown({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Objective",
-    Flag         = "AutoJoinMissionObj",
     Options      = {"Skirmish", "Breach", "Random"},
     CurrentOption = {},
+    Flag = "AutoJoinMissionObj",
     MultipleOptions = false,
     Callback     = function(val)
         State.autoJoinMissionObj = type(val) == "table" and val[1] or val
@@ -2101,9 +2116,9 @@ JoinerTab:CreateDropdown({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Difficulty",
-    Flag         = "AutoJoinMissionDiff",
     Options      = {"Easy", "Normal", "Hard", "Severe", "Aberrant", "Hardest"},
     CurrentOption = {},
+    Flag = "AutoJoinMissionDiff",
     MultipleOptions = false,
     Callback     = function(val)
         State.autoJoinMissionDiff = type(val) == "table" and val[1] or val
@@ -2112,9 +2127,9 @@ JoinerTab:CreateDropdown({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Modifiers",
-    Flag         = "AutoJoinMissionMods",
     Options      = {"No Perks", "No Skills", "No Memories", "Nightmare", "Oddball", "Injury Prone", "Chronic Injuries", "Fog", "Glass Cannon", "Time Trial", "Boring", "Simple"},
     CurrentOption = {},
+    Flag         = "AutoJoinMissionMods",
     MultipleOptions = true,
     Callback     = function(val)
         State.autoJoinMissionMods = type(val) == "table" and val or {val}
@@ -2456,7 +2471,7 @@ MiscTab:CreateToggle({
         if val then
             local queuedScript = string.format([[
                 getgenv().__LIXHUB_RUNS = %d
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTRV2.lua"))()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTR.lua"))()
             ]], State.sessionRuns)
             queue_on_teleport(queuedScript)
             Util.notify("Auto Execute", "Script will auto execute on teleport", 3, "check")
@@ -2491,4 +2506,5 @@ MiscTab:CreateButton({
 if not isInLobby() then
     setupAutoEscape()
 end
+
 Rayfield:LoadConfiguration()
