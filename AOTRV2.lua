@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.65"
+local script_version = "V0.66"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2472,6 +2472,15 @@ FarmTab:CreateToggle({
     end,
 })
 
+FarmTab:CreateSlider({
+    Name         = "Wait x Seconds Before Killing Last Titan",
+    Range        = {30, 600},
+    Increment    = 1,
+    CurrentValue = State.waitLastTitanSeconds,
+    Flag         = "WaitLastTitanSeconds",
+    Callback     = function(val) State.waitLastTitanSeconds = val end,
+})
+
 FarmTab:CreateSection("Raids")
 
 FarmTab:CreateToggle({
@@ -2503,6 +2512,22 @@ FarmTab:CreateToggle({
     Callback     = function(val)
         Raids.State.autoOpenEmperorChests = val
     end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Wait Before Killing Raid Boss",
+    CurrentValue = false,
+    Flag         = "WaitBeforeRaidBoss",
+    Callback     = function(val) State.waitBeforeRaidBoss = val end,
+})
+
+FarmTab:CreateSlider({
+    Name         = "Wait x Seconds Before Killing Raid Boss",
+    Range        = {5, 300},
+    Increment    = 5,
+    CurrentValue = 30,
+    Flag         = "WaitRaidBossSeconds",
+    Callback     = function(val) State.waitRaidBossSeconds = val end,
 })
 
 FarmTab:CreateSection("Waves")
@@ -2572,6 +2597,26 @@ FarmTab:CreateDropdown({
     end,
 })
 
+WavesTab:CreateToggle({
+    Name         = "Return to Lobby After X Waves",
+    CurrentValue = false,
+    Flag         = "WavesReturnEnabled",
+    Callback     = function(val)
+        Waves.State.returnAfterWaves = val
+    end,
+})
+
+WavesTab:CreateSlider({
+    Name         = "Return After X Waves",
+    Range        = {1, 100},
+    Increment    = 1,
+    CurrentValue = 10,
+    Flag         = "WavesReturnCount",
+    Callback     = function(val)
+        Waves.State.returnWaveCount = val
+    end,
+})
+
 FarmTab:CreateSection("Settings")
 
 FarmTab:CreateSlider({
@@ -2597,31 +2642,6 @@ FarmTab:CreateSlider({
 })
 
 FarmTab:CreateSection("Security")
-
-FarmTab:CreateToggle({
-    Name         = "Wait Before Killing Raid Boss",
-    CurrentValue = false,
-    Flag         = "WaitBeforeRaidBoss",
-    Callback     = function(val) State.waitBeforeRaidBoss = val end,
-})
-
-FarmTab:CreateSlider({
-    Name         = "Wait x Seconds Before Killing Raid Boss",
-    Range        = {5, 300},
-    Increment    = 5,
-    CurrentValue = 30,
-    Flag         = "WaitRaidBossSeconds",
-    Callback     = function(val) State.waitRaidBossSeconds = val end,
-})
-
-FarmTab:CreateSlider({
-    Name         = "Wait x Seconds Before Killing Last Titan",
-    Range        = {30, 600},
-    Increment    = 1,
-    CurrentValue = State.waitLastTitanSeconds,
-    Flag         = "WaitLastTitanSeconds",
-    Callback     = function(val) State.waitLastTitanSeconds = val end,
-})
 
 FarmTab:CreateToggle({
     Name         = "Wait Before Farming",
