@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -329,7 +329,14 @@ end
 
 local spearSlot = 8
 
+local lastSpearFiredTime = 0
+local SPEAR_COOLDOWN = 1 -- seconds between each spear fire, adjust as needed
+
 local function spearAttackTitan(nape, titanRoot)
+    local now = tick()
+    if now - lastSpearFiredTime < SPEAR_COOLDOWN then return end
+    lastSpearFiredTime = now
+
     local fired = GET:InvokeServer("Spears", "S_Fire", tostring(spearSlot))
     if not fired then return end
 
