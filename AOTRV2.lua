@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.63"
+local script_version = "V0.64"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2208,8 +2208,10 @@ JoinerTab:CreateDropdown({
 -- ===== TAB: Farm =====
 local FarmTab = Window:CreateTab("Main", "play")
 
+FarmTab:CreateSection("Missions/Waves")
+
 FarmTab:CreateToggle({
-    Name         = "Auto Farm",
+    Name         = "Auto Farm (Missions/Waves)",
     CurrentValue = false,
     Flag         = "AutoFarm",
     Callback     = function(val)
@@ -2220,6 +2222,8 @@ FarmTab:CreateToggle({
         end
     end,
 })
+
+FarmTab:CreateSection("Raids")
 
 FarmTab:CreateToggle({
     Name         = "Auto Farm Raids",
@@ -2232,22 +2236,6 @@ FarmTab:CreateToggle({
             Raids.stop()
         end
     end,
-})
-
-FarmTab:CreateToggle({
-    Name         = "Wait Before Killing Raid Boss",
-    CurrentValue = false,
-    Flag         = "WaitBeforeRaidBoss",
-    Callback     = function(val) State.waitBeforeRaidBoss = val end,
-})
-
-FarmTab:CreateSlider({
-    Name         = "Wait x Seconds Before Killing Raid Boss",
-    Range        = {5, 300},
-    Increment    = 5,
-    CurrentValue = 30,
-    Flag         = "WaitRaidBossSeconds",
-    Callback     = function(val) State.waitRaidBossSeconds = val end,
 })
 
 FarmTab:CreateToggle({
@@ -2268,7 +2256,7 @@ FarmTab:CreateToggle({
     end,
 })
 
-FarmTab:CreateSection("Auto Farm Settings")
+FarmTab:CreateSection("Settings")
 
 FarmTab:CreateSlider({
     Name         = "Auto Farm Speed",
@@ -2292,6 +2280,33 @@ FarmTab:CreateSlider({
     end,
 })
 
+FarmTab:CreateSection("Security")
+
+FarmTab:CreateToggle({
+    Name         = "Wait Before Killing Raid Boss",
+    CurrentValue = false,
+    Flag         = "WaitBeforeRaidBoss",
+    Callback     = function(val) State.waitBeforeRaidBoss = val end,
+})
+
+FarmTab:CreateSlider({
+    Name         = "Wait x Seconds Before Killing Raid Boss",
+    Range        = {5, 300},
+    Increment    = 5,
+    CurrentValue = 30,
+    Flag         = "WaitRaidBossSeconds",
+    Callback     = function(val) State.waitRaidBossSeconds = val end,
+})
+
+FarmTab:CreateSlider({
+    Name         = "Wait x Seconds Before Killing Last Titan",
+    Range        = {30, 600},
+    Increment    = 1,
+    CurrentValue = State.waitLastTitanSeconds,
+    Flag         = "WaitLastTitanSeconds",
+    Callback     = function(val) State.waitLastTitanSeconds = val end,
+})
+
 FarmTab:CreateToggle({
     Name         = "Wait Before Farming",
     CurrentValue = State.waitBeforeFarming,
@@ -2306,22 +2321,6 @@ FarmTab:CreateSlider({
     CurrentValue = State.waitFarmSeconds,
     Flag         = "WaitFarmSeconds",
     Callback     = function(val) State.waitFarmSeconds = val end,
-})
-
-FarmTab:CreateSlider({
-    Name         = "Wait x Seconds Before Killing Last Titan",
-    Range        = {30, 600},
-    Increment    = 1,
-    CurrentValue = State.waitLastTitanSeconds,
-    Flag         = "WaitLastTitanSeconds",
-    Callback     = function(val) State.waitLastTitanSeconds = val end,
-})
-
-FarmTab:CreateToggle({
-    Name         = "Auto Escape Grab",
-    CurrentValue = false,
-    Flag         = "AutoEscapeGrab",
-    Callback     = function(val) State.escapeEnabled = val end,
 })
 
 FarmTab:CreateToggle({
@@ -2342,6 +2341,15 @@ FarmTab:CreateSlider({
     Callback     = function(val)
         State.returnToLobbyMinutes = val
     end,
+})
+
+FarmTab:CreateSection("Game")
+
+FarmTab:CreateToggle({
+    Name         = "Auto Escape Grab",
+    CurrentValue = false,
+    Flag         = "AutoEscapeGrab",
+    Callback     = function(val) State.escapeEnabled = val end,
 })
 
 FarmTab:CreateToggle({
