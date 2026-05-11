@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.02"
+local script_version = "V0.03"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -78,7 +78,7 @@ local State = {
     sessionRuns = getgenv().__LIXHUB_RUNS or 0,
     autoJoinMissions       = false,
     autoJoinMissionMap     = "",
-    autoJoinMissionObj     = "",
+    autoJoinMissionObj     = "Skirmish",
     autoJoinMissionDiff    = "",
     autoJoinMissionMods    = {},
 
