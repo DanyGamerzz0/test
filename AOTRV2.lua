@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.06"
+local script_version = "V0.07"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -340,8 +340,11 @@ local function spearAttackTitan(nape, titanRoot)
     local fired = GET:InvokeServer("Spears", "S_Fire", tostring(spearSlot))
     if not fired then return end
 
-    task.wait(0.05)
-    POST:FireServer("Spears", "S_Explode", nape.Position)
+    task.spawn(function()
+        for i = 1, 5 do
+            POST:FireServer("Spears", "S_Explode", nape.Position)
+        end
+    end)
 
     spearSlot = spearSlot - 1
     if spearSlot < 1 then spearSlot = 8 end
