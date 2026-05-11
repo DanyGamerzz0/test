@@ -837,7 +837,7 @@ local function onRoundEnd(encoded)
 
             task.wait(5)
             if forceLobby then
-                Util.notify("Auto Farm", "Game limit reached, returning to lobby...", 3, "house")
+                Util.notify("Auto Farm", "Game limit reached, returning to lobby...", 3)
                 while true do
                     leaveViaNavigation()
                     task.wait(3)
@@ -850,7 +850,7 @@ local function onRoundEnd(encoded)
                     task.wait(3)
                 end
             elseif State.autoLobby then
-                Util.notify("Auto Farm", "Returning to lobby...", 3, "house")
+                Util.notify("Auto Farm", "Returning to lobby...", 3)
                 while State.autoLobby do
                     print("[LixHub] Attempting leave via UI navigation...")
                     leaveViaNavigation()
@@ -1953,7 +1953,7 @@ function Waves.start()
             local wave = getCurrentWave()
             if wave >= Waves.State.returnWaveCount then
                 Waves.stop()
-                Util.notify("Waves", "Wave limit reached, returning to lobby...", 4, "house")
+                Util.notify("Waves", "Wave limit reached, returning to lobby...", 4)
                 task.delay(2, function()
                     game:GetService("TeleportService"):Teleport(14916516914, player)
                 end)
@@ -2369,7 +2369,7 @@ JoinerTab:CreateDropdown({
 JoinerTab:CreateDropdown({
     Name         = "Select Objective",
     Options      = {"Skirmish", "Breach", "Random"},
-    CurrentOption = {},
+    CurrentOption = {"Skirmish"},
     Flag = "AutoJoinMissionObj",
     MultipleOptions = false,
     Callback     = function(val)
@@ -2380,7 +2380,7 @@ JoinerTab:CreateDropdown({
 JoinerTab:CreateDropdown({
     Name         = "Select Difficulty",
     Options      = {"Easy", "Normal", "Hard", "Severe", "Aberrant", "Hardest"},
-    CurrentOption = {},
+    CurrentOption = {"Normal"},
     Flag = "AutoJoinMissionDiff",
     MultipleOptions = false,
     Callback     = function(val)
