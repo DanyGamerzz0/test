@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.08"
+local script_version = "V0.09"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -334,7 +334,7 @@ local spearSlot = 8
 local lastSpearFiredTime = 0
 local SPEAR_COOLDOWN = 1 -- seconds between each spear fire, adjust as needed
 
-local function spearAttackTitan(nape, titanRoot)
+local function spearAttackTitan(nape, titanRoot, isRaidBoss)
     local now = tick()
     if now - lastSpearFiredTime < SPEAR_COOLDOWN then return end
     lastSpearFiredTime = now
@@ -343,8 +343,10 @@ local function spearAttackTitan(nape, titanRoot)
     if not fired then return end
 
     task.spawn(function()
+        local explodeCount = isRaidBoss and 5 or 1
+
         -- Always hit the main target
-        for i = 1, 5 do
+        for i = 1, explodeCount do
             POST:FireServer("Spears", "S_Explode", nape.Position)
         end
 
@@ -360,10 +362,14 @@ local function spearAttackTitan(nape, titanRoot)
                         local hb = titan:FindFirstChild("Hitboxes", true)
                         local otherNape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
                         if otherNape and otherNape ~= nape then
-                            for i = 1, 5 do
-                                POST:FireServer("Spears", "S_Explode", otherNape.Position)
+                            local otherHrp = titan:FindFirstChild("HumanoidRootPart")
+                            local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
+                            if dist <= 500 then
+                                for i = 1, explodeCount do
+                                    POST:FireServer("Spears", "S_Explode", otherNape.Position)
+                                end
+                                count += 1
                             end
-                            count += 1
                         end
                     end
                 end
@@ -1173,7 +1179,7 @@ function Raids.clickFinish()
     end)
 end
 
-function Raids.handleTitan(titan, useVulnerable)
+function Raids.handleTitan(titan, useVulnerable, isRaidBoss)
     local titanRoot = titan:FindFirstChild("HumanoidRootPart")
     if not titanRoot then return end
     local nape = Raids.getNape(titan)
@@ -1190,8 +1196,8 @@ function Raids.handleTitan(titan, useVulnerable)
     local horizontalDist = Vector2.new(actualPos.X - titanRoot.Position.X, actualPos.Z - titanRoot.Position.Z).Magnitude
     if horizontalDist > 50 then return end
 
-if isUsingSpears() then
-        spearAttackTitan(nape, titanRoot)
+    if isUsingSpears() then
+        spearAttackTitan(nape, titanRoot, isRaidBoss)
         return
     end
 
@@ -1428,7 +1434,7 @@ function Raids.startEren()
             if titan:GetAttribute("State") == "Roar" then return end
             if titan:GetAttribute("State") == "Berserk_Mode" then return end
 
-            Raids.handleTitan(titan, true)
+            Raids.handleTitan(titan, true, true)
         end
     end)
 end
@@ -1594,6 +1600,9 @@ function Raids.startArmored()
             if not titan then return end
             if titan:GetAttribute("State") == "Roar" then return end
 
+            local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+            if not titanRoot then return end
+
             local nape = Raids.getNape(titan)
             if not nape then return end
             State.inHook = true
@@ -1678,7 +1687,7 @@ function Raids.startFemale()
         ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
     end
 
-local function attackTitan(titan)
+local function attackTitan(titan, isRaidBoss)
     local titanRoot = titan:FindFirstChild("HumanoidRootPart")
     if not titanRoot then return end
     local nape = Raids.getNape(titan)
@@ -1692,7 +1701,7 @@ local function attackTitan(titan)
     if horizontalDist > 50 then return end
 
     if isUsingSpears() then
-        spearAttackTitan(nape, titanRoot)
+        spearAttackTitan(nape, titanRoot, isRaidBoss)
         return
     end
 
@@ -1792,7 +1801,7 @@ end
             end
 
             if not titan then return end
-            attackTitan(titan)
+            attackTitan(titan, true)
 
         -- ===== PHASE 2: ATTACK TITAN =====
         elseif Raids.State.phase == "attack_titan" then
@@ -1808,7 +1817,7 @@ end
             if not titan then return end
             if titan:GetAttribute("State") == "Roar" then return end
             if titan:GetAttribute("State") == "Berserk_Mode" then return end
-            attackTitan(titan)
+            attackTitan(titan, true)
 
         -- ===== PHASE 3: FINISH FEMALE TITAN =====
         elseif Raids.State.phase == "female_2" then
@@ -1846,7 +1855,7 @@ end
 
             if not titan then return end
             if titan:GetAttribute("State") == "Roar" then return end
-            attackTitan(titan)
+            attackTitan(titan, true)
         end
     end)
 end
