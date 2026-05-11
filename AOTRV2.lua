@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.64"
+local script_version = "V0.65"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -105,6 +105,22 @@ Raids.State = {
     stopRequested = false,
 }
 
+local Waves = {}
+
+Waves.State = {
+    active           = false,
+    stopRequested    = false,
+    connection       = nil,
+    autoVote         = false,
+    returnAfterWaves = false,
+    returnWaveCount  = 10,
+    autoUpgrade      = false,
+    upgradeConnection = nil,
+    autoBuyUpgrades  = false,
+    buyUpgradesList  = {},
+    buyConnection    = nil,
+}
+
 local Movers = {
     bodyPos  = nil,
     bodyGyro = nil,
@@ -123,6 +139,7 @@ local currentTarget = nil
 -- "idle" | "swapping" | "refilling"
 local ReloadState     = "idle"
 local RaidReloadState = "idle"
+local WaveReloadState = "idle"
 local Util = {}
 local PERK_RARITIES = {}
 local ITEM_RARITIES = {}
@@ -1104,20 +1121,11 @@ function Raids.handleTitan(titan, useVulnerable)
     end
 end
 
-local cannonImpactConnection = nil
-
-local cannonLoopActive = false
-
-local function stopCannonLoop()
-    cannonLoopActive = false
-end
-
 function Raids.stop()
     Raids.State.stopRequested = true
     Raids.State.active        = false
     Raids.State.phase         = "defend"
     RaidReloadState           = "idle"
-    stopCannonLoop()  -- add this
     if Raids.State.connection then
         Raids.State.connection:Disconnect()
         Raids.State.connection = nil
@@ -1332,24 +1340,6 @@ function Raids.startEren()
 
     Util.notify("Auto Farm Raids", "Raid Farm Started", 3, "shield")
 end
-
-    local function getColossalTitan()
-        local titans = workspace:FindFirstChild("Titans")
-        if not titans then return nil end
-        local t = titans:FindFirstChild("Colossal_Titan")
-        if not t then return nil end
-        local hum = t:FindFirstChild("Humanoid")
-        if not hum or hum.Health <= 0 then return nil end
-        return t
-    end
-
-    local function getColossalHpPercent()
-        local t = getColossalTitan()
-        if not t then return 100 end
-        local hum = t:FindFirstChild("Humanoid")
-        if not hum then return 100 end
-        return (hum.Health / hum.MaxHealth) * 100
-    end
 
 function Raids.startArmored()
     if isInLobby() then return end
@@ -1770,6 +1760,265 @@ local function stopAutoUpgrade()
         task.cancel(autoUpgradeConnection)
         autoUpgradeConnection = nil
     end
+end
+
+local function getWavesBase()
+    return workspace.Unclimbable
+        and workspace.Unclimbable.Objective
+        and workspace.Unclimbable.Objective:FindFirstChild("Waves")
+end
+
+local function getCurrentWave()
+    local obj = ReplicatedStorage:FindFirstChild("Objectives")
+    if not obj then return 0 end
+    local v = obj:FindFirstChild("Clearance")
+    return v and v.Value or 0
+end
+
+local function getClosestTitanToBase()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+
+    local base = getWavesBase()
+    local anchor
+    if base then
+        local part = base.PrimaryPart or base:FindFirstChildWhichIsA("BasePart")
+        anchor = part and part.Position or rootPart.Position
+    else
+        anchor = rootPart.Position
+    end
+
+    local bestTitan, bestDist = nil, math.huge
+    for _, titan in ipairs(titans:GetChildren()) do
+        local hrp = titan:FindFirstChild("HumanoidRootPart")
+        local hum = titan:FindFirstChild("Humanoid")
+        if hrp and hum and hum.Health > 0 then
+            local hb   = titan:FindFirstChild("Hitboxes", true)
+            local nape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
+            if nape then
+                local dist = (hrp.Position - anchor).Magnitude
+                if dist < bestDist then
+                    bestDist  = dist
+                    bestTitan = titan
+                end
+            end
+        end
+    end
+    return bestTitan
+end
+
+local function tryVoteWave()
+    pcall(function()
+        local voteBtn = player.PlayerGui.Interface.Waves.Inner.Main:FindFirstChild("Vote")
+        if voteBtn and voteBtn.Visible then
+            GuiService.SelectedObject = voteBtn
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+            task.wait(0.05)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+            print("[LixHub] Waves: Voted to start/skip wave")
+        end
+    end)
+end
+
+local function startWavesAutoVoteLoop()
+    task.spawn(function()
+        while Waves.State.active and not Waves.State.stopRequested do
+            task.wait(1)
+            if Waves.State.autoVote then
+                local inner = player.PlayerGui.Interface:FindFirstChild("Waves")
+                if inner and inner:FindFirstChild("Inner") and inner.Inner.Visible then
+                    tryVoteWave()
+                end
+            end
+        end
+    end)
+end
+
+function Waves.startAutoUpgrade()
+    if Waves.State.upgradeConnection then return end
+    Waves.State.upgradeConnection = task.spawn(function()
+        while Waves.State.autoUpgrade do
+            task.wait(2)
+            pcall(function()
+                GET:InvokeServer("Equipment", "Upgrade", {
+                    "Crit_Chance",
+                    "Blade_Durability",
+                    "ODM_Damage",
+                    "Crit_Damage",
+                    "ODM_Speed",
+                    "ODM_Control",
+                    "ODM_Range",
+                    "ODM_Gas"
+                })
+            end)
+        end
+    end)
+end
+
+function Waves.stopAutoUpgrade()
+    Waves.State.autoUpgrade = false
+    if Waves.State.upgradeConnection then
+        task.cancel(Waves.State.upgradeConnection)
+        Waves.State.upgradeConnection = nil
+    end
+end
+
+function Waves.startAutoBuy()
+    if Waves.State.buyConnection then return end
+    Waves.State.buyConnection = task.spawn(function()
+        while Waves.State.autoBuyUpgrades do
+            task.wait(1.5)
+            if #Waves.State.buyUpgradesList > 0 then
+                pcall(function()
+                    GET:InvokeServer("Waves", "Upgrade", Waves.State.buyUpgradesList)
+                end)
+            end
+        end
+    end)
+end
+
+function Waves.stopAutoBuy()
+    Waves.State.autoBuyUpgrades = false
+    if Waves.State.buyConnection then
+        task.cancel(Waves.State.buyConnection)
+        Waves.State.buyConnection = nil
+    end
+end
+
+function Waves.stop()
+    Waves.State.stopRequested = true
+    Waves.State.active        = false
+    WaveReloadState           = "idle"
+    if Waves.State.connection then
+        Waves.State.connection:Disconnect()
+        Waves.State.connection = nil
+    end
+    removeBodyMovers()
+    disableSync()
+    Util.notify("Auto Farm Waves", "Waves farm stopped.", 3, "cog")
+    print("[LixHub] Waves: Stopped")
+end
+
+function Waves.start()
+    if isInLobby() then return end
+    if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Waves.State.stopRequested
+        if Waves.State.stopRequested then return end
+    end
+
+    if Waves.State.connection then
+        Waves.State.connection:Disconnect()
+        Waves.State.connection = nil
+    end
+
+    Waves.State.stopRequested = false
+    Waves.State.active        = true
+    WaveReloadState           = "idle"
+
+    print("[LixHub] Waves: Starting farm")
+    Util.notify("Auto Farm Waves", "Waves Farm Started", 3, "waves")
+
+    disableCollision()
+    local _hum = character:FindFirstChildOfClass("Humanoid")
+    if _hum then _hum.PlatformStand = true; _hum.AutoRotate = false end
+    enableSync()
+
+    startWavesAutoVoteLoop()
+
+    local tickAccum = 0
+
+    Waves.State.connection = RunService.Heartbeat:Connect(function(dt)
+        if Waves.State.stopRequested then
+            if Waves.State.connection then
+                Waves.State.connection:Disconnect()
+                Waves.State.connection = nil
+            end
+            return
+        end
+
+        -- Return to lobby after X waves
+        if Waves.State.returnAfterWaves then
+            local wave = getCurrentWave()
+            if wave >= Waves.State.returnWaveCount then
+                Waves.stop()
+                Util.notify("Waves", "Wave limit reached, returning to lobby...", 4, "house")
+                task.delay(2, function()
+                    game:GetService("TeleportService"):Teleport(14916516914, player)
+                end)
+                return
+            end
+        end
+
+        -- Blade/cassette reload logic (mirrors your existing pattern)
+        local cassettesLeft, segmentsLeft = getBladeStatus()
+
+        if segmentsLeft <= 0 and cassettesLeft > 0 and WaveReloadState == "idle" then
+            WaveReloadState = "swapping"
+            task.spawn(function()
+                local result
+                repeat
+                    result = GET:InvokeServer("Blades", "Reload")
+                    task.wait()
+                    local c, s = getBladeStatus()
+                    if s > 0 then break end
+                until result == true or WaveReloadState ~= "swapping"
+                WaveReloadState = "idle"
+            end)
+            return
+        end
+
+        if segmentsLeft <= 0 and cassettesLeft <= 0 and WaveReloadState == "idle" then
+            WaveReloadState = "refilling"
+            task.spawn(function()
+                local refillPoint = findRefillPoint()
+                repeat
+                    GET:InvokeServer("Attacks", "Reload", refillPoint)
+                    task.wait()
+                    local c, _ = getBladeStatus()
+                    if c > 0 then break end
+                until WaveReloadState ~= "refilling"
+                repeat task.wait() until (select(2, getBladeStatus())) > 0 or WaveReloadState ~= "refilling"
+                WaveReloadState = "idle"
+            end)
+            return
+        end
+
+        if WaveReloadState ~= "idle" then return end
+
+        tickAccum = tickAccum + dt
+        if tickAccum < State.attackInterval then return end
+        tickAccum = 0
+
+        local titan = getClosestTitanToBase()
+        if not titan then return end
+
+        local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+        if not titanRoot then return end
+
+        local hb   = titan:FindFirstChild("Hitboxes", true)
+        local nape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
+        if not nape then return end
+
+        State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+        local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+        ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+
+        State.inHook = true
+        local actualPos = rootPart.Position
+        State.inHook = false
+
+        local horizontalDist = Vector2.new(
+            actualPos.X - titanRoot.Position.X,
+            actualPos.Z - titanRoot.Position.Z
+        ).Magnitude
+        if horizontalDist > 75 then return end
+
+        POST:FireServer("Attacks", "Slash", true)
+        local damage = 670 + math.random(55, 165)
+        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+    end)
 end
 
 -- ==================== RAYFIELD UI ====================
@@ -2208,10 +2457,10 @@ JoinerTab:CreateDropdown({
 -- ===== TAB: Farm =====
 local FarmTab = Window:CreateTab("Main", "play")
 
-FarmTab:CreateSection("Missions/Waves")
+FarmTab:CreateSection("Missions")
 
 FarmTab:CreateToggle({
-    Name         = "Auto Farm (Missions/Waves)",
+    Name         = "Auto Farm (Missions)",
     CurrentValue = false,
     Flag         = "AutoFarm",
     Callback     = function(val)
@@ -2226,7 +2475,7 @@ FarmTab:CreateToggle({
 FarmTab:CreateSection("Raids")
 
 FarmTab:CreateToggle({
-    Name         = "Auto Farm Raids",
+    Name         = "Auto Farm (Raids)",
     CurrentValue = false,
     Flag         = "AutoFarmRaids",
     Callback     = function(val)
@@ -2253,6 +2502,73 @@ FarmTab:CreateToggle({
     Flag         = "AutoOpenEmperorChests",
     Callback     = function(val)
         Raids.State.autoOpenEmperorChests = val
+    end,
+})
+
+FarmTab:CreateSection("Waves")
+
+FarmTab:CreateToggle({
+    Name         = "Auto Farm (Waves)",
+    CurrentValue = false,
+    Flag         = "AutoFarmWaves",
+    Callback     = function(val)
+        if val then
+            task.defer(Waves.start)
+        else
+            Waves.stop()
+        end
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Start / Skip Wave",
+    CurrentValue = false,
+    Flag         = "WavesAutoVote",
+    Callback     = function(val)
+        Waves.State.autoVote = val
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Upgrade Gear",
+    CurrentValue = false,
+    Flag         = "WavesAutoUpgradeGear",
+    Callback     = function(val)
+        Waves.State.autoUpgrade = val
+        if val then
+            Waves.startAutoUpgrade()
+            Util.notify("Waves", "Auto gear upgrade enabled", 3, "arrow-up")
+        else
+            Waves.stopAutoUpgrade()
+            Util.notify("Waves", "Auto gear upgrade disabled", 3, "x")
+        end
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Buy Base Upgrades",
+    CurrentValue = false,
+    Flag         = "WavesAutoBuy",
+    Callback     = function(val)
+        Waves.State.autoBuyUpgrades = val
+        if val then
+            Waves.startAutoBuy()
+            Util.notify("Waves", "Auto buy upgrades enabled", 3, "arrow-up")
+        else
+            Waves.stopAutoBuy()
+            Util.notify("Waves", "Auto buy upgrades disabled", 3, "x")
+        end
+    end,
+})
+
+FarmTab:CreateDropdown({
+    Name            = "Select Upgrades to Buy",
+    Options         = {"Revive", "Regen", "Replenish", "Refills", "Max"},
+    CurrentOption   = {},
+    Flag            = "WavesBuyUpgradesList",
+    MultipleOptions = true,
+    Callback        = function(val)
+        Waves.State.buyUpgradesList = type(val) == "table" and val or {val}
     end,
 })
 
