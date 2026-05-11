@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.67"
+local script_version = "V0.68"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -408,11 +408,25 @@ local function startLobbyTimer()
 end
 
 local function findRefillPoint()
+    -- Try mission/standard location first
     local tanks = workspace.Unclimbable
         and workspace.Unclimbable.Props
         and workspace.Unclimbable.Props.HQ
         and workspace.Unclimbable.Props.HQ.GasTanks
-    return tanks and tanks:FindFirstChild("Refill")
+    if tanks and tanks:FindFirstChild("Refill") then
+        return tanks.Refill
+    end
+
+    -- Fallback for waves
+    local wavesTanks = workspace.Unclimbable
+        and workspace.Unclimbable.Objective
+        and workspace.Unclimbable.Objective.Waves
+        and workspace.Unclimbable.Objective.Waves.GasTanks
+    if wavesTanks and wavesTanks:FindFirstChild("Refill") then
+        return wavesTanks.Refill
+    end
+
+    return nil
 end
 
 local function startAutoAttack()
@@ -1870,9 +1884,12 @@ function Waves.startAutoBuy()
         while Waves.State.autoBuyUpgrades do
             task.wait(1.5)
             if #Waves.State.buyUpgradesList > 0 then
-                pcall(function()
-                    GET:InvokeServer("Waves", "Upgrade", Waves.State.buyUpgradesList)
-                end)
+                for _, upgrade in ipairs(Waves.State.buyUpgradesList) do
+                    pcall(function()
+                        GET:InvokeServer("Waves", "Upgrade", upgrade)
+                    end)
+                    task.wait(0.1)
+                end
             end
         end
     end)
