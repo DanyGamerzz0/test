@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.07"
+local script_version = "V0.08"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -49,6 +49,8 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    multiHitEnabled = false,
+    multiHitCount   = 3,
     autoJoinDelaySecs = 3,
     syncEnabled          = false,
     syncedPosition       = nil,
@@ -341,8 +343,31 @@ local function spearAttackTitan(nape, titanRoot)
     if not fired then return end
 
     task.spawn(function()
+        -- Always hit the main target
         for i = 1, 5 do
             POST:FireServer("Spears", "S_Explode", nape.Position)
+        end
+
+        -- Multi hit: also explode at other titans' napes
+        if State.multiHitEnabled then
+            local titans = workspace:FindFirstChild("Titans")
+            if titans then
+                local count = 0
+                for _, titan in ipairs(titans:GetChildren()) do
+                    if count >= State.multiHitCount then break end
+                    local hum = titan:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local hb = titan:FindFirstChild("Hitboxes", true)
+                        local otherNape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
+                        if otherNape and otherNape ~= nape then
+                            for i = 1, 5 do
+                                POST:FireServer("Spears", "S_Explode", otherNape.Position)
+                            end
+                            count += 1
+                        end
+                    end
+                end
+            end
         end
     end)
 
@@ -409,7 +434,6 @@ local function stopAutoAttack()
     removeBodyMovers()
     disableSync()
     stopLobbyTimer()
-    Util.notify("Auto Farm", "Farm stopped.", 3, "cog")
 end
 
 local function teleportToLobby()
@@ -628,7 +652,6 @@ local function startAutoAttack()
         end
     end)
 
-    Util.notify("Auto Farm", "Auto Farm Started", 3, "cog")
     if State.returnToLobbyEnabled then
         startLobbyTimer()
     end
@@ -1195,7 +1218,6 @@ function Raids.stop()
     end
     removeBodyMovers()
     disableSync()
-    Util.notify("Auto Farm Raids", "Raid farm stopped.", 3, "cog")
     print("[LixHub] Raids: Stopped")
 end
 
@@ -1245,7 +1267,6 @@ function Raids.startEren()
     local bossWaitDone = false
     local bossWaitReady   = false
     print("[LixHub] Raids: Starting — Phase 1: Defend Eren")
-    Util.notify("Auto Farm Raids", "Phase 1: Defending Eren...", 3, "shield")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -1330,7 +1351,6 @@ function Raids.startEren()
             if Raids.getObjectiveValue("Defend_Eren") >= 1 then
                 Raids.State.phase = "cutscene"
                 print("[LixHub] Raids: Phase 1 done — waiting for cutscene...")
-                Util.notify("Auto Farm Raids", "Cutscene... waiting for Phase 2", 3, "clock")
                 
                 -- stop movement so server can reposition us
                 removeBodyMovers()
@@ -1351,7 +1371,6 @@ function Raids.startEren()
                         
                         Raids.State.phase = "defeat"
                         print("[LixHub] Raids: Cutscene done — Phase 2: Defeat Attack Titan")
-                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Attack Titan!", 3, "sword")
                     end
                 end)
                 return
@@ -1390,7 +1409,6 @@ function Raids.startEren()
                 if not chestsDone then
                     chestsDone = true
                     print("[LixHub] Raids: Attack Titan defeated — collecting chests")
-                    Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
                     task.spawn(function()
                         task.wait(5)
                         local start = tick()
@@ -1413,8 +1431,6 @@ function Raids.startEren()
             Raids.handleTitan(titan, true)
         end
     end)
-
-    Util.notify("Auto Farm Raids", "Raid Farm Started", 3, "shield")
 end
 
 function Raids.startArmored()
@@ -1432,7 +1448,6 @@ function Raids.startArmored()
     Raids.State.active        = true
     Raids.State.phase         = "defend"
     print("[LixHub] Armored Raid: Starting — Phase 1: Defend Boats")
-    Util.notify("Auto Farm Raids", "Phase 1: Defending Boats...", 3, "shield")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -1528,7 +1543,6 @@ function Raids.startArmored()
                         if hum then hum.PlatformStand = true; hum.AutoRotate = false end
                         enableSync()
                         Raids.State.phase = "defeat"
-                        Util.notify("Auto Farm Raids", "Phase 2: Defeat Armored Titan!", 3, "sword")
                     end
                 end)
                 return
@@ -1562,7 +1576,6 @@ function Raids.startArmored()
             if Raids.getObjectiveValue("Defeat_Armored_Titan") >= 1 then
                 if not chestsDone then
                     chestsDone = true
-                    Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
                     task.spawn(function()
                         task.wait(5)
                         local start = tick()
@@ -1605,8 +1618,6 @@ function Raids.startArmored()
             end
         end
     end)
-
-    Util.notify("Auto Farm Raids", "Armored Raid Farm Started", 3, "shield")
 end
 
 function Raids.startFemale()
@@ -1620,7 +1631,6 @@ function Raids.startFemale()
     Raids.State.active        = true
     Raids.State.phase         = "female_1"
     print("[LixHub] Female Raid: Starting — Phase 1: Defeat Female Titan")
-    Util.notify("Auto Farm Raids", "Phase 1: Defeat Female Titan...", 3, "shield")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -1646,7 +1656,6 @@ function Raids.startFemale()
                 enableSync()
                 Raids.State.phase = nextPhase
                 print("[LixHub] Female Raid: Cutscene done —", notifyMsg)
-                Util.notify("Auto Farm Raids", notifyMsg, 3, "sword")
             end
         end)
     end
@@ -1820,7 +1829,6 @@ end
                 if not chestsDone then
                     chestsDone = true
                     print("[LixHub] Female Raid: Complete — collecting chests")
-                    Util.notify("Auto Farm Raids", "Raid complete! Collecting chests...", 3, "gift")
                     task.spawn(function()
                         task.wait(5)
                         local start = tick()
@@ -1841,8 +1849,6 @@ end
             attackTitan(titan)
         end
     end)
-
-    Util.notify("Auto Farm Raids", "Female Raid Farm Started", 3, "shield")
 end
 
 -- ==================== AUTO UPGRADE GEAR ====================
@@ -2015,7 +2021,6 @@ function Waves.stop()
     end
     removeBodyMovers()
     disableSync()
-    Util.notify("Auto Farm Waves", "Waves farm stopped.", 3, "cog")
     print("[LixHub] Waves: Stopped")
 end
 
@@ -2036,7 +2041,6 @@ function Waves.start()
     WaveReloadState           = "idle"
 
     print("[LixHub] Waves: Starting farm")
-    Util.notify("Auto Farm Waves", "Waves Farm Started", 3, "waves")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -2701,10 +2705,8 @@ FarmTab:CreateToggle({
         Waves.State.autoUpgrade = val
         if val then
             Waves.startAutoUpgrade()
-            Util.notify("Waves", "Auto gear upgrade enabled", 3, "arrow-up")
         else
             Waves.stopAutoUpgrade()
-            Util.notify("Waves", "Auto gear upgrade disabled", 3, "x")
         end
     end,
 })
@@ -2717,10 +2719,8 @@ FarmTab:CreateToggle({
         Waves.State.autoBuyUpgrades = val
         if val then
             Waves.startAutoBuy()
-            Util.notify("Waves", "Auto buy upgrades enabled", 3, "arrow-up")
         else
             Waves.stopAutoBuy()
-            Util.notify("Waves", "Auto buy upgrades disabled", 3, "x")
         end
     end,
 })
@@ -2781,6 +2781,26 @@ FarmTab:CreateSlider({
 })
 
 FarmTab:CreateSection("Security")
+
+FarmTab:CreateToggle({
+    Name         = "Multi Hit (Risky in missions)",
+    CurrentValue = false,
+    Flag         = "MultiHitEnabled",
+    Callback     = function(val)
+        State.multiHitEnabled = val
+    end,
+})
+
+FarmTab:CreateSlider({
+    Name         = "Hit x Titans",
+    Range        = {1, 10},
+    Increment    = 1,
+    CurrentValue = 3,
+    Flag         = "MultiHitCount",
+    Callback     = function(val)
+        State.multiHitCount = val
+    end,
+})
 
 FarmTab:CreateToggle({
     Name         = "Wait Before Farming",
@@ -2937,10 +2957,8 @@ MiscTab:CreateToggle({
         State.autoUpgradeGear = val
         if val then
             startAutoUpgrade()
-            Util.notify("Auto Upgrade", "Auto gear upgrade enabled", 3, "arrow-up")
         else
             stopAutoUpgrade()
-            Util.notify("Auto Upgrade", "Auto gear upgrade disabled", 3, "x")
         end
     end,
 })
@@ -2951,7 +2969,6 @@ MiscTab:CreateToggle({
     Flag         = "EnableAutoExecute",
     Callback     = function(val)
         if not queue_on_teleport then
-            Util.notify("Auto Execute", "Your executor does not support queue_on_teleport", 5, "alert-triangle")
             return
         end
         if val then
@@ -2960,10 +2977,8 @@ MiscTab:CreateToggle({
                 loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTRV2.lua"))()
             ]], State.sessionRuns)
             queue_on_teleport(queuedScript)
-            Util.notify("Auto Execute", "Script will auto execute on teleport", 3, "check")
         else
             updateQueuedCounter()
-            Util.notify("Auto Execute", "Auto execute disabled (run counter still persists)", 3, "x")
         end
     end,
 })
