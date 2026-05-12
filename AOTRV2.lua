@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.11"
+local script_version = "V0.12"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2476,7 +2476,9 @@ function Raids.startColossal()
         end
 
         -- Check phase 1 complete (Stall_Colossal_Titan hits 1)
-        if Raids.getObjectiveValue("Stall_Colossal_Titan") >= 1 then
+        local phase1Done = false
+        if Raids.getObjectiveValue("Stall_Colossal_Titan") >= 1 and not phase1Done then
+            phase1Done = true  -- prevents re-entry every heartbeat
             print("[LixHub] Colossal Raid: Phase 1 done — waiting for cutscene")
             Raids.State.phase = "cutscene"
             
@@ -2485,14 +2487,12 @@ function Raids.startColossal()
             disableSync()
 
             task.spawn(function()
-                -- Wait for cutscene to start then finish
                 repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
                 repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
                 if Raids.State.stopRequested then return end
 
                 print("[LixHub] Colossal Raid: Cutscene done — Phase 2: Defeat Colossal Titan")
 
-                -- Re-enable movement for phase 2
                 disableCollision()
                 local hum = character:FindFirstChildOfClass("Humanoid")
                 if hum then hum.PlatformStand = true; hum.AutoRotate = false end
