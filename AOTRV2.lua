@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.05"
+local script_version = "V0.06"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -926,15 +926,30 @@ local function onRoundEnd(encoded)
             updateQueuedCounter()
             local forceLobby = State.returnToLobbyGamesEnabled and State.sessionRuns >= State.returnToLobbyGames
 
+            -- Retry decoding up to 10 times with 1s delay
             local roundData, playerData
-            if encoded then
-                local ok2, decoded = pcall(function()
-                    return game:GetService("HttpService"):JSONDecode(encoded)
-                end)
-                if ok2 and decoded then
-                    roundData  = decoded.round
-                    playerData = decoded.player
+            local maxAttempts = 10
+            for attempt = 1, maxAttempts do
+                if encoded then
+                    local ok2, decoded = pcall(function()
+                        return game:GetService("HttpService"):JSONDecode(encoded)
+                    end)
+                    if ok2 and decoded and decoded.round and decoded.player then
+                        roundData  = decoded.round
+                        playerData = decoded.player
+                        print("[LixHub] Round data received on attempt", attempt)
+                        break
+                    else
+                        warn("[LixHub] Round data not ready, attempt", attempt, "of", maxAttempts)
+                    end
                 end
+                if attempt < maxAttempts then
+                    task.wait(1)
+                end
+            end
+
+            if not roundData then
+                warn("[LixHub] Round data never arrived after", maxAttempts, "attempts — skipping webhook")
             end
 
             if State.webhookEnabled and State.webhookUrl and roundData then
@@ -2411,10 +2426,7 @@ local function joinRaid()
 
         local result = GET:InvokeServer("S_Missions", "Create", payload)
 
-        local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
-                                ReplicatedStorage.Missions:FindFirstChild(titanMap)
-
-        if not result or result ~= expectedMission then
+        if not result then
             error("Create failed for diff: " .. diff)
         end
 
@@ -2466,10 +2478,7 @@ local function joinWaves()
         Objective  = "Waves",
     })
 
-    local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
-                            ReplicatedStorage.Missions:FindFirstChild(State.autoJoinWavesMap)
-
-    if not result or result ~= expectedMission then
+    if not result then
         warn("[LixHub] Auto Join Waves: Create failed — unexpected result:", result)
         return false
     end
