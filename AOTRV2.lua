@@ -62,7 +62,7 @@ local State = {
     waitBeforeFarming    = false,
     waitFarmSeconds      = 15,
     waitLastTitanSeconds = 30,
-    floatHeight          = 520,
+    floatHeight          = 200,
     attackConnection     = nil,
     farmActive           = false,
     attackInterval       = 0,
@@ -2925,7 +2925,31 @@ local function startAutoJoinLoop()
     end)
 end
 
+local function startAutoSkipCutscenes()
+    task.spawn(function()
+        while true do
+            task.wait(0.3)
+            if State.skipCutscenesEnabled then
+                pcall(function()
+                    local skip = player.PlayerGui.Interface:FindFirstChild("Skip")
+                    if skip and skip.Visible then
+                        local interact = skip:FindFirstChild("Interact")
+                        if interact then
+                            GuiService.SelectedObject = interact
+                            task.wait(0.1)
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                            task.wait(0.05)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+end
+
 startAutoJoinLoop()
+startAutoSkipCutscenes()
 
 local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
 
@@ -3317,31 +3341,6 @@ FarmTab:CreateToggle({
     Flag         = "AutoSkipCutscenes",
     Callback     = function(val) State.skipCutscenesEnabled = val end,
 })
-
-local function startAutoSkipCutscenes()
-    task.spawn(function()
-        while true do
-            task.wait(0.3)
-            if State.skipCutscenesEnabled then
-                pcall(function()
-                    local skip = player.PlayerGui.Interface:FindFirstChild("Skip")
-                    if skip and skip.Visible then
-                        local interact = skip:FindFirstChild("Interact")
-                        if interact then
-                            GuiService.SelectedObject = interact
-                            task.wait(0.1)
-                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                            task.wait(0.05)
-                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                        end
-                    end
-                end)
-            end
-        end
-    end)
-end
-
-startAutoSkipCutscenes()
 
 FarmTab:CreateToggle({
     Name         = "Auto Retry",
