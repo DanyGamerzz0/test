@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.1"
+local script_version = "V0.11"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2461,6 +2461,9 @@ function Raids.startColossal()
     enableSync()
 
     local tickAccum = 0
+    local chestsDone = false
+    local bossWaitDone  = false
+    local bossWaitReady = false
 
     Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
         if Raids.State.stopRequested then
@@ -2472,16 +2475,80 @@ function Raids.startColossal()
             return
         end
 
-        -- Check objective done (phase 1 complete)
-        if Raids.getObjectiveValue("Defend_Eren") >= 1
-        or Raids.getObjectiveValue("Defend_Eren_2") >= 1 then
-            print("[LixHub] Colossal Raid: Phase 1 done")
+        -- Check phase 1 complete (Stall_Colossal_Titan hits 1)
+        if Raids.getObjectiveValue("Stall_Colossal_Titan") >= 1 then
+            print("[LixHub] Colossal Raid: Phase 1 done — waiting for cutscene")
             Raids.State.phase = "cutscene"
+            
             dismountCannon(cannon)
             removeBodyMovers()
             disableSync()
-            -- Phase 2 would go here (simple — just call Raids.stop() or handle separately)
-            Raids.stop()
+
+            task.spawn(function()
+                -- Wait for cutscene to start then finish
+                repeat task.wait(0.3) until player:GetAttribute("Cutscene") == true or Raids.State.stopRequested
+                repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+                if Raids.State.stopRequested then return end
+
+                print("[LixHub] Colossal Raid: Cutscene done — Phase 2: Defeat Colossal Titan")
+
+                -- Re-enable movement for phase 2
+                disableCollision()
+                local hum = character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                enableSync()
+
+                Raids.State.phase = "defeat"
+            end)
+            return
+        end
+
+        -- ===== PHASE 2: DEFEAT COLOSSAL TITAN =====
+        if Raids.State.phase == "defeat" then
+            local colossal = getColossalTitan()
+
+            if Raids.getObjectiveValue("Defeat_Colossal_Titan") >= 1 then
+                if not chestsDone then
+                    chestsDone = true
+                    print("[LixHub] Colossal Raid: Defeated — collecting chests")
+                    task.spawn(function()
+                        task.wait(5)
+                        local start = tick()
+                        repeat task.wait(0.3) until
+                            (player.PlayerGui.Interface:FindFirstChild("Chests") and
+                            player.PlayerGui.Interface.Chests.Visible) or
+                            tick() - start > 20
+                        Raids.openChests()
+                        task.wait(3)
+                        Raids.clickFinish()
+                    end)
+                end
+                return
+            end
+
+            if colossal then
+                local titanRoot = colossal:FindFirstChild("HumanoidRootPart")
+                if titanRoot then
+                    State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+                    local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+                    ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+                end
+            end
+
+            if not bossWaitDone then
+                bossWaitDone = true
+                task.spawn(function()
+                    waitBeforeKillingBoss(colossal, function() return Raids.State.stopRequested end)
+                    bossWaitReady = true
+                end)
+                return
+            end
+            if not bossWaitReady then return end
+
+            if not colossal then return end
+            if colossal:GetAttribute("State") == "Roar" then return end
+
+            Raids.handleTitan(colossal, true, true)
             return
         end
 
