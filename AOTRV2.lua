@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.09"
+local script_version = "V0.1"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2377,38 +2377,47 @@ local function shootCannon(cannon, colossalTitan)
     if cannonShooting then return end
     cannonShooting = true
 
-    local shot = GET:InvokeServer("Cannon", "Shoot", {
-        BarrelWood = 22,
+    GET:InvokeServer("Cannon", "Shoot", {
+        BarrelWood = 20,
         Base       = 0,
     })
 
-    if shot then
-        -- Give the cannonball a frame to appear in workspace
-        task.wait(0.1)
+    -- Wait for cannonball to appear in workspace (2.5s timeout)
+    local cannonBall = nil
+    local startTime = tick()
+    repeat
+        task.wait()
+        cannonBall = workspace:FindFirstChild("Cannon")
+    until cannonBall or tick() - startTime > 2.5
 
-        -- Find the cannonball in workspace — it's a model named "Cannon" with player attribute
-        local cannonBall = nil
-        for _, v in ipairs(workspace:GetChildren()) do
-            if v.Name == "Cannon" and v:GetAttribute("Player") == player.Name then
-                cannonBall = v
-                break
+    if cannonBall then
+        -- Wait for the actual impact event before spamming
+        local impactFired = false
+        local conn = POST.OnClientEvent:Connect(function(a, b, obj)
+            if a == "Skills" and b == "Impact" and obj == cannonBall then
+                impactFired = true
             end
-        end
+        end)
+        local waitStart = tick()
+        repeat task.wait() until impactFired or tick() - waitStart > 4
+        conn:Disconnect()
 
-        if cannonBall then
+        if impactFired then
             local hrp = colossalTitan and colossalTitan:FindFirstChild("HumanoidRootPart")
             if hrp then
-                local pos = hrp.Position
+                local pos = hrp.Position - Vector3.new(0, 20, 0)
                 for i = 1, CANNON_IMPACT_COUNT do
                     POST:FireServer("S_Skills", "Impact", cannonBall, pos)
                 end
             end
         else
-            print("[LixHub] Colossal: Cannonball not found in workspace")
+            print("[LixHub] Colossal: Impact event never fired, skipping")
         end
+    else
+        print("[LixHub] Colossal: Cannonball not found in workspace, skipping")
     end
 
-    task.wait(2.8)
+    task.wait(1.1)
     cannonShooting = false
 end
 
