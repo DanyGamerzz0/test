@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.06"
+local script_version = "V0.07"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -121,6 +121,12 @@ Waves.State = {
     autoBuyUpgrades  = false,
     buyUpgradesList  = {},
     buyConnection    = nil,
+}
+
+local ColossalState = {
+    onCannon   = false,
+    claimed    = false,
+    stopRequested = false,
 }
 
 local Movers = {
@@ -1334,6 +1340,8 @@ function Raids.start()
         Raids.startArmored()
     elseif objective == "Female Titan" then
         Raids.startFemale() -- no cutscene wait, QTE happens during cutscene
+    elseif objective == "Colossal Titan" then
+        Raids.startColossal()
     else
         Util.notify("Auto Farm Raids", "Unknown raid objective: " .. tostring(objective), 5, "alert-triangle")
         print("[LixHub] Raids: Unknown objective —", objective)
@@ -2258,6 +2266,250 @@ function Waves.start()
     end)
 end
 
+local function getCannonModel()
+    return workspace.Climbable.Walls.Wall.Cannons["1"]
+end
+
+local function getColossalTitan()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+    for _, t in ipairs(titans:GetChildren()) do
+        if t.Name:find("Colossal") then
+            local hum = t:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then return t end
+        end
+    end
+    return nil
+end
+
+local function getErenCollider()
+    return workspace.Unclimbable
+        and workspace.Unclimbable.Objective
+        and workspace.Unclimbable.Objective:FindFirstChild("Defend_Eren_2")
+        and workspace.Unclimbable.Objective.Defend_Eren_2:FindFirstChild("Collider")
+end
+
+local function titansThreateningEren()
+    local collider = getErenCollider()
+    if not collider then return false end
+    for _, v in ipairs(collider:GetChildren()) do
+        if v.Name == "Titan_Hit" then return true end
+    end
+    return false
+end
+
+local function getClosestTitanToEren2()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+
+    local collider = getErenCollider()
+    local erenModel = workspace.Unclimbable
+        and workspace.Unclimbable.Background
+        and workspace.Unclimbable.Background:FindFirstChild("Attack_Titan")
+
+    local anchor
+    if collider then
+        anchor = collider.Position
+    elseif erenModel then
+        local p = erenModel.PrimaryPart or erenModel:FindFirstChildWhichIsA("BasePart")
+        anchor = p and p.Position
+    end
+    if not anchor then return nil end
+
+    local bestTitan, bestDist = nil, math.huge
+    for _, titan in ipairs(titans:GetChildren()) do
+        -- skip colossal, we're stalling him separately
+        if not titan.Name:find("Colossal") then
+            local hrp = titan:FindFirstChild("HumanoidRootPart")
+            local hum = titan:FindFirstChild("Humanoid")
+            if hrp and hum and hum.Health > 0 then
+                local nape = Raids.getNape(titan)
+                if nape then
+                    local dist = (hrp.Position - anchor).Magnitude
+                    if dist < bestDist then
+                        bestDist  = dist
+                        bestTitan = titan
+                    end
+                end
+            end
+        end
+    end
+    return bestTitan
+end
+
+local function mountCannon(cannon)
+    -- Claim once if not claimed
+    if not ColossalState.claimed then
+        GET:InvokeServer("Cannon", "Claim", cannon)
+        ColossalState.claimed = true
+        task.wait(0.1)
+    end
+    -- Mount
+    GET:InvokeServer("Cannon", "State", cannon, true)
+    ColossalState.onCannon = true
+    print("[LixHub] Colossal: Mounted cannon")
+end
+
+local function dismountCannon(cannon)
+    if not ColossalState.onCannon then return end
+    GET:InvokeServer("Cannon", "State", cannon, false, {
+        SFX        = {},
+        Object     = cannon,
+        BarrelWood = cannon:FindFirstChild("BarrelWood", true),
+        Angles     = { BarrelWood = 0, Base = 0 },
+        Base       = cannon:FindFirstChild("Base", true),
+        Directions = {},
+    })
+    ColossalState.onCannon = false
+    print("[LixHub] Colossal: Dismounted cannon")
+end
+
+local CANNON_IMPACT_COUNT = 10 -- how many impact registers per shot
+local cannonShooting = false
+
+local function shootCannon(cannon, colossalTitan)
+    if cannonShooting then return end
+    cannonShooting = true
+
+    local shot = GET:InvokeServer("Cannon", "Shoot", {
+        BarrelWood = 30,
+        Base       = 0,
+    })
+
+    if shot then
+        -- Give the cannonball a frame to appear in workspace
+        task.wait(0.1)
+
+        -- Find the cannonball in workspace — it's a model named "Cannon" with player attribute
+        local cannonBall = nil
+        for _, v in ipairs(workspace:GetChildren()) do
+            if v.Name == "Cannon" and v:GetAttribute("Player") == player.Name then
+                cannonBall = v
+                break
+            end
+        end
+
+        if cannonBall then
+            local hrp = colossalTitan and colossalTitan:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local pos = hrp.Position
+                for i = 1, CANNON_IMPACT_COUNT do
+                    POST:FireServer("S_Skills", "Impact", cannonBall, pos)
+                    task.wait(0.05)
+                end
+            end
+        else
+            print("[LixHub] Colossal: Cannonball not found in workspace")
+        end
+    end
+
+    task.wait(2.8)
+    cannonShooting = false
+end
+
+function Raids.startColossal()
+    if isInLobby() then return end
+    if player:GetAttribute("Cutscene") == true then
+        repeat task.wait(0.1) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
+        if Raids.State.stopRequested then return end
+    end
+
+    if Raids.State.connection then
+        Raids.State.connection:Disconnect()
+        Raids.State.connection = nil
+    end
+
+    Raids.State.stopRequested = false
+    Raids.State.active        = true
+    Raids.State.phase         = "colossal_defend"
+    ColossalState.onCannon    = false
+    ColossalState.claimed     = false
+    cannonShooting            = false
+
+    print("[LixHub] Colossal Raid: Starting — Phase 1: Defend Eren + Stall Colossal")
+
+    local cannon = getCannonModel()
+    if not cannon then
+        Util.notify("Colossal Raid", "Cannon not found!", 5, "alert-triangle")
+        return
+    end
+
+    -- Claim the cannon once upfront
+    GET:InvokeServer("Cannon", "Claim", cannon)
+    ColossalState.claimed = true
+    task.wait(0.1)
+
+    -- We handle our own movement for titan killing
+    -- but when on cannon we don't need body movers
+    disableCollision()
+    local _hum = character:FindFirstChildOfClass("Humanoid")
+    if _hum then _hum.PlatformStand = true; _hum.AutoRotate = false end
+    enableSync()
+
+    local tickAccum = 0
+
+    Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
+        if Raids.State.stopRequested then
+            if Raids.State.connection then
+                Raids.State.connection:Disconnect()
+                Raids.State.connection = nil
+            end
+            dismountCannon(cannon)
+            return
+        end
+
+        -- Check objective done (phase 1 complete)
+        if Raids.getObjectiveValue("Defend_Eren") >= 1
+        or Raids.getObjectiveValue("Defend_Eren_2") >= 1 then
+            print("[LixHub] Colossal Raid: Phase 1 done")
+            Raids.State.phase = "cutscene"
+            dismountCannon(cannon)
+            removeBodyMovers()
+            disableSync()
+            -- Phase 2 would go here (simple — just call Raids.stop() or handle separately)
+            Raids.stop()
+            return
+        end
+
+        -- ===== PRIORITY: titans near Eren =====
+        local erenThreatened = titansThreateningEren()
+        local closestErenTitan = getClosestTitanToEren2()
+
+        if erenThreatened or closestErenTitan then
+            -- Dismount cannon so we can move
+            if ColossalState.onCannon then
+                dismountCannon(cannon)
+                -- re-enable movement
+                disableCollision()
+                local hum = character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                enableSync()
+            end
+
+            -- Kill the titan near Eren
+            if closestErenTitan then
+                Raids.handleTitan(closestErenTitan, false)
+            end
+
+        else
+            -- ===== STALL: mount cannon and fire at Colossal =====
+            local colossal = getColossalTitan()
+            if colossal then
+                if not ColossalState.onCannon then
+                    -- Move body movers off since cannon welds us
+                    removeBodyMovers()
+                    mountCannon(cannon)
+                end
+
+                -- Fire cannonballs + impacts at Colossal
+                task.spawn(function()
+                    shootCannon(cannon, colossal)
+                end)
+            end
+        end
+    end)
+end
+
 -- ==================== RAYFIELD UI ====================
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
@@ -2356,20 +2608,30 @@ local function tryDifficulties(diffList, createFn)
 end
 
 local function joinMission()
-local function attemptCreate(diff)
-    print("[LixHub] Auto Join: Creating mission —", State.autoJoinMissionMap, State.autoJoinMissionObj, diff)
-    local result = GET:InvokeServer("S_Missions", "Create", {
-        Difficulty = diff,
-        Type       = "Missions",
-        Objective  = State.autoJoinMissionObj,
-        Name       = State.autoJoinMissionMap,
-    })
-    print("[LixHub] Auto Join: Create result —", result, type(result))
-    if not result then
-        error("Create failed for diff: " .. diff)
+    local function attemptCreate(diff)
+        local mapName = State.autoJoinMissionMap
+        if mapName == "Boosted" then
+            mapName = workspace:GetAttribute("Boosted_Map")
+            if not mapName or mapName == "" then
+                warn("[LixHub] Auto Join: Boosted map attribute not found")
+                error("Boosted map not available")
+            end
+            print("[LixHub] Auto Join: Boosted map detected —", mapName)
+        end
+
+        print("[LixHub] Auto Join: Creating mission —", mapName, State.autoJoinMissionObj, diff)
+        local result = GET:InvokeServer("S_Missions", "Create", {
+            Difficulty = diff,
+            Type       = "Missions",
+            Objective  = State.autoJoinMissionObj,
+            Name       = mapName,
+        })
+        print("[LixHub] Auto Join: Create result —", result, type(result))
+        if not result then
+            error("Create failed for diff: " .. diff)
+        end
+        return true
     end
-    return true
-end
 
     local success
     if State.autoJoinMissionDiff == "Hardest" then
@@ -2576,7 +2838,7 @@ JoinerTab:CreateToggle({
 
 JoinerTab:CreateDropdown({
     Name         = "Select Map",
-    Options      = {"Shiganshina", "Trost", "Outskirts", "Forest", "Utgard", "Docks", "Stohess", "Chapel"},
+    Options      = {"Shiganshina", "Trost", "Outskirts", "Forest", "Utgard", "Docks", "Stohess", "Chapel", "Boosted"},
     CurrentOption = {},
     Flag         = "AutoJoinMissionMap",
     MultipleOptions = false,
