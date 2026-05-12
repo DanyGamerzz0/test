@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.12"
+local script_version = "V0.13"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2464,6 +2464,7 @@ function Raids.startColossal()
     local chestsDone = false
     local bossWaitDone  = false
     local bossWaitReady = false
+    local phase1Done = false
 
     Raids.State.connection = RunService.Heartbeat:Connect(function(dt)
         if Raids.State.stopRequested then
@@ -2476,7 +2477,6 @@ function Raids.startColossal()
         end
 
         -- Check phase 1 complete (Stall_Colossal_Titan hits 1)
-        local phase1Done = false
         if Raids.getObjectiveValue("Stall_Colossal_Titan") >= 1 and not phase1Done then
             phase1Done = true  -- prevents re-entry every heartbeat
             print("[LixHub] Colossal Raid: Phase 1 done — waiting for cutscene")
