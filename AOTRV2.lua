@@ -3290,7 +3290,7 @@ FarmTab:CreateSlider({
 FarmTab:CreateSection("Security")
 
 FarmTab:CreateToggle({
-    Name         = "Multi Hit (Risky in missions)",
+    Name         = "Multi Hit Titans",
     CurrentValue = false,
     Flag         = "MultiHitEnabled",
     Callback     = function(val)
