@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.08"
+local script_version = "V0.09"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2318,22 +2318,12 @@ local function getClosestTitanToEren2()
     if not titans then return nil end
 
     local collider = getErenCollider()
-    local erenModel = workspace.Unclimbable
-        and workspace.Unclimbable.Background
-        and workspace.Unclimbable.Background:FindFirstChild("Attack_Titan")
-
-    local anchor
-    if collider then
-        anchor = collider.Position
-    elseif erenModel then
-        local p = erenModel.PrimaryPart or erenModel:FindFirstChildWhichIsA("BasePart")
-        anchor = p and p.Position
-    end
-    if not anchor then return nil end
+    if not collider then return nil end
+    
+    local anchor = collider.Position
 
     local bestTitan, bestDist = nil, math.huge
     for _, titan in ipairs(titans:GetChildren()) do
-        -- skip colossal, we're stalling him separately
         if not titan.Name:find("Colossal") then
             local hrp = titan:FindFirstChild("HumanoidRootPart")
             local hum = titan:FindFirstChild("Humanoid")
@@ -2341,7 +2331,8 @@ local function getClosestTitanToEren2()
                 local nape = Raids.getNape(titan)
                 if nape then
                     local dist = (hrp.Position - anchor).Magnitude
-                    if dist < bestDist then
+                    -- Only care about titans within a reasonable range of Eren
+                    if dist < bestDist and dist < 200 then
                         bestDist  = dist
                         bestTitan = titan
                     end
@@ -2387,7 +2378,7 @@ local function shootCannon(cannon, colossalTitan)
     cannonShooting = true
 
     local shot = GET:InvokeServer("Cannon", "Shoot", {
-        BarrelWood = 30,
+        BarrelWood = 22,
         Base       = 0,
     })
 
@@ -2410,7 +2401,6 @@ local function shootCannon(cannon, colossalTitan)
                 local pos = hrp.Position
                 for i = 1, CANNON_IMPACT_COUNT do
                     POST:FireServer("S_Skills", "Impact", cannonBall, pos)
-                    task.wait(0.05)
                 end
             end
         else
