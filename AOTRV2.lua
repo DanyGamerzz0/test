@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.14"
+local script_version = "V0.15"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -49,6 +49,7 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    skipCutscenesEnabled = false,
     multiHitEnabled = false,
     multiHitCount   = 3,
     autoJoinDelaySecs = 3,
@@ -2358,16 +2359,42 @@ end
 
 local function dismountCannon(cannon)
     if not ColossalState.onCannon then return end
-    GET:InvokeServer("Cannon", "State", cannon, false, {
-        SFX        = {},
-        Object     = cannon,
-        BarrelWood = cannon:FindFirstChild("BarrelWood", true),
-        Angles     = { BarrelWood = 0, Base = 0 },
-        Base       = cannon:FindFirstChild("Base", true),
-        Directions = {},
-    })
+    
+    local barrelWood = cannon:FindFirstChild("BarrelWood", true)
+    local base = cannon:FindFirstChild("Base", true)
+    
+    local success = false
+    local attempts = 0
+    
+    repeat
+        attempts += 1
+        local ok = pcall(function()
+            GET:InvokeServer("Cannon", "State", cannon, false, {
+                SFX        = {},
+                Object     = cannon,
+                BarrelWood = barrelWood,
+                Angles     = { BarrelWood = 0, Base = 0 },
+                Base       = base,
+                Directions = {},
+            })
+        end)
+        
+        if ok then
+            success = true
+        else
+            warn("[LixHub] Colossal: Dismount attempt", attempts, "failed, retrying...")
+            task.wait(0.1)
+        end
+    until success or attempts >= 5
+    
+    if not success then
+        warn("[LixHub] Colossal: Failed to dismount cannon after", attempts, "attempts — forcing state reset")
+    end
+    
+    -- Force state reset regardless of remote success
+    -- so the rest of the logic doesn't get stuck
     ColossalState.onCannon = false
-    print("[LixHub] Colossal: Dismounted cannon")
+    print("[LixHub] Colossal: Dismounted cannon (attempts: " .. attempts .. ")")
 end
 
 local CANNON_IMPACT_COUNT = 10 -- how many impact registers per shot
@@ -2560,6 +2587,7 @@ function Raids.startColossal()
             -- Dismount cannon so we can move
             if ColossalState.onCannon then
                 dismountCannon(cannon)
+                task.wait(0.3)
                 -- re-enable movement
                 disableCollision()
                 local hum = character:FindFirstChildOfClass("Humanoid")
@@ -3275,6 +3303,13 @@ FarmTab:CreateToggle({
     CurrentValue = false,
     Flag         = "AutoEscapeGrab",
     Callback     = function(val) State.escapeEnabled = val end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Skip Cutscenes",
+    CurrentValue = false,
+    Flag         = "AutoSkipCutscenes",
+    Callback     = function(val) State.skipCutscenesEnabled = val end,
 })
 
 FarmTab:CreateToggle({
