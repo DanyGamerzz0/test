@@ -5,7 +5,8 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.15"
+local script_version = "V0.01"
+local debug = false
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -162,6 +163,11 @@ function Util.notify(title, content, duration, image)
         Duration = duration or 3,
         Image = image or nil,
     })
+end
+
+local function debugPrint(...)
+    if not debug then return end
+    print("[LixHub] ", ...)
 end
 
 local function waitForCutscene()
@@ -437,7 +443,7 @@ local function stopAutoAttack()
     State.farmActive    = false
     currentTarget       = nil
     ReloadState         = "idle"
-    print("[LixHub] Auto farm stopped")
+    debugPrint("[LixHub] Auto farm stopped")
 
     if State.attackConnection then
         State.attackConnection:Disconnect()
@@ -463,7 +469,7 @@ local function startLobbyTimer()
         State.lobbyTimerConnection:Disconnect()
     end
     State.farmStartTime = tick()
-    print("Failsafe timer started.")
+    debugPrint("Failsafe timer started.")
     State.lobbyTimerConnection = RunService.Heartbeat:Connect(function()
         if not State.returnToLobbyEnabled or not State.farmActive then return end
         if (tick() - State.farmStartTime) >= (State.returnToLobbyMinutes * 60) then
@@ -512,7 +518,7 @@ local function startAutoAttack()
 
     State.stopRequested = false
     State.farmActive    = true
-    print("[LixHub] Auto farm starting...")
+    debugPrint("[LixHub] Auto farm starting...")
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
     if _hum then _hum.PlatformStand = true; _hum.AutoRotate = false end
@@ -566,7 +572,7 @@ local function startAutoAttack()
 
             if segmentsLeft <= 0 and cassettesLeft > 0 and ReloadState == "idle" then
                 ReloadState = "swapping"
-                print("[LixHub] Farm: Blade broken, swapping cassette —", cassettesLeft, "left")
+                debugPrint("[LixHub] Farm: Blade broken, swapping cassette —", cassettesLeft, "left")
                 task.spawn(function()
                     local result
                     repeat
@@ -575,7 +581,7 @@ local function startAutoAttack()
                         local c, s = getBladeStatus()
                         if s > 0 then break end
                     until result == true or ReloadState ~= "swapping"
-                    print("[LixHub] Farm: Blade swap confirmed —", tostring(result))
+                    debugPrint("[LixHub] Farm: Blade swap confirmed —", tostring(result))
                     ReloadState = "idle"
                 end)
                 return
@@ -583,7 +589,7 @@ local function startAutoAttack()
 
             if segmentsLeft <= 0 and cassettesLeft <= 0 and ReloadState == "idle" then
                 ReloadState = "refilling"
-                print("[LixHub] Farm: Out of cassettes — refilling")
+                debugPrint("[LixHub] Farm: Out of cassettes — refilling")
                 task.spawn(function()
                     local refillPoint = findRefillPoint()
                     repeat
@@ -593,7 +599,7 @@ local function startAutoAttack()
                         if c > 0 then break end
                     until ReloadState ~= "refilling"
                     repeat task.wait() until (select(2, getBladeStatus())) > 0 or ReloadState ~= "refilling"
-                    print("[LixHub] Farm: Refill done")
+                    debugPrint("[LixHub] Farm: Refill done")
                     ReloadState = "idle"
                 end)
                 return
@@ -888,7 +894,7 @@ local roundEndDebounce = false
 local function retryViaNavigation()
     local retry = player.PlayerGui.Interface.Rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
     if not retry then 
-        print("[LixHub] Retry button not found")
+        debugPrint("[LixHub] Retry button not found")
         return false
     end
     GuiService.SelectedObject = retry
@@ -896,14 +902,14 @@ local function retryViaNavigation()
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
     task.wait(0.05)
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-    print("[LixHub] Fired retry via UI navigation")
+    debugPrint("[LixHub] Fired retry via UI navigation")
     return true
 end
 
 local function leaveViaNavigation()
     local leaveBtn = player.PlayerGui.Interface.Rewards.Main.Info.Main.Buttons:FindFirstChild("Leave_2")
     if not leaveBtn then 
-        print("[LixHub] Leave button not found")
+        debugPrint("[LixHub] Leave button not found")
         return false
     end
     GuiService.SelectedObject = leaveBtn
@@ -911,7 +917,7 @@ local function leaveViaNavigation()
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
     task.wait(0.05)
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-    print("[LixHub] Fired leave via UI navigation")
+    debugPrint("[LixHub] Fired leave via UI navigation")
     return true
 end
 
@@ -944,7 +950,7 @@ local function onRoundEnd(encoded)
                     if ok2 and decoded and decoded.round and decoded.player then
                         roundData  = decoded.round
                         playerData = decoded.player
-                        print("[LixHub] Round data received on attempt", attempt)
+                        debugPrint("[LixHub] Round data received on attempt", attempt)
                         break
                     else
                         warn("[LixHub] Round data not ready, attempt", attempt, "of", maxAttempts)
@@ -965,7 +971,7 @@ local function onRoundEnd(encoded)
                 warn("[LixHub] Webhook skipped — enabled:", State.webhookEnabled, "url:", State.webhookUrl ~= nil, "data:", roundData ~= nil)
             end
 
-            print("[LixHub] Round ended — processing results")
+            debugPrint("[LixHub] Round ended — processing results")
             resetLobbyTimer()
 
             task.wait(5)
@@ -978,14 +984,14 @@ local function onRoundEnd(encoded)
             elseif State.autoRetry then
                 Util.notify("Auto Farm", "Retrying...", 3, "cog")
                 while State.autoRetry do
-                    print("[LixHub] Attempting retry via UI navigation...")
+                    debugPrint("[LixHub] Attempting retry via UI navigation...")
                     retryViaNavigation()
                     task.wait(3)
                 end
             elseif State.autoLobby then
                 Util.notify("Auto Farm", "Returning to lobby...", 3)
                 while State.autoLobby do
-                    print("[LixHub] Attempting leave via UI navigation...")
+                    debugPrint("[LixHub] Attempting leave via UI navigation...")
                     leaveViaNavigation()
                     task.wait(3)
                 end
@@ -1099,7 +1105,7 @@ function Raids.getClosestTitanToEren()
         and workspace.Unclimbable.Objective.Defend_Eren:FindFirstChild("Collider")
     
     if not collider then
-        print("[LixHub] Raids: Collider not found, falling back to player position")
+        debugPrint("[LixHub] Raids: Collider not found, falling back to player position")
     end
     
     local anchor = collider and collider.Position or rootPart.Position
@@ -1204,7 +1210,7 @@ function Raids.openChests()
     if Raids.State.autoOpenChests then
         local freeBtn = chests:FindFirstChild("Free")
         if freeBtn and freeBtn.Visible then
-            print("[LixHub] Raids: Opening free chest")
+            debugPrint("[LixHub] Raids: Opening free chest")
             clickButton(freeBtn)
             -- wait for finish button to reappear (animation done)
             waitForFinishVisible()
@@ -1214,7 +1220,7 @@ function Raids.openChests()
     if Raids.State.autoOpenEmperorChests then
         local premiumBtn = chests:FindFirstChild("Premium")
         if premiumBtn and premiumBtn.Visible then
-            print("[LixHub] Raids: Opening emperor chest")
+            debugPrint("[LixHub] Raids: Opening emperor chest")
             clickButton(premiumBtn)
             waitForFinishVisible()
         end
@@ -1229,7 +1235,7 @@ function Raids.clickFinish()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
         task.wait(0.05)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-        print("[LixHub] Raids: Finish clicked")
+        debugPrint("[LixHub] Raids: Finish clicked")
     end)
 end
 
@@ -1315,7 +1321,7 @@ function Raids.stop()
     end
     removeBodyMovers()
     disableSync()
-    print("[LixHub] Raids: Stopped")
+    debugPrint("[LixHub] Raids: Stopped")
 end
 
 local function waitBeforeKillingBoss(titanRef, stopCheck)
@@ -1333,7 +1339,7 @@ function Raids.start()
     if isInLobby() then return end
 
     local objective = workspace:GetAttribute("Objective")
-    print("[LixHub] Raids: Detected objective —", objective)
+    debugPrint("[LixHub] Raids: Detected objective —", objective)
 
     if objective == "Attack Titan" then
         Raids.startEren()
@@ -1345,7 +1351,7 @@ function Raids.start()
         Raids.startColossal()
     else
         Util.notify("Auto Farm Raids", "Unknown raid objective: " .. tostring(objective), 5, "alert-triangle")
-        print("[LixHub] Raids: Unknown objective —", objective)
+        debugPrint("[LixHub] Raids: Unknown objective —", objective)
     end
 end
 
@@ -1365,7 +1371,7 @@ function Raids.startEren()
     Raids.State.phase         = "defend"
     local bossWaitDone = false
     local bossWaitReady   = false
-    print("[LixHub] Raids: Starting — Phase 1: Defend Eren")
+    debugPrint("[LixHub] Raids: Starting — Phase 1: Defend Eren")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -1403,7 +1409,7 @@ function Raids.startEren()
 
             if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
                 RaidReloadState = "swapping"
-                print("[LixHub] Raids: Blade broken, swapping cassette —", cassettesLeft, "left")
+                debugPrint("[LixHub] Raids: Blade broken, swapping cassette —", cassettesLeft, "left")
                 task.spawn(function()
                     local result
                     repeat
@@ -1412,7 +1418,7 @@ function Raids.startEren()
                         local c, s = getBladeStatus()
                         if s > 0 then break end
                     until result == true or RaidReloadState ~= "swapping"
-                    print("[LixHub] Raids: Blade swap confirmed —", tostring(result))
+                    debugPrint("[LixHub] Raids: Blade swap confirmed —", tostring(result))
                     RaidReloadState = "idle"
                 end)
                 return
@@ -1420,7 +1426,7 @@ function Raids.startEren()
 
             if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
                 RaidReloadState = "refilling"
-                print("[LixHub] Raids: Out of cassettes — refilling")
+                debugPrint("[LixHub] Raids: Out of cassettes — refilling")
                 task.spawn(function()
                     local refillPoint = findRefillPoint()
                     repeat
@@ -1430,7 +1436,7 @@ function Raids.startEren()
                         if c > 0 then break end
                     until RaidReloadState ~= "refilling"
                     repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
-                    print("[LixHub] Raids: Refill done")
+                    debugPrint("[LixHub] Raids: Refill done")
                     RaidReloadState = "idle"
                 end)
                 return
@@ -1449,7 +1455,7 @@ function Raids.startEren()
         if Raids.State.phase == "defend" then
             if Raids.getObjectiveValue("Defend_Eren") >= 1 then
                 Raids.State.phase = "cutscene"
-                print("[LixHub] Raids: Phase 1 done — waiting for cutscene...")
+                debugPrint("[LixHub] Raids: Phase 1 done — waiting for cutscene...")
                 
                 -- stop movement so server can reposition us
                 removeBodyMovers()
@@ -1469,7 +1475,7 @@ function Raids.startEren()
                         enableSync()
                         
                         Raids.State.phase = "defeat"
-                        print("[LixHub] Raids: Cutscene done — Phase 2: Defeat Attack Titan")
+                        debugPrint("[LixHub] Raids: Cutscene done — Phase 2: Defeat Attack Titan")
                     end
                 end)
                 return
@@ -1507,7 +1513,7 @@ function Raids.startEren()
             if Raids.getObjectiveValue("Defeat_Attack_Titan") >= 1 then
                 if not chestsDone then
                     chestsDone = true
-                    print("[LixHub] Raids: Attack Titan defeated — collecting chests")
+                    debugPrint("[LixHub] Raids: Attack Titan defeated — collecting chests")
                     task.spawn(function()
                         task.wait(5)
                         local start = tick()
@@ -1546,7 +1552,7 @@ function Raids.startArmored()
     Raids.State.stopRequested = false
     Raids.State.active        = true
     Raids.State.phase         = "defend"
-    print("[LixHub] Armored Raid: Starting — Phase 1: Defend Boats")
+    debugPrint("[LixHub] Armored Raid: Starting — Phase 1: Defend Boats")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -1587,7 +1593,7 @@ function Raids.startArmored()
 
             if segmentsLeft <= 0 and cassettesLeft > 0 and RaidReloadState == "idle" then
                 RaidReloadState = "swapping"
-                print("[LixHub] Armored Raid: Blade broken, swapping cassette —", cassettesLeft, "left")
+                debugPrint("[LixHub] Armored Raid: Blade broken, swapping cassette —", cassettesLeft, "left")
                 task.spawn(function()
                     local result
                     repeat
@@ -1596,7 +1602,7 @@ function Raids.startArmored()
                         local c, s = getBladeStatus()
                         if s > 0 then break end
                     until result == true or RaidReloadState ~= "swapping"
-                    print("[LixHub] Armored Raid: Blade swap confirmed")
+                    debugPrint("[LixHub] Armored Raid: Blade swap confirmed")
                     RaidReloadState = "idle"
                 end)
                 return
@@ -1604,7 +1610,7 @@ function Raids.startArmored()
 
             if segmentsLeft <= 0 and cassettesLeft <= 0 and RaidReloadState == "idle" then
                 RaidReloadState = "refilling"
-                print("[LixHub] Armored Raid: Out of cassettes — refilling")
+                debugPrint("[LixHub] Armored Raid: Out of cassettes — refilling")
                 task.spawn(function()
                     local refillPoint = findRefillPoint()
                     repeat
@@ -1614,7 +1620,7 @@ function Raids.startArmored()
                         if c > 0 then break end
                     until RaidReloadState ~= "refilling"
                     repeat task.wait() until (select(2, getBladeStatus())) > 0 or RaidReloadState ~= "refilling"
-                    print("[LixHub] Armored Raid: Refill done")
+                    debugPrint("[LixHub] Armored Raid: Refill done")
                     RaidReloadState = "idle"
                 end)
                 return
@@ -1708,7 +1714,7 @@ function Raids.startFemale()
     Raids.State.stopRequested = false
     Raids.State.active        = true
     Raids.State.phase         = "female_1"
-    print("[LixHub] Female Raid: Starting — Phase 1: Defeat Female Titan")
+    debugPrint("[LixHub] Female Raid: Starting — Phase 1: Defeat Female Titan")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -1733,7 +1739,7 @@ function Raids.startFemale()
                 if hum then hum.PlatformStand = true; hum.AutoRotate = false end
                 enableSync()
                 Raids.State.phase = nextPhase
-                print("[LixHub] Female Raid: Cutscene done —", notifyMsg)
+                debugPrint("[LixHub] Female Raid: Cutscene done —", notifyMsg)
             end
         end)
     end
@@ -1864,7 +1870,7 @@ end
 
             -- mid HP cutscene triggers when Attack Titan appears
             if getTitan("Attack_Titan") ~= nil then
-                print("[LixHub] Female Raid: Attack Titan appeared — waiting for cutscene")
+                debugPrint("[LixHub] Female Raid: Attack Titan appeared — waiting for cutscene")
                 handleCutsceneTransition("attack_titan", "Phase 2: Defeat Attack Titan!")
                 return
             end
@@ -1878,7 +1884,7 @@ end
             if titan then moveTo(titan) end
 
             if Raids.getObjectiveValue("Defeat_Attack_Titan") >= 1 then
-                print("[LixHub] Female Raid: Attack Titan defeated — waiting for cutscene")
+                debugPrint("[LixHub] Female Raid: Attack Titan defeated — waiting for cutscene")
                 handleCutsceneTransition("female_2", "Phase 3: Finish Female Titan!")
                 return
             end
@@ -1906,7 +1912,7 @@ end
             if Raids.getObjectiveValue("Defeat_Female_Titan") >= 1 then
                 if not chestsDone then
                     chestsDone = true
-                    print("[LixHub] Female Raid: Complete — collecting chests")
+                    debugPrint("[LixHub] Female Raid: Complete — collecting chests")
                     task.spawn(function()
                         task.wait(5)
                         local start = tick()
@@ -2016,7 +2022,7 @@ local function tryVoteWave()
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
             task.wait(0.05)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-            print("[LixHub] Waves: Voted to start/skip wave")
+            debugPrint("[LixHub] Waves: Voted to start/skip wave")
         end
     end)
 end
@@ -2099,7 +2105,7 @@ function Waves.stop()
     end
     removeBodyMovers()
     disableSync()
-    print("[LixHub] Waves: Stopped")
+    debugPrint("[LixHub] Waves: Stopped")
 end
 
 function Waves.start()
@@ -2118,7 +2124,7 @@ function Waves.start()
     Waves.State.active        = true
     WaveReloadState           = "idle"
 
-    print("[LixHub] Waves: Starting farm")
+    debugPrint("[LixHub] Waves: Starting farm")
 
     disableCollision()
     local _hum = character:FindFirstChildOfClass("Humanoid")
@@ -2354,7 +2360,7 @@ local function mountCannon(cannon)
     -- Mount
     GET:InvokeServer("Cannon", "State", cannon, true)
     ColossalState.onCannon = true
-    print("[LixHub] Colossal: Mounted cannon")
+    debugPrint("[LixHub] Colossal: Mounted cannon")
 end
 
 local function dismountCannon(cannon)
@@ -2394,7 +2400,7 @@ local function dismountCannon(cannon)
     -- Force state reset regardless of remote success
     -- so the rest of the logic doesn't get stuck
     ColossalState.onCannon = false
-    print("[LixHub] Colossal: Dismounted cannon (attempts: " .. attempts .. ")")
+    debugPrint("[LixHub] Colossal: Dismounted cannon (attempts: " .. attempts .. ")")
 end
 
 local CANNON_IMPACT_COUNT = 10 -- how many impact registers per shot
@@ -2438,10 +2444,10 @@ local function shootCannon(cannon, colossalTitan)
                 end
             end
         else
-            print("[LixHub] Colossal: Impact event never fired, skipping")
+            debugPrint("[LixHub] Colossal: Impact event never fired, skipping")
         end
     else
-        print("[LixHub] Colossal: Cannonball not found in workspace, skipping")
+        debugPrint("[LixHub] Colossal: Cannonball not found in workspace, skipping")
     end
 
     task.wait(1.1)
@@ -2467,7 +2473,7 @@ function Raids.startColossal()
     ColossalState.claimed     = false
     cannonShooting            = false
 
-    print("[LixHub] Colossal Raid: Starting — Phase 1: Defend Eren + Stall Colossal")
+    debugPrint("[LixHub] Colossal Raid: Starting — Phase 1: Defend Eren + Stall Colossal")
 
     local cannon = getCannonModel()
     if not cannon then
@@ -2506,7 +2512,7 @@ function Raids.startColossal()
         -- Check phase 1 complete (Stall_Colossal_Titan hits 1)
         if Raids.getObjectiveValue("Stall_Colossal_Titan") >= 1 and not phase1Done then
             phase1Done = true  -- prevents re-entry every heartbeat
-            print("[LixHub] Colossal Raid: Phase 1 done — waiting for cutscene")
+            debugPrint("[LixHub] Colossal Raid: Phase 1 done — waiting for cutscene")
             Raids.State.phase = "cutscene"
             
             dismountCannon(cannon)
@@ -2518,7 +2524,7 @@ function Raids.startColossal()
                 repeat task.wait(0.3) until player:GetAttribute("Cutscene") ~= true or Raids.State.stopRequested
                 if Raids.State.stopRequested then return end
 
-                print("[LixHub] Colossal Raid: Cutscene done — Phase 2: Defeat Colossal Titan")
+                debugPrint("[LixHub] Colossal Raid: Cutscene done — Phase 2: Defeat Colossal Titan")
 
                 disableCollision()
                 local hum = character:FindFirstChildOfClass("Humanoid")
@@ -2537,7 +2543,7 @@ function Raids.startColossal()
             if Raids.getObjectiveValue("Defeat_Colossal_Titan") >= 1 then
                 if not chestsDone then
                     chestsDone = true
-                    print("[LixHub] Colossal Raid: Defeated — collecting chests")
+                    debugPrint("[LixHub] Colossal Raid: Defeated — collecting chests")
                     task.spawn(function()
                         task.wait(5)
                         local start = tick()
@@ -2705,12 +2711,12 @@ local RAID_DIFF_ORDER    = {"Aberrant", "Severe", "Hard"}
 
 local function tryDifficulties(diffList, createFn)
     for _, diff in ipairs(diffList) do
-        print("[LixHub] Trying difficulty:", diff)
+        debugPrint("[LixHub] Trying difficulty:", diff)
         local ok, result = pcall(createFn, diff)
         if ok and result then
             return true
         end
-        print("[LixHub] Difficulty failed:", diff, "— trying next...")
+        debugPrint("[LixHub] Difficulty failed:", diff, "— trying next...")
         task.wait(0.5)
     end
     return false
@@ -2725,17 +2731,17 @@ local function joinMission()
                 warn("[LixHub] Auto Join: Boosted map attribute not found")
                 error("Boosted map not available")
             end
-            print("[LixHub] Auto Join: Boosted map detected —", mapName)
+            debugPrint("[LixHub] Auto Join: Boosted map detected —", mapName)
         end
 
-        print("[LixHub] Auto Join: Creating mission —", mapName, State.autoJoinMissionObj, diff)
+        debugPrint("[LixHub] Auto Join: Creating mission —", mapName, State.autoJoinMissionObj, diff)
         local result = GET:InvokeServer("S_Missions", "Create", {
             Difficulty = diff,
             Type       = "Missions",
             Objective  = State.autoJoinMissionObj,
             Name       = mapName,
         })
-        print("[LixHub] Auto Join: Create result —", result, type(result))
+        debugPrint("[LixHub] Auto Join: Create result —", result, type(result))
         if not result then
             error("Create failed for diff: " .. diff)
         end
@@ -2759,17 +2765,17 @@ local function joinMission()
         return false
     end
 
-    print("[LixHub] Auto Join: Lobby created successfully")
+    debugPrint("[LixHub] Auto Join: Lobby created successfully")
     for _, mod in ipairs(State.autoJoinMissionMods) do
         local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
         if modResult ~= true then
             warn("[LixHub] Auto Join: Modifier failed —", mod, "got:", modResult)
         else
-            print("[LixHub] Auto Join: Applied modifier —", mod)
+            debugPrint("[LixHub] Auto Join: Applied modifier —", mod)
         end
         task.wait(0.1)
     end
-    print("[LixHub] Auto Join: Starting mission...")
+    debugPrint("[LixHub] Auto Join: Starting mission...")
     GET:InvokeServer("S_Missions", "Start")
     return true
 end
@@ -2782,7 +2788,7 @@ local function joinRaid()
     end
 
     local function attemptCreate(diff)
-        print("[LixHub] Auto Join Raid:", State.autoJoinRaidType, "on", titanMap, "—", diff)
+        debugPrint("[LixHub] Auto Join Raid:", State.autoJoinRaidType, "on", titanMap, "—", diff)
 
         local payload = {
             Type       = "Raids",
@@ -2821,26 +2827,26 @@ local function joinRaid()
         return false
     end
 
-    print("[LixHub] Auto Join Raid: Lobby created successfully")
+    debugPrint("[LixHub] Auto Join Raid: Lobby created successfully")
 
     for _, mod in ipairs(State.autoJoinRaidMods) do
         local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
         if modResult ~= true then
             warn("[LixHub] Auto Join Raid: Modifier failed —", mod, "got:", modResult)
         else
-            print("[LixHub] Auto Join Raid: Applied modifier —", mod)
+            debugPrint("[LixHub] Auto Join Raid: Applied modifier —", mod)
         end
         task.wait(0.1)
     end
 
-    print("[LixHub] Auto Join Raid: Starting...")
+    debugPrint("[LixHub] Auto Join Raid: Starting...")
     GET:InvokeServer("S_Missions", "Start")
 
     return true
 end
 
 local function joinWaves()
-    print("[LixHub] Auto Join Waves:", State.autoJoinWavesMap)
+    debugPrint("[LixHub] Auto Join Waves:", State.autoJoinWavesMap)
 
     local result = GET:InvokeServer("S_Missions", "Create", {
         Difficulty = "Easy",
@@ -2854,7 +2860,7 @@ local function joinWaves()
         return false
     end
 
-    print("[LixHub] Auto Join Waves: Starting...")
+    debugPrint("[LixHub] Auto Join Waves: Starting...")
     GET:InvokeServer("S_Missions", "Start")
 
     return true
@@ -2891,7 +2897,7 @@ local function checkAndJoin()
             local waitStart = tick()
             repeat task.wait(0.5) until not isInLobby() or tick() - waitStart > 30
             if not isInLobby() then
-                print("[LixHub] Auto Join: Successfully loaded into game")
+                debugPrint("[LixHub] Auto Join: Successfully loaded into game")
             else
                 warn("[LixHub] Auto Join: Timed out waiting to leave lobby")
             end
@@ -3311,6 +3317,31 @@ FarmTab:CreateToggle({
     Flag         = "AutoSkipCutscenes",
     Callback     = function(val) State.skipCutscenesEnabled = val end,
 })
+
+local function startAutoSkipCutscenes()
+    task.spawn(function()
+        while true do
+            task.wait(0.3)
+            if State.skipCutscenesEnabled then
+                pcall(function()
+                    local skip = player.PlayerGui.Interface:FindFirstChild("Skip")
+                    if skip and skip.Visible then
+                        local interact = skip:FindFirstChild("Interact")
+                        if interact then
+                            GuiService.SelectedObject = interact
+                            task.wait(0.1)
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                            task.wait(0.05)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+startAutoSkipCutscenes()
 
 FarmTab:CreateToggle({
     Name         = "Auto Retry",
