@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.07"
+local script_version = "V0.08"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2267,7 +2267,22 @@ function Waves.start()
 end
 
 local function getCannonModel()
-    return workspace.Climbable.Walls.Wall.Cannons["1"]
+    local walls = workspace.Climbable
+        and workspace.Climbable:FindFirstChild("Walls")
+    if not walls then return nil end
+    
+    for _, wall in ipairs(walls:GetChildren()) do
+        if wall.Name == "Wall" then
+            local cannons = wall:FindFirstChild("Cannons")
+            if cannons then
+                local cannon = cannons:FindFirstChild("1")
+                if cannon then
+                    return cannon
+                end
+            end
+        end
+    end
+    return nil
 end
 
 local function getColossalTitan()
