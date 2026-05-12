@@ -785,6 +785,16 @@ local function sendWebhook(roundData, playerData)
     local missionType  = workspace:GetAttribute("Type")       or "Unknown"
     local objective    = workspace:GetAttribute("Objective")  or "Unknown"
     local difficulty   = workspace:GetAttribute("Difficulty") or "Unknown"
+
+    local wavesCompleted = 0
+        if objective == "Waves" then
+            local objFolder = ReplicatedStorage:FindFirstChild("Objectives")
+            if objFolder then
+                local clearance = objFolder:FindFirstChild("Clearance")
+                wavesCompleted = clearance and clearance.Value or 0
+            end
+        end
+
     local titleText    = string.format("Stage %s! - %d Run(s)", completed and "Completed" or "Failed", State.sessionRuns or 1)
     local subtitleText = string.format("%s - %s (%s) - %s", missionType, objective, difficulty, resultText)
 
@@ -869,14 +879,19 @@ local function sendWebhook(roundData, playerData)
             fields      = {
                 { name = "Player",     value = "||" .. player.Name .. "||", inline = true },
                 { name = "Duration",   value = duration,                     inline = true },
-                { name = "\u{200B}",   value = "\u{200B}",                   inline = true },
-                { name = "Game Stats", value = statsText,                    inline = false },
-                { name = "Rewards",    value = rewardsText,                  inline = false },
             },
             footer    = { text = "LixHub • discord.gg/cYKnXE2Nf8" },
             timestamp = timestamp,
         }}
     }
+
+    if objective == "Waves" then
+        table.insert(data.embeds[1].fields, { name = "Waves Completed", value = tostring(wavesCompleted), inline = true })
+    end
+
+    table.insert(data.embeds[1].fields, { name = "\u{200B}", value = "\u{200B}", inline = true })
+    table.insert(data.embeds[1].fields, { name = "Game Stats", value = statsText, inline = false })
+    table.insert(data.embeds[1].fields, { name = "Rewards", value = rewardsText, inline = false })
 
     local HttpService = game:GetService("HttpService")
     local payload     = HttpService:JSONEncode(data)
@@ -3459,6 +3474,15 @@ MiscTab:CreateToggle({
         else
             stopAutoUpgrade()
         end
+    end,
+})
+
+MiscTab:CreateToggle({
+    Name         = "Auto Claim Achievements",
+    CurrentValue = false,
+    Flag         = "AutoClaimAchievements",
+    Callback     = function(val)
+        State.autoClaimAchievements = val
     end,
 })
 
