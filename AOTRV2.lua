@@ -257,11 +257,15 @@ local function ensureBodyMovers(targetCFrame)
 end
 
 local function removeBodyMovers()
+    targetPosition = nil   -- nil this FIRST so the heartbeat skips immediately
+    targetGyro     = nil
+    currentVelocity = Vector3.zero
     if Movers.bodyPos  then Movers.bodyPos:Destroy();  Movers.bodyPos  = nil end
     if Movers.bodyGyro then Movers.bodyGyro:Destroy(); Movers.bodyGyro = nil end
-    targetPosition = nil
-    targetGyro     = nil
-    if rootPart then rootPart.AssemblyLinearVelocity = Vector3.zero end
+    if rootPart then
+        rootPart.AssemblyLinearVelocity = Vector3.zero
+        rootPart.AssemblyAngularVelocity = Vector3.zero
+    end
     enableCollision()
     local hum = character:FindFirstChildOfClass("Humanoid")
     if hum then
