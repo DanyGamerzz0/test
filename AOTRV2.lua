@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.04"
+local script_version = "V0.05"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -2341,21 +2341,20 @@ local function tryDifficulties(diffList, createFn)
 end
 
 local function joinMission()
-    local function attemptCreate(diff)
-        print("[LixHub] Auto Join: Creating mission —", State.autoJoinMissionMap, State.autoJoinMissionObj, diff)
-        local result = GET:InvokeServer("S_Missions", "Create", {
-            Difficulty = diff,
-            Type       = "Missions",
-            Objective  = State.autoJoinMissionObj,
-            Name       = State.autoJoinMissionMap,
-        })
-        local expectedMission = ReplicatedStorage:FindFirstChild("Missions") and
-                                ReplicatedStorage.Missions:FindFirstChild(State.autoJoinMissionMap)
-        if not result or result ~= expectedMission then
-            error("Create failed for diff: " .. diff)
-        end
-        return true
+local function attemptCreate(diff)
+    print("[LixHub] Auto Join: Creating mission —", State.autoJoinMissionMap, State.autoJoinMissionObj, diff)
+    local result = GET:InvokeServer("S_Missions", "Create", {
+        Difficulty = diff,
+        Type       = "Missions",
+        Objective  = State.autoJoinMissionObj,
+        Name       = State.autoJoinMissionMap,
+    })
+    print("[LixHub] Auto Join: Create result —", result, type(result))
+    if not result then
+        error("Create failed for diff: " .. diff)
     end
+    return true
+end
 
     local success
     if State.autoJoinMissionDiff == "Hardest" then
