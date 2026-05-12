@@ -5,7 +5,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.13"
+local script_version = "V0.14"
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -3201,7 +3201,7 @@ FarmTab:CreateSlider({
 
 FarmTab:CreateSlider({
     Name         = "Float Height",
-    Range        = {100, 300},
+    Range        = {100, 500},
     Increment    = 10,
     CurrentValue = 200,
     Flag         = "FloatHeight",
