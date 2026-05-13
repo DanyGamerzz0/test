@@ -2,6 +2,12 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+if not (getrawmetatable and setreadonly and getnamecallmethod and checkcaller
+    and newcclosure and writefile and readfile and isfile and getnilinstances) then
+    game:GetService("Players").LocalPlayer:Kick("EXECUTOR NOT SUPPORTED")
+    return
+end
+
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -50,6 +56,7 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    prioritizeBosses = false,
     skipCutscenesEnabled = false,
     multiHitEnabled = false,
     multiHitCount   = 3,
@@ -2127,6 +2134,22 @@ function Waves.stop()
     debugPrint("[LixHub] Waves: Stopped")
 end
 
+local function getBossTitan()
+    local titans = workspace:FindFirstChild("Titans")
+    if not titans then return nil end
+    for _, titan in ipairs(titans:GetChildren()) do
+        local hum = titan:FindFirstChild("Humanoid")
+        if hum and hum.Health > 0 then
+            if titan:GetAttribute("Shifter") == true then
+                local hb = titan:FindFirstChild("Hitboxes", true)
+                local nape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
+                if nape then return titan end
+            end
+        end
+    end
+    return nil
+end
+
 function Waves.start()
     if isInLobby() then return end
     if player:GetAttribute("Cutscene") == true then
@@ -2229,66 +2252,104 @@ function Waves.start()
         end
 
         tickAccum = tickAccum + dt
-        if tickAccum < State.attackInterval then return end
-        tickAccum = 0
+if tickAccum < State.attackInterval then return end
+tickAccum = 0
 
-        local titan = getClosestTitanToBase()
-        if not titan then return end
+local titan = nil
+local isBoss = false
 
-        local titanRoot = titan:FindFirstChild("HumanoidRootPart")
-        if not titanRoot then return end
+if Waves.State.prioritizeBosses then
+    -- Try boss first, fall back to closest normal titan
+    local boss = getBossTitan()
+    if boss then
+        titan = boss
+        isBoss = true
+    else
+        titan = getClosestTitanToBase()
+    end
+else
+    -- Normal priority: closest to base, but if only boss remains, attack it
+    titan = getClosestTitanToBase()
+    if not titan then
+        local boss = getBossTitan()
+        if boss then titan = boss; isBoss = true end
+    end
+end
 
-        local hb   = titan:FindFirstChild("Hitboxes", true)
-        local nape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
-        if not nape then return end
+if not titan then return end
 
-        State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
-        local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
-        ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
+local titanRoot = titan:FindFirstChild("HumanoidRootPart")
+if not titanRoot then return end
 
-        State.inHook = true
-        local actualPos = rootPart.Position
-        State.inHook = false
+local hb   = titan:FindFirstChild("Hitboxes", true)
+local nape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
+if not nape then return end
 
-        local horizontalDist = Vector2.new(
-            actualPos.X - titanRoot.Position.X,
-            actualPos.Z - titanRoot.Position.Z
-        ).Magnitude
-        if horizontalDist > 150 then return end
+State.syncedPosition = titanRoot.Position + titanRoot.CFrame.LookVector * -7.5 + Vector3.new(0, 12, 0)
+local targetPos = titanRoot.Position + Vector3.new(0, State.floatHeight, 0)
+ensureBodyMovers(CFrame.lookAt(targetPos, titanRoot.Position))
 
-            if isUsingSpears() then
-            spearAttackTitan(nape, titanRoot)
+State.inHook = true
+local actualPos = rootPart.Position
+State.inHook = false
+
+local horizontalDist = Vector2.new(
+    actualPos.X - titanRoot.Position.X,
+    actualPos.Z - titanRoot.Position.Z
+).Magnitude
+if horizontalDist > 150 then return end
+
+if isUsingSpears() then
+    spearAttackTitan(nape, titanRoot, isBoss)
+else
+    if isBoss then
+        -- Multi-damage for bosses (same as raid boss handling)
+        local vulnSpot = Raids.getVulnerableSpot(titan)
+        if vulnSpot then
+            Raids.registerHitVuln(vulnSpot)
         else
-            POST:FireServer("Attacks", "Slash", true)
-            local damage = 670 + math.random(55, 165)
-            if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
-            POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+            task.spawn(function()
+                POST:FireServer("Attacks", "Slash", true)
+                for i = 1, 5 do
+                    local damage = 670 + math.random(55, 165)
+                    if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+                    POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
+                end
+            end)
+        end
+    else
+        -- Normal titan attack
+        POST:FireServer("Attacks", "Slash", true)
+        local damage = 670 + math.random(55, 165)
+        if math.random(1, 8) == 1 then damage = damage * math.random(138, 148) / 100 end
+        POST:FireServer("Hitboxes", "Register", nape, math.floor(damage))
 
-            if State.multiHitEnabled then
-                local titans = workspace:FindFirstChild("Titans")
-                if titans then
-                    local count = 0
-                    for _, otherTitan in ipairs(titans:GetChildren()) do
-                        if count >= State.multiHitCount then break end
-                        local hum = otherTitan:FindFirstChild("Humanoid")
-                        if hum and hum.Health > 0 then
-                            local hb2 = otherTitan:FindFirstChild("Hitboxes", true)
-                            local otherNape = hb2 and hb2:FindFirstChild("Hit", true) and hb2.Hit:FindFirstChild("Nape")
-                            if otherNape and otherNape ~= nape then
-                                local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
-                                local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                                if dist <= 500 then
-                                    local d2 = 670 + math.random(55, 165)
-                                    if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
-                                    POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
-                                    count += 1
-                                end
+        if State.multiHitEnabled then
+            local titans = workspace:FindFirstChild("Titans")
+            if titans then
+                local count = 0
+                for _, otherTitan in ipairs(titans:GetChildren()) do
+                    if count >= State.multiHitCount then break end
+                    local hum = otherTitan:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local hb2 = otherTitan:FindFirstChild("Hitboxes", true)
+                        local otherNape = hb2 and hb2:FindFirstChild("Hit", true) and hb2.Hit:FindFirstChild("Nape")
+                        if otherNape and otherNape ~= nape then
+                            local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
+                            local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
+                            if dist <= 500 then
+                                local d2 = 670 + math.random(55, 165)
+                                if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
+                                POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
+                                count += 1
                             end
                         end
                     end
                 end
             end
         end
+    end
+end
     end)
 end
 
@@ -3196,6 +3257,15 @@ FarmTab:CreateToggle({
 })
 
 FarmTab:CreateToggle({
+    Name         = "Prioritize Bosses (Waves)",
+    CurrentValue = false,
+    Flag         = "WavesPrioritizeBosses",
+    Callback     = function(val)
+        Waves.State.prioritizeBosses = val
+    end,
+})
+
+FarmTab:CreateToggle({
     Name         = "Auto Start / Skip Wave",
     CurrentValue = false,
     Flag         = "WavesAutoVote",
@@ -3478,15 +3548,6 @@ MiscTab:CreateToggle({
 })
 
 MiscTab:CreateToggle({
-    Name         = "Auto Claim Achievements",
-    CurrentValue = false,
-    Flag         = "AutoClaimAchievements",
-    Callback     = function(val)
-        State.autoClaimAchievements = val
-    end,
-})
-
-MiscTab:CreateToggle({
     Name         = "Auto Execute Script",
     CurrentValue = false,
     Flag         = "EnableAutoExecute",
@@ -3497,7 +3558,7 @@ MiscTab:CreateToggle({
         if val then
             local queuedScript = string.format([[
                 getgenv().__LIXHUB_RUNS = %d
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/DanyGamerzz0/test/refs/heads/main/AOTRV2.lua"))()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()
             ]], State.sessionRuns)
             queue_on_teleport(queuedScript)
         else
