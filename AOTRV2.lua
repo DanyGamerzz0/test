@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.01"
+local script_version = "V0.02"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -2024,7 +2024,7 @@ local function getClosestTitanToBase()
     for _, titan in ipairs(titans:GetChildren()) do
         local hrp = titan:FindFirstChild("HumanoidRootPart")
         local hum = titan:FindFirstChild("Humanoid")
-        if hrp and hum and hum.Health > 0 then
+        if hrp and hum and hum.Health > 0 and titan:GetAttribute("Shifter") ~= true then
             local hb   = titan:FindFirstChild("Hitboxes", true)
             local nape = hb and hb:FindFirstChild("Hit", true) and hb.Hit:FindFirstChild("Nape")
             if nape then
