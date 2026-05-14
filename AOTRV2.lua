@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.03"
+local script_version = "V0.04"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -3592,7 +3592,8 @@ MiscTab:CreateToggle({
     Name         = "Auto Claim Quests",
     CurrentValue = false,
     Flag         = "AutoClaimQuests",
-    Callback     = function(val)
+    Callback = function(val)
+        State.autoClaimQuests = val
         if val then
             task.spawn(function()
                 while State.autoClaimQuests do
@@ -3601,7 +3602,6 @@ MiscTab:CreateToggle({
                 end
             end)
         end
-        State.autoClaimQuests = val
     end,
 })
 
