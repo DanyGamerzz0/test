@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.02"
+local script_version = "V0.03"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -56,6 +56,7 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    autoClaimQuests = false,
     prioritizeBosses = false,
     skipCutscenesEnabled = false,
     multiHitEnabled = false,
@@ -2710,6 +2711,32 @@ function Raids.startColossal()
     end)
 end
 
+local function autoClaimQuests()
+    local categories = {"Main", "Daily", "Weekly", "Side"}
+    
+    local ok, data = pcall(function()
+        return GET:InvokeServer("S_Quests", "Get")
+    end)
+    if not ok or not data then return end
+
+    for _, category in ipairs(categories) do
+        local quests = data.Quests and data.Quests[category]
+        if quests then
+            for _, quest in pairs(quests) do
+                if quest.Rewarded == nil and quest.Current ~= nil and quest.Amount ~= nil then
+                    if quest.Current >= quest.Amount then
+                        pcall(function()
+                            GET:InvokeServer("Functions", "Quest", quest.Tag, category)
+                        end)
+                        debugPrint("[LixHub] Auto Claimed quest:", quest.Tag, "in", category)
+                        task.wait(0.1)
+                    end
+                end
+            end
+        end
+    end
+end
+
 -- ==================== RAYFIELD UI ====================
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
@@ -3549,6 +3576,72 @@ MiscTab:CreateToggle({
         else
             stopAutoUpgrade()
         end
+    end,
+})
+
+MiscTab:CreateToggle({
+    Name         = "Auto Claim Achievements",
+    CurrentValue = false,
+    Flag         = "AutoClaimAchievements",
+    Callback     = function(val)
+        State.autoClaimAchievements = val
+    end,
+})
+
+MiscTab:CreateToggle({
+    Name         = "Auto Claim Quests",
+    CurrentValue = false,
+    Flag         = "AutoClaimQuests",
+    Callback     = function(val)
+        if val then
+            task.spawn(function()
+                while State.autoClaimQuests do
+                    autoClaimQuests()
+                    task.wait(30)
+                end
+            end)
+        end
+        State.autoClaimQuests = val
+    end,
+})
+
+MiscTab:CreateToggle({
+    Name         = "Auto Use Boosts",
+    CurrentValue = false,
+    Flag         = "AutoUseBoosts",
+    Callback     = function(val)
+        State.autoUseBoosts = val
+    end,
+})
+
+MiscTab:CreateToggle({
+    Name         = "Auto Purchase Boosts",
+    CurrentValue = false,
+    Flag         = "AutoPurchaseBoosts",
+    Callback     = function(val)
+        State.autoPurchaseBoosts = val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Boosts To Buy",
+    Options      = {"XP Boost", "Gold Boost", "Luck Boost"},
+    CurrentOption = {},
+    Flag         = "autoPurchaseBoostsSelection",
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoPurchaseBoostsSelection = type(val) == "table" and val[1] or val
+    end,
+})
+
+JoinerTab:CreateDropdown({
+    Name         = "Select Currency To Buy Potions",
+    Options      = {"Gems","Candy Canes","Wave Coins"},
+    CurrentOption = {},
+    Flag         = "autoPurchaseBoostsCurrencySelection",
+    MultipleOptions = false,
+    Callback     = function(val)
+        State.autoPurchaseBoostsCurrencySelection = type(val) == "table" and val[1] or val
     end,
 })
 
