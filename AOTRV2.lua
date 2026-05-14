@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.06"
+local script_version = "V0.07"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -56,6 +56,10 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    autoUseBoosts = false,
+    autoPurchaseBoosts = false,
+    autoPurchaseBoostsCurrencySelection = "",
+    autoPurchaseBoostsSelection = "",
     autoClaimAchievements = false,
     prioritizeBosses = false,
     skipCutscenesEnabled = false,
@@ -163,6 +167,7 @@ local PERK_RARITIES = {}
 local ITEM_RARITIES = {}
 local autoJoinConnection = nil
 local autoJoinProcessing = false
+local autoBoostConnection = nil
 
 function Util.notify(title, content, duration, image)
     Rayfield:Notify({
@@ -2721,6 +2726,41 @@ local function autoClaimAchievements()
     Util.notify("Achievements", "Claimed all achievements!", 3, "check")
 end
 
+local function startAutoBoost()
+    if autoBoostConnection then return end
+    autoBoostConnection = task.spawn(function()
+        while true do
+            task.wait(5)
+
+            if State.autoUseBoosts then
+                for _, bType in ipairs({"XP", "Gold", "Luck"}) do
+                    local boost = player.Boosts:FindFirstChild(bType)
+                    if boost and boost.Value <= 0 then
+                        pcall(function()
+                            GET:InvokeServer("S_Inventory", "Item", "2x " .. bType .. " Boost [2h]")
+                        end)
+                    end
+                end
+            end
+
+            if State.autoPurchaseBoosts then
+                local prefix = ({["Gems"] = "1_Boosts", ["Candy Canes"] = "2_Boosts", ["Wave Coins"] = "3_Boosts"})[State.autoPurchaseBoostsCurrencySelection] or "2_Boosts"
+                local ids = {XP = 3, Gold = 9, Luck = 6}
+                local selected = type(State.autoPurchaseBoostsSelection) == "table" and State.autoPurchaseBoostsSelection or {State.autoPurchaseBoostsSelection}
+                for _, bType in ipairs(selected) do
+                    local boost = player.Boosts:FindFirstChild(bType)
+                    if boost and boost.Value <= 0 then
+                        pcall(function()
+                            GET:InvokeServer("S_Market", "Buy", prefix, ids[bType], 1)
+                        end)
+                        task.wait(0.5)
+                    end
+                end
+            end
+        end
+    end)
+end
+
 -- ==================== RAYFIELD UI ====================
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
@@ -3046,6 +3086,7 @@ end
 
 startAutoJoinLoop()
 startAutoSkipCutscenes()
+startAutoBoost()
 
 local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
 
@@ -3592,24 +3633,24 @@ MiscTab:CreateToggle({
     end,
 })
 
-JoinerTab:CreateDropdown({
-    Name         = "Select Boosts To Buy",
-    Options      = {"XP Boost", "Gold Boost", "Luck Boost"},
-    CurrentOption = {},
-    Flag         = "autoPurchaseBoostsSelection",
-    MultipleOptions = false,
-    Callback     = function(val)
-        State.autoPurchaseBoostsSelection = type(val) == "table" and val[1] or val
+MiscTab:CreateDropdown({
+    Name            = "Select Boosts To Buy",
+    Options         = {"XP", "Gold", "Luck"},
+    CurrentOption   = {},
+    Flag            = "autoPurchaseBoostsSelection",
+    MultipleOptions = true,
+    Callback        = function(val)
+        State.autoPurchaseBoostsSelection = type(val) == "table" and val or {val}
     end,
 })
 
-JoinerTab:CreateDropdown({
-    Name         = "Select Currency To Buy Potions",
-    Options      = {"Gems","Candy Canes","Wave Coins"},
-    CurrentOption = {},
-    Flag         = "autoPurchaseBoostsCurrencySelection",
+MiscTab:CreateDropdown({
+    Name            = "Select Currency To Buy Boosts",
+    Options         = {"Gems", "Candy Canes", "Wave Coins"},
+    CurrentOption   = {},
+    Flag            = "autoPurchaseBoostsCurrencySelection",
     MultipleOptions = false,
-    Callback     = function(val)
+    Callback        = function(val)
         State.autoPurchaseBoostsCurrencySelection = type(val) == "table" and val[1] or val
     end,
 })
