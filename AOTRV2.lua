@@ -3587,6 +3587,14 @@ MiscTab:CreateButton({
     end,
 })
 
+MiscTab:CreateButton({
+    Name     = "Copy Discord Invite To Clipboard",
+    Callback = function()
+        setclipboard("https://discord.gg/cYKnXE2Nf8")
+        Util.notify("Discord Invite", "Invite copied to clipboard!", 3, "check")
+    end,
+})
+
 -- ==================== INIT ====================
 if not isInLobby() then
     setupAutoEscape()
