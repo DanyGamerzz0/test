@@ -2257,10 +2257,9 @@ tickAccum = 0
 
 local titan = nil
 local isBoss = false
+local boss = getBossTitan()
 
 if Waves.State.prioritizeBosses then
-    -- Try boss first, fall back to closest normal titan
-    local boss = getBossTitan()
     if boss then
         titan = boss
         isBoss = true
@@ -2268,12 +2267,18 @@ if Waves.State.prioritizeBosses then
         titan = getClosestTitanToBase()
     end
 else
-    -- Normal priority: closest to base, but if only boss remains, attack it
     titan = getClosestTitanToBase()
+    -- Even in normal mode, if boss exists alongside normal titans,
+    -- still flag it so it gets multi-damage when targeted
     if not titan then
-        local boss = getBossTitan()
         if boss then titan = boss; isBoss = true end
+    elseif titan == boss then
+        isBoss = true
     end
+end
+
+if titan and titan:GetAttribute("Shifter") == true then
+    isBoss = true
 end
 
 if not titan then return end
