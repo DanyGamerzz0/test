@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.05"
+local script_version = "V0.06"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -56,7 +56,7 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
-    autoClaimQuests = false,
+    autoClaimAchievements = false,
     prioritizeBosses = false,
     skipCutscenesEnabled = false,
     multiHitEnabled = false,
@@ -2711,29 +2711,14 @@ function Raids.startColossal()
     end)
 end
 
-local function autoClaimQuests()
-    local ok, data = pcall(function()
-        return GET:InvokeServer("S_Quests", "Get")
-    end)
-    if not ok or not data or not data.Quests then return end
-
-    local categories = {"Main", "Side", "Daily", "Weekly"}
-    for _, category in ipairs(categories) do
-        local quests = data.Quests[category]
-        if quests then
-            for _, quest in ipairs(quests) do
-                if quest.Rewarded == nil
-                    and quest.Current ~= nil
-                    and quest.Amount ~= nil
-                    and quest.Current >= quest.Amount then
-                    pcall(function()
-                        GET:InvokeServer("Functions", "Quest", quest.Tag, category)
-                    end)
-                    task.wait(0.1)
-                end
-            end
-        end
+local function autoClaimAchievements()
+    for i = 1, 70 do
+        pcall(function()
+            GET:InvokeServer("S_Achievements", "Claim", i)
+        end)
+        task.wait(0.1)
     end
+    Util.notify("Achievements", "Claimed all achievements!", 3, "check")
 end
 
 -- ==================== RAYFIELD UI ====================
@@ -3583,27 +3568,12 @@ MiscTab:CreateToggle({
     CurrentValue = false,
     Flag         = "AutoClaimAchievements",
     Callback     = function(val)
+        if val then
+            task.spawn(autoClaimAchievements)
+        end
         State.autoClaimAchievements = val
     end,
 })
-
-MiscTab:CreateToggle({
-    Name         = "Auto Claim Quests",
-    CurrentValue = false,
-    Flag         = "AutoClaimQuests",
-    Callback = function(val)
-        State.autoClaimQuests = val
-        if val then
-            task.spawn(function()
-                while State.autoClaimQuests do
-                    autoClaimQuests()
-                    task.wait(30)
-                end
-            end)
-        end
-    end,
-})
-
 MiscTab:CreateToggle({
     Name         = "Auto Use Boosts",
     CurrentValue = false,
