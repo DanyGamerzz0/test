@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.07"
+local script_version = "V0.08"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -154,6 +154,24 @@ local RAID_TITAN_MAP = {
     ["Female Titan"]   = "Stohess",
     ["Colossal Titan"] = "Shiganshina",
 }
+
+local RollState = {
+    active = false,
+    targetFamilies = {},
+    connection = nil,
+}
+
+local RARITY_COLORS = {
+    Common    = 0x808080,
+    Rare      = 0x3498DB,
+    Epic      = 0x9B59B6,
+    Legendary = 0xF1C40F,
+    Mythic    = 0xE74C3C,
+    Secret    = 0x010101,
+}
+
+local familyRarityMap = {}
+local familyDropdownOptions = {}
 
 -- ==================== COLLISION ====================
 local noclipConnection = nil
@@ -2761,6 +2779,115 @@ local function startAutoBoost()
     end)
 end
 
+local function loadFamilies()
+    local ok, FamilyData = pcall(require, game:GetService("ReplicatedStorage").Modules.Storage.Families)
+    if not ok or type(FamilyData) ~= "table" then
+        warn("[LixHub] Failed to require Families module:", FamilyData)
+        return
+    end
+
+    local rarityOrder = {"Secret", "Mythic", "Legendary", "Epic", "Rare", "Common"}
+
+    for _, rarity in ipairs(rarityOrder) do
+        local tier = FamilyData[rarity]
+        if tier then
+            for familyName in pairs(tier) do
+                familyRarityMap[familyName] = rarity
+                table.insert(familyDropdownOptions, familyName .. " [" .. rarity .. "]")
+            end
+        end
+    end
+
+    -- Sort so higher rarities appear first
+    table.sort(familyDropdownOptions, function(a, b)
+        local function rarityIndex(str)
+            for i, r in ipairs(rarityOrder) do
+                if str:find("%[" .. r .. "%]") then return i end
+            end
+            return 99
+        end
+        local ia, ib = rarityIndex(a), rarityIndex(b)
+        if ia == ib then return a < b end
+        return ia < ib
+    end)
+end
+
+local function sendRollWebhook(familyName, rarity)
+    if not State.webhookUrl then return end
+
+    local color = RARITY_COLORS[rarity] or 0x808080
+    local HttpService = game:GetService("HttpService")
+    local requestFunc = syn and syn.request or request or http_request or getgenv().request
+    if not requestFunc then return end
+
+    local data = {
+        username = "LixHub",
+        content  = State.discordUserId and string.format("<@%s> Rolled **%s** [%s]!", State.discordUserId, familyName, rarity) or nil,
+        embeds = {{
+            title       = "Family Rolled!",
+            description = string.format("Rolled **%s** [%s]!", familyName, rarity),
+            color       = color,
+            footer      = { text = "LixHub • discord.gg/cYKnXE2Nf8" },
+            timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        }}
+    }
+
+    pcall(function()
+        requestFunc({
+            Url     = State.webhookUrl,
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = HttpService:JSONEncode(data),
+        })
+    end)
+end
+
+local function stopAutoRoll()
+    RollState.active = false
+    debugPrint("[LixHub] Auto Roll: Stopped")
+end
+
+local function startAutoRoll()
+    if RollState.active then return end
+    if #RollState.targetFamilies == 0 then
+        Util.notify("Auto Roll", "No target families selected!", 3, "alert-triangle")
+        return
+    end
+
+    RollState.active = true
+    debugPrint("[LixHub] Auto Roll: Starting...")
+
+    task.spawn(function()
+        while RollState.active do
+            local ok, a, familyName, pityCount, familyTable = pcall(function()
+                return GET:InvokeServer("Family", "Roll")
+            end)
+
+            if not ok or not familyName then
+                debugPrint("[LixHub] Auto Roll: Roll failed, retrying...")
+                task.wait(1)
+                continue
+            end
+
+            local rarity = familyRarityMap[familyName] or "Common"
+            debugPrint("[LixHub] Auto Roll: Got", familyName, "[" .. rarity .. "] —", a, "rolls left, pity:", pityCount)
+
+            for _, target in ipairs(RollState.targetFamilies) do
+                local targetName = target:match("^(.-)%s+%[")
+                if targetName == familyName then
+                    RollState.active = false
+                    Util.notify("Auto Roll", "Rolled " .. familyName .. " [" .. rarity .. "]!", 8, "star")
+                    sendRollWebhook(familyName, rarity)
+                    debugPrint("[LixHub] Auto Roll: Target family found! Stopping.")
+                    return
+                end
+            end
+
+            task.wait(0.1)
+        end
+    end)
+end
+
 -- ==================== RAYFIELD UI ====================
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
@@ -3087,6 +3214,7 @@ end
 startAutoJoinLoop()
 startAutoSkipCutscenes()
 startAutoBoost()
+loadFamilies()
 
 local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
 
@@ -3542,7 +3670,7 @@ WebhookTab:CreateInput({
 })
 
 WebhookTab:CreateInput({
-    Name                     = "Discord User ID (for drop pings)",
+    Name                     = "Discord User ID (for drop/family pings)",
     CurrentValue             = "",
     Flag                     = "WebhookDiscordId",
     PlaceholderText          = "Your Discord user ID...",
@@ -3589,6 +3717,30 @@ WebhookTab:CreateButton({
 
 -- ===== TAB: Misc =====
 local MiscTab = Window:CreateTab("Misc", "settings")
+
+MiscTab:CreateToggle({
+    Name         = "Auto Roll Family",
+    CurrentValue = false,
+    Flag         = "AutoRollFamily",
+    Callback     = function(val)
+        if val then
+            startAutoRoll()
+        else
+            stopAutoRoll()
+        end
+    end,
+})
+
+MiscTab:CreateDropdown({
+    Name            = "Stop Rolling On x Family",
+    Options         = familyDropdownOptions,
+    CurrentOption   = {},
+    Flag            = "AutoRollTargetFamilies",
+    MultipleOptions = true,
+    Callback        = function(val)
+        RollState.targetFamilies = type(val) == "table" and val or {val}
+    end,
+})
 
 MiscTab:CreateToggle({
     Name         = "Auto Upgrade Gear",
