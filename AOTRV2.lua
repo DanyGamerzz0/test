@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.09"
+local script_version = "V0.1"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -2826,10 +2826,10 @@ local function sendRollWebhook(familyName, rarity)
 
     local data = {
         username = "LixHub",
-        content  = State.discordUserId and string.format("<@%s> Rolled **%s** [%s]!", State.discordUserId, familyName, rarity) or nil,
+        content  = State.discordUserId and string.format("<@%s> Rolled %s!", State.discordUserId, familyName) or nil,
         embeds = {{
             title       = "Family Rolled!",
-            description = string.format("Rolled **%s** [%s]!", familyName, rarity),
+            description = string.format("Rolled %s!", familyName),
             color       = color,
             footer      = { text = "LixHub • discord.gg/cYKnXE2Nf8" },
             timestamp   = os.date("!%Y-%m-%dT%H:%M:%SZ"),
@@ -2875,6 +2875,7 @@ local function startAutoRoll()
 
             local rarity = familyRarityMap[familyName] or "Common"
             debugPrint("[LixHub] Auto Roll: Got", familyName, "[" .. rarity .. "] —", a, "rolls left, pity:", pityCount)
+            Util.notify("Auto Roll", familyName .. " [" .. rarity .. "] — " .. tostring(a) .. " rolls left", 1, "refresh-cw")
 
             for _, target in ipairs(RollState.targetFamilies) do
                 local targetName = target:match("^(.-)%s+%[")
