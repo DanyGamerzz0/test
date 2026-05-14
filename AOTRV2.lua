@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.08"
+local script_version = "V0.09"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -41,15 +41,19 @@ local function isInLobby()
     return workspace:GetAttribute("Map") == "Lobby"
 end
 
+local function isInMainMenu()
+    return game.PlaceId == 13379208636
+end
+
 repeat task.wait(0.5) until
     ReplicatedStorage:FindFirstChild("Assets") and
     ReplicatedStorage.Assets:FindFirstChild("Remotes") and
     ReplicatedStorage.Assets.Remotes:FindFirstChild("POST") and
     ReplicatedStorage.Assets.Remotes:FindFirstChild("GET")
 
-if not isInLobby() then
-repeat task.wait(0.5) until workspace:GetAttribute("Type") ~= nil
-repeat task.wait(0.5) until #getactors() > 0
+if not isInLobby() and not isInMainMenu() then
+    repeat task.wait(0.5) until workspace:GetAttribute("Type") ~= nil
+    repeat task.wait(0.5) until #getactors() > 0
 end
 
 local POST = ReplicatedStorage.Assets.Remotes.POST
@@ -1056,14 +1060,14 @@ local function onRoundEnd(encoded)
 end
 
 -- Create bindable BEFORE running on actors
-if not isInLobby() then
+if not isInLobby() and not isInMainMenu() then
     local bridge = Instance.new("BindableEvent")
     bridge.Parent = game:GetService("ReplicatedStorage")
     bridge.Name = "__LixBridge"
     bridge.Event:Connect(onRoundEnd)
 end
 
-if not isInLobby() then
+if not isInLobby() and not isInMainMenu() then
     for _, actor in getactors() do
         run_on_actor(actor, [[
             local GET = game:GetService("ReplicatedStorage").Assets.Remotes.GET
@@ -3856,7 +3860,7 @@ MiscTab:CreateButton({
 })
 
 -- ==================== INIT ====================
-if not isInLobby() then
+if not isInLobby() and not isInMainMenu() then
     setupAutoEscape()
 end
 
