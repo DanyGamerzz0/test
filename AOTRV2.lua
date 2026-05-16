@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.03"
+local script_version = "V0.02"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -2954,14 +2954,18 @@ local function startAutoSkills()
                     if cooldown then
                         local last = skillLastUsed[slot] or 0
                         if tick() - last >= cooldown then
+                            local result
                             pcall(function()
-                                GET:InvokeServer("S_Skills", "Usage", slot)
+                                result = GET:InvokeServer("S_Skills", "Usage", slot)
                             end)
-                            skillLastUsed[slot] = tick()
-                            local info = skillInfoMap[skillId]
-                            local frames = info and info.Frames or 0
-                            if frames > 0 then
-                                task.wait(frames / 60)
+
+                            if result ~= nil then
+                                skillLastUsed[slot] = tick()
+                                local info = skillInfoMap[skillId]
+                                local frames = info and info.Frames or 0
+                                if frames > 0 then
+                                    task.wait(frames / 60)
+                                end
                             end
                         end
                     end
