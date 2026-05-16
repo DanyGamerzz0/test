@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.21"
+local script_version = "V0.02"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -60,6 +60,8 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    autoSkillsEnabled = false,
+    autoSkillSlots = {},
     autoUseBoosts = false,
     autoPurchaseBoosts = false,
     autoPurchaseBoostsCurrencySelection = "",
@@ -190,6 +192,10 @@ local ITEM_RARITIES = {}
 local autoJoinConnection = nil
 local autoJoinProcessing = false
 local autoBoostConnection = nil
+local skillInfoMap = {}
+local skillDropdownOptions = {}
+local autoSkillConnection = nil
+local skillLastUsed = {}
 
 function Util.notify(title, content, duration, image)
     Rayfield:Notify({
@@ -791,6 +797,17 @@ local function buildPerkRarities()
     end
 end
 
+local function buildSkills()
+    local ok, SkillModule = pcall(require, ReplicatedStorage.Modules.Storage.Skill)
+    if not ok or type(SkillModule) ~= "table" then
+        warn("[LixHub] Failed to require Skill module:", SkillModule)
+        return
+    end
+    for skillId, info in pairs(SkillModule.Info) do
+        skillInfoMap[skillId] = info
+    end
+end
+
 local function buildItemRarities()
     local ok, ItemData = pcall(require, game:GetService("ReplicatedStorage").Modules.Storage.Items)
     if not ok or type(ItemData) ~= "table" then
@@ -873,7 +890,7 @@ local function sendWebhook(roundData, playerData)
     local luckSecs = (player.Boosts:FindFirstChild("Luck") and player.Boosts.Luck.Value) or 0
 
     local potionsText = string.format(
-        "%sXP: %s\n%sGold: %s\n%sLuck: %s",
+        "%s %s\n%s %s\n%s %s",
         "<:aotr_xpboost:1505209472547815535>",   formatBoostTime(xpSecs),
         "<:aotr_goldboost:1505209405648404480>", formatBoostTime(goldSecs),
         "<:aotr_luckboost:1505209436384530594>", formatBoostTime(luckSecs)
@@ -2910,6 +2927,52 @@ local function startAutoRoll()
     end)
 end
 
+local function getSkillIdForSlot(slot)
+    local hotbar = ReplicatedStorage:FindFirstChild("Hotbar")
+    if not hotbar then return nil end
+    local slotFolder = hotbar:FindFirstChild("Skill_" .. slot)
+    if not slotFolder then return nil end
+    return tostring(slotFolder:GetAttribute("Skill"))
+end
+
+local function getSkillCooldown(skillId)
+    local info = skillInfoMap[skillId]
+    return info and info.Cooldown or nil
+end
+
+local function startAutoSkills()
+    if autoSkillConnection then return end
+    autoSkillConnection = task.spawn(function()
+        while State.autoSkillsEnabled do
+            task.wait(0.1)
+            for _, slot in ipairs(State.autoSkillSlots) do
+                local skillId = getSkillIdForSlot(slot)
+                if skillId then
+                    local cooldown = getSkillCooldown(skillId)
+                    if cooldown then
+                        local last = skillLastUsed[slot] or 0
+                        if tick() - last >= cooldown then
+                            pcall(function()
+                                GET:InvokeServer("S_Skills", "Usage", slot)
+                            end)
+                            skillLastUsed[slot] = tick()
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function stopAutoSkills()
+    State.autoSkillsEnabled = false
+    if autoSkillConnection then
+        task.cancel(autoSkillConnection)
+        autoSkillConnection = nil
+    end
+    skillLastUsed = {}
+end
+
 -- ==================== RAYFIELD UI ====================
 local Window = Rayfield:CreateWindow({
    Name = "LixHub - Attack On Titan Revolution",
@@ -3237,6 +3300,7 @@ startAutoJoinLoop()
 startAutoSkipCutscenes()
 startAutoBoost()
 loadFamilies()
+buildSkills()
 
 local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
 
@@ -3629,6 +3693,31 @@ FarmTab:CreateToggle({
     CurrentValue = false,
     Flag         = "AutoEscapeGrab",
     Callback     = function(val) State.escapeEnabled = val end,
+})
+
+FarmTab:CreateToggle({
+    Name = "Auto Use Skills",
+    CurrentValue = false,
+    Flag = "AutoSkills",
+    Callback = function(val)
+        State.autoSkillsEnabled = val
+        if val then startAutoSkills() else stopAutoSkills() end
+    end,
+})
+
+FarmTab:CreateDropdown({
+    Name = "Select Skill Slots",
+    Options = {"1", "2", "3", "4", "5"},
+    CurrentOption = {},
+    Flag = "AutoSkillSlots",
+    MultipleOptions = true,
+    Callback = function(val)
+        val = type(val) == "table" and val or {val}
+        State.autoSkillSlots = {}
+        for _, v in ipairs(val) do
+            table.insert(State.autoSkillSlots, tonumber(v))
+        end
+    end,
 })
 
 FarmTab:CreateToggle({
