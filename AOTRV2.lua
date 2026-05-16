@@ -881,7 +881,7 @@ local function sendWebhook(roundData, playerData)
     )
 
     local function formatBoostTime(secs)
-    if not secs or secs <= 0 then return "None" end
+    if not secs or secs <= 0 then return "00:00" end
     return string.format("%d:%02d", math.floor(secs / 60), secs % 60)
     end
 
@@ -2947,14 +2947,19 @@ local function startAutoSkills()
             task.wait(0.1)
             for _, slot in ipairs(State.autoSkillSlots) do
                 local skillId = getSkillIdForSlot(slot)
+                print("[Skills] Slot:", slot, "SkillId:", skillId)
                 if skillId then
                     local cooldown = getSkillCooldown(skillId)
+                    print("[Skills] Cooldown:", cooldown)
                     if cooldown then
                         local last = skillLastUsed[slot] or 0
-                        if tick() - last >= cooldown then
-                            pcall(function()
+                        local elapsed = tick() - last
+                        print("[Skills] Elapsed:", elapsed, "/", cooldown)
+                        if elapsed >= cooldown then
+                            local ok, err = pcall(function()
                                 GET:InvokeServer("S_Skills", "Usage", slot)
                             end)
+                            print("[Skills] Fire result:", ok, err)
                             skillLastUsed[slot] = tick()
                         end
                     end
