@@ -825,6 +825,9 @@ end
 
 buildItemRarities()
 buildPerkRarities()
+if not isInLobby() and not isInMainMenu() then
+buildSkills()
+end
 
 local function sendWebhook(roundData, playerData)
     if not State.webhookUrl then return end
@@ -3311,7 +3314,6 @@ startAutoJoinLoop()
 startAutoSkipCutscenes()
 startAutoBoost()
 loadFamilies()
-buildSkills()
 
 local JoinerTab = Window:CreateTab("Auto Join", "plug-zap")
 
