@@ -18,7 +18,7 @@ loadstring([[
 
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-    local script_version = "V0.15"
+    local script_version = "V0.16"
     getgenv().RAYFIELD_SECURE = true
     getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -4071,7 +4071,9 @@ mt.__namecall = newcclosure(function(self, ...)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                         MacroIO.saveWorldMappings()
+                        if selectedMacro ~= "None" and selectedMacro ~= "" then
                         tryPreloadMacro(selectedMacro, worldKey)
+                        end
                     end,
                 })
                 worldDropdowns[worldKey] = dropdown
@@ -4090,7 +4092,9 @@ mt.__namecall = newcclosure(function(self, ...)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                         MacroIO.saveWorldMappings()
+                        if selectedMacro ~= "None" and selectedMacro ~= "" then
                         tryPreloadMacro(selectedMacro, worldKey)
+                        end
                     end,
                 })
                 worldDropdowns[worldKey] = dropdown
@@ -4120,7 +4124,9 @@ mt.__namecall = newcclosure(function(self, ...)
                             local selectedMacro = type(Option) == "table" and Option[1] or Option
                             worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                             MacroIO.saveWorldMappings()
+                            if selectedMacro ~= "None" and selectedMacro ~= "" then
                             tryPreloadMacro(selectedMacro, worldKey)
+                            end
                         end,
                     })
                     worldDropdowns[worldKey] = dropdown
@@ -4140,7 +4146,9 @@ mt.__namecall = newcclosure(function(self, ...)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[worldKey] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                         MacroIO.saveWorldMappings()
+                        if selectedMacro ~= "None" and selectedMacro ~= "" then
                         tryPreloadMacro(selectedMacro, worldKey)
+                        end
                     end,
                 })
                 worldDropdowns[worldKey] = dropdown
@@ -4162,7 +4170,9 @@ mt.__namecall = newcclosure(function(self, ...)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[featured.key] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                         MacroIO.saveWorldMappings()
+                        if selectedMacro ~= "None" and selectedMacro ~= "" then
                         tryPreloadMacro(selectedMacro, featured.key)
+                        end
                     end,
                 })
                 worldDropdowns[featured.key] = dropdown
@@ -4188,7 +4198,9 @@ mt.__namecall = newcclosure(function(self, ...)
                         local selectedMacro = type(Option) == "table" and Option[1] or Option
                         worldMacroMappings[event.key] = (selectedMacro == "None" or selectedMacro == "") and nil or selectedMacro
                         MacroIO.saveWorldMappings()
+                        if selectedMacro ~= "None" and selectedMacro ~= "" then
                         tryPreloadMacro(selectedMacro, event.key)
+                        end
                     end,
                 })
                 worldDropdowns[event.key] = dropdown
