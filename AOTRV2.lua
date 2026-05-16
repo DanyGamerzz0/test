@@ -11,13 +11,14 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.02"
+local script_version = "V0.03"
 local debug = false
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local GuiService = game:GetService("GuiService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser")
 
 local player = Players.LocalPlayer
 
@@ -60,6 +61,7 @@ local POST = ReplicatedStorage.Assets.Remotes.POST
 local GET  = ReplicatedStorage.Assets.Remotes.GET
 
 local State = {
+    AntiAfkKickEnabled = false,
     autoSkillsEnabled = false,
     autoSkillSlots = {},
     autoUseBoosts = false,
@@ -2951,12 +2953,16 @@ local function startAutoSkills()
                     local cooldown = getSkillCooldown(skillId)
                     if cooldown then
                         local last = skillLastUsed[slot] or 0
-                        local elapsed = tick() - last
-                        if elapsed >= cooldown then
-                            local ok, err = pcall(function()
+                        if tick() - last >= cooldown then
+                            pcall(function()
                                 GET:InvokeServer("S_Skills", "Usage", slot)
                             end)
                             skillLastUsed[slot] = tick()
+                            local info = skillInfoMap[skillId]
+                            local frames = info and info.Frames or 0
+                            if frames > 0 then
+                                task.wait(frames / 60)
+                            end
                         end
                     end
                 end
@@ -3907,6 +3913,22 @@ MiscTab:CreateDropdown({
 })
 
 MiscTab:CreateSection("Misc")
+
+MiscTab:CreateToggle({
+    Name = "Anti AFK (No kick message)", CurrentValue = false, Flag = "AntiAfkKickToggle",
+    Info = "Prevents roblox kick message.",
+    Callback = function(Value) State.AntiAfkKickEnabled = Value end,
+})
+
+task.spawn(function()
+    player.Idled:Connect(function()
+        if State.AntiAfkKickEnabled then
+            VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end
+    end)
+end)
 
 MiscTab:CreateToggle({
     Name         = "Auto Execute Script",
