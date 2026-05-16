@@ -18,7 +18,7 @@ loadstring([[
 
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-    local script_version = "V0.13"
+    local script_version = "V0.14"
     getgenv().RAYFIELD_SECURE = true
     getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -8313,6 +8313,42 @@ end)
 
     Rayfield:LoadConfiguration()
     Rayfield:SetVisibility(false)
+
+    task.spawn(function()
+    if Util.isInLobby() then return end
+    
+    -- Wait for controllers to actually be ready
+    local deadline = tick() + 60
+    while (not PlacedTowerController or not PodController) and tick() < deadline do
+        task.wait(0.5)
+    end
+    
+    -- Wait for wave attribute to settle (not nil)
+    while workspace:GetAttribute("Wave") == nil and tick() < deadline do
+        task.wait(0.5)
+    end
+    
+    local currentWave = workspace:GetAttribute("Wave") or 0
+    local matchFinished = workspace:GetAttribute("MatchFinished")
+    
+    if currentWave >= 1 and not matchFinished then
+        gameInProgress = true
+        gameStartTime = tick()
+        
+        if isRecording and not recordingHasStarted then
+            recordingHasStarted = true
+            recordingUnitCounter = {}
+            recordingUUIDToTag = {}
+            macro = {}
+            UnitTracker.startUpgradePolling()
+            Util.updateMacroStatus("Recording resumed...")
+        end
+        
+        if isPlaybackEnabled and not playbackLoopRunning then
+            task.spawn(Playback.autoPlaybackLoop)
+        end
+    end
+end)
 
     task.spawn(function()
         local screenGui = Instance.new("ScreenGui")
