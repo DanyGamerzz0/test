@@ -2928,7 +2928,7 @@ local function startAutoRoll()
 end
 
 local function getSkillIdForSlot(slot)
-    local hotbar = ReplicatedStorage:FindFirstChild("Hotbar")
+    local hotbar = player.PlayerGui.Interface.HUD.Main.Top["7"]:FindFirstChild("Hotbar")
     if not hotbar then return nil end
     local slotFolder = hotbar:FindFirstChild("Skill_" .. slot)
     if not slotFolder then return nil end
@@ -2947,19 +2947,15 @@ local function startAutoSkills()
             task.wait(0.1)
             for _, slot in ipairs(State.autoSkillSlots) do
                 local skillId = getSkillIdForSlot(slot)
-                print("[Skills] Slot:", slot, "SkillId:", skillId)
                 if skillId then
                     local cooldown = getSkillCooldown(skillId)
-                    print("[Skills] Cooldown:", cooldown)
                     if cooldown then
                         local last = skillLastUsed[slot] or 0
                         local elapsed = tick() - last
-                        print("[Skills] Elapsed:", elapsed, "/", cooldown)
                         if elapsed >= cooldown then
                             local ok, err = pcall(function()
                                 GET:InvokeServer("S_Skills", "Usage", slot)
                             end)
-                            print("[Skills] Fire result:", ok, err)
                             skillLastUsed[slot] = tick()
                         end
                     end
