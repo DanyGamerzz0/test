@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.1"
+local script_version = "V0.2"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -863,6 +863,22 @@ local function sendWebhook(roundData, playerData)
         isShadowBanned and "true" or "false"
     )
 
+    local function formatBoostTime(secs)
+    if not secs or secs <= 0 then return "None" end
+    return string.format("%d:%02d", math.floor(secs / 60), secs % 60)
+    end
+
+    local xpSecs   = (player.Boosts:FindFirstChild("XP")   and player.Boosts.XP.Value)   or 0
+    local goldSecs = (player.Boosts:FindFirstChild("Gold") and player.Boosts.Gold.Value) or 0
+    local luckSecs = (player.Boosts:FindFirstChild("Luck") and player.Boosts.Luck.Value) or 0
+
+    local potionsText = string.format(
+        "%sXP: %s\n%sGold: %s\n%sLuck: %s",
+        "<:aotr_xpboost:1505209472547815535>",   formatBoostTime(xpSecs),
+        "<:aotr_goldboost:1505209405648404480>", formatBoostTime(goldSecs),
+        "<:aotr_luckboost:1505209436384530594>", formatBoostTime(luckSecs)
+    )
+
     local rewardLines = {}
     local function addReward(label, amount, total)
         if (amount or 0) > 0 then
@@ -926,6 +942,7 @@ local function sendWebhook(roundData, playerData)
 
     table.insert(data.embeds[1].fields, { name = "\u{200B}", value = "\u{200B}", inline = true })
     table.insert(data.embeds[1].fields, { name = "Game Stats", value = statsText, inline = false })
+    table.insert(data.embeds[1].fields, { name = "Active Potions", value = potionsText, inline = false })
     table.insert(data.embeds[1].fields, { name = "Rewards", value = rewardsText, inline = false })
 
     local HttpService = game:GetService("HttpService")
@@ -3723,6 +3740,16 @@ WebhookTab:CreateButton({
 -- ===== TAB: Misc =====
 local MiscTab = Window:CreateTab("Misc", "settings")
 
+MiscTab:CreateButton({
+    Name     = "Copy Discord Invite To Clipboard",
+    Callback = function()
+        setclipboard("https://discord.gg/cYKnXE2Nf8")
+        Util.notify("Discord Invite", "Invite copied to clipboard!", 3, "check")
+    end,
+})
+
+MiscTab:CreateSection("Auto Roll")
+
 MiscTab:CreateToggle({
     Name         = "Auto Roll Family",
     CurrentValue = false,
@@ -3747,31 +3774,8 @@ MiscTab:CreateDropdown({
     end,
 })
 
-MiscTab:CreateToggle({
-    Name         = "Auto Upgrade Gear",
-    CurrentValue = false,
-    Flag         = "AutoUpgradeGear",
-    Callback     = function(val)
-        State.autoUpgradeGear = val
-        if val then
-            startAutoUpgrade()
-        else
-            stopAutoUpgrade()
-        end
-    end,
-})
+MiscTab:CreateSection("Auto Boosts")
 
-MiscTab:CreateToggle({
-    Name         = "Auto Claim Achievements",
-    CurrentValue = false,
-    Flag         = "AutoClaimAchievements",
-    Callback     = function(val)
-        if val then
-            task.spawn(autoClaimAchievements)
-        end
-        State.autoClaimAchievements = val
-    end,
-})
 MiscTab:CreateToggle({
     Name         = "Auto Use Boosts",
     CurrentValue = false,
@@ -3812,6 +3816,8 @@ MiscTab:CreateDropdown({
     end,
 })
 
+MiscTab:CreateSection("Misc")
+
 MiscTab:CreateToggle({
     Name         = "Auto Execute Script",
     CurrentValue = false,
@@ -3844,19 +3850,37 @@ MiscTab:CreateButton({
     end,
 })
 
+MiscTab:CreateToggle({
+    Name         = "Auto Upgrade Gear",
+    CurrentValue = false,
+    Flag         = "AutoUpgradeGear",
+    Callback     = function(val)
+        State.autoUpgradeGear = val
+        if val then
+            startAutoUpgrade()
+        else
+            stopAutoUpgrade()
+        end
+    end,
+})
+
+MiscTab:CreateToggle({
+    Name         = "Auto Claim Achievements",
+    CurrentValue = false,
+    Flag         = "AutoClaimAchievements",
+    Callback     = function(val)
+        if val then
+            task.spawn(autoClaimAchievements)
+        end
+        State.autoClaimAchievements = val
+    end,
+})
+
 MiscTab:CreateButton({
     Name     = "Return To Lobby",
     Callback = function()
         Util.notify("Return To Lobby", "Returning to lobby...", 3, "corner-down-left")
         game:GetService("TeleportService"):Teleport(14916516914, player)
-    end,
-})
-
-MiscTab:CreateButton({
-    Name     = "Copy Discord Invite To Clipboard",
-    Callback = function()
-        setclipboard("https://discord.gg/cYKnXE2Nf8")
-        Util.notify("Discord Invite", "Invite copied to clipboard!", 3, "check")
     end,
 })
 
