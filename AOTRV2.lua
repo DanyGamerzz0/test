@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.2"
+local script_version = "V0.21"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -1100,7 +1100,7 @@ if not isInLobby() and not isInMainMenu() then
                     if args[1] == "S_Rewards" and args[2] == "Get" then
                         local r  = result[1]
                         local r2 = result[2]
-                        if bridge then
+                        if bridge and type(r) == "table" and next(r) ~= nil then
                             local HttpService = game:GetService("HttpService")
                             local ok, encoded = pcall(function()
                                 return HttpService:JSONEncode({round = r, player = r2})
