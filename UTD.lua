@@ -18,7 +18,7 @@ loadstring([[
 
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-    local script_version = "V0.14"
+    local script_version = "V0.15"
     getgenv().RAYFIELD_SECURE = true
     getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5726,15 +5726,36 @@ end)
         Util.updateDetailedStatus(string.format("Completed %d/%d actions ✓", totalActions, totalActions))
     end
 
-    function Playback.autoPlaybackLoop()
-        if playbackLoopRunning then return end
-        playbackLoopRunning = true
-        while isPlaybackEnabled do
-            while not gameInProgress and isPlaybackEnabled do
-                Util.updateMacroStatus("Waiting for game to start...")
-                Util.updateDetailedStatus("Waiting for wave 1...")
-                task.wait(0.5)
+function Playback.autoPlaybackLoop()
+    if playbackLoopRunning then return end
+    playbackLoopRunning = true
+
+    while isPlaybackEnabled do
+        -- Poll instead of purely relying on the signal
+        if not gameInProgress then
+            -- Check if game is actually running right now (missed signal case)
+            local wave = workspace:GetAttribute("Wave") or 0
+            local matchFinished = workspace:GetAttribute("MatchFinished")
+            if wave >= 1 and not matchFinished then
+                gameInProgress = true
+                if gameStartTime == 0 then gameStartTime = tick() end
+                print("✓ autoPlaybackLoop: detected running game via poll (wave " .. wave .. ")")
             end
+        end
+
+        while not gameInProgress and isPlaybackEnabled do
+            Util.updateMacroStatus("Waiting for game to start...")
+            Util.updateDetailedStatus("Waiting for wave 1...")
+            task.wait(0.5)
+
+            -- Keep checking in case MatchFinished signal was missed
+            local wave = workspace:GetAttribute("Wave") or 0
+            local matchFinished = workspace:GetAttribute("MatchFinished")
+            if wave >= 1 and not matchFinished then
+                gameInProgress = true
+                if gameStartTime == 0 then gameStartTime = tick() end
+            end
+        end
             if not isPlaybackEnabled then break end
             if not gameInProgress then task.wait(0.5) continue end
 
@@ -7770,6 +7791,21 @@ hologramConnection = game:GetService("RunService").Heartbeat:Connect(
         buildAutoAbilityUI()
     end)
 
+    local function syncGameStateOnLoad()
+    local wave = workspace:GetAttribute("Wave") or 0
+    local matchFinished = workspace:GetAttribute("MatchFinished")
+
+    if wave >= 1 and not matchFinished then
+        if not gameInProgress then
+            gameInProgress = true
+            -- gameStartTime is approximate but better than 0
+            gameStartTime = gameStartTime ~= 0 and gameStartTime or tick()
+        end
+    else
+        gameInProgress = false
+    end
+end
+
 task.spawn(function()
     while not PlacedTowerController do
         task.wait(0.5)
@@ -7872,6 +7908,51 @@ end)
             else Util.notify(nil, "Error: No webhook URL set!") end
         end,
     })
+
+    workspace:GetAttributeChangedSignal("Wave"):Connect(function()
+    local wave = workspace:GetAttribute("Wave") or 0
+    local matchFinished = workspace:GetAttribute("MatchFinished")
+
+    -- Game just started or restarted to wave 1
+    if wave == 1 and not matchFinished and not gameInProgress then
+        gameInProgress = true
+        gameStartTime = tick()
+        autoPlayUsedPositions = {}
+        currentGameInfo = {
+            MapName = workspace:GetAttribute("MapName") or "Unknown",
+            Act = workspace:GetAttribute("ActName") or "Unknown",
+            Category = workspace:GetAttribute("DifficultyName") or "Unknown",
+            StartTime = tick()
+        }
+        print("✓ Wave watcher: gameInProgress=true at wave 1")
+
+        if isRecording and not recordingHasStarted then
+            recordingHasStarted = true
+            macro = {}
+            recordingUnitCounter = {}
+            recordingUUIDToTag = {}
+            UnitTracker.startUpgradePolling()
+            Util.updateMacroStatus("Recording...")
+        end
+
+        if State.AutoPlayEnableAutoPlace then
+            Autoplay.stopAutoPlace()
+            task.wait(0.5)
+            Autoplay.startAutoPlace()
+        end
+        if State.AutoPlayEnableAutoUpgrade then
+            Autoplay.startAutoUpgrade()
+        end
+    end
+
+    -- Game ended or reset
+    if wave == 0 and gameInProgress then
+        gameInProgress = false
+        autoPlayUsedPositions = {}
+        gameStartTime = 0
+        UnitTracker.clearSpawnIdMappings()
+    end
+end)
 
     workspace:GetAttributeChangedSignal("MatchFinished"):Connect(LPH_NO_VIRTUALIZE(function()
         local wave = workspace:GetAttribute("Wave") or 0
@@ -8315,37 +8396,39 @@ end)
     Rayfield:SetVisibility(false)
 
     task.spawn(function()
-    if Util.isInLobby() then return end
-    
-    -- Wait for controllers to actually be ready
-    local deadline = tick() + 60
-    while (not PlacedTowerController or not PodController) and tick() < deadline do
-        task.wait(0.5)
-    end
-    
-    -- Wait for wave attribute to settle (not nil)
-    while workspace:GetAttribute("Wave") == nil and tick() < deadline do
-        task.wait(0.5)
-    end
-    
-    local currentWave = workspace:GetAttribute("Wave") or 0
-    local matchFinished = workspace:GetAttribute("MatchFinished")
-    
-    if currentWave >= 1 and not matchFinished then
-        gameInProgress = true
-        gameStartTime = tick()
-        
-        if isRecording and not recordingHasStarted then
-            recordingHasStarted = true
-            recordingUnitCounter = {}
-            recordingUUIDToTag = {}
-            macro = {}
-            UnitTracker.startUpgradePolling()
-            Util.updateMacroStatus("Recording resumed...")
+    task.wait(1.5) -- let config flags settle
+
+    syncGameStateOnLoad()
+
+    -- Restore playback loop if toggle was saved as on
+    local pbFlag = Rayfield.Flags["PlaybackToggle"]
+    if pbFlag and (pbFlag.Value == true or pbFlag == true) then
+        if not isPlaybackEnabled then
+            isPlaybackEnabled = true
         end
-        
-        if isPlaybackEnabled and not playbackLoopRunning then
+        if not playbackLoopRunning then
+            print("✓ Restarting playback loop after re-execution")
             task.spawn(Playback.autoPlaybackLoop)
+        end
+    end
+
+    -- Restore recording state if toggle was saved as on
+    local recFlag = Rayfield.Flags["RecordToggle"]
+    if recFlag and (recFlag.Value == true or recFlag == true) then
+        if not isRecording then
+            isRecording = true
+            -- If already in game, begin recording immediately
+            if gameInProgress then
+                recordingHasStarted = true
+                gameStartTime = tick()
+                macro = {}
+                recordingUnitCounter = {}
+                recordingUUIDToTag = {}
+                UnitTracker.startUpgradePolling()
+                Util.updateMacroStatus("Recording resumed after re-exec...")
+            else
+                Util.updateMacroStatus("Recording enabled - waiting for wave 1...")
+            end
         end
     end
 end)
