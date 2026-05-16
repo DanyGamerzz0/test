@@ -18,7 +18,7 @@ loadstring([[
 
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-    local script_version = "V0.16"
+    local script_version = "V0.17"
     getgenv().RAYFIELD_SECURE = true
     getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -5465,7 +5465,7 @@ end)
         end
         local worldKey = Util.getCurrentWorldKey()
         if not worldKey then return false end
-        if worldMacroMappings[worldKey] then
+        if worldMacroMappings[worldKey] and worldMacroMappings[worldKey] ~= "None" and worldMacroMappings[worldKey] ~= "" then
             local macroToLoad = worldMacroMappings[worldKey]
             if currentMacroName ~= macroToLoad then
                 currentMacroName = macroToLoad
