@@ -3876,22 +3876,22 @@ JoinerTab:CreateToggle({
 JoinerTab:CreateSection("Featured Challenge 3 Joiner")
 
 JoinerTab:CreateToggle({
-    Name = "Auto Join Mirror Dimension (Featured Challenge)",
+    Name = "Auto Join Featured Challenge (Mirror Dimension)",
     CurrentValue = false,
     Flag = "AutoJoinMirrorDimension",
     Callback = function(Value) State.AutoJoinMirrorDimension = Value end,
 })
 
 JoinerTab:CreateToggle({
-    Name = "Use Matchmake for Mirror Dimension",
-    CurrentValue = false,
-    Flag = "AutoMatchmakeMirrorDimension",
-    Callback = function(Value) State.AutoMatchmakeMirrorDimension = Value end,
+    Name = "Stop Joining after reroll limit hit (Mirror Dimension)", CurrentValue = false, Flag = "QuitAfterRerollLimitMirrorDimension",
+    Callback = function(Value) State.LeaveAfterRerollLimitHitMirrorDimension = Value end,
 })
 
 JoinerTab:CreateToggle({
-    Name = "Stop Joining after reroll limit hit (Mirror Dimension)", CurrentValue = false, Flag = "QuitAfterRerollLimitMirrorDimension",
-    Callback = function(Value) State.LeaveAfterRerollLimitHitMirrorDimension = Value end,
+    Name = "Use Matchmake (Mirror Dimension)",
+    CurrentValue = false,
+    Flag = "AutoMatchmakeMirrorDimension",
+    Callback = function(Value) State.AutoMatchmakeMirrorDimension = Value end,
 })
 
 JoinerTab:CreateSection("Challenge Joiner")
@@ -4082,8 +4082,6 @@ AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Ragnarok Infinite", CurrentValue = false, Flag = "AutoJoinRagnarok",
     Callback = function(Value) State.AutoJoinRagnarok = Value end,
 })
-
-JoinerTab:CreateDivider()
 
 JoinerTab:CreateToggle({
     Name = "Auto Join Blitz",
@@ -8157,9 +8155,6 @@ end
 
 local function buildAutoAbilityUI()
     local savedSettings = MacroIO.loadAutoAbilitySettings()
-    for k, v in pairs(savedSettings) do
-        abilitySettings[k] = v
-    end
 
     local unitIds = getEquippedUnitIds()
     if #unitIds == 0 then
@@ -8184,14 +8179,13 @@ local function buildAutoAbilityUI()
 
         for _, ability in ipairs(abilities) do
             local settingKey = cleanId .. "_" .. ability.Name
-            if not abilitySettings[settingKey] then
-                abilitySettings[settingKey] = {
-                    mode = savedSettings[settingKey] and savedSettings[settingKey].mode or "Disabled",
-                    wave = savedSettings[settingKey] and savedSettings[settingKey].wave or 1,
-                    delay = savedSettings[settingKey] and savedSettings[settingKey].delay or 0,
-                    shanglongWish = savedSettings[settingKey] and savedSettings[settingKey].shanglongWish or "Wealth",
-                }
-            end
+            local saved = savedSettings[settingKey] or {}
+            abilitySettings[settingKey] = {
+                mode = saved.mode or "Disabled",
+                wave = saved.wave or 1,
+                delay = saved.delay or 0,
+                shanglongWish = saved.shanglongWish or "Wealth",
+            }
 
             local label = string.format("%s",ability.Title)
 
