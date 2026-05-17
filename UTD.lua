@@ -14,7 +14,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.13"
+local script_version = "V0.1"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -158,6 +158,7 @@ local iceGiftsBefore = 0
 local RerollLimitHit = {
     TheHunt = false,
     Olympus = false,
+    MirrorDimension = false,
 }
 local RecordCache = {
     secondaryUnits = nil,
@@ -273,6 +274,7 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
+    SelectedChallengeType = "HalfHour",
     DeleteEnemies = false,
     AutoJoinBlitz = false,
     AutoMatchmakeBlitz = false,
@@ -2576,6 +2578,37 @@ function AutoJoin.waitForChallengeError(timeout)
     return false
 end
 
+function AutoJoin.joinDailyChallenge()
+    if not ChallengeController or not PodController then warn("Controllers not initialized") return false end
+    local challenges = AutoJoin.getCurrentChallengesData()
+    if not challenges or not challenges["Daily"] then return false end
+
+    local matchingChallenges = AutoJoin.findAllMatchingChallenges(challenges["Daily"])
+    if #matchingChallenges == 0 then return false end
+
+    for _, challenge in ipairs(matchingChallenges) do
+        if challenge.data.Completed == true then continue end
+        local success = pcall(function()
+            PodController:RequestPod({
+                Category = "Challenge",
+                Challenge = { Type = "Daily", Number = challenge.index },
+                Map = challenge.data.Map,
+                Act = tostring(challenge.data.Act),
+                Difficulty = "Easy",
+                Modulation = 1.0,
+                FriendsOnly = false,
+            })
+        end)
+        if success then
+            task.wait(1)
+            local errorDetected = AutoJoin.waitForChallengeError(3)
+            if errorDetected then continue end
+            return true
+        end
+    end
+    return false
+end
+
 function AutoJoin.joinChallenge(challengeType, challengeNumber)
     if not PodController or not ChallengeController then warn("Controllers not initialized") return false end
     local challenges = ChallengeController:GetCurrentChallenges()
@@ -2962,41 +2995,67 @@ function AutoJoin.checkAndExecuteHighestPriority()
         end
         if not regularChallengeOnCooldown then
             Util.setProcessingState("Challenge Auto Join")
-            local challenges = AutoJoin.getCurrentChallengesData()
-            if challenges and challenges["HalfHour"] then
-                local matchingChallenges = AutoJoin.findAllMatchingChallenges(challenges["HalfHour"])
-                if #matchingChallenges > 0 then
-                    for _, challenge in ipairs(matchingChallenges) do
-                        local success = AutoJoin.joinChallenge("HalfHour", challenge.index)
-                        if success == true then
-                            State.LastFailedChallengeAttempt = 0
-                            if State.useMatchmakeChallenge then
-                                task.wait(1.5)
-                                pcall(function()
-                                    game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
-                                end)
-                                local waitStart = tick()
-                                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinChallenge do
-                                    task.wait(0.5)
-                                end
-                                task.wait(3)
-                                Util.clearProcessingState()
-                                return
-                            else
-                                if AutoJoin.waitForJoinSuccess(10) then
-                                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
-                                end
-                            end
-                        elseif success == "already_completed" then continue
-                        else continue end
+
+            if State.SelectedChallengeType == "Daily" then
+                local success = AutoJoin.joinDailyChallenge()
+                if success then
+                    State.LastFailedChallengeAttempt = 0
+                    if State.useMatchmakeChallenge then
+                        task.wait(1.5)
+                        pcall(function()
+                            game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                        end)
+                        local waitStart = tick()
+                        while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinChallenge do
+                            task.wait(0.5)
+                        end
+                        task.wait(3)
+                    else
+                        if AutoJoin.waitForJoinSuccess(10) then
+                            if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                        end
                     end
-                    State.LastFailedChallengeAttempt = tick()
                 else
                     State.LastFailedChallengeAttempt = tick()
                 end
             else
-                State.LastFailedChallengeAttempt = tick()
+                local challenges = AutoJoin.getCurrentChallengesData()
+                if challenges and challenges["HalfHour"] then
+                    local matchingChallenges = AutoJoin.findAllMatchingChallenges(challenges["HalfHour"])
+                    if #matchingChallenges > 0 then
+                        for _, challenge in ipairs(matchingChallenges) do
+                            local success = AutoJoin.joinChallenge("HalfHour", challenge.index)
+                            if success == true then
+                                State.LastFailedChallengeAttempt = 0
+                                if State.useMatchmakeChallenge then
+                                    task.wait(1.5)
+                                    pcall(function()
+                                        game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                                    end)
+                                    local waitStart = tick()
+                                    while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinChallenge do
+                                        task.wait(0.5)
+                                    end
+                                    task.wait(3)
+                                    Util.clearProcessingState()
+                                    return
+                                else
+                                    if AutoJoin.waitForJoinSuccess(10) then
+                                        if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                                    end
+                                end
+                            elseif success == "already_completed" then continue
+                            else continue end
+                        end
+                        State.LastFailedChallengeAttempt = tick()
+                    else
+                        State.LastFailedChallengeAttempt = tick()
+                    end
+                else
+                    State.LastFailedChallengeAttempt = tick()
+                end
             end
+
             Util.clearProcessingState()
         end
     end
@@ -3268,6 +3327,13 @@ end
     end
 
     if State.AutoJoinMirrorDimension then
+        if State.LeaveAfterRerollLimitHitMirrorDimension and not RerollLimitHit.MirrorDimension then
+            RerollLimitHit.MirrorDimension = AutoJoin.checkRerollLimit("KatakuriFCFeaturedChallenge_1")
+            if RerollLimitHit.MirrorDimension then
+                Util.notify({ Title = "Mirror Dimension", Content = "Reroll limit hit - skipping", Duration = 4 })
+            end
+        end
+        if not (State.LeaveAfterRerollLimitHitMirrorDimension and RerollLimitHit.MirrorDimension) then
         Util.setProcessingState("Mirror Dimension Auto Join")
         local success = AutoJoin.joinMirrorDimension()
         if success then
@@ -3288,6 +3354,7 @@ end
             end
         end
         Util.clearProcessingState()
+    end
     end
 
     if State.AutoJoinEmperorsKingdom then
@@ -3789,12 +3856,12 @@ JoinerTab:CreateToggle({
     Callback = function(Value) State.useMatchmakeTheHuntChallenge = Value end,
 })
  
-AutoJoinOlympusToggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (Olympus Judgement)", CurrentValue = false, Flag = "AutoJoinOlympusJudgement",
     Callback = function(Value) State.AutoJoinOlympusJudgement = Value end,
 })
 
-AutoLeaveOlympusToggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Stop Joining after reroll limit hit (Olympus Judgement)", CurrentValue = false, Flag = "QuitAfterRerollLimitOlympus",
     Callback = function(Value) State.LeaveAfterRerollLimitHitOlympus = Value end,
 })
@@ -3817,10 +3884,31 @@ JoinerTab:CreateToggle({
     Flag = "AutoMatchmakeMirrorDimension",
     Callback = function(Value) State.AutoMatchmakeMirrorDimension = Value end,
 })
+
+JoinerTab:CreateToggle({
+    Name = "Stop Joining after reroll limit hit (Mirror Dimension)", CurrentValue = false, Flag = "QuitAfterRerollLimitMirrorDimension",
+    Callback = function(Value) State.LeaveAfterRerollLimitHitMirrorDimension = Value end,
+})
  
-AutoJoinChallengeToggle = JoinerTab:CreateToggle({
+JoinerTab:CreateToggle({
     Name = "Auto Join Challenge", CurrentValue = false, Flag = "AutoJoinChallenge",
     Callback = function(Value) State.AutoJoinChallenge = Value end,
+})
+
+JoinerTab:CreateDropdown({
+    Name = "Select Challenge Type",
+    Options = {"Half Hour", "Daily"},
+    CurrentOption = {"Half Hour"},
+    MultipleOptions = false,
+    Flag = "ChallengeTypeSelector",
+    Callback = function(Option)
+        local selected = type(Option) == "table" and Option[1] or Option
+        if selected == "Daily" then
+            State.SelectedChallengeType = "Daily"
+        else
+            State.SelectedChallengeType = "HalfHour"
+        end
+    end,
 })
  
 local IgnoreWorldsDropdown = JoinerTab:CreateDropdown({
@@ -4277,6 +4365,11 @@ function MacroIO.saveAutoPlayPositions()
     writefile(fileName, Services.HttpService:JSONEncode(data))
 end
 
+function MacroIO.saveAutoAbilitySettings()
+    MacroIO.ensureFolders()
+    writefile(string.format("LixHub/%s_AutoAbilitySettings_UTD.json", Services.Players.LocalPlayer.Name), Services.HttpService:JSONEncode(abilitySettings))
+end
+
 function MacroIO.loadWorldMappings()
     MacroIO.ensureFolders()
     local playerName = game:GetService("Players").LocalPlayer.Name
@@ -4303,6 +4396,14 @@ function MacroIO.loadAutoPlayPositions()
         end
     end
     print("✓ Loaded autoplay positions")
+end
+
+function MacroIO.loadAutoAbilitySettings()
+    local filePath = string.format("LixHub/%s_AutoAbilitySettings_UTD.json", Services.Players.LocalPlayer.Name)
+    if not isfile(filePath) then return {} end
+    local ok, data = pcall(function() return Services.HttpService:JSONDecode(readfile(filePath)) end)
+    if ok and data then return data end
+    return {}
 end
 
 local function refreshAllWorldDropdowns()
@@ -4658,58 +4759,6 @@ task.spawn(function()
         print("✓ Delete Enemies hook active")
     end)
 end)
-
-MiscTab:CreateSection("Relics")
-
-MiscTab:CreateButton({
-    Name = "Auto Sell Relics Under 5 Substats",
-    Callback = function()
-        local BulkSellItems = game:GetService("ReplicatedStorage")
-            .Packages._Index["sleitnick_knit@1.7.0"]
-            .knit.Services.DataService.RE.BulkSellItems
-
-        local relics = DataController and DataController.Items and DataController.Items.Relics
-        if not relics then
-            Util.notify({ Title = "Error", Content = "Relics not loaded", Duration = 3 })
-            return
-        end
-
-        local toSell = {}
-
-        for guid, relic in pairs(relics) do
-            if relic.EquippedUnit then continue end
-            if relic.Locked then continue end
-            local substatCount = relic.SubStats and #relic.SubStats or 0
-            if substatCount < 5 then
-                table.insert(toSell, guid)
-            end
-        end
-
-        if #toSell == 0 then
-            Util.notify({ Title = "Auto Sell", Content = "No relics to sell", Duration = 3 })
-            return
-        end
-
-        local sold = 0
-        for i = 1, #toSell, 50 do
-            local batch = {}
-            for j = i, math.min(i + 49, #toSell) do
-                table.insert(batch, toSell[j])
-            end
-            pcall(function()
-                BulkSellItems:FireServer(batch)
-            end)
-            sold = sold + #batch
-            task.wait(0.2)
-        end
-
-        Util.notify({
-            Title = "Auto Sell Done",
-            Content = string.format("Sold %d relics under 5 substats", sold),
-            Duration = 5,
-        })
-    end,
-})
 
 MiscTab:CreateSection("Claim")
 
@@ -5764,6 +5813,7 @@ local function findBestGuidForUnit(unitName, inventory)
 end
 
 local function autoEquipMacroUnits()
+    if Util.isInLobby() then return end
     if autoEquipRunning then return false end
     autoEquipRunning = true
     if not macro or #macro == 0 then
@@ -8100,6 +8150,11 @@ local function getAbilitiesFromModule(unitId)
 end
 
 local function buildAutoAbilityUI()
+    local savedSettings = MacroIO.loadAutoAbilitySettings()
+    for k, v in pairs(savedSettings) do
+        abilitySettings[k] = v
+    end
+
     local unitIds = getEquippedUnitIds()
     if #unitIds == 0 then
         AutoAbilityTab:CreateLabel("No equipped units found. Rejoin or re-execute.")
@@ -8141,6 +8196,7 @@ local function buildAutoAbilityUI()
                     Callback = function(Option)
                         local selected = type(Option) == "table" and Option[1] or Option
                         abilitySettings[settingKey].shanglongWish = selected
+                        MacroIO.saveAutoAbilitySettings()
                     end,
                 })
             end
@@ -8154,6 +8210,7 @@ local function buildAutoAbilityUI()
                 Callback = function(Option)
                     local selected = type(Option) == "table" and Option[1] or Option
                     abilitySettings[settingKey].mode = selected
+                    MacroIO.saveAutoAbilitySettings()
                 end,
             })
 
@@ -8165,6 +8222,7 @@ local function buildAutoAbilityUI()
                 Flag = "AutoAbility_Delay_" .. settingKey,
                 Callback = function(Value)
                     abilitySettings[settingKey].delay = Value
+                    MacroIO.saveAutoAbilitySettings()
                 end,
             })
 
@@ -8178,6 +8236,7 @@ local function buildAutoAbilityUI()
                     num = math.clamp(num, 0, 300)
                     delaySlider:Set(num)
                     abilitySettings[settingKey].delay = num
+                    MacroIO.saveAutoAbilitySettings()
                 end,
             })
 
@@ -8189,6 +8248,7 @@ local function buildAutoAbilityUI()
                 Flag = "AutoAbility_Wave_" .. settingKey,
                 Callback = function(Value)
                     abilitySettings[settingKey].wave = Value
+                    MacroIO.saveAutoAbilitySettings()
                 end,
             })
 
@@ -8202,6 +8262,7 @@ local function buildAutoAbilityUI()
                     num = math.clamp(num, 1, 300)
                     waveSlider:Set(num)
                     abilitySettings[settingKey].wave = num
+                    MacroIO.saveAutoAbilitySettings()
                 end,
             })
         end
