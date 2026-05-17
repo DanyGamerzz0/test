@@ -273,6 +273,7 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
+    DeleteEnemies = false,
     AutoJoinBlitz = false,
     AutoMatchmakeBlitz = false,
     AutoJoinMirrorDimension = false,
@@ -2191,10 +2192,16 @@ function Webhook.send(messageType, gameResult, gameInfo, gameDuration, waveReach
             
             -- Unit drops
             elseif rewardKey == "Unit" then
-                if rewardValue.Unit and rewardValue.Rarity then
-                    hasUnitDrop = true
-                    rewards[string.format("[%s] %s", rewardValue.Rarity, rewardValue.Unit)] = 1
+            if rewardValue.Unit and rewardValue.Rarity then
+                hasUnitDrop = true
+                local unitName = rewardValue.Unit
+                local isShiny = unitName:find(":shiny") or unitName:find(":Shiny")
+                unitName = unitName:gsub(":[Ss]hiny", "")
+                if isShiny then
+                    unitName = unitName .. " (Shiny)"
                 end
+                rewards[string.format("[%s] %s", rewardValue.Rarity, unitName)] = 1
+            end
             
             -- Generic items with ID/Rarity/Amount structure (Kunai, Keys, etc.)
             elseif rewardValue.ID and rewardValue.Rarity and rewardValue.Amount then
@@ -4614,6 +4621,43 @@ Toggle = GameTab:CreateToggle({
     Name = "Black Screen", CurrentValue = false, Flag = "enableBlackScreen",
     Callback = function(Value) State.enableBlackScreen = Value enableBlackScreen() end,
 })
+
+GameTab:CreateToggle({
+    Name = "Delete Enemies",
+    CurrentValue = false,
+    Flag = "DeleteEnemies",
+    Callback = function(Value)
+        State.DeleteEnemies = Value
+    end,
+})
+
+task.spawn(function()
+    task.wait(2)
+    pcall(function()
+        local Event = game:GetService("ReplicatedStorage").ByteNetReliable
+
+        local deadline = tick() + 10
+        while #getconnections(Event.OnClientEvent) == 0 and tick() < deadline do
+            task.wait(0.1)
+        end
+
+        for _, conn in ipairs(getconnections(Event.OnClientEvent)) do
+            local original = conn.Function
+            conn:Disable()
+            Event.OnClientEvent:Connect(newcclosure(function(buf, extra)
+                if State.DeleteEnemies and extra and type(extra) == "table" then
+                    for _, v in ipairs(extra) do
+                        if type(v) == "table" and v.PathName then
+                            return
+                        end
+                    end
+                end
+                original(buf, extra)
+            end))
+        end
+        print("✓ Delete Enemies hook active")
+    end)
+end)
 
 MiscTab:CreateSection("Relics")
 
@@ -8805,6 +8849,21 @@ task.spawn(function()
         if type(v) == "table" and v.ClickContinue and v.Deactivate and v.Activate then
             v.ClickContinue = function(self)
                 self.CanNext = true
+                -- Clean up the glow particles directly
+                if self.OpenParticles and self.OpenParticles.Parent then
+                    self.OpenParticles:Destroy()
+                end
+                -- Also clean up any leftover particles on character
+                pcall(function()
+                    local character = game:GetService("Players").LocalPlayer.Character
+                    if character then
+                        for _, obj in pairs(character:GetChildren()) do
+                            if obj.Name == "OpenParticles" then
+                                obj:Destroy()
+                            end
+                        end
+                    end
+                end)
             end
             print("Patched")
             break
