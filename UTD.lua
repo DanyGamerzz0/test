@@ -283,7 +283,7 @@ local State = {
     AutoJoinEmperorsKingdom = false,
     AutoFreeMochiUnits = false,
     AutoEquipBeforeGame = false,
-    sessionRuns = 0,
+    sessionRuns = getgenv().__LIXHUB_RUNS or 0,
     disableScriptNotifications = false,
     AutoStartGame = false,
     AutoRetry = false,
@@ -563,6 +563,21 @@ task.spawn(function()
         task.wait(retryDelay)
     end
 end)
+
+local function updateQueueOnTeleport()
+    if not queue_on_teleport then return end
+    local parts = {}
+
+    -- Always persist run counter across teleports
+    table.insert(parts, string.format("getgenv().__LIXHUB_RUNS = %d", State.sessionRuns))
+
+    -- Preserve auto-execute if enabled
+    if State.enableAutoExecute then
+        table.insert(parts, 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
+    end
+
+    queue_on_teleport(table.concat(parts, "\n"))
+end
 
 -- ============================================
 -- LOADOUT MANAGEMENT
@@ -5017,15 +5032,11 @@ Toggle = MiscTab:CreateToggle({
     Info = "This auto executes and persists through teleports until you disable it or leave the game.",
     Callback = function(Value)
         State.enableAutoExecute = Value
-        if queue_on_teleport then
-            if State.enableAutoExecute then
-                queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
-            else
-                queue_on_teleport("")
-            end
-        else
+        if not queue_on_teleport then
             warn("queue_on_teleport not supported by this executor")
+            return
         end
+        updateQueueOnTeleport() -- handles both runs + auto execute together
     end,
 })
 
@@ -8585,6 +8596,7 @@ workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
     if matchFinished and gameInProgress then
         afterRewardData = Util.deepCopy(RequestData:InvokeServer())
         State.sessionRuns = State.sessionRuns + 1
+        updateQueueOnTeleport()
         if State.SendStageCompletedWebhook then
             local gameResult = lastMatchResult == "Won"
             local gameDuration = "Unknown"
