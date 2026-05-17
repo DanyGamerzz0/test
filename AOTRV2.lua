@@ -3094,21 +3094,22 @@ local function joinMission()
         end
     end
 
-    -- Check if player already owns a lobby for this map
+-- Check if player already owns any lobby
     local missions = ReplicatedStorage:FindFirstChild("Missions")
-    local existingLobby = missions and missions:FindFirstChild(mapName)
-    local leader = existingLobby and existingLobby:FindFirstChild("Leader")
-
-    if leader and leader.Value == player.Name then
-        debugPrint("[LixHub] Auto Join: Already leader of lobby, firing Start directly")
-        local startResult
-        for attempt = 1, 5 do
-            startResult = GET:InvokeServer("S_Missions", "Start")
-            if startResult then break end
-            warn("[LixHub] Auto Join: Start attempt", attempt, "failed, retrying...")
-            task.wait(1)
+    if missions then
+        for _, desc in ipairs(missions:GetDescendants()) do
+            if desc.Name == "Leader" and desc.Value == player then
+                debugPrint("[LixHub] Auto Join: Found existing lobby as leader, firing Start directly")
+                local startResult
+                for attempt = 1, 5 do
+                    startResult = GET:InvokeServer("S_Missions", "Start")
+                    if startResult then break end
+                    warn("[LixHub] Auto Join: Start attempt", attempt, "failed, retrying...")
+                    task.wait(1)
+                end
+                return startResult == true
+            end
         end
-        return startResult == true
     end
 
     -- No existing lobby, create one
