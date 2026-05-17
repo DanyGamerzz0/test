@@ -5102,7 +5102,37 @@ local function StreamerMode()
     end
 end
 
-task.spawn(function() while true do task.wait(0.1) StreamerMode() end end)
+task.spawn(function()
+    local lastStreamerState = nil
+
+    local function applyStreamerMode()
+        local head = Services.Players.LocalPlayer.Character
+            and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not head then return end
+        local billboard = head:FindFirstChild("BillboardGui")
+        if not billboard then return end
+
+        -- Only update UI if state actually changed
+        if State.streamerModeEnabled == lastStreamerState then return end
+        lastStreamerState = State.streamerModeEnabled
+
+        -- rest of StreamerMode logic unchanged
+        StreamerMode()
+    end
+
+    -- Run on character spawn
+    Services.Players.LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(1)
+        lastStreamerState = nil -- force refresh on respawn
+        applyStreamerMode()
+    end)
+
+    -- Run when toggle changes (driven by the toggle callback, not a loop)
+    while true do
+        task.wait(1) -- 1s is plenty, names don't change mid-game
+        applyStreamerMode()
+    end
+end)
 
 if State.enableLowPerformanceMode then enableLowPerformanceMode() end
 
@@ -5445,49 +5475,38 @@ task.spawn(function()
     local function tryFreeShell(shell)
         local prompt = shell:FindFirstChild("FreeMochiUnitPrompt")
         if not prompt then return end
-
         local character = Services.Players.LocalPlayer.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
-
         local shellPart = shell:IsA("BasePart") and shell or shell:FindFirstChildWhichIsA("BasePart")
         if not shellPart then return end
-
         tweenTo(hrp, shellPart.CFrame + Vector3.new(0, 3, 0))
         task.wait(0.1)
-
-        if prompt and prompt.Parent then
-            pcall(fireproximityprompt, prompt)
-        end
-    end
-
-    local function scanAndFree()
-        local effects = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Effects")
-        if not effects then return end
-        for _, child in pairs(effects:GetChildren()) do
-            if child.Name == "KatakuriMochiShell" then
-                task.spawn(tryFreeShell, child)
-            end
-        end
+        if prompt and prompt.Parent then pcall(fireproximityprompt, prompt) end
     end
 
     local connection = nil
 
     while true do
         task.wait(0.5)
+        local effects = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Effects")
+        if not effects then continue end
 
-        if State.AutoFreeMochiUnits then
-            local effects = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Effects")
-            if effects and not connection then
-                connection = effects.ChildAdded:Connect(function(child)
-                    if not State.AutoFreeMochiUnits then return end
-                    if child.Name == "KatakuriMochiShell" then
-                        task.wait(0.3)
-                        task.spawn(tryFreeShell, child)
-                    end
-                end)
+        if State.AutoFreeMochiUnits and not connection then
+            -- Initial scan only once when enabled
+            for _, child in pairs(effects:GetChildren()) do
+                if child.Name == "KatakuriMochiShell" then
+                    task.spawn(tryFreeShell, child)
+                end
             end
-            scanAndFree()
+            -- ChildAdded handles everything after that — no more polling
+            connection = effects.ChildAdded:Connect(function(child)
+                if not State.AutoFreeMochiUnits then return end
+                if child.Name == "KatakuriMochiShell" then
+                    task.wait(0.3)
+                    task.spawn(tryFreeShell, child)
+                end
+            end)
         elseif not State.AutoFreeMochiUnits and connection then
             connection:Disconnect()
             connection = nil
@@ -5496,8 +5515,8 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    local tweenInfo = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out) -- create once
     local isCollecting = false
-    local tweenInfo = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
     local function tweenTo(hrp, targetCFrame)
         local tween = Services.TweenService:Create(hrp, tweenInfo, { CFrame = targetCFrame })
@@ -5505,45 +5524,49 @@ task.spawn(function()
         tween.Completed:Wait()
     end
 
-    while true do
-        task.wait(0.5)
-
-        if State.AutoCollectPresents and not isCollecting then
-            isCollecting = true
-
-            pcall(function()
-                local drops = workspace:FindFirstChild("Ignore")
-                if drops then drops = drops:FindFirstChild("Drops") end
-                if not drops then return end
-
-                local presents = {}
-                for _, child in pairs(drops:GetChildren()) do
-                    if child.Name == "Present" and child:IsA("Model") then
-                        table.insert(presents, child)
-                    end
-                end
-
-                local hrp = Services.Players.LocalPlayer.Character
-                    and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if not hrp then return end
-
-                local originalCFrame = hrp.CFrame
-
-                for _, present in ipairs(presents) do
-                    if not State.AutoCollectPresents then break end
-                    if not (present and present.Parent) then continue end
-                    if not (hrp and hrp.Parent) then break end
-
-                    tweenTo(hrp, CFrame.new(present:GetPivot().Position))
+    local function collectPresents(dropsFolder)
+        if isCollecting then return end
+        isCollecting = true
+        pcall(function()
+            local hrp = Services.Players.LocalPlayer.Character
+                and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            local originalCFrame = hrp.CFrame
+            for _, child in pairs(dropsFolder:GetChildren()) do
+                if not State.AutoCollectPresents then break end
+                if child.Name == "Present" and child:IsA("Model") and child.Parent then
+                    tweenTo(hrp, CFrame.new(child:GetPivot().Position))
                     task.wait(0.1)
                 end
+            end
+            if hrp and hrp.Parent then tweenTo(hrp, originalCFrame) end
+        end)
+        isCollecting = false
+    end
 
-                if hrp and hrp.Parent then
-                    tweenTo(hrp, originalCFrame)
+    local connection = nil
+
+    -- Watch toggle state instead of polling
+    while true do
+        task.wait(0.5)
+        local ignore = workspace:FindFirstChild("Ignore")
+        local drops = ignore and ignore:FindFirstChild("Drops")
+        if not drops then continue end
+
+        if State.AutoCollectPresents and not connection then
+            -- Initial scan for existing presents
+            task.spawn(collectPresents, drops)
+            -- Watch for new presents via event instead of polling
+            connection = drops.ChildAdded:Connect(function(child)
+                if not State.AutoCollectPresents then return end
+                if child.Name == "Present" and child:IsA("Model") then
+                    task.wait(0.2)
+                    task.spawn(collectPresents, drops)
                 end
             end)
-
-            isCollecting = false
+        elseif not State.AutoCollectPresents and connection then
+            connection:Disconnect()
+            connection = nil
         end
     end
 end)
@@ -5552,41 +5575,43 @@ task.spawn(function()
     local function collectOrb(orb)
         local prompt = orb:FindFirstChildWhichIsA("ProximityPrompt", true)
         if not prompt then return end
-
-        local character = Services.Players.LocalPlayer.Character
-        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local hrp = Services.Players.LocalPlayer.Character
+            and Services.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
-
         hrp.CFrame = orb.CFrame * CFrame.new(0, 0, -3)
         task.wait(0.15)
-
         if prompt and prompt.Parent then
             pcall(fireproximityprompt, prompt)
         end
     end
 
     local function isRiftOrb(name)
-    return name:find("GojoEssencePrompt_Static", 1, true)
-        or name:find("MegunaFugaPrompt_Static", 1, true)
+        return name:find("GojoEssencePrompt_Static", 1, true)
+            or name:find("MegunaFugaPrompt_Static", 1, true)
     end
 
-    workspace.DescendantAdded:Connect(function(v)
-        if not State.AutoCollectRiftOrbs then return end
-        if isRiftOrb(v.Name) then
-            task.wait(0.5)
-            task.spawn(collectOrb, v)
+    -- Use a targeted folder instead of all of workspace
+    local function watchFolder(folder)
+        if not folder then return end
+        -- Catch existing orbs
+        for _, v in folder:GetDescendants() do
+            if isRiftOrb(v.Name) then task.spawn(collectOrb, v) end
         end
-    end)
-
-    -- Catch any already spawned orbs
-    while true do
-        task.wait(1)
-        if not State.AutoCollectRiftOrbs then continue end
-        for _, v in workspace:GetDescendants() do
+        -- Watch for new ones
+        folder.DescendantAdded:Connect(function(v)
+            if not State.AutoCollectRiftOrbs then return end
             if isRiftOrb(v.Name) then
+                task.wait(0.5)
                 task.spawn(collectOrb, v)
             end
-        end
+        end)
+    end
+
+    -- Wait for the Effects folder specifically, not all of workspace
+    local ignore = workspace:WaitForChild("Ignore", 30)
+    if ignore then
+        local effects = ignore:WaitForChild("Effects", 30)
+        watchFolder(effects)
     end
 end)
 
