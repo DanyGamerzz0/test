@@ -3839,7 +3839,7 @@ JoinerTab:CreateToggle({
     Callback = function(Value) State.useMatchmakeRaid = Value end,
 })
  
-JoinerTab:CreateSection("Challenge Joiner")
+JoinerTab:CreateSection("Featured Challenge 1 Joiner")
  
 AutoJoinFeaturedChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (The Hunt)", CurrentValue = false, Flag = "AutoJoinFeaturedChallenge",
@@ -3855,6 +3855,8 @@ JoinerTab:CreateToggle({
     Name = "Use Matchmake (The Hunt)", CurrentValue = false, Flag = "useMatchmakeTheHuntChallenge",
     Callback = function(Value) State.useMatchmakeTheHuntChallenge = Value end,
 })
+
+JoinerTab:CreateSection("Featured Challenge 2 Joiner")
  
 JoinerTab:CreateToggle({
     Name = "Auto Join Featured Challenge (Olympus Judgement)", CurrentValue = false, Flag = "AutoJoinOlympusJudgement",
@@ -3870,6 +3872,8 @@ JoinerTab:CreateToggle({
     Name = "Use Matchmake (Olympus Judgement)", CurrentValue = false, Flag = "useMatchmakeOlympusJudgement",
     Callback = function(Value) State.useMatchmakeOlympusJudgement = Value end,
 })
+
+JoinerTab:CreateSection("Featured Challenge 3 Joiner")
 
 JoinerTab:CreateToggle({
     Name = "Auto Join Mirror Dimension (Featured Challenge)",
@@ -3889,6 +3893,8 @@ JoinerTab:CreateToggle({
     Name = "Stop Joining after reroll limit hit (Mirror Dimension)", CurrentValue = false, Flag = "QuitAfterRerollLimitMirrorDimension",
     Callback = function(Value) State.LeaveAfterRerollLimitHitMirrorDimension = Value end,
 })
+
+JoinerTab:CreateSection("Challenge Joiner")
  
 JoinerTab:CreateToggle({
     Name = "Auto Join Challenge", CurrentValue = false, Flag = "AutoJoinChallenge",
@@ -8179,7 +8185,12 @@ local function buildAutoAbilityUI()
         for _, ability in ipairs(abilities) do
             local settingKey = cleanId .. "_" .. ability.Name
             if not abilitySettings[settingKey] then
-                abilitySettings[settingKey] = { mode = "Disabled", wave = 1, delay = 0 }
+                abilitySettings[settingKey] = {
+                    mode = savedSettings[settingKey] and savedSettings[settingKey].mode or "Disabled",
+                    wave = savedSettings[settingKey] and savedSettings[settingKey].wave or 1,
+                    delay = savedSettings[settingKey] and savedSettings[settingKey].delay or 0,
+                    shanglongWish = savedSettings[settingKey] and savedSettings[settingKey].shanglongWish or "Wealth",
+                }
             end
 
             local label = string.format("%s",ability.Title)
