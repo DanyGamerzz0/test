@@ -5148,7 +5148,6 @@ GameTab:CreateToggle({
 })
 
 task.spawn(function()
-    local isFreeing = false
     local tweenInfo = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
     local function tweenTo(hrp, targetCFrame)
@@ -5168,16 +5167,12 @@ task.spawn(function()
         local shellPart = shell:IsA("BasePart") and shell or shell:FindFirstChildWhichIsA("BasePart")
         if not shellPart then return end
 
-        local originalCFrame = hrp.CFrame
         tweenTo(hrp, shellPart.CFrame + Vector3.new(0, 3, 0))
         task.wait(0.1)
 
         if prompt and prompt.Parent then
             pcall(fireproximityprompt, prompt)
         end
-
-        task.wait(0.1)
-        tweenTo(hrp, originalCFrame)
     end
 
     local function scanAndFree()
@@ -5190,26 +5185,22 @@ task.spawn(function()
         end
     end
 
-    -- Watch for new shells
     local connection = nil
 
     while true do
         task.wait(0.5)
 
-        if State.AutoFreeMochiUnits and not isFreeing then
-            -- Connect to ChildAdded if not already
+        if State.AutoFreeMochiUnits then
             local effects = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Effects")
             if effects and not connection then
                 connection = effects.ChildAdded:Connect(function(child)
                     if not State.AutoFreeMochiUnits then return end
                     if child.Name == "KatakuriMochiShell" then
-                        task.wait(0.3) -- let prompt load
+                        task.wait(0.3)
                         task.spawn(tryFreeShell, child)
                     end
                 end)
             end
-
-            -- Also scan existing shells in case we missed any
             scanAndFree()
         elseif not State.AutoFreeMochiUnits and connection then
             connection:Disconnect()
