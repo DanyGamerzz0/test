@@ -273,6 +273,11 @@ local PathState = {
 local pathSliders = {}
 
 local State = {
+    AutoJoinBlitz = false,
+    AutoMatchmakeBlitz = false,
+    AutoJoinMirrorDimension = false,
+    AutoMatchmakeMirrorDimension = false,
+    AutoJoinEmperorsKingdom = false,
     AutoFreeMochiUnits = false,
     AutoEquipBeforeGame = false,
     sessionRuns = 0,
@@ -2383,6 +2388,9 @@ function Util.getCurrentWorldKey()
         if mapInternal and mapInternal:find("Olympus") then
             return "olympus_judgement"
         end
+        if mapInternal == "KatakuriFCFeaturedChallenge" then  -- add this
+            return "mirror_dimension"
+        end
     end
 
     if categoryLower == "legendstage" then
@@ -2409,13 +2417,16 @@ function Util.getCurrentWorldKey()
 
     if categoryLower == "worldraid" then
         if mapInternal == "AntKing" then return "ant_king_lair" end
+        if mapInternal == "Kaido" then return "emperors_kingdom" end
     end
 
     if categoryLower == "rift" then
         if mapName == "The Strongest Of Today" then return "universal_tear_gojo" end
         if mapName == "The Strongest Of All Time" then return "universal_tear_sukuna" end
     end
-
+    if categoryLower == "whitebeard" then
+        if mapInternal == "WhiteBeardBlitz" then return "blitz" end
+    end
     return nil
 end
 
@@ -2901,6 +2912,30 @@ function AutoJoin.joinUniversalTear()
     return success
 end
 
+function AutoJoin.joinBlitz()
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(buffer.fromstring(")\x0F\x00WhiteBeardBlitz\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\x0F\x00WhiteBeardBlitz\x10\x00LimitedTimeModes\x00\x00"), nil)
+    end)
+    return success
+end
+
+function AutoJoin.joinMirrorDimension()
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(buffer.fromstring(")\n\x00KatakuriFC\x01\x03\a\x00Special\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\x00\x00\t\x00Challenge\x00\x00"), nil)
+    end)
+    return success
+end
+
+function AutoJoin.joinEmperorsKingdom()
+    local Event = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local success = pcall(function()
+        Event:FireServer(buffer.fromstring(")\x05\x00Kaido\x00\x00\x00\x80?\x01\x001\x00\t\x00Nightmare\x00\x00\t\x00WorldRaid\x00\x00"), nil)
+    end)
+    return success
+end
+
 function AutoJoin.checkAndExecuteHighestPriority()
     if not Util.isInLobby() then return end
     if AutoJoinState.isProcessing then return end
@@ -3201,6 +3236,68 @@ end
                 if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
             end
         else Util.clearProcessingState() end
+    end
+    if State.AutoJoinBlitz then
+        Util.setProcessingState("Blitz Auto Join")
+        local success = AutoJoin.joinBlitz()
+        if success then
+            if State.AutoMatchmakeBlitz then
+                task.wait(1.5)
+                pcall(function()
+                    game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                end)
+                local waitStart = tick()
+                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinBlitz do
+                    task.wait(0.5)
+                end
+                task.wait(3)
+            else
+                if AutoJoin.waitForJoinSuccess(10) then
+                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
+            end
+        end
+        Util.clearProcessingState()
+    end
+
+    if State.AutoJoinMirrorDimension then
+        Util.setProcessingState("Mirror Dimension Auto Join")
+        local success = AutoJoin.joinMirrorDimension()
+        if success then
+            if State.AutoMatchmakeMirrorDimension then
+                task.wait(1.5)
+                pcall(function()
+                    game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+                end)
+                local waitStart = tick()
+                while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinMirrorDimension do
+                    task.wait(0.5)
+                end
+                task.wait(3)
+            else
+                if AutoJoin.waitForJoinSuccess(10) then
+                    if AutoJoin.tryStartGameWithRetry(3) then task.wait(3) Util.clearProcessingState() return end
+                end
+            end
+        end
+        Util.clearProcessingState()
+    end
+
+    if State.AutoJoinEmperorsKingdom then
+        Util.setProcessingState("Emperor's Kingdom Auto Join")
+        local success = AutoJoin.joinEmperorsKingdom()
+        if success then
+            task.wait(1.5)
+            pcall(function()
+                game:GetService("ReplicatedStorage").ByteNetReliable:FireServer(buffer.fromstring(",\x01"), nil)
+            end)
+            local waitStart = tick()
+            while Util.isInLobby() and tick() - waitStart < 360 and State.AutoJoinEmperorsKingdom do
+                task.wait(0.5)
+            end
+            task.wait(3)
+        end
+        Util.clearProcessingState()
     end
 end
 
@@ -3699,6 +3796,20 @@ JoinerTab:CreateToggle({
     Name = "Use Matchmake (Olympus Judgement)", CurrentValue = false, Flag = "useMatchmakeOlympusJudgement",
     Callback = function(Value) State.useMatchmakeOlympusJudgement = Value end,
 })
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Mirror Dimension (Featured Challenge)",
+    CurrentValue = false,
+    Flag = "AutoJoinMirrorDimension",
+    Callback = function(Value) State.AutoJoinMirrorDimension = Value end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake for Mirror Dimension",
+    CurrentValue = false,
+    Flag = "AutoMatchmakeMirrorDimension",
+    Callback = function(Value) State.AutoMatchmakeMirrorDimension = Value end,
+})
  
 AutoJoinChallengeToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Challenge", CurrentValue = false, Flag = "AutoJoinChallenge",
@@ -3831,8 +3942,15 @@ AutoJoinShinobiToggle = JoinerTab:CreateToggle({
 })
 
 JoinerTab:CreateToggle({
-    Name = "Auto Join Ant King Lair", CurrentValue = false, Flag = "AutoJoinAntKingLair",
+    Name = "Auto Matchmake Ant King Lair", CurrentValue = false, Flag = "AutoJoinAntKingLair",
     Callback = function(Value) State.AutoJoinAntKingLair = Value end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Auto Matchmake Emperor's Kingdom",
+    CurrentValue = false,
+    Flag = "AutoJoinEmperorsKingdom",
+    Callback = function(Value) State.AutoJoinEmperorsKingdom = Value end,
 })
 
 JoinerTab:CreateLabel("Note: If you want to return to lobby automatically on rift refresh turn on both auto retry and auto lobby in game tab")
@@ -3862,6 +3980,22 @@ AutoMatchmakeTearToggle = JoinerTab:CreateToggle({
 AutoJoinRagnarokToggle = JoinerTab:CreateToggle({
     Name = "Auto Join Ragnarok Infinite", CurrentValue = false, Flag = "AutoJoinRagnarok",
     Callback = function(Value) State.AutoJoinRagnarok = Value end,
+})
+
+JoinerTab:CreateDivider()
+
+JoinerTab:CreateToggle({
+    Name = "Auto Join Blitz",
+    CurrentValue = false,
+    Flag = "AutoJoinBlitz",
+    Callback = function(Value) State.AutoJoinBlitz = Value end,
+})
+
+JoinerTab:CreateToggle({
+    Name = "Use Matchmake for Blitz",
+    CurrentValue = false,
+    Flag = "AutoMatchmakeBlitz",
+    Callback = function(Value) State.AutoMatchmakeBlitz = Value end,
 })
 
 JoinerTab:CreateDivider()
@@ -4305,6 +4439,7 @@ end
         local featuredMaps = {
             { key = "challenge_featured", name = "Frozen Stronghold (The Hunt)" },
             { key = "olympus_judgement", name = "Olympus Judgement" },
+            { key = "mirror_dimension", name = "Mirror Dimension" },
         }
         for _, featured in ipairs(featuredMaps) do
             local currentMapping = worldMacroMappings[featured.key] or "None"
@@ -4331,6 +4466,8 @@ end
             { key = "universal_tear_gojo", name = "Universal Tear (Gojo)" },
             { key = "universal_tear_sukuna", name = "Universal Tear (Sukuna)" },
             { key = "winter_event", name = "Winter Event" },
+            { key = "blitz", name = "Blitz" },
+            { key = "emperors_kingdom", name = "Emperor's Kingdom" },
         }
         for _, event in ipairs(eventMaps) do
             local currentMapping = worldMacroMappings[event.key] or "None"
