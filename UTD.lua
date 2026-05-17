@@ -4615,6 +4615,58 @@ Toggle = GameTab:CreateToggle({
     Callback = function(Value) State.enableBlackScreen = Value enableBlackScreen() end,
 })
 
+MiscTab:CreateSection("Relics")
+
+MiscTab:CreateButton({
+    Name = "Auto Sell Relics Under 5 Substats",
+    Callback = function()
+        local BulkSellItems = game:GetService("ReplicatedStorage")
+            .Packages._Index["sleitnick_knit@1.7.0"]
+            .knit.Services.DataService.RE.BulkSellItems
+
+        local relics = DataController and DataController.Items and DataController.Items.Relics
+        if not relics then
+            Util.notify({ Title = "Error", Content = "Relics not loaded", Duration = 3 })
+            return
+        end
+
+        local toSell = {}
+
+        for guid, relic in pairs(relics) do
+            if relic.EquippedUnit then continue end
+            if relic.Locked then continue end
+            local substatCount = relic.SubStats and #relic.SubStats or 0
+            if substatCount < 5 then
+                table.insert(toSell, guid)
+            end
+        end
+
+        if #toSell == 0 then
+            Util.notify({ Title = "Auto Sell", Content = "No relics to sell", Duration = 3 })
+            return
+        end
+
+        local sold = 0
+        for i = 1, #toSell, 50 do
+            local batch = {}
+            for j = i, math.min(i + 49, #toSell) do
+                table.insert(batch, toSell[j])
+            end
+            pcall(function()
+                BulkSellItems:FireServer(batch)
+            end)
+            sold = sold + #batch
+            task.wait(0.2)
+        end
+
+        Util.notify({
+            Title = "Auto Sell Done",
+            Content = string.format("Sold %d relics under 5 substats", sold),
+            Duration = 5,
+        })
+    end,
+})
+
 MiscTab:CreateSection("Claim")
 
 Toggle = MiscTab:CreateToggle({
