@@ -5492,8 +5492,19 @@ task.spawn(function()
         local shellPart = shell:IsA("BasePart") and shell or shell:FindFirstChildWhichIsA("BasePart")
         if not shellPart then return end
         tweenTo(hrp, shellPart.CFrame + Vector3.new(0, 3, 0))
-        task.wait(0.1)
-        if prompt and prompt.Parent then pcall(fireproximityprompt, prompt) end
+        task.wait(0.3) -- wait for tween + server position update
+
+        -- Retry loop instead of single attempt
+        for attempt = 1, 5 do
+            if not prompt or not prompt.Parent then break end
+            local success = pcall(fireproximityprompt, prompt)
+            if success then
+                -- Verify it worked by checking if the shell is gone
+                task.wait(0.3)
+                if not shell.Parent then break end -- shell destroyed = success
+            end
+            task.wait(0.3)
+        end
     end
 
     local connection = nil
