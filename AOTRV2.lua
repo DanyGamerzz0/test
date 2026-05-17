@@ -11,7 +11,7 @@ end
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local script_version = "V0.02"
+local script_version = "V0.03"
 local debug = false
 
 local Players = game:GetService("Players")
@@ -3138,7 +3138,18 @@ local function joinMission()
         task.wait(0.1)
     end
     debugPrint("[LixHub] Auto Join: Starting mission...")
-    GET:InvokeServer("S_Missions", "Start")
+    task.wait(1)
+    local startResult
+    for attempt = 1, 5 do
+        startResult = GET:InvokeServer("S_Missions", "Start")
+        if startResult then break end
+        warn("[LixHub] Auto Join: Start attempt", attempt, "failed, retrying...")
+        task.wait(1)
+    end
+    if not startResult then
+        warn("[LixHub] Auto Join: Start never succeeded")
+        return false
+    end
     return true
 end
 
