@@ -8197,7 +8197,6 @@ local function buildAutoAbilityUI()
                     Options = { "Wealth", "Power", "Knowledge" },
                     CurrentOption = { "Wealth" },
                     MultipleOptions = false,
-                    Flag = "AutoAbility_Shanlong_Wish_" .. cleanId,
                     Callback = function(Option)
                         local selected = type(Option) == "table" and Option[1] or Option
                         abilitySettings[settingKey].shanglongWish = selected
@@ -8211,7 +8210,6 @@ local function buildAutoAbilityUI()
                 Options = { "Disabled", "Auto (Always)", "On Wave", "On Boss" },
                 CurrentOption = { "Disabled" },
                 MultipleOptions = false,
-                Flag = "AutoAbility_Mode_" .. settingKey,
                 Callback = function(Option)
                     local selected = type(Option) == "table" and Option[1] or Option
                     abilitySettings[settingKey].mode = selected
@@ -8224,7 +8222,6 @@ local function buildAutoAbilityUI()
                 Range = { 0, 300 },
                 Increment = 1,
                 CurrentValue = 0,
-                Flag = "AutoAbility_Delay_" .. settingKey,
                 Callback = function(Value)
                     abilitySettings[settingKey].delay = Value
                     MacroIO.saveAutoAbilitySettings()
@@ -8250,7 +8247,6 @@ local function buildAutoAbilityUI()
                 Range = { 1, 300 },
                 Increment = 1,
                 CurrentValue = 1,
-                Flag = "AutoAbility_Wave_" .. settingKey,
                 Callback = function(Value)
                     abilitySettings[settingKey].wave = Value
                     MacroIO.saveAutoAbilitySettings()
