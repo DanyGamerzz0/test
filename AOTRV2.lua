@@ -3085,17 +3085,34 @@ local function tryDifficulties(diffList, createFn)
 end
 
 local function joinMission()
-    local function attemptCreate(diff)
-        local mapName = State.autoJoinMissionMap
-        if mapName == "Boosted" then
-            mapName = workspace:GetAttribute("Boosted_Map")
-            if not mapName or mapName == "" then
-                warn("[LixHub] Auto Join: Boosted map attribute not found")
-                error("Boosted map not available")
-            end
-            debugPrint("[LixHub] Auto Join: Boosted map detected —", mapName)
+    local mapName = State.autoJoinMissionMap
+    if mapName == "Boosted" then
+        mapName = workspace:GetAttribute("Boosted_Map")
+        if not mapName or mapName == "" then
+            warn("[LixHub] Auto Join: Boosted map attribute not found")
+            return false
         end
+    end
 
+    -- Check if player already owns a lobby for this map
+    local missions = ReplicatedStorage:FindFirstChild("Missions")
+    local existingLobby = missions and missions:FindFirstChild(mapName)
+    local leader = existingLobby and existingLobby:FindFirstChild("Leader")
+
+    if leader and leader.Value == player.Name then
+        debugPrint("[LixHub] Auto Join: Already leader of lobby, firing Start directly")
+        local startResult
+        for attempt = 1, 5 do
+            startResult = GET:InvokeServer("S_Missions", "Start")
+            if startResult then break end
+            warn("[LixHub] Auto Join: Start attempt", attempt, "failed, retrying...")
+            task.wait(1)
+        end
+        return startResult == true
+    end
+
+    -- No existing lobby, create one
+    local function attemptCreate(diff)
         debugPrint("[LixHub] Auto Join: Creating mission —", mapName, State.autoJoinMissionObj, diff)
         local result = GET:InvokeServer("S_Missions", "Create", {
             Difficulty = diff,
@@ -3103,10 +3120,7 @@ local function joinMission()
             Objective  = State.autoJoinMissionObj,
             Name       = mapName,
         })
-        debugPrint("[LixHub] Auto Join: Create result —", result, type(result))
-        if not result then
-            error("Create failed for diff: " .. diff)
-        end
+        if not result then error("Create failed for diff: " .. diff) end
         return true
     end
 
@@ -3127,17 +3141,14 @@ local function joinMission()
         return false
     end
 
-    debugPrint("[LixHub] Auto Join: Lobby created successfully")
     for _, mod in ipairs(State.autoJoinMissionMods) do
         local modResult = GET:InvokeServer("S_Missions", "Modify", mod)
         if modResult ~= true then
-            warn("[LixHub] Auto Join: Modifier failed —", mod, "got:", modResult)
-        else
-            debugPrint("[LixHub] Auto Join: Applied modifier —", mod)
+            warn("[LixHub] Auto Join: Modifier failed —", mod)
         end
         task.wait(0.1)
     end
-    debugPrint("[LixHub] Auto Join: Starting mission...")
+
     task.wait(1)
     local startResult
     for attempt = 1, 5 do
@@ -3146,11 +3157,8 @@ local function joinMission()
         warn("[LixHub] Auto Join: Start attempt", attempt, "failed, retrying...")
         task.wait(1)
     end
-    if not startResult then
-        warn("[LixHub] Auto Join: Start never succeeded")
-        return false
-    end
-    return true
+
+    return startResult == true
 end
 
 local function joinRaid()
