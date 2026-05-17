@@ -5484,6 +5484,7 @@ task.spawn(function()
     end
 
     local function tryFreeShell(shell)
+        if not shell or not shell.Parent then return end
         local prompt = shell:FindFirstChild("FreeMochiUnitPrompt")
         if not prompt then return end
         local character = Services.Players.LocalPlayer.Character
@@ -5491,47 +5492,55 @@ task.spawn(function()
         if not hrp then return end
         local shellPart = shell:IsA("BasePart") and shell or shell:FindFirstChildWhichIsA("BasePart")
         if not shellPart then return end
-        tweenTo(hrp, shellPart.CFrame + Vector3.new(0, 3, 0))
-        task.wait(0.3) -- wait for tween + server position update
 
-        -- Retry loop instead of single attempt
-        for attempt = 1, 5 do
-            if not prompt or not prompt.Parent then break end
-            local success = pcall(fireproximityprompt, prompt)
-            if success then
-                -- Verify it worked by checking if the shell is gone
-                task.wait(0.3)
-                if not shell.Parent then break end -- shell destroyed = success
-            end
-            task.wait(0.3)
+        tweenTo(hrp, shellPart.CFrame + Vector3.new(0, 3, 0))
+        task.wait(0.3)
+
+        -- Retry until shell is gone or prompt disappears
+        for attempt = 1, 8 do
+            if not shell.Parent or not prompt.Parent then break end
+            pcall(fireproximityprompt, prompt)
+            task.wait(0.4)
+            if not shell.Parent then break end -- freed successfully
         end
     end
 
+    local processing = {} -- track shells already being handled
     local connection = nil
 
     while true do
-        task.wait(0.5)
+        task.wait(0.3) -- tighter poll
         local effects = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Effects")
         if not effects then continue end
 
         if State.AutoFreeMochiUnits and not connection then
-            -- Initial scan only once when enabled
-            for _, child in pairs(effects:GetChildren()) do
-                if child.Name == "KatakuriMochiShell" then
-                    task.spawn(tryFreeShell, child)
-                end
-            end
-            -- ChildAdded handles everything after that — no more polling
             connection = effects.ChildAdded:Connect(function(child)
                 if not State.AutoFreeMochiUnits then return end
-                if child.Name == "KatakuriMochiShell" then
-                    task.wait(0.3)
-                    task.spawn(tryFreeShell, child)
+                if child.Name == "KatakuriMochiShell" and not processing[child] then
+                    processing[child] = true
+                    task.spawn(function()
+                        tryFreeShell(child)
+                        processing[child] = nil
+                    end)
                 end
             end)
         elseif not State.AutoFreeMochiUnits and connection then
             connection:Disconnect()
             connection = nil
+            processing = {}
+        end
+
+        -- Continuous scan to catch any missed shells
+        if State.AutoFreeMochiUnits then
+            for _, child in pairs(effects:GetChildren()) do
+                if child.Name == "KatakuriMochiShell" and not processing[child] then
+                    processing[child] = true
+                    task.spawn(function()
+                        tryFreeShell(child)
+                        processing[child] = nil
+                    end)
+                end
+            end
         end
     end
 end)
