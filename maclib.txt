@@ -1427,16 +1427,23 @@ function MacLib:Window(Settings)
 			local tabImage
 
 			if Settings.Image then
-				tabImage = Instance.new("ImageLabel")
-				tabImage.Name = "TabImage"
-				tabImage.Image = Settings.Image
-				tabImage.ImageTransparency = 0.5
-				tabImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-				tabImage.BackgroundTransparency = 1
-				tabImage.BorderColor3 = Color3.fromRGB(0, 0, 0)
-				tabImage.BorderSizePixel = 0
-				tabImage.Size = UDim2.fromOffset(18, 18)
-				tabImage.Parent = tabSwitcher
+			    tabImage = Instance.new("ImageLabel")
+			    tabImage.Name = "TabImage"
+			    tabImage.Image = ""
+			    tabImage.ImageTransparency = 0.5
+			    tabImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			    tabImage.BackgroundTransparency = 1
+			    tabImage.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			    tabImage.BorderSizePixel = 0
+			    tabImage.Size = UDim2.fromOffset(18, 18)
+			    tabImage.Parent = tabSwitcher
+			
+			    task.spawn(function()
+			        pcall(function()
+			            ContentProvider:PreloadAsync({Settings.Image})
+			        end)
+			        tabImage.Image = Settings.Image
+			    end)
 			end
 
 			local tabSwitcherName = Instance.new("TextLabel")
