@@ -8195,7 +8195,7 @@ local function buildAutoAbilityUI()
                 AutoAbilityTab:CreateDropdown({
                     Name = "Select Wish",
                     Options = { "Wealth", "Power", "Knowledge" },
-                    CurrentOption = { "Wealth" },
+                    CurrentOption = { abilitySettings[settingKey].shanglongWish },
                     MultipleOptions = false,
                     Callback = function(Option)
                         local selected = type(Option) == "table" and Option[1] or Option
@@ -8208,7 +8208,7 @@ local function buildAutoAbilityUI()
             AutoAbilityTab:CreateDropdown({
                 Name = "Mode",
                 Options = { "Disabled", "Auto (Always)", "On Wave", "On Boss" },
-                CurrentOption = { "Disabled" },
+                CurrentOption = { abilitySettings[settingKey].mode },  -- read from saved
                 MultipleOptions = false,
                 Callback = function(Option)
                     local selected = type(Option) == "table" and Option[1] or Option
@@ -8221,7 +8221,7 @@ local function buildAutoAbilityUI()
                 Name = "Delay use by x seconds (0 = disable)",
                 Range = { 0, 300 },
                 Increment = 1,
-                CurrentValue = 0,
+                CurrentValue = abilitySettings[settingKey].delay,  -- read from saved
                 Callback = function(Value)
                     abilitySettings[settingKey].delay = Value
                     MacroIO.saveAutoAbilitySettings()
@@ -8246,7 +8246,7 @@ local function buildAutoAbilityUI()
                 Name = "Use on Wave (if 'On Wave' selected)",
                 Range = { 1, 300 },
                 Increment = 1,
-                CurrentValue = 1,
+                CurrentValue = abilitySettings[settingKey].wave,  -- read from saved
                 Callback = function(Value)
                     abilitySettings[settingKey].wave = Value
                     MacroIO.saveAutoAbilitySettings()
