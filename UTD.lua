@@ -12,6 +12,9 @@ if game.PlaceId ~= 133410800847665 and game.PlaceId ~= 106402284955512 and game.
     return
 end
 
+if getgenv().__LIXHUB_LOADED then return end
+getgenv().__LIXHUB_LOADED = true
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local script_version = "V0.11"
@@ -568,10 +571,9 @@ local function updateQueueOnTeleport()
     if not queue_on_teleport then return end
     local parts = {}
 
-    -- Always persist run counter across teleports
     table.insert(parts, string.format("getgenv().__LIXHUB_RUNS = %d", State.sessionRuns))
+    table.insert(parts, "getgenv().__LIXHUB_LOADED = nil") -- add this line
 
-    -- Preserve auto-execute if enabled
     if State.enableAutoExecute then
         table.insert(parts, 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Lixtron/Hub/refs/heads/main/loader"))()')
     end
@@ -6368,6 +6370,12 @@ local PlaybackToggle = Tab:CreateToggle({
                 Util.notify({ Title = "Playback Ready", Content = "Restart disabled - playing from current wave", Duration = 3 })
             end
             isPlaybackEnabled = true
+            local currentWave = workspace:GetAttribute("Wave") or 0
+            local matchFinished = workspace:GetAttribute("MatchFinished")
+            if currentWave >= 1 and not matchFinished then
+                gameInProgress = true
+                gameStartTime = gameStartTime ~= 0 and gameStartTime or tick()
+            end
             Util.updateMacroStatus("Playback Enabled - Waiting for game...")
             Util.notify({ Title = "Playback Enabled", Content = "Macro will playback: " .. currentMacroName, Duration = 4 })
             task.spawn(Playback.autoPlaybackLoop)
