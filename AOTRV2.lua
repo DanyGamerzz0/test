@@ -2773,8 +2773,30 @@ function Raids.startColossal()
             local colossal = getColossalTitan()
             if colossal then
                 if not ColossalState.onCannon then
-                    -- Move body movers off since cannon welds us
+                    -- Get cannon position and move toward it first
+                    local cannonBase = cannon:FindFirstChildWhichIsA("BasePart")
+                    if cannonBase then
+                        local cannonPos = cannonBase.Position
+                        local distToCannon = (rootPart.Position - cannonPos).Magnitude
+
+                        -- Re-enable movers so we can travel back
+                        disableCollision()
+                        local hum = character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                        enableSync()
+
+                        State.syncedPosition = cannonPos + Vector3.new(0, 5, 0)
+                        ensureBodyMovers(CFrame.new(cannonPos + Vector3.new(0, 5, 0)))
+
+                        if distToCannon > 20 then
+                            -- Not close enough yet, keep traveling
+                            return
+                        end
+                    end
+
+                    -- Close enough — stop movement, mount cannon
                     removeBodyMovers()
+                    disableSync()
                     mountCannon(cannon)
                 end
 
