@@ -2503,16 +2503,13 @@ local function getClosestTitanToEren2()
 end
 
 local function mountCannon(cannon)
-    -- Claim once if not claimed
     if not ColossalState.claimed then
         GET:InvokeServer("Cannon", "Claim", cannon)
         ColossalState.claimed = true
         task.wait(0.1)
     end
-    -- Mount
-    GET:InvokeServer("Cannon", "State", cannon, true)
+    -- Don't call State true — skips the mount animation entirely
     ColossalState.onCannon = true
-    debugPrint("[LixHub] Colossal: Mounted cannon")
 end
 
 local function dismountCannon(cannon)
@@ -2562,44 +2559,24 @@ local function shootCannon(cannon, colossalTitan)
     if cannonShooting then return end
     cannonShooting = true
 
-    GET:InvokeServer("Cannon", "Shoot", {
-        BarrelWood = 20,
-        Base       = 0,
-    })
+    local ok = pcall(function()
+        GET:InvokeServer("Cannon", "Shoot", {
+            BarrelWood = 20,
+            Base       = 0,
+        })
+    end)
 
-    -- Wait for cannonball to appear in workspace (2.5s timeout)
-    local cannonBall = nil
-    local startTime = tick()
-    repeat
-        task.wait()
-        cannonBall = workspace:FindFirstChild("Cannon")
-    until cannonBall or tick() - startTime > 2.5
+    task.wait(0.5) -- give the ball time to spawn
 
-    if cannonBall then
-        -- Wait for the actual impact event before spamming
-        local impactFired = false
-        local conn = POST.OnClientEvent:Connect(function(a, b, obj)
-            if a == "Skills" and b == "Impact" and obj == cannonBall then
-                impactFired = true
-            end
-        end)
-        local waitStart = tick()
-        repeat task.wait() until impactFired or tick() - waitStart > 4
-        conn:Disconnect()
-
-        if impactFired then
-            local hrp = colossalTitan and colossalTitan:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local pos = hrp.Position - Vector3.new(0, 20, 0)
-                for i = 1, CANNON_IMPACT_COUNT do
-                    POST:FireServer("S_Skills", "Impact", cannonBall, pos)
-                end
-            end
-        else
-            debugPrint("[LixHub] Colossal: Impact event never fired, skipping")
+    local hrp = colossalTitan and colossalTitan:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local pos = hrp.Position - Vector3.new(0, 20, 0)
+        -- Just spam impacts directly, don't wait for the event
+        for i = 1, CANNON_IMPACT_COUNT do
+            pcall(function()
+                POST:FireServer("S_Skills", "Impact", workspace:FindFirstChild("Cannon") or cannon, pos)
+            end)
         end
-    else
-        debugPrint("[LixHub] Colossal: Cannonball not found in workspace, skipping")
     end
 
     task.wait(1.1)
