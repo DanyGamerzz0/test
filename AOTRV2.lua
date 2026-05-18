@@ -424,7 +424,7 @@ local function spearAttackTitan(nape, titanRoot, isRaidBoss)
                         if otherNape and otherNape ~= nape then
                             local otherHrp = titan:FindFirstChild("HumanoidRootPart")
                             local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                            if dist <= 500 then
+                            if dist <= 1000 then
                                 for i = 1, explodeCount do
                                     POST:FireServer("Spears", "S_Explode", otherNape.Position)
                                 end
@@ -736,7 +736,7 @@ local function startAutoAttack()
                             if otherNape and otherNape ~= nape then
                                 local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
                                 local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                                if dist <= 500 then
+                                if dist <= 1000 then
                                     local d2 = 670 + math.random(55, 165)
                                     if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
                                     POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
@@ -1389,7 +1389,7 @@ function Raids.handleTitan(titan, useVulnerable, isRaidBoss)
                         if otherNape and otherNape ~= nape then
                             local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
                             local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                            if dist <= 500 then
+                            if dist <= 1000 then
                                 local d2 = 670 + math.random(55, 165)
                                 if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
                                 POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
@@ -2409,7 +2409,7 @@ else
                         if otherNape and otherNape ~= nape then
                             local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
                             local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                            if dist <= 500 then
+                            if dist <= 1000 then
                                 local d2 = 670 + math.random(55, 165)
                                 if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
                                 POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
