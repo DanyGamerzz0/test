@@ -728,6 +728,11 @@ function UnitTracker.findNewInGC(unitName, excludeUUIDs)
         local uuid = unit.Name
         if excludeUUIDs[uuid] then return end
 
+        if not PlacedTowerController then
+            task.wait(0.5)
+            PlacedTowerController = Knit.GetController("PlacedTowerController")
+        end
+
         local unitClass = PlacedTowerController:GetUnitClass(uuid)
         if not unitClass then return end
 
