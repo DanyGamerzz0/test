@@ -14,7 +14,7 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local script_version = "V0.1"
+local script_version = "V0.11"
 getgenv().RAYFIELD_SECURE = true
 getgenv().RAYFIELD_ASSET_ID = 77799463979503
 
@@ -8962,27 +8962,48 @@ task.spawn(function()
     local ok, ViewReward = pcall(require, game:GetService("ReplicatedStorage").Client.UiComponents.ViewReward)
     if not ok then warn("Failed:", ViewReward) return end
 
-    -- ViewReward is a function, u26 is its upvalue
     local upvalues = getupvalues(ViewReward)
     for i, v in pairs(upvalues) do
         if type(v) == "table" and v.ClickContinue and v.Deactivate and v.Activate then
-            v.ClickContinue = function(self)
+            local function autoContinue(self)
                 self.CanNext = true
-                -- Clean up the glow particles directly
+                -- Clean up character particles
                 if self.OpenParticles and self.OpenParticles.Parent then
                     self.OpenParticles:Destroy()
                 end
-                -- Also clean up any leftover particles on character
                 pcall(function()
                     local character = game:GetService("Players").LocalPlayer.Character
                     if character then
                         for _, obj in pairs(character:GetChildren()) do
-                            if obj.Name == "OpenParticles" then
-                                obj:Destroy()
-                            end
+                            if obj.Name == "OpenParticles" then obj:Destroy() end
                         end
                     end
                 end)
+                -- Clean up camera VFX
+                if self.ClonedEnableVFX and self.ClonedEnableVFX.Parent then
+                    self.ClonedEnableVFX:Destroy()
+                end
+                if self.ClonedEmitVFX and self.ClonedEmitVFX.Parent then
+                    self.ClonedEmitVFX:Destroy()
+                end
+                -- Fallback: nuke everything in Camera named after a rarity
+                pcall(function()
+                    for _, obj in pairs(workspace.CurrentCamera:GetChildren()) do
+                        if obj.Name == "Exclusive" or obj.Name == "Secret" or obj.Name == "Mythic" or obj.Name == "Legendary" or obj.Name == "Rare" 
+                        or obj.Name == "Epic" or obj.Name == "Common" or obj.Name == "Uncommon" then
+                            obj:Destroy()
+                        end
+                    end
+                end)
+            end
+            v.ClickContinue = autoContinue
+            v.AutoContinue = autoContinue
+            v.TapContinue = autoContinue
+            -- patch any other *Continue methods
+            for key, val in pairs(v) do
+                if type(key) == "string" and key:find("Continue") and type(val) == "function" then
+                    v[key] = autoContinue
+                end
             end
             print("Patched")
             break
