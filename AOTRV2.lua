@@ -2536,6 +2536,16 @@ local function dismountCannon(cannon)
                 Directions = {},
             })
         end)
+                local ok2 = pcall(function()
+            GET:InvokeServer("Cannon", "State", cannon, false, {
+                SFX        = {},
+                Object     = cannon,
+                BarrelWood = barrelWood,
+                Angles     = { BarrelWood = 0, Base = 0 },
+                Base       = base,
+                Directions = {},
+            })
+        end)
         
         if ok then
             success = true
@@ -2745,7 +2755,7 @@ function Raids.startColossal()
             -- Dismount cannon so we can move
             if ColossalState.onCannon then
                 dismountCannon(cannon)
-                task.wait(0.3)
+                task.wait(1)
                 -- re-enable movement
                 disableCollision()
                 local hum = character:FindFirstChildOfClass("Humanoid")
