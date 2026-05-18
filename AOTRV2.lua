@@ -424,7 +424,7 @@ local function spearAttackTitan(nape, titanRoot, isRaidBoss)
                         if otherNape and otherNape ~= nape then
                             local otherHrp = titan:FindFirstChild("HumanoidRootPart")
                             local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                            if dist <= 1000 then
+                            if dist <= 500 then
                                 for i = 1, explodeCount do
                                     POST:FireServer("Spears", "S_Explode", otherNape.Position)
                                 end
@@ -736,7 +736,7 @@ local function startAutoAttack()
                             if otherNape and otherNape ~= nape then
                                 local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
                                 local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                                if dist <= 1000 then
+                                if dist <= 500 then
                                     local d2 = 670 + math.random(55, 165)
                                     if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
                                     POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
@@ -1389,7 +1389,7 @@ function Raids.handleTitan(titan, useVulnerable, isRaidBoss)
                         if otherNape and otherNape ~= nape then
                             local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
                             local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                            if dist <= 1000 then
+                            if dist <= 500 then
                                 local d2 = 670 + math.random(55, 165)
                                 if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
                                 POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
@@ -2409,7 +2409,7 @@ else
                         if otherNape and otherNape ~= nape then
                             local otherHrp = otherTitan:FindFirstChild("HumanoidRootPart")
                             local dist = otherHrp and (otherHrp.Position - rootPart.Position).Magnitude or math.huge
-                            if dist <= 1000 then
+                            if dist <= 500 then
                                 local d2 = 670 + math.random(55, 165)
                                 if math.random(1, 8) == 1 then d2 = d2 * math.random(138, 148) / 100 end
                                 POST:FireServer("Hitboxes", "Register", otherNape, math.floor(d2))
@@ -2503,13 +2503,16 @@ local function getClosestTitanToEren2()
 end
 
 local function mountCannon(cannon)
+    -- Claim once if not claimed
     if not ColossalState.claimed then
         GET:InvokeServer("Cannon", "Claim", cannon)
         ColossalState.claimed = true
         task.wait(0.1)
     end
-    -- Don't call State true — skips the mount animation entirely
+    -- Mount
+    GET:InvokeServer("Cannon", "State", cannon, true)
     ColossalState.onCannon = true
+    debugPrint("[LixHub] Colossal: Mounted cannon")
 end
 
 local function dismountCannon(cannon)
@@ -2559,24 +2562,44 @@ local function shootCannon(cannon, colossalTitan)
     if cannonShooting then return end
     cannonShooting = true
 
-    local ok = pcall(function()
-        GET:InvokeServer("Cannon", "Shoot", {
-            BarrelWood = 20,
-            Base       = 0,
-        })
-    end)
+    GET:InvokeServer("Cannon", "Shoot", {
+        BarrelWood = 20,
+        Base       = 0,
+    })
 
-    task.wait(0.5) -- give the ball time to spawn
+    -- Wait for cannonball to appear in workspace (2.5s timeout)
+    local cannonBall = nil
+    local startTime = tick()
+    repeat
+        task.wait()
+        cannonBall = workspace:FindFirstChild("Cannon")
+    until cannonBall or tick() - startTime > 2.5
 
-    local hrp = colossalTitan and colossalTitan:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        local pos = hrp.Position - Vector3.new(0, 20, 0)
-        -- Just spam impacts directly, don't wait for the event
-        for i = 1, CANNON_IMPACT_COUNT do
-            pcall(function()
-                POST:FireServer("S_Skills", "Impact", workspace:FindFirstChild("Cannon") or cannon, pos)
-            end)
+    if cannonBall then
+        -- Wait for the actual impact event before spamming
+        local impactFired = false
+        local conn = POST.OnClientEvent:Connect(function(a, b, obj)
+            if a == "Skills" and b == "Impact" and obj == cannonBall then
+                impactFired = true
+            end
+        end)
+        local waitStart = tick()
+        repeat task.wait() until impactFired or tick() - waitStart > 4
+        conn:Disconnect()
+
+        if impactFired then
+            local hrp = colossalTitan and colossalTitan:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local pos = hrp.Position - Vector3.new(0, 20, 0)
+                for i = 1, CANNON_IMPACT_COUNT do
+                    POST:FireServer("S_Skills", "Impact", cannonBall, pos)
+                end
+            end
+        else
+            debugPrint("[LixHub] Colossal: Impact event never fired, skipping")
         end
+    else
+        debugPrint("[LixHub] Colossal: Cannonball not found in workspace, skipping")
     end
 
     task.wait(1.1)
@@ -2739,25 +2762,16 @@ function Raids.startColossal()
             -- ===== STALL: mount cannon and fire at Colossal =====
             local colossal = getColossalTitan()
             if colossal then
-                if not cannonShooting then
-                    if not ColossalState.onCannon then
-                        removeBodyMovers()
-                        mountCannon(cannon)
-                        task.wait(0.3) -- let mount settle
-                    end
-
-                    task.spawn(function()
-                        shootCannon(cannon, colossal)
-                        -- Dismount immediately after shot so we're free to move
-                        task.wait(0.2)
-                        dismountCannon(cannon)
-                        -- re-enable movement after dismount
-                        disableCollision()
-                        local hum = character:FindFirstChildOfClass("Humanoid")
-                        if hum then hum.PlatformStand = true; hum.AutoRotate = false end
-                        enableSync()
-                    end)
+                if not ColossalState.onCannon then
+                    -- Move body movers off since cannon welds us
+                    removeBodyMovers()
+                    mountCannon(cannon)
                 end
+
+                -- Fire cannonballs + impacts at Colossal
+                task.spawn(function()
+                    shootCannon(cannon, colossal)
+                end)
             end
         end
     end)
