@@ -2762,16 +2762,25 @@ function Raids.startColossal()
             -- ===== STALL: mount cannon and fire at Colossal =====
             local colossal = getColossalTitan()
             if colossal then
-                if not ColossalState.onCannon then
-                    -- Move body movers off since cannon welds us
-                    removeBodyMovers()
-                    mountCannon(cannon)
-                end
+                if not cannonShooting then
+                    if not ColossalState.onCannon then
+                        removeBodyMovers()
+                        mountCannon(cannon)
+                        task.wait(0.3) -- let mount settle
+                    end
 
-                -- Fire cannonballs + impacts at Colossal
-                task.spawn(function()
-                    shootCannon(cannon, colossal)
-                end)
+                    task.spawn(function()
+                        shootCannon(cannon, colossal)
+                        -- Dismount immediately after shot so we're free to move
+                        task.wait(0.2)
+                        dismountCannon(cannon)
+                        -- re-enable movement after dismount
+                        disableCollision()
+                        local hum = character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.PlatformStand = true; hum.AutoRotate = false end
+                        enableSync()
+                    end)
+                end
             end
         end
     end)
