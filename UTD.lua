@@ -6133,16 +6133,16 @@ local RecordToggle = Tab:CreateToggle({
                 recordingHasStarted = false
                 Util.notify({ Title = "Mid-Game Detected", Content = "Attempting to restart game...", Duration = 3 })
                 local restartSuccess = false
-                for attempt = 1, 3 do
+                for attempt = 1, 2 do
                     GameState.restartMatch()
                     local waitStart = tick()
-                    while tick() - waitStart < 2 do
+                    while tick() - waitStart < 1 do
                         local wave = workspace:GetAttribute("Wave") or 0
                         if wave == 0 then restartSuccess = true break end
-                        task.wait(0.2)
+                        task.wait(0.1)
                     end
                     if restartSuccess then break end
-                    if attempt < 3 then task.wait(0.3) end
+                    if attempt < 2 then task.wait(0.2) end
                 end
                 if not restartSuccess then
                     Util.notify({ Title = "Restart Failed", Content = "Recording from current wave...", Duration = 5 })
@@ -8622,6 +8622,10 @@ end)
 workspace:GetAttributeChangedSignal("MatchFinished"):Connect(function()
     local matchFinished = workspace:GetAttribute("MatchFinished")
     if matchFinished and gameInProgress then
+        local deadline = tick() + 5
+        while (lastMatchResult == nil or finishedRewardData == nil) and tick() < deadline do
+            task.wait(0.1)
+        end
         afterRewardData = Util.deepCopy(RequestData:InvokeServer())
         State.sessionRuns = State.sessionRuns + 1
         updateQueueOnTeleport()
